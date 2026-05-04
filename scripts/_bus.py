@@ -131,6 +131,30 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "platform.log_retention",
         "description": "Log file rotated by log_retention.rotate_if_needed (audit marker)",
     },
+    # Wave-2 Tranche B (#746): JSONL append-stream cutovers.
+    # Each event mirrors a JSONL append into a per-phase log file; the
+    # projector handler replays the append from raw_payload.  Same shape
+    # as wave-1 Site 1 (dispatch-log) but for four additional logs.
+    "wicked.amendment.appended": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.amendment",
+        "description": "Phase amendment appended to amendments.jsonl (Site W6 cutover)",
+    },
+    "wicked.reeval.addendum_appended": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.reeval",
+        "description": "Re-eval addendum appended to per-phase + project-root JSONL logs (Site W7 cutover; dual-file projection)",
+    },
+    "wicked.convergence.transition_recorded": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.convergence",
+        "description": "Convergence-log transition recorded for an artifact (Site W8 cutover)",
+    },
+    "wicked.review.semantic_gap_recorded": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.review",
+        "description": "Semantic-gap report persisted at review phase (Site W10a cutover)",
+    },
     # Jam domain — jam.py
     "wicked.session.started": {
         "domain": "wicked-garden",
@@ -303,6 +327,16 @@ _PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
     # raw_payload so the projector can reproduce the file byte-for-byte.
     "wicked.consensus.gate_completed": frozenset({"raw_payload"}),
     "wicked.consensus.gate_pending": frozenset({"raw_payload"}),
+    # Wave-2 Tranche B (#746): JSONL append-stream cutovers carry the
+    # canonical JSONL line via `raw_payload` so the projector can replay
+    # the append byte-for-byte.  Same pattern as Site 1 dispatch-log.
+    # Each per-event audit note: the line bytes describe an append-only
+    # log entry (already validated by the source module's _validate_*
+    # call), so payload inspection is bounded by the schema check upstream.
+    "wicked.amendment.appended": frozenset({"raw_payload"}),
+    "wicked.reeval.addendum_appended": frozenset({"raw_payload"}),
+    "wicked.convergence.transition_recorded": frozenset({"raw_payload"}),
+    "wicked.review.semantic_gap_recorded": frozenset({"raw_payload"}),
 }
 
 # ---------------------------------------------------------------------------
@@ -363,7 +397,12 @@ _BUS_AS_TRUTH_DEFAULT_ON: frozenset = frozenset({
     "REVIEWER_REPORT",       # Site 3 — reviewer-report.md (PR #776)
     "GATE_RESULT",           # Site 4 — gate-result.json (PR #782 + #784)
     "CONDITIONS_MANIFEST",   # Site 5 — conditions-manifest.json (PR #785)
-    "INLINE_REVIEW_CONTEXT", # Site W1 — inline-review-context.md (#787, this PR)
+    "INLINE_REVIEW_CONTEXT", # Site W1 — inline-review-context.md (PR #788)
+    # Wave-2 Tranche B (this PR):
+    "AMENDMENTS",            # Site W6 — amendments.jsonl
+    "REEVAL_ADDENDUM",       # Site W7 — reeval-log.jsonl + process-plan.addendum.jsonl
+    "CONVERGENCE",           # Site W8 — convergence-log.jsonl
+    "SEMANTIC_GAP",          # Site W10a — semantic-gap-report.json
 })
 
 

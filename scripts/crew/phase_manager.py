@@ -2573,9 +2573,37 @@ def _check_semantic_alignment_gate(
         out_dir = project_dir / "phases" / "review"
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "semantic-gap-report.json"
-        out_path.write_text(
-            json.dumps(semantic_review.report_to_dict(report), indent=2)
+        report_bytes = json.dumps(
+            semantic_review.report_to_dict(report), indent=2,
         )
+        # Wave-2 Tranche B emit (#746 W10a): fire BEFORE the disk
+        # write so the projector handler can replay the same bytes.
+        # The semantic-gap report lives at a fixed phase ("review")
+        # regardless of which phase triggered the alignment check.
+        # chain_id format: {project}.review.semantic-gap.{report.score}
+        # — score is sufficient discriminator since each report is a
+        # full snapshot (not append-only); reports with the same score
+        # would be byte-identical anyway, content-hash idempotency in
+        # the handler short-circuits the rewrite.  Fail-open: bus
+        # unavailable must NOT block the disk write.
+        try:
+            from _bus import emit_event  # type: ignore[import]
+            project_id_str = project_dir.name
+            emit_event(
+                "wicked.review.semantic_gap_recorded",
+                {
+                    "project_id": project_id_str,
+                    "phase": "review",
+                    "verdict": report.verdict,
+                    "score": report.score,
+                    "raw_payload": report_bytes,
+                },
+                chain_id=f"{project_id_str}.review.semantic-gap-{report.score}",
+            )
+        except Exception:  # noqa: BLE001 — fail-open per Decision #8
+            pass  # bus unavailable — direct write below still runs
+
+        out_path.write_text(report_bytes)
     except OSError as exc:
         logger.warning(
             "[semantic-alignment] could not persist gap report: %s", exc,

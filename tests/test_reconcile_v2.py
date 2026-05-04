@@ -796,7 +796,12 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
             "WG_BUS_AS_TRUTH_REVIEWER_REPORT":       "off",
             "WG_BUS_AS_TRUTH_GATE_RESULT":           "off",
             "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST":   "off",
-            "WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT": "off",  # Site W1 (#787)
+            "WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT": "off",  # Site W1 (#788)
+            # Wave-2 Tranche B (this PR):
+            "WG_BUS_AS_TRUTH_AMENDMENTS":            "off",
+            "WG_BUS_AS_TRUTH_REEVAL_ADDENDUM":       "off",
+            "WG_BUS_AS_TRUTH_CONVERGENCE":           "off",
+            "WG_BUS_AS_TRUTH_SEMANTIC_GAP":          "off",
         }
         with patch.dict(os.environ, env_clear):
             result = reconcile_v2._active_projection_names()
@@ -816,7 +821,12 @@ class TestActiveProjNamesAllFlagsOff(unittest.TestCase):
             "WG_BUS_AS_TRUTH_REVIEWER_REPORT":       "on",
             "WG_BUS_AS_TRUTH_GATE_RESULT":           "off",
             "WG_BUS_AS_TRUTH_CONDITIONS_MANIFEST":   "off",
-            "WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT": "off",  # Site W1 (#787)
+            "WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT": "off",  # Site W1 (#788)
+            # Wave-2 Tranche B (this PR):
+            "WG_BUS_AS_TRUTH_AMENDMENTS":            "off",
+            "WG_BUS_AS_TRUTH_REEVAL_ADDENDUM":       "off",
+            "WG_BUS_AS_TRUTH_CONVERGENCE":           "off",
+            "WG_BUS_AS_TRUTH_SEMANTIC_GAP":          "off",
         }
         with patch.dict(os.environ, env):
             result = reconcile_v2._active_projection_names()

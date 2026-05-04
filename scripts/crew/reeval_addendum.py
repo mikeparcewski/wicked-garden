@@ -240,6 +240,37 @@ def append(
     per_phase = _per_phase_log_path(project_dir, phase)
     project_log = _project_addendum_path(project_dir)
 
+    # Wave-2 Tranche B emit (#746 W7): fire BEFORE the dual append so
+    # the projector handler can replay BOTH writes (per-phase + project-
+    # root) in the same order for crash-safety parity.  chain_id uses
+    # the record's chain_id when present (per the schema, every addendum
+    # carries its own chain_id), else falls back to {project}.{phase}.{ts}.
+    # Fail-open: bus unavailable must NOT block the disk appends.
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        from _bus import emit_event  # type: ignore[import]
+        project_id_str = project_dir.name
+        record_chain = record.get("chain_id")
+        if not record_chain:
+            ts = record.get("recorded_at") or record.get("timestamp") or ""
+            ts_compact = "".join(ch for ch in ts if ch.isdigit())[:14] or "noid"
+            record_chain = f"{project_id_str}.{phase}.reeval-{ts_compact}"
+        emit_event(
+            "wicked.reeval.addendum_appended",
+            {
+                "project_id": project_id_str,
+                "phase": phase,
+                "raw_payload": line + "\n",  # _atomic_append adds the newline
+            },
+            chain_id=str(record_chain),
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        pass  # bus unavailable — atomic appends below still run
+
     _atomic_append(per_phase, line)
     _atomic_append(project_log, line)
 

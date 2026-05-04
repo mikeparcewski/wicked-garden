@@ -281,6 +281,35 @@ def record_transition(
         },
     }
 
+    # Wave-2 Tranche B emit (#746 W8): fire BEFORE the disk append so
+    # the projector handler can replay the same line.  chain_id includes
+    # artifact_id for per-artifact uniqueness (per
+    # memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md).
+    # Fail-open: bus unavailable must NOT block the append.
+    line = json.dumps(entry, sort_keys=False) + "\n"
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        from _bus import emit_event  # type: ignore[import]
+        project_id_str = project_dir.name
+        emit_event(
+            "wicked.convergence.transition_recorded",
+            {
+                "project_id": project_id_str,
+                "phase": phase,
+                "artifact_id": artifact_id,
+                "from_state": current,
+                "to_state": to_state,
+                "raw_payload": line,
+            },
+            chain_id=f"{project_id_str}.{phase}.{artifact_id}",
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        pass  # bus unavailable — append below still runs
+
     _append_log(_log_path(project_dir, phase), entry)
     return entry
 

@@ -239,6 +239,36 @@ def append(
     # Append with newline terminator. JSONL is append-only by contract;
     # callers MUST NOT rewrite earlier lines.
     line = json.dumps(record, sort_keys=False) + "\n"
+
+    # Wave-2 Tranche B emit (#746 W6): fire BEFORE the disk append so
+    # the projector handler can replay the same line.  phase_dir shape
+    # is {project_dir}/phases/{phase}, so project_id = phase_dir.parent.parent.name
+    # and phase = phase_dir.name.  Fail-open: bus unavailable must NOT
+    # block the append.
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        from _bus import emit_event  # type: ignore[import]
+        project_id_str = phase_dir.parent.parent.name
+        phase_str = phase_dir.name
+        emit_event(
+            "wicked.amendment.appended",
+            {
+                "project_id": project_id_str,
+                "phase": phase_str,
+                "amendment_id": amendment_id,
+                "trigger": trigger,
+                "scope_version": scope_version,
+                "raw_payload": line,
+            },
+            chain_id=f"{project_id_str}.{phase_str}.{amendment_id}",
+        )
+    except Exception:  # noqa: BLE001 — fail-open per Decision #8
+        pass  # bus unavailable — append below still runs
+
     with open(path, "a", encoding="utf-8") as fh:
         fh.write(line)
         fh.flush()

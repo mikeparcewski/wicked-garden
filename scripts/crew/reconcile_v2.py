@@ -176,6 +176,31 @@ _PROJECTION_RESOLVERS: Dict[str, Callable[[Dict[str, Any], str, Path], "list[Pat
     "wicked.crew.inline_review_context_recorded": _resolve_single_file(
         "phases/{phase}/inline-review-context.md"
     ),
+    # Wave-2 Tranche B (this PR) — JSONL append-stream cutovers.
+    # Each event mirrors a JSONL append into a per-phase log file.  The
+    # projector handler appends the raw_payload line to the same file
+    # (mirroring the source module's _atomic_append).  Same shape as
+    # wave-1 Site 1 (dispatch-log) but for four additional logs.
+    "wicked.amendment.appended": _resolve_single_file(
+        "phases/{phase}/amendments.jsonl"
+    ),
+    # W7 is dual-file: the same event materialises BOTH the per-phase
+    # reeval-log.jsonl AND the project-root process-plan.addendum.jsonl.
+    # Custom resolver because the project-root path doesn't include
+    # the phase segment.
+    "wicked.reeval.addendum_appended": lambda payload, phase, project_dir: [
+        project_dir / "phases" / phase / "reeval-log.jsonl",
+        project_dir / "process-plan.addendum.jsonl",
+    ],
+    "wicked.convergence.transition_recorded": _resolve_single_file(
+        "phases/{phase}/convergence-log.jsonl"
+    ),
+    # W10a — semantic-gap report lives at a fixed path under phases/review/
+    # (not parameterised by the event's phase).  Use a custom resolver
+    # that ignores the phase argument and pins to "review".
+    "wicked.review.semantic_gap_recorded": lambda payload, phase, project_dir: [
+        project_dir / "phases" / "review" / "semantic-gap-report.json",
+    ],
 }
 
 
@@ -223,9 +248,14 @@ PROJECTION_FILE_FLAGS: Dict[str, str] = {
     "consensus-report.json":    "CONSENSUS_REPORT",    # Site 2 (flag A)
     "consensus-evidence.json":  "CONSENSUS_EVIDENCE",  # Site 2 (flag B — independent)
     "reviewer-report.md":       "REVIEWER_REPORT",     # Site 3
-    "gate-result.json":         "GATE_RESULT",         # Site 4 — active (PR #782 + #780 default-ON)
-    "conditions-manifest.json": "CONDITIONS_MANIFEST", # Site 5 — active (PR #785 default-ON)
-    "inline-review-context.md": "INLINE_REVIEW_CONTEXT", # Site W1 (#787) — solo_mode evidence record
+    "gate-result.json":            "GATE_RESULT",           # Site 4 — active (PR #782 + #780 default-ON)
+    "conditions-manifest.json":    "CONDITIONS_MANIFEST",   # Site 5 — active (PR #785 default-ON)
+    "inline-review-context.md":    "INLINE_REVIEW_CONTEXT", # Site W1 (PR #788) — solo_mode evidence record
+    # Wave-2 Tranche B (this PR) — active default-ON:
+    "amendments.jsonl":            "AMENDMENTS",            # Site W6 — phase amendments JSONL
+    "reeval-log.jsonl":            "REEVAL_ADDENDUM",       # Site W7 — re-eval per-phase log (project-root mirror also produced from same event)
+    "convergence-log.jsonl":       "CONVERGENCE",           # Site W8 — artifact convergence log
+    "semantic-gap-report.json":    "SEMANTIC_GAP",          # Site W10a — semantic alignment report
 }
 
 # ---------------------------------------------------------------------------
@@ -317,6 +347,13 @@ _PROJECTION_HANDLERS_AVAILABLE: Dict[str, bool] = {
     # rebuilds the markdown deterministically from the event payload so the
     # projection and direct-write paths produce byte-identical output.
     "wicked.crew.inline_review_context_recorded": True,
+    # Wave-2 Tranche B (this PR) — JSONL append cutovers.  Each handler
+    # appends the raw_payload line to the matching file (or, for W7,
+    # to BOTH the per-phase log and the project-root mirror).
+    "wicked.amendment.appended":               True,
+    "wicked.reeval.addendum_appended":         True,
+    "wicked.convergence.transition_recorded":  True,
+    "wicked.review.semantic_gap_recorded":     True,
     # Site 5 — no event handler mapping yet
     # (conditions-manifest.json has no event type in _PROJECTION_RESOLVERS)
 }

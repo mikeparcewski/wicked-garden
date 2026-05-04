@@ -1920,6 +1920,361 @@ def _inline_review_context_recorded(conn: sqlite3.Connection, event: dict) -> No
     )
 
 
+# --- Wave-2 Tranche B (#746): JSONL append-stream projectors ----------------
+#
+# Each handler below mirrors the JSONL-append shape from wave-1 Site 1
+# (dispatch-log).  The source module's _atomic_append (or open("a"))
+# writes one line; this handler replays the same line from raw_payload
+# into the same path.  Idempotency: line-presence check (the projector
+# must skip when the exact line is already present, since the daemon
+# consumer doesn't dedupe before calling handlers).
+#
+# Common boilerplate is factored into ``_jsonl_append_projection`` —
+# each handler resolves its file path + flag token + payload key and
+# delegates the actual append + idempotency.
+
+
+def _jsonl_append_projection(
+    conn: sqlite3.Connection,
+    event: dict,
+    *,
+    flag_token: str,
+    relative_template: str,
+    handler_name: str,
+) -> None:
+    """Shared body for wave-2 Tranche B JSONL-append projectors.
+
+    Args:
+        conn: daemon DB connection.
+        event: bus event with payload carrying ``project_id``, ``phase``,
+            and ``raw_payload`` (the JSONL line bytes, terminator-less).
+        flag_token: WG_BUS_AS_TRUTH_<token> gate.
+        relative_template: ``phases/{phase}/<basename>`` template.
+        handler_name: short name used in log lines (e.g.
+            ``"wicked.amendment.appended"``).
+
+    Behaviour:
+        * flag-off → no-op.
+        * Missing required payload fields → debug log, no-op.
+        * project_id has no DB row / NULL directory → warn, skip.
+        * Idempotency: if the exact raw_payload line is already in the
+          file, skip the append (replay short-circuit).
+        * Append uses ``open("a") + fsync`` mirroring the source modules.
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled(flag_token)
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: %s — project %r has no directory in DB; skipping",
+            handler_name, project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    target = project_dir / relative_template.replace("{phase}", str(phase))
+
+    line = str(raw_payload)
+    if not line.endswith("\n"):
+        line = line + "\n"
+
+    # Idempotency: skip if the exact line is already in the file.  Required
+    # because the daemon consumer doesn't dedupe before calling handlers
+    # (append_event_log uses INSERT OR REPLACE — handler fires per event
+    # in the batch).
+    try:
+        if target.exists():
+            existing = target.read_text(encoding="utf-8")
+            if line in existing:
+                logger.debug(
+                    "projector: %s — line already present in %s; skipping",
+                    handler_name, target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: %s — could not read %s for idempotency check: %s; "
+            "proceeding to append",
+            handler_name, target, exc,
+        )
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as fh:
+            fh.write(line)
+            fh.flush()
+            try:
+                import os
+                os.fsync(fh.fileno())
+            except OSError:
+                pass  # fail-open: fsync unsupported on this FS
+    except OSError as exc:
+        logger.warning(
+            "projector: %s — append failed at %s: %s",
+            handler_name, target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied %s project_id=%r phase=%r path=%s",
+        handler_name, project_id, phase, target,
+    )
+
+
+def _amendment_appended(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.amendment.appended → phases/{phase}/amendments.jsonl.
+
+    Site W6 of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_AMENDMENTS``.  Replays the raw_payload JSONL line
+    from ``amendments.append()`` into the same file.
+    """
+    _jsonl_append_projection(
+        conn, event,
+        flag_token="AMENDMENTS",
+        relative_template="phases/{phase}/amendments.jsonl",
+        handler_name="wicked.amendment.appended",
+    )
+
+
+def _reeval_addendum_appended(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.reeval.addendum_appended → BOTH per-phase + project-root logs.
+
+    Site W7 of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_REEVAL_ADDENDUM``.  ``reeval_addendum.append()``
+    writes BOTH ``phases/{phase}/reeval-log.jsonl`` AND
+    ``process-plan.addendum.jsonl`` per call; this handler replays
+    BOTH writes in the same order for crash-safety parity.
+
+    Both writes use the shared ``_jsonl_append_projection`` helper but
+    with different relative paths.  The per-phase log is templated;
+    the project-root log is fixed.
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("REEVAL_ADDENDUM")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    phase, ok = _require(payload, "phase", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: wicked.reeval.addendum_appended — project %r has no "
+            "directory in DB; skipping",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    line = str(raw_payload)
+    if not line.endswith("\n"):
+        line = line + "\n"
+
+    targets = [
+        project_dir / "phases" / str(phase) / "reeval-log.jsonl",
+        project_dir / "process-plan.addendum.jsonl",
+    ]
+
+    import os
+    for target in targets:
+        # Idempotency per file — each is independent.
+        try:
+            if target.exists():
+                existing = target.read_text(encoding="utf-8")
+                if line in existing:
+                    logger.debug(
+                        "projector: wicked.reeval.addendum_appended — line "
+                        "already present in %s; skipping",
+                        target,
+                    )
+                    continue
+        except OSError as exc:
+            logger.warning(
+                "projector: wicked.reeval.addendum_appended — could not read "
+                "%s for idempotency check: %s; proceeding to append",
+                target, exc,
+            )
+
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("a", encoding="utf-8") as fh:
+                fh.write(line)
+                fh.flush()
+                try:
+                    os.fsync(fh.fileno())
+                except OSError:
+                    pass  # fail-open: fsync unsupported on this FS
+        except OSError as exc:
+            logger.warning(
+                "projector: wicked.reeval.addendum_appended — append failed "
+                "at %s: %s",
+                target, exc,
+            )
+            # Continue to the next target — best-effort dual-write mirrors
+            # the source module's separate _atomic_append calls.
+
+    logger.debug(
+        "projector: applied wicked.reeval.addendum_appended "
+        "project_id=%r phase=%r targets=%d",
+        project_id, phase, len(targets),
+    )
+
+
+def _convergence_transition_recorded(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.convergence.transition_recorded → convergence-log.jsonl.
+
+    Site W8 of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_CONVERGENCE``.  Replays the raw_payload JSONL line
+    from ``convergence.record_transition()`` into the same file.
+    """
+    _jsonl_append_projection(
+        conn, event,
+        flag_token="CONVERGENCE",
+        relative_template="phases/{phase}/convergence-log.jsonl",
+        handler_name="wicked.convergence.transition_recorded",
+    )
+
+
+def _semantic_gap_recorded(conn: sqlite3.Connection, event: dict) -> None:
+    """Project wicked.review.semantic_gap_recorded → phases/review/semantic-gap-report.json.
+
+    Site W10a of bus-cutover wave-2 (#746).  Gated on
+    ``WG_BUS_AS_TRUTH_SEMANTIC_GAP``.  This is a JSON file (not JSONL)
+    that the source rewrites in full per call — so the projector does
+    a content-hash idempotency check + atomic write rather than
+    line-append.  The path is fixed at ``phases/review/semantic-gap-report.json``
+    (the source always writes here regardless of the gate's actual phase).
+    """
+    global _BUS_IMPORT_WARNED
+    try:
+        from _bus import _bus_as_truth_enabled  # type: ignore[import]
+        flag_on = _bus_as_truth_enabled("SEMANTIC_GAP")
+    except ImportError as exc:
+        if not _BUS_IMPORT_WARNED:
+            logger.warning(
+                "projector: _bus import failed — treating WG_BUS_AS_TRUTH_* "
+                "flags as off: %s", exc,
+            )
+            _BUS_IMPORT_WARNED = True
+        flag_on = False
+    except Exception:  # noqa: BLE001 — keep fail-open
+        flag_on = False
+
+    if not flag_on:
+        return
+
+    payload = event.get("payload", {})
+    et = event.get("event_type", "")
+    project_id, ok = _require(payload, "project_id", et)
+    if not ok:
+        return
+    raw_payload, ok = _require(payload, "raw_payload", et)
+    if not ok:
+        return
+
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: wicked.review.semantic_gap_recorded — project %r "
+            "has no directory in DB; skipping",
+            project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    target = project_dir / "phases" / "review" / "semantic-gap-report.json"
+    candidate_bytes = str(raw_payload).encode("utf-8")
+
+    import hashlib
+    try:
+        if target.exists():
+            existing_bytes = target.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: semantic-gap-report — content hash matches "
+                    "existing %s; skipping rewrite", target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: semantic-gap-report — could not read %s for "
+            "idempotency check: %s; proceeding to write",
+            target, exc,
+        )
+
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(target)
+    except OSError as exc:
+        logger.warning(
+            "projector: semantic-gap-report — write failed at %s: %s",
+            target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied wicked.review.semantic_gap_recorded "
+        "project_id=%r path=%s",
+        project_id, target,
+    )
+
+
 def _gate_blocked(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.gate.blocked → no-op disk handler (PR-1 inert).
 
@@ -2054,6 +2409,14 @@ _HANDLERS: dict[str, Callable[[sqlite3.Connection, dict], None]] = {
     # conditions-manifest.json on CONDITIONAL) — this handler covers the
     # third artifact.  Gated on WG_BUS_AS_TRUTH_INLINE_REVIEW_CONTEXT.
     "wicked.crew.inline_review_context_recorded": _inline_review_context_recorded,
+    # Wave-2 Tranche B (#746): JSONL append-stream cutovers.
+    # Each handler mirrors the source module's append (or full-write
+    # for semantic-gap) into the same path.  Gated per-handler on its
+    # own WG_BUS_AS_TRUTH_<TOKEN> flag.
+    "wicked.amendment.appended":              _amendment_appended,
+    "wicked.reeval.addendum_appended":        _reeval_addendum_appended,
+    "wicked.convergence.transition_recorded": _convergence_transition_recorded,
+    "wicked.review.semantic_gap_recorded":    _semantic_gap_recorded,
 }
 
 

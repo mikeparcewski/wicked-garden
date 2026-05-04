@@ -516,8 +516,9 @@ class TestFlagFlipDefaultState(unittest.TestCase):
             self.assertFalse(_bus._bus_as_truth_enabled("NEVER_SHIPPED_TOKEN"))
 
     def test_default_on_frozenset_contains_all_shipped_sites(self) -> None:
-        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 7 shipped site
-        tokens: Sites 1-5 (#746) + Site W1 (#787 solo_mode cutover)."""
+        """_BUS_AS_TRUTH_DEFAULT_ON must contain exactly the 11 shipped
+        tokens: wave-1 Sites 1-5, Site W1 (#788), and wave-2 Tranche B
+        (W6/W7/W8/W10a)."""
         expected = frozenset({
             "DISPATCH_LOG",          # Site 1
             "CONSENSUS_REPORT",      # Site 2 (flag A)
@@ -525,7 +526,12 @@ class TestFlagFlipDefaultState(unittest.TestCase):
             "REVIEWER_REPORT",       # Site 3
             "GATE_RESULT",           # Site 4 (PR #784)
             "CONDITIONS_MANIFEST",   # Site 5 (PR #785)
-            "INLINE_REVIEW_CONTEXT", # Site W1 (#787, this PR)
+            "INLINE_REVIEW_CONTEXT", # Site W1 (PR #788)
+            # Wave-2 Tranche B (this PR):
+            "AMENDMENTS",            # Site W6 — amendments.jsonl
+            "REEVAL_ADDENDUM",       # Site W7 — reeval-log + project addendum
+            "CONVERGENCE",           # Site W8 — convergence-log.jsonl
+            "SEMANTIC_GAP",          # Site W10a — semantic-gap-report.json
         })
         self.assertEqual(_bus._BUS_AS_TRUTH_DEFAULT_ON, expected)
 
