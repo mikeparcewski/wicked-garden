@@ -186,7 +186,7 @@ def _read_amendments_from_event_log(
         try:
             conn.close()
         except Exception:  # noqa: BLE001 — fail-open
-            pass
+            pass  # fail open: close failure on read-only conn is non-fatal
 
     out: List[Dict[str, Any]] = []
     for line in raw_lines:

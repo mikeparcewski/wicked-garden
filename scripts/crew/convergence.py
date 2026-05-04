@@ -261,7 +261,7 @@ def _read_event_log_entries(
         try:
             conn.close()
         except Exception:  # noqa: BLE001 — fail-open
-            pass
+            pass  # fail open: close failure on read-only conn is non-fatal
 
     out: List[Dict[str, Any]] = []
     for row in rows:
