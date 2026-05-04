@@ -46,6 +46,15 @@ def _make_project(tmp: str, phase: str = "design") -> Path:
     return project
 
 
+# Reuse the daemon-pipeline scaffolding from the sibling dispatch-log test
+# file (PR #800).  Site 1 source-side disk write was deleted; HMAC tests
+# need a real projector roundtrip to observe the on-disk JSONL line.
+from tests.crew.test_dispatch_log import (  # noqa: E402
+    _setup_daemon_db_for_test,
+    _simulate_bus_pipeline,
+)
+
+
 class _HmacTestBase(unittest.TestCase):
     """Shared fixture that pins the HMAC secret so tests are deterministic."""
 
@@ -55,6 +64,7 @@ class _HmacTestBase(unittest.TestCase):
 
     def tearDown(self) -> None:
         dispatch_log._reset_state_for_tests()
+        os.environ.pop("WG_DAEMON_DB", None)
 
 
 class HmacHappyPath(_HmacTestBase):
@@ -62,14 +72,19 @@ class HmacHappyPath(_HmacTestBase):
         """Round-trip: appended record carries an ``hmac`` hex string."""
         with tempfile.TemporaryDirectory() as tmp:
             project = _make_project(tmp)
-            append(
-                project, "design",
-                reviewer="security-engineer",
-                gate="design-quality",
-                dispatch_id="d-1",
-                dispatched_at="2026-04-19T10:00:00+00:00",
-            )
-            entries = read_entries(project, "design")
+            db_path = _setup_daemon_db_for_test(Path(tmp), project)
+            with patch.dict(
+                os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "on"}
+            ), patch("_bus.emit_event",
+                     side_effect=_simulate_bus_pipeline(db_path)):
+                append(
+                    project, "design",
+                    reviewer="security-engineer",
+                    gate="design-quality",
+                    dispatch_id="d-1",
+                    dispatched_at="2026-04-19T10:00:00+00:00",
+                )
+                entries = read_entries(project, "design")
             self.assertEqual(len(entries), 1)
             self.assertIn("hmac", entries[0])
             self.assertRegex(entries[0]["hmac"], r"^[0-9a-f]{64}$")
@@ -81,22 +96,59 @@ class HmacHappyPath(_HmacTestBase):
             {"WG_GATE_RESULT_STRICT_AFTER": "2099-01-01"},
         ):
             project = _make_project(tmp)
-            append(
-                project, "design",
-                reviewer="security-engineer",
-                gate="design-quality",
-                dispatch_id="d-1",
-                dispatched_at="2026-04-19T09:00:00+00:00",
-            )
-            parsed = {
-                "reviewer": "security-engineer",
-                "recorded_at": "2026-04-19T10:00:00+00:00",
-                "gate": "design-quality",
-            }
-            check_orphan(parsed, project, "design")  # no raise
+            db_path = _setup_daemon_db_for_test(Path(tmp), project)
+            with patch.dict(
+                os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "on"}
+            ), patch("_bus.emit_event",
+                     side_effect=_simulate_bus_pipeline(db_path)):
+                append(
+                    project, "design",
+                    reviewer="security-engineer",
+                    gate="design-quality",
+                    dispatch_id="d-1",
+                    dispatched_at="2026-04-19T09:00:00+00:00",
+                )
+                parsed = {
+                    "reviewer": "security-engineer",
+                    "recorded_at": "2026-04-19T10:00:00+00:00",
+                    "gate": "design-quality",
+                }
+                check_orphan(parsed, project, "design")  # no raise
 
 
 class HmacMismatch(_HmacTestBase):
+    """HMAC tamper detection.
+
+    Post PR-#800 the source of truth is the bus event_log; the on-disk
+    JSONL is a projection.  These tests pre-create a tampered disk file
+    WITHOUT a daemon DB (so the event_log path returns None and
+    ``read_entries`` falls back to disk).  This exercises the
+    legacy-disk tamper path the same way it always did — and surfaces
+    the threat model end-to-end: a disk-only tampering attempt by an
+    attacker WITHOUT bus access still trips the MAC.
+    """
+
+    def _planted_entry(self, secret: str) -> dict:
+        """Build a real, HMAC-signed record without going through ``append``.
+
+        Bypasses the bus emit so the test can plant a record on disk
+        without relying on the projector roundtrip.  HMAC is computed
+        the same way ``append`` would compute it under the fixture
+        secret, so legitimate entries pass verification while tampered
+        copies still fail.
+        """
+        record = {
+            "reviewer": "security-engineer",
+            "phase": "design",
+            "gate": "design-quality",
+            "dispatched_at": "2026-04-19T09:00:00+00:00",
+            "dispatcher_agent": "wicked-garden:crew:phase-manager",
+            "expected_result_path": "gate-result.json",
+            "dispatch_id": "d-1",
+        }
+        record["hmac"] = dispatch_log._compute_hmac(record, secret)
+        return record
+
     def test_tampered_hmac_raises_tamper_error(self):
         """Rewriting an entry's ``hmac`` → DispatchLogTamperError on verify."""
         with tempfile.TemporaryDirectory() as tmp, patch.dict(
@@ -104,18 +156,9 @@ class HmacMismatch(_HmacTestBase):
             {"WG_GATE_RESULT_STRICT_AFTER": "2099-01-01"},
         ):
             project = _make_project(tmp)
-            append(
-                project, "design",
-                reviewer="security-engineer",
-                gate="design-quality",
-                dispatch_id="d-1",
-                dispatched_at="2026-04-19T09:00:00+00:00",
-            )
-            # Forge the log: keep the entry body but rewrite the HMAC
-            # to something an attacker without the secret would pick.
-            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
-            entry = json.loads(log_path.read_text().strip())
+            entry = self._planted_entry(_FIXED_SECRET)
             entry["hmac"] = "0" * 64  # deterministic fake
+            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
             log_path.write_text(json.dumps(entry) + "\n")
 
             parsed = {
@@ -137,18 +180,11 @@ class HmacMismatch(_HmacTestBase):
             {"WG_GATE_RESULT_STRICT_AFTER": "2099-01-01"},
         ):
             project = _make_project(tmp)
-            append(
-                project, "design",
-                reviewer="security-engineer",
-                gate="design-quality",
-                dispatch_id="d-1",
-                dispatched_at="2026-04-19T09:00:00+00:00",
-            )
-            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
-            entry = json.loads(log_path.read_text().strip())
+            entry = self._planted_entry(_FIXED_SECRET)
             # Swap the dispatcher identity to simulate an attacker
             # promoting a fast-pass reviewer into the slot.
             entry["dispatcher_agent"] = "wicked-garden:crew:auto-approve"
+            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
             log_path.write_text(json.dumps(entry) + "\n")
 
             parsed = {
@@ -241,39 +277,58 @@ class LegacyFallback(_HmacTestBase):
 
 class SecretManagement(_HmacTestBase):
     def test_secret_never_appears_in_record(self):
-        """Safety net: the secret itself must never land on disk."""
-        with tempfile.TemporaryDirectory() as tmp:
-            project = _make_project(tmp)
-            append(
-                project, "design",
-                reviewer="r",
-                gate="g",
-                dispatch_id="d-1",
-                dispatched_at="2026-04-19T09:00:00+00:00",
-            )
-            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
-            raw = log_path.read_text()
-            self.assertNotIn(_FIXED_SECRET, raw)
+        """Safety net: the secret itself must never land in the canonical
+        record bytes (raw_payload + on-disk JSONL).
+
+        Compute the same record + HMAC the source side would produce, then
+        check that the serialized bytes never contain the secret.  This
+        verifies the contract without going through the bus pipeline —
+        the contract is purely about how _compute_hmac handles the secret,
+        and that's testable in isolation.
+        """
+        record = {
+            "reviewer": "r",
+            "phase": "design",
+            "gate": "g",
+            "dispatched_at": "2026-04-19T09:00:00+00:00",
+            "dispatcher_agent": "wicked-garden:crew:phase-manager",
+            "expected_result_path": "gate-result.json",
+            "dispatch_id": "d-1",
+        }
+        record["hmac"] = dispatch_log._compute_hmac(record, _FIXED_SECRET)
+        canonical = json.dumps(record, separators=(",", ":"))
+        # Both the on-disk JSONL line and the bus emit's raw_payload use
+        # this canonical form — assert the secret never appears in it.
+        self.assertNotIn(_FIXED_SECRET, canonical)
 
     def test_canonical_signing_order_insensitive(self):
-        """Verify uses sorted JSON — field-order reshuffles still verify."""
+        """Verify uses sorted JSON — field-order reshuffles still verify.
+
+        Plant a re-ordered (canonically equivalent) entry on disk WITHOUT a
+        daemon DB so ``read_entries`` falls back to disk and verifies the
+        re-ordered bytes.  Pre PR-#800 this test relied on the
+        source-side disk write; post-#800 it explicitly exercises the
+        legacy-fallback path.
+        """
         with tempfile.TemporaryDirectory() as tmp, patch.dict(
             os.environ,
             {"WG_GATE_RESULT_STRICT_AFTER": "2099-01-01"},
         ):
             project = _make_project(tmp)
-            append(
-                project, "design",
-                reviewer="r",
-                gate="g",
-                dispatch_id="d-1",
-                dispatched_at="2026-04-19T09:00:00+00:00",
-            )
-            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
-            entry = json.loads(log_path.read_text().strip())
-            # Re-serialize with reversed key order — byte-wise different,
-            # canonically equivalent.
+            # Build an HMAC-signed record without going through the bus path.
+            entry = {
+                "reviewer": "r",
+                "phase": "design",
+                "gate": "g",
+                "dispatched_at": "2026-04-19T09:00:00+00:00",
+                "dispatcher_agent": "wicked-garden:crew:phase-manager",
+                "expected_result_path": "gate-result.json",
+                "dispatch_id": "d-1",
+            }
+            entry["hmac"] = dispatch_log._compute_hmac(entry, _FIXED_SECRET)
+            # Write reversed-key form: byte-wise different, canonically same.
             reordered = {k: entry[k] for k in reversed(list(entry.keys()))}
+            log_path = project / "phases" / "design" / "dispatch-log.jsonl"
             log_path.write_text(json.dumps(reordered) + "\n")
 
             parsed = {

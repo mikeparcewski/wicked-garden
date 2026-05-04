@@ -399,49 +399,56 @@ class TestDispatchLogHumanInlineOrphan(unittest.TestCase):
         check_orphan finds the matching (reviewer, phase, gate, dispatched_at)
         entry, HMAC-verifies it, and returns without raising.
 
-        The env override WG_GATE_RESULT_DISPATCH_CHECK=off was removed in
-        #662 blocker-3.  The test now exercises the real orphan-check path.
-        The HMAC used by append and check_orphan is the same process-local
-        secret (auto-generated once per process), so the verify succeeds.
+        Post PR-#800: source-side disk write was deleted; the dispatch-log
+        is materialised by the projector handler.  This test drives a real
+        bus → projector pipeline so check_orphan reads the resulting
+        event_log entry and validates HMAC.
         """
         from dispatch_log import append, check_orphan, set_hmac_secret
+        from tests.crew.test_dispatch_log import (
+            _setup_daemon_db_for_test,
+            _simulate_bus_pipeline,
+        )
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            proj_dir = Path(tmpdir)
+            proj_dir = Path(tmpdir) / "proj"
+            (proj_dir / "phases" / "build").mkdir(parents=True)
             phase = "build"
             gate = "code-quality"
             reviewer = REVIEWER_NAME
             dispatched_at = "2026-04-25T10:00:00+00:00"
 
-            # Pin a known secret so append and check_orphan share it
-            # deterministically within this test (avoids SessionState I/O).
+            db_path = _setup_daemon_db_for_test(Path(tmpdir), proj_dir)
+
             test_secret = "test-hmac-secret-662-blocker3"
             set_hmac_secret(test_secret)
             try:
-                # Write a dispatch-log entry (as _dispatch_human_inline does)
-                append(
-                    proj_dir, phase,
-                    reviewer=reviewer,
-                    gate=gate,
-                    dispatch_id=f"{phase}:{gate}:{reviewer}:{dispatched_at}",
-                    dispatcher_agent="wicked-garden:crew:phase-manager:human-inline",
-                    dispatched_at=dispatched_at,
-                )
+                with patch.dict(
+                    os.environ,
+                    {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "on"},
+                ), patch("_bus.emit_event",
+                         side_effect=_simulate_bus_pipeline(db_path)):
+                    append(
+                        proj_dir, phase,
+                        reviewer=reviewer,
+                        gate=gate,
+                        dispatch_id=f"{phase}:{gate}:{reviewer}:{dispatched_at}",
+                        dispatcher_agent="wicked-garden:crew:phase-manager:human-inline",
+                        dispatched_at=dispatched_at,
+                    )
 
-                # check_orphan for a gate-result with recorded_at >= dispatched_at
-                parsed = {
-                    "reviewer": reviewer,
-                    "gate": gate,
-                    "recorded_at": "2026-04-25T10:01:00+00:00",
-                }
-
-                # Must match the pre-registered entry and HMAC-verify successfully
-                try:
-                    check_orphan(parsed, proj_dir, phase)
-                except Exception as exc:
-                    self.fail(f"check_orphan raised unexpectedly: {exc}")
+                    parsed = {
+                        "reviewer": reviewer,
+                        "gate": gate,
+                        "recorded_at": "2026-04-25T10:01:00+00:00",
+                    }
+                    try:
+                        check_orphan(parsed, proj_dir, phase)
+                    except Exception as exc:
+                        self.fail(f"check_orphan raised unexpectedly: {exc}")
             finally:
-                set_hmac_secret(None)  # restore neutral state for other tests
+                set_hmac_secret(None)
+                os.environ.pop("WG_DAEMON_DB", None)
 
 
 # ---------------------------------------------------------------------------

@@ -153,25 +153,45 @@ class DispatchLogRotatesOnAppend(unittest.TestCase):
         dispatch_log._reset_state_for_tests()
 
     def test_append_triggers_rotation_above_threshold(self):
+        """Rotation runs in the projector path post PR-#800.
+
+        Pre-PR-#800 ``dispatch_log.append`` called ``rotate_if_needed``
+        before writing — that lived alongside the legacy direct write.
+        Both moved to the projector handler ``_dispatch_log_appended``
+        when the source-side write was deleted.  This test drives a
+        real bus → projector roundtrip so rotation fires under the new
+        architecture.
+        """
+        # Reuse the daemon-pipeline helper from sibling test file.
+        from tests.crew.test_dispatch_log import (
+            _setup_daemon_db_for_test,
+            _simulate_bus_pipeline,
+        )
+
         with tempfile.TemporaryDirectory() as tmp, patch.dict(
             os.environ, {"WG_LOG_RETENTION_MAX_MB": "0.001"}  # ~1KB
         ):
             project = Path(tmp) / "proj"
             (project / "phases" / "design").mkdir(parents=True)
+            db_path = _setup_daemon_db_for_test(Path(tmp), project)
 
             # Pre-seed the log beyond threshold so the next append rotates.
             log = project / "phases" / "design" / "dispatch-log.jsonl"
             log.write_text("x" * 2048)
 
-            dispatch_log.append(
-                project, "design",
-                reviewer="r",
-                gate="g",
-                dispatch_id="d-after-rotate",
-                dispatched_at="2026-04-19T09:00:00+00:00",
-            )
+            with patch.dict(
+                os.environ, {"WG_BUS_AS_TRUTH_DISPATCH_LOG": "on"}
+            ), patch("_bus.emit_event",
+                     side_effect=_simulate_bus_pipeline(db_path)):
+                dispatch_log.append(
+                    project, "design",
+                    reviewer="r",
+                    gate="g",
+                    dispatch_id="d-after-rotate",
+                    dispatched_at="2026-04-19T09:00:00+00:00",
+                )
 
-            # Archive was created.
+            # Archive was created (rotation ran inside the projector).
             archive_dir = log.parent / DEFAULT_ARCHIVE_DIR
             self.assertTrue(archive_dir.exists())
             archives = list(archive_dir.glob("dispatch-log.*.jsonl.gz"))
@@ -181,6 +201,7 @@ class DispatchLogRotatesOnAppend(unittest.TestCase):
             self.assertEqual(len(lines), 1)
             record = json.loads(lines[0])
             self.assertEqual(record["dispatch_id"], "d-after-rotate")
+            os.environ.pop("WG_DAEMON_DB", None)
 
 
 class AuditLogRotatesOnAppend(unittest.TestCase):
