@@ -1190,16 +1190,28 @@ def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
 
     Site 3 of the bus-cutover staging plan (#746, #768, #770, PR #799).
     Gated on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT`` via
-    ``_bus_as_truth_enabled("REVIEWER_REPORT")``:
+    ``_bus_as_truth_enabled("REVIEWER_REPORT")``.  REVIEWER_REPORT is in
+    the default-ON shipped set (``_BUS_AS_TRUTH_DEFAULT_ON``), so an
+    unset env var resolves to True; explicit ``"off"`` opts out.
 
-      * flag-off (default): handler is a no-op.  The projector wrapper still
-        records the event_log row as ``applied`` (Decision #6).
-      * flag-on: materialise reviewer-report.md from the per-section payload.
-        Branch decision is made HERE based on disk state at projection time
-        (NOT from ``payload.branch`` from the source side).  Pre-PR-#799 the
-        source-side check raced the projector when the legacy direct-write
-        was deleted — see the brain memory
-        ``bus-cutover-legacy-write-deletion-is-per-site-architecture``.
+      * flag-off (explicit ``"off"``): handler is a no-op.  The projector
+        wrapper still records the event_log row as ``applied``
+        (Decision #6).
+      * flag-on (default OR explicit ``"on"``): materialise
+        reviewer-report.md from the per-section payload.  Branch decision
+        is made HERE based on disk state at projection time (NOT from
+        ``payload.branch`` from the source side).
+
+    Why projector self-decides (PR #799): pre-#799 the source side
+    decided create-vs-append from ``report_path.exists()`` and emitted
+    ``branch=create`` or ``append``.  After legacy-write deletion the
+    source's existence check races the projector (the file may already
+    be projected but the source hasn't observed it yet) so a
+    source-supplied ``branch=create`` on stale state would overwrite
+    content the projector had already written.  Moving the decision
+    into the projector eliminates the race because events apply in
+    event_id order — the disk state the projector reads is always
+    consistent with prior-applied events.
 
     Branch logic (PR #799 — projector self-deciding):
         - file does not exist → create: write raw_payload as the full new file.

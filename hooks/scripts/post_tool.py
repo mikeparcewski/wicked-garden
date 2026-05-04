@@ -993,9 +993,14 @@ def _write_reviewer_report(
 
     ``eval_id`` is threaded from ``_handle_bash_consensus`` so the
     chain_id stays unique across emits in one hook invocation (bus-chain-id
-    dedupe gotcha).  The legacy ``branch`` payload field is preserved as
-    ``"auto"`` for forward-compat — the projector ignores it post-#799 but
-    older daemons that still consult ``branch`` see a value they understand.
+    dedupe gotcha).  The ``branch`` payload field is set to ``"append"``
+    for mixed-version safety: pre-PR-#799 daemons treat ``"append"`` as
+    "append-if-exists, create-if-absent" — exactly the right semantics for
+    BOTH the first event (file absent → create) and subsequent events
+    (file exists → append).  ``"auto"`` or any other value would fall into
+    the pre-#799 daemon's create/overwrite path on the second event and
+    clobber existing content during a mixed-version rollout.  Post-#799
+    daemons ignore ``branch`` and decide from disk state at projection time.
 
     ``_bus.emit_event`` is non-raising — no try/except wrapper needed here.
     """
@@ -1019,9 +1024,11 @@ def _write_reviewer_report(
                 "phase": phase,
                 "verdict": verdict,
                 "eval_id": eval_id,
-                # ``branch`` retained for forward-compat with daemons that
-                # still consult it; "auto" = projector decides from disk.
-                "branch": "auto",
+                # ``branch="append"`` is mixed-version safe — pre-#799
+                # daemons treat append as "append-if-exists, create-if-
+                # absent"; post-#799 daemons ignore the hint entirely
+                # and decide from disk state.
+                "branch": "append",
                 "raw_payload": yaml_block,
             },
             chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
