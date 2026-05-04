@@ -550,3 +550,210 @@ def test_consensus_evidence_cascades_on_event_log_delete(mem_conn) -> None:
     assert mem_conn.execute(
         "SELECT COUNT(*) FROM consensus_evidence WHERE event_id = 888"
     ).fetchone()[0] == 0
+
+
+# ---------------------------------------------------------------------------
+# Site 2 disk projection — added by PR #798 (legacy direct-write deletion)
+# ---------------------------------------------------------------------------
+#
+# Background: prior to PR #798, `consensus_gate._write_consensus_report` and
+# `_write_consensus_evidence` wrote the JSON files directly.  The projector
+# handlers above only populated the SQL projection tables.  PR #798 deleted
+# the legacy direct-writes — the projector handlers are now the canonical
+# disk writers via `_consensus_disk_write()`.
+#
+# These tests assert the new disk-projection behaviour: file materialised on
+# flag-on, content-hash idempotency on replay, fail-open on missing project
+# row, fail-open isolation between SQL projection and disk side-effect.
+
+
+def _setup_project_in_db_for_disk(
+    conn, project_id: str, project_dir
+) -> None:
+    """Add the project row required for daemon/projector disk-write path."""
+    from pathlib import Path  # noqa: PLC0415 — keep test imports local
+    conn.execute(
+        "INSERT OR IGNORE INTO projects "
+        "(id, name, directory, status, current_phase, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (project_id, project_id, str(Path(project_dir)), "active", "design",
+         1_700_000_000, 1_700_000_000),
+    )
+    conn.commit()
+
+
+def test_report_flag_on_writes_consensus_report_json_to_disk(
+    mem_conn, tmp_path,
+) -> None:
+    """flag-on + valid event → consensus-report.json materialised on disk
+    via the projector's `_consensus_disk_write` helper.
+    """
+    from daemon.projector import _consensus_report_created  # noqa: PLC0415
+
+    project_id = "disk-write-proj"
+    project_dir = tmp_path / project_id
+    _setup_project_in_db_for_disk(mem_conn, project_id, project_dir)
+
+    raw = json.dumps({
+        "phase": "design",
+        "decision": "APPROVE",
+        "confidence": 0.9,
+        "agreement_ratio": 0.9,
+        "participants": 3,
+        "rounds": 1,
+        "consensus_points": [],
+        "dissenting_views": [],
+        "open_questions": [],
+    }, indent=2)
+
+    event = _make_report_event(
+        event_id=42, project_id=project_id, raw_payload=raw,
+    )
+    _insert_event_log_parent(mem_conn, event)
+
+    target = project_dir / "phases" / "design" / "consensus-report.json"
+    assert not target.exists()  # baseline
+
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on"}):
+        _consensus_report_created(mem_conn, event)
+
+    assert target.exists(), (
+        "PR #798 contract: projector handler must materialise "
+        "consensus-report.json from raw_payload"
+    )
+    on_disk = target.read_text(encoding="utf-8")
+    assert on_disk == raw, (
+        "C11 byte-identity contract: projector writes raw_payload verbatim"
+    )
+
+
+def test_evidence_flag_on_writes_consensus_evidence_json_to_disk(
+    mem_conn, tmp_path,
+) -> None:
+    """flag-on + valid event → consensus-evidence.json materialised on disk."""
+    from daemon.projector import _consensus_evidence_recorded  # noqa: PLC0415
+
+    project_id = "disk-write-proj-2"
+    project_dir = tmp_path / project_id
+    _setup_project_in_db_for_disk(mem_conn, project_id, project_dir)
+
+    raw = json.dumps({
+        "type": "consensus-rejection",
+        "phase": "design",
+        "result": "REJECT",
+        "reason": "Strong dissent on credential rotation",
+        "consensus_confidence": 0.45,
+        "agreement_ratio": 0.45,
+        "dissenting_views": [],
+        "participants": 5,
+    }, indent=2)
+
+    event = _make_evidence_event(
+        event_id=43, project_id=project_id, raw_payload=raw,
+    )
+    _insert_event_log_parent(mem_conn, event)
+
+    target = project_dir / "phases" / "design" / "consensus-evidence.json"
+    assert not target.exists()
+
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_EVIDENCE": "on"}):
+        _consensus_evidence_recorded(mem_conn, event)
+
+    assert target.exists()
+    assert target.read_text(encoding="utf-8") == raw
+
+
+def test_report_replay_skips_disk_rewrite_via_content_hash(
+    mem_conn, tmp_path,
+) -> None:
+    """Replaying the same event twice → file written once, second call is
+    a content-hash no-op (mirrors Site 4/5 idempotency semantics).
+    """
+    from daemon.projector import _consensus_report_created  # noqa: PLC0415
+
+    project_id = "disk-write-proj-3"
+    project_dir = tmp_path / project_id
+    _setup_project_in_db_for_disk(mem_conn, project_id, project_dir)
+
+    event = _make_report_event(event_id=44, project_id=project_id)
+    _insert_event_log_parent(mem_conn, event)
+
+    target = project_dir / "phases" / "design" / "consensus-report.json"
+
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on"}):
+        _consensus_report_created(mem_conn, event)
+        first_mtime_ns = target.stat().st_mtime_ns
+
+        # Replay — second handler call with the same payload.
+        _consensus_report_created(mem_conn, event)
+        second_mtime_ns = target.stat().st_mtime_ns
+
+    # Content-hash short-circuit means tmp+rename never fires the second
+    # time, so mtime must be unchanged.  This is the test that actually
+    # exercises the idempotency branch (vs SQL INSERT OR IGNORE which
+    # already covers the table-write side).
+    assert first_mtime_ns == second_mtime_ns, (
+        "content-hash idempotency failed — replay rewrote the file"
+    )
+
+
+def test_report_disk_write_skipped_when_project_row_missing(
+    mem_conn, tmp_path,
+) -> None:
+    """Project absent in DB → SQL projection still applied, disk write
+    skipped (logged warning).  Fail-open: handler does not raise.
+    """
+    from daemon.projector import _consensus_report_created  # noqa: PLC0415
+
+    # Deliberately do NOT call _setup_project_in_db_for_disk — project row
+    # is missing.  We expect the SQL projection to land but the disk write
+    # to skip with a warning.
+    project_id = "no-such-project"
+    event = _make_report_event(event_id=45, project_id=project_id)
+    _insert_event_log_parent(mem_conn, event)
+
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on"}):
+        # Must not raise.
+        _consensus_report_created(mem_conn, event)
+
+    # SQL projection still landed.
+    rows = mem_conn.execute(
+        "SELECT COUNT(*) FROM consensus_reports WHERE event_id = 45"
+    ).fetchone()
+    assert rows[0] == 1, (
+        "SQL projection must complete even when disk write is skipped"
+    )
+
+
+def test_report_disk_write_failure_does_not_taint_sql_projection(
+    mem_conn, tmp_path,
+) -> None:
+    """A disk-side exception MUST NOT prevent the SQL projection from
+    succeeding.  The fail-open envelope around _consensus_disk_write is
+    explicit so retention/audit consumers always see the SQL row.
+    """
+    from daemon import projector as projector_mod  # noqa: PLC0415
+
+    project_id = "disk-write-proj-4"
+    project_dir = tmp_path / project_id
+    _setup_project_in_db_for_disk(mem_conn, project_id, project_dir)
+
+    event = _make_report_event(event_id=46, project_id=project_id)
+    _insert_event_log_parent(mem_conn, event)
+
+    def _boom(*args, **kwargs):
+        raise OSError("simulated disk full")
+
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_CONSENSUS_REPORT": "on"}):
+        with patch.object(
+            projector_mod, "_consensus_disk_write", side_effect=_boom,
+        ):
+            # Must not raise.
+            projector_mod._consensus_report_created(mem_conn, event)
+
+    rows = mem_conn.execute(
+        "SELECT COUNT(*) FROM consensus_reports WHERE event_id = 46"
+    ).fetchone()
+    assert rows[0] == 1, (
+        "SQL projection must succeed even when disk-side projection raises"
+    )

@@ -834,8 +834,104 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
 # observable, at N=2 abstraction risks freezing the wrong contract.
 
 
+def _consensus_disk_write(
+    conn: sqlite3.Connection,
+    *,
+    project_id: str,
+    phase: str,
+    raw_payload: str,
+    relative_filename: str,
+    handler_name: str,
+) -> None:
+    """Materialise a consensus artifact on disk from the raw_payload bytes.
+
+    Site 2 disk-projection helper (#746) — added by the legacy-direct-write
+    deletion PR.  The SQL projection (consensus_reports / consensus_evidence
+    tables) was historically the only output of these handlers; the on-disk
+    JSON was written by ``consensus_gate._write_consensus_report`` /
+    ``_write_consensus_evidence``.  After the legacy disk writes were
+    deleted, this helper takes over the disk-side projection so:
+
+      * reconcile_v2's drift detector still sees the file in
+        ``phases/{phase}/`` (otherwise every consensus event becomes
+        ``event-without-projection`` drift).
+      * synthetic_drift.py's expected-projection contract still holds.
+      * test_consensus_gate.py's ``read_text()`` assertions still resolve.
+
+    Mirrors Site 5's ``_conditions_manifest_from_gate_decided`` shape:
+    content-hash idempotency on rewrite, atomic temp+rename write.
+
+    The caller is responsible for resolving ``project_id``/``phase`` and
+    confirming the bus-as-truth flag is on; this helper is a pure
+    file-write utility.
+    """
+    # Resolve project_dir from the DB (mirrors Sites 3-5 pattern).
+    project_row = db.get_project(conn, str(project_id))
+    if project_row is None or not project_row.get("directory"):
+        logger.warning(
+            "projector: %s — project %r has no directory in DB; skipping "
+            "disk write (project must be projected via wicked.project.created "
+            "before Site 2 disk projection can write files)",
+            handler_name, project_id,
+        )
+        return
+
+    project_dir = Path(project_row["directory"])
+    phase_dir = project_dir / "phases" / str(phase)
+    target = phase_dir / relative_filename
+
+    # raw_payload is already the canonical on-disk bytes (json.dumps with
+    # indent=2) per Council Condition C10.  Encode once for hash + write.
+    import hashlib
+    candidate_bytes = str(raw_payload).encode("utf-8")
+
+    # Content-hash idempotency: skip rewrite when existing bytes match.
+    # Required because the daemon consumer does not dedupe before calling
+    # handlers (append_event_log uses INSERT OR REPLACE — handler fires
+    # for every event in the batch).
+    try:
+        if target.exists():
+            existing_bytes = target.read_bytes()
+            if (
+                hashlib.sha256(existing_bytes).digest()
+                == hashlib.sha256(candidate_bytes).digest()
+            ):
+                logger.debug(
+                    "projector: %s — content hash matches existing %s; "
+                    "skipping rewrite",
+                    handler_name, target,
+                )
+                return
+    except OSError as exc:
+        logger.warning(
+            "projector: %s — could not read existing %s for idempotency "
+            "check: %s; proceeding to write",
+            handler_name, target, exc,
+        )
+
+    # Atomic write: temp file + rename.  Rename is atomic on POSIX;
+    # readers either see the old bytes or the new bytes, never partial.
+    try:
+        phase_dir.mkdir(parents=True, exist_ok=True)
+        tmp = target.with_suffix(target.suffix + ".tmp")
+        tmp.write_bytes(candidate_bytes)
+        tmp.replace(target)
+    except OSError as exc:
+        logger.warning(
+            "projector: %s — could not write %s: %s",
+            handler_name, target, exc,
+        )
+        return
+
+    logger.debug(
+        "projector: applied %s disk projection "
+        "project_id=%r phase=%r path=%s",
+        handler_name, project_id, phase, target,
+    )
+
+
 def _consensus_report_created(conn: sqlite3.Connection, event: dict) -> None:
-    """Project wicked.consensus.report_created → consensus_reports.
+    """Project wicked.consensus.report_created → consensus_reports + disk.
 
     Site 2 of the bus-cutover staging plan (#746).  Behaviour is gated on
     `WG_BUS_AS_TRUTH_CONSENSUS_REPORT` via `_bus_as_truth_enabled("CONSENSUS_REPORT")`:
@@ -845,11 +941,13 @@ def _consensus_report_created(conn: sqlite3.Connection, event: dict) -> None:
         table is intentionally untouched while the disk file remains source
         of truth.
       * flag-on: INSERT OR IGNORE one row per (event_id) into
-        `consensus_reports`.  Idempotent on duplicate event_id.
+        `consensus_reports` AND materialise consensus-report.json on disk
+        (the legacy direct-write in ``consensus_gate._write_consensus_report``
+        was deleted in this PR; the projector is now the canonical writer).
 
     The `raw_payload` field is REQUIRED per Council Condition C10 — it
     carries the canonical on-disk bytes (json.dumps with indent=2) so the
-    projector can reproduce `consensus-report.json` byte-for-byte.
+    projector reproduces `consensus-report.json` byte-for-byte.
     """
     global _BUS_IMPORT_WARNED
     try:
@@ -920,6 +1018,27 @@ def _consensus_report_created(conn: sqlite3.Connection, event: dict) -> None:
         "project_id=%r phase=%r event_id=%r",
         project_id, phase, event_id,
     )
+
+    # Site 2 disk projection (#746): materialise consensus-report.json on
+    # disk so reconcile_v2's drift detector + synthetic_drift contract +
+    # test_consensus_gate's read_text() assertions still hold after the
+    # legacy direct-write in consensus_gate._write_consensus_report was
+    # deleted.  Wrapped so a disk-write failure NEVER taints the SQL
+    # projection above (SQL row + drift event are still recorded).
+    try:
+        _consensus_disk_write(
+            conn,
+            project_id=str(project_id),
+            phase=str(phase),
+            raw_payload=str(raw_payload),
+            relative_filename="consensus-report.json",
+            handler_name="wicked.consensus.report_created",
+        )
+    except Exception as exc:  # noqa: BLE001 — fail-open for disk side-effect
+        logger.warning(
+            "projector: wicked.consensus.report_created disk projection "
+            "raised — SQL projection still applied: %s", exc,
+        )
 
 
 def _consensus_evidence_recorded(conn: sqlite3.Connection, event: dict) -> None:
@@ -1003,6 +1122,25 @@ def _consensus_evidence_recorded(conn: sqlite3.Connection, event: dict) -> None:
         "project_id=%r phase=%r event_id=%r",
         project_id, phase, event_id,
     )
+
+    # Site 2 disk projection (#746): materialise consensus-evidence.json
+    # on disk so the drift detector + tests still see it after the legacy
+    # direct-write in consensus_gate._write_consensus_evidence was deleted.
+    # Same fail-open envelope as the report handler above.
+    try:
+        _consensus_disk_write(
+            conn,
+            project_id=str(project_id),
+            phase=str(phase),
+            raw_payload=str(raw_payload),
+            relative_filename="consensus-evidence.json",
+            handler_name="wicked.consensus.evidence_recorded",
+        )
+    except Exception as exc:  # noqa: BLE001 — fail-open for disk side-effect
+        logger.warning(
+            "projector: wicked.consensus.evidence_recorded disk projection "
+            "raised — SQL projection still applied: %s", exc,
+        )
 
 
 # --- bus-cutover Site 3 (#768, #770) handlers -----------------------------------
