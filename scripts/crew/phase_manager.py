@@ -2567,25 +2567,20 @@ def _check_semantic_alignment_gate(
             f"[semantic-alignment] advisory skip — review error: {exc}"
         ]
 
-    # Persist the report for evidence. Always safe to write even when
-    # aligned so downstream tools have a baseline.
+    # Site W10a (#746) — semantic-gap report is materialised by the
+    # projector handler ``_semantic_gap_recorded`` from the
+    # wicked.review.semantic_gap_recorded event.  No direct disk write
+    # here.  Phase dir mkdir kept so the projector can land the file.
     try:
         out_dir = project_dir / "phases" / "review"
         out_dir.mkdir(parents=True, exist_ok=True)
-        out_path = out_dir / "semantic-gap-report.json"
         report_bytes = json.dumps(
             semantic_review.report_to_dict(report), indent=2,
         )
-        # Wave-2 Tranche B emit (#746 W10a): fire BEFORE the disk
-        # write so the projector handler can replay the same bytes.
-        # The semantic-gap report lives at a fixed phase ("review")
-        # regardless of which phase triggered the alignment check.
-        # chain_id format: {project}.review.semantic-gap.{report.score}
-        # — score is sufficient discriminator since each report is a
-        # full snapshot (not append-only); reports with the same score
-        # would be byte-identical anyway, content-hash idempotency in
-        # the handler short-circuits the rewrite.  Fail-open: bus
-        # unavailable must NOT block the disk write.
+        # chain_id format: {project}.review.semantic-gap.{report.score} —
+        # score is sufficient discriminator (full-snapshot rewrite, not
+        # append).  Content-hash idempotency in the handler short-circuits
+        # rewrites for identical reports.  Fail-open per Decision #8.
         try:
             from _bus import emit_event  # type: ignore[import]
             project_id_str = project_dir.name
@@ -2601,12 +2596,10 @@ def _check_semantic_alignment_gate(
                 chain_id=f"{project_id_str}.review.semantic-gap-{report.score}",
             )
         except Exception:  # noqa: BLE001 — fail-open per Decision #8
-            pass  # bus unavailable — direct write below still runs
-
-        out_path.write_text(report_bytes)
+            pass  # bus unavailable — projector won't materialise; non-fatal
     except OSError as exc:
         logger.warning(
-            "[semantic-alignment] could not persist gap report: %s", exc,
+            "[semantic-alignment] could not prepare report dir: %s", exc,
         )
 
     # Short-circuit when no numbered spec items were found — nothing to check.
@@ -2699,22 +2692,16 @@ def _write_conditions_manifest(
     Returns:
         Path to the written conditions-manifest.json.
     """
-    manifest = {
-        "source_gate": phase,
-        "created_at": get_utc_timestamp(),
-        "conditions": [
-            {
-                "id": f"CONDITION-{i + 1}",
-                "description": c.get("description", c.get("condition", str(c))),
-                "verified": False,
-                "resolution": None,
-                "verified_at": None,
-            }
-            for i, c in enumerate(conditions)
-        ],
-    }
+    # Site 5 (#746) — conditions-manifest.json is materialised by the
+    # projector handler ``_conditions_manifest_from_gate_decided`` (in
+    # daemon/projector.py) from the wicked.gate.decided event's
+    # payload['data']['conditions'].  The event fires later in
+    # approve_phase (line ~3927).  This function no longer writes —
+    # callers use the returned path for downstream references.  The
+    # path may not exist on disk synchronously; readers
+    # (_verify_conditions in next-phase advancement) are not invoked
+    # in the same call window, so the projector has time to catch up.
     manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2))
     return manifest_path
 
 
@@ -4185,31 +4172,24 @@ def skip_phase(state: ProjectState, phase: str, reason: str = "", approved_by: s
     project_dir = get_project_dir(state.name)
     phase_dir = project_dir / "phases" / phase
     phase_dir.mkdir(parents=True, exist_ok=True)
-    status_file = phase_dir / "status.md"
-
-    status_content = (
-        f"---\n"
-        f"phase: {phase}\n"
-        f"status: skipped\n"
-        f"skipped_at: {phase_state.completed_at}\n"
-        f"approved_by: {approved_by}\n"
-        f"---\n\n"
-        f"# {phase.replace('-', ' ').title()} Phase — Skipped\n\n"
-        f"**Reason**: {reason or 'Not applicable for this project scope'}\n\n"
-        f"**Approved by**: {approved_by}\n"
-    )
+    # NOTE: Site W10b (#746) — status.md is no longer written from this
+    # function.  The projector handler ``_phase_skipped_status_md`` in
+    # daemon/projector.py materialises the file from the wicked.phase.transitioned
+    # event emitted below (gated on WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS).
+    # Bus is the source of truth; phase_dir.mkdir stays so the projector
+    # can write into it.
 
     # Site W10b of bus-cutover wave-2 (#746): emit
-    # ``wicked.phase.transitioned`` with ``gate_result="SKIPPED"`` BEFORE
-    # the disk write so the projector handler can fan out to
-    # status.md materialisation (gated on
+    # ``wicked.phase.transitioned`` with ``gate_result="SKIPPED"`` —
+    # the projector handler ``_phase_skipped_status_md`` materialises
+    # status.md from this event (gated on
     # WG_BUS_AS_TRUTH_SKIPPED_PHASE_STATUS).  The wave-2 plan W10b
     # initially assumed the existing event covered SKIPPED transitions;
     # verification showed skip_phase did not previously emit at all
     # (only approve_phase did at line ~4055).  Adding the emit here
-    # closes that gap and keeps the bus-as-truth invariant for SKIPPED
-    # transitions on par with APPROVE/CONDITIONAL/REJECT.
-    # Fail-open: bus unavailable must NOT block the disk write.
+    # closes that gap.
+    # Fail-open: bus unavailable still produces the in-memory state
+    # transition above; only the audit artifact is lost.
     try:
         from _bus import emit_event
         emit_event(
@@ -4226,9 +4206,7 @@ def skip_phase(state: ProjectState, phase: str, reason: str = "", approved_by: s
             chain_id=getattr(state, "chain_id", None),
         )
     except Exception:  # noqa: BLE001 — fail-open per Decision #8
-        pass  # bus unavailable — direct write below still runs
-
-    status_file.write_text(status_content)
+        pass  # bus unavailable — projector won't materialise; non-fatal
 
     return state
 
