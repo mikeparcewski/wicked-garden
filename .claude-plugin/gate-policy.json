@@ -1,9 +1,14 @@
 {
-  "version": "1.1.0",
-  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/propose-process/refs/gate-policy.md. v1.1.0: added bus_health block for Site 3 emit-success monitoring (threshold in config, not code — per site-3-threshold-lives-in-gate-policy-user-override-2026-05-02.md).",
+  "version": "1.2.0",
+  "description": "Codified Gate x Rigor reviewer matrix (D1, D4). Source of truth loaded by phase_manager._resolve_gate_reviewer(). Human-readable description at skills/propose-process/refs/gate-policy.md. v1.1.0: added bus_health block for Site 3 emit-success monitoring (threshold in config, not code — per site-3-threshold-lives-in-gate-policy-user-override-2026-05-02.md). v1.2.0: added dispatch_liveness block (Theme 4, cluster B) — operator tunables for the dispatch-log liveness audit (scripts/crew/dispatch_liveness.py).",
   "bus_health": {
     "emit_success_threshold": 0.999,
     "min_n_for_assertion": 500
+  },
+  "dispatch_liveness": {
+    "stale_dispatch_secs": 300,
+    "producer_event_required": "warn",
+    "_doc": "stale_dispatch_secs: a dispatch-log entry older than this with no matching gate-result.json is reported as stuck. producer_event_required: 'warn' surfaces CONDITIONAL conditions that defer to external triggers without naming the producer event as findings; 'strict' fails the audit non-zero; 'off' disables the check. Env-vars WG_DISPATCH_LIVENESS_STALE_SECS and WG_DISPATCH_LIVENESS_PRODUCER_REQUIRED override these values."
   },
   "gates": {
     "requirements-quality": {

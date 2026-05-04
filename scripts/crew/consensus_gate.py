@@ -117,6 +117,18 @@ def should_use_consensus(project_state: Dict[str, Any], phase_config: Dict[str, 
         complexity = int(complexity)
         threshold = int(threshold)
     except (TypeError, ValueError):
+        # Theme 2 (cluster B): silently returning False here meant consensus
+        # evaluation could be DISABLED by a typo'd threshold without any
+        # signal — the gate would behave as if no consensus was configured.
+        # WARN loudly so the divergence is observable; still return False
+        # (callers expect a bool, not an exception, mid-gate).
+        logger.warning(
+            "[consensus-gate] should_use_consensus: complexity_score=%r or "
+            "consensus_threshold=%r is not a valid int — disabling consensus "
+            "for this evaluation. Fix project state or phases.json to silence.",
+            project_state.get("complexity_score"),
+            phase_config.get("consensus_threshold"),
+        )
         return False
 
     return complexity >= threshold
@@ -390,9 +402,23 @@ def evaluate_consensus_gate(
                 "reason": f"Strong dissent from consensus council: {dissent_summary}"}
 
     # Rule 2: Low agreement ratio triggers CONDITIONAL
+    # Theme 2 (cluster B): the bare `except: conf_threshold = 0.7` silently
+    # substituted a hardcoded value when phases.json carried a malformed
+    # confidence_threshold. That's a divergence — the operator's gate-tier
+    # config was effectively replaced by code's idea of a "safe default".
+    # Emit a warning so the divergence is observable. The fallback value is
+    # preserved (we don't want to crash mid-gate), but the user/operator
+    # gets a clear log line that points at the malformed config.
     try:
         conf_threshold = float(confidence_threshold)
     except (TypeError, ValueError):
+        logger.warning(
+            "[consensus-gate] phases.json confidence_threshold=%r for phase "
+            "'%s' is not a valid float — substituting 0.7. Fix phases.json to "
+            "silence this WARN and ensure the gate uses the operator-declared "
+            "threshold.",
+            confidence_threshold, phase,
+        )
         conf_threshold = 0.7
 
     if agreement_ratio < conf_threshold:

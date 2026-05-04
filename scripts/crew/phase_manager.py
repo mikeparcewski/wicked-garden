@@ -415,18 +415,61 @@ def _detect_dispatch_mode(state: "ProjectState") -> str:
         return _DISPATCH_MODE_DEFAULT_LEGACY
 
 
+# Theme 2 (cluster B): silent fallback to a 3-phase hardcoded minimal config
+# when phases.json is missing was a divergence-from-canonical-source hazard —
+# code paths would silently see a different phase set than the canonical
+# .claude-plugin/phases.json defines. Replaced with loud failure. The env-var
+# `WG_PHASES_FALLBACK=allow` opts back into the legacy fallback for narrow
+# test/CI scenarios that need to run with no plugin tree mounted; when used,
+# a stderr WARN logs the divergence so the substitution is observable.
+_PHASES_FALLBACK_MINIMAL: Dict[str, Dict[str, Any]] = {
+    "clarify": {"is_skippable": False, "depends_on": [], "required_deliverables": ["outcome.md"]},
+    "build": {"is_skippable": False, "depends_on": ["clarify"], "required_deliverables": []},
+    "review": {"is_skippable": False, "depends_on": ["build"], "required_deliverables": ["review-findings.md"]},
+}
+_PHASES_FALLBACK_WARNED: bool = False
+
+
 def load_phases_config() -> dict:
-    """Load phase definitions from phases.json in .claude-plugin/."""
+    """Load phase definitions from phases.json in .claude-plugin/.
+
+    Theme 2 (silent-fallback hardening): missing/malformed phases.json now
+    raises FileNotFoundError or json.JSONDecodeError loudly instead of
+    silently substituting a 3-phase hardcoded minimal config. The previous
+    fallback would let approve_phase advance through a phase set that
+    diverged from the canonical phases.json (e.g. missing required test/
+    test-strategy phases) — a "safer-looking" default that produces wrong
+    enforcement.
+
+    Escape hatch: ``WG_PHASES_FALLBACK=allow`` opts back into the minimal
+    fallback (logs a stderr WARN once per process so the substitution is
+    audit-visible). Intended only for narrow test scenarios that run with
+    no plugin tree mounted — production must always have phases.json.
+    """
+    global _PHASES_FALLBACK_WARNED
     config_path = _get_plugin_root() / ".claude-plugin" / "phases.json"
     if config_path.exists():
         with open(config_path) as f:
             return json.load(f).get("phases", {})
-    # Minimal fallback if phases.json missing
-    return {
-        "clarify": {"is_skippable": False, "depends_on": [], "required_deliverables": ["outcome.md"]},
-        "build": {"is_skippable": False, "depends_on": ["clarify"], "required_deliverables": []},
-        "review": {"is_skippable": False, "depends_on": ["build"], "required_deliverables": ["review-findings.md"]},
-    }
+
+    fallback_mode = os.environ.get("WG_PHASES_FALLBACK", "").strip().lower()
+    if fallback_mode == "allow":
+        if not _PHASES_FALLBACK_WARNED:
+            sys.stderr.write(
+                "[phase-manager] WARN: phases.json missing at "
+                f"{config_path}; WG_PHASES_FALLBACK=allow — substituting a "
+                "3-phase minimal config (clarify, build, review). Phase "
+                "set diverges from the canonical configuration.\n"
+            )
+            _PHASES_FALLBACK_WARNED = True
+        return dict(_PHASES_FALLBACK_MINIMAL)
+
+    raise FileNotFoundError(
+        f"phases.json not found at {config_path}. This is a configuration "
+        "error — restore the file from git, or set WG_PHASES_FALLBACK=allow "
+        "to substitute a minimal 3-phase config (logs a divergence WARN; "
+        "intended for tests, not production)."
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -451,6 +494,11 @@ _FALLBACK_REQUIRED_DELIVERABLES: Dict[str, List[Dict[str, Any]]] = {
     "review": [{"file": "review-findings.md", "min_bytes": 200}],
     "clarify": [{"file": "objective.md", "min_bytes": 100}],
 }
+
+# Theme 2 (cluster B): track which phases have hit the hardcoded deliverable
+# fallback this process so the WARN fires exactly once per (phase) — without
+# this, every approve_phase iteration would re-log and obscure the signal.
+_DELIVERABLE_FALLBACK_PHASES_WARNED: set = set()
 
 
 def get_min_test_coverage(phase_name: str) -> Optional[float]:
@@ -1207,6 +1255,18 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
         # older schema). Keep this list minimal and additive — phases.json is
         # the preferred source.
         deliverables = _FALLBACK_REQUIRED_DELIVERABLES.get(phase, [])
+        # Theme 2 (cluster B): instrument silent-fallback usage. Without this
+        # log line, divergence between the canonical phases.json and the
+        # hardcoded floor is invisible — operators only notice when a deliverable
+        # check passes/fails surprisingly. Emit once per (phase) per process.
+        if deliverables and phase not in _DELIVERABLE_FALLBACK_PHASES_WARNED:
+            logger.warning(
+                "[phase-manager] phases.json has no required_deliverables for "
+                "phase '%s' — using _FALLBACK_REQUIRED_DELIVERABLES floor "
+                "(divergence from canonical config; edit phases.json to "
+                "silence this).", phase,
+            )
+            _DELIVERABLE_FALLBACK_PHASES_WARNED.add(phase)
     if not deliverables:
         return issues
 
@@ -5500,7 +5560,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec", "adopt-clarify"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec", "adopt-clarify", "liveness"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -6088,6 +6148,39 @@ def main():
             print(json.dumps({"ok": True, **dm}, indent=2))
         else:
             print(json.dumps(dm, indent=2))
+
+    elif args.action == "liveness":
+        # Theme 4 (cluster B): scan dispatch-log + gate-results for stuck
+        # state. See scripts/crew/dispatch_liveness.py for the audit logic.
+        try:
+            from dispatch_liveness import audit_phase, audit_project
+        except ImportError as exc:
+            msg = f"Error: dispatch_liveness import failed: {exc}"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
+            sys.exit(1)
+        project_dir = get_project_dir(args.project)
+        try:
+            if args.phase:
+                findings = audit_phase(project_dir, args.phase)
+            else:
+                findings = audit_project(project_dir)
+        except Exception as exc:  # noqa: BLE001 — audit must always emit something
+            msg = f"Error: liveness audit failed: {exc}"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
+            sys.exit(1)
+        if args.json:
+            print(json.dumps({"ok": True, "findings": findings}, indent=2))
+        else:
+            if not findings:
+                print("liveness: no stuck dispatches or external-trigger conditions found.")
+            else:
+                for f in findings:
+                    print(
+                        f"[{f['severity'].upper()}] {f['kind']} "
+                        f"phase={f['phase']!r} gate={f.get('gate', '')!r} "
+                        f"reviewer={f.get('reviewer')!r}"
+                    )
+                    print(f"  {f['message']}")
 
 
 if __name__ == "__main__":
