@@ -308,21 +308,35 @@ def _read_log(log_path: Path) -> List[Dict[str, Any]]:
 def read_all_entries(project_dir: Path) -> List[Dict[str, Any]]:
     """Return every convergence log entry in the project, time-ordered.
 
-    Bus-as-truth (#746 Scope B W8): when event_log is available, read entries
-    from there as the source of truth so synchronous read-after-write works
-    via event_log even before the projector materialises the disk file.
-    Falls back to disk for pre-cutover projects (no event_log entries).
+    Bus-as-truth (#746 Scope B W8) + PR #797 review fix-up: merge bus
+    event_log AND on-disk JSONL entries so neither source produces a
+    stale-read window during projection lag.  Dedup by
+    ``(artifact_id, timestamp)`` since transitions are unique within
+    that pair (an artifact transitions to a new state at a specific
+    moment; replays carry the same timestamp).  Disk wins on duplicates
+    — the on-disk write is synchronous so it's the more recent copy
+    when the two diverge.
     """
-    bus_entries = _read_event_log_entries(project_dir)
-    if bus_entries is not None and bus_entries:
-        bus_entries.sort(key=lambda e: e.get("timestamp", ""))
-        return bus_entries
-
-    entries: List[Dict[str, Any]] = []
+    bus_entries = _read_event_log_entries(project_dir) or []
+    disk_entries: List[Dict[str, Any]] = []
     for path in _iter_all_log_paths(project_dir):
-        entries.extend(_read_log(path))
-    entries.sort(key=lambda e: e.get("timestamp", ""))
-    return entries
+        disk_entries.extend(_read_log(path))
+
+    seen_keys: set = set()
+    merged: List[Dict[str, Any]] = []
+    for entry in disk_entries + bus_entries:
+        key = (
+            entry.get("artifact_id", ""),
+            entry.get("timestamp", ""),
+        )
+        if all(key) and key in seen_keys:
+            continue
+        if all(key):
+            seen_keys.add(key)
+        merged.append(entry)
+
+    merged.sort(key=lambda e: e.get("timestamp", ""))
+    return merged
 
 
 def _append_log(log_path: Path, entry: Dict[str, Any]) -> None:

@@ -429,10 +429,13 @@ def read(
 ) -> List[Dict[str, Any]]:
     """Return all addendum records from the project log.
 
-    Bus-as-truth (#746 Scope B W7): when event_log is available, read records
-    from there as the source of truth.  When event_log is missing or returns
-    no records, fall back to the legacy disk JSONL so pre-cutover projects
-    still work.
+    Bus-as-truth (#746 Scope B W7) + PR #797 review fix-up: merge bus
+    event_log AND on-disk JSONL records so neither source produces a
+    stale-read window.  Bus emits are fire-and-forget; the daemon DB
+    can lag behind disk during projection delay, and the on-disk JSONL
+    is written synchronously.  Reading both and deduplicating by
+    ``chain_id`` (the unique-per-record identifier per the schema) means
+    a record is visible as soon as either side observes it.
 
     When ``phase_filter`` is provided, only records whose ``chain_id``
     suffix matches ``.{phase}`` (anywhere in the dotted chain) OR whose
@@ -442,11 +445,27 @@ def read(
     if not isinstance(project_dir, Path):
         project_dir = Path(project_dir)
 
-    bus_records = _read_event_log_addenda(project_dir)
-    if bus_records is not None and bus_records:
-        records = bus_records
-    else:
-        records = _read_jsonl(_project_addendum_path(project_dir))
+    bus_records = _read_event_log_addenda(project_dir) or []
+    disk_records = _read_jsonl(_project_addendum_path(project_dir))
+
+    # Dedup by (chain_id, triggered_at): chain_id alone isn't unique
+    # (multiple re-evals on the same phase legitimately share a
+    # chain_id like ``{project}.{phase}``).  ``triggered_at`` is per-
+    # record and required by ``_validate_record``.  Disk wins on
+    # duplicates: when both sources see the same record they agree
+    # byte-for-byte; the dedup just avoids double-counting during
+    # normal operation.
+    seen_keys: set = set()
+    records: List[Dict[str, Any]] = []
+    for rec in disk_records + bus_records:
+        chain_id = rec.get("chain_id", "") or ""
+        triggered_at = rec.get("triggered_at", "") or ""
+        key = (chain_id, triggered_at)
+        if all(key) and key in seen_keys:
+            continue
+        if all(key):
+            seen_keys.add(key)
+        records.append(rec)
 
     if not phase_filter:
         return records

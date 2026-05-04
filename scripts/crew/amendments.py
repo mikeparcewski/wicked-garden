@@ -222,17 +222,20 @@ def _next_scope_version(phase_dir: Path) -> int:
             if v > highest:
                 highest = v
 
-    # Disk fallback: pre-cutover legacy projects (no event_log entries) AND
-    # legacy design-addendum-N.md files MUST always be considered so the
-    # monotonic counter doesn't reset on cutover.
-    if highest == 0:
-        for rec in _iter_jsonl(phase_dir):
-            try:
-                v = int(rec.get("scope_version") or 0)
-            except (TypeError, ValueError):
-                v = 0
-            if v > highest:
-                highest = v
+    # PR #797 review fix-up: ALWAYS consider the on-disk JSONL too, not
+    # just when event_log is empty.  Bus emits are fire-and-forget; the
+    # daemon DB can lag behind disk during projection delay (or be stale
+    # if the daemon was down for a window).  Taking the max of both
+    # sources ensures the monotonic counter never regresses regardless
+    # of which side is ahead.  Also handles legacy ``design-addendum-N.md``
+    # files which never round-trip through event_log.
+    for rec in _iter_jsonl(phase_dir):
+        try:
+            v = int(rec.get("scope_version") or 0)
+        except (TypeError, ValueError):
+            v = 0
+        if v > highest:
+            highest = v
     for legacy_path in Path(phase_dir).glob("design-addendum-*.md"):
         m = LEGACY_MD_PATTERN.search(legacy_path.name)
         if m:

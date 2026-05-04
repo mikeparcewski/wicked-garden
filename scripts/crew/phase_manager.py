@@ -3767,6 +3767,17 @@ def approve_phase(
         # dict in-memory lets the existing post-load check chain run
         # unchanged via gate_result_from_synthesis below.
         if not gate_run and dispatcher is not None and not override_gate:
+            # PR #797 review fix-up: import the security-floor exception
+            # classes at this scope so the BLEND ``except`` chain below
+            # can reference them.  Without these imports, the broad
+            # ``except (ValueError, FileNotFoundError, OSError)`` would
+            # NOT catch them (neither inherits from ValueError), and they
+            # would bubble as a traceback instead of falling through to
+            # the legacy "gate not run" message.
+            from gate_result_schema import (  # noqa: PLC0415
+                GateResultAuthorizationError,
+                GateResultSchemaError,
+            )
             try:
                 gate_name = _gate_name_for_phase(phase)
                 gate_entry = _resolve_gate_reviewer(
@@ -3785,9 +3796,26 @@ def approve_phase(
                     )
                 )
                 gate_run = True
+            except GateResultSchemaError:
+                # Schema/sanitizer violation surfaced by the security
+                # floor — re-raise so the caller sees the failed gate
+                # explicitly rather than a misleading "gate not run"
+                # message.  PR #797 review fix-up: pre-fix this fell into
+                # the broad ``except`` below and bubbled as a traceback
+                # because GateResultSchemaError doesn't inherit from
+                # ValueError.
+                raise
+            except GateResultAuthorizationError:
+                # Orphan-check rejection in strict mode — same rationale
+                # as schema violation: surface explicitly.  Soft-window
+                # rejections are caught and audited inside the helper
+                # itself (see _validate_and_orphan_check_gate_data) and
+                # never propagate here.
+                raise
             except (ValueError, FileNotFoundError, OSError) as exc:
-                # Failed BLEND dispatch — fall through to legacy "gate not
-                # run" raise below so the user gets the familiar error.
+                # Failed BLEND dispatch (config / IO / non-security) —
+                # fall through to legacy "gate not run" raise below so
+                # the user gets the familiar error.
                 logger.warning(
                     "[approve] BLEND dispatch failed for phase '%s': %s; "
                     "falling back to legacy gate-required error.",
