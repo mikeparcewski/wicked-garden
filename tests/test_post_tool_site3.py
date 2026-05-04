@@ -168,19 +168,30 @@ class TestPendingReportEvalIdThreading(unittest.TestCase):
             f"Caller-provided eval_id not found in captured chain_ids: {captured_chain_ids}",
         )
 
-    def test_pending_report_writes_file_regardless_of_flag(self) -> None:
-        """The disk write must happen regardless of the bus flag — write is not gated."""
+    def test_pending_report_does_not_write_disk_directly(self) -> None:
+        """Site 3 emit-only contract (PR #799).
+
+        Pre-PR-#799 the source-side helper wrote the file synchronously even
+        when the bus flag was off.  After legacy direct-write deletion the
+        helper is emit-only — the projector handler ``_consensus_gate_pending``
+        materialises the file from the bus event.  This test asserts the new
+        contract: the source NEVER touches disk; absence of the file when
+        the daemon is not running is the correct behaviour.
+        """
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="proj2", phase="review")
 
-            # Flag explicitly OFF — no emit but the file must still be written.
-            with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "off"}):
+            # Patch _bus.emit_event so the helper does NOT need a running bus.
+            with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "off"}), \
+                 patch("_bus.emit_event"):
                 post_tool._write_pending_reviewer_report(phase_dir, "any-eval-id")
 
             report_path = phase_dir / "reviewer-report.md"
-            self.assertTrue(
-                report_path.is_file(),
-                "reviewer-report.md must be written even when bus flag is off",
+            self.assertFalse(
+                report_path.exists(),
+                "PR #799 deleted the source-side disk write; the helper must "
+                "NOT touch disk — the projector materialises the file from "
+                "the bus event.",
             )
 
 
@@ -188,11 +199,19 @@ class TestPendingReportEvalIdThreading(unittest.TestCase):
 # 3. Write-then-emit invariant
 # ---------------------------------------------------------------------------
 
-class TestWriteThenEmitInvariant(unittest.TestCase):
-    """The file write MUST happen before the emit in all 3 branches.
+class TestEmitOnlyContract(unittest.TestCase):
+    """Site 3 emit-only contract (PR #799).
 
-    This mirrors the Sites 1+2 invariant — the disk artifact must always
-    exist before the bus event fires, so projector subscribers can read it.
+    Pre-PR-#799 the source-side helpers did write-then-emit: the file
+    must exist on disk when the bus emit fires (Sites 1+2 invariant).
+    PR #799 deleted the source-side disk writes — the projector handler
+    ``_consensus_gate_completed`` is now the canonical writer AND owns
+    the create-vs-append branch decision (it reads disk state at
+    projection time, eliminating the source/projector race).
+
+    The new contract: source-side helpers emit ONLY.  The file appears
+    when the daemon's projector materialises it from the bus event.
+    These tests assert that contract directly.
     """
 
     def _build_mock_consensus_result(self, eval_id: str = "aabbccdd11223344") -> dict:
@@ -205,14 +224,12 @@ class TestWriteThenEmitInvariant(unittest.TestCase):
             "eval_id": eval_id,
         }
 
-    def test_write_happens_before_emit_in_create_branch(self) -> None:
-        """reviewer-report.md must exist when the gate_completed emit fires (create)."""
-        file_existed_at_emit_time: List[bool] = []
+    def test_create_call_emits_without_writing_disk(self) -> None:
+        """First call to _write_reviewer_report emits but does not write disk."""
+        emits: List[dict] = []
 
-        def _check_file_exists(event_type, payload, chain_id=None, metadata=None):
-            # Check if the file exists at the moment emit_event is called.
-            # phase_dir is captured in closure.
-            file_existed_at_emit_time.append(report_path.is_file())
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            emits.append({"event_type": event_type, "payload": payload})
 
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="projA", phase="build")
@@ -220,59 +237,75 @@ class TestWriteThenEmitInvariant(unittest.TestCase):
 
             cr = self._build_mock_consensus_result("aaaa0000bbbb1111")
             with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
-                 patch("_bus.emit_event", side_effect=_check_file_exists):
-                post_tool._write_reviewer_report(phase_dir, "approved", cr, "aaaa0000bbbb1111")
+                 patch("_bus.emit_event", side_effect=_capture):
+                post_tool._write_reviewer_report(
+                    phase_dir, "approved", cr, "aaaa0000bbbb1111"
+                )
 
-        self.assertTrue(
-            all(file_existed_at_emit_time),
-            "write-then-emit invariant violated: file did not exist when emit fired",
-        )
-        self.assertGreater(len(file_existed_at_emit_time), 0,
-                           "emit_event was never called (flag may be off)")
+            self.assertFalse(
+                report_path.exists(),
+                "PR #799 emit-only contract: source must NOT write disk",
+            )
+            self.assertEqual(len(emits), 1, "expected exactly one bus emit")
+            self.assertEqual(
+                emits[0]["event_type"], "wicked.consensus.gate_completed"
+            )
 
-    def test_write_happens_before_emit_in_append_branch(self) -> None:
-        """reviewer-report.md must exist (non-empty) when the gate_completed emit fires (append)."""
-        file_existed_at_emit_time: List[bool] = []
+    def test_append_call_emits_without_mutating_existing_disk_file(self) -> None:
+        """A pre-existing reviewer-report.md is NOT mutated by the source.
 
-        def _check(event_type, payload, chain_id=None, metadata=None):
-            file_existed_at_emit_time.append(report_path.is_file())
+        The projector handles the append path now — the source emits the
+        new section and returns.  Pre-PR-#799 the source rewrote the file
+        in-place; that behaviour is gone.
+        """
+        emits: List[dict] = []
+
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            emits.append({"event_type": event_type, "payload": payload})
 
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="projB", phase="build")
             report_path = phase_dir / "reviewer-report.md"
 
-            # Pre-seed the file so the append branch is taken.
-            report_path.write_text("# Existing report\n", encoding="utf-8")
+            seed = "# Existing report from independent reviewer\n"
+            report_path.write_text(seed, encoding="utf-8")
 
             cr = self._build_mock_consensus_result("cccc2222dddd3333")
             with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
-                 patch("_bus.emit_event", side_effect=_check):
-                post_tool._write_reviewer_report(phase_dir, "conditional", cr, "cccc2222dddd3333")
+                 patch("_bus.emit_event", side_effect=_capture):
+                post_tool._write_reviewer_report(
+                    phase_dir, "conditional", cr, "cccc2222dddd3333"
+                )
 
-        self.assertTrue(
-            all(file_existed_at_emit_time),
-            "write-then-emit invariant violated in append branch",
-        )
+            # Source must NOT have touched the seeded file.
+            self.assertEqual(report_path.read_text(encoding="utf-8"), seed)
+            self.assertEqual(len(emits), 1, "expected exactly one bus emit")
 
-    def test_write_happens_before_emit_in_pending_branch(self) -> None:
-        """reviewer-report.md must exist when the gate_pending emit fires."""
-        file_existed_at_emit_time: List[bool] = []
+    def test_pending_call_emits_without_writing_disk(self) -> None:
+        """_write_pending_reviewer_report emits but does not write disk."""
+        emits: List[dict] = []
 
-        def _check(event_type, payload, chain_id=None, metadata=None):
-            file_existed_at_emit_time.append(report_path.is_file())
+        def _capture(event_type, payload, chain_id=None, metadata=None):
+            emits.append({"event_type": event_type, "payload": payload})
 
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="projC", phase="design")
             report_path = phase_dir / "reviewer-report.md"
 
             with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
-                 patch("_bus.emit_event", side_effect=_check):
-                post_tool._write_pending_reviewer_report(phase_dir, "eeee4444ffff5555")
+                 patch("_bus.emit_event", side_effect=_capture):
+                post_tool._write_pending_reviewer_report(
+                    phase_dir, "eeee4444ffff5555"
+                )
 
-        self.assertTrue(
-            all(file_existed_at_emit_time),
-            "write-then-emit invariant violated in pending branch",
-        )
+            self.assertFalse(
+                report_path.exists(),
+                "PR #799 emit-only contract: source must NOT write disk",
+            )
+            self.assertEqual(len(emits), 1)
+            self.assertEqual(
+                emits[0]["event_type"], "wicked.consensus.gate_pending"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -481,80 +514,62 @@ class TestPerSectionPayload(unittest.TestCase):
 
         return captured
 
-    def test_append_path_raw_payload_equals_yaml_block_not_full_file(self) -> None:
-        """append branch: raw_payload must equal yaml_block (just the section),
-        NOT the full cumulative file.  Per-section payload contract (#770).
+    def test_consecutive_emits_carry_per_section_yaml_block_payloads(self) -> None:
+        """Per-section payload contract (#770) post PR-#799 (emit-only).
+
+        Each call to ``_write_reviewer_report`` carries its own yaml_block
+        as raw_payload — the projector concatenates them into the
+        cumulative file.  Verify per-section semantics without comparing
+        to disk (the source never writes; the projector does).
+
+        eval_id is in the bus payload metadata + chain_id, not in the
+        yaml_block bytes (the YAML output documents the consensus result
+        without the bus-level eval_id discriminator), so we verify the
+        eval_id at the payload level instead.
         """
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="rp-append", phase="build")
-            report_path = phase_dir / "reviewer-report.md"
 
-            # First write — creates the file (yaml_block = full file on create).
             captured1 = self._capture_emit(phase_dir, "eval00000001")
-            self.assertGreater(len(captured1), 0, "emit_event was never called (create)")
-            first_yaml_block = captured1[0]["raw_payload"]
-
-            # Second write — appends to the file (triggers append branch).
             captured2 = self._capture_emit(phase_dir, "eval00000002")
-            self.assertGreater(len(captured2), 0, "emit_event was never called (append)")
+            self.assertEqual(len(captured1), 1)
+            self.assertEqual(len(captured2), 1)
 
-            file_content = report_path.read_text(encoding="utf-8")
-            append_payload = captured2[-1]
-            self.assertIn("raw_payload", append_payload,
-                          "append branch must emit raw_payload field")
+            self.assertEqual(captured1[0]["eval_id"], "eval00000001")
+            self.assertEqual(captured2[0]["eval_id"], "eval00000002")
 
-            # raw_payload must be the yaml_block ONLY — NOT the cumulative file.
-            yaml_block = append_payload["raw_payload"]
-            self.assertNotEqual(
-                yaml_block,
-                file_content,
-                "append branch raw_payload must NOT equal the full cumulative file",
-            )
-            # The cumulative file contains the first section + separator + second section.
-            # The second section (yaml_block) must appear at the END of the file.
-            self.assertTrue(
-                file_content.endswith(yaml_block),
-                "Cumulative file must end with the just-written yaml_block",
-            )
-            # The yaml_block must be a strict substring of the cumulative file.
-            self.assertIn(
-                yaml_block,
-                file_content,
-                "yaml_block must appear in cumulative file",
-            )
-            # The yaml_block must NOT include the first section's content.
-            self.assertNotIn(
-                first_yaml_block,
-                yaml_block,
-                "append branch raw_payload must not contain the first section",
-            )
+            payload1 = captured1[0]["raw_payload"]
+            payload2 = captured2[0]["raw_payload"]
+            self.assertIsInstance(payload1, str)
+            self.assertIsInstance(payload2, str)
+            # Both yaml_blocks are valid, non-empty per-section bytes.
+            self.assertIn("---", payload1)
+            self.assertIn("---", payload2)
+            self.assertIn("verdict:", payload1)
+            self.assertIn("verdict:", payload2)
 
-    def test_create_path_raw_payload_equals_file_content(self) -> None:
-        """create branch: raw_payload must equal the full file content after write.
-
-        On the create branch yaml_block IS the entire file, so create + append
-        branches share "just-written content" semantics — file content and
-        yaml_block are identical here.
-        """
+    def test_create_path_raw_payload_is_yaml_block_string(self) -> None:
+        """create branch: raw_payload is the source-built yaml_block string."""
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="rp-create", phase="build")
-            report_path = phase_dir / "reviewer-report.md"
 
             captured = self._capture_emit(phase_dir, "eval00000001")
-            self.assertGreater(len(captured), 0, "emit_event was never called")
+            self.assertEqual(len(captured), 1)
 
-            file_content = report_path.read_text(encoding="utf-8")
-            create_payload = captured[0]
-            self.assertIn("raw_payload", create_payload,
+            payload = captured[0]
+            self.assertIn("raw_payload", payload,
                           "create branch must emit raw_payload field")
-            self.assertEqual(
-                create_payload["raw_payload"],
-                file_content,
-                "create branch: raw_payload must equal full file content (yaml_block IS the full file)",
-            )
+            self.assertIsInstance(payload["raw_payload"], str)
+            # raw_payload should look like a YAML frontmatter block (the
+            # post_tool _build_reviewer_report_yaml output).
+            self.assertIn("---", payload["raw_payload"])
+            self.assertIn("verdict:", payload["raw_payload"])
+            # eval_id is at the bus-payload metadata level, not embedded
+            # in the YAML body.
+            self.assertEqual(payload["eval_id"], "eval00000001")
 
-    def test_pending_path_raw_payload_equals_file_content(self) -> None:
-        """gate_pending: raw_payload must equal the pending template content."""
+    def test_pending_path_raw_payload_is_pending_template(self) -> None:
+        """gate_pending: raw_payload is the pending-template string."""
         controlled_eval_id = "pendingeval12345"
         captured: list = []
 
@@ -563,26 +578,22 @@ class TestPerSectionPayload(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             phase_dir = _make_phase_dir(Path(tmp), project="rp-pending", phase="build")
-            report_path = phase_dir / "reviewer-report.md"
 
             with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}), \
                  patch("_bus.emit_event", side_effect=_capture):
                 post_tool._write_pending_reviewer_report(phase_dir, controlled_eval_id)
 
-            self.assertGreater(len(captured), 0, "emit_event was never called")
-            pending_emits = [(et, p) for et, p in captured
-                             if et == "wicked.consensus.gate_pending"]
-            self.assertGreater(len(pending_emits), 0, "gate_pending was never emitted")
-
-            file_content = report_path.read_text(encoding="utf-8")
-            _, payload = pending_emits[0]
-            self.assertIn("raw_payload", payload,
-                          "gate_pending must emit raw_payload field")
-            self.assertEqual(
-                payload["raw_payload"],
-                file_content,
-                "raw_payload must equal pending file content",
-            )
+            self.assertEqual(len(captured), 1)
+            event_type, payload = captured[0]
+            self.assertEqual(event_type, "wicked.consensus.gate_pending")
+            self.assertIn("raw_payload", payload)
+            # The pending template renders into the raw_payload string.
+            # Source helper substitutes _now_iso() into the template; we
+            # only verify the shape (non-empty + recognisable marker), not
+            # the timestamp value.
+            self.assertIsInstance(payload["raw_payload"], str)
+            self.assertGreater(len(payload["raw_payload"]), 20,
+                               "pending template must produce non-trivial bytes")
 
 
 if __name__ == "__main__":

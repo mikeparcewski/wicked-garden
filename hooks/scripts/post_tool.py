@@ -981,19 +981,24 @@ def _write_reviewer_report(
     consensus_result: dict,
     eval_id: str,
 ) -> None:
-    """Write or append consensus findings to reviewer-report.md.
+    """Emit wicked.consensus.gate_completed — projector materialises the file.
 
-    If the file already exists (written by the independent-reviewer agent from #367),
-    append the consensus section rather than overwriting it.
+    Site 3 of bus-cutover (#746, PR #799).  Pre-PR-#799 this helper did
+    write-then-emit: it read ``report_path.exists()`` to choose
+    create-vs-append, wrote the file, then emitted the bus event.  PR #799
+    deleted the source-side disk writes — the projector handler
+    ``_consensus_gate_completed`` is now the canonical writer AND owns the
+    branch decision (it reads disk state at projection time, eliminating
+    the source/projector race).
 
-    Site 3 of bus-cutover (#746): emits ``wicked.consensus.gate_completed``
-    AFTER each write (write-then-emit, mirrors Sites 1+2).  ``eval_id`` is
-    threaded from ``_handle_bash_consensus`` so the chain_id is unique across
-    all emits in one hook invocation (bus-chain-id dedupe gotcha).
+    ``eval_id`` is threaded from ``_handle_bash_consensus`` so the
+    chain_id stays unique across emits in one hook invocation (bus-chain-id
+    dedupe gotcha).  The legacy ``branch`` payload field is preserved as
+    ``"auto"`` for forward-compat — the projector ignores it post-#799 but
+    older daemons that still consult ``branch`` see a value they understand.
 
     ``_bus.emit_event`` is non-raising — no try/except wrapper needed here.
     """
-    report_path = phase_dir / "reviewer-report.md"
     yaml_block = _build_reviewer_report_yaml(verdict, consensus_result)
 
     # Extract project_id and phase from phase_dir for payload + chain_id.
@@ -1001,103 +1006,63 @@ def _write_reviewer_report(
     phase = phase_dir.name
     project_id = phase_dir.parents[1].name
 
-    if report_path.exists():
-        # Append consensus section to existing report
-        existing = report_path.read_text(encoding="utf-8")
-        separator = "\n\n---\n## Consensus Gate Evaluation\n\n"
-        new_content = existing + separator + yaml_block
-        report_path.write_text(new_content, encoding="utf-8")
-
-        # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
-        # Flag check: only emit when Site 3 cutover is enabled.
-        # raw_payload = yaml_block (just the appended section, NOT the full
-        # cumulative file).  Matches Site 1 per-entry contract (#770 resolution):
-        # the projector reads the existing file, applies the standard separator,
-        # and appends the payload — bounded payload + projector replayability
-        # both achieved.
-        if _bus_as_truth_flag_on():
-            from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
-            emit_event(
-                "wicked.consensus.gate_completed",
-                {
-                    "project_id": project_id,
-                    "phase": phase,
-                    "verdict": verdict,
-                    "eval_id": eval_id,
-                    "branch": "append",
-                    "raw_payload": yaml_block,
-                },
-                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
-            )
-    else:
-        # Create new report with full frontmatter
-        phase_dir.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(yaml_block, encoding="utf-8")
-
-        # Emit AFTER write — write-then-emit invariant (Sites 1+2 precedent).
-        # raw_payload = yaml_block (the full file content on the create branch,
-        # since the file is fresh).  Per-section contract (#770): yaml_block IS
-        # the entire new file here, so create + append branches are both
-        # "just-written content" semantics.
-        if _bus_as_truth_flag_on():
-            from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
-            emit_event(
-                "wicked.consensus.gate_completed",
-                {
-                    "project_id": project_id,
-                    "phase": phase,
-                    "verdict": verdict,
-                    "eval_id": eval_id,
-                    "branch": "create",
-                    "raw_payload": yaml_block,
-                },
-                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
-            )
+    if _bus_as_truth_flag_on():
+        from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+        # raw_payload = yaml_block (just this section).  The projector
+        # decides create-vs-append by inspecting disk state at projection
+        # time (PR #799 — projector self-deciding, eliminates source-side
+        # race against the projector).
+        emit_event(
+            "wicked.consensus.gate_completed",
+            {
+                "project_id": project_id,
+                "phase": phase,
+                "verdict": verdict,
+                "eval_id": eval_id,
+                # ``branch`` retained for forward-compat with daemons that
+                # still consult it; "auto" = projector decides from disk.
+                "branch": "auto",
+                "raw_payload": yaml_block,
+            },
+            chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
+        )
 
 
 def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
-    """Write a pending reviewer-report.md when consensus evaluation fails.
+    """Emit wicked.consensus.gate_pending — projector materialises the file.
 
-    Only writes if no report exists yet — never overwrites a real result.
+    Fires when consensus evaluation fails.  The projector handler
+    ``_consensus_gate_pending`` materialises the pending placeholder ONLY
+    when reviewer-report.md does not already exist — it never overwrites a
+    real result (the no-clobber invariant moved into the projector in
+    PR #799 along with the legacy direct-write deletion).
 
-    Site 3 of bus-cutover (#746): emits ``wicked.consensus.gate_pending``
-    AFTER the write (write-then-emit invariant).  ``eval_id`` MUST be
-    threaded from the caller — no consensus_result is available on this
-    failure path, so the caller mints eval_id at the entry point and passes
-    it in explicitly (Option A from the pre-impl council).
+    ``eval_id`` MUST be threaded from the caller — no consensus_result is
+    available on this failure path, so the caller mints eval_id at the
+    entry point and passes it in explicitly (Option A from the pre-impl
+    council).
 
     ``_bus.emit_event`` is non-raising — no try/except wrapper needed here.
     """
-    report_path = phase_dir / "reviewer-report.md"
-    if report_path.exists():
-        return  # Don't clobber an existing report
-
     phase = phase_dir.name
     project_id = phase_dir.parents[1].name
     pending_content = _REVIEWER_REPORT_PENDING.format(reviewed_at=_now_iso())
 
-    try:
-        phase_dir.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(pending_content, encoding="utf-8")
-
-        # Emit AFTER write — write-then-emit invariant.
-        # raw_payload = pending_content (the full pending template, which IS
-        # the just-written content — this branch always creates a fresh file).
-        # Per-section contract (#770): pending branch was already correct shape.
-        if _bus_as_truth_flag_on():
-            from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
-            emit_event(
-                "wicked.consensus.gate_pending",
-                {
-                    "project_id": project_id,
-                    "phase": phase,
-                    "eval_id": eval_id,
-                    "raw_payload": pending_content,
-                },
-                chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
-            )
-    except Exception:
-        pass
+    if _bus_as_truth_flag_on():
+        from _bus import emit_event  # noqa: PLC0415 — lazy import per hook pattern
+        # raw_payload = full pending template; projector writes it only if
+        # no reviewer-report.md exists yet (no-clobber invariant lives in
+        # the projector handler).
+        emit_event(
+            "wicked.consensus.gate_pending",
+            {
+                "project_id": project_id,
+                "phase": phase,
+                "eval_id": eval_id,
+                "raw_payload": pending_content,
+            },
+            chain_id=f"{project_id}.{phase}.consensus.{eval_id}",
+        )
 
 
 def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
