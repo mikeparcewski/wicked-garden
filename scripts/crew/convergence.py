@@ -191,6 +191,99 @@ def _iter_all_log_paths(project_dir: Path) -> List[Path]:
     return sorted(phases_dir.glob("*/" + _LOG_FILENAME))
 
 
+def _read_event_log_entries(
+    project_dir: Path,
+) -> Optional[List[Dict[str, Any]]]:
+    """Read convergence transition records from the bus event_log (#746 W8).
+
+    Mirrors the W6/W7 pattern.  Returns parsed entries from
+    ``wicked.convergence.transition_recorded`` events across ALL phases,
+    or ``None`` when the event_log is unavailable / read fails.
+    Fail-open: caller treats ``None`` as "use disk fallback".
+    """
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        import sqlite3 as _sqlite3
+        from _event_log_reader import _escape_like  # type: ignore
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+
+    db_env = os.environ.get("WG_DAEMON_DB")
+    if db_env:
+        db_path = Path(db_env)
+    else:
+        db_path = (
+            Path.home()
+            / ".something-wicked"
+            / "wicked-garden-daemon"
+            / "projections.db"
+        )
+    if not db_path.is_file():
+        return None
+
+    project_id = project_dir.name
+    try:
+        conn = _sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+        )
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+    try:
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='event_log'"
+            ).fetchone()
+            if row is None:
+                return None
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+
+        escaped = _escape_like(project_id)
+        try:
+            rows = conn.execute(
+                """
+                SELECT payload_json
+                FROM   event_log
+                WHERE  chain_id LIKE ? ESCAPE '\\'
+                  AND  event_type = ?
+                ORDER  BY event_id ASC
+                """,
+                (f"{escaped}.%", "wicked.convergence.transition_recorded"),
+            ).fetchall()
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 — fail-open
+            pass
+
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        payload_json = row[0]
+        try:
+            payload = json.loads(payload_json) if payload_json else {}
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        raw = payload.get("raw_payload")
+        if not isinstance(raw, str):
+            continue
+        try:
+            entry = json.loads(raw.rstrip("\n"))
+        except (TypeError, ValueError):
+            continue
+        if isinstance(entry, dict):
+            out.append(entry)
+    return out
+
+
 def _read_log(log_path: Path) -> List[Dict[str, Any]]:
     """Read a single convergence log file. Returns [] if missing or malformed."""
     if not log_path.is_file():
@@ -213,7 +306,18 @@ def _read_log(log_path: Path) -> List[Dict[str, Any]]:
 
 
 def read_all_entries(project_dir: Path) -> List[Dict[str, Any]]:
-    """Return every convergence log entry in the project, time-ordered."""
+    """Return every convergence log entry in the project, time-ordered.
+
+    Bus-as-truth (#746 Scope B W8): when event_log is available, read entries
+    from there as the source of truth so synchronous read-after-write works
+    via event_log even before the projector materialises the disk file.
+    Falls back to disk for pre-cutover projects (no event_log entries).
+    """
+    bus_entries = _read_event_log_entries(project_dir)
+    if bus_entries is not None and bus_entries:
+        bus_entries.sort(key=lambda e: e.get("timestamp", ""))
+        return bus_entries
+
     entries: List[Dict[str, Any]] = []
     for path in _iter_all_log_paths(project_dir):
         entries.extend(_read_log(path))
