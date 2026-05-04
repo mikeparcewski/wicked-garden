@@ -934,16 +934,20 @@ def _consensus_report_created(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.consensus.report_created → consensus_reports + disk.
 
     Site 2 of the bus-cutover staging plan (#746).  Behaviour is gated on
-    `WG_BUS_AS_TRUTH_CONSENSUS_REPORT` via `_bus_as_truth_enabled("CONSENSUS_REPORT")`:
+    `WG_BUS_AS_TRUTH_CONSENSUS_REPORT` via
+    `_bus_as_truth_enabled("CONSENSUS_REPORT")`.  CONSENSUS_REPORT is in
+    the default-ON shipped set (`_BUS_AS_TRUTH_DEFAULT_ON`), so an unset
+    env var resolves to True; explicit ``"off"`` opts out.
 
-      * flag-off (default): handler is a no-op.  The projector wrapper still
-        records the event_log row as `applied` (Decision #6); the projection
-        table is intentionally untouched while the disk file remains source
-        of truth.
-      * flag-on: INSERT OR IGNORE one row per (event_id) into
-        `consensus_reports` AND materialise consensus-report.json on disk
-        (the legacy direct-write in ``consensus_gate._write_consensus_report``
-        was deleted in this PR; the projector is now the canonical writer).
+      * flag-off (explicit ``"off"``): handler is a no-op.  The projector
+        wrapper still records the event_log row as `applied`
+        (Decision #6).  Both the SQL projection table AND the disk
+        materialisation are skipped — operators get a unified opt-out.
+      * flag-on (default OR explicit ``"on"``): INSERT OR IGNORE one row
+        per (event_id) into `consensus_reports` AND materialise
+        consensus-report.json on disk via `_consensus_disk_write` (the
+        legacy direct-write in ``consensus_gate._write_consensus_report``
+        was deleted in PR #798; the projector is now the canonical writer).
 
     The `raw_payload` field is REQUIRED per Council Condition C10 — it
     carries the canonical on-disk bytes (json.dumps with indent=2) so the

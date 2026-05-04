@@ -106,7 +106,6 @@ def test_report_raw_payload_is_canonical_indent2_bytes() -> None:
     disk, so this assertion proves the C11 contract end-to-end.
     """
     from consensus_gate import _write_consensus_report
-    from dataclasses import asdict
     captured: list[dict] = []
 
     def _fake_emit(event_type, payload, chain_id=None, metadata=None):
