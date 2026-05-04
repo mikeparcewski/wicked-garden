@@ -807,6 +807,51 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
             str(raw_payload),
         ),
     )
+
+    # Site 1 disk projection (PR #800): materialise dispatch-log.jsonl on
+    # disk so reconcile_v2's drift detector + check_orphan's read path +
+    # synthetic_drift contract still hold after the legacy direct-write in
+    # ``dispatch_log.append`` was deleted.  Wrapped in fail-open ``try``
+    # so a disk-write failure NEVER taints the SQL projection above (SQL
+    # row + drift event are still recorded).  Mirrors Site 2's
+    # ``_consensus_disk_write`` shape but reuses the existing
+    # ``_jsonl_append_projection`` helper since dispatch-log.jsonl is an
+    # append-stream artifact (same shape as W6/W7/W8).
+    #
+    # Rotation (#505): pre-#800 ``dispatch_log.append`` called
+    # ``rotate_if_needed`` BEFORE writing — that branch was deleted along
+    # with the direct write.  The projector now owns rotation: cheap
+    # stat() check before the append, fail-open on missing module.
+    try:
+        project_row = db.get_project(conn, str(project_id))
+        if project_row is not None and project_row.get("directory"):
+            target_path = (
+                Path(project_row["directory"]) / "phases" / str(phase)
+                / "dispatch-log.jsonl"
+            )
+            try:
+                from log_retention import rotate_if_needed  # type: ignore[import]
+                rotate_if_needed(target_path)
+            except ImportError:
+                pass  # fail-open: rotation module unavailable in this env
+            except Exception as rot_exc:  # noqa: BLE001 — fail-open
+                logger.warning(
+                    "projector: rotate_if_needed raised: %s; proceeding "
+                    "to append unrotated", rot_exc,
+                )
+
+        _jsonl_append_projection(
+            conn, event,
+            flag_token="DISPATCH_LOG",
+            relative_template="phases/{phase}/dispatch-log.jsonl",
+            handler_name="wicked.dispatch.log_entry_appended",
+        )
+    except Exception as exc:  # noqa: BLE001 — fail-open for disk side-effect
+        logger.warning(
+            "projector: wicked.dispatch.log_entry_appended disk projection "
+            "raised — SQL projection still applied: %s", exc,
+        )
+
     logger.debug(
         "projector: applied wicked.dispatch.log_entry_appended "
         "project_id=%r phase=%r gate=%r event_id=%r",

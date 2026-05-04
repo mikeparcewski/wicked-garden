@@ -280,18 +280,33 @@ def append(
     expected_result_path: str = "gate-result.json",
     dispatched_at: Optional[str] = None,
 ) -> None:
-    """Append one dispatch record. Appending happens BEFORE dispatcher
-    invocation so an out-of-band gate-result written by a rogue
-    reviewer fails the orphan check (closes the TOCTOU window per
-    CH-04 — orphan *detection*).
+    """Emit wicked.dispatch.log_entry_appended — projector materialises file.
 
-    #500: the appended record is signed via HMAC-SHA256 over the
-    canonical record bytes under the session-scoped secret. The
-    secret is resolved via :func:`_current_hmac_secret` (auto-generated
-    on first use). The ``hmac`` hex string is stored alongside the
-    record; verifier strips it before re-computing the MAC.
+    Site 1 of the bus-cutover (#746, PR #800).  Bus is the source of truth:
+    this function builds the canonical record + HMAC, emits the bus event,
+    and returns.  The legacy ``path.open("a") + write`` call was deleted in
+    PR #800 — the projector handler ``_dispatch_log_appended`` now both
+    inserts the row into ``dispatch_log_entries`` AND materialises
+    ``phases/{phase}/dispatch-log.jsonl`` via ``_jsonl_append_projection``.
+
+    Appending happens BEFORE dispatcher invocation so an out-of-band
+    gate-result written by a rogue reviewer fails the orphan check
+    (closes the TOCTOU window per CH-04 — orphan *detection*).  Post-#800
+    the orphan check (``check_orphan``) reads from the bus event_log
+    first via ``_event_log_reader``, falling back to the legacy disk
+    path for pre-cutover projects (see ``read_entries`` below).
+
+    #500: the emitted record is signed via HMAC-SHA256 over the
+    canonical record bytes under the session-scoped secret.  The
+    ``hmac`` hex string is included in both the projection table row
+    AND the on-disk JSONL line.  Signing failure is fail-open per
+    AC-7 design — orphan-detection still catches the entry and a
+    missing-hmac path is downgraded to a WARN at verification time.
+
+    Bus failure is fail-open per Decision #8: emit failure must NOT
+    propagate to the caller (so the gate dispatch itself completes;
+    orphan check will WARN downstream when no matching entry is found).
     """
-    path = _resolve_log_path(Path(project_dir), phase)
     record: Dict[str, Any] = {
         "reviewer": reviewer,
         "phase": phase,
@@ -302,91 +317,182 @@ def append(
         "dispatch_id": dispatch_id,
     }
 
-    # #500 — compute + attach HMAC. Signing failure must NOT prevent
-    # append: the orphan check still catches a gate-result with no
+    # #500 — compute + attach HMAC.  Signing failure must NOT prevent
+    # the emit: the orphan check still catches a gate-result with no
     # matching entry, and a missing-hmac path is caught by the
-    # legacy-fallback WARN on load. Fail-open per AC-7 design.
+    # legacy-fallback WARN on load.  Fail-open per AC-7 design.
     try:
         secret = _current_hmac_secret()
         record["hmac"] = _compute_hmac(record, secret)
     except Exception as exc:  # pragma: no cover — defensive
         sys.stderr.write(
             "[wicked-garden:gate-result] dispatch-log HMAC signing failed "
-            f"(phase={phase}, reviewer={reviewer}): {exc}. Entry appended "
+            f"(phase={phase}, reviewer={reviewer}): {exc}. Emit will fire "
             "without HMAC; verifier will downgrade to orphan-detection.\n"
         )
 
-    # #505 — rotate BEFORE writing each record. Cheap stat() check;
-    # failure is non-fatal (rotate_if_needed is fail-open). Lazy import
-    # so dispatch still works if log_retention is missing.
-    try:
-        from log_retention import rotate_if_needed  # type: ignore
-        rotate_if_needed(path)
-    except ImportError:  # pragma: no cover — defensive
-        pass  # fail-open: rotation module unavailable, append continues unbounded
+    # #505 — rotation lives in the projector path now (post-#800 the
+    # source side never writes disk; the projector applies events in
+    # event_id order so rotation is naturally bounded by event_log
+    # retention).  Source-side rotation call removed as dead code under
+    # the emit-only contract.
 
-    write_succeeded = False
+    # Bus emit — projector handler materialises both the SQL row AND
+    # the on-disk JSONL line.  Fail-open: bus failure must NOT block the
+    # caller (gate dispatch must still proceed; orphan-check downstream
+    # surfaces the missing entry).
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with path.open("a", encoding="utf-8") as fp:
-            fp.write(json.dumps(record, separators=(",", ":")) + "\n")
-        write_succeeded = True
-    except OSError as exc:
-        # Non-fatal: dispatch can still proceed; downstream orphan check
-        # will warn on the missing record.
+        from _bus import emit_event  # type: ignore[import]
+        project_id = project_dir.name
+        # #746 C5 — chain_id MUST include dispatch_id to keep two retry
+        # dispatches from collapsing on the bus dedupe ledger
+        # (`_bus.py:569` is_processed keyed on `(event_type, chain_id)`).
+        # Per brain memory `bus-chain-id-must-include-uniqueness-segment-gotcha`.
+        assert gate, "dispatch_log.append() requires gate"
+        chain_id = f"{project_id}.{phase}.{gate}.{dispatch_id}"
+        emit_event(
+            "wicked.dispatch.log_entry_appended",
+            {
+                "project_id": project_id,
+                "phase": phase,
+                "gate": gate,
+                "reviewer": reviewer,
+                "dispatch_id": dispatch_id,
+                "dispatcher_agent": dispatcher_agent,
+                "expected_result_path": expected_result_path,
+                "dispatched_at": record["dispatched_at"],
+                "hmac": record.get("hmac"),
+                "hmac_present": "hmac" in record,
+                # #746 C4 — ``raw_payload`` is the canonical bytes the
+                # projector replays into ``dispatch_log_entries`` AND the
+                # on-disk JSONL line (post-#800).  Carved out of the bus
+                # deny-list at ``_bus.py:_PAYLOAD_ALLOW_OVERRIDES``.
+                "raw_payload": json.dumps(record, separators=(",", ":")),
+            },
+            chain_id=chain_id,
+        )
+    except Exception as exc:  # pragma: no cover — defensive
         sys.stderr.write(
-            "[wicked-garden:gate-result] dispatch-log append failed "
-            f"(phase={phase}, reviewer={reviewer}): {exc}.\n"
+            "[wicked-garden:gate-result] dispatch-log bus emit failed "
+            f"(phase={phase}, reviewer={reviewer}): {exc}\n"
         )
 
-    # Part C of #734: emit AFTER successful write so the bus-emit lint and
-    # the resume projector can subscribe to dispatch activity. Fail-open —
-    # a missing emit must not break the dispatch flow (orphan-check still
-    # catches missing entries via the file-based path).
-    if write_succeeded:
+
+def _read_event_log_entries(
+    project_dir: Path, phase: str,
+) -> Optional[List[Dict[str, Any]]]:
+    """Read dispatch-log records from the bus event_log (Site 1 Scope B).
+
+    Mirrors the W6/W7/W8 helper template (see brain memory
+    ``bus-cutover-read-from-event-log-helper-template``).  Returns the
+    parsed list of dispatch entries (one per
+    ``wicked.dispatch.log_entry_appended`` event in event_id order),
+    or ``None`` when the event_log path is unavailable / the read fails.
+    Caller treats ``None`` as "use disk fallback".
+
+    Each event's ``raw_payload`` is the canonical JSON record the
+    projector also writes to disk, so parsing it produces the same
+    record shape as the legacy ``read_entries`` returned.
+    """
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        import sqlite3 as _sqlite3
+        from _event_log_reader import _escape_like  # type: ignore
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+
+    db_env = os.environ.get("WG_DAEMON_DB")
+    if db_env:
+        db_path = Path(db_env)
+    else:
+        db_path = (
+            Path.home()
+            / ".something-wicked"
+            / "wicked-garden-daemon"
+            / "projections.db"
+        )
+    if not db_path.is_file():
+        return None
+
+    project_id = project_dir.name
+    try:
+        conn = _sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+        )
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+    try:
         try:
-            from _bus import emit_event  # type: ignore[import]
-            # project_dir is already typed as Path in the signature; no wrap needed.
-            project_id = project_dir.name
-            # #746 C5 — chain_id MUST include dispatch_id to keep two retry
-            # dispatches from collapsing on the bus dedupe ledger
-            # (`_bus.py:569` is_processed keyed on `(event_type, chain_id)`).
-            # Per brain memory `bus-chain-id-must-include-uniqueness-segment-gotcha`.
-            assert gate, "dispatch_log.append() requires gate"
-            chain_id = f"{project_id}.{phase}.{gate}.{dispatch_id}"
-            emit_event(
-                "wicked.dispatch.log_entry_appended",
-                {
-                    "project_id": project_id,
-                    "phase": phase,
-                    "gate": gate,
-                    "reviewer": reviewer,
-                    "dispatch_id": dispatch_id,
-                    "dispatcher_agent": dispatcher_agent,
-                    "expected_result_path": expected_result_path,
-                    "dispatched_at": record["dispatched_at"],
-                    "hmac": record.get("hmac"),
-                    "hmac_present": "hmac" in record,
-                    # #746 C4 — `raw_payload` is the canonical bytes the
-                    # projector replays into `dispatch_log_entries`.  Without
-                    # this the projector cannot reproduce the on-disk JSONL
-                    # line under flag-on (Site 1 dual-write).  Carved out of
-                    # the bus deny-list at `_bus.py:_PAYLOAD_ALLOW_OVERRIDES`.
-                    "raw_payload": json.dumps(record, separators=(",", ":")),
-                },
-                chain_id=chain_id,
-            )
-        except Exception as exc:  # pragma: no cover — defensive
-            sys.stderr.write(
-                "[wicked-garden:gate-result] dispatch-log bus emit failed "
-                f"(phase={phase}, reviewer={reviewer}): {exc}\n"
-            )
+            row = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='event_log'"
+            ).fetchone()
+            if row is None:
+                return None
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+
+        # Phase-scoped query: chain_id format is
+        # ``{project_id}.{phase}.{gate}.{dispatch_id}`` so we filter by the
+        # ``{project}.{phase}.`` prefix.
+        prefix = f"{_escape_like(project_id)}.{_escape_like(phase)}.%"
+        try:
+            rows = conn.execute(
+                """
+                SELECT payload_json
+                FROM   event_log
+                WHERE  chain_id LIKE ? ESCAPE '\\'
+                  AND  event_type = ?
+                ORDER  BY event_id ASC
+                """,
+                (prefix, "wicked.dispatch.log_entry_appended"),
+            ).fetchall()
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 — fail-open
+            pass  # fail open: close failure on read-only conn is non-fatal
+
+    out: List[Dict[str, Any]] = []
+    for row in rows:
+        payload_json = row[0]
+        try:
+            payload = json.loads(payload_json) if payload_json else {}
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        raw = payload.get("raw_payload")
+        if not isinstance(raw, str):
+            continue
+        try:
+            entry = json.loads(raw)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(entry, dict):
+            out.append(entry)
+    return out
 
 
 def read_entries(project_dir: Path, phase: str) -> List[Dict[str, Any]]:
-    """Read dispatch-log entries for a phase. Malformed lines are
-    skipped with a stderr note; callers see only valid records.
+    """Read dispatch-log entries for a phase.
+
+    Bus-as-truth (#746 PR #800): when the daemon event_log is available,
+    read entries from there as the source of truth.  Falls back to disk
+    JSONL for pre-cutover projects (no daemon DB / no event_log entries).
+    Malformed lines are skipped with a stderr note in either path;
+    callers see only valid records.
     """
+    bus_entries = _read_event_log_entries(Path(project_dir), phase)
+    if bus_entries is not None and bus_entries:
+        return bus_entries
+
     path = _resolve_log_path(Path(project_dir), phase)
     if not path.exists():
         return []

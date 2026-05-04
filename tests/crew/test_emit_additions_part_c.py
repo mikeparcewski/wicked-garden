@@ -71,22 +71,20 @@ class TestDispatchLogEmits(unittest.TestCase):
                         "demo-proj.build.testability.abc123",
                     )
 
-    def test_no_emit_when_write_fails(self):
-        """Disk write fails → no orphan emit. Otherwise the projector
-        would record a phantom dispatch that never made it to disk.
+    def test_emit_fires_independently_of_disk_state(self):
+        """Site 1 emit-only contract (PR #800).
 
-        Patches ``Path.open`` (which the dispatch-log path uses) rather
-        than ``builtins.open`` — patching builtins.open would also break
-        the lazy ``from _bus import emit_event`` import inside the
-        function, masking what the test is trying to measure.
+        Pre-PR-#800 the helper did write-then-emit: a disk failure
+        suppressed the emit (no phantom event in event_log).  After
+        legacy-write deletion the helper is emit-only — the projector
+        materialises the file from the bus event.  The emit must fire
+        regardless of any disk state at the source side.
         """
         with TemporaryDirectory() as tmp:
             project_dir = Path(tmp) / "demo-proj"
             project_dir.mkdir()
             with patch.object(dl, "_compute_hmac", return_value="deadbeef"), \
-                 patch.object(dl, "_current_hmac_secret", return_value=b"secret"), \
-                 patch("crew.dispatch_log.Path.open",
-                       side_effect=OSError("disk full")):
+                 patch.object(dl, "_current_hmac_secret", return_value=b"secret"):
                 import _bus  # type: ignore[import]
                 with patch.object(_bus, "emit_event") as mock_emit:
                     dl.append(
@@ -96,17 +94,33 @@ class TestDispatchLogEmits(unittest.TestCase):
                         gate="testability",
                         dispatch_id="abc123",
                     )
-                    # Filter to just the Part-C emit (rotate may emit others).
                     target_calls = [
                         c for c in mock_emit.call_args_list
                         if c.args
                         and c.args[0] == "wicked.dispatch.log_entry_appended"
                     ]
-                    self.assertEqual(target_calls, [],
-                                     "emit must NOT fire when the disk write failed")
+                    self.assertEqual(
+                        len(target_calls), 1,
+                        "emit-only contract: the bus event must fire — "
+                        "the projector materialises the file from raw_payload.",
+                    )
+                    # Source-side never touches disk.
+                    log_path = dl._resolve_log_path(project_dir, "build")
+                    self.assertFalse(
+                        log_path.exists(),
+                        "PR #800 deleted the source-side disk write; helper "
+                        "must emit only.",
+                    )
 
     def test_emit_failure_does_not_break_dispatch(self):
-        """Bus emit raising must not propagate — fail-open contract."""
+        """Bus emit raising must not propagate — fail-open contract.
+
+        Post PR-#800 the source side never touches disk; we just verify
+        the caller does not see the bus exception.  The on-disk file
+        appears later when the daemon's projector replays the queued
+        event (which doesn't exist in this test, so we assert nothing
+        about the file).
+        """
         with TemporaryDirectory() as tmp:
             project_dir = Path(tmp) / "demo-proj"
             project_dir.mkdir()
@@ -123,12 +137,6 @@ class TestDispatchLogEmits(unittest.TestCase):
                         gate="testability",
                         dispatch_id="abc123",
                     )
-                    # And the JSONL line must still be on disk.
-                    log_path = dl._resolve_log_path(project_dir, "build")
-                    self.assertTrue(log_path.is_file())
-                    line = log_path.read_text(encoding="utf-8").strip()
-                    record = json.loads(line)
-                    self.assertEqual(record["reviewer"], "rev-1")
 
 
 class TestConsensusEmits(unittest.TestCase):
