@@ -247,6 +247,24 @@ class TestGateIntegration(unittest.TestCase):
             print("PASS gate-integration: missing blocks at complexity 5")
 
     def test_divergent_emits_warning_at_complexity_4(self) -> None:
+        # Site 5 + W10a (#746) post-deletion: conditions-manifest.json
+        # and semantic-gap-report.json are no longer written directly
+        # by phase_manager.  The projector handlers materialise them
+        # from the wicked.gate.decided + wicked.review.semantic_gap_recorded
+        # events.  Tests assert on the BUS EMIT payload now, not on
+        # disk file presence (which requires the daemon projector to
+        # run synchronously — out of scope for unit tests).
+        from unittest.mock import patch
+
+        captured: list = []
+
+        def _fake_emit(event_type, payload, *, chain_id=None):
+            captured.append({
+                "event_type": event_type,
+                "payload": payload,
+                "chain_id": chain_id,
+            })
+
         with tempfile.TemporaryDirectory() as td:
             project = Path(td) / "proj"
             _write(project / "phases" / "clarify" / "acceptance-criteria.md",
@@ -259,29 +277,31 @@ class TestGateIntegration(unittest.TestCase):
                    "def test_lock():\n    assert True\n")
 
             state = self._make_state(complexity=4)
-            block, warnings = self.pm._check_semantic_alignment_gate(
-                state, project, "review",
-            )
+            with patch("_bus.emit_event", _fake_emit):
+                block, warnings = self.pm._check_semantic_alignment_gate(
+                    state, project, "review",
+                )
             self.assertIsNone(block, f"Expected no block; got {block}")
             # Warnings must name AC-1 and divergent.
             joined = "\n".join(warnings)
             self.assertIn("AC-1", joined)
             self.assertIn("DIVERGENT", joined)
 
-            # Verify conditions manifest was written.
-            manifest = project / "phases" / "review" / "conditions-manifest.json"
-            self.assertTrue(manifest.exists(),
-                            "Conditions manifest should be written for divergent findings")
-            body = json.loads(manifest.read_text())
-            descriptions = [c.get("description", "") for c in body.get("conditions", [])]
-            self.assertTrue(any("AC-1" in d for d in descriptions),
-                            f"Expected AC-1 in conditions manifest; got {descriptions}")
-
-            # Verify report artifact written.
-            report_path = project / "phases" / "review" / "semantic-gap-report.json"
-            self.assertTrue(report_path.exists())
-            report_data = json.loads(report_path.read_text())
-            self.assertEqual(report_data["verdict"], "CONDITIONAL")
+            # Verify W10a bus emit fired with correct payload.  The
+            # projector handler materialises semantic-gap-report.json
+            # from this event in production; we don't run the projector
+            # in this test.
+            gap_emits = [
+                e for e in captured
+                if e["event_type"] == "wicked.review.semantic_gap_recorded"
+            ]
+            self.assertEqual(
+                len(gap_emits), 1,
+                f"Expected exactly one wicked.review.semantic_gap_recorded "
+                f"emit; captured={[e['event_type'] for e in captured]}",
+            )
+            self.assertEqual(gap_emits[0]["payload"]["verdict"], "CONDITIONAL")
+            self.assertIn("AC-1", gap_emits[0]["payload"]["raw_payload"])
             print("PASS gate-integration: divergent yields conditions at complexity 4")
 
 
