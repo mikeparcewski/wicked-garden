@@ -20,3 +20,6 @@ jobs:
 
       - name: Run structural validation
         run: python scripts/ci/validate.py
+
+      - name: Validate in-code allowlists (registry validator)
+        run: python scripts/_validate_registry.py
