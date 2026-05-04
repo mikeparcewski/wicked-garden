@@ -1188,23 +1188,38 @@ _REVIEWER_REPORT_SEPARATOR = "\n\n---\n## Consensus Gate Evaluation\n\n"
 def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
     """Project wicked.consensus.gate_completed → reviewer-report.md on disk.
 
-    Site 3 of the bus-cutover staging plan (#746, #768, #770).  Behaviour is
-    gated on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT`` via
-    ``_bus_as_truth_enabled("REVIEWER_REPORT")``:
+    Site 3 of the bus-cutover staging plan (#746, #768, #770, PR #799).
+    Gated on ``WG_BUS_AS_TRUTH_REVIEWER_REPORT`` via
+    ``_bus_as_truth_enabled("REVIEWER_REPORT")``.  REVIEWER_REPORT is in
+    the default-ON shipped set (``_BUS_AS_TRUTH_DEFAULT_ON``), so an
+    unset env var resolves to True; explicit ``"off"`` opts out.
 
-      * flag-off (default): handler is a no-op.  The projector wrapper still
-        records the event_log row as ``applied`` (Decision #6); the disk file
-        remains source of truth.
-      * flag-on: materialise reviewer-report.md from the per-section payload.
-        - create branch (``payload.branch == "create"`` or file absent):
-          write raw_payload as the full new file — mirrors
-          _write_reviewer_report's else-branch.
-        - append branch (``payload.branch == "append"`` and file exists):
-          read existing file, apply the standard ``_REVIEWER_REPORT_SEPARATOR``,
-          and append raw_payload (the just-written yaml_block).  This produces
-          the same cumulative bytes the legacy hook wrote — resolves the
-          architectural tension surfaced in PR #764 Copilot review (#770):
-          bounded payload AND projector replayability are both achieved.
+      * flag-off (explicit ``"off"``): handler is a no-op.  The projector
+        wrapper still records the event_log row as ``applied``
+        (Decision #6).
+      * flag-on (default OR explicit ``"on"``): materialise
+        reviewer-report.md from the per-section payload.  Branch decision
+        is made HERE based on disk state at projection time (NOT from
+        ``payload.branch`` from the source side).
+
+    Why projector self-decides (PR #799): pre-#799 the source side
+    decided create-vs-append from ``report_path.exists()`` and emitted
+    ``branch=create`` or ``append``.  After legacy-write deletion the
+    source's existence check races the projector (the file may already
+    be projected but the source hasn't observed it yet) so a
+    source-supplied ``branch=create`` on stale state would overwrite
+    content the projector had already written.  Moving the decision
+    into the projector eliminates the race because events apply in
+    event_id order — the disk state the projector reads is always
+    consistent with prior-applied events.
+
+    Branch logic (PR #799 — projector self-deciding):
+        - file does not exist → create: write raw_payload as the full new file.
+        - file exists          → append: prepend the standard
+          ``_REVIEWER_REPORT_SEPARATOR``, then raw_payload.  The legacy
+          source-side branch hint (``payload.branch``) is now informational
+          only; the projector ignores it for the actual write decision so
+          replays after legacy-write deletion stay consistent.
 
     Idempotency on the append branch (Decision #6 + #770):
       The daemon consumer calls project_event for every event in a batch
@@ -1266,32 +1281,52 @@ def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
     phase_dir = Path(project_row["directory"]) / "phases" / str(phase)
     report_path = phase_dir / "reviewer-report.md"
 
-    branch = _opt(payload, "branch", "unknown")
+    # Branch decision (PR #799): make it HERE from disk state, not from
+    # ``payload.branch``.  After legacy-write deletion the source side no
+    # longer writes synchronously, so a source-side ``report_path.exists()``
+    # check would race the projector.  Projector-side decision is
+    # order-correct because events apply in event_id order.
+    branch_hint = _opt(payload, "branch", "auto")
 
     try:
-        if report_path.exists() and branch == "append":
-            # Append mode: read existing bytes, apply separator, append payload.
-            # raw_payload = the yaml_block that was just written by the hook
-            # (per-section payload contract, #770).
+        if report_path.exists():
             existing = report_path.read_text(encoding="utf-8")
-            section = _REVIEWER_REPORT_SEPARATOR + str(raw_payload)
+            payload_str = str(raw_payload)
+            section = _REVIEWER_REPORT_SEPARATOR + payload_str
 
-            # Idempotency guard: skip if this exact section was already appended.
-            # Scan the existing file for (separator + raw_payload).  Required
-            # because the daemon consumer does not deduplicate before calling
-            # handlers (append_event_log uses INSERT OR REPLACE, not INSERT OR
+            # Idempotency 1: file content equals the raw_payload exactly
+            # (create-event replay case — projector wrote it before, now
+            # firing again).  Required after PR #799 made the projector
+            # self-deciding: a replay of the very first event sees the
+            # file already exists, but the payload was never appended
+            # (it WAS the create write), so the substring check below
+            # would miss this case and double-append.
+            if existing == payload_str:
+                logger.debug(
+                    "projector: wicked.consensus.gate_completed — file "
+                    "matches raw_payload exactly (create-replay); "
+                    "skipping",
+                )
+                return
+
+            # Idempotency 2: this section was already appended (append-
+            # event replay case).  Required because the daemon consumer
+            # does not deduplicate before calling handlers
+            # (append_event_log uses INSERT OR REPLACE, not INSERT OR
             # IGNORE — handler fires for every event in the batch, #770).
             if section in existing:
                 logger.debug(
-                    "projector: wicked.consensus.gate_completed — section already "
-                    "present in %s; skipping duplicate append",
+                    "projector: wicked.consensus.gate_completed — section "
+                    "already present in %s; skipping duplicate append",
                     report_path,
                 )
                 return
 
             report_path.write_text(existing + section, encoding="utf-8")
         else:
-            # Create mode (file absent or create branch): write payload as fresh file.
+            # Create: write raw_payload as fresh file.  The first event
+            # for a (project, phase) lands here regardless of source-side
+            # branch hint.
             phase_dir.mkdir(parents=True, exist_ok=True)
             report_path.write_text(str(raw_payload), encoding="utf-8")
     except OSError as exc:
@@ -1304,8 +1339,8 @@ def _consensus_gate_completed(conn: sqlite3.Connection, event: dict) -> None:
 
     logger.debug(
         "projector: applied wicked.consensus.gate_completed "
-        "project_id=%r phase=%r branch=%r report_path=%s",
-        project_id, phase, branch, report_path,
+        "project_id=%r phase=%r branch_hint=%r report_path=%s",
+        project_id, phase, branch_hint, report_path,
     )
 
 

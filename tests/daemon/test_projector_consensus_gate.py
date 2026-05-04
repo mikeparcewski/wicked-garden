@@ -460,6 +460,68 @@ def test_idempotent_append_replay_no_double_append(mem_conn, tmp_path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# PR #800 follow-up: projector self-decides regardless of branch hint
+# ---------------------------------------------------------------------------
+
+
+def test_projector_self_decides_branch_ignoring_payload_hint(
+    mem_conn, tmp_path,
+) -> None:
+    """PR #799 + #800 review fix: ``payload.branch`` is informational only.
+
+    The source side now sends ``branch="append"`` for mixed-version safety
+    (see hooks/scripts/post_tool.py docstring) but the projector ignores
+    the hint entirely and decides from disk state at projection time.
+    Verify both create-branch and append-semantics work even when the
+    hint is the post-#800 ``"append"`` value:
+
+      * file absent  + branch="append" → create.
+      * file present + branch="append" → append (with substring guard).
+    """
+    from daemon.projector import _consensus_gate_completed
+    from unittest.mock import patch
+
+    project_id = "proj-branch-hint-ignored"
+    project_dir = _make_project_dir(tmp_path, project_id)
+    _setup_project_in_db(mem_conn, project_id, project_dir)
+    phase_dir = project_dir / "phases" / "build"
+    report_path = phase_dir / "reviewer-report.md"
+
+    # First event — file absent, source sent branch="append" (post-#800).
+    # Projector self-decides → create.
+    first_event = _make_gate_completed_create_event(
+        project_id=project_id, raw_payload="first-section\n",
+    )
+    first_event["payload"]["branch"] = "append"  # post-#800 hint
+
+    # Second event — file present.  Source sent branch="append".
+    # Projector self-decides → append.
+    second_event = _make_gate_completed_append_event(
+        project_id=project_id, yaml_block="second-section\n",
+    )
+    second_event["event_id"] = 2
+    second_event["payload"]["branch"] = "append"
+
+    with patch.dict(os.environ, {"WG_BUS_AS_TRUTH_REVIEWER_REPORT": "on"}):
+        _consensus_gate_completed(mem_conn, first_event)
+        assert report_path.exists(), (
+            "First event must create the file even when branch hint is "
+            "'append' — projector self-decides from disk state."
+        )
+        assert report_path.read_text() == "first-section\n"
+
+        _consensus_gate_completed(mem_conn, second_event)
+        final = report_path.read_text()
+        assert final.endswith("second-section\n"), (
+            "Second event must append (not overwrite) since file existed "
+            "at projection time."
+        )
+        assert "first-section\n" in final, (
+            "First section must still be present after the append."
+        )
+
+
+# ---------------------------------------------------------------------------
 # Byte-for-byte parity with legacy hook (per-section payload, #770)
 # ---------------------------------------------------------------------------
 
