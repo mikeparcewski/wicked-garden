@@ -45,6 +45,16 @@ Cross-system bugs at the boundary between subsystems (phase-state transitions, g
 
 **Convention**: run `/wicked-garden:jam:council` on the diff and attach the verdict bundle to the PR. Pre-merge convention — not a hook-enforced gate yet.
 
+## Dogfooding bug protocol
+
+When dogfooding wicked-garden machinery (hooks, skills, agents, scripts) and hitting a bug, file a GitHub issue **immediately** — never accumulate in a local `.md` log file. Template:
+
+```
+gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
+```
+
+File before continuing the work that surfaced the bug. See CLAUDE.md "Operating notes / Dogfooding bug protocol".
+
 ## Planning & Execution
 
 - When I say "just do it" or "just make the changes", execute immediately without presenting plans for approval. Do not enter plan mode or ask for confirmation unless I explicitly ask for a plan.

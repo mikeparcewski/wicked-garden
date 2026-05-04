@@ -438,6 +438,25 @@ Issue #746 cutover is complete (PRs #751 → #791). Bus events are the source of
 
 **Architecture refs**: `docs/v9/bus-cutover-staging-plan.md` (wave-1 design), `docs/v9/wave-2-cutover-plan.md` (wave-2 per-site analysis + tranche sequencing), `docs/v9/adr-reconcile-v2.md` (why reconcile_v2 co-exists with reconcile.py).
 
+## Operating notes
+
+### Dogfooding bug protocol
+
+When testing wicked-garden machinery (hooks, skills, agents, scripts) and you hit a bug, file a GitHub issue immediately — do **not** accumulate findings in a local `.md` log file in the repo. Local logs rot, drift, and never get triaged.
+
+**Template**:
+
+```
+gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
+```
+
+- `<location>`: file path + line, or command path (e.g. `hooks/scripts/pre_tool.py:142` or `/wicked-garden:crew:start`)
+- `<observed vs expected>`: one sentence each
+- `<impact>`: who/what breaks (single user, all crew runs, audit trail, etc.)
+- `<fix proposal>`: rough direction even if uncertain — gives the triager a starting point
+
+If you discover the bug mid-session, file it before continuing the work that surfaced it.
+
 ## wicked-brain
 
 Digital brain: **wicked-garden** | 11,269 indexed items | 11,208 chunks, 23 wiki articles, 15 memories | server port 4243
