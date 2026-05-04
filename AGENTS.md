@@ -55,6 +55,7 @@ Cross-system bugs at the boundary between subsystems (phase-state transitions, g
 - When debugging test failures, prefer structured output formats (JUnit XML, JSON) over parsing stdout. Do not spend multiple iterations trying to capture/parse terminal output that gets truncated.
 - When I report a bug or issue, investigate the systemic root cause first before applying surface-level fixes. Ask "why is this happening?" not "how do I patch this instance?".
 - When reviewing code or doing analysis, go deep into architectural patterns, agentic design, response validation, and context optimization. Do not produce surface-level checklist findings (e.g., "no auth", "no rate limits").
+- **Test value**: write tests for phase-transition logic, condition evaluation, cross-domain invariants, event-bus contracts, and idempotency. Delete shallow tests on markdown output, skill-description text, and brittle path/format strings. Split a composite test only when assertions have independent failure causes — not 1:1 per assertion. See CLAUDE.md "Test value philosophy".
 
 ## Architecture & Design
 

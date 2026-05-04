@@ -319,6 +319,24 @@ Skills use **progressive disclosure** for context efficiency:
 - **Tier 2**: SKILL.md (≤200 lines) — overview, quick-start, navigation to refs/
 - **Tier 3**: refs/ directory (200-300 lines each) — loaded only when needed
 
+## Test value philosophy
+
+Tests have a maintenance cost. Optimize for catching real failures, not for assertion counts.
+
+**High-value (write and keep)**:
+- Phase-transition logic (`scripts/crew/phase_manager.py`, status legality, depends_on enforcement)
+- Condition evaluation and conditions-manifest resolution (auto-resolution vs escalation)
+- Cross-domain invariants (chain_id format, event-schema envelope, archetype fallback)
+- Event-bus contract assertions (`scripts/_bus.py` payload allow-lists, projection-resolver shape, idempotency keys)
+- Idempotency: replaying the same bus event must produce the same projection bytes
+
+**Low-value (delete on sight)**:
+- Snapshot tests on markdown gate output (reviewer reports, process-plan rendering, retro narratives)
+- Skill-description text matching and frontmatter wording assertions
+- Brittle path/format assertions (`assert "phase: build" in stdout`) where behavior is decoupled from string formatting
+
+**Splitting heuristic**: split a test where assertions have *independent failure causes* — different code paths can break each one. Keep a test composite when the assertions describe one failure mode from multiple angles (e.g. "verdict is APPROVE and score >= 0.8 and conditions is empty" — all three flow from the same gate decision and break together). Splitting 1:1 per assertion creates noise without adding coverage.
+
 ## Quality Checks
 
 **Quick** (`/wg-check`): JSON validity, plugin.json structure, skills ≤200 lines, agent frontmatter, no hardcoded external tool references.
