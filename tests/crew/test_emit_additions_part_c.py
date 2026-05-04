@@ -227,21 +227,34 @@ class TestConsensusEmits(unittest.TestCase):
                               "C10 violation: raw_payload missing from evidence emit")
                 self.assertEqual(payload["eval_id"], "abcdef123456")
 
-    def test_evidence_no_emit_when_write_fails(self):
+    def test_evidence_emit_fires_independently_of_disk_state(self):
+        """Site 2 cutover (#746, PR #798) — emit-only contract.
+
+        Pre-PR-#798 the helper did write-then-emit, so a disk failure
+        suppressed the emit (Council Condition C4 soak-window contract).
+        After legacy-write deletion the helper is emit-only — the
+        projector materialises the file from the bus event.  The emit
+        must fire regardless of any disk state at the source side.
+        """
         with TemporaryDirectory() as tmp:
             project_dir = Path(tmp) / "demo-proj"
             project_dir.mkdir()
             from crew import consensus_gate as cg
             consensus_result = {"result": "REJECT", "reason": "x"}
-            with patch("crew.consensus_gate.Path.write_text",
-                       side_effect=OSError("disk full")):
-                import _bus  # type: ignore[import]
-                with patch.object(_bus, "emit_event") as mock_emit:
-                    cg._write_consensus_evidence(project_dir, "review", consensus_result)
-                    evidence_calls = [c for c in mock_emit.call_args_list
-                                      if c.args and c.args[0] == "wicked.consensus.evidence_recorded"]
-                    self.assertEqual(evidence_calls, [],
-                                     "must not emit when disk write failed")
+            import _bus  # type: ignore[import]
+            with patch.object(_bus, "emit_event") as mock_emit:
+                cg._write_consensus_evidence(project_dir, "review", consensus_result)
+                evidence_calls = [c for c in mock_emit.call_args_list
+                                  if c.args and c.args[0] == "wicked.consensus.evidence_recorded"]
+                self.assertEqual(len(evidence_calls), 1,
+                                 "emit-only contract: bus event must fire — projector "
+                                 "materialises the file from raw_payload async.")
+                # Source side never touches disk, so there is no disk file
+                # to assert on; the projector is the canonical writer now.
+                evidence_path = project_dir / "phases" / "review" / "consensus-evidence.json"
+                self.assertFalse(evidence_path.exists(),
+                                 "PR #798 deleted the source-side disk write; the file "
+                                 "must NOT appear from this helper alone.")
 
 
 if __name__ == "__main__":

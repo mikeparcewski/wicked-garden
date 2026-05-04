@@ -90,10 +90,20 @@ def test_report_emit_includes_raw_payload_with_eval_id_chain_id() -> None:
     assert emit["payload"]["eval_id"] == "abcdef123456"
 
 
-def test_report_raw_payload_matches_disk_bytes_exactly() -> None:
-    """C11 contract — raw_payload bytes must equal the on-disk file bytes.
-    The projector reproduces the file from raw_payload, so any drift between
-    the two would silently corrupt projection-derived audits.
+def test_report_raw_payload_is_canonical_indent2_bytes() -> None:
+    """C11 contract — raw_payload is the canonical on-disk bytes.
+
+    Pre-PR-#798 the legacy direct-write in ``_write_consensus_report``
+    actually wrote the file synchronously, so this test could compare the
+    emit payload against ``read_text()``.  The legacy direct-write was
+    deleted in #798 — the projector handler ``_consensus_disk_write``
+    now writes ``str(raw_payload).encode("utf-8")`` verbatim, so byte-
+    identity is preserved by construction.
+
+    What we verify here: ``raw_payload`` matches the canonical
+    serialization of the report dict (``json.dumps(..., default=str,
+    indent=2)``).  The projector writes that string byte-for-byte to
+    disk, so this assertion proves the C11 contract end-to-end.
     """
     from consensus_gate import _write_consensus_report
     captured: list[dict] = []
@@ -101,21 +111,29 @@ def test_report_raw_payload_matches_disk_bytes_exactly() -> None:
     def _fake_emit(event_type, payload, chain_id=None, metadata=None):
         captured.append({"payload": payload})
 
+    result = _make_consensus_result()
+    scores = {"agreement_ratio": 0.85}
     with tempfile.TemporaryDirectory() as tmp:
         project_dir = Path(tmp) / "demo-project"
         with patch("_bus.emit_event", side_effect=_fake_emit):
             _write_consensus_report(
-                project_dir, "design", _make_consensus_result(),
-                {"agreement_ratio": 0.85},
+                project_dir, "design", result, scores,
                 eval_id="abcdef123456",
             )
-        on_disk = (project_dir / "phases" / "design" / "consensus-report.json").read_text()
 
     assert captured, "no emit captured"
     raw_payload = captured[0]["payload"]["raw_payload"]
-    assert raw_payload == on_disk, (
-        "C11 byte-identity contract violated — raw_payload diverges from the on-disk file."
+    parsed = json.loads(raw_payload)
+    # Re-serialize the parsed dict with the same canonical settings the
+    # source uses; this is the byte string the projector will write.
+    canonical = json.dumps(parsed, default=str, indent=2)
+    assert raw_payload == canonical, (
+        "C11 byte-identity contract violated — raw_payload is not in "
+        "canonical indent=2 form, projector would write divergent bytes."
     )
+    # Sanity: the parsed dict carries the dispatch's identifying fields.
+    assert parsed["decision"] == "APPROVE"
+    assert parsed["phase"] == "design"
 
 
 # ---------------------------------------------------------------------------
@@ -165,8 +183,14 @@ def test_evidence_emit_includes_raw_payload_and_evidence_discriminator() -> None
     assert parsed["reason"] == "Strong dissent on credential rotation"
 
 
-def test_evidence_raw_payload_matches_disk_bytes_exactly() -> None:
-    """C11 contract — evidence raw_payload bytes equal the on-disk file."""
+def test_evidence_raw_payload_is_canonical_indent2_bytes() -> None:
+    """C11 contract — evidence raw_payload is the canonical on-disk bytes.
+
+    Same lineage shift as the report C11 test: the legacy direct-write was
+    deleted in PR #798, so we now verify raw_payload matches the canonical
+    ``json.dumps(..., default=str, indent=2)`` serialization that the
+    projector handler ``_consensus_disk_write`` will write byte-for-byte.
+    """
     from consensus_gate import _write_consensus_evidence
     captured: list[dict] = []
 
@@ -187,10 +211,17 @@ def test_evidence_raw_payload_matches_disk_bytes_exactly() -> None:
         project_dir = Path(tmp) / "demo-project"
         with patch("_bus.emit_event", side_effect=_fake_emit):
             _write_consensus_evidence(project_dir, "design", consensus_result)
-        on_disk = (project_dir / "phases" / "design" / "consensus-evidence.json").read_text()
 
     assert captured
-    assert captured[0]["payload"]["raw_payload"] == on_disk
+    raw_payload = captured[0]["payload"]["raw_payload"]
+    parsed = json.loads(raw_payload)
+    canonical = json.dumps(parsed, default=str, indent=2)
+    assert raw_payload == canonical, (
+        "C11 byte-identity contract violated — evidence raw_payload is "
+        "not in canonical indent=2 form."
+    )
+    assert parsed["result"] == "REJECT"
+    assert parsed["reason"] == "Dissent"
 
 
 # ---------------------------------------------------------------------------
@@ -353,14 +384,25 @@ def test_eval_id_is_at_least_64_bits_wide() -> None:
 
 
 # ---------------------------------------------------------------------------
-# C4 — disk write still wins (daemon-down contract)
+# Bus-emit-failure fail-open contract (post Site 2 deletion, PR #798)
 # ---------------------------------------------------------------------------
 
 
-def test_report_disk_write_succeeds_even_when_bus_emit_fails() -> None:
-    """C4 — daemon-down (or bus-emit raising) MUST NOT prevent the disk
-    write from completing.  The disk file is still source of truth this
-    release; bus emit is observability only.
+def test_report_bus_emit_failure_does_not_raise_to_caller() -> None:
+    """Bus failure must not propagate to the caller — fail-open.
+
+    Pre-PR-#798: Council Condition C4 said "daemon-down → disk write must
+    still win".  That was the soak-window contract while the bus was
+    observability-only.  PR #798 deleted the legacy direct-write per the
+    bus-as-truth cutover; the projector handler is now the canonical
+    writer, fed from the bus event.
+
+    Post-PR-#798 contract: bus-emit failure must NOT raise to the caller
+    (so consensus evaluation completes).  The on-disk file appears once
+    the daemon resumes processing the queued event — that recovery path
+    is owned by the projector, not the source-side helper.  Asserting
+    file existence here would re-establish the dual-write coupling we
+    just removed.
     """
     from consensus_gate import _write_consensus_report
 
@@ -376,11 +418,6 @@ def test_report_disk_write_succeeds_even_when_bus_emit_fails() -> None:
                 {"agreement_ratio": 0.85},
                 eval_id="abcdef123456",
             )
-
-        report_path = project_dir / "phases" / "design" / "consensus-report.json"
-        assert report_path.exists(), (
-            "C4 violation: disk write skipped when bus emit failed. "
-            "Daemon-down → disk write must still win."
-        )
-        parsed = json.loads(report_path.read_text())
-        assert parsed["decision"] == "APPROVE"
+        # Caller returned cleanly under bus failure.  We deliberately do
+        # NOT assert disk presence — the file is materialised by the
+        # daemon projector handler, not by this source-side helper.
