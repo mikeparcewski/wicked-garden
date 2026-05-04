@@ -612,26 +612,39 @@ class TestDispatchHumanInlineArtifacts(unittest.TestCase):
             self.assertIn("mode", gr)
             self.assertEqual(gr["mode"], DISPATCH_MODE)
 
-    def test_inline_review_context_written(self):
+    def test_inline_review_context_bus_emit_fired(self):
+        """W1 bus-cutover: inline-review-context is projected via bus emit;
+        the legacy disk write has been removed.  Verify the bus event fires
+        with the correct payload fields instead of asserting the file exists."""
         state = _make_state()
         policy = _minimal_gate_policy()
+        captured: list = []
+
+        def _fake_emit(event_type, payload, *, chain_id=None):
+            captured.append({"event_type": event_type, "payload": payload})
 
         with tempfile.TemporaryDirectory() as tmpdir:
             proj_dir = Path(tmpdir)
             with patch("solo_mode._is_interactive", return_value=True), \
                  patch("phase_manager.get_project_dir", return_value=proj_dir), \
-                 patch("dispatch_log.append"):
+                 patch("dispatch_log.append"), \
+                 patch("_bus.emit_event", _fake_emit):
                 dispatch_human_inline(
                     state, "build", "code-quality", policy,
                     _input_fn=lambda _="": "APPROVE",
                     _print_fn=lambda _: None,
                 )
 
-            ctx_path = proj_dir / "phases" / "build" / "inline-review-context.md"
-            self.assertTrue(ctx_path.exists(), "inline-review-context.md must be written")
-            content = ctx_path.read_text()
-            self.assertIn("Inline Gate Review", content)
-            self.assertIn("APPROVE", content)
+        types = [e["event_type"] for e in captured]
+        self.assertIn("wicked.crew.inline_review_context_recorded", types,
+                      "inline_review_context_recorded event must fire")
+        ctx_emit = next(
+            e for e in captured
+            if e["event_type"] == "wicked.crew.inline_review_context_recorded"
+        )
+        self.assertIn("gate_name", ctx_emit["payload"])
+        self.assertIn("raw_response", ctx_emit["payload"])
+        self.assertIn("bullets", ctx_emit["payload"])
 
 
 # ---------------------------------------------------------------------------
@@ -740,11 +753,9 @@ class TestDispatchHumanInlineBusEmit(unittest.TestCase):
 
             # Verdict still computed.
             self.assertEqual(result["verdict"], "APPROVE")
-            # Disk writes still completed.
+            # gate-result.json disk write still completed (legacy write preserved).
             gr_path = proj_dir / "phases" / "build" / "gate-result.json"
-            ctx_path = proj_dir / "phases" / "build" / "inline-review-context.md"
             self.assertTrue(gr_path.exists())
-            self.assertTrue(ctx_path.exists())
 
 
 # ---------------------------------------------------------------------------

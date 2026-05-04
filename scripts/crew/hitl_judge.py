@@ -642,7 +642,6 @@ def write_hitl_decision_evidence(
             chain_id=f"{project_id_str}.{phase}.{filename_stem}",
         )
     except Exception:  # noqa: BLE001 — fail-open per Decision #8
-        pass  # bus unavailable — direct write below still runs
+        pass  # bus unavailable — projector handler replays on reconnect
 
-    target_path.write_text(body_bytes, encoding="utf-8")
     return target_path
