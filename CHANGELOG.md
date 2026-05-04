@@ -2,6 +2,36 @@
 
 ## [Unreleased]
 
+## [8.7.0] - 2026-05-04
+
+### Changed — Bus-as-truth cutover complete (#746)
+
+Bus events are now the canonical source of truth for every gate-critical and audit-load-bearing artifact in the cutover scope.  On-disk files are projections materialized by `daemon/projector.py` handlers.  Legacy direct-writes deleted at all 4 gate-critical sites + read-side refactors at the 3 read-after-write audit sites.  Closes the architectural debt captured in `memory/bus-cutover-legacy-write-deletion-is-per-site-architecture.md`.
+
+- **Site 1 (#800)** — `dispatch-log.jsonl`: source-side disk write deleted, projector becomes canonical writer.  `dispatch_log.append` now emit-only with a process-local cache for synchronous read-after-write inside `approve_phase`.  `read_entries` prefers event_log via the new `_read_event_log_entries` helper, falls back to disk for pre-cutover projects.  Honours `WG_BUS_AS_TRUTH_DISPATCH_LOG=off`.  Rotation moved into the projector handler.  URI-safe daemon DB path via `Path.as_uri()`.
+- **Site 2 (#798)** — `consensus-report.json` + `consensus-evidence.json`: legacy direct-writes in `consensus_gate.py` deleted.  New `_consensus_disk_write` helper in `daemon/projector.py` materializes the files via atomic temp+rename + content-hash idempotency.
+- **Site 3 (#799)** — `reviewer-report.md`: legacy direct-writes in `hooks/scripts/post_tool.py` deleted.  Projector handler `_consensus_gate_completed` now self-decides create-vs-append from disk state at projection time, eliminating the source/projector race.  Source emits `branch="append"` for mixed-version safety with pre-#799 daemons.
+- **Site 4 (#797)** — `gate-result.json`: in-memory pass-through via new `_validate_and_orphan_check_gate_data` helper.  Synthesized verdict skips disk round-trip entirely; bus emit carries the validated dict; projector materializes the file async.
+- **W6/W7/W8 (#797)** — `amendments.jsonl` / `process-plan.addendum.jsonl` / `convergence-log.jsonl`: read-side refactors prefer event_log + max-merge with disk so neither source produces a stale-read window during projection lag.  Per-record dedup keys per site.
+
+### Removed
+- `consensus_gate._write_consensus_report` and `_write_consensus_evidence` no longer write disk synchronously — emit-only post-#798.  Council Condition C4 (disk-survives-bus-down) is intentionally gone per the `soak-windows-become-deferred-conviction` lesson.
+- `hooks/scripts/post_tool.py::_write_reviewer_report` / `_write_pending_reviewer_report` no longer write disk synchronously — emit-only post-#799.
+- `scripts/crew/dispatch_log.py::append` no longer writes disk — emit-only post-#800.  Source-side `rotate_if_needed` call moved to the projector.
+- 8 obsolete cutover scenarios (#802) that asserted the deleted Council C4 contract: `bus-cutover-dispatch-log-{daemon-down,flag-off,flag-on}.md`, `consensus-bus-cutover-{daemon-down,flag-off,flag-on-evidence,flag-on-report}.md`, `dispatch-log-hmac-orphan-detection-rotation.md`.
+
+### Added — Architecture support
+- `_event_log_reader.read_latest_event_data` + `read_event_appends` — foundation helpers for the W6/W7/W8 read-from-event-log pattern (#795).
+- `daemon/projector.py::_jsonl_append_projection` — shared helper for append-stream artifact materialization with line-presence idempotency.
+- `daemon/projector.py::_consensus_disk_write` — full-file materialization helper with content-hash idempotency + atomic temp+rename.
+- `dispatch_log._INPROCESS_CACHE` + `_cache_key` + `_reset_state_for_tests` cache reset hook — process-local cache for sync read-after-write under bus-as-truth.
+- Test scaffolding: `_setup_daemon_db_for_test` + `_simulate_bus_pipeline` in `tests/crew/test_dispatch_log.py` — pattern for unit tests that need a real projector roundtrip.  Mirrored in `tests/crew/test_dispatch_log_integration.py`.
+- Autouse `_reset_dispatch_log_cache` fixture in `tests/conftest.py` so the in-process cache doesn't leak between tests.
+
+### Test surface
+- 2,478 unit tests pass / 7 skipped (synthetic_drift fixtures gated on live daemon DB).
+- 14 cutover scenarios run; 3 PASS (security floor 10/10, chain-id-uniqueness 3/3, resume-projector 5/5), 2 PARTIAL (fixture bugs, not obsolete intent), 8 deleted as obsolete (#802), 1 env-flake unchanged.
+
 ## [8.6.0] - 2026-04-28
 
 ### Added
