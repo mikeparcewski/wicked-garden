@@ -48,27 +48,37 @@ From explicit `--gate` argument or infer from context:
 - If target is implemented code post-build → **Execution Gate**
 - Default: **Strategy Gate**
 
-### 2. Dispatch Specialists Inline
+### 2. Dispatch Specialists in Parallel (default)
 
 The v5 `value-orchestrator` and `execution-orchestrator` routing agents are
 deprecated (see `skills/propose-process/refs/specialist-selection.md` §6).
-Dispatch specialists directly per gate type:
+Dispatch specialists directly per gate type.
 
-**Value Gate** (post-clarify):
-1. Dispatch `wicked-garden:product:requirements-analyst` to check requirement clarity and testability.
-2. Dispatch `wicked-testing:requirements-quality-analyst` to score acceptance criteria quality.
-3. Consolidate findings.
+**Default: parallel dispatch.** Every gate below names 2+ independent reviewers
+whose verdicts do not depend on each other. Issue ALL Task() calls for a gate
+in a **single message** (multi-Task batch). Serial dispatch is allowed only
+when one reviewer's output is a documented input to the next; if you fall back
+to serial, state the dependency reason inline in your consolidation summary
+(e.g. `serial_reason: "test-strategist needs testability findings as input"`).
+A serial dispatch with no documented reason is a protocol violation per SC-6 /
+AC-α10 — the same enforcement that applies to phase-executor sub-task batches
+applies here.
 
-**Strategy Gate** (post-design):
-1. Dispatch `wicked-testing:testability-reviewer` for design-testability review.
-2. Dispatch `wicked-testing:test-strategist` for scenario coverage.
-3. Dispatch `wicked-testing:risk-assessor` for the risk matrix.
-4. Consolidate findings.
+**Value Gate** (post-clarify) — dispatch in one batch:
+- `wicked-garden:product:requirements-analyst` — requirement clarity and testability.
+- `wicked-testing:requirements-quality-analyst` — acceptance-criteria quality scoring.
 
-**Execution Gate** (post-build):
-1. Dispatch `wicked-testing:code-analyzer` for static analysis and coverage gaps.
-2. Dispatch `wicked-testing:semantic-reviewer` for spec-to-code alignment (complexity ≥ 3).
-3. Consolidate findings.
+**Strategy Gate** (post-design) — dispatch in one batch:
+- `wicked-testing:testability-reviewer` — design-testability review.
+- `wicked-testing:test-strategist` — scenario coverage.
+- `wicked-testing:risk-assessor` — risk matrix.
+
+**Execution Gate** (post-build) — dispatch in one batch:
+- `wicked-testing:code-analyzer` — static analysis and coverage gaps.
+- `wicked-testing:semantic-reviewer` — spec-to-code alignment (complexity ≥ 3).
+
+After all parallel reviewers return, consolidate findings into the gate decision
+(see step 5).
 
 ### 3. Track Gate Task
 
@@ -106,6 +116,47 @@ Skill(skill="wicked-brain:memory", args="store \"QE {gate} Gate: {decision} for 
 ```
 
 ### 5. Return Gate Decision
+
+#### Output contract — INLINED, do not rely on skill bodies being loaded
+
+Skill descriptions get injected into context; full skill bodies do not unless
+explicitly invoked. The contract below is the authoritative shape callers
+(phase_manager, gate_dispatch) consume — do not defer to a skill ref for it.
+
+Your final message MUST end with a fenced JSON block of this shape:
+
+```json
+{
+  "gate": "value | strategy | execution",
+  "target": "<file path or task id>",
+  "decision": "APPROVE | CONDITIONAL | REJECT",
+  "score": 0.85,
+  "reviewer": "qe-orchestrator",
+  "reviewers_dispatched": ["wicked-testing:test-strategist", "wicked-testing:risk-assessor"],
+  "dispatch_mode": "parallel | serial",
+  "serial_reason": null,
+  "per_reviewer_verdicts": [
+    {"reviewer": "wicked-testing:test-strategist", "verdict": "APPROVE", "score": 0.88, "summary": "..."}
+  ],
+  "findings": ["<one-line finding>", "..."],
+  "conditions": [
+    {"id": "QE-1", "severity": "major|minor", "reason": "...", "manifest_path": "phases/{phase}/conditions-manifest.json"}
+  ],
+  "blockers": ["<reason>"],
+  "evidence_artifact": "phases/{phase}/{gate}-gate-{TIMESTAMP}.md"
+}
+```
+
+Invariants:
+- APPROVE → `conditions: []` AND `blockers: []` AND `score >= 0.70`.
+- CONDITIONAL → `conditions` non-empty AND `blockers: []`.
+- REJECT → `blockers` non-empty.
+- `dispatch_mode: "serial"` MUST be paired with a non-empty `serial_reason`.
+- `reviewer` MUST NOT be a banned auto-approve identity (`fast-pass`,
+  `just-finish-auto`, `auto-approve-*`).
+
+A human-readable mirror in `phases/{phase}/{gate}-gate-{TIMESTAMP}.md` is also
+written for evidence purposes:
 
 ```markdown
 ## Gate Result
