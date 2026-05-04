@@ -120,14 +120,115 @@ def _validate_record(record: Dict[str, Any]) -> None:
         raise ValueError("amendment 'patches' must be a list when present")
 
 
+def _read_amendments_from_event_log(
+    phase_dir: Path,
+) -> Optional[List[Dict[str, Any]]]:
+    """Read amendment records from the bus event_log (Scope B, #746 W6).
+
+    Returns the parsed list of amendment dicts (one per
+    ``wicked.amendment.appended`` event in event_id order), or ``None``
+    when the event_log path is not available or the read fails.
+    Fail-open: the caller treats ``None`` as "use disk fallback".
+    """
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        import sqlite3 as _sqlite3
+        from _event_log_reader import read_event_appends  # type: ignore
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+
+    # Resolve daemon DB path (mirrors reconcile_v2._daemon_db_path).
+    db_env = os.environ.get("WG_DAEMON_DB")
+    if db_env:
+        db_path = Path(db_env)
+    else:
+        db_path = (
+            Path.home()
+            / ".something-wicked"
+            / "wicked-garden-daemon"
+            / "projections.db"
+        )
+    if not db_path.is_file():
+        return None
+
+    project_id = phase_dir.parent.parent.name
+    phase = phase_dir.name
+
+    try:
+        conn = _sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+        )
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+    try:
+        # Verify event_log table exists before querying.
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='event_log'"
+            ).fetchone()
+            if row is None:
+                return None
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+
+        raw_lines = read_event_appends(
+            conn,
+            project_id=project_id,
+            phase=phase,
+            event_type="wicked.amendment.appended",
+        )
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 — fail-open
+            pass  # fail open: close failure on read-only conn is non-fatal
+
+    out: List[Dict[str, Any]] = []
+    for line in raw_lines:
+        try:
+            rec = json.loads(line)
+        except (TypeError, ValueError):
+            continue
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
 def _next_scope_version(phase_dir: Path) -> int:
     """Compute the next monotonic scope_version for this phase.
 
-    Counts existing JSONL records + legacy ``design-addendum-N.md`` files
-    so the version number is globally monotonic across the two formats.
-    Returns ``1`` for a fresh phase.
+    Bus-as-truth (#746 Scope B): when event_log is available, read amendment
+    records from there as the source of truth.  When event_log is missing
+    or returns no records, fall back to disk so legacy projects (pre-cutover)
+    still work.  Counts existing JSONL records + legacy
+    ``design-addendum-N.md`` files so the version number is globally
+    monotonic across the two formats.  Returns ``1`` for a fresh phase.
     """
     highest = 0
+
+    # Bus-as-truth path: event_log is the source of truth post-cutover.
+    bus_records = _read_amendments_from_event_log(phase_dir)
+    if bus_records is not None:
+        for rec in bus_records:
+            try:
+                v = int(rec.get("scope_version") or 0)
+            except (TypeError, ValueError):
+                v = 0
+            if v > highest:
+                highest = v
+
+    # PR #797 review fix-up: ALWAYS consider the on-disk JSONL too, not
+    # just when event_log is empty.  Bus emits are fire-and-forget; the
+    # daemon DB can lag behind disk during projection delay (or be stale
+    # if the daemon was down for a window).  Taking the max of both
+    # sources ensures the monotonic counter never regresses regardless
+    # of which side is ahead.  Also handles legacy ``design-addendum-N.md``
+    # files which never round-trip through event_log.
     for rec in _iter_jsonl(phase_dir):
         try:
             v = int(rec.get("scope_version") or 0)

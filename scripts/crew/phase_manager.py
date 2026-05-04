@@ -1397,6 +1397,81 @@ def _load_gate_result(project_dir: Path, phase: str) -> Optional[Dict]:
     return parsed
 
 
+def _validate_and_orphan_check_gate_data(
+    data: Dict,
+    project_dir: Path,
+    phase: str,
+    raw_bytes: bytes,
+) -> Dict:
+    """Apply the AC-9 §5.4 security floor to an in-memory gate_result dict.
+
+    Same defense layers as ``_load_gate_result`` but for a dict that's
+    already in hand (no disk round-trip).  Used by Site 4 (#746)
+    in-memory pass-through in approve_phase: the synthesized dict from
+    ``_dispatch_gate_reviewer`` skips the disk write and goes directly
+    through this validator → the bus emit later in approve_phase →
+    the projector handler materialises the file async.
+
+    raw_bytes is the canonical JSON serialisation of ``data`` (used for
+    audit entries on reject paths so audit readers can fingerprint the
+    rejected payload via sha256).
+    """
+    from gate_result_schema import (
+        GateResultAuthorizationError,
+        GateResultSchemaError,
+        validate_gate_result,
+    )
+    from gate_ingest_audit import append_audit_entry
+    from dispatch_log import check_orphan
+
+    try:
+        validate_gate_result(data)
+    except GateResultSchemaError as exc:
+        event = (
+            "sanitization_violation" if exc.violation_class == "content"
+            else (
+                "malformed_json"
+                if exc.reason.startswith("malformed-json:")
+                else "schema_violation"
+            )
+        )
+        append_audit_entry(
+            project_dir, phase,
+            event=event,
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=raw_bytes,
+        )
+        raise
+
+    try:
+        check_orphan(data, project_dir, phase)
+    except GateResultAuthorizationError as exc:
+        today = datetime.now(timezone.utc).date()
+        from dispatch_log import _get_strict_after_date
+        if today >= _get_strict_after_date():
+            append_audit_entry(
+                project_dir, phase,
+                event="unauthorized_dispatch",
+                reason=exc.reason,
+                offending_field=exc.offending_field,
+                offending_value=exc.offending_value_excerpt,
+                raw_bytes=raw_bytes,
+            )
+            raise
+        append_audit_entry(
+            project_dir, phase,
+            event="unauthorized_dispatch_accepted_legacy",
+            reason=exc.reason,
+            offending_field=exc.offending_field,
+            offending_value=exc.offending_value_excerpt,
+            raw_bytes=raw_bytes,
+        )
+
+    return data
+
+
 # ---------------------------------------------------------------------------
 # BLEND-RULE gate dispatch helpers (design §3, AC-α3 / FR-α3.1..FR-α3.5)
 #
@@ -3676,12 +3751,33 @@ def approve_phase(
         rigor_tier = state.extras.get("rigor_tier")
         gate_run = _check_gate_run(project_dir, phase, rigor_tier=rigor_tier)
 
+        # Site 4 (#746) in-memory pass-through: the synthesized dict from
+        # _dispatch_gate_reviewer flows directly through the AC-9 §5.4
+        # security floor (validate + orphan-check) without a disk
+        # round-trip.  The bus emit later in this function fires
+        # wicked.gate.decided with the validated payload; the projector
+        # handler ``_gate_decided_disk`` materialises gate-result.json
+        # async.  The on-disk file is now a projection, not the source.
+        gate_result_from_synthesis: Optional[Dict] = None
+
         # BLEND-RULE dispatch hook (design §3, FR-α3.x): when the gate
         # hasn't been run yet and a dispatcher was supplied, synthesize
-        # a gate-result.json by invoking reviewers per gate-policy.json
-        # BEFORE the legacy "gate not run" branch fires. Writing the
-        # artifact lets the existing post-load check chain run unchanged.
+        # a verdict by invoking reviewers per gate-policy.json BEFORE
+        # the legacy "gate not run" branch fires.  Holding the validated
+        # dict in-memory lets the existing post-load check chain run
+        # unchanged via gate_result_from_synthesis below.
         if not gate_run and dispatcher is not None and not override_gate:
+            # PR #797 review fix-up: import the security-floor exception
+            # classes at this scope so the BLEND ``except`` chain below
+            # can reference them.  Without these imports, the broad
+            # ``except (ValueError, FileNotFoundError, OSError)`` would
+            # NOT catch them (neither inherits from ValueError), and they
+            # would bubble as a traceback instead of falling through to
+            # the legacy "gate not run" message.
+            from gate_result_schema import (  # noqa: PLC0415
+                GateResultAuthorizationError,
+                GateResultSchemaError,
+            )
             try:
                 gate_name = _gate_name_for_phase(phase)
                 gate_entry = _resolve_gate_reviewer(
@@ -3691,18 +3787,35 @@ def approve_phase(
                     state, phase, gate_name, gate_entry,
                     dispatcher=dispatcher,
                 )
-                phase_dir = project_dir / "phases" / phase
-                phase_dir.mkdir(parents=True, exist_ok=True)
-                (phase_dir / "gate-result.json").write_text(
-                    json.dumps(synthesized, indent=2, sort_keys=True)
+                raw_bytes = json.dumps(
+                    synthesized, indent=2, sort_keys=True
+                ).encode("utf-8")
+                gate_result_from_synthesis = (
+                    _validate_and_orphan_check_gate_data(
+                        synthesized, project_dir, phase, raw_bytes,
+                    )
                 )
-                # Re-run the run-detector now that we've written the file.
-                gate_run = _check_gate_run(
-                    project_dir, phase, rigor_tier=rigor_tier
-                )
+                gate_run = True
+            except GateResultSchemaError:
+                # Schema/sanitizer violation surfaced by the security
+                # floor — re-raise so the caller sees the failed gate
+                # explicitly rather than a misleading "gate not run"
+                # message.  PR #797 review fix-up: pre-fix this fell into
+                # the broad ``except`` below and bubbled as a traceback
+                # because GateResultSchemaError doesn't inherit from
+                # ValueError.
+                raise
+            except GateResultAuthorizationError:
+                # Orphan-check rejection in strict mode — same rationale
+                # as schema violation: surface explicitly.  Soft-window
+                # rejections are caught and audited inside the helper
+                # itself (see _validate_and_orphan_check_gate_data) and
+                # never propagate here.
+                raise
             except (ValueError, FileNotFoundError, OSError) as exc:
-                # Failed BLEND dispatch — fall through to legacy "gate not
-                # run" raise below so the user gets the familiar error.
+                # Failed BLEND dispatch (config / IO / non-security) —
+                # fall through to legacy "gate not run" raise below so
+                # the user gets the familiar error.
                 logger.warning(
                     "[approve] BLEND dispatch failed for phase '%s': %s; "
                     "falling back to legacy gate-required error.",
@@ -3731,8 +3844,18 @@ def approve_phase(
                     f"or use --override-gate --reason '<why>' to bypass."
                 )
         else:
-            # Gate was run — check if it passed or failed
-            gate_result = _load_gate_result(project_dir, phase)
+            # Gate was run — check if it passed or failed.
+            # Site 4 (#746): prefer the in-memory dict from BLEND synthesis
+            # over a disk read.  When the dispatcher path ran above,
+            # gate_result_from_synthesis already passed the AC-9 §5.4 floor
+            # and is the authoritative copy; on rerun (gate-result.json
+            # already on disk from a prior approve attempt), fall back to
+            # the legacy disk read so the validator still runs.
+            gate_result = (
+                gate_result_from_synthesis
+                if gate_result_from_synthesis is not None
+                else _load_gate_result(project_dir, phase)
+            )
 
             # Check 2a.0: spec-quality rubric (clarify phase only). Adjust the
             # verdict up (to CONDITIONAL/REJECT) when the rubric score is below

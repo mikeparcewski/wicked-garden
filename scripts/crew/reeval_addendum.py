@@ -275,6 +275,124 @@ def append(
     _atomic_append(project_log, line)
 
 
+_LEGACY_REVIEWER_NAMES = ("qe-evaluator", "wicked-garden:crew:qe-evaluator")
+_LEGACY_TRIGGER_PREFIX = "qe-evaluator:"
+
+
+def _validate_legacy_in_record(
+    rec: Dict[str, Any], idx: int, source_path: Path
+) -> None:
+    """Raise LegacyReviewerNameError when the record references a legacy name."""
+    reviewer_val = rec.get("reviewer", "")
+    if reviewer_val in _LEGACY_REVIEWER_NAMES:
+        _raise_legacy_name_error(reviewer_val, idx, source_path)
+    trigger_val = rec.get("trigger", "")
+    if isinstance(trigger_val, str) and trigger_val.startswith(
+        _LEGACY_TRIGGER_PREFIX
+    ):
+        _raise_legacy_name_error(trigger_val, idx, source_path)
+
+
+def _read_event_log_addenda(
+    project_dir: Path,
+) -> Optional[List[Dict[str, Any]]]:
+    """Read reeval addendum records from the bus event_log (Scope B, #746 W7).
+
+    Mirrors the W6 pattern in scripts/crew/amendments.py.  Returns the
+    parsed list of addendum dicts (one per
+    ``wicked.reeval.addendum_appended`` event in event_id order) across
+    ALL phases for this project, or ``None`` when the event_log path is
+    not available or the read fails.  Fail-open: caller treats ``None``
+    as "use disk fallback".
+    """
+    try:
+        import sys as _sys
+        from pathlib import Path as _Path
+        _scripts_root = str(_Path(__file__).resolve().parents[1])
+        if _scripts_root not in _sys.path:
+            _sys.path.insert(0, _scripts_root)
+        import sqlite3 as _sqlite3
+        from _event_log_reader import _escape_like  # type: ignore
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+
+    db_env = os.environ.get("WG_DAEMON_DB")
+    if db_env:
+        db_path = Path(db_env)
+    else:
+        db_path = (
+            Path.home()
+            / ".something-wicked"
+            / "wicked-garden-daemon"
+            / "projections.db"
+        )
+    if not db_path.is_file():
+        return None
+
+    project_id = project_dir.name
+    try:
+        conn = _sqlite3.connect(
+            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+        )
+    except Exception:  # noqa: BLE001 — fail-open
+        return None
+    try:
+        try:
+            row = conn.execute(
+                "SELECT name FROM sqlite_master "
+                "WHERE type='table' AND name='event_log'"
+            ).fetchone()
+            if row is None:
+                return None
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+
+        # Match all phases under this project — the project_addendum.jsonl
+        # aggregates across phases, so the event_log query mirrors that.
+        escaped = _escape_like(project_id)
+        try:
+            rows = conn.execute(
+                """
+                SELECT payload_json
+                FROM   event_log
+                WHERE  chain_id LIKE ? ESCAPE '\\'
+                  AND  event_type = ?
+                ORDER  BY event_id ASC
+                """,
+                (f"{escaped}.%", "wicked.reeval.addendum_appended"),
+            ).fetchall()
+        except Exception:  # noqa: BLE001 — fail-open
+            return None
+    finally:
+        try:
+            conn.close()
+        except Exception:  # noqa: BLE001 — fail-open
+            pass  # fail open: close failure on read-only conn is non-fatal
+
+    out: List[Dict[str, Any]] = []
+    for idx, row in enumerate(rows):
+        payload_json = row[0]
+        try:
+            payload = json.loads(payload_json) if payload_json else {}
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(payload, dict):
+            continue
+        raw = payload.get("raw_payload")
+        if not isinstance(raw, str):
+            continue
+        try:
+            rec = json.loads(raw.rstrip("\n"))
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(rec, dict):
+            continue
+        # Legacy-name validation runs against the event_log entry too.
+        _validate_legacy_in_record(rec, idx, Path(f"event_log/{project_id}"))
+        out.append(rec)
+    return out
+
+
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     """Return all JSON records from a JSONL file.
 
@@ -289,8 +407,6 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return out
-    _LEGACY_REVIEWER_NAMES = ("qe-evaluator", "wicked-garden:crew:qe-evaluator")
-    _LEGACY_TRIGGER_PREFIX = "qe-evaluator:"
     for idx, line in enumerate(text.splitlines()):
         stripped = line.strip()
         if not stripped:
@@ -298,14 +414,7 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
         try:
             rec = json.loads(stripped)
             if isinstance(rec, dict):
-                # Raise on legacy reviewer names — backward-compat reader removed in v7.1.0.
-                reviewer_val = rec.get("reviewer", "")
-                if reviewer_val in _LEGACY_REVIEWER_NAMES:
-                    _raise_legacy_name_error(reviewer_val, idx, path)
-                # Raise on legacy trigger prefix.
-                trigger_val = rec.get("trigger", "")
-                if isinstance(trigger_val, str) and trigger_val.startswith(_LEGACY_TRIGGER_PREFIX):
-                    _raise_legacy_name_error(trigger_val, idx, path)
+                _validate_legacy_in_record(rec, idx, path)
                 out.append(rec)
         except json.JSONDecodeError:
             # Skip corrupt lines; validator will surface them on next approve.
@@ -320,6 +429,14 @@ def read(
 ) -> List[Dict[str, Any]]:
     """Return all addendum records from the project log.
 
+    Bus-as-truth (#746 Scope B W7) + PR #797 review fix-up: merge bus
+    event_log AND on-disk JSONL records so neither source produces a
+    stale-read window.  Bus emits are fire-and-forget; the daemon DB
+    can lag behind disk during projection delay, and the on-disk JSONL
+    is written synchronously.  Reading both and deduplicating by
+    ``chain_id`` (the unique-per-record identifier per the schema) means
+    a record is visible as soon as either side observes it.
+
     When ``phase_filter`` is provided, only records whose ``chain_id``
     suffix matches ``.{phase}`` (anywhere in the dotted chain) OR whose
     ``trigger`` mentions the phase are returned. This matches the
@@ -327,7 +444,29 @@ def read(
     """
     if not isinstance(project_dir, Path):
         project_dir = Path(project_dir)
-    records = _read_jsonl(_project_addendum_path(project_dir))
+
+    bus_records = _read_event_log_addenda(project_dir) or []
+    disk_records = _read_jsonl(_project_addendum_path(project_dir))
+
+    # Dedup by (chain_id, triggered_at): chain_id alone isn't unique
+    # (multiple re-evals on the same phase legitimately share a
+    # chain_id like ``{project}.{phase}``).  ``triggered_at`` is per-
+    # record and required by ``_validate_record``.  Disk wins on
+    # duplicates: when both sources see the same record they agree
+    # byte-for-byte; the dedup just avoids double-counting during
+    # normal operation.
+    seen_keys: set = set()
+    records: List[Dict[str, Any]] = []
+    for rec in disk_records + bus_records:
+        chain_id = rec.get("chain_id", "") or ""
+        triggered_at = rec.get("triggered_at", "") or ""
+        key = (chain_id, triggered_at)
+        if all(key) and key in seen_keys:
+            continue
+        if all(key):
+            seen_keys.add(key)
+        records.append(rec)
+
     if not phase_filter:
         return records
     suffix_token = f".{phase_filter}"
