@@ -58,6 +58,15 @@ def _reset_bus_emit_counters():
         _bus._bus_reset_stats()
     except ImportError:
         pass
+    # Also reset dispatch_log's process-local state (PR #800 fix-up): the
+    # in-process cache that powers synchronous read-after-write must be
+    # cleared between tests or one test's appends bleed into the next
+    # test's read_entries.  Same fail-open contract.
+    try:
+        import dispatch_log  # type: ignore[import]
+        dispatch_log._reset_state_for_tests()
+    except ImportError:
+        pass
     yield
     # Post-test reset is intentionally omitted — the pre-test reset above
     # is sufficient. Post-test would mask counter assertions in teardown.

@@ -98,14 +98,6 @@ def _simulate_bus_pipeline(db_path: Path):
         conn = _sqlite3.connect(str(db_path))
         conn.row_factory = _sqlite3.Row
         try:
-            conn.execute(
-                "INSERT INTO event_log (event_id, event_type, chain_id, "
-                "payload_json, projection_status, ingested_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (eid, event_type, chain_id or "",
-                 json.dumps(payload), "pending", 1_700_000_000 + eid),
-            )
-            conn.commit()
             event = {
                 "event_id": eid,
                 "event_type": event_type,
@@ -113,7 +105,24 @@ def _simulate_bus_pipeline(db_path: Path):
                 "created_at": 1_700_000_000 + eid,
                 "payload": payload,
             }
+            # Production ordering (mirrors ``daemon/consumer.py::process_batch``,
+            # PR #800 fix-up): projector runs FIRST, event_log row is
+            # appended AFTER.  The original fixture inverted this and
+            # masked the append→read race the cutover introduced; fixing
+            # the order here lets test_read_entries observe the actual
+            # production ordering.  The in-process cache in
+            # ``dispatch_log.append`` is what makes synchronous read-after-
+            # write correct; the event_log row is materialised after the
+            # projector returns.
             _dispatch_log_appended(conn, event)
+            conn.commit()
+            conn.execute(
+                "INSERT INTO event_log (event_id, event_type, chain_id, "
+                "payload_json, projection_status, ingested_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (eid, event_type, chain_id or "",
+                 json.dumps(payload), "applied", 1_700_000_000 + eid),
+            )
             conn.commit()
         finally:
             conn.close()
@@ -326,15 +335,17 @@ class BusCutoverFlagSourceContract(unittest.TestCase):
                 "must emit only.  The projector materialises the file.",
             )
 
-    def test_explicit_off_value_emits_nothing_per_council_c1(self):
-        """Council C1 — explicit ``"off"`` (case/whitespace normalised) opts out.
+    def test_explicit_off_value_does_not_short_circuit_source_emit(self):
+        """Council C1 — explicit ``"off"`` (case/whitespace normalised) opts
+        out at the projector boundary, not the source.
 
         Under the pre-#800 dual-write contract this test compared disk bytes.
         Post-#800 the source never writes disk, so the contract becomes:
         explicit-off → projector handler is a no-op (verified separately in
-        ``tests/daemon/test_projector_dispatch_log``).  At the source-side
+        ``tests/daemon/test_projector_dispatch_log``).  At the SOURCE-side
         boundary the emit fires regardless of flag value (the flag gates
-        the projector's handler, not the source emit).
+        the projector's handler, not the source emit).  This test pins
+        that source-side behaviour.
         """
         captured: list = []
 

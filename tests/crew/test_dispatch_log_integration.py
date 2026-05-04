@@ -95,14 +95,6 @@ def _setup_daemon_pipeline(tmp_base: Path, project_dir: Path):
         c = _sqlite3.connect(str(db_path))
         c.row_factory = _sqlite3.Row  # daemon.db.get_project requires Row factory
         try:
-            c.execute(
-                "INSERT INTO event_log (event_id, event_type, chain_id, "
-                "payload_json, projection_status, ingested_at) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (eid, event_type, chain_id or "",
-                 json.dumps(payload), "pending", 1_700_000_000 + eid),
-            )
-            c.commit()
             event = {
                 "event_id": eid,
                 "event_type": event_type,
@@ -110,7 +102,19 @@ def _setup_daemon_pipeline(tmp_base: Path, project_dir: Path):
                 "created_at": 1_700_000_000 + eid,
                 "payload": payload,
             }
+            # Production ordering (mirrors ``daemon/consumer.py::process_batch``,
+            # PR #800 fix-up): projector runs FIRST, event_log row is
+            # appended AFTER.  Same change as
+            # ``tests/crew/test_dispatch_log.py::_simulate_bus_pipeline``.
             _dispatch_log_appended(c, event)
+            c.commit()
+            c.execute(
+                "INSERT INTO event_log (event_id, event_type, chain_id, "
+                "payload_json, projection_status, ingested_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (eid, event_type, chain_id or "",
+                 json.dumps(payload), "applied", 1_700_000_000 + eid),
+            )
             c.commit()
         finally:
             c.close()

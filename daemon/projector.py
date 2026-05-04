@@ -784,7 +784,14 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
     hmac_value = _opt(payload, "hmac")
     hmac_present_flag = 1 if _opt(payload, "hmac_present") else 0
 
-    conn.execute(
+    # Replay-safety idempotency (PR #800 fix-up): use ``INSERT OR IGNORE``
+    # with a rowcount check so we know whether THIS event was the inserter
+    # or a no-op replay.  The disk-side append is gated on the rowcount —
+    # if SQL ignored (event_id already projected), the disk side MUST also
+    # skip even if rotation moved the original line into ``archive/`` so
+    # the active-file substring check would otherwise miss it.  This is
+    # the only layer that prevents replay duplication post-rotation.
+    cursor = conn.execute(
         """
         INSERT OR IGNORE INTO dispatch_log_entries
             (event_id, project_id, phase, gate, reviewer, dispatch_id,
@@ -807,6 +814,18 @@ def _dispatch_log_appended(conn: sqlite3.Connection, event: dict) -> None:
             str(raw_payload),
         ),
     )
+    sql_inserted = cursor.rowcount == 1
+    if not sql_inserted:
+        # Replay of an already-projected event.  The original disk append
+        # may have rotated to ``archive/``; trying to append again would
+        # duplicate the entry.  Skip the disk side under flag-off too —
+        # logging only at debug level since this is a normal replay path.
+        logger.debug(
+            "projector: wicked.dispatch.log_entry_appended event_id=%r "
+            "already projected (replay); skipping disk projection",
+            event_id,
+        )
+        return
 
     # Site 1 disk projection (PR #800): materialise dispatch-log.jsonl on
     # disk so reconcile_v2's drift detector + check_orphan's read path +

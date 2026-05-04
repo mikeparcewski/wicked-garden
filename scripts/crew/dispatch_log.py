@@ -46,7 +46,7 @@ import secrets
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _SCRIPTS_DIR = os.path.dirname(_THIS_DIR)
@@ -189,6 +189,25 @@ def _reset_state_for_tests() -> None:
     _LEGACY_HMAC_WARNED = False
     _STRICT_FLIP_ANNOUNCED = False
     _DEPRECATION_EMITTED.clear()
+    _INPROCESS_CACHE.clear()
+
+
+# In-process cache of dispatch records appended in this Python process
+# (PR #800 fix-up).  Site 1 cutover removed the synchronous source-side
+# disk write, but ``approve_phase`` calls ``check_orphan`` IN THE SAME
+# REQUEST as the synthesis path's ``dispatch_log.append`` call.  The bus
+# emit fires on a background thread (subprocess), so the daemon DB has
+# not seen the entry by the time ``check_orphan`` runs — without this
+# cache, every BLEND-synthesis approve would fail orphan detection.
+#
+# Scope: keyed by (project_id, phase) so test isolation works.  Bounded
+# in practice by the lifetime of one approve_phase call; cleared in tests
+# via ``_reset_state_for_tests``.
+_INPROCESS_CACHE: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+
+
+def _cache_key(project_dir: Path, phase: str) -> Tuple[str, str]:
+    return (Path(project_dir).name, phase)
 
 
 def _resolve_log_path(project_dir: Path, phase: str) -> Path:
@@ -337,6 +356,17 @@ def append(
     # retention).  Source-side rotation call removed as dead code under
     # the emit-only contract.
 
+    # PR #800 fix-up: cache the record in-process BEFORE the bus emit so
+    # the same-process synchronous read-after-write path
+    # (``check_orphan`` in ``_load_gate_result``/
+    # ``_validate_and_orphan_check_gate_data`` runs in the same
+    # ``approve_phase`` request as ``_dispatch_gate_reviewer``) can find
+    # this entry without depending on the async daemon catching up.
+    # ``read_entries`` checks this cache first.
+    _INPROCESS_CACHE.setdefault(_cache_key(project_dir, phase), []).append(
+        dict(record)  # defensive copy — caller MUST NOT mutate the cache
+    )
+
     # Bus emit — projector handler materialises both the SQL row AND
     # the on-disk JSONL line.  Fail-open: bus failure must NOT block the
     # caller (gate dispatch must still proceed; orphan-check downstream
@@ -419,9 +449,17 @@ def _read_event_log_entries(
         return None
 
     project_id = project_dir.name
+    # URI-safe path: ``Path.as_uri()`` percent-encodes spaces, ``#``,
+    # ``?``, etc.  Building the URI by f-string drops paths containing
+    # those characters silently (the read path goes to disk fallback
+    # even though the daemon DB exists).
+    try:
+        db_uri = db_path.as_uri() + "?mode=ro"
+    except (ValueError, OSError):  # absolute-path requirement / encoding
+        return None
     try:
         conn = _sqlite3.connect(
-            f"file:{db_path}?mode=ro", uri=True, check_same_thread=False
+            db_uri, uri=True, check_same_thread=False
         )
     except Exception:  # noqa: BLE001 — fail-open
         return None
@@ -480,19 +518,70 @@ def _read_event_log_entries(
     return out
 
 
+def _bus_as_truth_dispatch_log_on() -> bool:
+    """Resolve WG_BUS_AS_TRUTH_DISPATCH_LOG honoring the explicit-off opt-out.
+
+    Mirrors ``scripts/_bus.py::_bus_as_truth_enabled("DISPATCH_LOG")`` so
+    the read path uses the same flag semantics as the emit + projector
+    paths.  Default-ON (DISPATCH_LOG is in ``_BUS_AS_TRUTH_DEFAULT_ON``);
+    explicit ``"off"`` (case/whitespace normalised) opts out.
+    """
+    raw = os.environ.get("WG_BUS_AS_TRUTH_DISPATCH_LOG", "").strip().lower()
+    if raw == "off":
+        return False
+    return True  # default-ON or explicit "on"
+
+
 def read_entries(project_dir: Path, phase: str) -> List[Dict[str, Any]]:
     """Read dispatch-log entries for a phase.
 
-    Bus-as-truth (#746 PR #800): when the daemon event_log is available,
-    read entries from there as the source of truth.  Falls back to disk
-    JSONL for pre-cutover projects (no daemon DB / no event_log entries).
-    Malformed lines are skipped with a stderr note in either path;
+    Resolution order (PR #800 fix-up — covers same-process read-after-write,
+    cross-process bus visibility, and pre-cutover legacy):
+      1. In-process cache — entries appended by THIS process via
+         ``append`` (synchronous read-after-write, indispensable for the
+         same-request approve_phase → check_orphan path).
+      2. Bus event_log — cross-process source of truth post-cutover.
+      3. Disk JSONL — fallback for pre-cutover projects (no event_log
+         entries) AND when the operator opts out via
+         ``WG_BUS_AS_TRUTH_DISPATCH_LOG=off``.
+
+    Malformed lines are skipped with a stderr note in the disk path;
     callers see only valid records.
     """
-    bus_entries = _read_event_log_entries(Path(project_dir), phase)
-    if bus_entries is not None and bus_entries:
-        return bus_entries
+    cache_key = _cache_key(project_dir, phase)
+    cached = list(_INPROCESS_CACHE.get(cache_key, []))
 
+    # When the operator explicitly opts out, skip the event_log read but
+    # KEEP the in-process cache (same-process synchronous semantics
+    # remain correct even under flag-off — the cache is a process-local
+    # detail, not a "bus-as-truth" decision).
+    flag_on = _bus_as_truth_dispatch_log_on()
+
+    bus_entries: List[Dict[str, Any]] = []
+    if flag_on:
+        bus = _read_event_log_entries(Path(project_dir), phase)
+        if bus is not None:
+            bus_entries = bus
+
+    # If the cache OR bus has anything, treat that as the authoritative
+    # set (cache wins on duplicates because it's the just-written record).
+    if cached or bus_entries:
+        seen_keys = set()
+        merged: List[Dict[str, Any]] = []
+        for entry in cached + bus_entries:
+            # Dedup by (dispatch_id, dispatched_at) — unique within a
+            # (project, phase, gate, retry) cohort per the chain_id contract.
+            key = (
+                entry.get("dispatch_id", ""),
+                entry.get("dispatched_at", ""),
+            )
+            if key in seen_keys:
+                continue
+            seen_keys.add(key)
+            merged.append(entry)
+        return merged
+
+    # Disk fallback — pre-cutover legacy OR explicit opt-out.
     path = _resolve_log_path(Path(project_dir), phase)
     if not path.exists():
         return []
