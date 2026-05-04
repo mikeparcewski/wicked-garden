@@ -709,6 +709,61 @@ def _event_log_total(conn: sqlite3.Connection) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Projector cursor (#767) — last event_id the daemon's bus subscriber acked
+# into the projector.  Reads the existing ``cursor`` table maintained by the
+# daemon's subscriber loop; we only need read access (reconcile_v2 is a
+# read-only diagnostic per the module docstring's hard constraints).
+#
+# Schema (daemon/db.py:101-106):
+#   cursor (
+#     bus_source    TEXT PRIMARY KEY,
+#     cursor_id     TEXT NOT NULL,
+#     last_event_id INTEGER NOT NULL DEFAULT 0,
+#     acked_at      INTEGER NOT NULL
+#   )
+#
+# Default bus source is ``wicked-bus`` (see daemon/db.py::_BUS_SOURCE_DEFAULT).
+# When the cursor row is absent the daemon hasn't subscribed yet — we treat
+# that as projector_health == "unreachable" because we can't tell if it's
+# caught up or just silent.
+# ---------------------------------------------------------------------------
+
+# Bus source name the daemon's subscriber registers under.  Mirrors
+# ``daemon.db._BUS_SOURCE_DEFAULT`` — kept as a separate constant rather than
+# importing daemon.db to avoid a hard cross-package dependency from a
+# scripts/crew/ module on a daemon/ module (the staging plan keeps the
+# diagnostic decoupled from the daemon's import graph).
+_PROJECTOR_BUS_SOURCE = "wicked-bus"
+
+
+def _get_projector_last_applied_seq(conn: sqlite3.Connection) -> Optional[int]:
+    """Return the projector's last-applied event_id from the cursor table.
+
+    Returns None when:
+      * The cursor table doesn't exist (DB schema mismatch / not initialised)
+      * The cursor row for ``wicked-bus`` is absent (subscriber never registered)
+      * Any sqlite error occurs (fail-open per the module's hard constraints)
+
+    The daemon's bus subscriber upserts this row on every successful event
+    apply (see daemon/db.py::set_cursor); reading it here gives us the
+    projector's progress without taking a write lock.
+    """
+    try:
+        row = conn.execute(
+            "SELECT last_event_id FROM cursor WHERE bus_source = ?",
+            (_PROJECTOR_BUS_SOURCE,),
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    if row is None:
+        return None
+    try:
+        return int(row[0])
+    except (TypeError, ValueError):
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Projection-file discovery
 # ---------------------------------------------------------------------------
 
@@ -810,6 +865,8 @@ def _collect_projection_files(project_dir: Path) -> List[Path]:
 def _detect_projection_stale(
     events: List[Dict[str, Any]],
     project_dir: Path,
+    *,
+    projection_last_applied_seq: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """Events in projection_status='pending' with no materialised file.
 
@@ -834,22 +891,24 @@ def _detect_projection_stale(
         )
         for proj_path in proj_paths:
             if not proj_path.exists():
-                # projection_last_applied_seq: the event_id at which the projector
-                # last successfully processed an event.  This cursor is not yet
-                # tracked in the daemon DB schema (no projector_state table /
-                # sidecar).  Emit null per staging plan §5 schema compliance
-                # until the cursor is wired in (PR #764 follow-up TODO in
-                # _build_report_header).
+                # projection_last_applied_seq + lag_events (#767):
+                # cursor wired in.  When the caller passes the cursor's
+                # last_event_id, populate per-entry; otherwise fall back to
+                # null (cursor row absent or DB unreachable — fail-open).
+                ev_seq = ev["event_id"]
+                per_entry_lag: Optional[int] = None
+                if projection_last_applied_seq is not None:
+                    per_entry_lag = max(0, ev_seq - projection_last_applied_seq)
                 drift.append({
                     "type": DRIFT_PROJECTION_STALE,
                     "projection": str(proj_path.relative_to(project_dir)),
-                    "event_seq": ev["event_id"],
+                    "event_seq": ev_seq,
                     "event_type": ev["event_type"],
                     "chain_id": ev.get("chain_id"),
-                    "projection_last_applied_seq": None,  # cursor pending — see TODO
-                    "lag_events": None,                   # derived from cursor
+                    "projection_last_applied_seq": projection_last_applied_seq,
+                    "lag_events": per_entry_lag,
                     "reason": (
-                        f"event_seq {ev['event_id']} ({ev['event_type']!r}) "
+                        f"event_seq {ev_seq} ({ev['event_type']!r}) "
                         f"is pending but projection has not been materialised"
                     ),
                 })
@@ -1042,9 +1101,14 @@ def reconcile_project(
         else:
             errors.append("projector DB unavailable (file missing or schema absent)")
 
+    # Fetch cursor + events while we still hold the connection (#767).
+    # The cursor read is fail-open — drift detection still runs even when
+    # the cursor row is absent (per-entry lag fields just stay null).
+    last_applied_seq: Optional[int] = None
     try:
         if db_conn is not None:
             events = _query_events_for_project(db_conn, project_slug)
+            last_applied_seq = _get_projector_last_applied_seq(db_conn)
     except sqlite3.Error as exc:
         errors.append(f"event_log query failed: {exc}")
     finally:
@@ -1056,7 +1120,10 @@ def reconcile_project(
 
     drift: List[Dict[str, Any]] = []
     if project_dir.is_dir():
-        drift.extend(_detect_projection_stale(events, project_dir))
+        drift.extend(_detect_projection_stale(
+            events, project_dir,
+            projection_last_applied_seq=last_applied_seq,
+        ))
         drift.extend(_detect_event_without_projection(events, project_dir))
         drift.extend(_detect_projection_without_event(events, project_dir))
     else:
@@ -1142,41 +1209,53 @@ def _build_report_header(
     conn: Optional[sqlite3.Connection],
     command_invoked: str,
 ) -> Dict[str, Any]:
-    """Build the §5 header block for the full report."""
+    """Build the §5 header block for the full report.
+
+    Lag math (#767 wired the projector cursor — was placeholder in PR #764):
+      ``lag_events = head_seq - projection_last_applied_seq`` when both
+      values are available; ``null`` when the cursor row is absent (daemon
+      hasn't registered yet) or the DB is unreachable.
+
+    projector_health enum is ``{ok, lagging, unreachable}``:
+      * ``unreachable`` — DB connection absent OR cursor row missing
+        (cannot answer "is it caught up?" either way).
+      * ``lagging``     — lag_events > _LAG_EVENTS_THRESHOLD.
+      * ``ok``          — lag_events <= _LAG_EVENTS_THRESHOLD (catches the
+                          subscriber-stalled-at-head edge: lag == 0 is ok).
+    """
     head_seq = 0
     total_seq = 0
+    last_applied_seq: Optional[int] = None
     if conn is not None:
         # DB access failure here just means the header reports zeros for
         # head/total; the report is still valid and fail-open is correct.
         with contextlib.suppress(sqlite3.Error):
             head_seq = _event_log_head(conn)
             total_seq = _event_log_total(conn)
+            last_applied_seq = _get_projector_last_applied_seq(conn)
 
-    # Lag math — Path A (follow-up issue filed for Path B cursor wiring).
-    #
-    # The correct lag formula is:
-    #   head_seq - projection_last_applied_seq
-    # where projection_last_applied_seq is the event_id the projector last
-    # successfully processed.  That cursor is NOT currently tracked in the
-    # daemon DB schema — there is no projector_state table or sidecar file.
-    #
-    # The previous formula (total_seq - head_seq) was permanently false:
-    # MAX(event_id) >= COUNT(*) in any retained DB, so the condition
-    # `total_seq > head_seq` could never be true and lag was always 0.
-    #
-    # Until the projector cursor is wired in, we emit null for lag_events
-    # rather than a misleading zero.
-    #
-    # TODO: wire projection_last_applied_seq from the projector and replace
-    # the null with the real lag.  Filed as follow-up issue #767.
-    lag_events: Optional[int] = None  # cursor unavailable — see TODO above
+    # Lag math (#767): cursor wired in.  Compute when both values are real;
+    # leave null when the cursor row is absent so consumers can distinguish
+    # "definitely caught up" from "we don't know yet".
+    lag_events: Optional[int] = None
+    if last_applied_seq is not None:
+        # head_seq always >= last_applied_seq under normal operation; clamp
+        # to 0 in the event of clock skew or a cursor that somehow leads
+        # the head (e.g. partial DB rebuild).  Negative lag is meaningless.
+        lag_events = max(0, head_seq - last_applied_seq)
 
     if conn is None:
+        # No DB → cannot answer; report unreachable.
         projector_health = "unreachable"
+    elif last_applied_seq is None:
+        # DB present but cursor row missing — subscriber hasn't registered.
+        # Per schema enum, surface this as "unreachable" rather than "ok"
+        # because consumers should treat "no cursor" as "no signal".
+        projector_health = "unreachable"
+    elif lag_events is not None and lag_events > _LAG_EVENTS_THRESHOLD:
+        projector_health = "lagging"
     else:
-        # Cursor absent — consumer cannot act on the cursor either way.
-        # Schema enum is {ok, lagging, unreachable}; "unknown" is not valid.
-        projector_health = "unreachable"
+        projector_health = "ok"
 
     return {
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -1185,6 +1264,7 @@ def _build_report_header(
         "event_log_total_seq": total_seq,
         "lag_events": lag_events,
         "projector_health": projector_health,
+        "projection_last_applied_seq": last_applied_seq,
     }
 
 
