@@ -998,6 +998,54 @@ def _probe_wicked_testing(state) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Registry allowlist validation
+#
+# Walks in-code allowlists (phase fallback agents, gate-policy reviewers,
+# bus event handlers, agent skill references) and confirms each referenced
+# asset exists on disk / in catalog.  Catches the "invisible gap" failure
+# mode where probe traffic passes but the first request that hits the
+# missing asset blows up with a cryptic error.
+#
+# Fail-OPEN per the hook contract: any exception, any timeout, any malformed
+# allowlist surfaces as a session-briefing warning — never blocks bootstrap.
+# Findings categorised as `missing` / `malformed` / `invalid_id` are blocking
+# (CI-fail) but the bootstrap path only WARNs.  External (drop-in plugin)
+# and skipped checks are advisory.
+# ---------------------------------------------------------------------------
+
+
+def _run_registry_validation() -> str | None:
+    """Run the aggregated registry validator and return a briefing line.
+
+    Returns a multi-line string when findings exist, or None when the
+    registry is fully clean (or the validator is unavailable).  Caller
+    is expected to append the result to `mode_notes` so it surfaces as
+    a SessionStart [Registry] warning.
+
+    Fail-open boundary: any exception returns None.  Validator timing
+    is bounded by file IO (no subprocess, no network), so we trust it
+    to complete inside the bootstrap budget.
+    """
+    try:
+        # _validate_registry lives in scripts/ which is already on sys.path
+        # via the top-of-file insertion.
+        from _validate_registry import run_all_checks, format_briefing
+
+        report = run_all_checks()
+        return format_briefing(report)
+    except Exception as exc:
+        # Fail-open: validator import or run failure must NOT block bootstrap.
+        # Log to stderr so operators can see why the [Registry] line is absent
+        # but otherwise carry on.
+        print(
+            f"[wicked-garden] registry validation skipped: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
 # CH-02: SessionStart legacy reeval-log scan
 #
 # Scans known crew project directories for reeval-log.jsonl and amendments.jsonl
@@ -1251,6 +1299,16 @@ def main():
         skills_note = _check_critical_skills()
         if skills_note:
             mode_notes.append(skills_note)
+
+        # 7c.2. Registry allowlist validation — surface drift between
+        # in-code allowlists (phases, reviewers, bus handlers, skill refs)
+        # and the assets they reference.  Fail-OPEN: validator errors are
+        # swallowed inside _run_registry_validation, returning None so the
+        # briefing simply omits the [Registry] line on failure.  Findings
+        # are advisory at the session-start surface — they do NOT block.
+        registry_note = _run_registry_validation()
+        if registry_note:
+            mode_notes.append(registry_note)
 
         # 7d. Check wicked-brain dependency (required, not optional)
         brain_available, brain_note = _check_brain_dependency()
