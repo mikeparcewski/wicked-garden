@@ -122,8 +122,8 @@ def project_slug(cwd: Path | None = None) -> str:
     Windows ``\\`` separators and drive letters (``C:``) are normalized before
     the substitution.
 
-    Example (POSIX): ``$HOME/Projects/wicked-garden`` →
-    ``-<HOME-segments>-Projects-wicked-garden``.
+    Example (POSIX): ``/home/alice/Projects/wicked-garden`` →
+    ``-home-alice-Projects-wicked-garden``.
     Example (Windows): ``C:\\Users\\x\\Projects\\wg`` → ``-C-Users-x-Projects-wg``.
     """
     base = (cwd or Path.cwd()).expanduser().resolve()
