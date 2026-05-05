@@ -63,12 +63,18 @@ VALID_EVENT_TYPES = {
 # `scripts/crew/archetype_detect.py` priority-order. Kept here so the validator
 # can reject typos in the top-level field without taking a hard runtime
 # dependency on archetype_detect (which pulls in heavier file-walk imports).
-# Drift between the two lists is caught by tests/test_validate_plan.py
-# (see _selftest_archetype_enum_in_sync below).
-VALID_ARCHETYPES = {
+# Drift between the two lists is caught by tests/test_validate_plan_archetype.py.
+#
+# The tuple holds the priority-ordered list (used by docs / future error
+# rendering that needs to preserve detector priority); the set is derived
+# for O(1) membership checks. `sorted(VALID_ARCHETYPES)` in error messages
+# is alphabetical by design — readers scanning a violation want a
+# scannable list, not a priority-order recital.
+VALID_ARCHETYPES_PRIORITY = (
     "schema-migration", "multi-repo", "testing-only", "config-infra",
     "skill-agent-authoring", "docs-only", "code-repo",
-}
+)
+VALID_ARCHETYPES = frozenset(VALID_ARCHETYPES_PRIORITY)
 REQUIRED_TOP_LEVEL_KEYS = {
     "project_slug", "summary", "factors", "specialists",
     "phases", "rigor_tier", "complexity", "tasks",
@@ -641,8 +647,8 @@ def _run_selftest() -> None:
         from crew.archetype_detect import _detect_archetype_inner  # noqa: F401
         # The enum lives implicitly in the priority-ordered checks tuple.
         # Sourcing it strictly here would couple the validator too tightly;
-        # the dedicated test in tests/crew/test_validate_plan_archetype.py
-        # is the primary drift detector. This selftest only confirms our
+        # the dedicated test in tests/test_validate_plan_archetype.py is
+        # the primary drift detector. This selftest only confirms our
         # local enum is non-empty and contains the documented 7 values.
         expected = {
             "schema-migration", "multi-repo", "testing-only", "config-infra",

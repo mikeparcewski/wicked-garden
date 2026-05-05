@@ -27,19 +27,12 @@ Test rules (T1-T6):
 
 from __future__ import annotations
 
-import copy
-import sys
-from pathlib import Path
+# sys.path setup (scripts/ at index 0, scripts/crew/ appended) is owned by
+# tests/conftest.py — see its module docstring for the shadowing rationale
+# (scripts/crew/crew.py would mask the crew/ package if scripts/crew/ were
+# inserted at index 0). Don't duplicate the manipulation here.
 
-import pytest
-
-_SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
-if str(_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS))
-if str(_SCRIPTS / "crew") not in sys.path:
-    sys.path.insert(0, str(_SCRIPTS / "crew"))
-
-import validate_plan  # noqa: E402
+import validate_plan
 
 
 def _base_plan() -> dict:
