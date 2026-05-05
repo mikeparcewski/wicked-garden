@@ -188,6 +188,18 @@ Quality gates are hard enforcement mechanisms, not advisory:
 
 **Re-eval artifacts**: checkpoint re-evaluations append to `phases/{phase}/reeval-log.jsonl` (schema 1.1.0, archetype-aware, additive over 1.0), `phases/{phase}/amendments.jsonl` (per-gate, append-only), and `phases/{phase}/process-plan.addendum.jsonl` (plan mutations). Phases can be added mid-flight, never silently removed.
 
+### Pre-merge council requirement
+
+Cross-system bugs — phase-state transitions, gate decisions, event-bus sync points, multi-step orchestrator logic — live at boundaries between subsystems and are structurally invisible to unit tests. Council review (multiple independent specialists rendering blind verdicts) catches them; pytest cannot.
+
+**Trigger paths** (changes here require a pre-merge council pass):
+- `scripts/crew/phase_manager.py`, `scripts/crew/gate_dispatch.py`, `scripts/crew/reconcile_v2.py`, `scripts/crew/convergence.py`
+- `scripts/_bus.py`, `scripts/_event_schema.py`, `scripts/_session.py`
+- `daemon/projector.py` and any new `_HANDLERS` / `_PROJECTION_RESOLVERS` entry
+- Anything under `agents/crew/` (facilitator, gate-adjudicator, contrarian, reviewer panels)
+
+**Convention**: run `/wicked-garden:jam:council` on the diff and attach the verdict bundle to the PR. This is a pre-merge convention, not a hook-enforced gate (yet) — reviewers should request it on PRs touching the trigger paths.
+
 ### Bulletproof Standards
 
 Engineering agents enforce R1-R6 coding rules (no dead code, no bare panics, no magic values, no swallowed errors, no unbounded ops, no god functions). QE agents enforce T1-T6 testing rules (determinism, no sleep-based sync, isolation, single assertion focus, descriptive names, provenance). Rules are adapted per agent focus.
@@ -307,6 +319,24 @@ Skills use **progressive disclosure** for context efficiency:
 - **Tier 2**: SKILL.md (≤200 lines) — overview, quick-start, navigation to refs/
 - **Tier 3**: refs/ directory (200-300 lines each) — loaded only when needed
 
+## Test value philosophy
+
+Tests have a maintenance cost. Optimize for catching real failures, not for assertion counts.
+
+**High-value (write and keep)**:
+- Phase-transition logic (`scripts/crew/phase_manager.py`, status legality, depends_on enforcement)
+- Condition evaluation and conditions-manifest resolution (auto-resolution vs escalation)
+- Cross-domain invariants (chain_id format, event-schema envelope, archetype fallback)
+- Event-bus contract assertions (`scripts/_bus.py` payload allow-lists, projection-resolver shape, idempotency keys)
+- Idempotency: replaying the same bus event must produce the same projection bytes
+
+**Low-value (delete on sight)**:
+- Snapshot tests on markdown gate output (reviewer reports, process-plan rendering, retro narratives)
+- Skill-description text matching and frontmatter wording assertions
+- Brittle path/format assertions (`assert "phase: build" in stdout`) where behavior is decoupled from string formatting
+
+**Splitting heuristic**: split a test where assertions have *independent failure causes* — different code paths can break each one. Keep a test composite when the assertions describe one failure mode from multiple angles (e.g. "verdict is APPROVE and score >= 0.8 and conditions are empty" — all three flow from the same gate decision and break together). Splitting 1:1 per assertion creates noise without adding coverage.
+
 ## Quality Checks
 
 **Quick** (`/wg-check`): JSON validity, plugin.json structure, skills ≤200 lines, agent frontmatter, no hardcoded external tool references.
@@ -407,6 +437,25 @@ Issue #746 cutover is complete (PRs #751 → #791). Bus events are the source of
 **Soak phase**: legacy direct-write paths still run during a soak window per `docs/v9/bus-cutover-staging-plan.md` §4 ("two releases of zero drift" rule). Content-hash idempotency in projector handlers makes the duplicate writes byte-for-byte safe. Direct-write deletion is mechanical follow-up work.
 
 **Architecture refs**: `docs/v9/bus-cutover-staging-plan.md` (wave-1 design), `docs/v9/wave-2-cutover-plan.md` (wave-2 per-site analysis + tranche sequencing), `docs/v9/adr-reconcile-v2.md` (why reconcile_v2 co-exists with reconcile.py).
+
+## Operating notes
+
+### Dogfooding bug protocol
+
+When testing wicked-garden machinery (hooks, skills, agents, scripts) and you hit a bug, file a GitHub issue immediately — do **not** accumulate findings in a local `.md` log file in the repo. Local logs rot, drift, and never get triaged.
+
+**Template**:
+
+```
+gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
+```
+
+- `<location>`: file path + line, or command path (e.g. `hooks/scripts/pre_tool.py:142` or `/wicked-garden:crew:start`)
+- `<observed vs expected>`: one sentence each
+- `<impact>`: who/what breaks (single user, all crew runs, audit trail, etc.)
+- `<fix proposal>`: rough direction even if uncertain — gives the triager a starting point
+
+If you discover the bug mid-session, file it before continuing the work that surfaced it.
 
 ## wicked-brain
 

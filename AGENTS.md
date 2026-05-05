@@ -25,7 +25,7 @@ and the unique-value test before their skills will be accepted in the marketplac
 
 ## Bus-as-truth contract (v9.x cutover)
 
-The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the source of truth** for every gate-critical and audit-load-bearing artifact; on-disk files are projections materialized by `daemon/projector.py`. 14 sites are default-ON. See CLAUDE.md "Bus-as-truth architecture" for the full inventory and resolver shape.
+The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the source of truth** for every gate-critical and audit-load-bearing artifact; on-disk files are projections materialized by `daemon/projector.py`. 14 sites are default-ON. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Bus-as-truth architecture" for the full inventory and resolver shape.
 
 **Rules for agents writing code that produces a tracked artifact**:
 
@@ -33,9 +33,27 @@ The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the so
 2. **Fail-open per Decision #8.** Wrap the emit in `try/except`. A bus emit failure must NEVER block the legacy disk write — evidence loss is preferable visible (the disk write succeeds; missing event surfaces as drift).
 3. **chain_id includes a uniqueness segment** when the operation can repeat in a phase. Per `memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md`: phase-level `chain_id` lets `is_processed` dedupe drop subsequent events in the same phase. Include `condition_id`, `artifact_id`, `amendment_id`, etc. as the discriminator.
 4. **Carve out `raw_payload`** in `scripts/_bus.py::_PAYLOAD_ALLOW_OVERRIDES` if the projector needs the canonical bytes (JSONL append handlers always do; full-file rewrite handlers may instead carry structured fields).
-5. **For new artifacts**: follow the 7-step add-a-bus-projected-artifact procedure in CLAUDE.md "Bus-as-truth architecture" — event registration → carve-out → handler → resolver → handler-available → file-flag → default-ON.
+5. **For new artifacts**: follow the 7-step add-a-bus-projected-artifact procedure in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Bus-as-truth architecture" — event registration → carve-out → handler → resolver → handler-available → file-flag → default-ON.
 
 **Soak window**: legacy direct-write paths still run alongside the bus path. Don't delete them yet — `docs/v9/bus-cutover-staging-plan.md` §4 requires two releases of zero drift before deletion. Content-hash idempotency in projector handlers makes the duplicate writes safe.
+
+## Pre-merge council requirement
+
+Cross-system bugs at the boundary between subsystems (phase-state transitions, gate decisions, event-bus sync points, orchestrator logic) are structurally invisible to unit tests. Council review catches them; pytest cannot.
+
+**Trigger paths**: `scripts/crew/phase_manager.py`, `scripts/crew/gate_dispatch.py`, `scripts/crew/reconcile_v2.py`, `scripts/crew/convergence.py`, `scripts/_bus.py`, `scripts/_event_schema.py`, `scripts/_session.py`, `daemon/projector.py`, anything under `agents/crew/`.
+
+**Convention**: run `/wicked-garden:jam:council` on the diff and attach the verdict bundle to the PR. Pre-merge convention — not a hook-enforced gate yet.
+
+## Dogfooding bug protocol
+
+When dogfooding wicked-garden machinery (hooks, skills, agents, scripts) and hitting a bug, file a GitHub issue **immediately** — never accumulate in a local `.md` log file. Template:
+
+```
+gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
+```
+
+File before continuing the work that surfaced the bug. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Operating notes / Dogfooding bug protocol".
 
 ## Planning & Execution
 
@@ -47,6 +65,7 @@ The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the so
 - When debugging test failures, prefer structured output formats (JUnit XML, JSON) over parsing stdout. Do not spend multiple iterations trying to capture/parse terminal output that gets truncated.
 - When I report a bug or issue, investigate the systemic root cause first before applying surface-level fixes. Ask "why is this happening?" not "how do I patch this instance?".
 - When reviewing code or doing analysis, go deep into architectural patterns, agentic design, response validation, and context optimization. Do not produce surface-level checklist findings (e.g., "no auth", "no rate limits").
+- **Test value**: write tests for phase-transition logic, condition evaluation, cross-domain invariants, event-bus contracts, and idempotency. Delete shallow tests on markdown output, skill-description text, and brittle path/format strings. Split a composite test only when assertions have independent failure causes — not 1:1 per assertion. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Test value philosophy".
 
 ## Architecture & Design
 
