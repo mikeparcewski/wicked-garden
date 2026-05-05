@@ -286,6 +286,16 @@ def check_phases(plugin_root: Path) -> List[Dict[str, Any]]:
     agents_index, agent_findings = _scan_agents(plugin_root)
     findings.extend(agent_findings)
 
+    # Slim-install short-circuit: if agents/ was missing, _scan_agents
+    # already emitted a single `skipped` finding. Don't cascade into N
+    # `missing` findings for every fallback_agent — one slim-install
+    # signal is enough.
+    if not agents_index and any(
+        f.get("category") == CAT_SKIPPED and f.get("check") == "agents.scan"
+        for f in agent_findings
+    ):
+        return findings
+
     for phase_id, body in phases.items():
         if not isinstance(phase_id, str) or not phase_id:
             findings.append(
@@ -378,6 +388,15 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
     agents_index, agent_findings = _scan_agents(plugin_root)
     findings.extend(agent_findings)
 
+    # Slim-install short-circuit (mirrors check_phases): if agents/ was
+    # missing, return after surfacing the single `skipped` finding rather
+    # than cascading into per-reviewer `missing` findings.
+    if not agents_index and any(
+        f.get("category") == CAT_SKIPPED and f.get("check") == "agents.scan"
+        for f in agent_findings
+    ):
+        return findings
+
     def _resolve(reviewer: str) -> str:
         if not isinstance(reviewer, str) or not reviewer.strip():
             return CAT_INVALID_ID
@@ -403,18 +422,48 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
         for tier_name, tier_body in tiers.items():
             if not isinstance(tier_body, dict):
                 continue  # description / non-tier keys
-            reviewers = tier_body.get("reviewers", []) or []
-            fallback = tier_body.get("fallback")
-            if not isinstance(reviewers, list):
+            # Read raw values without falsy-coercion (`or []`) — falsy
+            # non-list values like `""`, `0`, `{}` previously slipped through
+            # as "no reviewers" instead of being flagged as malformed.
+            raw_reviewers = tier_body.get("reviewers")
+            if raw_reviewers is None:
+                reviewers: List[Any] = []
+            elif isinstance(raw_reviewers, list):
+                reviewers = raw_reviewers
+            else:
                 findings.append(
                     {
                         "category": CAT_MALFORMED,
                         "check": "gate-policy.reviewers",
                         "target": f"{gate_id}.{tier_name}",
-                        "detail": "reviewers is not a list",
+                        "detail": (
+                            "reviewers is not a list "
+                            f"(got {type(raw_reviewers).__name__}: {raw_reviewers!r})"
+                        ),
                     }
                 )
                 continue
+            raw_fallback = tier_body.get("fallback")
+            # `fallback` is a single string (or absent). Reject any other
+            # non-string type — the previous `is not None and != ""` check
+            # silently accepted dicts / numbers / booleans.
+            if raw_fallback is None or raw_fallback == "":
+                fallback: Optional[str] = None
+            elif isinstance(raw_fallback, str):
+                fallback = raw_fallback
+            else:
+                findings.append(
+                    {
+                        "category": CAT_MALFORMED,
+                        "check": "gate-policy.fallback",
+                        "target": f"{gate_id}.{tier_name}",
+                        "detail": (
+                            "fallback is not a string "
+                            f"(got {type(raw_fallback).__name__}: {raw_fallback!r})"
+                        ),
+                    }
+                )
+                fallback = None
             for rv in reviewers:
                 outcome = _resolve(rv)
                 if outcome == "ok":
@@ -433,7 +482,7 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
                         ),
                     }
                 )
-            if fallback is not None and fallback != "":
+            if fallback is not None:
                 outcome = _resolve(fallback)
                 if outcome == "ok":
                     continue
@@ -491,6 +540,16 @@ def _extract_string_keys_from_dict_literal(text: str, var_name: str) -> Optional
                 in_string = None
             i += 1
             continue
+        # Skip Python line comments ('#' to end of line) — but ONLY when
+        # we are NOT inside a string. A '}' inside a comment must not
+        # decrement depth or we terminate parsing prematurely.
+        if ch == "#":
+            nl = text.find("\n", i)
+            if nl < 0:
+                # Comment runs to EOF — no closer can follow.
+                break
+            i = nl + 1
+            continue
         if ch in ("'", '"'):
             in_string = ch
             i += 1
@@ -531,9 +590,11 @@ def _extract_string_keys_from_dict_literal(text: str, var_name: str) -> Optional
                 literal = "".join(str_buf)
                 in_str = None
                 str_buf = []
-                # Skip whitespace and check for ':'
+                # Skip whitespace and check for ':' — Python permits a
+                # newline between the closing quote and the colon, so accept
+                # CR/LF here in addition to space/tab.
                 k = j + 1
-                while k < n and body[k] in " \t":
+                while k < n and body[k] in " \t\n\r":
                     k += 1
                 if (
                     str_start_at_zero
