@@ -1,5 +1,14 @@
 # Changelog
 
+## [8.8.1] - 2026-05-05
+
+### Bug Fixes
+- fix(crew): promote archetype to top-level facilitator JSON field (#810) (#811) (5557e8a) — surfaced via dogfooding; `data["archetype"]` returned `None` because the field lived only inside per-task metadata. Promoted to canonical top level + agreement invariant against `tasks[*].metadata.archetype`. Also adds optional `archetype_confidence` and `archetype_signals` for auditability. Backward compatible.
+- fix(plugin): pin wicked-testing range, reconcile domain count, scrub example paths (#809) (7f7a81b)
+
+### Documentation
+- docs: harden dogfooding bug protocol with one-time `gh label create machinery` setup + `--label bug` fallback (part of #811)
+
 ## [8.8.0] - 2026-05-04
 
 ### Features
