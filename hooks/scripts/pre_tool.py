@@ -265,8 +265,14 @@ def _handle_write_guard(tool_input: dict) -> str:
     # AGENTS.md is a cross-tool instruction file shared with Codex, Cursor, Amp, etc.
     # Writes are allowed — a PostToolUse hook keeps CLAUDE.md and AGENTS.md in sync.
 
-    # Block writes to MEMORY.md or Claude's auto-memory directory
-    is_memory_md = file_path.endswith("MEMORY.md")
+    # Theme 9: bare endswith("MEMORY.md") would match e.g. "notMEMORY.md".
+    # Use Path().name for a true basename check, which is platform-agnostic
+    # (works for both POSIX and Windows separators).
+    try:
+        _basename = Path(file_path).name
+    except (TypeError, ValueError):
+        _basename = ""
+    is_memory_md = _basename == "MEMORY.md"
     is_auto_memory = _AUTO_MEMORY_MARKER in file_path and "/memory/" in file_path
 
     if is_memory_md or is_auto_memory:
@@ -430,12 +436,21 @@ _ORCHESTRATOR_PHASES = {"build", "review"}
 
 
 def _is_allowlisted(file_path: str) -> bool:
-    """Return True if file_path is on the orchestrator write allowlist."""
+    """Return True if file_path is on the orchestrator write allowlist.
+
+    Theme 9: ``endswith("status.md")`` would false-match ``bogusstatus.md``.
+    Suffix entries match against the basename (Path.name) so the check
+    requires the exact filename, not a tail-substring.
+    """
     for fragment in _ORCHESTRATOR_ALLOWLIST:
         if fragment in file_path:
             return True
+    try:
+        basename = Path(file_path).name
+    except (TypeError, ValueError):
+        return False
     for suffix in _ORCHESTRATOR_ALLOWLIST_SUFFIXES:
-        if file_path.endswith(suffix):
+        if basename == suffix:
             return True
     return False
 

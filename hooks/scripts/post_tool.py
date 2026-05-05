@@ -1210,6 +1210,38 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
 # Handler: Bash (general activity tracking)
 # ---------------------------------------------------------------------------
 
+# Theme 9: word-boundary check for search-tool invocations.  The discovery
+# hint must NOT fire on benign references like ``echo "use grep instead"``
+# or comments.  A real invocation appears at start-of-line/command-start or
+# after a shell separator (``;``, ``&&``, ``||``, ``|``, ``&``, newline).
+#
+# Precision rules:
+#   * Allow optional leading whitespace after ``^`` and after each separator,
+#     so ``"  grep pattern"`` and ``"ls;   grep foo"`` both match.
+#   * Use ``\b`` before each tool name — without it, ``"ls; tag"`` would
+#     false-match ``ag`` inside ``tag``.
+#   * Accept multi-char ``&&`` and ``||`` as well as single ``;`` ``|`` ``&``;
+#     ``&&`` must precede ``&`` (and ``||`` precede ``|``) in the alternation
+#     so the longer separator wins the leftmost-match.
+_SEARCH_INVOCATION_RE = re.compile(
+    r"(?:^\s*|[\n;]\s*|&&\s*|\|\|\s*|[|&]\s*)\b(?:grep|rg|ripgrep|ag)\b",
+)
+
+
+def _looks_like_search_invocation(command_lower: str) -> bool:
+    """Return True iff ``command_lower`` actually invokes grep/rg/ag/ripgrep.
+
+    Caller passes the lowercased command string.  Returns False on empty
+    input or any regex failure (fail-quiet — discovery hints are advisory).
+    """
+    if not command_lower:
+        return False
+    try:
+        return bool(_SEARCH_INVOCATION_RE.search(command_lower))
+    except (TypeError, re.error):
+        return False
+
+
 def _handle_bash(tool_input: dict, tool_response) -> dict:
     """Track bash activity + detect usage patterns for discovery hints."""
     messages = []
@@ -1225,8 +1257,11 @@ def _handle_bash(tool_input: dict, tool_response) -> dict:
     # --- Discovery hints from bash command patterns ---
     command = (tool_input.get("command") or "").lower()
     if command:
-        # Manual grep/rg usage → suggest wicked-garden search
-        if any(kw in command for kw in ["grep ", "rg ", "ripgrep", "ag "]):
+        # Theme 9: bare ``"grep " in command`` matches comments like
+        # ``# grep is fine``.  Require the tool to appear at command start
+        # OR after a separator (``;``, ``&&``, ``||``, ``|``, newline) so
+        # the hint only fires on actual invocations, not stale references.
+        if _looks_like_search_invocation(command):
             hint = _try_discovery_hint("grep_search")
             if hint:
                 messages.append(hint)

@@ -58,6 +58,47 @@ VALID_ARCHETYPES = frozenset({
     "schema-migration",
 })
 
+# Theme 1 (computed-without-enforcement): when a producer attaches a
+# deterministic-by-construction field (hash, dedup, idempotency token,
+# bus event id), the validator enforces shape so the schema's promise
+# matches runtime behavior.  Without this check a producer could write
+# ``content_hash=""`` and consumers downstream would silently treat the
+# row as un-deduped.  Each entry is ``(field_name, predicate, hint)``.
+#
+#   * content_hash      — must be a non-empty hex string >= 8 chars
+#   * dedup_key         — must be a non-empty string
+#   * idempotency_key   — must be a non-empty string (uuid-shaped or token)
+#   * event_id          — bus-stamped int when emitted by the bus, but a
+#                          producer-supplied event_id MUST be a non-empty
+#                          string or positive int
+_HEX_RE = re.compile(r"^[0-9a-fA-F]+$")
+
+
+def _is_nonempty_str(v) -> bool:
+    return isinstance(v, str) and bool(v.strip())
+
+
+def _is_hex_hash(v) -> bool:
+    return _is_nonempty_str(v) and len(v) >= 8 and bool(_HEX_RE.match(v))
+
+
+def _is_event_id(v) -> bool:
+    if isinstance(v, int):
+        return v > 0
+    return _is_nonempty_str(v)
+
+
+# Each predicate returns True when the value is acceptable.  Validation
+# only fires when the field is PRESENT — these fields stay optional, but
+# if a caller chooses to set them, the schema enforces the contract.
+COMPUTED_FIELD_VALIDATORS = (
+    ("content_hash", _is_hex_hash,
+     "non-empty hex string of at least 8 characters"),
+    ("dedup_key", _is_nonempty_str, "non-empty string"),
+    ("idempotency_key", _is_nonempty_str, "non-empty string"),
+    ("event_id", _is_event_id, "non-empty string or positive int"),
+)
+
 # Per-event_type required and optional metadata fields.
 SCHEMA: dict[str, dict[str, list[str]]] = {
     "task": {
@@ -194,14 +235,23 @@ def validate_metadata(
                 score = metadata.get("score")
                 min_score = metadata.get("min_score")
                 if score is not None and min_score is not None:
+                    # Theme 10: this validator is the architectural boundary
+                    # for gate-finding metadata; it cannot raise (callers
+                    # expect a string|None contract and hooks fail-open),
+                    # so preserve the underlying coercion failure detail in
+                    # the returned message instead of dropping it.
                     try:
                         if float(score) < float(min_score):
                             return (
                                 f"APPROVE verdict requires score >= min_score "
                                 f"({score} < {min_score})"
                             )
-                    except (TypeError, ValueError):
-                        return "gate-finding.score and min_score must be numeric"
+                    except (TypeError, ValueError) as e:
+                        return (
+                            f"gate-finding.score and min_score must be "
+                            f"numeric (score={score!r}, min_score="
+                            f"{min_score!r}): {type(e).__name__}: {e}"
+                        )
 
     if event_type == "subtask":
         parent = metadata.get("parent_chain_id", "")
@@ -221,6 +271,24 @@ def validate_metadata(
             f"Allowed: {sorted(VALID_ARCHETYPES)}"
         )
 
+    # Theme 1: computed-without-enforcement.  When a producer sets one of
+    # the known deterministic fields, enforce shape — otherwise the schema
+    # promises a contract the runtime doesn't keep.
+    # Treat ``None`` as "absent" to stay consistent with the required-field
+    # check above (~line 193): a producer passing ``key=None`` is signalling
+    # "not set", not "present with a None value", so skip the predicate.
+    for field, predicate, hint in COMPUTED_FIELD_VALIDATORS:
+        if field not in metadata:
+            continue
+        value = metadata[field]
+        if value is None:
+            continue
+        if not predicate(value):
+            return (
+                f"metadata.{field}={value!r} fails computed-field "
+                f"shape check (expected {hint})"
+            )
+
     return None
 
 
@@ -231,6 +299,7 @@ __all__ = [
     "VALID_ARCHETYPES",
     "BANNED_REVIEWERS",
     "BANNED_SOURCE_AGENT_PREFIXES",
+    "COMPUTED_FIELD_VALIDATORS",
     "SCHEMA",
     "validate_metadata",
 ]
