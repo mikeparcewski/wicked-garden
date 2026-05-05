@@ -335,7 +335,7 @@ Tests have a maintenance cost. Optimize for catching real failures, not for asse
 - Skill-description text matching and frontmatter wording assertions
 - Brittle path/format assertions (`assert "phase: build" in stdout`) where behavior is decoupled from string formatting
 
-**Splitting heuristic**: split a test where assertions have *independent failure causes* — different code paths can break each one. Keep a test composite when the assertions describe one failure mode from multiple angles (e.g. "verdict is APPROVE and score >= 0.8 and conditions is empty" — all three flow from the same gate decision and break together). Splitting 1:1 per assertion creates noise without adding coverage.
+**Splitting heuristic**: split a test where assertions have *independent failure causes* — different code paths can break each one. Keep a test composite when the assertions describe one failure mode from multiple angles (e.g. "verdict is APPROVE and score >= 0.8 and conditions are empty" — all three flow from the same gate decision and break together). Splitting 1:1 per assertion creates noise without adding coverage.
 
 ## Quality Checks
 
