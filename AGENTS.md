@@ -53,6 +53,8 @@ When dogfooding wicked-garden machinery (hooks, skills, agents, scripts) and hit
 gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
 ```
 
+The `machinery` label must exist on the repo (one-time: `gh label create machinery --description "Plugin machinery bugs" --color B60205`). If you can't create labels, fall back to `--label bug` and prefix the title with `machinery:`.
+
 File before continuing the work that surfaced the bug. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Operating notes / Dogfooding bug protocol".
 
 ## Planning & Execution

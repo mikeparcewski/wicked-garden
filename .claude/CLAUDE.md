@@ -455,6 +455,14 @@ gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --bod
 - `<impact>`: who/what breaks (single user, all crew runs, audit trail, etc.)
 - `<fix proposal>`: rough direction even if uncertain — gives the triager a starting point
 
+**One-time setup** (the `machinery` label must exist on the repo or `gh issue create` exits non-zero):
+
+```
+gh label create machinery --description "Plugin machinery (hooks/skills/agents/scripts) bugs surfaced via dogfooding" --color B60205
+```
+
+If `gh label create` fails because the label already exists, that's the success case — proceed. If you don't have permission to create labels on the repo, fall back to `--label bug` and prefix the title with `machinery:` so triagers can route by hand.
+
 If you discover the bug mid-session, file it before continuing the work that surfaced it.
 
 ## wicked-brain
