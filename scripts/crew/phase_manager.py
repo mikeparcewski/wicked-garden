@@ -446,23 +446,66 @@ def load_phases_config() -> dict:
     audit-visible). Intended only for narrow test scenarios that run with
     no plugin tree mounted — production must always have phases.json.
     """
-    global _PHASES_FALLBACK_WARNED
     config_path = _get_plugin_root() / ".claude-plugin" / "phases.json"
+    fallback_mode = os.environ.get("WG_PHASES_FALLBACK", "").strip().lower()
+
+    def _legacy_fallback(reason: str) -> dict:
+        """Substitute the minimal 3-phase config when WG_PHASES_FALLBACK=allow.
+
+        Shared between the missing-file path and the malformed-content path so
+        operator behaviour is consistent — one env-var, one WARN log line, one
+        substituted config. Uses globals() to set the once-per-process latch
+        because nested functions can't `global` a name they only mutate.
+        """
+        if not globals().get("_PHASES_FALLBACK_WARNED"):
+            sys.stderr.write(
+                f"[phase-manager] WARN: {reason} at {config_path}; "
+                "WG_PHASES_FALLBACK=allow — substituting a 3-phase minimal "
+                "config (clarify, build, review). Phase set diverges from the "
+                "canonical configuration.\n"
+            )
+            globals()["_PHASES_FALLBACK_WARNED"] = True
+        return dict(_PHASES_FALLBACK_MINIMAL)
+
     if config_path.exists():
         with open(config_path) as f:
-            return json.load(f).get("phases", {})
-
-    fallback_mode = os.environ.get("WG_PHASES_FALLBACK", "").strip().lower()
-    if fallback_mode == "allow":
-        if not _PHASES_FALLBACK_WARNED:
-            sys.stderr.write(
-                "[phase-manager] WARN: phases.json missing at "
-                f"{config_path}; WG_PHASES_FALLBACK=allow — substituting a "
-                "3-phase minimal config (clarify, build, review). Phase "
-                "set diverges from the canonical configuration.\n"
+            parsed = json.load(f)
+        # Theme 2 (silent-fallback hardening): a non-dict top-level or a
+        # missing/non-dict `phases` key is a malformed config — we used to
+        # silently substitute {} via `.get("phases", {})`, which let
+        # approve_phase advance through an empty phase set. Raise loudly so
+        # the caller fixes the config; operators with no plugin tree mounted
+        # opt back in via WG_PHASES_FALLBACK=allow (same gate as missing file).
+        if not isinstance(parsed, dict):
+            if fallback_mode == "allow":
+                return _legacy_fallback(
+                    f"phases.json top-level is {type(parsed).__name__}, expected dict"
+                )
+            raise ValueError(
+                f"phases.json at {config_path} top-level is "
+                f"{type(parsed).__name__}, expected a dict. This is a "
+                "configuration error — restore the file from git, or set "
+                "WG_PHASES_FALLBACK=allow to substitute a minimal 3-phase "
+                "config (logs a divergence WARN; intended for tests, not "
+                "production)."
             )
-            _PHASES_FALLBACK_WARNED = True
-        return dict(_PHASES_FALLBACK_MINIMAL)
+        if "phases" not in parsed or not isinstance(parsed.get("phases"), dict):
+            if fallback_mode == "allow":
+                return _legacy_fallback(
+                    "phases.json is missing the `phases` key or its value is "
+                    "not a dict"
+                )
+            raise ValueError(
+                f"phases.json at {config_path} is missing the `phases` key "
+                "or its value is not a dict. This is a configuration error — "
+                "restore the file from git, or set WG_PHASES_FALLBACK=allow "
+                "to substitute a minimal 3-phase config (logs a divergence "
+                "WARN; intended for tests, not production)."
+            )
+        return parsed["phases"]
+
+    if fallback_mode == "allow":
+        return _legacy_fallback("phases.json missing")
 
     raise FileNotFoundError(
         f"phases.json not found at {config_path}. This is a configuration "
@@ -6152,12 +6195,19 @@ def main():
     elif args.action == "liveness":
         # Theme 4 (cluster B): scan dispatch-log + gate-results for stuck
         # state. See scripts/crew/dispatch_liveness.py for the audit logic.
+        # Match the package-qualified-with-flat-fallback pattern used by other
+        # optional crew imports in this file (yolo_constants, consensus_gate)
+        # so the import survives both invocation modes — scripts/ on sys.path
+        # (qualified) and scripts/crew/ on sys.path (bare).
         try:
-            from dispatch_liveness import audit_phase, audit_project
-        except ImportError as exc:
-            msg = f"Error: dispatch_liveness import failed: {exc}"
-            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
-            sys.exit(1)
+            from crew.dispatch_liveness import audit_phase, audit_project
+        except ImportError:
+            try:
+                from dispatch_liveness import audit_phase, audit_project  # type: ignore
+            except ImportError as exc:
+                msg = f"Error: dispatch_liveness import failed: {exc}"
+                print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
+                sys.exit(1)
         project_dir = get_project_dir(args.project)
         try:
             if args.phase:

@@ -97,10 +97,12 @@ gp = Path('${TEST_PROJECT_DIR}') / 'phases' / 'review' / 'gate-result.json'
 gp.write_text(json.dumps(gate_result))
 
 import dispatch_liveness as dl
-# Re-audit (now BOTH stale-dispatch and external-trigger findings should appear,
-# because the gate-result.json arrived for evidence-quality but doesn't resolve
-# the dispatch entry whose orphan-detection lives elsewhere — and the CONDITIONAL
-# external-trigger condition is a separate finding class).
+# Audit ONLY the external-trigger class here. Note: now that gate-result.json
+# exists, audit_phase_dispatches() suppresses the stale-dispatch finding (the
+# gate-result.json present check on line 338-342) — orphan detection for that
+# case lives in the dispatch-log schema/orphan layer, not in the liveness
+# audit. So we call audit_conditional_externals directly to isolate the
+# external-trigger finding class.
 findings = dl.audit_conditional_externals(Path('${TEST_PROJECT_DIR}'), 'review')
 assert len(findings) == 1, f'Expected 1 external-trigger finding, got {len(findings)}: {findings}'
 assert findings[0]['kind'] == 'external-trigger-no-producer'
