@@ -55,10 +55,56 @@ archetype check is needed.
 
 ## Outputs (file-handoff contract)
 
+### Output contract — INLINED, do not rely on skill bodies being loaded
+
+Skill descriptions are injected into agent context; full skill bodies (including
+`skills/propose-process/refs/output-schema.md`) are NOT loaded unless explicitly
+invoked. The required-keys list below is the authoritative shape — the slim
+SKILL.md and `scripts/ci/measure_facilitator.py` validate against these keys.
+Read `output-schema.md` only when you need a worked example or optional-field
+reference; do not rely on it being available at call time.
+
+**Required top-level keys** (every emit must contain all of these):
+
+- `project_slug` — snake_case short id matching the `project_slug` input.
+- `mode` — one of `propose | re-evaluate | yolo`.
+- `summary` — 2-3 sentences in your own words.
+- `factors` — dict of all 9 factor keys (`reversibility`, `blast_radius`,
+  `compliance_scope`, `user_facing_impact`, `novelty`, `scope_effort`,
+  `state_complexity`, `operational_risk`, `coordination_cost`). Each value
+  is `{"reading": "LOW|MEDIUM|HIGH", "risk_level": "low_risk|medium_risk|high_risk", "why": "..."}`.
+  Both `reading` AND `risk_level` are mandatory and must be in sync.
+- `specialists` — non-empty array of `{"name": "...", "why": "..."}` (optionally
+  `domain` + `subagent_type`).
+- `phases` — non-empty array of `{"name": "...", "why": "...", "primary": [...]}`.
+- `rigor_tier` — one of `minimal | standard | full`.
+- `complexity` — integer 0-7.
+- `tasks` — array of task entries; each has `id`, `title`, `phase`, `specialist`,
+  `blockedBy: [...]`, and a `metadata` dict containing `chain_id`, `event_type`
+  (one of `task | coding-task | gate-finding | phase-transition | procedure-trigger | subtask`),
+  `source_agent`, `phase`, plus archetype-aware `test_required`, `test_types`,
+  `evidence_required`, `rigor_tier`. May be `[]` only when `open_questions` is
+  non-empty (block-on-ambiguity path).
+
+**Optional but contractful** (when present, MUST match shape):
+
+- `priors` — array of `{"path", "source_type", "why"}`.
+- `complexity_why`, `rigor_why` — one-sentence rationales.
+- `open_questions` — array of strings; non-empty implies `tasks: []`.
+- `re_evaluation` — `{"pruned": [], "augmented": [], "re_tiered": []}` for
+  `mode: re-evaluate`.
+- `affected_repos` — array of repo short-names; advisory metadata for
+  `multi-repo` archetype.
+
+The full worked-example envelope (with field-by-field commentary) lives in
+`skills/propose-process/refs/output-schema.md`; the keys above are what
+`measure_facilitator.py` and the slim caller validate.
+
 1. **`${project_dir}/process-plan.draft.json`** (REQUIRED) — JSON object matching
-   `skills/propose-process/refs/output-schema.md`. The slim SKILL.md reads this
-   back after Task() returns. Always write before returning. If `${project_dir}`
-   does not exist, create it via `mkdir -p` first.
+   the keys listed above (full schema in
+   `skills/propose-process/refs/output-schema.md`). The slim SKILL.md reads
+   this back after Task() returns. Always write before returning. If
+   `${project_dir}` does not exist, create it via `mkdir -p` first.
 2. **Task chain**: DO NOT issue `TaskCreate` calls from inside this agent. The
    caller emits tasks from the JSON `tasks[]` array — keeps the agent pure
    (no side effects beyond the draft file) and preserves measurement reproducibility.

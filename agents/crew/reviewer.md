@@ -100,13 +100,35 @@ If evidence is missing or incomplete, flag as a **Critical** finding. Task compl
 
 ### 5. Document Findings
 
+#### Output contract — INLINED, do not rely on skill bodies being loaded
+
+Skill descriptions get injected into context; full skill bodies do not unless
+invoked. The fallback reviewer is the agent most likely to be dispatched
+when a specialist is missing — its output must be consumable by gate
+adjudicators that have no other context. The frontmatter below is the
+authoritative shape; the prose body is human-readable evidence.
+
 Write to `phases/review/findings.md`:
 
 ```markdown
+---
+verdict: APPROVE | CONDITIONAL | REJECT
+score: 0.85
+reviewer: wicked-garden:crew:reviewer
+external_review: true | false
+external_reviewer: "<subagent_type or cli_name>" | null
+reviewed_at: "<ISO-8601 UTC Z>"
+findings:
+  - "<critical-or-concern finding 1>"
+  - "<critical-or-concern finding 2>"
+conditions:
+  - "<condition 1>"
+---
+
 # Review Findings
 
 ## Summary
-[Overall assessment: APPROVE / NEEDS CHANGES]
+[Overall assessment: APPROVE / CONDITIONAL / REJECT]
 
 ## Changes Reviewed
 - [file]: [assessment]
@@ -128,6 +150,16 @@ Write to `phases/review/findings.md`:
 ## Recommendation
 [Final recommendation with reasoning]
 ```
+
+Frontmatter invariants:
+- `verdict: APPROVE` requires `findings: []` AND `conditions: []`.
+- `verdict: CONDITIONAL` requires `conditions` non-empty.
+- `verdict: REJECT` requires at least one Critical finding.
+- At complexity >= 3, `external_review: true` AND `external_reviewer` MUST
+  identify a different subagent_type than `reviewer`. If unavailable, set
+  `verdict: CONDITIONAL` with the condition "External review required at
+  complexity >= 3 but was not obtained."
+- `reviewer` MUST NOT be a banned auto-approve identity.
 
 ## Task Lifecycle
 

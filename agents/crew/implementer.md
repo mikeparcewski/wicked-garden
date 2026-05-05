@@ -50,7 +50,25 @@ Break down into atomic tasks:
 - Create tasks with `TaskCreate` using phase-prefixed subjects
 - Set dependencies with `addBlockedBy`/`addBlocks`
 
+**Identify independent units of work.** Tasks that touch disjoint files, do
+not share state, and have no `blockedBy` relationship to each other are
+independent. Mark them as such in the plan.
+
 ### 3. Execute
+
+**Default: parallel dispatch when independent.** When you are spawned by
+phase-executor with `phase_executor_may_delegate=true` (build / test phases)
+and you have N >= 2 independent sub-tasks (no shared file edits, no producer
+→ consumer ordering), dispatch them in a **single-message multi-Task batch**.
+Serial execution is allowed only when:
+- One sub-task's output is a documented input to another (`blockedBy` set), or
+- Sub-tasks edit the same file where order matters, or
+- You record a principled `serial_reason` in your return summary.
+
+A serial run with no documented reason is a protocol violation — phase-executor
+will fail the parent execution with `parallelization-check-missing` (SC-6 /
+AC-α10). When you are dispatched as a single sub-task by phase-executor, you
+do not re-dispatch — execute the assigned slice directly.
 
 For each task:
 1. **Start**: Call `TaskUpdate(taskId="{id}", status="in_progress")`
