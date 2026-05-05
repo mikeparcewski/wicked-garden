@@ -28,8 +28,11 @@ load_bus_health(policy_path=None) -> dict
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger("wicked-crew.gate-policy")
 
 
 # ---------------------------------------------------------------------------
@@ -91,13 +94,28 @@ def load_bus_health(
         "emit_success_threshold": 0.999,
         "min_n_for_assertion": 500,
     }
+    # Theme 2 (cluster B): every fallback path now emits an observable WARN
+    # so a missing or malformed bus_health block diverging from the
+    # operator-declared values is surfaced to logs instead of silently
+    # substituting code's idea of "safe defaults".
     try:
         policy = load_gate_policy(policy_path)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
+    except (FileNotFoundError, json.JSONDecodeError, OSError) as exc:
+        logger.warning(
+            "[gate-policy] bus_health fallback engaged — gate-policy.json "
+            "unreadable (%s): %s. Substituting code defaults %r.",
+            type(exc).__name__, exc, _DEFAULTS,
+        )
         return dict(_DEFAULTS)
 
     bus_health = policy.get("bus_health")
     if not isinstance(bus_health, dict):
+        logger.warning(
+            "[gate-policy] bus_health fallback engaged — gate-policy.json has "
+            "no 'bus_health' block (got type=%s). Substituting code defaults %r. "
+            "Add a bus_health block to silence this WARN.",
+            type(bus_health).__name__, _DEFAULTS,
+        )
         return dict(_DEFAULTS)
 
     result = dict(_DEFAULTS)
@@ -106,13 +124,23 @@ def load_bus_health(
             bus_health.get("emit_success_threshold", _DEFAULTS["emit_success_threshold"])
         )
     except (TypeError, ValueError):
-        pass  # keep default
+        logger.warning(
+            "[gate-policy] bus_health.emit_success_threshold=%r is not a "
+            "valid float — substituting default %r.",
+            bus_health.get("emit_success_threshold"),
+            _DEFAULTS["emit_success_threshold"],
+        )
 
     try:
         result["min_n_for_assertion"] = int(
             bus_health.get("min_n_for_assertion", _DEFAULTS["min_n_for_assertion"])
         )
     except (TypeError, ValueError):
-        pass  # keep default
+        logger.warning(
+            "[gate-policy] bus_health.min_n_for_assertion=%r is not a "
+            "valid int — substituting default %r.",
+            bus_health.get("min_n_for_assertion"),
+            _DEFAULTS["min_n_for_assertion"],
+        )
 
     return result

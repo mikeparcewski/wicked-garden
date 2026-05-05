@@ -56,13 +56,18 @@ _WICKED_GARDEN_PREFIX = "wicked-garden:"
 
 
 def _get_window_secs() -> int:
-    """Read WG_GATE_VERDICT_WINDOW_SECS from env. Returns 0 for test-mode sentinel."""
+    """Read WG_GATE_VERDICT_WINDOW_SECS from env. Returns 0 for test-mode sentinel.
+
+    Theme 2 (cluster B): a negative value previously clamped silently to 0,
+    flipping production into test-mode aggregation without warning. Now warns
+    on the divergence and falls back to the default (rather than test-mode)
+    so a typo can't accidentally skip the verdict window.
+    """
     raw = os.environ.get("WG_GATE_VERDICT_WINDOW_SECS", "").strip()
     if not raw:
         return _DEFAULT_WINDOW_SECS
     try:
         val = int(raw)
-        return max(0, val)
     except ValueError:
         logger.warning(
             "gate_dispatch: invalid WG_GATE_VERDICT_WINDOW_SECS=%r — using default %d",
@@ -70,6 +75,19 @@ def _get_window_secs() -> int:
             _DEFAULT_WINDOW_SECS,
         )
         return _DEFAULT_WINDOW_SECS
+    if val < 0:
+        # Negative values previously silent-clamped to 0 (test-mode sentinel).
+        # That's a divergence: the operator wrote a number meaning "no wait at
+        # all" but the code interpreted "skip aggregation window entirely".
+        # Warn loudly and refuse the divergence — fall back to the default.
+        logger.warning(
+            "gate_dispatch: negative WG_GATE_VERDICT_WINDOW_SECS=%r is not "
+            "valid (clamping to 0 would silently flip aggregation to test-mode) "
+            "— using default %d. Set explicitly to 0 if test-mode is intended.",
+            raw, _DEFAULT_WINDOW_SECS,
+        )
+        return _DEFAULT_WINDOW_SECS
+    return val
 
 
 # ---------------------------------------------------------------------------
