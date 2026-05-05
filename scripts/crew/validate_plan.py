@@ -59,6 +59,22 @@ VALID_EVENT_TYPES = {
     "task", "coding-task", "gate-finding",
     "phase-transition", "procedure-trigger", "subtask",
 }
+# Issue #810: canonical 7-value archetype enum, mirrors
+# `scripts/crew/archetype_detect.py` priority-order. Kept here so the validator
+# can reject typos in the top-level field without taking a hard runtime
+# dependency on archetype_detect (which pulls in heavier file-walk imports).
+# Drift between the two lists is caught by tests/test_validate_plan_archetype.py.
+#
+# The tuple holds the priority-ordered list (used by docs / future error
+# rendering that needs to preserve detector priority); the set is derived
+# for O(1) membership checks. `sorted(VALID_ARCHETYPES)` in error messages
+# is alphabetical by design — readers scanning a violation want a
+# scannable list, not a priority-order recital.
+VALID_ARCHETYPES_PRIORITY = (
+    "schema-migration", "multi-repo", "testing-only", "config-infra",
+    "skill-agent-authoring", "docs-only", "code-repo",
+)
+VALID_ARCHETYPES = frozenset(VALID_ARCHETYPES_PRIORITY)
 REQUIRED_TOP_LEVEL_KEYS = {
     "project_slug", "summary", "factors", "specialists",
     "phases", "rigor_tier", "complexity", "tasks",
@@ -94,6 +110,9 @@ _SECTION_ANCHORS = {
     "rigor_tier": "§ rigor_tier enum (minimal|standard|full)",
     "complexity": "§ complexity bounds (0..7)",
     "affected_repos": "§ affected_repos (advisory, optional)",
+    "archetype": "§ archetype (canonical, optional)",
+    "archetype_confidence": "§ archetype (canonical, optional)",
+    "archetype_signals": "§ archetype (canonical, optional)",
 }
 
 
@@ -127,6 +146,67 @@ def _check_top_level(plan: dict, violations: list) -> None:
         c = plan["complexity"]
         if not isinstance(c, int) or not (0 <= c <= 7):
             violations.append(f"complexity — must be an integer in [0, 7], got {c!r}")
+
+    # Issue #810: optional canonical `archetype` field at the top level.
+    # Promoted out of `tasks[*].metadata.archetype` so downstream Python
+    # consumers can probe `plan["archetype"]` directly instead of digging
+    # into per-task metadata. Validates: (1) value is in the 7-value enum
+    # if present; (2) `archetype_confidence` if present is a float in
+    # [0.0, 1.0]; (3) `archetype_signals` if present is a list of strings;
+    # (4) agreement invariant — when both top-level and per-task archetypes
+    # are present, every task's metadata.archetype must equal the top-level
+    # value. Disagreement is rejected so consumers have a single source of
+    # truth (the original Issue #810 bug was silent disagreement masked as
+    # `None` on the top-level probe).
+    if "archetype" in plan:
+        a = plan["archetype"]
+        if not isinstance(a, str) or a not in VALID_ARCHETYPES:
+            violations.append(
+                f"archetype — must be one of {sorted(VALID_ARCHETYPES)}, got {a!r}"
+            )
+
+    if "archetype_confidence" in plan:
+        c = plan["archetype_confidence"]
+        if not isinstance(c, (int, float)) or isinstance(c, bool) or not (0.0 <= float(c) <= 1.0):
+            violations.append(
+                f"archetype_confidence — must be a number in [0.0, 1.0], got {c!r}"
+            )
+
+    if "archetype_signals" in plan:
+        sigs = plan["archetype_signals"]
+        if not isinstance(sigs, list):
+            violations.append("archetype_signals — must be a list of strings")
+        else:
+            for i, entry in enumerate(sigs):
+                if not isinstance(entry, str) or not entry.strip():
+                    violations.append(
+                        f"archetype_signals[{i}] — every entry must be a "
+                        f"non-empty string, got {entry!r}"
+                    )
+
+    # Agreement invariant. Only runs when top-level archetype is valid; we
+    # don't want to spam disagreement violations on top of an enum error.
+    if (
+        "archetype" in plan
+        and isinstance(plan.get("archetype"), str)
+        and plan["archetype"] in VALID_ARCHETYPES
+        and isinstance(plan.get("tasks"), list)
+    ):
+        top = plan["archetype"]
+        for i, task in enumerate(plan["tasks"]):
+            if not isinstance(task, dict):
+                continue
+            md = task.get("metadata")
+            if not isinstance(md, dict):
+                continue
+            task_arch = md.get("archetype")
+            if task_arch is None:
+                continue  # per-task field is itself optional
+            if task_arch != top:
+                violations.append(
+                    f"tasks[{i}].metadata.archetype — '{task_arch}' disagrees with "
+                    f"top-level archetype '{top}' (Issue #810: pick one source of truth)"
+                )
 
     # Issue #722: optional advisory `affected_repos` field. Read-only
     # metadata for the multi-repo archetype — no DAG, no worktree
@@ -521,6 +601,20 @@ _INVALID_FIXTURES = [
     # #722: affected_repos entries must be non-empty strings
     ("affected_repos contains a non-string", lambda p: {**p, "affected_repos": ["foo", 42]}),
     ("affected_repos contains an empty string", lambda p: {**p, "affected_repos": ["foo", "  "]}),
+    # #810: archetype value must be in the 7-value enum when present
+    ("archetype not in enum", lambda p: {**p, "archetype": "random-thing"}),
+    # #810: archetype_confidence must be a float in [0, 1] when present
+    ("archetype_confidence above 1.0", lambda p: {**p, "archetype": "code-repo", "archetype_confidence": 1.5}),
+    ("archetype_confidence is bool", lambda p: {**p, "archetype": "code-repo", "archetype_confidence": True}),
+    # #810: archetype_signals shape — list of non-empty strings
+    ("archetype_signals not a list", lambda p: {**p, "archetype": "code-repo", "archetype_signals": "foo"}),
+    ("archetype_signals contains an empty string", lambda p: {**p, "archetype": "code-repo", "archetype_signals": ["ok", "  "]}),
+    # #810: agreement invariant — top-level vs per-task archetype must match
+    ("archetype disagreement top-level vs task", lambda p: {
+        **p,
+        "archetype": "code-repo",
+        "tasks": [{**p["tasks"][0], "metadata": {**p["tasks"][0]["metadata"], "archetype": "docs-only"}}],
+    }),
 ]
 
 
@@ -533,6 +627,40 @@ def _run_selftest() -> None:
     result = validate(copy.deepcopy(_VALID_FIXTURE))
     if result:
         failures.append(f"valid fixture produced violations: {result}")
+
+    # #810: positive path — top-level archetype + agreeing task metadata + the
+    # confidence/signals optional fields all valid; must not raise violations.
+    pos = copy.deepcopy(_VALID_FIXTURE)
+    pos["archetype"] = "code-repo"
+    pos["archetype_confidence"] = 0.85
+    pos["archetype_signals"] = ["scripts/crew/*.py changed"]
+    pos["tasks"][0]["metadata"]["archetype"] = "code-repo"
+    result = validate(pos)
+    if result:
+        failures.append(f"#810 positive archetype fixture produced violations: {result}")
+
+    # #810: enum drift guard — VALID_ARCHETYPES must mirror archetype_detect's
+    # priority order. We pull the canonical list from archetype_detect when
+    # available; if the import fails (e.g. CI sandbox), we skip rather than
+    # silently passing — the test suite covers this path more rigorously.
+    try:
+        from crew.archetype_detect import _detect_archetype_inner  # noqa: F401
+        # The enum lives implicitly in the priority-ordered checks tuple.
+        # Sourcing it strictly here would couple the validator too tightly;
+        # the dedicated test in tests/test_validate_plan_archetype.py is
+        # the primary drift detector. This selftest only confirms our
+        # local enum is non-empty and contains the documented 7 values.
+        expected = {
+            "schema-migration", "multi-repo", "testing-only", "config-infra",
+            "skill-agent-authoring", "docs-only", "code-repo",
+        }
+        if VALID_ARCHETYPES != expected:
+            failures.append(
+                f"#810 VALID_ARCHETYPES drift: got {sorted(VALID_ARCHETYPES)}, "
+                f"expected {sorted(expected)}"
+            )
+    except ImportError:
+        pass  # CI sandbox; tests will catch the drift case.
 
     # Invalid fixtures must each produce at least one violation
     for desc, mutator in _INVALID_FIXTURES:

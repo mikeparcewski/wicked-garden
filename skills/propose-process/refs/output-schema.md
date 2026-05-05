@@ -48,6 +48,9 @@ rubric against a scenario's expected-outcome block.
   "rigor_why": "one sentence",
   "complexity": 3,
   "complexity_why": "one sentence",
+  "archetype": "code-repo",
+  "archetype_confidence": 0.85,
+  "archetype_signals": ["scripts/crew/*.py changed", "tests under tests/"],
   "open_questions": [
     "When you say 'faster', do you mean initial paint, TTI, or perceived responsiveness?"
   ],
@@ -84,6 +87,33 @@ rubric against a scenario's expected-outcome block.
   "affected_repos": ["repo-foo", "repo-bar"]
 }
 ```
+
+## archetype (canonical, optional)
+
+The top-level `archetype` field is the canonical, downstream-readable home for
+the project's archetype classification. It mirrors the value the facilitator
+also emits at `tasks[*].metadata.archetype` (Step 6 of `agents/crew/process-facilitator.md`).
+Promotion to top level was added by Issue #810: probing the JSON via Python
+with the lower-case `archetype` key was returning `None` because the field
+existed only inside per-task metadata, even though the agent's narrative
+output reported the archetype correctly.
+
+- **Type**: string. Must be one of the 7-value enum (priority order):
+  `schema-migration`, `multi-repo`, `testing-only`, `config-infra`,
+  `skill-agent-authoring`, `docs-only`, `code-repo`.
+- **Optional** for backward compatibility. Plans omitting the field validate
+  exactly as today; downstream consumers must keep their existing fallback
+  to `tasks[0].metadata.archetype` until producers stabilize on the top-level
+  field.
+- **Agreement invariant**: when both `archetype` (top-level) and
+  `tasks[*].metadata.archetype` are present, every task's archetype MUST equal
+  the top-level value. Disagreement is a validator error — picking one source
+  of truth removes the silent-drift class of bug Issue #810 surfaced.
+- **`archetype_confidence`** (optional, `[0.0, 1.0]`): the detector's
+  confidence score. Mirrors `archetype_detect.detect_archetype()['confidence']`.
+- **`archetype_signals`** (optional, list of strings): the human-readable
+  signals the detector / facilitator used. Useful for auditability and for
+  the `gate-adjudicator` to explain its archetype-aware score-band choice.
 
 ## affected_repos (advisory, optional)
 

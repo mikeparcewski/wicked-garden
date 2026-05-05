@@ -174,12 +174,22 @@ absorb scenario authoring into build. For each phase, emit: `name`, `why` (one s
 
 ### 6. Select archetype + assign evidence metadata per task
 
-**Archetype selection (clarify time)**: Select one archetype and emit it in every
-`TaskCreate` `metadata.archetype`. 7-value enum (priority order, first match wins):
+**Archetype selection (clarify time)**: Select one archetype and emit it in
+**both** places:
+
+1. **Top-level `archetype`** (canonical, downstream-readable) — added by
+   Issue #810. Also emit `archetype_confidence` (float, `[0.0, 1.0]`) and
+   `archetype_signals` (list of human-readable strings) when available.
+2. **Every `TaskCreate` `metadata.archetype`** — must equal the top-level
+   value. The validator rejects disagreement so consumers have a single
+   source of truth.
+
+7-value enum (priority order, first match wins):
 `schema-migration` → `multi-repo` → `testing-only` → `config-infra` →
 `skill-agent-authoring` → `docs-only` → `code-repo` (fallback). Call
 `archetype_detect.detect_archetype()` when available; see
-`skills/propose-process/refs/evidence-framing.md`.
+`skills/propose-process/refs/evidence-framing.md` and the canonical schema in
+`skills/propose-process/refs/output-schema.md` § archetype.
 
 **Multi-repo guidance (Issue #722)**: when the selected archetype is
 `multi-repo`, do **not** model the work as a single crew project that
