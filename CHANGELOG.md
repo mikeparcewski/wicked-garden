@@ -1,5 +1,18 @@
 # Changelog
 
+## [8.8.0] - 2026-05-04
+
+### Features
+- feat(platform): startup-time allowlist validator (Theme 8) (#807) (01735f1)
+
+### Documentation
+- docs: cross-project memory learnings — council, test philosophy, dogfood protocol (#808) (c60a9ee)
+- docs(crew): inline agent output contracts + parallel-dispatch defaults (#806) (55a29eb)
+
+### Chores
+- crew: silent-fallback hardening + dispatch liveness audit (#805) (03bd8b6)
+- lint(hooks): enforce computed-field shape + tighten substring matchers (#804) (3021b17)
+
 ## [Unreleased]
 
 ## [8.7.0] - 2026-05-04
