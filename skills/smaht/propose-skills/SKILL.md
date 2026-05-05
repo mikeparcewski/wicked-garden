@@ -56,7 +56,7 @@ Do not auto-invoke `/wg-scaffold` — this is a read-only proposer.
 
 1. **Locate sessions**: `${CLAUDE_CONFIG_DIR:-~/.claude}/projects/{project-slug}/*.jsonl`.
    The analyzer honors `CLAUDE_CONFIG_DIR` so users with custom config dirs
-   (e.g. `/Users/me/alt-configs/.claude`) get matched correctly. Default slug
+   (e.g. `$HOME/alt-configs/.claude`) get matched correctly. Default slug
    is derived from the current working directory.
 2. **Parse**: each `.jsonl` line, extracting `tool_use` items from assistant
    messages and the leading text of user messages. Robust against malformed
