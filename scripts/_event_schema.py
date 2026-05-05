@@ -274,10 +274,18 @@ def validate_metadata(
     # Theme 1: computed-without-enforcement.  When a producer sets one of
     # the known deterministic fields, enforce shape — otherwise the schema
     # promises a contract the runtime doesn't keep.
+    # Treat ``None`` as "absent" to stay consistent with the required-field
+    # check above (~line 193): a producer passing ``key=None`` is signalling
+    # "not set", not "present with a None value", so skip the predicate.
     for field, predicate, hint in COMPUTED_FIELD_VALIDATORS:
-        if field in metadata and not predicate(metadata[field]):
+        if field not in metadata:
+            continue
+        value = metadata[field]
+        if value is None:
+            continue
+        if not predicate(value):
             return (
-                f"metadata.{field}={metadata[field]!r} fails computed-field "
+                f"metadata.{field}={value!r} fails computed-field "
                 f"shape check (expected {hint})"
             )
 

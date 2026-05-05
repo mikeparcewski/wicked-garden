@@ -1213,9 +1213,18 @@ def _handle_bash_consensus(tool_input: dict, tool_response) -> dict:
 # Theme 9: word-boundary check for search-tool invocations.  The discovery
 # hint must NOT fire on benign references like ``echo "use grep instead"``
 # or comments.  A real invocation appears at start-of-line/command-start or
-# after a shell separator (``;``, ``&&``, ``||``, ``|``, newline).
+# after a shell separator (``;``, ``&&``, ``||``, ``|``, ``&``, newline).
+#
+# Precision rules:
+#   * Allow optional leading whitespace after ``^`` and after each separator,
+#     so ``"  grep pattern"`` and ``"ls;   grep foo"`` both match.
+#   * Use ``\b`` before each tool name — without it, ``"ls; tag"`` would
+#     false-match ``ag`` inside ``tag``.
+#   * Accept multi-char ``&&`` and ``||`` as well as single ``;`` ``|`` ``&``;
+#     ``&&`` must precede ``&`` (and ``||`` precede ``|``) in the alternation
+#     so the longer separator wins the leftmost-match.
 _SEARCH_INVOCATION_RE = re.compile(
-    r"(?:^|[\n;|&]\s*)(?:grep|rg|ripgrep|ag)\b",
+    r"(?:^\s*|[\n;]\s*|&&\s*|\|\|\s*|[|&]\s*)\b(?:grep|rg|ripgrep|ag)\b",
 )
 
 
