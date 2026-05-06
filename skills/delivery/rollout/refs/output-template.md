@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Rollout Plan Output Template
 
 Markdown template for the rollout plan returned by `/wicked-garden:delivery:rollout`. Substitute the placeholders with values from the risk assessment, strategy, and capability-discovery results.

@@ -1,6 +1,8 @@
 ---
 description: GitHub Actions workflow generation and optimization
 argument-hint: "<generate|optimize|troubleshoot> [workflow file]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:actions

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Rethink Framework
 
 When to step back from fixing and consider redesigning. Not every issue needs a

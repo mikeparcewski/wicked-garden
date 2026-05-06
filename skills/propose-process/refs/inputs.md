@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Inputs — priors fetch and session-state reads
 
 The facilitator runs inside a Claude session with access to:

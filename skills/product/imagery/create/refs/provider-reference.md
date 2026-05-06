@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Provider Reference
 
 Detailed documentation for each supported image generation provider.

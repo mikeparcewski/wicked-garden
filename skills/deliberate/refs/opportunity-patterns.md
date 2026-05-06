@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Opportunity Patterns
 
 Common patterns where a single issue reveals broader improvement opportunities.

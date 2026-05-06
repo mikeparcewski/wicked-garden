@@ -5,6 +5,8 @@ description: |
   code-doc drift after a refactor. Covers generate (API docs, READMEs), audit (coverage metrics,
   undocumented exports), and sync (stale docs detection) in one skill.
   NOT for architecture documentation (use the architecture skill) or product requirements (use product/requirements-analysis).
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Documentation Engineering Skill

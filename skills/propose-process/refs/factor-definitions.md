@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Factor Definitions (with calibration examples)
 
 Nine factors. For each: what it means, what LOW / MEDIUM / HIGH look like, and the

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Examples: Multi-AI Conversation Patterns
 
 Real-world examples and templates for multi-model collaboration.

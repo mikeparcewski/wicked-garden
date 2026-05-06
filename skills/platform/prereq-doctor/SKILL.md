@@ -5,6 +5,8 @@ description: |
 
   Use when: "command not found", "ModuleNotFoundError", "missing tool",
   "install dependency", "prereq check", "setup validation"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Prereq Doctor

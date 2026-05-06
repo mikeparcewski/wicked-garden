@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Anti-Patterns: Feature Envy
 
 ## Feature Envy

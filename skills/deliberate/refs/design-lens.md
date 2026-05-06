@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Design Lens
 
 Additional questions for the five lenses when the work involves UX, UI, or design.

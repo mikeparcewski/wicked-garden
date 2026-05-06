@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Accessibility Audit Report: Findings Template
 
 Template for executive summary, methodology, and detailed findings sections of an accessibility audit.

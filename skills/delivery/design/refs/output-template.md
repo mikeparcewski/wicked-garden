@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Experiment Design Output Template
 
 Markdown template for the experiment design output emitted by the `delivery:design` skill. Substitute the placeholders with values from the hypothesis, metrics, sample-size, and instrumentation steps.

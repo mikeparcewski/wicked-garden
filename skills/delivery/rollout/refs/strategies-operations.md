@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Rollout Strategies: Operations & Communication
 
 Dark launch, feature flags, monitoring, rollback procedures, communication templates, and post-rollout learning.

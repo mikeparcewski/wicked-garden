@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Aider CLI — Usage Patterns
 
 Aider is an AI pair-programmer designed to edit code inside a git repo. For council use it runs in a restricted one-shot mode: no git, no commits, no file edits — just an answer to the scaffold prompt.

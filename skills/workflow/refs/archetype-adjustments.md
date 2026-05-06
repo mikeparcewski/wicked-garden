@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Archetype Adjustments
 
 11 project archetypes with detection keywords and scoring adjustments.

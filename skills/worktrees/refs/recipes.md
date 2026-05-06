@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build"]
+archetype_relevance: ["*"]
+---
 # Worktree Recipes
 
 Detection, salvage, and verification commands for the three worktree failure modes.

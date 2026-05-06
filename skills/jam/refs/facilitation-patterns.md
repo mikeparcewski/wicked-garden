@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Facilitation Patterns
 
 Match persona archetypes to problem types for effective brainstorming sessions.

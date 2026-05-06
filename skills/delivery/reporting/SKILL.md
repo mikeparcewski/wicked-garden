@@ -9,6 +9,8 @@ description: |
 
   Enhanced with:
   - wicked-brain:memory Stores insights across sessions
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Reporting Skill

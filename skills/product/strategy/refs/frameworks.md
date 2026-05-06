@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Strategic Analysis Frameworks
 
 Reference guide for business analysis frameworks used in product.

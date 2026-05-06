@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Cost Optimization & Reporting
 
 Strategies for estimating, optimizing, and reporting on token costs in agentic systems.

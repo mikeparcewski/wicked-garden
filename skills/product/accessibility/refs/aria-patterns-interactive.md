@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # ARIA Patterns - Interactive Widgets
 
 Tabs, modal dialogs, and dropdown menus.

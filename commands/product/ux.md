@@ -3,6 +3,8 @@ description: |
   Use when creating or analyzing user flows, information architecture, and interaction patterns — in-chat,
   without a design tool. NOT for production visual design (use figma plugin) or accessibility audits (use product:a11y).
 argument-hint: "<target-or-description> [--mode create|analyze]"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:ux

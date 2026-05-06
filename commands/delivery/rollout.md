@@ -1,6 +1,8 @@
 ---
 description: "Plan progressive feature rollouts with risk assessment"
 argument-hint: "<description> — describe the feature to roll out"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:delivery:rollout

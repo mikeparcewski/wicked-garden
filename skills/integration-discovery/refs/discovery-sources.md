@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
+---
 # Discovery Sources
 
 Where to look for capabilities and how to check each source.

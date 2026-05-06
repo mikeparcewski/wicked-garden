@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Documentation Template - Maintenance
 
 Change log, references, contact info, example auth component, and template usage tips.

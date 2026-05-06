@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Issue Taxonomy: Performance, Quality, Observability & Testing
 
 Issue categories for agentic system reviews covering performance, code quality, observability, testing, and severity guidelines.

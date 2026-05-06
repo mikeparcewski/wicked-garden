@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Evidence Framing (functional, not coverage)
 
 Evidence is about proving the task did what it claims. Coverage percentages are gate

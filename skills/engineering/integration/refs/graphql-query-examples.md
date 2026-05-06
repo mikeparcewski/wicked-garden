@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # GraphQL API Design Guide: Query Examples
 
 ## Query Examples

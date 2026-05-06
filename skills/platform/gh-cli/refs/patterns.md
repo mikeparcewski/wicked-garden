@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Common gh CLI Patterns
 
 Quick reference for common GitHub CLI operations.

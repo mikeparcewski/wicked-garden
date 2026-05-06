@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # `process-plan.md` template
 
 Write this artifact to the project directory (typically

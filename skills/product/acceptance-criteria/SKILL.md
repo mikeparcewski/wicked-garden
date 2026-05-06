@@ -6,6 +6,8 @@ description: |
 
   Use when: "define acceptance criteria", "how do we know it's done",
   "what should QE test", "definition of done"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Acceptance Criteria Skill

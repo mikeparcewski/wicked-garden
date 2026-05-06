@@ -8,6 +8,8 @@ allowed_tools:
   - Grep
   - AskUserQuestion
   - Skill
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:report-issue

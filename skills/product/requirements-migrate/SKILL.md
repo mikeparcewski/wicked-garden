@@ -7,6 +7,8 @@ description: |
 
   Use when: "migrate requirements", "convert to graph",
   "split requirements", "restructure requirements"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Requirements Migrate

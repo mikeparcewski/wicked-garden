@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Resilience Patterns Guide: Circuit Breaker Pattern
 
 ## Circuit Breaker Pattern

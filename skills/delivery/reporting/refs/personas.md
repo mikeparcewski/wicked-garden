@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Persona Details
 
 Detailed configuration and generation patterns for report personas.

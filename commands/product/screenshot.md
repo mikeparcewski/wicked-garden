@@ -1,6 +1,8 @@
 ---
 description: Screenshot-based UI review using Claude's multimodal vision — analyze layout, color, typography, and consistency from image files
 argument-hint: "<image-path> [<reference-path>]"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:screenshot

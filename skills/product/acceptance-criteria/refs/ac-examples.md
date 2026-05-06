@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Acceptance Criteria Examples
 
 Comprehensive examples of well-written acceptance criteria across different domains.

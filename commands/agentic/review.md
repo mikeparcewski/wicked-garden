@@ -1,6 +1,8 @@
 ---
 description: Full agentic codebase review with framework detection, agent topology analysis, and remediation roadmap
 argument-hint: "[path] [--quick] [--framework NAME] [--output FILE]"
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:agentic:review

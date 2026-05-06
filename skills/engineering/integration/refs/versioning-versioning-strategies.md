@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # API Versioning Guide: Versioning Strategies
 
 ## Versioning Strategies

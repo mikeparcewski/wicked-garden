@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Quality Gates Reference
 
 Four review gates ensure visual assets are "Business Ready" before delivery. Each gate produces a PASS/FAIL verdict with actionable feedback.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Goose CLI — Usage Patterns
 
 Block's open-source AI agent. Goose is designed to *do things* — run tools, execute commands, read files — not just answer questions. In council mode it operates as a read-only responder via `goose run -i -`.

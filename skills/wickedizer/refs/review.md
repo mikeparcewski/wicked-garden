@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Review: Quality Validation
 
 How do you know writing is done? This reference provides review criteria and checklists for validating writing quality.

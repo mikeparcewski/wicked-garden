@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Engineering Output Templates
 
 ## Implementation Guidance Template

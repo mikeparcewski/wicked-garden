@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # OpenCode CLI — Usage Patterns
 
 OpenCode CLI for AI-assisted coding with multiple providers. Supports OpenAI, Anthropic,

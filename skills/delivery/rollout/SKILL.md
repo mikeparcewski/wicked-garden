@@ -7,6 +7,8 @@ description: |
 
   Use when: "roll out feature", "progressive rollout", "canary deployment",
   "feature flag", "rollback plan", "launch feature", "deploy gradually"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Rollout Skill

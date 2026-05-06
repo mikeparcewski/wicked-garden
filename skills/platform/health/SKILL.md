@@ -8,6 +8,8 @@ description: |
   Use when: checking aggregated system health, validating a post-deployment
   state, or correlating production status with recent changes.
 portability: portable
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Health Aggregation Skill

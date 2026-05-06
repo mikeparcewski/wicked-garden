@@ -6,6 +6,8 @@ description: |
 
   Use when: navigating or querying a requirements graph, generating a coverage
   report, refreshing meta.md, or linting graph structure for gaps.
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Requirements Navigate

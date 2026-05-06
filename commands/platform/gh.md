@@ -4,6 +4,8 @@ description: |
   or release automation — that go beyond what a plain `gh` man-page example covers.
   NOT for simple git operations (use Bash) or repo health (use platform:health).
 argument-hint: "<operation: workflows|prs|releases|repo> [args]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:gh

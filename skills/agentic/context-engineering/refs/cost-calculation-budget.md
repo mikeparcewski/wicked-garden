@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Token Cost Models and Budgeting
 
 Comprehensive guide to calculating, tracking, and optimizing token costs in agentic systems.

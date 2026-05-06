@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Output Schema (for measurement)
 
 When the facilitator is invoked with `output=json` (set by

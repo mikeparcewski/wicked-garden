@@ -3,6 +3,8 @@ description: |
   Use when you want to quote or trace a specific persona's position across all rounds of a brainstorm —
   e.g., "what did the Security Reviewer say across each round?" NOT for full session transcript (use jam:transcript).
 argument-hint: "<persona-name> [--session-id ID] [--json]"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:persona

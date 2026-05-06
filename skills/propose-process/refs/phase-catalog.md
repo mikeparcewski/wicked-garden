@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Phase Catalog (templates, soft dependencies)
 
 Phases are templates, not laws. The facilitator picks what applies for THIS work and

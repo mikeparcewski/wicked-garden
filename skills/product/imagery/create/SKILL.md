@@ -5,6 +5,8 @@ description: |
   Supports 5 providers: cstudio, vertex-curl, OpenAI, Stability AI, Replicate.
 
   Use when: "generate image", "create image", "text to image", "new visual"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Image Creation

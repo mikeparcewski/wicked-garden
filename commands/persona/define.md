@@ -1,6 +1,8 @@
 ---
 description: Create or update a custom persona for on-demand invocation
 argument-hint: "<name> --focus \"<focus>\" [--traits \"<t1,t2>\"] [--role <role>] [--save]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:persona:define

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Interface Documentation Template - Operations
 
 Testing, examples, client libraries, monitoring, migration guides, and changelog.

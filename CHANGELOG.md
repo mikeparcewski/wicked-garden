@@ -1,5 +1,53 @@
 # Changelog
 
+## [9.2.9] - 2026-05-06
+
+**Issue #725 bulk-pass — relevance frontmatter on the remaining 384 commands/skills + lint flips to deny.**
+
+The `phase_relevance` / `archetype_relevance` frontmatter contract introduced with the context-aware `crew:guide` (Issue #725) shipped on a curated 15-command subset and deliberately deferred the remaining ~384 commands/skills to a follow-up PR. `WG_RELEVANCE_LINT=warn` was the bridge — it flagged the gap on every plugin load (`WARN: missing relevance frontmatter — 384 files: ... (and 379 more)`) but didn't block. v9.2.9 closes the bridge.
+
+### Bulk-pass
+
+`scripts/wg/_relevance_bulkadd.py` walks every command/skill missing one or both of the required frontmatter fields and inserts directory-derived defaults. Every domain gets a value that reflects the work it does, not blanket `["*"]`:
+
+| Domain | `phase_relevance` |
+|---|---|
+| `commands/platform/`, `skills/platform/`, `skills/delivery/` | `["build", "review", "operate"]` |
+| `commands/product/`, `skills/product/` | `["clarify", "design", "review"]` |
+| `commands/engineering/`, `skills/engineering/`, `commands/data/`, `skills/data/` | `["design", "build"]` |
+| `commands/jam/`, `skills/jam/`, `skills/multi-model/`, `skills/deliberate/` | `["clarify", "design"]` |
+| `commands/agentic/`, `skills/agentic/` | `["design", "review"]` |
+| `skills/propose-process/`, `skills/integration-discovery/` | `["bootstrap"]` |
+| `skills/worktrees/` | `["build"]` |
+| `commands/crew/`, `commands/search/`, `commands/smaht/`, `commands/persona/`, `commands/<top>/`, all cross-cutting skills | `["*"]` |
+
+`archetype_relevance` is `["*"]` everywhere at the bulk-pass stage. Future per-file scoping (e.g. narrowing `commands/data/*` to `["code-repo"]`) is a per-file judgment that doesn't add value at this scale.
+
+The bulk-add tool is preserved at `scripts/wg/_relevance_bulkadd.py` for one release in case a follow-up domain pass reuses the per-domain map. Safe to delete in a future cleanup.
+
+**Result**: 384 files edited, 17 already had frontmatter (the curated subset shipped in #725 + the v10 phase-2 work). Every command/skill now declares both fields. The bootstrap warning that fired on every plugin load is gone.
+
+### Lint default flip: `warn` → `deny`
+
+`scripts/wg/check_relevance_frontmatter.py` previously defaulted to `WG_RELEVANCE_LINT=warn`. The script's own docstring committed to the flip: "The next release flips the default after the bulk-pass follow-up PR ships." This PR is that release.
+
+- New default: `WG_RELEVANCE_LINT=deny`. Adding a new command or skill without `phase_relevance` + `archetype_relevance` now fails CI rather than emitting a warning everyone learned to ignore.
+- `warn` mode kept as a temporary opt-out during refactors that intentionally add files without frontmatter.
+- `off` mode kept as a rollback lever for emergencies.
+
+The flip is the lock that keeps the bulk-pass meaningful. Without it, this PR silences the existing warns but the next person to add a command without frontmatter re-introduces the noise.
+
+### Tests
+
+- 7/7 relevance lint tests passing.
+- 35/35 wicked-testing probe + drift tests passing.
+- All three lint modes verified: `deny` (default) → exit 0 clean; `warn` → exit 0; `off` → exit 0.
+- Pre-existing test failure: `test_yolo_md_exists` — references a deleted alias file, unrelated to this PR. Tracked separately.
+
+### Plugin version
+
+9.2.8 → 9.2.9 (patch — frontmatter bulk-pass + lint default flip; no behaviour change).
+
 ## [9.2.8] - 2026-05-06
 
 **Quick cleanup — bump `wicked_testing_version` pin + compile silent-contract-drift wiki.**

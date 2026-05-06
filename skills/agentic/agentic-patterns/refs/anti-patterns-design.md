@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Anti-Patterns in Agentic Systems: Design
 
 Common design mistakes in agentic systems and how to fix them. Covers God Agent, Tight Coupling, Missing Guardrails, Deep Nesting, and No Observability.

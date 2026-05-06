@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Process memory — first-class context at session start
 
 Issue #447 adds a persistent per-project process memory. The facilitator reads this at every session start so retro observations, kaizen hypotheses, and unresolved action items don't evaporate between sessions.

@@ -1,6 +1,8 @@
 ---
 description: Build unified index for code and documents in a directory
 argument-hint: "<path>"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:index

@@ -12,6 +12,8 @@ description: |
   crew jargon into language a non-practitioner can act on. Also used
   automatically by the orchestrator when `crew.output_style = paired` or
   `plain-only` — the skill produces the `**Plain:**` line.
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:explain

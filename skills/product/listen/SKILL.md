@@ -7,6 +7,8 @@ description: |
 
   Use when: aggregating customer feedback from discovered sources, gathering
   voice-of-customer data, or surveying sentiment across channels.
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Listen Skill

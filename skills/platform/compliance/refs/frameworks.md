@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Compliance Frameworks Reference
 
 Detailed framework-specific requirements and controls.

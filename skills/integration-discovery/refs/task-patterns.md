@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
+---
 # Task Patterns
 
 Common task types and their typical capability mappings. Use as starting points—always verify availability.

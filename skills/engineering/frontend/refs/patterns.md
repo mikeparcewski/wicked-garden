@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Frontend Code Patterns
 
 ## Component Structure Pattern

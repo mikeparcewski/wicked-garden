@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Common Accessibility Violations: HTML & CSS
 
 Quick reference for the most frequent WCAG violations with before/after examples. Covers images, forms, contrast, semantics, and focus.

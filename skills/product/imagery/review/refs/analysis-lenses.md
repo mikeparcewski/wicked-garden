@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Visual Analysis Lenses
 
 Four complementary lenses for comprehensive image analysis. Apply one or more depending on the task.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Structure: Document Architecture
 
 How you organize content determines whether readers find what they need. Structure is invisible when done well—readers just "get it."

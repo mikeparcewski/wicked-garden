@@ -1,6 +1,8 @@
 ---
 description: List all available personas with their focus and invocation syntax
 argument-hint: "[--role <role>]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:persona:list

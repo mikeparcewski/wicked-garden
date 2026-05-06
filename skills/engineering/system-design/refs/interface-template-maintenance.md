@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Interface Documentation Template - Examples and Tips
 
 Complete User Service interface example and tips for documenting interfaces.

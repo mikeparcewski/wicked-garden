@@ -7,6 +7,8 @@ description: |
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons", "quick check".
 context: fork
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # Brainstorming Skill

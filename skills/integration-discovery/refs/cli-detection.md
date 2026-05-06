@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
+---
 # CLI Detection
 
 How to discover CLI tools available in the user's PATH, decide which to use, and store preferences.

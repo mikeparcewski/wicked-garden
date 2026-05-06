@@ -1,6 +1,8 @@
 ---
 description: Regulatory compliance check (SOC2, HIPAA, GDPR, PCI)
 argument-hint: "<framework: soc2|hipaa|gdpr|pci> [path]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:compliance

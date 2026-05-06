@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Audit Evidence Checklists: SOC2 & HIPAA
 
 Comprehensive checklists for collecting SOC2 Type II and HIPAA audit evidence.

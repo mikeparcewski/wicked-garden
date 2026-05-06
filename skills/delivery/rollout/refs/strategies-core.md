@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Rollout Strategies: Core Approaches
 
 Core rollout strategy guidance: Big Bang, Progressive, and Canary rollouts.

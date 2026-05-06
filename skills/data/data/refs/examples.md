@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Data Engineering Examples
 
 Detailed examples for data profiling, schema validation, and quality assessment.

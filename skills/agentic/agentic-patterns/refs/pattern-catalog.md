@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Pattern Catalog
 
 Detailed reference for agentic architecture patterns with implementation guidance.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Caching, Batching & Cost Optimization
 
 Advanced strategies for reducing API costs through caching, batching, and intelligent model selection.

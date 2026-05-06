@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Common glab CLI Patterns
 
 Quick reference for GitLab CLI operations.

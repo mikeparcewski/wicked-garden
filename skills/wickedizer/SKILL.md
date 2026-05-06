@@ -7,6 +7,8 @@ description: |
   message, or aligning written output to team voice.
 portability: portable
 status: experimental
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Wickedizer: Clear, Credible, Human Writing

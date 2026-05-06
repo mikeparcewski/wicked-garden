@@ -4,6 +4,8 @@ description: |
   queries hook traces, or adjusts log verbosity. Single entry point for all plugin-level diagnostics.
   NOT for distributed tracing (use platform:traces) or system-wide health (use platform:health).
 argument-hint: "[--plugin name] [--retry-auth] [--json]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:health

@@ -6,6 +6,8 @@ description: |
   Use when: designing guardrails or human-in-the-loop gates for an agent, or
   hardening an agentic system against prompt injection.
 portability: portable
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Trust and Safety

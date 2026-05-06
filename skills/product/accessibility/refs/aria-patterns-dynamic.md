@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # ARIA Patterns - Dynamic Content and Best Practices
 
 Combobox, alerts, tooltips, live regions, and best practices.

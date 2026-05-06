@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Scoring Rubric (HISTORICAL — v5)
 
 **Status**: Deprecated. This file describes the v5 weighted-sum complexity-scoring

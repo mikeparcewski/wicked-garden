@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Audit Evidence Checklists: GDPR & PCI DSS
 
 Checklists for GDPR and PCI DSS audit evidence collection.

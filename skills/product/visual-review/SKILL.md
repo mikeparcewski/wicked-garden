@@ -5,6 +5,8 @@ description: |
   scale, color palette, component patterns, and responsive polish. Structured checklist + scoring.
   NOT for UX flows or user research (use ux-review) or accessibility code audits (use product/accessibility).
 portability: portable
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Visual Review Skill

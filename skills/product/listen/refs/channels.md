@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Capability Integration Patterns
 
 Detailed integration patterns for customer voice capabilities.

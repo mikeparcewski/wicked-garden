@@ -1,6 +1,8 @@
 ---
 description: "Import existing domain JSON records into the unified event log"
 argument-hint: "[--domain D] [--dry-run]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:smaht:events-import

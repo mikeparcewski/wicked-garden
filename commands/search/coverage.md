@@ -4,6 +4,8 @@ description: |
   with no upstream or downstream connections. Unique to the wicked-garden graph index.
   NOT for general code search (use wicked-brain:search) or impact analysis (use search:blast-radius).
 argument-hint: "[--type <symbol_type>] [--show-orphans]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:coverage

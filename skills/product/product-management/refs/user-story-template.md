@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # User Story Template
 
 Standard template for creating well-formed user stories with complete traceability.

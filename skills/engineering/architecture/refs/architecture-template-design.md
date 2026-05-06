@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Architecture Document Template: Design
 
 Template for system overview, architecture style, components, data architecture, technology stack, and cross-cutting concerns.

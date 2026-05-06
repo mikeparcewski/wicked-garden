@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Sentiment Analysis Patterns
 
 Common patterns and indicators for sentiment classification.

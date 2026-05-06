@@ -2,6 +2,8 @@
 allowed-tools: ["Bash", "Read", "AskUserQuestion"]
 description: "Reset wicked-garden to a clean state — choose which data to clear"
 argument-hint: "[--all] [--only domain1,domain2] [--keep domain] [--force] [--list-projects] [--all-projects]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:reset

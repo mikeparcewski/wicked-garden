@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Observability Capability Discovery Patterns
 
 Detailed patterns for discovering and integrating with observability capabilities.

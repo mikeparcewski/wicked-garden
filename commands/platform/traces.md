@@ -1,6 +1,8 @@
 ---
 description: Distributed tracing analysis for latency and dependencies
 argument-hint: "[service name, trace ID, or 'slow' for latency investigation]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:traces

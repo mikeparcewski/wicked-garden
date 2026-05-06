@@ -1,6 +1,8 @@
 ---
 description: View the full conversation transcript from a jam brainstorm or council session
 argument-hint: "[--session-id ID] [--json]"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:transcript

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Issue Templates Reference
 
 Body templates used by both auto-reporting hooks and the manual `/wicked-garden:report-issue` command.

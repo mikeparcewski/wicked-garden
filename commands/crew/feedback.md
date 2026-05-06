@@ -1,6 +1,8 @@
 ---
 description: Capture user or stakeholder feedback linked to the current crew project
 argument-hint: "<feedback-text> [--source user|stakeholder|team|monitoring] [--sentiment positive|neutral|negative]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:feedback

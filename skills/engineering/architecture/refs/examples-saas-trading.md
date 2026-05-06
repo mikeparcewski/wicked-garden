@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Architecture Examples - SaaS and Trading
 
 Real-world architecture examples with complete ADRs and diagrams for multi-tenant SaaS and financial trading platforms, plus pattern matching guide.

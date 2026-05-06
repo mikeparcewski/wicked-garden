@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Debugging Process & Checklists
 
 ## Systematic Debugging Process

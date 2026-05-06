@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Prompt Engineering for Image Generation
 
 Guidance on crafting effective prompts that produce high-quality, predictable image outputs.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Copilot CLI — Usage Patterns
 
 GitHub Copilot CLI for AI-assisted coding, code review, and multi-model collaboration.

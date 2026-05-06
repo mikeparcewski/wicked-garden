@@ -1,6 +1,8 @@
 ---
 description: Revisit a past brainstorm decision and record its outcome
 argument-hint: "<topic or decision keyword>"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:revisit

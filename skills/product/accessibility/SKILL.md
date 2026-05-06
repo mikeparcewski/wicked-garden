@@ -4,6 +4,8 @@ description: |
   Use when auditing code for WCAG 2.1 AA compliance — keyboard navigation, ARIA patterns, color contrast,
   and semantic HTML. Produces prioritized remediation with code-level fixes.
   NOT for running automated a11y tools (use product:a11y command) or visual design review (use product/visual-review).
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Accessibility Skill

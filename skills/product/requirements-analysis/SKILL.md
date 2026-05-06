@@ -4,6 +4,8 @@ description: |
   Use when turning a vague idea or stakeholder ask into structured user stories with acceptance criteria
   and a requirements graph. For complexity >= 3 or compliance projects, defaults to graph mode.
   NOT for navigating an existing requirements graph (use requirements-navigate) or stakeholder alignment (use product:align).
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Requirements Analysis Skill

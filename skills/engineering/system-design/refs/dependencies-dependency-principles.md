@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Dependency Management Guide: Dependency Principles
 
 ## Dependency Principles

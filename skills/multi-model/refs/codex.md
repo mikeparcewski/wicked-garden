@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Codex CLI — Usage Patterns
 
 OpenAI Codex CLI for AI-assisted coding, code review, and multi-model collaboration.

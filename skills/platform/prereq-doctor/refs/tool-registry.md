@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Tool Registry
 
 Maps tool names to install commands per platform. Used by `prereq_doctor.py`.

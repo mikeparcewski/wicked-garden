@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Resilience Patterns Guide: Timeout Pattern
 
 ## Timeout Pattern

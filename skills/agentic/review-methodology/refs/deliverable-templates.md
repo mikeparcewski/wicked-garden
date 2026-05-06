@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Review Deliverable Templates
 
 Complete templates for all review report types.

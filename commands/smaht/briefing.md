@@ -3,6 +3,8 @@ description: |
   Use when starting a new session and you want to know what happened since the last one — recent events,
   active crew projects, and memory updates. NOT for live session state inspection (use smaht:state).
 argument-hint: "[--days N] [--project name]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:smaht:briefing

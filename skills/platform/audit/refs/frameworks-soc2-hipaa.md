@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Audit Framework Control Mappings: SOC2 & HIPAA
 
 Framework-specific control testing and evidence requirements for SOC2 Type II and HIPAA.

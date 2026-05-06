@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Analysis Algorithms
 
 Detailed algorithms for sentiment, theme extraction, and trend detection.

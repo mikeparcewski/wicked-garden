@@ -7,6 +7,8 @@ description: |
   Use when: "design the architecture", "what's the overall structure",
   "architecture patterns", "technology stack", "system architecture"
 portability: portable
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Architecture Skill

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Specialist Selection (~70-agent roster map)
 
 Discover at call time via `Glob agents/**/*.md` and read the `description:` +

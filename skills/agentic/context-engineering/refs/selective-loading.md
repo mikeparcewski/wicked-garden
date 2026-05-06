@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Selective Loading & Token-Aware Prompting
 
 Strategies for loading only relevant context and adapting prompts to available token budgets.

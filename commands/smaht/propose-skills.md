@@ -3,6 +3,8 @@ description: |
   Mine recent Claude Code session transcripts to propose skills that would
   automate repetitive patterns. Read-only MVP — outputs a markdown report only.
 argument-hint: "[--project=SLUG] [--limit=N] [--json]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:smaht:propose-skills

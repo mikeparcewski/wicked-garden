@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Statistical Concepts for Experiments
 
 Deep dive into the statistical foundations of A/B testing.

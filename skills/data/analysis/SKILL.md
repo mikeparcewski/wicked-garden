@@ -4,6 +4,8 @@ description: |
   Use when exploring a dataset for patterns, trends, and business insights — EDA, segmentation,
   anomaly detection, and visualization guidance. Generates the Observation → Insight → Action chain.
   NOT for schema validation or data quality scoring (use the data/data skill) or SQL queries (use data:analyze).
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Data Analysis Skill

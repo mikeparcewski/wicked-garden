@@ -9,6 +9,8 @@ description: |
   Use when: gathering a context briefing before a task, resuming work after
   a session break, or assembling background on an unfamiliar area.
 user-invocable: true
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Context Assembly (v6 pull-model)

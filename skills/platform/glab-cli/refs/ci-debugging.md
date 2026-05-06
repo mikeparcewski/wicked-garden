@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # GitLab CI Pipeline Debugging
 
 Quick reference for debugging GitLab CI/CD failures.

@@ -1,5 +1,7 @@
 ---
 description: Run contract assertions against plugin subprocess outputs
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:assert

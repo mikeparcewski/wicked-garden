@@ -2,6 +2,8 @@
 description: Aggregate customer feedback from available sources
 argument-hint: "[--capability type] [--days N] [--tags x,y]"
 next-step: "product:analyze"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:listen

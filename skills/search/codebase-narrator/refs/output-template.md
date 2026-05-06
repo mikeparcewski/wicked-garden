@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Codebase Narrator — Output Template
 
 ## Codebase Narrative: {project_name}

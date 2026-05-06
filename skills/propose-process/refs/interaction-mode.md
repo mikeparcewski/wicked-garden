@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Interaction mode — yolo / `/wicked-garden:crew:just-finish`
 
 **Interaction mode is orthogonal to phase plan, specialist selection, rigor tier, and

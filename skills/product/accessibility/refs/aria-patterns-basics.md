@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # ARIA Patterns - Basics and Attributes
 
 ARIA fundamentals, common attributes, labeling, states, relationships, and live regions.

@@ -9,6 +9,8 @@ context: fork
 
 **Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
 gates are hard enforcement; two interaction modes (normal / yolo).
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Workflow Skill (v6)

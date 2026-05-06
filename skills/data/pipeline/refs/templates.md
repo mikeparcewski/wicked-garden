@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Pipeline Output Templates
 
 Standard templates for pipeline design and review documentation.

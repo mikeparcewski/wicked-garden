@@ -1,6 +1,8 @@
 ---
 description: "ML model review and training pipeline design"
 argument-hint: "<subcommand> [args...] — review <path> | pipeline --type <classification|regression|ranking>"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:data:ml

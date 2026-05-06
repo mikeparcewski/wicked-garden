@@ -11,6 +11,8 @@ description: |
   "p95 benchmark baseline out of date", "update benchmark_baseline.json",
   "benchmark.yml failure", "gate-result p95 exceeds 2x baseline",
   "rebaseline procedure", or `AC-11` baseline drift.
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Gate-Result Benchmark Re-baseline

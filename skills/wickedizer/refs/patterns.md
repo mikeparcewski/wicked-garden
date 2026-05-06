@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Patterns: Reusable Writing Structures
 
 Patterns are proven structures for common writing situations. Don't reinvent—adapt.

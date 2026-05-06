@@ -3,6 +3,8 @@ description: |
   Use when a crew project is done and you want to remove it from active listings without deleting it.
   NOT for deleting projects (use reset) or checking project status (use crew:status).
 argument-hint: "<project-name> [--unarchive]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:archive

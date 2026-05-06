@@ -3,6 +3,8 @@ description: |
   Use when generating API docs, READMEs, guides, or inline comments from existing code, or improving
   documentation that has drifted from implementation. NOT for architecture docs (use engineering:arch).
 argument-hint: "<file or component> [--type api|readme|guide|inline]"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:docs

@@ -1,6 +1,8 @@
 ---
 description: Manage external content sources for the search index
 argument-hint: "list | add | remove <name> | refresh [--force]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:sources

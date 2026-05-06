@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # ADR Template
 
 Use this template for Architectural Decision Records (ADRs).

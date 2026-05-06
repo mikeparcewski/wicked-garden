@@ -6,6 +6,8 @@ description: |
 
   Use when: setting or changing autonomy level (just-finish / balanced / ask-first),
   adjusting communication style, or applying a saved engagement preference profile.
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Adaptive Engagement Skill

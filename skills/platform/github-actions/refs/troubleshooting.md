@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # GitHub Actions Troubleshooting
 
 Common errors and fixes.

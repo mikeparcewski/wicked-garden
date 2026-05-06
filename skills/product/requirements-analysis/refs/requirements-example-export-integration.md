@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Requirements Output: Minimal Example & Integration Points
 
 Minimal format example and integration points for requirements analysis output.

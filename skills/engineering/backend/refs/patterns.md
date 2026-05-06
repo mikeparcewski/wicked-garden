@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Backend Code Patterns
 
 ## API Endpoint Pattern

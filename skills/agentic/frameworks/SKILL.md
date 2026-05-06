@@ -5,6 +5,8 @@ description: |
   curated comparison by use case, language, and maturity. Gets latest context via Context7 when available.
   NOT for reviewing existing agentic code (use review-methodology) or architecture patterns (use agentic-patterns).
 portability: portable
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Agentic Frameworks

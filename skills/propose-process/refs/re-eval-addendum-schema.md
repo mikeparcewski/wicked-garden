@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Re-Evaluation Addendum JSONL Schema (D2, D8)
 
 This file is the authoritative human-readable description of the re-eval addendum

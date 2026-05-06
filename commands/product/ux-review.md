@@ -4,6 +4,8 @@ description: |
   design system adherence, spacing/typography/color, component patterns, and research quality.
   NOT for generating UX flows (use product:ux) or accessibility code audits (use product:a11y).
 argument-hint: "<target> [--focus flows|ui|a11y|research|all] [--quick]"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:ux-review

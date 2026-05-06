@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Accessibility Audit Report: Results & Recommendations
 
 Test results by component, automated scan results, screen reader testing, keyboard navigation, recommendations, and checklists.

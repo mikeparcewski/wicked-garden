@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Risk Dimension Signals
 
 Seven independent risk dimensions computed from text analysis. Each dimension

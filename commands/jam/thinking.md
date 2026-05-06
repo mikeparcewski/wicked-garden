@@ -3,6 +3,8 @@ description: |
   Use when you want the raw pre-synthesis perspectives from a brainstorm — minority views, strong dissents,
   and nuances that synthesis may have compressed. NOT for the full session (use jam:transcript).
 argument-hint: "[--session-id ID] [--json]"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:thinking

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Strategic Analysis Templates: ROI & Value Proposition
 
 ROI analysis and value proposition templates for business strategy.

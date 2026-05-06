@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Audit Evidence: Collection, Organization & Readiness
 
 Evidence collection scripts, organization structure, gap tracking, and audit readiness checklists.

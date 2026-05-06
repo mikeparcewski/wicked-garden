@@ -3,6 +3,8 @@ description: |
   Use when you want to contribute a locally-defined custom persona back to the wicked-garden repository
   as a built-in specialist. NOT for creating a persona (use persona:define) or invoking one (use persona:as).
 argument-hint: "<persona-name>"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:persona:submit

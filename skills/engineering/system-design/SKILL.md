@@ -5,6 +5,8 @@ description: |
   contracts — the "how do we slice this?" question at design time.
   NOT for reviewing an existing system's health (use the architecture skill or engineering:arch).
 portability: portable
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # System Design Skill

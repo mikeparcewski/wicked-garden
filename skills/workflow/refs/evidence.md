@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Evidence Tracking
 
 Crew gate decisions and phase artifacts are tracked as evidence to support

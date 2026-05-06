@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
+---
 # Capability Definitions
 
 Detailed patterns for discovering integrations by capability category.

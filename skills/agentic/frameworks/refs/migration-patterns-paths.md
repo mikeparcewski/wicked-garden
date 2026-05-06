@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Framework Migration Patterns: Common Paths
 
 Why to migrate, general strategy, and common migration paths between agentic frameworks.

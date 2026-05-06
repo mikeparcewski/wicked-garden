@@ -1,6 +1,8 @@
 ---
 description: "Query the unified event log for cross-domain activity"
 argument-hint: "[--domain D] [--project P] [--since 7d] [--fts 'search terms'] [--action A] [--limit N]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:activity

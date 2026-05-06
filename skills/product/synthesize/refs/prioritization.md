@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Prioritization Framework
 
 Detailed framework for translating customer voice into feature priorities.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Safety Checklist: Core
 
 Use this checklist to assess core safety of agentic systems covering input, output, action, auth, and privacy.

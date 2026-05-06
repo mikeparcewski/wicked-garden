@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # ML Output Templates
 
 Standard templates for ML model reviews and documentation.

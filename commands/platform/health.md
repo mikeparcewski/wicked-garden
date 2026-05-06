@@ -4,6 +4,8 @@ description: |
   covers health probes, error pattern detection, and multi-service observability in one command.
   NOT for plugin-level diagnostics (use platform:plugin-health) or distributed tracing (use platform:traces).
 argument-hint: "[service name or 'all' for full assessment]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:health

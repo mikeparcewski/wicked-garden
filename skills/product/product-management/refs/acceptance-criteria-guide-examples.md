@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Acceptance Criteria Guide: Domain Examples & Integration
 
 Domain-specific examples, non-functional requirements, common mistakes, testing integration, and review process.

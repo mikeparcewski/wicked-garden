@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Context Optimization Techniques
 
 Advanced strategies for minimizing token usage while maximizing context quality.

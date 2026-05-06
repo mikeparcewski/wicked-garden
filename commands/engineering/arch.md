@@ -4,6 +4,8 @@ description: |
   violations, or recommending design patterns. Outputs ADR-style analysis with trade-offs.
   NOT for greenfield design (use the architecture skill) or code-level review (use engineering:review).
 argument-hint: "[component or system] [--scope module|service|system]"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:arch

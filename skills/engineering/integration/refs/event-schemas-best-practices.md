@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Event Schema Design Guide: Best Practices
 
 ## Best Practices

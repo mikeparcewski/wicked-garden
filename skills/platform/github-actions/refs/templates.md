@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # GitHub Actions Templates
 
 Copy-paste templates with security and optimization built in.

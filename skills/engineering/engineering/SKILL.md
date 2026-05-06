@@ -5,6 +5,8 @@ description: |
   code for R1-R6 standards violations (dead code, bare panics, magic values, swallowed errors,
   unbounded ops, god functions) or getting cross-cutting implementation advice.
   NOT for architecture decisions (use the architecture skill) or debugging (use the debugging skill).
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Engineering Skill

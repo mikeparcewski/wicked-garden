@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Issue Taxonomy: Reliability, Security & Safety
 
 Complete reference of issue categories for agentic system reviews covering reliability, security, safety, and cost issues.

@@ -7,6 +7,8 @@ description: |
 
   Use when: "design experiment", "A/B test", "hypothesis", "sample size",
   "what metrics", "test my feature", "should we experiment"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Design Skill

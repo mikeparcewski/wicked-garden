@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Test Evidence Taxonomy
 
 Canonical evidence requirements per test type. Used to populate task metadata

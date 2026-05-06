@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Anti-Patterns: Big Ball of Mud
 
 ## Big Ball of Mud

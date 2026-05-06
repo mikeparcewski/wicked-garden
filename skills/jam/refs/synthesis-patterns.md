@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Synthesis Patterns
 
 How to transform raw persona discussions into actionable outcomes.

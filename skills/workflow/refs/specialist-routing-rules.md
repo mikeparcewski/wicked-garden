@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Specialist Routing Rules
 
 Signal-to-specialist mapping, complexity thresholds, fallback agents,

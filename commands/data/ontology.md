@@ -1,6 +1,8 @@
 ---
 description: Sample a dataset and recommend public or custom ontologies based on the data
 argument-hint: "<file-path>"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:data:ontology

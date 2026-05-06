@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Framework Migration Patterns: Testing, Rollback & Advanced Paths
 
 Migration testing strategy, rollback planning, advanced migration paths, effort estimates, and when not to migrate.

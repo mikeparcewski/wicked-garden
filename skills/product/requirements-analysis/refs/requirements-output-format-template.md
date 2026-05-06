@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Requirements Output Format: Templates
 
 Standard format template and minimal format for documenting requirements analysis results.

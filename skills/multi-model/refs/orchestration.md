@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Multi-Model Orchestration Patterns
 
 Patterns for coordinating multiple AI models via external CLI dispatch.

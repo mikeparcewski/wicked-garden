@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Architecture Document Template: Deployment & Operations
 
 Deployment architecture, release process, quality attributes, risks, future considerations, and template usage tips.

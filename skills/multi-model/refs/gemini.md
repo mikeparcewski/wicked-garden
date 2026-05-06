@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Gemini CLI — Usage Patterns
 
 Google Gemini CLI for AI-assisted tasks, long-context analysis, and multi-model collaboration.

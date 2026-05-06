@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Test Evidence Requirements
 
 QE artifact requirements per test type. Used by the evidence-validation skill

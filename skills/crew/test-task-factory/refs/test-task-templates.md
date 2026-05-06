@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Test Task Templates
 
 Full description templates per test type. These are filled by substituting

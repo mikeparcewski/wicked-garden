@@ -1,6 +1,8 @@
 ---
 description: Grant or revoke auto-approve (APPROVE-verdict fast-lane) for a crew project
 argument-hint: "<project-name> --approve --justification \"<text>\" | --revoke | --status"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:auto-approve

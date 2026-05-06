@@ -4,6 +4,8 @@ description: |
   Use when you need gh CLI patterns beyond the basics — debugging failed workflow runs, bulk PR operations,
   release automation, or repo health checks. Provides composable gh invocations for power users.
   NOT for simple git commands (use Bash) or GitLab (use the glab-cli skill).
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # GitHub CLI Power Utilities

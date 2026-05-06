@@ -1,6 +1,8 @@
 ---
 description: Translate jargon-heavy crew output into plain, grade-8 English
 argument-hint: "<text-or-path-to-explain> [--style paired|plain-only]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:explain

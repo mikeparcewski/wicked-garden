@@ -1,5 +1,7 @@
 ---
 description: Discover and query engineer monitoring tools (APM, logging, metrics, cloud)
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:toolchain

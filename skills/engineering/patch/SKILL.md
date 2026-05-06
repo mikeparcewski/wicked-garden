@@ -7,6 +7,8 @@ description: |
   "propagate change", "generate migration", "update all references".
 
   This is the CODE MUTATION counterpart to wicked-garden:search (which is read-only).
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # wicked-patch
