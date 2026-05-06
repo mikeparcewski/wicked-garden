@@ -335,6 +335,36 @@ class SessionState:
     instruction_sync_fired: list | None = None
     memory_reminder_shown: bool = False
 
+    # v9.2.3 — fields previously USED via getattr/state.update but NEVER
+    # declared. Each was silently failing because update() drops unknown keys.
+    # Audit ran 2026-05-06 against all `state.update(X=...)` and
+    # `getattr(state, "X", ...)` call sites in hooks/ and scripts/.
+    #
+    # active_chain_id: string identifier of the active crew chain (e.g.
+    #   "{slug}.root" or "{slug}.{phase}"). Read by smaht events_adapter for
+    #   chain-aware scoring (CLAUDE.md "Chain-aware smaht scoring"). Producer
+    #   was never wired — the smaht scoring has been silently degraded. The
+    #   field declaration here makes the read return None cleanly until a
+    #   producer is added.
+    # crew_project: dict snapshot of the active crew project (slug + phase).
+    #   Read by post_tool.py QE check to skip the change-tracking nudge when
+    #   crew is handling QE. Read-only currently; declaring as None default.
+    # last_reeval_ts / last_reeval_task_count: read by prompt_submit when
+    #   building re-evaluation context. Currently read-only; declared so the
+    #   read returns the documented default rather than via getattr fallback.
+    # legacy_reeval_entries_detected: written by bootstrap.py:1215 when a
+    #   project has pre-v6 re-eval entries needing migration. Was a write-
+    #   only orphan; declaration makes it persistable.
+    # unready_plugins: written by bootstrap.py:1279 with names of plugins
+    #   whose readiness probe failed. Was a write-only orphan; declaration
+    #   makes it persistable.
+    active_chain_id: str | None = None
+    crew_project: dict | None = None
+    last_reeval_ts: str = ""
+    last_reeval_task_count: int = 0
+    legacy_reeval_entries_detected: bool = False
+    unready_plugins: list | None = None
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
