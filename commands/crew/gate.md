@@ -1,6 +1,8 @@
 ---
 description: Run QE analysis on a target with configurable rigor
 argument-hint: "[target] [--gate value|strategy|execution] [--rigor quick|standard]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:gate

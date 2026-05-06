@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Error Severity Classification
 
 Guidelines for classifying error severity and determining appropriate response.

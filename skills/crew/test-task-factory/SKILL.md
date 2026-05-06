@@ -8,6 +8,8 @@ description: |
   Use when: creating test tasks after change-type detection, QE task generation,
   "test task factory", "create test tasks", "generate QE tasks", or after
   change-type-detector classifies files as ui/api/both.
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Test Task Factory Skill

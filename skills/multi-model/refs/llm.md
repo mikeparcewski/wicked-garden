@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # llm CLI — Usage Patterns
 
 Simon Willison's `llm` — a pipe-native multi-provider aggregator. One command, many providers, everything via plugins. Ideal fit for council scaffolds: `cat scaffold | llm "prompt"` just works.

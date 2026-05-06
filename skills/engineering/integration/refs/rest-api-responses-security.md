@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # REST API Design - Responses, Headers, Security, and Best Practices
 
 Response formats, status codes, headers, advanced patterns, security, and best practices.

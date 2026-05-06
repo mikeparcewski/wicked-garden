@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Screen Reader Testing: Advanced Tests & Workflow
 
 ARIA testing, navigation, tables, dynamic content, focus management, common issues, and testing workflow.

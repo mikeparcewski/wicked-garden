@@ -2,6 +2,8 @@
 description: Generate actionable recommendations from customer feedback insights
 argument-hint: "[--priority high|medium|low] [--feature X] [--format brief|detailed]"
 next-step: null
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:synthesize

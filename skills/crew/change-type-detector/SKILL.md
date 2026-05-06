@@ -7,6 +7,8 @@ description: |
 
   Use when: "detect change type", "classify files", "what kind of change",
   "ui or api change", "change-type detection", or before creating test tasks.
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Change Type Detector Skill

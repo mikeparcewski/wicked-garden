@@ -5,6 +5,8 @@ description: |
   Discovers relationships dynamically from command/skill content, not a static map.
   Invoked by the Stop hook and smaht:briefing to surface one relevant suggestion.
 user-invocable: false
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Contextual Discovery

@@ -7,6 +7,8 @@ description: |
 
   Use when: "audit trail", "collect evidence", "audit report",
   "control testing", "compliance documentation"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Audit Skill

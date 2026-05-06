@@ -1,6 +1,8 @@
 ---
 description: Interactive agentic architecture design guidance with pattern recommendations and safety validation
 argument-hint: "[problem description] [--output FILE]"
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:agentic:design

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Evidence Schema
 
 Full field definitions with natural language detection indicators per tier.

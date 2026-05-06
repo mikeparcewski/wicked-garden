@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # meta.md Templates
 
 Copy-paste templates for each level of the requirements graph.

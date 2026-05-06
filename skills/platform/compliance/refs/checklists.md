@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Compliance Checklists
 
 Detailed verification checklists for each framework.

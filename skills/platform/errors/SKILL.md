@@ -4,6 +4,8 @@ description: |
   Use when investigating a production error spike or pattern across services — aggregates errors from
   discovered tracking sources, correlates with deployments, and assesses user impact.
   NOT for general observability (use platform/observability) or tracing latency (use the platform:traces command).
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Error Analysis Skill

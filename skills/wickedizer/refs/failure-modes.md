@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Failure Modes: What to Watch For
 
 This reference catalogs common failure modes in rewritten content. Use it as a checklist or debugging guide when output doesn't feel right.

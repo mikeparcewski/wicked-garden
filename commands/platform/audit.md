@@ -4,6 +4,8 @@ description: |
   artifacts, verifies state, and generates compliance reports. NOT for defining compliance policies
   (use platform:compliance) or ad hoc security checks (use platform:security).
 argument-hint: "<framework: soc2|hipaa|gdpr|pci> [control ID]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:audit

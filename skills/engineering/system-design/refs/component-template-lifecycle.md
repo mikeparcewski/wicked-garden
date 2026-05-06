@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Documentation Template - Operations
 
 Operational aspects of component documentation: performance, security, monitoring, testing, deployment, and disaster recovery.

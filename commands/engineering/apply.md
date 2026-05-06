@@ -1,5 +1,7 @@
 ---
 description: Apply patches from a saved JSON file
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:apply

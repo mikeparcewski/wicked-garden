@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Architectural Patterns: Advanced & Selection Guide
 
 Serverless, Clean Architecture, CQRS, Service Mesh, pattern selection guide, and evolution strategy.

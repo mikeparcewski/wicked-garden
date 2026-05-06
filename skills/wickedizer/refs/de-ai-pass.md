@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # De-AI Pass: Removing AI-Generated Tells
 
 This reference covers identifying and removing patterns that signal AI-generated content. The goal isn't to hide AI involvement - it's to remove artifacts that damage trust and clarity.

@@ -2,6 +2,8 @@
 description: Analyze customer feedback for themes, sentiment, and trends
 argument-hint: "[--theme X] [--sentiment pos|neg] [--trend period]"
 next-step: "product:synthesize"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:analyze

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Design Patterns: Layered Pattern
 
 ## Layered Pattern

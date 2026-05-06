@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Re-Evaluation Mode (Bidirectional, v6)
 
 The facilitator runs at every phase boundary — not just at `crew:start`. Two modes:

@@ -1,6 +1,8 @@
 ---
 description: Show artifact convergence lifecycle — states, stalls, and gate verdict
 argument-hint: "[status|record|stall|verify-gate] [--project P] [--artifact A]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:convergence

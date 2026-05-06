@@ -4,6 +4,8 @@ description: |
   and how they relate across architectural layers. Unique graph-shape output from the wicked-garden index.
   NOT for finding a specific symbol (use wicked-brain:search) or counting files (use Bash).
 argument-hint: "[--project <name>]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:categories

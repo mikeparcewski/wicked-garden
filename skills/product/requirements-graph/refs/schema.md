@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Requirements Graph: Frontmatter Schema Reference
 
 Complete field reference for all requirement node types.

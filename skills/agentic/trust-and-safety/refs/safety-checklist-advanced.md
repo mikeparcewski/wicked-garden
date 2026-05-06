@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Safety Checklist: Advanced
 
 Advanced safety checklist covering monitoring, incident response, testing, and operational safety.

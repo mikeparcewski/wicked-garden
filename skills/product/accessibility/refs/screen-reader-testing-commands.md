@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Screen Reader Testing: Commands & Setup
 
 Comprehensive guide to screen reader commands and setup for WCAG 2.1 compliance.

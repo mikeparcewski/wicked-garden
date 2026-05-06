@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Error Pattern Analysis Guide
 
 Detailed investigation guides for common error patterns.

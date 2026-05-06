@@ -1,6 +1,8 @@
 ---
 description: Deep trust and safety audit for agentic systems with risk classification and compliance validation
 argument-hint: "[path] [--output FILE] [--standard GDPR|HIPAA|SOC2] [--scenarios]"
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:agentic:audit

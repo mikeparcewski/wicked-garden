@@ -1,6 +1,8 @@
 ---
 description: Detect and visualize the service architecture from infrastructure and code patterns
 argument-hint: "[project_root] [--format table|json|mermaid]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:service-map

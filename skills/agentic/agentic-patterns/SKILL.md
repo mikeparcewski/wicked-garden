@@ -6,6 +6,8 @@ description: |
   Runtime → Governance) for separating concerns in production-grade agentic systems.
   NOT for reviewing existing agentic code (use review-methodology) or framework selection (use the frameworks skill).
 portability: portable
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Agentic Patterns

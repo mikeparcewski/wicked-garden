@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # aichat CLI — Usage Patterns
 
 `aichat` is an all-in-one LLM CLI written in Rust — fast, pipe-native, multi-provider. Covers OpenAI, Anthropic, Gemini, Mistral, Groq, Ollama, and more via a single YAML config.

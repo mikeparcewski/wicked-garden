@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # GitLab CI Templates
 
 Copy-paste templates with optimization built in.

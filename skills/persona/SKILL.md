@@ -5,6 +5,8 @@ description: |
   Use when: invoking a named persona via persona:as, defining or listing
   personas, or reviewing work through a specific role's perspective.
 disable-model-invocation: true
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Persona System

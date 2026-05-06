@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Context: Maintaining AI Conversation State
 
 How to maintain context across AI sessions, manage context windows, and decide when to continue vs. start fresh.

@@ -4,6 +4,8 @@ description: |
   and auto-fill the index until >=95% accuracy. NOT for one-time validation checks (use search:validate)
   or browsing index contents (use wicked-brain:search).
 argument-hint: "[--max-iterations N]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:search:quality

@@ -11,6 +11,8 @@ portability: portable
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/*.tsx", "**/*.jsx", "**/*.css", "**/*.scss", "**/components/**"]
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Frontend Skill

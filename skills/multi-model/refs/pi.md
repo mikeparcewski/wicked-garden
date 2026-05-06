@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Pi CLI — Usage Patterns
 
 `pi` is a coding-agent CLI (`@mariozechner/pi-coding-agent` on npm). Configurable across Google, OpenAI, Anthropic, and more; works as a council member via non-interactive `-p` mode with `@file` attachments.

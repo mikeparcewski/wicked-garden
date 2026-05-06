@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Dependency Management Guide: Best Practices
 
 ## Best Practices

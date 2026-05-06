@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Auditability: Tracking AI Conversations
 
 How to maintain audit trails for multi-AI conversations. Essential for compliance, team visibility, and learning from past decisions.

@@ -12,6 +12,8 @@ description: |
   in main?", verifying agent-claimed commits actually landed, planning multi-agent
   parallel work in worktrees.
 status: stable
+phase_relevance: ["build"]
+archetype_relevance: ["*"]
 ---
 
 # Worktrees

@@ -10,6 +10,8 @@ description: |
   Use when: running a council session across multiple LLM CLIs, getting a
   second opinion from a different model on a decision, or doing a cross-model
   code or architecture review.
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # Multi-Model Collaboration Skill

@@ -1,6 +1,8 @@
 ---
 description: Diagnose drift between native TaskList and garden chain (read-only)
 argument-hint: "[--project=<slug> | --all] [--json]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:reconcile

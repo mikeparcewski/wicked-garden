@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Gate Policy — Human-Readable Description
 
 **This file is documentation only.** The runtime source of truth is

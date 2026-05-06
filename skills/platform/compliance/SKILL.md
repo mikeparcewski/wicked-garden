@@ -7,6 +7,8 @@ description: |
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/compliance/**", "**/audit/**", "**/policy/**", "**/.hipaa*", "**/.gdpr*"]
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Compliance Skill

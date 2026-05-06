@@ -11,6 +11,8 @@ description: |
   codebase exploration (use Agent(Explore)), or fetching specific symbols (use
   wicked-brain:search directly).
 portability: portable
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # wicked-garden:ground — Steer Yourself

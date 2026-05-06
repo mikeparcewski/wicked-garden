@@ -10,6 +10,8 @@ description: |
   skills from my sessions", "mine my history for skill ideas",
   "session-mined skill builder", "skill discovery from past usage".
 user-invocable: true
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Propose Skills (session-mined, MVP)

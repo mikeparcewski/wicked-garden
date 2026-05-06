@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Analysis Output Templates
 
 Standard templates for data analysis reports.

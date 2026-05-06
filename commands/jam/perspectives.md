@@ -1,6 +1,8 @@
 ---
 description: Get multiple perspectives on a decision without synthesis
 argument-hint: "<decision or question>"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:perspectives

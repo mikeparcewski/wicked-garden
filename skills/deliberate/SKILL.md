@@ -7,6 +7,8 @@ description: |
 
   Use when: challenging assumptions before implementation, reframing a stated
   problem, or asking whether the right thing is being asked at all.
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # Deliberate

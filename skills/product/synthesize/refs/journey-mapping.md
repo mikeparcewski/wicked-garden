@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Customer Journey Mapping
 
 Map feedback to customer lifecycle stages for holistic insights.

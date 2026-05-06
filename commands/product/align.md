@@ -3,6 +3,8 @@ description: |
   Use when you have divergent stakeholder positions on scope, priority, or direction and need to surface
   concerns, map them to trade-offs, and build consensus. NOT for requirements elicitation (use product:elicit)
   or UX design (use product:ux).
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:align

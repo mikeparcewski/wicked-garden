@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Signal Keywords
 
 All 16 signal categories with keyword lists and specialist routing.

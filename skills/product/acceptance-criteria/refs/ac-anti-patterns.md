@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Acceptance Criteria Anti-Patterns
 
 Common mistakes to avoid when writing acceptance criteria.

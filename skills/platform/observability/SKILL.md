@@ -4,6 +4,8 @@ description: |
   Use when monitoring or diagnosing the wicked-garden plugin ecosystem — health probes, contract assertions,
   hook traces, error pattern detection, and APM/logging/metrics toolchain discovery.
   NOT for distributed tracing across services (use the platform:traces command) or audit evidence (use platform/audit).
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Observability Skill

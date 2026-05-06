@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # WCAG 2.1 Level AA Complete Checklist
 
 Comprehensive checklist for WCAG 2.1 Level AA compliance.

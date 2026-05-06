@@ -1,6 +1,8 @@
 ---
 description: Start a new brainstorm session with dynamic focus groups
 argument-hint: "<topic> [--personas list] [--rounds n] [--converge fast]"
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:brainstorm

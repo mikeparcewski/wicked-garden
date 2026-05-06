@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # User Story Writing Guide
 
 Comprehensive guide to writing effective user stories.

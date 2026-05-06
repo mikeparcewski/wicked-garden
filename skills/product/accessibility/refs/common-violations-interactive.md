@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Common Accessibility Violations: Interactive Components
 
 Violations in custom components, forms, keyboard navigation, dynamic content, and headings with fixes.

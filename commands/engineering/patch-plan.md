@@ -1,5 +1,7 @@
 ---
 description: Show what would be affected by a change without generating patches
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:plan

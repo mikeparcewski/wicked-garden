@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # File Classification Rules
 
 Complete extension tables, path segment tables, and keyword lists for the

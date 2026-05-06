@@ -7,6 +7,8 @@ description: |
   Use when: reviewing an image for visual quality, brand-guideline adherence,
   or accessibility before production use.
 portability: portable
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Image Review & Analysis

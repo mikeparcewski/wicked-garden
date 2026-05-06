@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Onboarding Guide — Output Template
 
 ## Onboarding Plan for {developer_name}

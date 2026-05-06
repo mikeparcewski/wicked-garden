@@ -1,6 +1,8 @@
 ---
 description: Execute remaining work with maximum autonomy and guardrails
 argument-hint: "[--autonomy=ask|balanced|full] [--justification \"<text>\"]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:just-finish

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Keyboard Testing Guide: Basics
 
 Core keyboard navigation testing for WCAG 2.1 compliance.

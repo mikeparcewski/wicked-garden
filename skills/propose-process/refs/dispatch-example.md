@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Concrete Dispatch Example
 
 Concrete Task() dispatch example for the `crew:start` Step 5 call. The abstract template (with all `{token}` placeholders) lives in SKILL.md; this version has the *top-level documented inputs* substituted with realistic values so callers can see the expected shape.

@@ -5,6 +5,8 @@ description: |
   Requires a provider that supports editing operations.
 
   Use when: "edit image", "modify image", "change image", "inpaint", "img2img"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Image Alteration

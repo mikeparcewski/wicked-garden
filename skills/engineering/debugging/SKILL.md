@@ -12,6 +12,8 @@ agent: debugger
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/*.log", "**/error*.ts", "**/error*.py", "**/*debug*"]
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Debugging Skill

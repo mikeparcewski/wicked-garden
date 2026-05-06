@@ -1,5 +1,7 @@
 ---
 description: Rename a field/symbol across all usages in the codebase
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:rename

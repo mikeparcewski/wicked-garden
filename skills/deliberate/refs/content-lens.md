@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Content Lens
 
 Additional questions for the five lenses when the work involves content, docs, or copy.

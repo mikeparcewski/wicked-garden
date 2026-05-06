@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Error Handling Guide: Error Response Format
 
 ## Error Response Format

@@ -4,6 +4,8 @@ description: |
   Use when evaluating UX quality — user flows, information architecture, user research synthesis,
   personas, and usability assessment. Also covers generative UX flow design from requirements.
   NOT for visual design consistency (use visual-review) or accessibility code audits (use product/accessibility).
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # UX Review Skill

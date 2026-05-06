@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Spec Quality Rubric — Human-Readable Description
 
 **This file is documentation.** The runtime source of truth is

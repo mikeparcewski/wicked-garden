@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Assumptions Lens
 
 Additional questions for the five lenses that surface hidden assumptions and

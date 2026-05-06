@@ -3,6 +3,8 @@ description: |
   Use when you need to inspect live SessionState, adapter outputs, or smaht directive settings.
   NOT for what-happened-since-last-session (use smaht:briefing).
 argument-hint: "[--state] [--events N] [--json]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:smaht:state

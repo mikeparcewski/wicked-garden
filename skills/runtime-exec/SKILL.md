@@ -4,6 +4,8 @@ description: |
   Smart runtime execution for Python and Node scripts with automatic package manager detection.
   Invoked by other skills and agents when scripts need execution with correct runtime resolution.
 user-invocable: false
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Runtime Execution Skill

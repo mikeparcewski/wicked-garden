@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Documentation Template - Structure
 
 Template for documenting individual system components with clear structure and interfaces.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Framework Detailed Profiles
 
 In-depth analysis of top 6 agentic frameworks.

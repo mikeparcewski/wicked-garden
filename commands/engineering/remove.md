@@ -1,5 +1,7 @@
 ---
 description: Remove a field and all its usages from the codebase
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:remove

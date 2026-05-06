@@ -8,6 +8,8 @@ description: |
   "backend performance", "REST endpoint", "query optimization",
   "server-side architecture"
 portability: portable
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Backend Skill

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Interface Documentation Template - Structure
 
 Template for documenting component interfaces, contracts, and integration points. Covers overview, contracts, operations, data types, error handling, and auth.

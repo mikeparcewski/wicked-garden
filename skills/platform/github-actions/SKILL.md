@@ -10,6 +10,8 @@ portability: portable
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: [".github/workflows/**/*.yml", ".github/workflows/**/*.yaml", ".github/actions/**"]
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # GitHub Actions Workflow Writing

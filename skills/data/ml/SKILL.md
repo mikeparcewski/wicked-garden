@@ -10,6 +10,8 @@ description: |
   - "how should I deploy this model"
   - "feature engineering advice"
   - "ML architecture guidance"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # ML Engineering Skill

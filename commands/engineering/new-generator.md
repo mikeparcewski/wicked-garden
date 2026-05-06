@@ -1,5 +1,7 @@
 ---
 description: Create a new language generator for wicked-patch with scaffolding, tests, and validation
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:new-generator

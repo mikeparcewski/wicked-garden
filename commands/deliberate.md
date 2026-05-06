@@ -9,6 +9,8 @@ allowed-tools:
   - AskUserQuestion
 description: "Critically analyze any work request before implementation — challenge assumptions, find root causes, identify opportunities, and propose better approaches."
 argument-hint: "<description or GH#number> [--deep] [--batch]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:deliberate

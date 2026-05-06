@@ -11,6 +11,8 @@ description: |
 portability: portable
 allowed-tools:
   - wicked-garden:ground
+phase_relevance: ["clarify"]
+archetype_relevance: ["*"]
 ---
 
 # wicked-garden:facilitator-score — Questionnaire Scorer

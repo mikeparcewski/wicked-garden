@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Debugging Code Patterns
 
 ## Binary Search Debugging

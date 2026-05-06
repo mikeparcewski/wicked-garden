@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Artifact Types: Mode-Specific Guidance
 
 Different document types have different constraints. This reference provides specific guidance for each artifact type wickedizer handles.

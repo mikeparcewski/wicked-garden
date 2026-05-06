@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Guardrail Implementation - Resources and Monitoring
 
 Resource limiting, adaptive rate limiting, anomaly detection, and complete guardrail system architecture.

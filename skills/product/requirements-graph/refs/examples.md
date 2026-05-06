@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Requirements Graph: Worked Examples
 
 ## Example 1: Authentication Feature

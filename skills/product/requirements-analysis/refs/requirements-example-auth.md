@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Requirements Output: Authentication Example
 
 Full domain-specific example of requirements analysis output for an authentication feature.

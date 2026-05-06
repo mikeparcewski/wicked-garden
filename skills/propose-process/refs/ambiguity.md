@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Ambiguity — when to stop and ask
 
 The facilitator's worst failure mode is confidently planning the wrong thing. When the

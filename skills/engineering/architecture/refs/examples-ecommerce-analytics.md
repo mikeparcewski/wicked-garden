@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Architecture Examples - E-Commerce and Analytics
 
 Real-world architecture examples with complete ADRs and diagrams for e-commerce and analytics platforms.

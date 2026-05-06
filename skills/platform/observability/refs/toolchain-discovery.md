@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Toolchain Discovery: Monitoring CLI Detection Patterns
 
 Detection patterns and usage examples for monitoring CLIs in the engineer's environment.

@@ -9,6 +9,8 @@ description: |
   agents fit a task, or discovering installed CLIs / MCP servers.
 user-invocable: false
 status: experimental
+phase_relevance: ["bootstrap"]
+archetype_relevance: ["*"]
 ---
 
 # Capability Router

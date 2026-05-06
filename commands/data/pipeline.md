@@ -1,6 +1,8 @@
 ---
 description: "Data pipeline design and review"
 argument-hint: "<subcommand> [args...] — design --source <src> --target <tgt> [--frequency <freq>] | review <path>"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:data:pipeline

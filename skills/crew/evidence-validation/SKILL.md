@@ -7,6 +7,8 @@ description: |
 
   Use when: validating a TaskUpdate description before marking complete, or
   checking that evidence fields match the task's complexity tier.
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Evidence Validation Skill

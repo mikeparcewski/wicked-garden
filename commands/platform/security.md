@@ -1,6 +1,8 @@
 ---
 description: Security review and vulnerability assessment
 argument-hint: "<path, PR, or 'full' for comprehensive scan> [--scenarios]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:platform:security

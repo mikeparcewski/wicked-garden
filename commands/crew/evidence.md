@@ -1,6 +1,8 @@
 ---
 description: Show evidence summary for a task or project
 argument-hint: "[task-id] [--project project-id]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:evidence

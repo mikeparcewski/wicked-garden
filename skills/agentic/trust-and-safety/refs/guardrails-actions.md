@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Guardrail Implementation - Actions and Approvals
 
 Action whitelisting, pre-flight validation, sandboxed execution, and approval workflows.

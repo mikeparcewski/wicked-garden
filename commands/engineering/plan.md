@@ -4,6 +4,8 @@ description: |
   changes, risk assessment, and test recommendations — before writing any code.
   NOT for free-form planning (use native Task planning) or architecture decisions (use engineering:arch).
 argument-hint: "<change request or issue description>"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:plan

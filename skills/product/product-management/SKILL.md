@@ -7,6 +7,8 @@ description: |
 
   Use when: planning a roadmap, prioritizing a backlog, or defining scope and
   stakeholder alignment for an upcoming feature.
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Product Management Skill

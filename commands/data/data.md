@@ -4,6 +4,8 @@ description: |
   report (completeness, uniqueness, validity). NOT for interactive SQL queries (use data:analyze)
   or ML pipeline work (use data:ml).
 argument-hint: "<subcommand> [args...] — profile <path> | validate --schema <schema> --data <path> | quality <path>"
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:data:data

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Strategic Analysis Templates: Competitive & Market Analysis
 
 Competitive analysis, market analysis, and quick decision templates for business strategy.

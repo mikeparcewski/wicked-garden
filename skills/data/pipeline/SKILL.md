@@ -13,6 +13,8 @@ description: |
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/dags/**", "**/pipelines/**", "**/etl/**", "**/airflow/**", "**/prefect/**"]
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # Pipeline Engineering Skill

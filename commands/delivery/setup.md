@@ -4,6 +4,8 @@ description: |
   commentary sensitivity. NOT for generating reports (use delivery:report) or reviewing process health (use delivery:process-health).
 argument-hint: "[--reset]"
 allowed-tools: ["Read", "Write", "AskUserQuestion"]
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:delivery:setup

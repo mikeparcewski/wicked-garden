@@ -1,5 +1,7 @@
 ---
 description: Add a field to an entity/class and propagate to all affected files
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:engineering:add-field

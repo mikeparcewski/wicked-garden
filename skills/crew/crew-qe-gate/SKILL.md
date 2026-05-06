@@ -7,6 +7,8 @@ description: |
 
   Use when: running a value / strategy / execution gate at a crew checkpoint,
   validating phase-transition readiness, or asking "is this ready to advance".
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Crew QE Gate Skill

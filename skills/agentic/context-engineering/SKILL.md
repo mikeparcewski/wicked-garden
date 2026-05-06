@@ -7,6 +7,8 @@ description: |
   scope for short / long-term / episodic state, or applying a context-loading
   strategy (anticipatory / JIT / hybrid).
 portability: portable
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Context Engineering

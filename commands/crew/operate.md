@@ -1,6 +1,8 @@
 ---
 description: Enter and manage the operate phase for the current crew project
 argument-hint: "[--status]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:operate

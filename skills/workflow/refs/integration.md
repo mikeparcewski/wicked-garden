@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Utility Plugin Integration
 
 How wicked-crew integrates with utility plugins (graceful degradation).

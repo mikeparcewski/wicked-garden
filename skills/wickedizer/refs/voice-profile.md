@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Voice Profile: Team Writing Style
 
 This reference defines the default voice for wickedizer output. Apply these characteristics unless the context requires a different tone (e.g., marketing copy, legal docs). Teams can customize this profile in their local settings.

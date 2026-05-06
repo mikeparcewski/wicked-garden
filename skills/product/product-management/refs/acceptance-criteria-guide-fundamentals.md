@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Acceptance Criteria Guide: Fundamentals
 
 What acceptance criteria are, the Given/When/Then format, basic examples, coverage requirements, and writing guidelines.

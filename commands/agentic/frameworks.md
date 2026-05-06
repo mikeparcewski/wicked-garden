@@ -4,6 +4,8 @@ description: |
   use case — gets latest ecosystem context via Context7. NOT for reviewing existing agentic code
   (use agentic:review) or architecture design (use agentic:design).
 argument-hint: "[--compare fw1,fw2,...] [--language python|typescript] [--use-case TYPE]"
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:agentic:frameworks

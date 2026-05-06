@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # gh_ops.py Reference
 
 Unified GitHub operations CLI with intelligent features.

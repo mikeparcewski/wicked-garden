@@ -9,6 +9,8 @@ description: |
 
   Use when: "onboard a new developer", "getting-started guide", "team
   orientation for new hire", "first week plan", "day-one productivity".
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # Onboarding Guide

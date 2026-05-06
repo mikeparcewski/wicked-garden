@@ -1,5 +1,7 @@
 ---
 description: Check for quality crisis swarm trigger and recommend coalition response
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:swarm

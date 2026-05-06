@@ -6,6 +6,8 @@ description: |
   Reliable → Production → Optimized) for assessing production readiness.
   NOT for architecture design (use agentic-patterns) or live agentic review with a subagent (use agentic:review command).
 portability: portable
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Agentic Review Methodology

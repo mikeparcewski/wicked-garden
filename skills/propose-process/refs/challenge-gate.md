@@ -1,3 +1,7 @@
+---
+phase_relevance: ["bootstrap", "clarify"]
+archetype_relevance: ["*"]
+---
 # Challenge Gate (Issue #442)
 
 Persistent contrarian review. The facilitator auto-inserts the `challenge`

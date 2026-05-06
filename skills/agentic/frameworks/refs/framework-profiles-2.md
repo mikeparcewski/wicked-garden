@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Framework Profiles (Part 2)
 
 Detailed profiles of AutoGen, Pydantic AI, and LlamaIndex Agents.

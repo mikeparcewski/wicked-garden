@@ -8,6 +8,8 @@ description: |
   Use when: reviewing a UI screenshot for visual design, comparing rendered
   output against design system rules, or auditing layout from an image file.
 portability: portable
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Screenshot Skill

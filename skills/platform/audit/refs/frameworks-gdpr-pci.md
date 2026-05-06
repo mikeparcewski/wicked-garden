@@ -1,3 +1,7 @@
+---
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
+---
 # Audit Framework Control Mappings: GDPR & PCI DSS
 
 Framework-specific control testing and evidence requirements for GDPR and PCI DSS.

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Anti-Patterns in Agentic Systems: Operational
 
 Operational anti-patterns including Sequential Bottleneck, Context Bloat, Redundant Agents, Hardcoded Prompts, and Missing Timeouts.

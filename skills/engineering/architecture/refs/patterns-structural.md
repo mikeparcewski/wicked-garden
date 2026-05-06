@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Architectural Patterns: Structural
 
 Detailed guide to structural architectural patterns with trade-offs and when to use them.

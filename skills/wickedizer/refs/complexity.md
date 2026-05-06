@@ -1,3 +1,7 @@
+---
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
+---
 # Complexity: Keep It Simple
 
 Writing complexity is cognitive load on the reader. Every unnecessary word, section, or concept is debt they pay to understand you.

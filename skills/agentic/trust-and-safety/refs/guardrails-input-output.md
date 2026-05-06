@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "review"]
+archetype_relevance: ["*"]
+---
 # Guardrail Implementation - Input and Output Patterns
 
 Input validation, sanitization, prompt injection detection, and output filtering patterns.

@@ -1,6 +1,8 @@
 ---
 description: "Design statistically rigorous A/B test experiments"
 argument-hint: "<description> — describe what you want to test"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:delivery:experiment

@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Image Editing Reference
 
 Comprehensive reference for image modification techniques, provider-specific commands, and refinement strategies.

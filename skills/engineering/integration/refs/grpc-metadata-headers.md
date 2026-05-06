@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # gRPC API Design Guide: Metadata (Headers)
 
 ## Metadata (Headers)

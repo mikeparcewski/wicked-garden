@@ -1,6 +1,8 @@
 ---
 description: Generate a retrospective from operate phase data
 argument-hint: "[--project project-name]"
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:crew:retro

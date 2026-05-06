@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # REST API Design - Fundamentals
 
 Core principles, resource design, HTTP methods, and query parameters for RESTful APIs.

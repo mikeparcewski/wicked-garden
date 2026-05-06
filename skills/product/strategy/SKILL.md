@@ -6,6 +6,8 @@ description: |
 
   Use when: building a business case for a technical investment, evaluating
   ROI or value proposition, or doing competitive positioning analysis.
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Strategy Skill

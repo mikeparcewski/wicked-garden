@@ -1,6 +1,8 @@
 ---
 description: Strategic analysis - ROI, value proposition, market, competitive
 argument-hint: "<target> [--focus roi|value|market|competitive|all]"
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:product:strategy

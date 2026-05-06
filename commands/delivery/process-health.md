@@ -1,6 +1,8 @@
 ---
 description: Surface process memory — kaizen status, unresolved action items, aging alerts, and SPC drift
 argument-hint: "[--project name] [--format text|json|both] [--spc]"
+phase_relevance: ["build", "review", "operate"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:delivery:process-health

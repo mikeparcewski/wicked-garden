@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # API Versioning Guide: Migration Strategies
 
 ## Migration Strategies

@@ -12,6 +12,8 @@ description: |
   Use when: "give me an architecture walkthrough", "narrate this codebase",
   "explain how this project is organized", "code navigation", "where should
   I start reading".
+phase_relevance: ["*"]
+archetype_relevance: ["*"]
 ---
 
 # Codebase Narrator

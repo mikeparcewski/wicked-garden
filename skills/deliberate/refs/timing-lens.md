@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
+---
 # Timing Lens
 
 Additional questions for the five lenses that challenge WHEN to act, not just

@@ -6,17 +6,13 @@ Scans ``commands/**/*.md`` and ``skills/**/*.md`` for the
 Issue #725 reframe (context-aware ``crew:guide``).
 
 Modes (env: ``WG_RELEVANCE_LINT``)
-  - ``warn`` (default for this release): emit a single WARN line listing the
-    first ``MAX_LISTED`` offending paths and exit 0. Allows the curated
-    15-command subset to land without forcing a 240-file bulk pass.
-  - ``deny``: same scan, but exit non-zero so CI fails. The next release flips
-    the default after the bulk-pass follow-up PR ships.
+  - ``deny`` (default since v9.2.9): same scan, but exit non-zero so CI fails.
+    The bulk-pass PR (#834, v9.2.9) added frontmatter to the remaining 384
+    commands/skills, so the lint can now block regressions.
+  - ``warn``: emit a single WARN line listing the first ``MAX_LISTED`` offending
+    paths and exit 0. Useful as a temporary opt-out during a refactor that
+    intentionally adds files without frontmatter.
   - ``off``: skip the scan entirely (rollback lever for emergencies).
-
-Why warn-only this release: the reframe ships frontmatter on a CURATED
-15-command subset (the daily-driver list). Bulk-editing the remaining ~225
-commands/skills is intentionally deferred to a follow-up PR so reviewers can
-audit one diff at a time. Once that PR lands, flip the default to ``deny``.
 
 R1: no dead code — every helper is called from main().
 R3: constants named (``MAX_LISTED``, ``ENV_MODE`` etc.).
@@ -38,7 +34,7 @@ ENV_MODE: str = "WG_RELEVANCE_LINT"
 MODE_WARN: str = "warn"
 MODE_DENY: str = "deny"
 MODE_OFF: str = "off"
-DEFAULT_MODE: str = MODE_WARN
+DEFAULT_MODE: str = MODE_DENY
 VALID_MODES: tuple[str, ...] = (MODE_WARN, MODE_DENY, MODE_OFF)
 MAX_LISTED: int = 5
 
@@ -140,8 +136,8 @@ def main(argv: list[str]) -> int:
     )
     if mode == MODE_WARN:
         sys.stdout.write(
-            f"NOTE: {ENV_MODE}={MODE_WARN} (warn-only this release; flips to "
-            f"{MODE_DENY!r} after the bulk-pass follow-up PR — Issue #725).\n"
+            f"NOTE: {ENV_MODE}={MODE_WARN} (default since v9.2.9 is "
+            f"{MODE_DENY!r}; warn mode is the temporary opt-out).\n"
         )
         return 0
     return 1

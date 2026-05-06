@@ -6,6 +6,8 @@ description: |
 
   Use when: generating, editing, analyzing, or reviewing an image — routes to
   the appropriate sub-skill (create / alter / review).
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
 ---
 
 # Imagery: Visual Asset Lifecycle

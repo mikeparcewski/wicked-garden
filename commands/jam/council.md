@@ -1,6 +1,8 @@
 ---
 description: Structured multi-model evaluation using external LLM CLIs for independent perspectives
 argument-hint: "<topic>" --options "A, B, C" [--criteria "perf, cost, risk"]
+phase_relevance: ["clarify", "design"]
+archetype_relevance: ["*"]
 ---
 
 # /wicked-garden:jam:council

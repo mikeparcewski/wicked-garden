@@ -1,3 +1,7 @@
+---
+phase_relevance: ["design", "build"]
+archetype_relevance: ["*"]
+---
 # Component Anti-Patterns: Circular Dependencies
 
 ## Circular Dependencies

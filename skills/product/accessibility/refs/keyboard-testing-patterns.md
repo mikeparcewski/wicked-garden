@@ -1,3 +1,7 @@
+---
+phase_relevance: ["clarify", "design", "review"]
+archetype_relevance: ["*"]
+---
 # Keyboard Testing Guide: Patterns & Tools
 
 Testing workflows, common violations with fixes, tools, and quick reference.
