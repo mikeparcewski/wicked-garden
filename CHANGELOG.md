@@ -1,5 +1,39 @@
 # Changelog
 
+## [9.2.6] - 2026-05-06
+
+**Phase 2B (slim `just-finish.md`) + #830 producer fix + memory consolidation pass.**
+
+### Phase 2B — `commands/crew/just-finish.md` slim
+
+- **462 → 110 lines (-76%).** Same shape as Phase 2A's `crew:start.md` conversion (304 → 134, -56%) — drop redundant procedural prose, compress "same as execute.md §X" cross-references to single pointers, remove inline templates that the dispatched specialists already know how to render, keep all load-bearing references (`process-plan.json`, `phase_manager.py`, `specialist_discovery.py`, `hitl_judge`, `autonomy.py`, AC-4.4 auto-resolution, `wicked-brain:memory` learning capture, the guardrail list).
+- Behavior preserved: every step that was previously enforced (HITL clarify gate, mandatory quality gate, gate-result handling, council escalation, checkpoint re-evaluation, test-strategy guard, deliberation pre-step, learning capture) survives in the slim form.
+
+### #830 — `last_reeval_*` producer wired
+
+`scripts/crew/phase_start_gate.py` reads `state.last_reeval_ts` and `state.last_reeval_task_count` to detect "has anything material changed since the last re-eval." Both fields had been silently degraded — declared in `_session.py` but no producer ever wrote them, so phase_start_gate has been treating every check as "first time" since the feature shipped.
+
+Fix: `hooks/scripts/prompt_submit.py::_consume_facilitator_reeval` now writes both fields when a re-eval directive is emitted (the closest hook point to "re-eval boundary" without inventing new completion semantics). Same is_active gate as the existing flag-clear; bundled into the same `state.update()` to minimise file I/O.
+
+Drift test (`tests/test_session_state_field_drift.py`) now detects the producers via the standard writer scan — `KNOWN_PRODUCER_GAPS` allowlist removed entirely. Closes issue #830.
+
+### Memory consolidation
+
+Three-pass consolidation on the wicked-garden brain (17 memories accumulated this session):
+
+- **Pass 1 (archive)**: 0 archived (no TTL-expired or low-access candidates).
+- **Pass 2 (promote)**: 0 promoted (working-tier memories haven't accumulated session diversity yet). 9 chunks flagged for wiki compile; strongest cluster is **"silent-contract-drift"** (4 memories converging on one pattern: `silent-info-finding-as-disguised-bug`, `subagent-skill-loading-is-feature-not-bug`, `dispatch-log-precedes-reviewer-do-not-move-to-post-hook`, `v10-native-task-store-audit-trail-decision`). Recommended for synthesis to `wiki/concepts/silent-contract-drift.md` in a future `wicked-brain:compile` run.
+- **Pass 3 (merge)**: 1 duplicate archived — `crew-cli-execution-five-frictions-2026-05-05.md` was superseded by the 15-item `crew-cli-friction-inventory-2026-05-05.md` (the inventory's frontmatter explicitly states it supersedes the 5-item version). The three protected v10 North Star memories untouched (`crew-steering-not-blocking-architectural-principle`, `v10-architecture-partner-not-host-platform`, `v10-next-session-pickup-scenario-fixes`).
+
+### Plugin version
+
+9.2.5 → 9.2.6 (patch — slim conversion + producer fix + brain consolidation).
+
+### Deferred
+
+- **Phase 2C** (`commands/crew/execute.md`, 1460 lines) — biggest single artifact in the repo. Same Pattern B conversion shape as Phase 2A/2B. Deferred to its own focused PR rather than risking a hasty trim that breaks orchestration semantics. ~30 cross-references in `just-finish.md` point at execute.md section numbers; renumbering needs co-ordinated touch.
+- **Wiki article**: `wiki/concepts/silent-contract-drift.md` synthesis (the consolidation flagged it; running `wicked-brain:compile` against the cluster is the next step).
+
 ## [9.2.5] - 2026-05-06
 
 **Cleanup — fix the OTHER half of the SessionState drift bug class + extend the CI drift test.**
