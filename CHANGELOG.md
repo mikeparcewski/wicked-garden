@@ -1,5 +1,31 @@
 # Changelog
 
+## [9.2.8] - 2026-05-06
+
+**Quick cleanup — bump `wicked_testing_version` pin + compile silent-contract-drift wiki.**
+
+### `wicked_testing_version` range bump
+
+- `plugin.json:wicked_testing_version` was `^0.2.0`. wicked-testing has shipped 0.3.x for some time, and `^0.2.0` per caret semver = `>=0.2.0 <0.3.0` rejects everything 0.3+. The result: every session bootstrap surfaced `[wicked-testing] wicked-testing 0.3.3 does not satisfy required range ^0.2.0` as a warning even though no integration was actually broken.
+- Bumped to `^0.3.0` (=`>=0.3.0 <0.4.0`). Accepts current 0.3.x patches; still alerts on a future 0.4.x major bump.
+- README "Version pinning" section updated to match (was still claiming "^0.2.0 for v7.1.x" — three minor versions stale).
+- 32/32 wicked-testing probe tests pass with the new pin. No code change in `scripts/_wicked_testing_probe.py` — the probe always evaluated `is_version_in_range(installed, pin)` correctly; the bug was the pin value, not the probe logic.
+
+### `wiki/concepts/silent-contract-drift.md` synthesised
+
+The v9.2.6 consolidation pass flagged a four-memory cluster around the same pattern — behaviour that LOOKS like working code but silently no-ops or silently degrades, with a failure mode indistinguishable from intentional behaviour. The cluster bit wicked-garden three times in one session (v9.2.0 `pull_*` orphans, v9.2.2 `instruction_sync_fired`, v9.2.3 `active_chain_id` et al), each time fixed only because a mechanical CI test scanned both halves of the contract.
+
+`wicked-brain:agent` (consolidate) compiled the cluster into `wiki/concepts/silent-contract-drift.md` (953 words, 6 indexed chunks). Article structure:
+- Pattern definition: what makes a bug "silent contract drift" — three flavours (orphan dead writes, defensive `try/except` + INFO-finding cadence, lookalike mechanisms serving different concerns).
+- Detection pattern: mechanical CI test scans BOTH halves (declared-not-written + used-not-declared). `tests/test_session_state_field_drift.py` is the canonical example.
+- Backlinks to all four source memories: `silent-info-finding-as-disguised-bug`, `subagent-skill-loading-is-feature-not-bug`, `dispatch-log-precedes-reviewer-do-not-move-to-post-hook`, `v10-native-task-store-audit-trail-decision`.
+
+The wiki article only lives in the brain index — not committed to the wicked-garden repo. The brain is the system of record for synthesised knowledge; this PR contains no wiki/ files. Followers can read it via `wicked-brain:read /path/to/silent-contract-drift.md` or `wicked-brain:search "silent contract drift"`.
+
+### Plugin version
+
+9.2.7 → 9.2.8 (patch — config bump + wiki synthesis; no behaviour change).
+
 ## [9.2.7] - 2026-05-06
 
 **Phase 2C — slim `commands/crew/execute.md` (the deferred final cleanup).**
