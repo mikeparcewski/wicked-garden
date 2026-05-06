@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.1.1] - 2026-05-06
+
+**Patch — fix Phase 1 intent skill discovery regression.**
+
+The `/wicked-garden:intent` skill shipped in v9.0.0 (PR #814) had a frontmatter `name:` field set to the full namespaced form (`name: wicked-garden:intent`). Claude Code's auto-discovery derives the registered namespace from the file path; the `name:` field should be the leaf only. As shipped, the skill was on disk but never registered, so the user-facing override path was unreachable. Auto-detection and directive emission (the `prompt_submit.py` paths) were unaffected.
+
+Surfaced via dogfooding on the v9.1.0 plugin reload — `116 skills` count was missing one entry. Fix:
+
+- `skills/smaht/intent/SKILL.md`: `name: wicked-garden:intent` → `name: intent`. The skill now registers as `wicked-garden:smaht:intent`.
+- Frontmatter description converted to block-scalar with explicit `Use when:` clause matching the convention of peer smaht skills.
+- No code changes; the script body in the skill (which interacts with `_session.py`) was always correct.
+
+This is a v10 follow-on bug per the dogfooding protocol — same kind of frontmatter-vs-discovery mismatch CLAUDE.md called out at v6.3.6 ("Claude Code's skill auto-discovery doesn't recurse into skills/<domain>/<name>/"). Phase 4's wg-check rule does NOT yet validate frontmatter `name:` fields; adding that to wg-check is a follow-on enhancement.
+
 ## [9.1.0] - 2026-05-06
 
 **Phase 4 of the v10 architectural series: agent description discipline.**

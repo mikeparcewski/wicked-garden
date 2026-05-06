@@ -1,6 +1,13 @@
 ---
-name: wicked-garden:intent
-description: Show or set the session intent variable. Intent gates how loud the framework is — simple-edit (silent), feature/research (synthesis directive), rigor (full crew context). Auto-detected on the first turn; this skill overrides explicitly. Sticky for the session.
+name: intent
+description: |
+  Show or set the session intent variable. Intent gates how loud the
+  framework is — simple-edit (silent), feature/research (synthesis
+  directive), rigor (full crew context). Auto-detected on turn 1;
+  this skill overrides explicitly. Sticky for the session.
+
+  Use when: "set intent", "intent override", "/wicked-garden:intent",
+  "make the framework quiet", "force rigor", "what's my intent".
 ---
 
 # /wicked-garden:intent
