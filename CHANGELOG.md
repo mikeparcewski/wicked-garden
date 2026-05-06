@@ -1,5 +1,43 @@
 # Changelog
 
+## [9.2.3] - 2026-05-06
+
+**Cleanup — fix the root cause that bit us 3× this session: declare 6 more SessionState fields, add CI test that prevents regression.**
+
+### What this fixes
+
+`SessionState.update(**kwargs)` silently drops unknown keys. v9.2.0, v9.2.2, and now v9.2.3 each surfaced field-name mismatches caused by this. A complete audit of `state.update(X=...)` and `getattr(state, "X", ...)` call sites in `hooks/scripts/` against the SessionState dataclass declaration found **6 more undeclared fields** that this session hadn't yet caught:
+
+| Field | Status before v9.2.3 | Impact |
+|---|---|---|
+| `active_chain_id` | Read by smaht events_adapter for chain-aware scoring; never declared, never written | **Smaht chain-aware scoring has been silently degraded** — every event got the 0.1 baseline instead of the documented 0.8+ chain boost |
+| `crew_project` | Read by post_tool QE check (`getattr(state, "crew_project", None)`); never declared | QE nudge always assumed no crew active |
+| `last_reeval_ts` / `last_reeval_task_count` | Read by prompt_submit re-evaluation context; never declared | Re-eval context built with default values |
+| `legacy_reeval_entries_detected` | Written by bootstrap.py:1215; never declared | Migration-detection signal never persisted |
+| `unready_plugins` | Written by bootstrap.py:1279; never declared | Plugin-readiness state never persisted |
+
+All six declared in `scripts/_session.py` with documentation explaining each one's role and producer/consumer.
+
+### CI guard added
+
+`tests/test_session_state_field_drift.py` (NEW) walks `hooks/scripts/` and asserts every `state.update(X=...)` and `getattr(state, "X", ...)` reference resolves to a declared SessionState field. Future drift fails CI rather than silently no-op in production.
+
+False-positive guard: `KNOWN_NON_SESSIONSTATE_FIELDS = {"name", "chain_id", "topics"}` — these names appear on other state objects (`ProjectState` in `scripts/crew/phase_manager.py` and `solo_mode.py`) and the audit grep can't disambiguate scope. Documented inline in the test.
+
+### Plugin version
+
+9.2.2 → 9.2.3 (patch — pure declarative cleanup + test).
+
+### The pattern, finally locked in
+
+| Anti-pattern | First surfaced | Fixed in | Now caught by |
+|---|---|---|---|
+| Orphan dead writes | v9.0.0 → v9.2.0 (-80 lines `pull_*`) | v9.2.0 | "every read is a write expression" heuristic |
+| Disguised silent failure | v9.2.1 (`run_semantic_review` import) | v9.2.1 | "constant-cadence INFO finding" heuristic |
+| Latch-field silently dropped | v9.2.2 + v9.2.3 (8 fields total) | v9.2.2 / v9.2.3 | **CI drift test** (new this release) |
+
+The CI test is the durable closure — the heuristic is now mechanical instead of relying on someone running an audit grep. 94/94 v10-surface tests + 2/2 drift tests pass.
+
 ## [9.2.2] - 2026-05-06
 
 **Cleanup — silence the recurring hook reminders that flooded every session.**
