@@ -1,5 +1,35 @@
 # Changelog
 
+## [9.2.7] - 2026-05-06
+
+**Phase 2C — slim `commands/crew/execute.md` (the deferred final cleanup).**
+
+`commands/crew/execute.md` was 1460 lines — by far the biggest single artifact in the plugin and a major contributor to context bloat on every crew invocation. v9.2.6 deferred this one specifically because the file has ~30 cross-references from `just-finish.md` that needed coordinated handling. v9.2.7 is the dedicated PR.
+
+### Slim conversion
+
+- **1460 → 250 lines (-82.9%).** Largest single trim of the Phase 2 series. Combined with Phase 2A (`start.md`, -56%) and Phase 2B (`just-finish.md`, -76%), the three crew-orchestration commands now run **2226 → 509 lines (-77.1%)**.
+- **Section structure preserved**: §1 autonomy + state, §2 pre-flight, §3 recall + context, §4 facilitator plan + checkpoint re-analysis (with §4.5 signal re-analysis where `just-finish.md` cross-references it), §5 orchestrator-only, §6 specialist engagement, §7 completion validation, §7.5 mandatory gate, §8 sign-off policy, §9 learning capture, §10 status + report.
+- **All load-bearing references kept**: `process-plan.json`, `phase_manager.py`, `phase_start_gate.py`, `autonomy.py`, `worktree_manager.py`, `change-type-detector` skill, `test-task-factory` skill, `traceability_generator.py`, `specialist_discovery.py`, AC-4.4 / AC-4.6 / AC-11, issue refs (#252 worktrees, #255 TDD, #291 product-level testing, #292 evidence packages, QE-001 change-type detection, #627 reading vs risk_level), reviewer-separation invariant, council escalation, fast-pass exclusions, archetype awareness through facilitator plan.
+- **Pre-flight ordering preserved**: bus-poll → brain-store sentinel flush → phase-start gate (AC-11) — the order matters because the brain flush can produce events that the next bus-poll iteration would consume, and the phase-start gate reads `state.last_reeval_*` which v9.2.6's producer fix made meaningful.
+- **What was cut**: redundant prose ("CRITICAL", "REQUIRED" repetition where one mention suffices), verbose pseudocode blocks where a single sentence carries the contract, the giant Section 6 specialist-dispatch tables (the `specialist_discovery.py` script is the source of truth — the table in markdown was a stale copy), inline output-format templates (the receiving subagents already know how to render their own output), repeated explanations of why fresh-start dispatch matters (one mention is enough).
+- **`§4.5` cross-reference from `just-finish.md`**: preserved as `### 4.5 Signal re-analysis at checkpoints` under `## 4. Facilitator plan + checkpoint re-analysis`. The exact anchor `just-finish.md:94` references still resolves.
+
+### Cumulative Phase 2 progress
+
+| File | Original | Slim | Reduction |
+|---|---|---|---|
+| `commands/crew/start.md` (Phase 2A, PR #815) | 304 | 147 | -52% |
+| `commands/crew/just-finish.md` (Phase 2B, PR #831) | 462 | 110 | -76% |
+| `commands/crew/execute.md` (Phase 2C, this PR) | 1460 | 250 | -83% |
+| **Total crew orchestration commands** | **2226** | **507** | **-77%** |
+
+The slim-body Pattern B conversion is now applied to all three crew-orchestration commands. Every `commands/crew/*` and `commands/*/` further trimming is incremental from here.
+
+### Plugin version
+
+9.2.6 → 9.2.7 (patch — slim conversion only; no behavior change).
+
 ## [9.2.6] - 2026-05-06
 
 **Phase 2B (slim `just-finish.md`) + #830 producer fix + memory consolidation pass.**
