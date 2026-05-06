@@ -1,5 +1,35 @@
 # Changelog
 
+## [9.2.4] - 2026-05-06
+
+**Wire the `active_chain_id` producer that v9.2.3 declared but didn't write.**
+
+v9.2.3 declared `active_chain_id` to close a silent contract drift, but the bigger underlying bug — there's no producer, so smaht chain-aware scoring is degraded — remained as a follow-on. v9.2.4 wires the producer.
+
+### What changed
+
+`hooks/scripts/bootstrap.py` now writes `active_chain_id` next to `active_project_id` whenever the SessionStart hook resolves the active crew project. Same is_active gate (skip when phase is `""` / `complete` / `done` / `archived`). Format mirrors the `chain_id` convention documented in CLAUDE.md "Native Tasks as Dual-Purpose Event Queue":
+
+| Project state | active_chain_id value |
+|---|---|
+| Active, in clarify phase | `{slug}.root` |
+| Active, in any other phase | `{slug}.{phase}` |
+| Inactive / archived | `None` |
+
+### Effect
+
+The smaht events_adapter's `_chain_boost` function now actually receives a non-None chain id when a crew project is running, and events whose chain_id matches the active one (or are descendants of it) get the documented 0.8+ boost instead of the silent 0.1 baseline. Chain-aware event ranking is restored on every SessionStart.
+
+### Tests
+
+- 94/94 v10-surface tests still pass
+- Drift test confirms `active_chain_id` references in the events adapter resolve to the now-declared+written field
+- Smoke test of bootstrap.py on the wicked-garden repo: no active project → `active_chain_id: None` (correct no-op)
+
+### Plugin version
+
+9.2.3 → 9.2.4 (patch — single-line wire-up of an already-declared field).
+
 ## [9.2.3] - 2026-05-06
 
 **Cleanup — fix the root cause that bit us 3× this session: declare 6 more SessionState fields, add CI test that prevents regression.**
