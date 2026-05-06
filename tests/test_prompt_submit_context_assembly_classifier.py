@@ -1,279 +1,290 @@
-"""tests/test_prompt_submit_context_assembly_classifier.py — Context Assembly
-intent classifier for the UserPromptSubmit hook (Issue #578).
+"""tests/test_prompt_submit_context_assembly_classifier.py — intent variable
+and directive emission for the UserPromptSubmit hook.
 
-Provenance: Issue #578 — ``hooks/scripts/prompt_submit.py`` used to emit a
-"Context Assembly — complexity=X" directive on every prompt whose complexity
-crossed the synthesis threshold, including obviously conversational prompts
-like "any more feedback?" and "lets do it". Same class of bug as #572: the
-hook fired without a signal Claude cannot already see itself.
+Provenance:
+- Issue #578 (legacy): the original Context Assembly classifier suppressed
+  the "Deep context needed" directive on conversational prompts. Tests in
+  this file used to assert the multi-classifier `_should_emit_context_assembly`
+  contract directly.
+- Issue #813 (v10 Phase 1): the five overlapping classifiers
+  (`_should_emit_context_assembly`, `_starts_with_leading_confirmation`,
+  `_contains_meta_phrase`, the inline `_is_near_hot` guard, and
+  `_resolve_pull_phase`) were collapsed into a single explicit `intent`
+  variable on SessionState. The wisdom from #578 (conversational vs
+  substantive) is preserved inside `_detect_intent` — these tests now
+  assert intent classification + directive shape rather than the legacy
+  emit/suppress booleans.
 
-The new classifier is a pure function that takes a prompt plus an env mapping
-and returns ``(should_emit: bool, reason: str)``. Rules:
-
-- env override ``WG_CONTEXT_ASSEMBLY=always``  -> force emit
-- env override ``WG_CONTEXT_ASSEMBLY=off``     -> force suppress
-- auto mode (default): substantive signals beat conversational signals
-
-T1: deterministic — pure function, no I/O
-T3: isolated — each test builds its own prompt + env mapping
-T4: single focus per test (one prompt / one override)
-T5: descriptive names — each name spells out the input and expected outcome
-T6: each docstring cites Issue #578
+T1: deterministic — pure functions, no I/O
+T3: isolated — each test builds its own prompt + minimal state
+T4: single focus per test (one prompt → one expected intent or directive)
+T5: descriptive names spell out input + expected outcome
+T6: each docstring cites the relevant issue (#578 spirit + #813 contract)
 """
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 
-# The hook script is not on sys.path by default — add it before import.
+# conftest.py keeps `scripts/` at sys.path[0]. Append `hooks/scripts/` (do NOT
+# insert at index 0) so the prompt_submit module is importable without
+# shadowing scripts/ — matches the convention enforced repo-wide.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _HOOK_SCRIPTS = _REPO_ROOT / "hooks" / "scripts"
 if str(_HOOK_SCRIPTS) not in sys.path:
-    sys.path.insert(0, str(_HOOK_SCRIPTS))
+    sys.path.append(str(_HOOK_SCRIPTS))
 
 from prompt_submit import (  # noqa: E402
-    _CONTEXT_ASSEMBLY_ENV_VAR,
-    _should_emit_context_assembly,
+    _AUTO_DETECT_TURN_LIMIT,
+    _INTENT_VALUES,
+    _build_intent_directive,
+    _detect_intent,
+    _ensure_intent_set,
 )
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+@dataclass
+class _FakeState:
+    """Minimal SessionState stand-in for tests. Mirrors the fields
+    `_ensure_intent_set` and `_build_intent_directive` actually read."""
+    intent: str | None = None
+    intent_explicit: bool = False
+    turn_count: int = 1
+
+    def update(self, **kwargs):
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
 
 @pytest.fixture
-def empty_env():
-    """Env mapping with no WG_CONTEXT_ASSEMBLY override — classifier runs in auto."""
-    return {}
+def state():
+    return _FakeState()
 
 
 # ---------------------------------------------------------------------------
-# Conversational prompts — MUST NOT emit the directive
+# _detect_intent — classification (preserves #578 wisdom in v10 form)
 # ---------------------------------------------------------------------------
 
-def test_any_more_feedback_is_conversational_and_suppresses(empty_env):
-    """Issue #578 AC: 'any more feedback?' is a meta conversational prompt
-    about the conversation itself — must NOT trigger brain grounding."""
-    emit, reason = _should_emit_context_assembly("any more feedback?", empty_env)
-    assert emit is False
-    assert "conversational" in reason
+def test_lets_do_it_classifies_as_simple_edit(state):
+    """#578/#813: bare continuation tokens stay simple-edit. The legacy
+    suppress-on-conversational rule survives as 'detect simple-edit and
+    don't emit a directive.'"""
+    intent = _detect_intent("lets do it", complexity=0.0, is_risky=False, state=state)
+    assert intent == "simple-edit"
 
 
-def test_lets_do_it_is_leading_confirmation_and_suppresses(empty_env):
-    """Issue #578 AC: 'lets do it' is a bare continuation — classifier must
-    recognise the leading-confirmation pattern and suppress."""
-    emit, reason = _should_emit_context_assembly("lets do it", empty_env)
-    assert emit is False
-    assert "conversational" in reason
+def test_what_do_you_think_classifies_as_simple_edit(state):
+    """#578/#813: meta phrases asking for assistant's opinion classify as
+    simple-edit so no synthesis directive fires."""
+    intent = _detect_intent("what do you think?", complexity=0.0, is_risky=False, state=state)
+    assert intent == "simple-edit"
 
 
-def test_what_do_you_think_is_meta_phrase_and_suppresses(empty_env):
-    """Issue #578 AC: 'what do you think?' asks the assistant's opinion on
-    prior context — no new grounding needed."""
-    emit, reason = _should_emit_context_assembly("what do you think?", empty_env)
-    assert emit is False
-    assert "conversational" in reason
+def test_short_status_question_classifies_as_simple_edit(state):
+    """#813: 'where are we?' is the canonical example the brainstorm cited
+    for the daily papercut. Must not trigger any directive."""
+    intent = _detect_intent("where are we?", complexity=0.0, is_risky=False, state=state)
+    assert intent == "simple-edit"
 
 
-def test_ok_proceed_is_leading_confirmation_and_suppresses(empty_env):
-    """Issue #578 AC: 'ok proceed' is two continuation tokens back-to-back —
-    classifier must catch the leading confirmation."""
-    emit, reason = _should_emit_context_assembly("ok proceed", empty_env)
-    assert emit is False
-    assert "conversational" in reason
-
-
-def test_single_yes_token_is_continuation_and_suppresses(empty_env):
-    """Issue #578 AC: a single 'yes' is the canonical continuation token —
-    the hook should never ground the brain on it."""
-    emit, reason = _should_emit_context_assembly("yes", empty_env)
-    assert emit is False
-
-
-def test_are_you_sure_is_meta_phrase_and_suppresses(empty_env):
-    """Issue #578 AC: 'are you sure?' is a meta phrase addressed at the
-    assistant — classifier must suppress."""
-    emit, reason = _should_emit_context_assembly("are you sure?", empty_env)
-    assert emit is False
-    assert "conversational" in reason
-
-
-def test_thoughts_is_meta_phrase_and_suppresses(empty_env):
-    """Issue #578 AC: a bare 'thoughts?' is a request for the assistant's
-    opinion — no new work, suppress."""
-    emit, reason = _should_emit_context_assembly("thoughts?", empty_env)
-    assert emit is False
-
-
-def test_how_about_this_is_meta_phrase_and_suppresses(empty_env):
-    """Issue #578 AC: 'how about this?' is a conversational framing — no
-    technical payload, suppress."""
-    emit, reason = _should_emit_context_assembly("how about this?", empty_env)
-    assert emit is False
-
-
-# ---------------------------------------------------------------------------
-# Substantive prompts — MUST emit the directive
-# ---------------------------------------------------------------------------
-
-def test_question_about_validate_plan_file_is_substantive_and_emits(empty_env):
-    """Issue #578 AC: 'How does validate_plan.py handle split factor readings?'
-    asks a technical question citing a specific file — must ground."""
-    emit, reason = _should_emit_context_assembly(
-        "How does validate_plan.py handle split factor readings?",
-        empty_env,
+def test_explain_how_classifies_as_research(state):
+    """#813: explanation prompts route to research intent regardless of
+    complexity score, so the synthesis directive fires on conceptual asks."""
+    intent = _detect_intent(
+        "explain how the phase manager handles transitions",
+        complexity=0.2, is_risky=False, state=state,
     )
-    assert emit is True
-    # File path OR length OR technical verb — any substantive reason wins.
-    assert reason.startswith("substantive") or reason == "default_emit"
+    assert intent == "research"
 
 
-def test_fix_bug_with_file_path_is_substantive_and_emits(empty_env):
-    """Issue #578 AC: 'Fix the bug in hooks/scripts/prompt_submit.py where the
-    classifier misfires' has both an imperative verb and a file path."""
-    emit, reason = _should_emit_context_assembly(
-        "Fix the bug in hooks/scripts/prompt_submit.py where the classifier misfires",
-        empty_env,
+def test_why_does_classifies_as_research(state):
+    """#813: 'why does X' is a canonical research signal."""
+    intent = _detect_intent(
+        "why does the validator reject this plan?",
+        complexity=0.2, is_risky=False, state=state,
     )
-    assert emit is True
-    assert reason.startswith("substantive")
+    assert intent == "research"
 
 
-def test_fifty_word_feature_description_is_substantive_and_emits(empty_env):
-    """Issue #578 AC: a 50-word prompt describing a feature is well past the
-    length threshold — must ground."""
-    prompt = (
-        "We need to build a new feature that allows users to subscribe to "
-        "events published on the bus and replay them later with a cursor. "
-        "The subscriber should persist cursor state locally and support "
-        "at-least-once delivery semantics with idempotent acknowledgement. "
-        "This is the eleventh sentence now describing acceptance tests too."
+def test_implement_command_classifies_as_feature(state):
+    """#813: imperative technical verb 'implement' triggers feature intent."""
+    intent = _detect_intent(
+        "implement the auth flow with session tokens",
+        complexity=0.3, is_risky=False, state=state,
     )
-    assert len(prompt.split()) >= 30
-    emit, reason = _should_emit_context_assembly(prompt, empty_env)
-    assert emit is True
-    assert reason in {"substantive_length", "substantive_file_path",
-                      "substantive_code_marker", "substantive_technical_verb"}
+    assert intent == "feature"
 
 
-def test_prompt_with_file_path_is_substantive_and_emits(empty_env):
-    """Issue #578 AC: any prompt with a file path triggers grounding —
-    even short ones."""
-    emit, reason = _should_emit_context_assembly(
-        "look at src/foo/bar.py for me",
-        empty_env,
+def test_risky_prompt_classifies_as_feature(state):
+    """#813: risk signals (auth token, rollback, etc.) bypass complexity
+    threshold and route to feature."""
+    intent = _detect_intent(
+        "rotate the api key in production",
+        complexity=0.1, is_risky=True, state=state,
     )
-    assert emit is True
-    assert reason == "substantive_file_path"
+    assert intent == "feature"
 
 
-def test_prompt_with_code_fence_is_substantive_and_emits(empty_env):
-    """Issue #578 AC: code fences signal real code context — grounding
-    should run so the model can align with actual repo structure."""
-    emit, reason = _should_emit_context_assembly(
-        "```python\nprint('hi')\n```",
-        empty_env,
+def test_high_complexity_classifies_as_feature(state):
+    """#813: complexity >= synthesis threshold routes to feature."""
+    intent = _detect_intent(
+        "design the migration pipeline",
+        complexity=0.6, is_risky=False, state=state,
     )
-    assert emit is True
-    assert reason == "substantive_code_marker"
+    assert intent == "feature"
 
 
-def test_prompt_with_imperative_refactor_verb_is_substantive_and_emits(empty_env):
-    """Issue #578 AC: an imperative technical verb like 'refactor' is a
-    strong substantive signal — emit the directive."""
-    emit, reason = _should_emit_context_assembly(
-        "refactor the router",
-        empty_env,
+def test_crew_command_classifies_as_rigor(state):
+    """#813: /wicked-garden:crew:* invocations always route to rigor —
+    answers brainstorm Q3 (no per-command self-declare ceremony required)."""
+    intent = _detect_intent(
+        "/wicked-garden:crew:just-finish",
+        complexity=0.0, is_risky=False, state=state,
     )
-    assert emit is True
-    assert reason == "substantive_technical_verb"
+    assert intent == "rigor"
+
+
+def test_wg_issue_command_classifies_as_rigor(state):
+    """#813: /wg-issue invocations route to rigor."""
+    intent = _detect_intent("/wg-issue 42", complexity=0.0, is_risky=False, state=state)
+    assert intent == "rigor"
+
+
+def test_empty_prompt_classifies_as_simple_edit(state):
+    """#813: empty/whitespace prompts default to simple-edit (no directive)."""
+    assert _detect_intent("", 0.0, False, state) == "simple-edit"
+    assert _detect_intent("   ", 0.0, False, state) == "simple-edit"
+
+
+def test_prompt_with_file_path_classifies_as_feature(state):
+    """#813/#578: file path mentions are substantive technical signals."""
+    intent = _detect_intent(
+        "look at scripts/crew/phase_manager.py",
+        complexity=0.1, is_risky=False, state=state,
+    )
+    assert intent == "feature"
+
+
+def test_prompt_with_code_fence_classifies_as_feature(state):
+    """#813/#578: backtick code blocks signal substantive content."""
+    intent = _detect_intent(
+        "look at this `def foo():` definition",
+        complexity=0.1, is_risky=False, state=state,
+    )
+    assert intent == "feature"
+
+
+def test_intent_values_locked_at_four(state):
+    """#813: the vocabulary is locked at 4. Any change requires a brainstorm
+    revisiting the v10 keystone decisions, so this test guards the constant."""
+    assert _INTENT_VALUES == ("simple-edit", "feature", "rigor", "research")
 
 
 # ---------------------------------------------------------------------------
-# Env override — WG_CONTEXT_ASSEMBLY=always|off
+# _ensure_intent_set — sticky-detection contract
 # ---------------------------------------------------------------------------
 
-def test_env_always_forces_emit_on_conversational_prompt():
-    """Issue #578 AC: WG_CONTEXT_ASSEMBLY=always forces emit regardless of
-    classifier — operator override for debugging / strict grounding."""
-    env = {_CONTEXT_ASSEMBLY_ENV_VAR: "always"}
-    emit, reason = _should_emit_context_assembly("yes", env)
-    assert emit is True
-    assert reason == "env_always"
-
-
-def test_env_off_forces_suppress_on_substantive_prompt():
-    """Issue #578 AC: WG_CONTEXT_ASSEMBLY=off forces suppress regardless of
-    classifier — operator override to disable grounding entirely."""
-    env = {_CONTEXT_ASSEMBLY_ENV_VAR: "off"}
-    emit, reason = _should_emit_context_assembly(
-        "Fix the bug in hooks/scripts/prompt_submit.py where the classifier misfires",
-        env,
+def test_ensure_intent_runs_detection_on_first_turn(state):
+    """#813: turn 1 with no existing intent → detect and persist."""
+    state.turn_count = 1
+    intent = _ensure_intent_set(
+        "implement the feature", state, complexity=0.5, is_risky=False
     )
-    assert emit is False
-    assert reason == "env_off"
+    assert intent == "feature"
+    assert state.intent == "feature"
+    assert state.intent_explicit is False  # auto-detected, not explicit
 
 
-def test_env_auto_falls_through_to_classifier():
-    """Issue #578 AC: WG_CONTEXT_ASSEMBLY=auto is the documented default —
-    must behave identically to an unset variable."""
-    env = {_CONTEXT_ASSEMBLY_ENV_VAR: "auto"}
-    emit_auto, _ = _should_emit_context_assembly("yes", env)
-    emit_unset, _ = _should_emit_context_assembly("yes", {})
-    assert emit_auto == emit_unset is False
+def test_ensure_intent_respects_explicit_override(state):
+    """#813: when state.intent is already set (e.g. by /wicked-garden:intent),
+    auto-detection is skipped and the existing value is returned."""
+    state.intent = "rigor"
+    state.intent_explicit = True
+    state.turn_count = 1
+    intent = _ensure_intent_set(
+        "where are we?", state, complexity=0.0, is_risky=False
+    )
+    # Explicit rigor wins even on a prompt that would auto-detect simple-edit.
+    assert intent == "rigor"
 
 
-def test_env_unknown_value_falls_back_to_auto():
-    """Issue #578 AC: unknown WG_CONTEXT_ASSEMBLY values must fall back to
-    auto — operator typos should not silently flip to always / off."""
-    env = {_CONTEXT_ASSEMBLY_ENV_VAR: "banana"}
-    emit_unknown, _ = _should_emit_context_assembly("yes", env)
-    emit_unset, _ = _should_emit_context_assembly("yes", {})
-    assert emit_unknown == emit_unset is False
-
-
-def test_env_case_insensitive_match():
-    """Issue #578 AC: env values are case-insensitive — 'ALWAYS' / 'Off'
-    must match the canonical forms."""
-    env_always = {_CONTEXT_ASSEMBLY_ENV_VAR: "ALWAYS"}
-    env_off = {_CONTEXT_ASSEMBLY_ENV_VAR: "Off"}
-    emit_a, reason_a = _should_emit_context_assembly("yes", env_always)
-    emit_b, reason_b = _should_emit_context_assembly("refactor code", env_off)
-    assert emit_a is True and reason_a == "env_always"
-    assert emit_b is False and reason_b == "env_off"
+def test_ensure_intent_falls_back_to_simple_edit_past_window(state):
+    """#813: if intent was never set and we're past _AUTO_DETECT_TURN_LIMIT,
+    fall back to simple-edit rather than reclassify mid-session (prevents
+    flicker)."""
+    state.intent = None
+    state.turn_count = _AUTO_DETECT_TURN_LIMIT + 5  # well past the window
+    intent = _ensure_intent_set(
+        "implement the feature", state, complexity=0.5, is_risky=False
+    )
+    assert intent == "simple-edit"
 
 
 # ---------------------------------------------------------------------------
-# Edge cases
+# _build_intent_directive — directive shape
 # ---------------------------------------------------------------------------
 
-def test_empty_prompt_suppresses():
-    """Issue #578 AC: empty / whitespace-only prompts carry no intent —
-    must not emit the directive."""
-    emit, reason = _should_emit_context_assembly("   ", {})
-    assert emit is False
-    assert reason == "empty"
+def test_simple_edit_auto_detect_emits_empty_directive():
+    """#813: auto-detected simple-edit produces NO directive — the keystone
+    'silence is the signal' improvement. This is THE canonical win."""
+    out = _build_intent_directive("simple-edit", turn_count=3, explicit=False)
+    assert out == ""
 
 
-def test_substantive_beats_leading_confirmation():
-    """Issue #578 AC: 'substantive wins on conflict' — a 50-word prompt that
-    happens to start with 'ok' must still emit, because length overrides
-    the leading-confirmation heuristic."""
-    prompt = "ok " + ("word " * 40).strip()
-    assert len(prompt.split()) >= 30
-    emit, reason = _should_emit_context_assembly(prompt, {})
-    assert emit is True
-    assert reason == "substantive_length"
+def test_simple_edit_explicit_emits_bare_label_only():
+    """#813: explicit simple-edit echoes the label so the model knows the
+    user steered the framework, but no synthesis directive."""
+    out = _build_intent_directive("simple-edit", turn_count=3, explicit=True)
+    assert out == '<wg intent="simple-edit" t=3 />'
 
 
-def test_medium_length_question_without_technical_signal_defaults_emit():
-    """Issue #578: 8-29 word prompts with no substantive signal default to
-    emit — substantive wins on conflict, so err on the side of grounding."""
-    prompt = "I was wondering whether we should pick option A or option B today"
-    wc = len(prompt.split())
-    assert 8 <= wc < 30
-    emit, reason = _should_emit_context_assembly(prompt, {})
-    # Either default_emit, or a substantive reason — never conversational.
-    assert emit is True
-    assert not reason.startswith("conversational")
+def test_feature_auto_detect_emits_synthesis_no_label():
+    """#813: feature intent emits synthesis directive without the label
+    (auto-detected intent stays invisible to prevent confirmation bias)."""
+    out = _build_intent_directive("feature", turn_count=2, explicit=False)
+    assert "Context Assembly" in out
+    assert "intent=feature" in out
+    assert "wicked-brain:query" in out
+    assert "<wg intent=" not in out  # no label for auto-detect
+
+
+def test_feature_explicit_emits_label_plus_synthesis():
+    """#813: explicit feature emits both the label and the synthesis directive."""
+    out = _build_intent_directive("feature", turn_count=4, explicit=True)
+    assert out.startswith('<wg intent="feature" t=4 />')
+    assert "Context Assembly" in out
+
+
+def test_research_auto_detect_emits_synthesis():
+    """#813: research intent emits the same synthesis directive shape as
+    feature (both fire the wicked-brain pull)."""
+    out = _build_intent_directive("research", turn_count=1, explicit=False)
+    assert "Context Assembly" in out
+    assert "intent=research" in out
+
+
+def test_rigor_includes_chain_context_directive():
+    """#813: rigor intent additionally instructs the model to check the
+    active crew project's phase + chain_id — that's the rigor-specific
+    extension that distinguishes it from feature."""
+    out = _build_intent_directive("rigor", turn_count=5, explicit=False)
+    assert "Context Assembly" in out
+    assert "intent=rigor" in out
+    assert "active_chain_id" in out
+
+
+def test_rigor_explicit_emits_label_plus_chain_directive():
+    """#813: explicit rigor pairs label with chain-aware synthesis."""
+    out = _build_intent_directive("rigor", turn_count=5, explicit=True)
+    assert out.startswith('<wg intent="rigor" t=5 />')
+    assert "active_chain_id" in out
+
+
+# Note: the legacy `_should_emit_context_assembly` and the
+# WG_CONTEXT_ASSEMBLY env override were removed in this PR (gemini review:
+# dead code; v10 intent variable replaces them). The test cases that
+# exercised that surface are gone too — directive emission is now driven
+# entirely by `_build_intent_directive` based on the resolved intent
+# value, which is covered above.

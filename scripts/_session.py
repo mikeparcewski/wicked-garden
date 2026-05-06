@@ -223,6 +223,11 @@ class SessionState:
     # Pull-model context assembly (Issue #416).
     # Phase: bootstrap (turns 1-2, mandatory pull), calibrating (turns 3-8),
     # cruising (turns 9+, minimal directive). Transition driven by turn count.
+    #
+    # v10 Phase 1 (#813): superseded by `intent` field below for directive
+    # selection. `pull_phase` is kept for telemetry compatibility — handler
+    # still writes it during the soak window, but `_build_intent_directive`
+    # no longer reads it. Slated for removal in Phase 2.
     pull_phase: str = "bootstrap"  # bootstrap | calibrating | cruising
     # Count of brain:query/search pulls the model made this session.
     pull_count: int = 0
@@ -234,6 +239,29 @@ class SessionState:
     # 0 means no regression active. When set, mandatory pull lasts for 3 turns
     # from this turn number, then resumes normal phase progression.
     pull_regress_at: int = 0
+
+    # v10 Phase 1 (#813) — intent variable, the keystone for steer-not-block.
+    # One explicit, queryable value replaces five overlapping classifiers
+    # in prompt_submit.py (HOT fast-exit, near-HOT guard, complexity scorer,
+    # _should_emit_context_assembly, _resolve_pull_phase).
+    #
+    # Vocabulary (locked, do not extend without a brainstorm):
+    #   simple-edit | feature | rigor | research
+    #
+    # Lifecycle:
+    #   - None     : not yet detected (turn 1 before _detect_intent runs)
+    #   - <value>  : auto-detected on turn 1-2 OR explicitly set by skill
+    #
+    # `intent_explicit` is True only when /wicked-garden:intent set the
+    # value (or a command self-declared via that skill). Used to decide
+    # whether to echo the bare `<wg intent="X" t=N />` label in the
+    # system-reminder — auto-detected values stay invisible to prevent
+    # confirmation-bias drift.
+    #
+    # Sticky for the session. SessionEnd hook (stop.py) resets via delete().
+    # Design record: brainstorms/v10-session-01-intent-and-hook-gating.md
+    intent: str | None = None
+    intent_explicit: bool = False
 
     # PostToolUse hook latency profiling (Issue #312).
     # Cumulative milliseconds spent in the post_tool.py main() function.
