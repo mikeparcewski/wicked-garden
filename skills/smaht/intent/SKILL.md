@@ -8,6 +8,7 @@ description: |
 
   Use when: "set intent", "intent override", "/wicked-garden:intent",
   "make the framework quiet", "force rigor", "what's my intent".
+user-invocable: true
 ---
 
 # /wicked-garden:intent
