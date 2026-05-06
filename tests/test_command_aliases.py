@@ -4,10 +4,15 @@ tests/test_command_aliases.py
 Regression suite for command aliases introduced in v6.3.3 hygiene bundle (#533).
 
 Asserts:
-- The crew:yolo alias stub still exists (backward compat).
-- The yolo stub redirects to crew:auto-approve (mentions auto-approve).
 - The canonical auto-approve command exists with full content.
 - The phase_manager.py 'yolo' action subcommand name is preserved (no runtime rename).
+
+Historical note (v9.2.10): the `TestCrewYoloAliasStub` class was removed
+because `commands/crew/yolo.md` was deleted in PR #603 (v9-PR-2 surface
+cuts). The CLI compatibility shim now lives in `scripts/crew/autonomy.py`
+— `--yolo` resolves to `--autonomy=full` via `get_mode()` and emits a
+one-shot deprecation warning. There is no markdown alias file anymore;
+the contract `TestCrewYoloAliasStub` asserted has not held since #603.
 """
 
 from pathlib import Path
@@ -16,34 +21,6 @@ import pytest
 REPO = Path(__file__).parent.parent
 COMMANDS_CREW = REPO / "commands" / "crew"
 SCRIPTS_CREW = REPO / "scripts" / "crew"
-
-
-class TestCrewYoloAliasStub:
-    """crew:yolo must remain as a stub that redirects to crew:auto-approve."""
-
-    def test_yolo_md_exists(self):
-        """commands/crew/yolo.md must still exist for backward compatibility."""
-        assert (COMMANDS_CREW / "yolo.md").exists(), (
-            "commands/crew/yolo.md was deleted. It must remain as an alias stub "
-            "so that existing /wicked-garden:crew:yolo invocations continue to work."
-        )
-
-    def test_yolo_md_is_short_stub(self):
-        """yolo.md must be short (stub-only, not full command spec)."""
-        content = (COMMANDS_CREW / "yolo.md").read_text(encoding="utf-8")
-        lines = [l for l in content.splitlines() if l.strip()]
-        assert len(lines) <= 20, (
-            f"commands/crew/yolo.md has {len(lines)} non-empty lines — expected a short alias "
-            f"stub (<=20 lines). It may have been reverted to the full command spec."
-        )
-
-    def test_yolo_stub_references_auto_approve(self):
-        """yolo.md must reference crew:auto-approve so users know where the canonical command is."""
-        content = (COMMANDS_CREW / "yolo.md").read_text(encoding="utf-8")
-        assert "auto-approve" in content, (
-            "commands/crew/yolo.md stub must reference 'auto-approve' to redirect users "
-            "to the canonical command. Got:\n" + content[:300]
-        )
 
 
 class TestCrewAutoApproveCanonical:
