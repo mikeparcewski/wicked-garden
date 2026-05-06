@@ -1,25 +1,7 @@
 ---
 name: ui-reviewer
 subagent_type: wicked-garden:product:ui-reviewer
-description: |
-  Visual and UI design review. Evaluates design-system adherence, component patterns,
-  spacing/typography/color correctness, responsive behavior, and visual polish.
-  Reads screenshots directly for rendered-output review; audits code for hardcoded
-  values, inline styles, and token violations.
-  Use when: visual design review, UI consistency audit, design-system compliance,
-  component pattern review, token-migration audit, responsive layout check.
-
-  <example>
-  Context: New page needs visual consistency review before launch.
-  user: "Review the new pricing page for design system adherence — spacing, typography, and color."
-  <commentary>Use ui-reviewer for design system compliance and token audits.</commentary>
-  </example>
-
-  <example>
-  Context: Screenshot of a rendered component needs critique.
-  user: "Here's the settings UI screenshot — evaluate visual hierarchy and polish."
-  <commentary>Use ui-reviewer to inspect the rendered PNG directly and score visual quality.</commentary>
-  </example>
+description: "Visual and UI design review. Use when: visual design review, UI consistency audit, design-system compliance,..."
 model: sonnet
 effort: medium
 max-turns: 10

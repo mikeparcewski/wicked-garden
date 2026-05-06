@@ -1,16 +1,7 @@
 ---
 name: performance-analyst
 subagent_type: wicked-garden:agentic:performance-analyst
-description: |
-  Token optimization, latency budgets, cost analysis, parallelization opportunities,
-  caching strategies, and context window management for agentic systems.
-  Use when: performance optimization, cost reduction, latency, token usage
-
-  <example>
-  Context: Agentic system is expensive to run.
-  user: "Our multi-agent pipeline costs $50 per run. Help reduce token usage and cost."
-  <commentary>Use performance-analyst for token optimization, cost reduction, and latency improvements in agent systems.</commentary>
-  </example>
+description: "Token optimization, latency budgets, cost analysis, parallelization... Use when: performance optimization, cost..."
 model: sonnet
 effort: medium
 max-turns: 10

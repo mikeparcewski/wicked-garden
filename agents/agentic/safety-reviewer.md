@@ -1,16 +1,7 @@
 ---
 name: safety-reviewer
 subagent_type: wicked-garden:agentic:safety-reviewer
-description: |
-  Guardrails, prompt injection defense, PII protection, human-in-the-loop gates,
-  output validation, and hallucination mitigation for agentic systems.
-  Use when: safety review, guardrails, prompt injection, PII, validation
-
-  <example>
-  Context: New agentic system needs a safety audit.
-  user: "Review our agent pipeline for prompt injection vulnerabilities and missing guardrails."
-  <commentary>Use safety-reviewer for guardrails, prompt injection defense, and PII protection in agent systems.</commentary>
-  </example>
+description: "Guardrails, prompt injection defense, PII protection, human-in-the-loop gates,... Use when: safety review,..."
 model: opus
 effort: high
 max-turns: 15

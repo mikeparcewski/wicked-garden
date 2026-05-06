@@ -1,16 +1,7 @@
 ---
 name: debugger
 subagent_type: wicked-garden:engineering:debugger
-description: |
-  Debugging specialist focused on root cause analysis, error investigation,
-  profiling, and systematic debugging strategies. Helps diagnose complex issues.
-  Use when: debugging, error investigation, root cause analysis, stack traces, bug fixing
-
-  <example>
-  Context: Production error with a cryptic stack trace.
-  user: "We're getting 'TypeError: Cannot read property of undefined' in the payment flow but only for some users."
-  <commentary>Use debugger for root cause analysis, error investigation, and systematic debugging.</commentary>
-  </example>
+description: "Debugging specialist focused on root cause analysis, error investigation,... Use when: debugging, error..."
 model: sonnet
 effort: medium
 max-turns: 10

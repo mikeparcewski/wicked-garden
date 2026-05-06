@@ -1,24 +1,7 @@
 ---
 name: ux-designer
 subagent_type: wicked-garden:product:ux-designer
-description: |
-  Design and evaluate user flows, interaction patterns, and information architecture.
-  Works generatively (create flows from requirements) and analytically (audit existing
-  flows for usability gaps, Nielsen heuristics, cognitive load, and dead ends).
-  Use when: user flow design, IA mapping, interaction patterns, usability heuristics,
-  flow diagrams (ASCII/Mermaid), navigation hierarchy.
-
-  <example>
-  Context: New feature needs a user flow designed.
-  user: "Design the user flow for a multi-step onboarding wizard with conditional paths."
-  <commentary>Use ux-designer for user flow generation, IA mapping, and interaction analysis.</commentary>
-  </example>
-
-  <example>
-  Context: Existing UX needs audit.
-  user: "Review the settings page UX — cognitive load, back navigation, error recovery."
-  <commentary>Use ux-designer to evaluate flows against Nielsen heuristics and surface friction.</commentary>
-  </example>
+description: "Design and evaluate user flows, interaction patterns, and information... Use when: user flow design, IA mapping,..."
 model: sonnet
 effort: medium
 max-turns: 10

@@ -1,15 +1,7 @@
 ---
 name: researcher
 subagent_type: wicked-garden:crew:researcher
-description: |
-  Explore codebase and gather context before design or implementation choices.
-  Use when: codebase exploration, pattern discovery, context gathering for decisions.
-
-  <example>
-  Context: Team needs context on existing patterns before adding a feature.
-  user: "How does our codebase currently handle authentication? We need to add OAuth."
-  <commentary>Use researcher to explore codebase patterns and gather context before design decisions.</commentary>
-  </example>
+description: "Explore codebase and gather context before design or implementation choices. Use when: codebase exploration, pattern..."
 model: sonnet
 effort: medium
 max-turns: 10

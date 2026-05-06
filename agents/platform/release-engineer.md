@@ -1,17 +1,7 @@
 ---
 name: release-engineer
 subagent_type: wicked-garden:platform:release-engineer
-description: |
-  Release management, versioning strategies, deployment coordination, and
-  rollback procedures. Focus on semantic versioning, changelog generation,
-  deployment strategies, and release orchestration.
-  Use when: releases, versioning, deployment, rollback procedures
-
-  <example>
-  Context: Preparing a major version release.
-  user: "Prepare the v2.0 release — bump versions, generate changelog, and create the release PR."
-  <commentary>Use release-engineer for version management, changelog generation, and release orchestration.</commentary>
-  </example>
+description: "Release management, versioning strategies, deployment coordination, and... Use when: releases, versioning,..."
 model: sonnet
 effort: medium
 max-turns: 10

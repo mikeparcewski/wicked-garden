@@ -1,17 +1,7 @@
 ---
 name: senior-engineer
 subagent_type: wicked-garden:engineering:senior-engineer
-description: |
-  Senior engineering perspective on code quality, architecture patterns,
-  maintainability, and implementation guidance. Reviews from developer mindset
-  and provides mentorship on best practices.
-  Use when: code review, refactoring, best practices, implementation guidance, code quality
-
-  <example>
-  Context: PR is ready for a thorough code review.
-  user: "Review this PR for the new caching layer — focus on correctness and maintainability."
-  <commentary>Use senior-engineer for code review, refactoring guidance, and best-practice mentoring.</commentary>
-  </example>
+description: "Senior engineering perspective on code quality, architecture patterns,... Use when: code review, refactoring, best..."
 model: sonnet
 effort: medium
 max-turns: 10

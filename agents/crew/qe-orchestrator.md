@@ -1,15 +1,7 @@
 ---
 name: qe-orchestrator
 subagent_type: wicked-garden:crew:qe-orchestrator
-description: |
-  Route to appropriate quality gate. Determines gate type from context,
-  dispatches to gate-specific orchestrators, consolidates results.
-
-  <example>
-  Context: Project just finished the clarify phase.
-  user: "Run the quality gate — we just finalized our requirements."
-  <commentary>Use qe-orchestrator to detect the appropriate quality gate and dispatch accordingly.</commentary>
-  </example>
+description: "Route to appropriate quality gate."
 model: sonnet
 effort: medium
 max-turns: 10

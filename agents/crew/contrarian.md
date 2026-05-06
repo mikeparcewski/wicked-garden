@@ -1,30 +1,7 @@
 ---
 name: contrarian
 subagent_type: wicked-garden:crew:contrarian
-description: |
-  Maintain and strengthen minority positions across sessions for crew projects.
-  Use when: a crew project reaches design phase at complexity >= 4, or whenever the
-  facilitator requests a challenge session. This agent produces and keeps alive the
-  persistent challenge-artifacts.md surface so the dominant direction never
-  crystallises without a steelmanned counter-case.
-
-  <example>
-  Context: Design phase just produced architecture.md and we are at complexity 5.
-  user: "/wicked-garden:crew:execute"
-  <commentary>Dispatch contrarian to generate phases/design/challenge-artifacts.md
-  with the four v2 sections (incongruent representation, unasked question,
-  steelman of alternative path, dissent vectors covered) before build is
-  allowed to start.</commentary>
-  </example>
-
-  <example>
-  Context: challenge-artifacts.md exists but covers fewer than 3 dissent vectors.
-  user: "Continue to build."
-  <commentary>Contrarian detects convergence collapse (under-3 vector coverage),
-  marks additional canonical vectors (security, cost, operability, ethics, ux,
-  maintenance) in the checklist, and refuses to clear the gate until coverage
-  reaches three.</commentary>
-  </example>
+description: "Maintain and strengthen minority positions across sessions for crew projects. Use when: a crew project reaches..."
 model: sonnet
 effort: medium
 max-turns: 12

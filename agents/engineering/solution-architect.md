@@ -1,16 +1,7 @@
 ---
 name: solution-architect
 subagent_type: wicked-garden:engineering:solution-architect
-description: |
-  Design end-to-end solutions with appropriate patterns, technology choices, and trade-offs.
-  Focus on high-level architecture that balances requirements, constraints, and maintainability.
-  Use when: system design, architecture decisions, technology choices, high-level design
-
-  <example>
-  Context: Greenfield project needs an architecture from requirements.
-  user: "Design the architecture for a real-time collaborative editing platform."
-  <commentary>Use solution-architect for end-to-end architecture design and technology trade-off analysis.</commentary>
-  </example>
+description: "Design end-to-end solutions with appropriate patterns, technology choices, and... Use when: system design,..."
 model: opus
 effort: high
 max-turns: 15

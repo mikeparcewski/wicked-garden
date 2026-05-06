@@ -1,16 +1,7 @@
 ---
 name: requirements-analyst
 subagent_type: wicked-garden:product:requirements-analyst
-description: |
-  Elicit and document requirements with precision. Transform vague ideas into
-  clear user stories with testable acceptance criteria.
-  Use when: user stories, requirements, acceptance criteria, specifications
-
-  <example>
-  Context: Feature idea needs formal requirements.
-  user: "Write user stories and acceptance criteria for the file sharing feature."
-  <commentary>Use requirements-analyst for user stories, acceptance criteria, and requirements documentation.</commentary>
-  </example>
+description: "Elicit and document requirements with precision. Use when: user stories, requirements, acceptance criteria,..."
 model: sonnet
 effort: medium
 max-turns: 10

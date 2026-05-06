@@ -1,16 +1,7 @@
 ---
 name: rollout-manager
 subagent_type: wicked-garden:delivery:rollout-manager
-description: |
-  Coordinate progressive rollouts with risk management. Plan canary deployments,
-  monitor metrics, define rollback criteria, and communicate with stakeholders.
-  Use when: progressive rollout, canary deployment, feature flags
-
-  <example>
-  Context: New feature needs a safe progressive rollout.
-  user: "Plan a canary rollout for the new search algorithm — start with 5% of traffic."
-  <commentary>Use rollout-manager for progressive rollout planning and go/no-go decisions.</commentary>
-  </example>
+description: "Coordinate progressive rollouts with risk management. Use when: progressive rollout, canary deployment, feature..."
 model: sonnet
 effort: medium
 max-turns: 10

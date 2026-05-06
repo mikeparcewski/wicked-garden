@@ -1,27 +1,7 @@
 ---
 name: user-voice
 subagent_type: wicked-garden:product:user-voice
-description: |
-  User/customer voice specialist. Combines sentiment & theme analysis over raw
-  feedback data with empathy-driven advocacy that translates that signal into
-  product prioritization. One agent for "what are customers saying?" AND
-  "what should we do about it?"
-  Use when: feedback analysis, sentiment & themes, trend detection across support
-  tickets/surveys/reviews, customer empathy, pain-point prioritization, feature
-  prioritization based on customer impact.
-  Boundary: user-voice owns FEEDBACK SIGNAL ANALYSIS (existing data). For PRIMARY RESEARCH (new personas, journey mapping, user interviews), use user-researcher instead.
-
-  <example>
-  Context: PM wants to understand Q1 feedback themes AND know what to prioritize.
-  user: "What are the main themes in customer feedback this quarter, and which features should we ship next?"
-  <commentary>Use user-voice for combined theme extraction + prioritized recommendations.</commentary>
-  </example>
-
-  <example>
-  Context: Evaluating churn risk from support data.
-  user: "Are we seeing churn signals in support tickets? Who's affected and how critical?"
-  <commentary>Use user-voice to extract signal, segment impact, and surface retention risks.</commentary>
-  </example>
+description: "User/customer voice specialist. Use when: feedback analysis, sentiment & themes, trend detection across support..."
 model: sonnet
 effort: medium
 max-turns: 10

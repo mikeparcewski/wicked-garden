@@ -1,35 +1,7 @@
 ---
 name: phase-executor
 subagent_type: wicked-garden:crew:phase-executor
-description: |
-  Produce the current phase's deliverables and run phase-start / phase-end re-evaluations
-  for a mode-3 wicked-crew project. Use when: phase_manager.execute() dispatches a phase
-  for a full-rigor crew project; the agent receives a phase brief and returns a
-  deliverables manifest plus a parallelization_check block. Re-eval records are written
-  to disk (phases/{phase}/reeval-start.json + reeval-log.jsonl + process-plan.addendum.jsonl).
-
-  <example>
-  Context: A crew project has just entered the design phase; the clarify gate APPROVED.
-  user: (invoked by phase_manager.execute(project, "design"))
-  <commentary>
-  phase-executor reads the clarify-phase outputs, runs phase-start re-eval (usually a no-op
-  at phase-start), produces phases/design/design.md per the phase template, runs phase-end
-  re-eval appending to reeval-log.jsonl + process-plan.addendum.jsonl, and returns a JSON
-  manifest with files_written, scope_changes, plan_mutations, parallelization_check.
-  </commentary>
-  </example>
-
-  <example>
-  Context: build phase with 3 independent code-edit sub-tasks.
-  user: (invoked by phase_manager.execute(project, "build"))
-  <commentary>
-  Because phases.json sets phase_executor_may_delegate=true for build, the executor
-  dispatches the 3 edits in a single parallel Task batch (SC-6), aggregates results,
-  writes executor-status.json with sub_agent_timing entries showing overlapping
-  [dispatched_at, completed_at] windows, and returns parallelization_check with
-  dispatched_in_parallel=true.
-  </commentary>
-  </example>
+description: "Produce the current phase's deliverables and run phase-start / phase-end... Use when: phase_manager"
 model: sonnet
 effort: high
 max-turns: 12

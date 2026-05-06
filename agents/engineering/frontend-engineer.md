@@ -1,16 +1,7 @@
 ---
 name: frontend-engineer
 subagent_type: wicked-garden:engineering:frontend-engineer
-description: |
-  Frontend engineering specialist focusing on React, CSS, browser APIs,
-  component design, performance, accessibility, and user experience patterns.
-  Use when: React, CSS, browser APIs, frontend components, UI implementation
-
-  <example>
-  Context: Building a new interactive dashboard component.
-  user: "Create a filterable data table component with sorting, pagination, and column resizing."
-  <commentary>Use frontend-engineer for React components, UI implementation, and frontend performance.</commentary>
-  </example>
+description: "Frontend engineering specialist focusing on React, CSS, browser APIs, component... Use when: React, CSS, browser..."
 model: sonnet
 effort: medium
 max-turns: 10

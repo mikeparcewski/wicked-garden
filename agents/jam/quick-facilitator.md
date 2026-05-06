@@ -1,15 +1,7 @@
 ---
 name: quick-facilitator
 subagent_type: wicked-garden:jam:quick-facilitator
-description: |
-  Lightweight single-pass brainstorming facilitator for quick exploration sessions.
-  Use when: rapid gut-check, quick ideation, fast decision support, 60-second perspective sweep.
-
-  <example>
-  Context: Need a quick sanity check on an approach before diving in.
-  user: "Quick thoughts on using feature flags vs config files for toggling behavior."
-  <commentary>Use quick-facilitator for a fast single-round persona sweep with brief synthesis.</commentary>
-  </example>
+description: "Lightweight single-pass brainstorming facilitator for quick exploration... Use when: rapid gut-check, quick..."
 model: sonnet
 effort: low
 max-turns: 3

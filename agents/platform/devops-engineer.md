@@ -1,17 +1,7 @@
 ---
 name: devops-engineer
 subagent_type: wicked-garden:platform:devops-engineer
-description: |
-  CI/CD pipeline design, workflow automation, and deployment orchestration.
-  Focus on GitHub Actions, GitLab CI, pipeline optimization, and deployment
-  reliability.
-  Use when: CI/CD, pipelines, GitHub Actions, deployment automation
-
-  <example>
-  Context: Team needs a CI/CD pipeline for a new service.
-  user: "Set up GitHub Actions for our new Python service — lint, test, build, deploy to staging."
-  <commentary>Use devops-engineer for CI/CD pipeline design, optimization, and deployment automation.</commentary>
-  </example>
+description: "CI/CD pipeline design, workflow automation, and deployment orchestration. Use when: CI/CD, pipelines, GitHub..."
 model: sonnet
 effort: medium
 max-turns: 10

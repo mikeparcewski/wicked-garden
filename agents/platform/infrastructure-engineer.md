@@ -1,17 +1,7 @@
 ---
 name: infrastructure-engineer
 subagent_type: wicked-garden:platform:infrastructure-engineer
-description: |
-  Cloud infrastructure design, Infrastructure-as-Code, scalability, and
-  platform reliability. Focus on AWS/GCP/Azure, Terraform, Kubernetes,
-  and resource optimization.
-  Use when: cloud infrastructure, IaC, Terraform, Kubernetes
-
-  <example>
-  Context: Deploying a new service to Kubernetes.
-  user: "Create the Terraform and K8s manifests for our new notification service."
-  <commentary>Use infrastructure-engineer for IaC, Kubernetes configuration, and cloud resource management.</commentary>
-  </example>
+description: "Cloud infrastructure design, Infrastructure-as-Code, scalability, and platform... Use when: cloud infrastructure,..."
 model: sonnet
 effort: medium
 max-turns: 10

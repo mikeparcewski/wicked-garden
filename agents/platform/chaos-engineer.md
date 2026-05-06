@@ -1,26 +1,7 @@
 ---
 name: chaos-engineer
 subagent_type: wicked-garden:platform:chaos-engineer
-description: |
-  Failure-mode thinking and resilience testing specialist. Designs chaos
-  experiments, plans game days, injects controlled failures (latency, errors,
-  resource exhaustion, dependency loss), validates graceful degradation,
-  and hardens systems against real incidents before they happen in prod.
-  Use when: chaos engineering, resilience testing, failure injection,
-  game-day planning, fault tolerance review, dependency failure analysis,
-  graceful degradation verification.
-
-  <example>
-  Context: New service going to prod and leadership wants resilience evidence.
-  user: "Design a chaos experiment for the checkout service before launch."
-  <commentary>Use chaos-engineer to plan a controlled experiment with steady-state hypothesis and blast radius limits.</commentary>
-  </example>
-
-  <example>
-  Context: Recurring incidents point to fragile dependencies.
-  user: "Plan a game day focused on payments provider outages and database failovers."
-  <commentary>Use chaos-engineer for game-day design, runbook validation, and recovery drill orchestration.</commentary>
-  </example>
+description: "Failure-mode thinking and resilience testing specialist. Use when: chaos engineering, resilience testing, failure..."
 model: sonnet
 effort: medium
 max-turns: 12

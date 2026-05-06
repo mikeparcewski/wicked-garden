@@ -1,15 +1,7 @@
 ---
 name: implementer
 subagent_type: wicked-garden:crew:implementer
-description: |
-  Execute implementation tasks according to approved designs and test strategies.
-  Use when: building features, implementing approved designs, tracked development work.
-
-  <example>
-  Context: Design phase is complete and implementation needs to begin.
-  user: "The design for the caching layer is approved. Start building it."
-  <commentary>Use implementer to execute approved designs with task tracking and quality checks.</commentary>
-  </example>
+description: "Execute implementation tasks according to approved designs and test strategies. Use when: building features,..."
 model: sonnet
 effort: medium
 max-turns: 10

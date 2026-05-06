@@ -1,16 +1,7 @@
 ---
 name: risk-monitor
 subagent_type: wicked-garden:delivery:risk-monitor
-description: |
-  Risk tracking and escalation management. Identifies delivery risks,
-  tracks mitigation progress, and manages dependency chains.
-  Use when: delivery risks, escalation, dependency tracking
-
-  <example>
-  Context: Project has multiple dependencies that could cause delays.
-  user: "Identify delivery risks for the platform migration — we depend on 3 other teams."
-  <commentary>Use risk-monitor for delivery risk identification, dependency tracking, and escalation.</commentary>
-  </example>
+description: "Risk tracking and escalation management. Use when: delivery risks, escalation, dependency tracking <example>..."
 model: sonnet
 effort: medium
 max-turns: 10

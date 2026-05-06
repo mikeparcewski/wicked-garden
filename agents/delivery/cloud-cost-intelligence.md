@@ -1,25 +1,7 @@
 ---
 name: cloud-cost-intelligence
 subagent_type: wicked-garden:delivery:cloud-cost-intelligence
-description: |
-  Cloud/infrastructure cost analysis AND optimization in one agent. Analyzes billing
-  data to identify cost drivers, anomalies, budget variance, and untagged spend —
-  then recommends right-sizing, reserved capacity, idle-resource cleanup, scheduling,
-  and architectural cost improvements with quantified savings and risk assessment.
-  Use when: cloud cost analysis, billing breakdown, budget variance, cost anomalies,
-  right-sizing, reserved instances, idle resource cleanup, FinOps governance.
-
-  <example>
-  Context: Monthly cloud bill needs breakdown AND optimization plan.
-  user: "Break down this month's AWS costs and find the top optimization opportunities."
-  <commentary>Use cloud-cost-intelligence for combined cost analysis + optimization with quantified savings.</commentary>
-  </example>
-
-  <example>
-  Context: Budget variance investigation.
-  user: "We're 30% over budget this quarter — why, and what can we cut?"
-  <commentary>Use cloud-cost-intelligence to identify drivers and produce a prioritized savings plan.</commentary>
-  </example>
+description: "Cloud/infrastructure cost analysis AND optimization in one agent. Use when: cloud cost analysis, billing breakdown,..."
 model: sonnet
 effort: medium
 max-turns: 10

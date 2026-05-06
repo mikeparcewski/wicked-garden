@@ -1,25 +1,7 @@
 ---
 name: value-strategist
 subagent_type: wicked-garden:product:value-strategist
-description: |
-  Value-proposition design AND stakeholder alignment in one agent. Designs value
-  propositions using Jobs-to-be-Done, pain/gain mapping, and differentiation axes;
-  facilitates alignment across stakeholders by surfacing concerns, mediating
-  trade-offs, and building consensus on the value chosen.
-  Use when: value proposition, differentiation, customer benefits, stakeholder
-  alignment, concern surfacing, trade-off mediation, consensus building.
-
-  <example>
-  Context: New product needs a value proposition AND stakeholder buy-in.
-  user: "Define the value prop for our developer productivity tool and align eng + product on scope."
-  <commentary>Use value-strategist to design the value prop and drive alignment in one pass.</commentary>
-  </example>
-
-  <example>
-  Context: Teams disagree on the technical approach to deliver value.
-  user: "Engineering wants rebuild, product wants incremental. Help align on what value we're delivering."
-  <commentary>Use value-strategist to mediate trade-offs and build consensus on value.</commentary>
-  </example>
+description: "Value-proposition design AND stakeholder alignment in one agent. Use when: value proposition, differentiation,..."
 model: sonnet
 effort: medium
 max-turns: 10

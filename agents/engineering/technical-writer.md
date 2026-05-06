@@ -1,16 +1,7 @@
 ---
 name: technical-writer
 subagent_type: wicked-garden:engineering:technical-writer
-description: |
-  Create clear, accessible technical documentation with proper structure, audience awareness,
-  and practical examples. Focus on helping users understand and use the system effectively.
-  Use when: documentation, technical writing, README, user guides
-
-  <example>
-  Context: New open-source project needs documentation from scratch.
-  user: "Write a getting-started guide for our CLI tool that covers installation, configuration, and first use."
-  <commentary>Use technical-writer for user guides, README files, and operational documentation.</commentary>
-  </example>
+description: "Create clear, accessible technical documentation with proper structure,... Use when: documentation, technical..."
 model: sonnet
 effort: medium
 max-turns: 10

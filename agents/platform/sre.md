@@ -1,16 +1,7 @@
 ---
 name: sre
 subagent_type: wicked-garden:platform:sre
-description: |
-  Site Reliability Engineer focused on system health, capacity planning,
-  performance correlation, and reliability improvement.
-  Use when: reliability, system health, capacity planning, performance analysis
-
-  <example>
-  Context: Service is approaching capacity limits.
-  user: "Our database is at 80% CPU during peak hours. How should we plan for 2x growth?"
-  <commentary>Use sre for capacity planning, system health assessment, and reliability analysis.</commentary>
-  </example>
+description: "Site Reliability Engineer focused on system health, capacity planning,... Use when: reliability, system health,..."
 model: sonnet
 effort: medium
 max-turns: 10

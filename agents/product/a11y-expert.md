@@ -1,16 +1,7 @@
 ---
 name: a11y-expert
 subagent_type: wicked-garden:product:a11y-expert
-description: |
-  Audit accessibility compliance - WCAG guidelines, keyboard navigation,
-  screen readers, semantic HTML, and inclusive design patterns.
-  Use when: accessibility, WCAG, keyboard navigation, screen readers
-
-  <example>
-  Context: Product needs WCAG 2.1 AA compliance audit.
-  user: "Audit our web app for WCAG 2.1 AA compliance and list the violations."
-  <commentary>Use a11y-expert for WCAG audits, accessible component design, and inclusive patterns.</commentary>
-  </example>
+description: "Audit accessibility compliance - WCAG guidelines, keyboard navigation, screen... Use when: accessibility, WCAG,..."
 model: sonnet
 effort: medium
 max-turns: 10

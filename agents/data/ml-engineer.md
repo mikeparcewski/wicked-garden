@@ -1,16 +1,7 @@
 ---
 name: ml-engineer
 subagent_type: wicked-garden:data:ml-engineer
-description: |
-  ML model development, training pipeline design, feature engineering, and deployment guidance.
-  Ensures ML systems are robust, monitored, and maintainable.
-  Use when: ML models, training pipelines, feature engineering, model deployment
-
-  <example>
-  Context: Building a recommendation system.
-  user: "Design the ML pipeline for our product recommendation engine."
-  <commentary>Use ml-engineer for ML pipeline design, model deployment, and production ML maintenance.</commentary>
-  </example>
+description: "ML model development, training pipeline design, feature engineering, and... Use when: ML models, training pipelines,..."
 model: sonnet
 effort: medium
 max-turns: 10

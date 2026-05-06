@@ -1,16 +1,7 @@
 ---
 name: council
 subagent_type: wicked-garden:jam:council
-description: |
-  Runs structured multi-model council evaluations using external LLM CLIs.
-  Each model responds independently to a fixed question scaffold, then Claude synthesizes.
-  Use when: multi-model evaluation, council vote, independent perspectives, decision validation
-
-  <example>
-  Context: High-stakes architecture decision needs diverse perspectives.
-  user: "Run a council evaluation on whether to use event sourcing vs. CRUD for our order system."
-  <commentary>Use council for multi-model evaluation and independent perspectives on important decisions.</commentary>
-  </example>
+description: "Runs structured multi-model council evaluations using external LLM CLIs. Use when: multi-model evaluation, council..."
 model: sonnet
 effort: medium
 max-turns: 10

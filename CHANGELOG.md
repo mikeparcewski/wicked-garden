@@ -1,5 +1,37 @@
 # Changelog
 
+## [9.1.0] - 2026-05-06
+
+**Phase 4 of the v10 architectural series: agent description discipline.**
+
+Brainstorm session 04 reframed the original "personas as skills" plan: moving agent files to `skills/personas/` would BREAK every `Task(subagent_type=...)` dispatch site silently because the Claude Code platform reads `agents/**/*.md` natively. The actual lever for parent-context burn reduction is the `description:` frontmatter field — it's what gets injected into the Task tool's discoverable subagent listing on every turn.
+
+### Phase 4 — agent description discipline
+
+- **All 63 agent files trimmed**: `description:` field shortened to ≤120 chars (single-line double-quoted YAML scalar). Pattern: `"{What it does}. Use when: X, Y, Z."` Fuller behavioral expansion stays in the agent body where it belongs.
+- **Measured impact**: agent-description bytes drop from ~21,897 chars → ~9,293 chars (~57% reduction). Estimated token savings: ~5,474 → ~2,323 tokens per turn (-3,150 tokens). This applies on every turn, including trivial ones — it composites with Phase 1 intent gating for cumulative impact.
+- **`/wg-check` rule added**: `.claude/agents/wg-quality-checker.md` gains an agent-description-discipline check. Violations are warnings (steer, not block — consistent with the v10 steering-not-blocking principle). Locks the discipline in permanently.
+- **Zero dispatch site changes**: all 61 `Task(subagent_type=...)` call sites continue to work unchanged. No coexistence period, no flag day, no migration debt.
+- **`skills/personas/` deferred**: the namespace reservation is held until a genuine stateful-persona capability warrants it (memory-carrying, cross-session, personality-injecting agents). Not building the namespace until the capability exists.
+
+### Architecture commentary
+
+The v10 series has now found four load-bearing reframes — one per session:
+1. Session 1: HOT/calibrating/cruising are unnamed intent classifiers; name them, get one variable
+2. Session 2: bloat is in `commands/`, not `skills/`
+3. Session 3: dispatch-log and audit-trail serve different threat models; don't conflate
+4. Session 4: agent file location is platform-controlled; description discipline is the only lever
+
+Brain memory: `v10-phase4-agent-discovery-discipline-decision`.
+
+### Known limitation
+
+Description trimming may slightly degrade facilitator specialist-routing quality because the facilitator uses description text for rubric matching. Validation on existing crew scenarios (45 tests in the agents/facilitator/specialist_resolver suite, all pass). If routing degradation surfaces in dogfood, the follow-on is a `match_signal:` frontmatter field — read by AgentLoader for facilitator matching only, NOT injected into the Task tool description.
+
+### Platform feature request
+
+The "real" fix is platform-level: a `discoverable: on-demand` frontmatter flag in `agents/**/*.md` that the Claude Code platform honors to tier its subagent listing. Description trimming is a workaround until that exists.
+
 ## [9.0.0] - 2026-05-06
 
 The **v10 architectural series**: collapse parallel-state ceremony, gate emit/suppress on explicit intent, slim command bodies, add cross-session task-chain rescue. Major bump because some ENV-visible knobs are removed (see Breaking Changes).

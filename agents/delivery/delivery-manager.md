@@ -1,16 +1,7 @@
 ---
 name: delivery-manager
 subagent_type: wicked-garden:delivery:delivery-manager
-description: |
-  Sprint and project delivery management. Track velocity, plan sprints,
-  manage scope, and coordinate cross-team dependencies.
-  Use when: sprint planning, velocity tracking, scope management, project coordination
-
-  <example>
-  Context: Planning the next sprint.
-  user: "Plan the next sprint based on our velocity and the remaining backlog."
-  <commentary>Use delivery-manager for sprint planning, scope management, and delivery coordination.</commentary>
-  </example>
+description: "Sprint and project delivery management. Use when: sprint planning, velocity tracking, scope management, project..."
 model: sonnet
 effort: medium
 max-turns: 10

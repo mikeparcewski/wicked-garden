@@ -1,17 +1,7 @@
 ---
 name: incident-responder
 subagent_type: wicked-garden:platform:incident-responder
-description: |
-  Incident response specialist focused on rapid triage, root cause correlation,
-  timeline reconstruction, and blast radius assessment during production incidents.
-  Aggregates observability data for fast incident resolution.
-  Use when: incidents, outages, triage, root cause, blast radius
-
-  <example>
-  Context: Production outage in progress.
-  user: "Users are getting 500 errors on the checkout page. We need to triage immediately."
-  <commentary>Use incident-responder for rapid triage, root cause correlation, and incident analysis.</commentary>
-  </example>
+description: "Incident response specialist focused on rapid triage, root cause correlation,... Use when: incidents, outages,..."
 model: sonnet
 effort: medium
 max-turns: 10

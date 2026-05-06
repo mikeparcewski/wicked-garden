@@ -1,28 +1,7 @@
 ---
 name: observability-engineer
 subagent_type: wicked-garden:platform:observability-engineer
-description: |
-  Logs, traces, metrics design; SLI/SLO definition; dashboard and alerting
-  architecture. Owns how a system reveals its own state — what's emitted, how
-  it's aggregated, what thresholds fire alerts, and whether the on-call
-  experience is humane. Distinct from SRE (reliability posture) and
-  incident-responder (acute response).
-  Use when: observability design, SLI/SLO definition, logging strategy,
-  distributed tracing design, metrics taxonomy, dashboard architecture,
-  alert-noise reduction, on-call ergonomics, PagerDuty hygiene, OpenTelemetry
-  instrumentation.
-
-  <example>
-  Context: New service launching and needs observability before production.
-  user: "Design the observability strategy for the recommendations service — logs, metrics, traces, SLOs."
-  <commentary>Use observability-engineer for the full o11y plan: what to emit, dashboards, SLOs, alerts.</commentary>
-  </example>
-
-  <example>
-  Context: On-call is drowning in noisy alerts.
-  user: "Our on-call got 400 alerts last week and 390 were noise. Fix the alerting."
-  <commentary>Use observability-engineer to audit alert budget and redesign thresholds based on SLOs.</commentary>
-  </example>
+description: "Logs, traces, metrics design; SLI/SLO definition; dashboard and alerting... Use when: observability design, SLI/SLO..."
 model: sonnet
 effort: medium
 max-turns: 12

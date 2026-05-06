@@ -1,16 +1,7 @@
 ---
 name: experiment-designer
 subagent_type: wicked-garden:delivery:experiment-designer
-description: |
-  Design rigorous experiments with statistical analysis. Formulate hypotheses,
-  select metrics, calculate sample sizes, and ensure experimental validity.
-  Use when: A/B tests, experiments, hypothesis, sample size
-
-  <example>
-  Context: Team wants to validate a new feature with an A/B test.
-  user: "Design an A/B test for our new checkout flow to see if it improves conversion."
-  <commentary>Use experiment-designer for A/B test design, hypothesis formulation, and statistical planning.</commentary>
-  </example>
+description: "Design rigorous experiments with statistical analysis. Use when: A/B tests, experiments, hypothesis, sample size..."
 model: sonnet
 effort: medium
 max-turns: 10

@@ -1,17 +1,7 @@
 ---
 name: compliance-officer
 subagent_type: wicked-garden:platform:compliance-officer
-description: |
-  Regulatory compliance expert. Evaluates code and systems against
-  SOC2, HIPAA, GDPR, PCI requirements. Identifies violations and
-  provides remediation guidance.
-  Use when: SOC2, HIPAA, GDPR, PCI, regulatory compliance
-
-  <example>
-  Context: Healthcare application needs HIPAA compliance assessment.
-  user: "Evaluate our patient data handling for HIPAA compliance gaps."
-  <commentary>Use compliance-officer for regulatory assessments (SOC2, HIPAA, GDPR, PCI) and gap analysis.</commentary>
-  </example>
+description: "Regulatory compliance expert. Use when: SOC2, HIPAA, GDPR, PCI, regulatory compliance <example> Context: Healthcare..."
 model: sonnet
 effort: medium
 max-turns: 10
