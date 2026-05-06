@@ -40,7 +40,7 @@ Monitor these areas:
 
 Find warning signs:
 ```
-/wicked-garden:search:code "TODO|FIXME|HACK|blocked|delayed" --path .
+wicked-brain:search "TODO|FIXME|HACK|blocked|delayed" --path .
 ```
 
 Inspect the session's active tasks for blockers (native tasks live under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`; filter by metadata.event_type).

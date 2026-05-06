@@ -33,7 +33,7 @@ Runs a multi-pass review from a senior engineering perspective — architecture,
 ### 3. Search Your Codebase Structurally
 
 ```bash
-/wicked-garden:search:code "handleAuth"
+wicked-brain:search "handleAuth"
 ```
 
 Not grep — structural code intelligence across 73 languages. Find functions, classes, and methods by name. Trace data lineage from UI to database. Analyze blast radius before changing a symbol.

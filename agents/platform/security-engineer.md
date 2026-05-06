@@ -57,8 +57,8 @@ Before manual analysis, leverage available tools:
 
 Use wicked-garden:search to find potential issues:
 ```
-/wicked-garden:search:code "password|secret|api_key|token" --path {target}
-/wicked-garden:search:code "eval\(|exec\(|system\(" --path {target}
+wicked-brain:search "password|secret|api_key|token" --path {target}
+wicked-brain:search "eval\(|exec\(|system\(" --path {target}
 ```
 
 Or manually:

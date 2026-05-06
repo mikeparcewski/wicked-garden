@@ -784,7 +784,7 @@ def _suggest_commands_for_project() -> str | None:
         has_ci = (cwd / ".github" / "workflows").is_dir()
 
         # Always useful
-        suggestions.append("`/wicked-garden:search:code` — semantic code search")
+        suggestions.append("`wicked-brain:search` — semantic code search")
         suggestions.append("`/wicked-garden:engineering:review` — structured code review")
 
         # Project-type-specific

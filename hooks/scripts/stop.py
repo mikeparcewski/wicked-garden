@@ -434,8 +434,12 @@ def main():
         except Exception:
             pass
 
-        # 2. Memory flush reminder — always included as directive to Claude.
-        # Auto-promotion already ran (step 2b); adjust directive accordingly.
+        # 2. Memory flush reminder — fires AT MOST once per session.
+        # Stop fires at end of every model response (per turn). Pre-v9.2.2 the
+        # reminder fired every Stop, creating false-urgency noise (friction
+        # inventory item 11). Now latched on session_state.memory_reminder_shown.
+        # After the first fire, subsequent Stop calls skip the reminder; auto-
+        # promotion (step 2b above) keeps doing its job silently.
         decay_prefix = f"{'; '.join(decay_messages)}. " if decay_messages else ""
         promoted_count = sum(
             int(m.split("Auto-extracted ")[1].split(" ")[0])
@@ -443,35 +447,47 @@ def main():
             if "Auto-extracted" in m
         ) if promotion_messages else 0
 
-        if promoted_count > 0:
-            reflection = (
-                f"[Memory] {decay_prefix}"
-                f"Auto-extracted {promoted_count} memories this session. "
-                "Review or supplement with wicked-brain:memory (recall mode) if needed. "
-                "If additional decisions or discoveries were made that were not captured, "
-                "store them with wicked-brain:memory (type: decision, procedural, or episodic)."
-            )
-        else:
-            task_count_note = (
-                f"You completed {tasks_completed_this_session} tasks this session — review each with TaskList. "
-                if tasks_completed_this_session > 0
-                else "Run TaskList to review completed tasks from this session. "
-            )
-            reflection = (
-                f"[Memory] {decay_prefix}REQUIRED: Session ending. "
-                f"{task_count_note}"
-                "For each completed task, evaluate: did it produce a decision, gotcha, or reusable pattern? "
-                "Store each learning with wicked-brain:memory "
-                "(type: decision, procedural, or episodic). "
-                "If no tasks completed or no learnings found, state 'No memories to store.' "
-                "Do NOT skip silently."
-            )
+        already_shown = bool(getattr(session_state, "memory_reminder_shown", False)) if session_state else False
+        reflection = ""
+        if not already_shown:
+            if promoted_count > 0:
+                reflection = (
+                    f"[Memory] {decay_prefix}"
+                    f"Auto-extracted {promoted_count} memories this session. "
+                    "Review or supplement with wicked-brain:memory (recall mode) if needed. "
+                    "If additional decisions or discoveries were made that were not captured, "
+                    "store them with wicked-brain:memory (type: decision, procedural, or episodic)."
+                )
+            else:
+                task_count_note = (
+                    f"You completed {tasks_completed_this_session} tasks this session. "
+                    if tasks_completed_this_session > 0
+                    else ""
+                )
+                reflection = (
+                    f"[Memory] {decay_prefix}"
+                    f"{task_count_note}"
+                    "If any decisions, gotchas, or reusable patterns surfaced this session, "
+                    "consider storing them via wicked-brain:memory (type: decision, procedural, "
+                    "or episodic). Otherwise, no action needed. This reminder fires once per session."
+                )
+            # Latch — subsequent Stop hooks skip this reminder.
+            try:
+                if session_state:
+                    session_state.update(memory_reminder_shown=True)
+            except Exception:
+                pass  # fail open — reminder may fire again, no functional harm
 
         # Combine all pre-reflection messages (outcome + promotion + consolidation + guard notices)
-        # Note: decay_messages already included via decay_prefix in reflection
+        # Note: decay_messages already included via decay_prefix in reflection.
+        # `reflection` may be empty when memory_reminder_shown is already True
+        # for this session (post-first-Stop) — only join with separator if both
+        # halves have content.
         prepend_messages = outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
-        if prepend_messages:
+        if prepend_messages and reflection:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
+        elif prepend_messages:
+            final_message = "\n".join(prepend_messages)
         else:
             final_message = reflection
 

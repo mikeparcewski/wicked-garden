@@ -53,7 +53,7 @@ Before manual work, leverage available tools:
 
 Search for existing workflows:
 ```
-/wicked-garden:search:code "\.github/workflows|\.gitlab-ci\.yml" --path {target}
+wicked-brain:search "\.github/workflows|\.gitlab-ci\.yml" --path {target}
 ```
 
 Or manually:

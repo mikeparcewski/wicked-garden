@@ -1,5 +1,53 @@
 # Changelog
 
+## [9.2.2] - 2026-05-06
+
+**Cleanup — silence the recurring hook reminders that flooded every session.**
+
+User feedback (friction inventory item 11): the `[Memory] REQUIRED: Session ending` reminder fires every Stop hook (every turn end), creating false-urgency noise. Investigation surfaced a broader pattern — three classes of bugs causing the same kind of recurring noise.
+
+### Bugs fixed
+
+**1. Latch fields were silently dropped (real bug, multi-fire)**
+
+`SessionState.update(**kwargs)` silently drops unknown keys (prints to stderr, returns). Two latches in hooks were trying to persist via undeclared fields:
+- `instruction_sync_fired` (post_tool.py — `[Sync] CLAUDE.md was updated` reminder)
+- `scenario_stale_warned` (post_tool.py — `[Scenarios] Command/skill changed` reminder)
+
+The hooks set the fields on every fire, but the writes never persisted. The "once per session" / "once per domain" latches the comments promised never engaged. Same anti-pattern class as v9.2.0 (orphan write paths) and v9.2.1 (silent ImportError) — silent contract drift hidden by `update()`'s unknown-key tolerance.
+
+Fix: declare `instruction_sync_fired: list | None = None` in SessionState. (`scenario_stale_warned` was dropped along with the [Scenarios] notification — see #3 below.)
+
+**2. `[Memory] REQUIRED: Session ending` had no latch (every-turn fire)**
+
+The reminder in `stop.py` was unconditionally appended on every Stop hook. Stop fires at end of every model response — multiple times per session, possibly per turn. The "Session ending. REQUIRED" copy was misleading every fire after the first because the session was NOT ending. Friction inventory item 11 explicitly called this out.
+
+Fix: latched on new `memory_reminder_shown: bool` SessionState field — fires at most once per session. Copy rewritten to drop "REQUIRED" / "Session ending" / "Run TaskList" false-urgency framing. New text: "If any decisions, gotchas, or reusable patterns surfaced this session, consider storing them via wicked-brain:memory. Otherwise, no action needed. This reminder fires once per session."
+
+**3. `[Scenarios] Command/skill changed — N scenario(s) may need updating`**
+
+Low-signal heuristic that fired on every edit under `commands/{domain}/` or `skills/{domain}/`. Users rarely acted on it; the underlying premise (scenarios may need updating after a skill edit) was wrong most of the time because most edits don't invalidate scenario assertions. Plus the latch was broken (#1).
+
+Fix: dropped the call site AND removed the now-dead `_check_scenario_staleness` helper from `post_tool.py`. `/wg-test` stays available on demand for users who want to validate scenarios after edits.
+
+### Stale slash references swept
+
+Fixed 16 files that still referenced the deleted `/wicked-garden:search:code` and `/wicked-garden:search:docs` slash forms — the v9.1.5 cleanup only scanned `skills/**/SKILL.md`, missed `agents/`, `hooks/`, `scripts/`, `docs/`, `scenarios/`, and `.claude/`. Bulk-replaced with `wicked-brain:search` (the actual capability).
+
+Affected: `hooks/scripts/bootstrap.py` (Quick Start banner), `hooks/scripts/post_tool.py` (Tip suggestion), 6 agent definitions, 4 search scenarios, 1 crew scenario, `docs/getting-started.md`, `scripts/smaht/context_package.py`, `.claude/CLAUDE.md`. Lint stays at 0 errors / 0 warnings on the skills surface; the wider sweep was needed because the lint scope was scoped too narrow.
+
+### Plugin version
+
+9.2.1 → 9.2.2 (patch — pure noise reduction + sweep, zero behavior change visible to features).
+
+### Expected effect
+
+Next session should see:
+- `[Memory] ...` reminder fires AT MOST once (not on every Stop).
+- `[Sync] CLAUDE.md was updated` reminder fires AT MOST once per file (not on every edit).
+- No `[Scenarios] Command/skill in 'X' changed` reminders.
+- No `/wicked-garden:search:code` / `:docs` references in any system messages.
+
 ## [9.2.1] - 2026-05-06
 
 **Patch — fix the Guard pipeline's `semantic-review-unavailable` finding that fired every session.**
