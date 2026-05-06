@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.1.3] - 2026-05-06
+
+**Patch — `/wicked-garden:intent` needs a `commands/` file, not just a skill.**
+
+After v9.1.1 (frontmatter `name:` fix) and v9.1.2 (`user-invocable: true` fix), the skill was *still* missing from the registered listing after `/reload-plugins`. Investigated by comparing the actual file structure of registered peers:
+
+- `wicked-garden:smaht:propose-skills` — registered. The file is `commands/smaht/propose-skills.md` (NOT `skills/smaht/propose-skills/SKILL.md` as I'd assumed).
+- All four smaht entries in the user-facing listing (`propose-skills`, `state`, `briefing`, `events-import`) come from `commands/smaht/*.md`.
+- Skills at `skills/{domain}/{name}/SKILL.md` apparently do not surface as user-invocable slash entries in this Claude Code build.
+
+Fix: add `commands/intent.md` (top-level, no domain) so `/wicked-garden:intent` works as documented. The body is the same Python heredoc that was in `skills/smaht/intent/SKILL.md`. The skill file is left in place for now (it can be invoked via the `Skill` tool when present in the registered list); the command file is what users actually need.
+
+Two patches at the wrong layer (frontmatter shape) before realizing the layer itself was wrong (skills vs commands). The pattern: when discoverability fails, check what kind of artifact peers are first.
+
 ## [9.1.2] - 2026-05-06
 
 **Patch — intent skill needs `user-invocable: true` to appear in the skill listing.**
