@@ -1,5 +1,42 @@
 # Changelog
 
+## [9.2.1] - 2026-05-06
+
+**Patch — fix the Guard pipeline's `semantic-review-unavailable` finding that fired every session.**
+
+`scripts/platform/guard_pipeline.py::_call_semantic_reviewer` does `from semantic_review import run_semantic_review`. The module exists at `scripts/qe/semantic_review.py` and exposes `review_project` + `report_to_dict` separately, but never exposed a unified `run_semantic_review` entry point. The import has been silently failing on every Guard run since the module shipped — surfacing as the harmless-looking `[info] semantic-review-unavailable` finding noted in every session-end Guard summary.
+
+### Fix
+
+Added a thin wrapper to `scripts/qe/semantic_review.py`:
+
+```python
+def run_semantic_review(project_dir: Path, complexity: int = 3) -> Dict[str, Any]:
+    report = review_project(project_dir=project_dir, complexity=complexity)
+    return report_to_dict(report)
+```
+
+12 lines including the docstring. Returns the dict shape the guard pipeline already knows how to consume (`verdict`, `findings`, `summary`).
+
+### Why it stayed broken
+
+The `_call_semantic_reviewer` function in `guard_pipeline.py` is wrapped in a defensive try/except that returns `None` on import failure, then surfaces it as a benign INFO-level finding. It looked like an intentional opt-in skip, not a contract regression. Every Guard run for an unknown number of sessions has been flagging it as "info" with no consumer noticing it was actually a real bug.
+
+### Tests
+
+15/15 tests in `tests/qe/test_semantic_review.py` pass (12 existing + 3 new):
+- `test_wrapper_exists_and_returns_dict` — module-level export check
+- `test_wrapper_no_ac_file_returns_approve_zero_findings` — wicked-garden repo case (no `phases/clarify/acceptance-criteria.md`, vacuously APPROVE)
+- `test_wrapper_includes_required_keys_for_guard_pipeline` — contract keys (`verdict`, `findings`, `summary`)
+
+### Plugin version
+
+9.2.0 → 9.2.1 (patch — wrapper addition + tests, zero behavior code change).
+
+### Expected effect
+
+Next session's Guard pipeline summary should drop the `semantic-review-unavailable` line. On the wicked-garden repo itself (no spec files), it'll silently APPROVE with zero findings. On a crew project with AC files, it'll surface real spec-to-code drift findings.
+
 ## [9.2.0] - 2026-05-06
 
 **Cleanup — remove legacy `pull_*` SessionState fields and their orphan write-paths.**

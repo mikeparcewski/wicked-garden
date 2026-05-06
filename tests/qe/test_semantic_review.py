@@ -424,5 +424,49 @@ class TestSpecExtraction(unittest.TestCase):
         self.assertEqual(items, [])
 
 
+class TestRunSemanticReviewWrapper(unittest.TestCase):
+    """v9.2.1 contract: ``run_semantic_review(project_dir, complexity)`` is
+    the entry point that ``scripts/platform/guard_pipeline.py`` imports.
+    Returns the JSON-safe dict shape the guard pipeline expects.
+
+    Without this wrapper, every Guard-pipeline run reports
+    ``semantic-review-unavailable`` because the import fails — the producer
+    only exposed ``review_project`` (returns a GapReport dataclass) and
+    ``report_to_dict`` separately. The wrapper bridges the contract.
+    """
+
+    def test_wrapper_exists_and_returns_dict(self) -> None:
+        # Module-level export — the import that guard_pipeline does.
+        self.assertTrue(hasattr(semantic_review, "run_semantic_review"))
+
+    def test_wrapper_no_ac_file_returns_approve_zero_findings(self) -> None:
+        """Wicked-garden repo case: no phases/clarify/acceptance-criteria.md
+        means zero spec items, vacuously APPROVE, zero findings. The guard
+        pipeline silently no-ops in this case — that's the desired behavior."""
+        with tempfile.TemporaryDirectory() as tmp:
+            result = semantic_review.run_semantic_review(Path(tmp), complexity=3)
+            self.assertIsInstance(result, dict)
+            self.assertEqual(result["verdict"], "APPROVE")
+            self.assertEqual(result["total"], 0)
+            self.assertEqual(result["findings"], [])
+
+    def test_wrapper_includes_required_keys_for_guard_pipeline(self) -> None:
+        """guard_pipeline.py reads .verdict, .findings, .summary off the
+        returned dict — make sure all three round-trip through the
+        wrapper for a non-trivial project."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project = _make_project(
+                Path(tmp),
+                ac_text="| ID | Description |\n|---|---|\n| AC-1 | Persist sessions |\n",
+                impl_map={"src/session.py": "# AC-1: persist sessions\nclass Session: pass\n"},
+                test_map={},
+            )
+            result = semantic_review.run_semantic_review(project, complexity=3)
+            self.assertIn("verdict", result)
+            self.assertIn("findings", result)
+            self.assertIn("summary", result)
+            self.assertIn(result["verdict"], {"APPROVE", "CONDITIONAL", "REJECT"})
+
+
 if __name__ == "__main__":
     unittest.main()

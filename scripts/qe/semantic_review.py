@@ -891,6 +891,24 @@ def report_to_dict(report: GapReport) -> Dict[str, Any]:
     return asdict(report)
 
 
+def run_semantic_review(project_dir: Path, complexity: int = 3) -> Dict[str, Any]:
+    """Public entry point used by ``scripts/platform/guard_pipeline.py``.
+
+    Thin wrapper that runs ``review_project`` on a directory and returns the
+    JSON-safe dict ``GapReport`` representation. Returns the dict shape the
+    guard pipeline expects — keys: ``verdict``, ``findings`` (list of dicts
+    with ``message`` / ``rule_id`` / ``file`` / ``line``), ``summary``.
+
+    Fail-open responsibility lives in the caller — if the project layout
+    has no clarify-phase spec files (the common case for the wicked-garden
+    repo itself), ``review_project`` returns a vacuously-APPROVE report
+    with zero findings, which is exactly what the guard pipeline needs to
+    silently no-op.
+    """
+    report = review_project(project_dir=project_dir, complexity=complexity)
+    return report_to_dict(report)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
