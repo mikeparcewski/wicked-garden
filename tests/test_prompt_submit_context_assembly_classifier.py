@@ -28,22 +28,20 @@ from pathlib import Path
 
 import pytest
 
-# Hook scripts and scripts/ both need to be on sys.path for the import chain.
+# conftest.py keeps `scripts/` at sys.path[0]. Append `hooks/scripts/` (do NOT
+# insert at index 0) so the prompt_submit module is importable without
+# shadowing scripts/ — matches the convention enforced repo-wide.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _HOOK_SCRIPTS = _REPO_ROOT / "hooks" / "scripts"
-_SCRIPTS = _REPO_ROOT / "scripts"
-for _p in (_SCRIPTS, _HOOK_SCRIPTS):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+if str(_HOOK_SCRIPTS) not in sys.path:
+    sys.path.append(str(_HOOK_SCRIPTS))
 
 from prompt_submit import (  # noqa: E402
-    _CONTEXT_ASSEMBLY_ENV_VAR,
     _AUTO_DETECT_TURN_LIMIT,
     _INTENT_VALUES,
     _build_intent_directive,
     _detect_intent,
     _ensure_intent_set,
-    _should_emit_context_assembly,
 )
 
 
@@ -58,11 +56,6 @@ class _FakeState:
     def update(self, **kwargs):
         for k, v in kwargs.items():
             setattr(self, k, v)
-
-
-@pytest.fixture
-def empty_env():
-    return {}
 
 
 @pytest.fixture
@@ -289,65 +282,9 @@ def test_rigor_explicit_emits_label_plus_chain_directive():
     assert "active_chain_id" in out
 
 
-# ---------------------------------------------------------------------------
-# _should_emit_context_assembly — env override + intent-based gating
-# ---------------------------------------------------------------------------
-
-def test_env_always_overrides_intent(state):
-    """#813: WG_CONTEXT_ASSEMBLY=always forces emit regardless of intent."""
-    state.intent = "simple-edit"
-    emit, reason = _should_emit_context_assembly(
-        "anything", {_CONTEXT_ASSEMBLY_ENV_VAR: "always"}, state
-    )
-    assert emit is True
-    assert reason == "env_always"
-
-
-def test_env_off_overrides_intent(state):
-    """#813: WG_CONTEXT_ASSEMBLY=off forces suppress regardless of intent."""
-    state.intent = "rigor"
-    emit, reason = _should_emit_context_assembly(
-        "anything", {_CONTEXT_ASSEMBLY_ENV_VAR: "off"}, state
-    )
-    assert emit is False
-    assert reason == "env_off"
-
-
-def test_simple_edit_intent_suppresses(state):
-    """#813: simple-edit intent → no context-assembly emission."""
-    state.intent = "simple-edit"
-    emit, reason = _should_emit_context_assembly("anything", {}, state)
-    assert emit is False
-    assert reason == "simple-edit"
-
-
-def test_feature_intent_emits(state):
-    """#813: feature intent → context-assembly fires."""
-    state.intent = "feature"
-    emit, reason = _should_emit_context_assembly("anything", {}, state)
-    assert emit is True
-    assert reason == "feature"
-
-
-def test_rigor_intent_emits(state):
-    """#813: rigor intent → context-assembly fires."""
-    state.intent = "rigor"
-    emit, reason = _should_emit_context_assembly("anything", {}, state)
-    assert emit is True
-    assert reason == "rigor"
-
-
-def test_research_intent_emits(state):
-    """#813: research intent → context-assembly fires."""
-    state.intent = "research"
-    emit, reason = _should_emit_context_assembly("anything", {}, state)
-    assert emit is True
-    assert reason == "research"
-
-
-def test_no_state_falls_back_to_no_intent(empty_env):
-    """#813: when state is None (e.g. partial test setup), the gate
-    returns suppress with reason='no_intent' — fail-closed."""
-    emit, reason = _should_emit_context_assembly("anything", empty_env, None)
-    assert emit is False
-    assert reason == "no_intent"
+# Note: the legacy `_should_emit_context_assembly` and the
+# WG_CONTEXT_ASSEMBLY env override were removed in this PR (gemini review:
+# dead code; v10 intent variable replaces them). The test cases that
+# exercised that surface are gone too — directive emission is now driven
+# entirely by `_build_intent_directive` based on the resolved intent
+# value, which is covered above.

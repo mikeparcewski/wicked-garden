@@ -37,10 +37,20 @@ Four values, locked. To change the vocabulary, run a brainstorm — don't add ad
 
 ```bash
 # Show or set session intent. Pass nothing to display; pass a value to override.
+# Heredoc is single-quoted (<<'PY') so the shell does NOT expand $variables
+# inside the Python source — the script reads CLAUDE_PLUGIN_ROOT via
+# os.environ instead, which is inherited by the subprocess.
 ARG="${1:-}"
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' "$ARG"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - "$ARG" <<'PY'
+import os
 import sys
-sys.path.insert(0, "${CLAUDE_PLUGIN_ROOT}/scripts")
+
+plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+if not plugin_root:
+    print("error: CLAUDE_PLUGIN_ROOT not set", file=sys.stderr)
+    sys.exit(1)
+sys.path.insert(0, os.path.join(plugin_root, "scripts"))
+
 from _session import SessionState
 
 VALID = ("simple-edit", "feature", "rigor", "research")

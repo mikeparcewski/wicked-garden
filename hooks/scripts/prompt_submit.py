@@ -382,47 +382,6 @@ def _score_complexity_and_risk(prompt: str, state) -> tuple[float, bool]:
 # short confirmation prefix still grounds via the directive.
 # ---------------------------------------------------------------------------
 
-# Env override values
-_CONTEXT_ASSEMBLY_ENV_VAR = "WG_CONTEXT_ASSEMBLY"
-_CONTEXT_ASSEMBLY_MODE_AUTO = "auto"
-_CONTEXT_ASSEMBLY_MODE_ALWAYS = "always"
-_CONTEXT_ASSEMBLY_MODE_OFF = "off"
-_CONTEXT_ASSEMBLY_VALID_MODES = frozenset({
-    _CONTEXT_ASSEMBLY_MODE_AUTO,
-    _CONTEXT_ASSEMBLY_MODE_ALWAYS,
-    _CONTEXT_ASSEMBLY_MODE_OFF,
-})
-
-# Conversational thresholds
-_CONVERSATIONAL_MAX_WORDS = 8         # Below this AND no technical signals → suppress
-_SUBSTANTIVE_MIN_WORDS = 30           # At/above this → always emit
-_LEADING_CONFIRMATION_MAX_WORDS = 6   # Leading-confirmation detection only applies to short prompts
-
-# Leading confirmation tokens — when the prompt STARTS with these (and is short),
-# it is almost always a continuation, not a request.
-_LEADING_CONFIRMATIONS = (
-    "yes", "yeah", "yep", "yup",
-    "no", "nope",
-    "ok", "okay",
-    "go", "go ahead",
-    "proceed", "continue",
-    "do it", "lets do it", "let's do it",
-    "sounds good", "looks good", "lgtm",
-    "sure", "approved", "approve",
-)
-
-# Meta / conversational phrases — when present in a short prompt, suppress.
-_META_PHRASES = (
-    "any more",
-    "what do you think",
-    "thoughts",
-    "more feedback",
-    "how about",
-    "did you",
-    "are you",
-    "can you tell me what",
-)
-
 # Substantive signals — technical verbs that strongly imply real work.
 _IMPERATIVE_TECHNICAL_VERBS = frozenset({
     "implement", "fix", "refactor", "build", "design", "trace",
@@ -454,18 +413,6 @@ _BARE_FILENAME_PATTERN = re.compile(
 _CODE_FENCE_OR_BACKTICK = re.compile(r"```|`[^`\n]{2,}`")
 
 
-def _resolve_context_assembly_mode(env: Mapping) -> str:
-    """Return the validated context-assembly mode from the env mapping.
-
-    Unknown values fall back to 'auto'. Case-insensitive match on the value.
-    """
-    raw = env.get(_CONTEXT_ASSEMBLY_ENV_VAR, _CONTEXT_ASSEMBLY_MODE_AUTO) or ""
-    mode = str(raw).strip().lower()
-    if mode not in _CONTEXT_ASSEMBLY_VALID_MODES:
-        return _CONTEXT_ASSEMBLY_MODE_AUTO
-    return mode
-
-
 def _has_file_path(prompt: str) -> bool:
     """Return True if the prompt contains a file reference.
 
@@ -486,35 +433,6 @@ def _has_code_markers(prompt: str) -> bool:
 def _has_imperative_technical_verb(prompt_lower: str) -> bool:
     """Return True if any imperative technical verb appears in the prompt."""
     return any(verb in prompt_lower for verb in _IMPERATIVE_TECHNICAL_VERBS)
-
-
-def _should_emit_context_assembly(
-    prompt: str,
-    env: Mapping,
-    state=None,
-) -> tuple[bool, str]:
-    """Decide whether to emit the Context Assembly directive.
-
-    v10 Phase 1 (#813): replaces the legacy 5-classifier cascade with a
-    single intent check. The detection logic that lived here (leading
-    confirmations, meta phrases, conversational vs substantive heuristics)
-    is folded into ``_detect_intent``; this function now just maps intent
-    to emit/suppress.
-
-    Returns (should_emit, reason). Reason is the intent value (or env override).
-    """
-    mode = _resolve_context_assembly_mode(env)
-    if mode == _CONTEXT_ASSEMBLY_MODE_ALWAYS:
-        return True, "env_always"
-    if mode == _CONTEXT_ASSEMBLY_MODE_OFF:
-        return False, "env_off"
-
-    # auto mode: read intent from session state. Caller is expected to have
-    # populated state.intent before this point (via _detect_intent).
-    intent = getattr(state, "intent", None) if state else None
-    if intent in ("feature", "rigor", "research"):
-        return True, intent
-    return False, intent or "no_intent"
 
 
 # ---------------------------------------------------------------------------
@@ -1000,9 +918,11 @@ def _detect_intent(prompt: str, complexity: float, is_risky: bool, state) -> str
 def _ensure_intent_set(prompt: str, state, complexity: float, is_risky: bool) -> str:
     """Resolve session intent, auto-detecting if not yet set.
 
-    On turn ≤ _AUTO_DETECT_TURN_LIMIT and intent is None → detect, persist,
-    return. On later turns or when intent is already set → return existing
-    value. Never overwrites an explicit override.
+    Public entrypoint that callers in main() use to populate
+    ``state.intent`` for a turn. On turn ≤ _AUTO_DETECT_TURN_LIMIT and
+    intent is None → detect via ``_detect_intent``, persist via
+    ``state.update``, return. On later turns or when intent is already
+    set → return existing value. Never overwrites an explicit override.
 
     Returns the effective intent value (always a string from _INTENT_VALUES).
     """
@@ -1058,9 +978,7 @@ def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=
             "3. If results cite a wicked-garden:crew project, check its phase and "
             "active_chain_id before committing to an approach."
         )
-        directive_lines.append("Only after grounding is complete, answer the original prompt.")
-    else:
-        directive_lines.append("Only after grounding is complete, answer the original prompt.")
+    directive_lines.append("Only after grounding is complete, answer the original prompt.")
 
     directive = "\n".join(directive_lines)
     if label:
