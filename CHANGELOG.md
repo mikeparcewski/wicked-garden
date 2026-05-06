@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.2.0] - 2026-05-06
+
+**Cleanup — remove legacy `pull_*` SessionState fields and their orphan write-paths.**
+
+v9.0.0 (Phase 1) preserved five legacy SessionState fields (`pull_phase`, `pull_count`, `unpulled_ok`, `corrections`, `pull_regress_at`) for telemetry compatibility during the soak window. Investigation: every read site is a read-to-increment write expression (e.g. `(state.pull_count or 0) + 1`). The fields are write-only in v10 — no consumer reads them, no telemetry script references them. Pure orphan dead code that adds hook latency and confuses maintainers.
+
+### Removed
+
+- `hooks/scripts/prompt_submit.py`: `_detect_correction()` function, `_CORRECTION_SIGNALS` constant, `_REGRESS_DURATION` constant, and the call site in `main()`. The function existed only to update `corrections` / `unpulled_ok` / `pull_regress_at` for `_resolve_pull_phase` (deleted in v9.0.0). Net: -40 lines, one fewer SessionState write per turn.
+- `hooks/scripts/post_tool.py`: `pull_count` increment in the Skill handler. The branch fired on every `wicked-brain:query` / `wicked-brain:search` call to update a counter nothing reads. Net: -10 lines, one fewer SessionState write per matching Skill call.
+- `hooks/scripts/stop.py`: `_update_pull_calibration()` function and its call site. Wrote `unpulled_ok` at end-of-turn for a calibration loop that no longer exists. Net: -25 lines, one fewer SessionState write per turn.
+- `scripts/_session.py`: 5 fields removed from the `SessionState` dataclass — `pull_phase`, `pull_count`, `unpulled_ok`, `corrections`, `pull_regress_at`. Net: -15 lines including the comment block.
+- `.claude/CLAUDE.md`: updated the Phase 1 migration-boundary note to reflect that the soak window is closed and the fields are removed.
+
+### Total impact
+
+- 4 hook files cleaner; 5 SessionState fields gone; ~80 lines deleted.
+- 3 fewer SessionState writes per turn (one each from `prompt_submit`, `post_tool` on brain calls, `stop`).
+- Smaller `SessionState` JSON file on disk per session.
+
+### Plugin version
+
+9.1.5 → 9.2.0 (minor — surface change: SessionState shape changed; old session-state JSON files with the removed fields are silently ignored thanks to `_from_dict`'s unknown-key filter, so the change is backward-compatible at runtime).
+
+### Tests
+
+77/77 v10-surface tests pass: `test_prompt_submit_context_assembly_classifier`, `test_task_audit_writer`, `test_write_brief`, `test_validate_plan_test_strategy_check`.
+
 ## [9.1.5] - 2026-05-06
 
 **Cleanup — 9 skill bodies referenced slash commands that don't exist; lint regex hardened against path-fragment false positives.**

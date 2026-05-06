@@ -220,26 +220,6 @@ class SessionState:
     turn_start_ts: str = ""
     turn_tool_count: int = 0
 
-    # Pull-model context assembly (Issue #416).
-    # Phase: bootstrap (turns 1-2, mandatory pull), calibrating (turns 3-8),
-    # cruising (turns 9+, minimal directive). Transition driven by turn count.
-    #
-    # v10 Phase 1 (#813): superseded by `intent` field below for directive
-    # selection. `pull_phase` is kept for telemetry compatibility — handler
-    # still writes it during the soak window, but `_build_intent_directive`
-    # no longer reads it. Slated for removal in Phase 2.
-    pull_phase: str = "bootstrap"  # bootstrap | calibrating | cruising
-    # Count of brain:query/search pulls the model made this session.
-    pull_count: int = 0
-    # Turns where the model answered without pulling and was NOT corrected.
-    unpulled_ok: int = 0
-    # Turns where the model was corrected after not pulling.
-    corrections: int = 0
-    # Turn number when phase was regressed to mandatory pull due to corrections.
-    # 0 means no regression active. When set, mandatory pull lasts for 3 turns
-    # from this turn number, then resumes normal phase progression.
-    pull_regress_at: int = 0
-
     # v10 Phase 1 (#813) — intent variable, the keystone for steer-not-block.
     # One explicit, queryable value replaces five overlapping classifiers
     # in prompt_submit.py (HOT fast-exit, near-HOT guard, complexity scorer,
