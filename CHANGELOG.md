@@ -1,5 +1,40 @@
 # Changelog
 
+## [9.1.5] - 2026-05-06
+
+**Cleanup — 9 skill bodies referenced slash commands that don't exist; lint regex hardened against path-fragment false positives.**
+
+The v9.1.4 lint surfaced 12 warnings: skill bodies documenting `/wicked-garden:X` slash forms that have no matching `commands/{X}.md`. Investigation showed three root causes — fixing each:
+
+### 9 broken slash-form references (real bugs)
+
+| File | Was | Fix |
+|---|---|---|
+| `skills/smaht/SKILL.md` | `/wicked-garden:search:code`, `/wicked-garden:search:docs` | `wicked-brain:search` (FTS5 over indexed code, docs, wiki) |
+| `skills/data/pipeline/SKILL.md` | `/wicked-garden:search:code "dag\|pipeline"` | `wicked-brain:search "dag\|pipeline"` |
+| `skills/data/ml/SKILL.md` | `/wicked-garden:search:code "model\|classifier"` | `wicked-brain:search "model\|classifier"` |
+| `skills/search/codebase-narrator/SKILL.md` | `/wicked-garden:search:code` + `/wicked-garden:search:stats` | `wicked-brain:search` + `/wicked-garden:search:index` |
+| `skills/platform/audit/SKILL.md` | `/wicked-garden:search:code` | `wicked-brain:search` |
+| `skills/data/analysis/SKILL.md` | `/wicked-garden:data:analysis` (typo) | `/wicked-garden:data:analyze` (real command) |
+| `skills/engineering/engineering/SKILL.md` | `/wicked-garden:engineering:frontend\|backend\|debugging` (none exist as commands) | `Task(subagent_type="wicked-garden:engineering:frontend-engineer\|backend-engineer\|debugger")` |
+| `skills/delivery/onboarding-guide/SKILL.md` | `/wicked-garden:search:docs` + `/wicked-garden:search:code` | `wicked-brain:search` |
+| `skills/delivery/rollout/SKILL.md` | `/wicked-garden:delivery:design` (doesn't exist) + `/wicked-garden:delivery:experiment` (separate entry) | Merged: `/wicked-garden:delivery:experiment` (which does both design and analysis) |
+| `skills/product/requirements-analysis/SKILL.md` | `/wicked-garden:search:docs "user story"` | `wicked-brain:search "user story"` |
+
+`/wicked-garden:search:code` and `/wicked-garden:search:docs` were aspirational commands documented in skill bodies but never built. The actual capability lives in `wicked-brain:search` (FTS5 index over code, docs, wiki, memories) — references redirected accordingly.
+
+### Lint regex fix (false positives)
+
+The path-fragment skip in `wg-quality-checker.md` used a negative lookahead `(?!/)`, which caused regex backtracking when a namespace ended at a `/` (path fragment like `{local_root}/wicked-garden:product/voice/...`). The engine would back off the last character to satisfy the lookahead, yielding garbage matches like `/wicked-garden:produc`. Switched to greedy match + post-filter in Python — clean and unambiguous.
+
+### Plugin version
+
+9.1.4 → 9.1.5 (patch — docs cleanup + lint hardening; zero behavior code change).
+
+### v10 closure status
+
+`/wg-check` skill-discoverability lint now reports **0 errors, 0 warnings** across all 77 skills. The v10 architectural series is genuinely closed: shipped, dogfooded, lint-clean, and on `main`.
+
 ## [9.1.4] - 2026-05-06
 
 **Closes the v10 series — wg-check skill-discoverability lint + 1 latent bug fix.**

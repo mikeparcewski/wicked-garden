@@ -119,8 +119,8 @@ Check:
 ## Integration with Tools
 
 ```bash
-# Search for similar requirements
-/wicked-garden:search:docs "user story" --context requirements
+# Search for similar requirements (FTS5 over indexed docs + wiki)
+wicked-brain:search "user story"
 
 # Store requirements on the active clarify task via native TaskUpdate
 # TaskUpdate(taskId="{task_id}", description="{previous}\n\n## Requirements\n{user_stories}")

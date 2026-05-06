@@ -139,5 +139,4 @@ Gracefully degrades to manual procedures when capabilities unavailable.
 ## See Also
 
 - [strategies-core.md](refs/strategies-core.md) and [strategies-operations.md](refs/strategies-operations.md) - Detailed rollout strategies
-- `/wicked-garden:delivery:design` - Design experiments
-- `/wicked-garden:delivery:experiment` - Analyze results before rollout
+- `/wicked-garden:delivery:experiment` - Design and analyze experiments before rollout

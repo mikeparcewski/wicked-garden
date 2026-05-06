@@ -105,7 +105,7 @@ Analyzes: Code quality, error handling, performance, maintainability.
 
 ## Integration
 
-- **wicked-garden:search**: Find pipeline code with `/wicked-garden:search:code "dag|pipeline"`
+- **wicked-brain:search**: Find pipeline code with `wicked-brain:search "dag|pipeline"` (FTS5 over indexed code)
 - **Native tasks**: Track pipeline issues via TaskCreate with `metadata.event_type="task"`
 - **wicked-brain:memory**: Recall pipeline patterns
 

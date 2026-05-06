@@ -13,7 +13,7 @@ Explore datasets, identify patterns, and generate actionable insights.
 ## Quick Start
 
 ```bash
-/wicked-garden:data:analysis explore data/sales.csv
+/wicked-garden:data:analyze explore data/sales.csv
 ```
 
 This will:

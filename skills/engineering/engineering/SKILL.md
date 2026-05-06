@@ -65,10 +65,10 @@ See [refs/templates.md](refs/templates.md) for output templates and focus areas.
 
 ## Integration with Specialists
 
-Coordinate with specialized perspectives:
-- **/wicked-garden:engineering:frontend** - React, CSS, browser-specific concerns
-- **/wicked-garden:engineering:backend** - APIs, databases, server-side patterns
-- **/wicked-garden:engineering:debugging** - Error investigation and root cause analysis
+Dispatch specialist agents via `Task(subagent_type=...)`:
+- `wicked-garden:engineering:frontend-engineer` — React, CSS, browser-specific concerns
+- `wicked-garden:engineering:backend-engineer` — APIs, databases, server-side patterns
+- `wicked-garden:engineering:debugger` — Error investigation and root cause analysis
 
 ## Integration with wicked-crew
 
