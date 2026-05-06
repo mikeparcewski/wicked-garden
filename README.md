@@ -187,7 +187,7 @@ wicked-garden runs standalone with local JSON storage and grep fallback when opt
 
 ### Version pinning
 
-`plugin.json:wicked_testing_version` pins a caret-range (`^0.2.0` for v7.1.x). Patch releases are backward-compatible bug fixes. Minor releases may add new Tier-1 agents (additive only). A wicked-testing major bump requires a coordinated wicked-garden major release. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility).
+`plugin.json:wicked_testing_version` pins a caret-range (`^0.3.0` for v9.2.x). Patch releases are backward-compatible bug fixes. Minor releases may add new Tier-1 agents (additive only). A wicked-testing major bump requires a coordinated wicked-garden major release. See [INTEGRATION.md §8](https://github.com/mikeparcewski/wicked-testing/blob/main/docs/INTEGRATION.md#8-version--compatibility).
 
 ---
 
