@@ -1396,7 +1396,15 @@ def _check_turn_progress(tool_name: str) -> str | None:
     """Increment turn tool count and return a status note if the turn is long-running.
 
     Returns a status string when elapsed time exceeds _TURN_STATUS_THRESHOLD_SECS,
-    or None if the turn is still short or state is unavailable.
+    or None if the turn is still short, state is unavailable, or the [Status]
+    banner has already fired this turn (v9.2.12 per-turn latch).
+
+    v9.2.12: Pre-fix, the [Status] banner re-fired on every PostToolUse once
+    the 2-minute threshold tripped — meaning every long turn surfaced N
+    redundant "running for X min, Y tool calls so far" banners (one per
+    subsequent tool call). The `last_status_turn` latch (declared on
+    SessionState, written here) suppresses re-emission within the same turn.
+    A new turn (turn_count incremented by prompt_submit) re-arms the banner.
     """
     try:
         from _session import SessionState
@@ -1417,6 +1425,12 @@ def _check_turn_progress(tool_name: str) -> str | None:
 
         if elapsed_secs < _TURN_STATUS_THRESHOLD_SECS:
             return None
+
+        # Per-turn latch (v9.2.12): suppress re-emission once shown this turn.
+        current_turn = state.turn_count or 0
+        if current_turn and current_turn == (state.last_status_turn or 0):
+            return None
+        state.update(last_status_turn=current_turn)
 
         elapsed_mins = int(elapsed_secs / 60)
 

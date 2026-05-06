@@ -365,6 +365,22 @@ class SessionState:
     legacy_reeval_entries_detected: bool = False
     unready_plugins: list | None = None
 
+    # v9.2.12 — per-turn / change-gated latches for hook-emission anti-patterns
+    # surfaced by the v9.2.11 audit. Each field gates a banner that previously
+    # re-fired on every PostToolUse / Stop without checking actual state.
+    #
+    # last_status_turn: turn_count value when the [Status] long-turn banner
+    #   was last shown. post_tool.py only emits if turn_count > last_status_turn,
+    #   so each long-running turn surfaces exactly one [Status] line instead of
+    #   one per tool call past the threshold.
+    # last_outcome_pending_count / last_outcome_mismatch_count: counts at last
+    #   [Issue Reporter] banner emission. stop.py only re-emits when the count
+    #   has CHANGED — silent when nothing new accumulates, surfacing only when
+    #   the queue actually grows.
+    last_status_turn: int = 0
+    last_outcome_pending_count: int = 0
+    last_outcome_mismatch_count: int = 0
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

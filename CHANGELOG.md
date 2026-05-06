@@ -1,5 +1,39 @@
 # Changelog
 
+## [9.2.12] - 2026-05-06
+
+**Hook-noise audit (item 3 from this session's cleanup) — fix two HIGH-severity banners that re-fire without state change.**
+
+The v9.2.11 hook audit dispatched a subagent to scan `post_tool.py` and `stop.py` for the same false-urgency anti-pattern v9.2.10/v9.2.11 cleared from `bootstrap.py` and `prompt_submit.py`. The audit surfaced two HIGH-severity findings — both banners re-fire on every hook event regardless of whether anything actually changed.
+
+### `[Status] This turn has been running for N min` — per-turn latch
+
+`hooks/scripts/post_tool.py::_check_turn_progress`. Pre-fix: once the 2-minute threshold tripped, the banner re-fired on every PostToolUse for the rest of the turn — every subsequent tool call surfaced a redundant "running for X min, Y tool calls so far" line. v9.2.12 adds `last_status_turn: int = 0` to SessionState; the banner suppresses when `state.turn_count == state.last_status_turn` (already shown this turn) and re-arms when `prompt_submit` increments `turn_count` for a new turn.
+
+### `[Issue Reporter] N issue(s) queued this session` — change-gated latch
+
+`hooks/scripts/stop.py::_check_session_outcome`. Pre-fix: this banner fired on EVERY Stop hook (per turn end) as long as `pending_issues.jsonl` or `mismatches.jsonl` had any content — the user saw the same "3 issues queued" line every turn until they filed the issues. v9.2.12 adds `last_outcome_pending_count: int = 0` and `last_outcome_mismatch_count: int = 0` to SessionState; the banner only fires when the count has GROWN since last emission (silent when nothing new accumulates, surfacing when the queue actually grows).
+
+### Three new SessionState fields, drift test still passes
+
+The v9.2.3 drift CI test mechanically scans hook scripts for `state.update(name=...)` and `getattr(state, "name", ...)` calls and asserts every name is a declared field. All three new fields are declared in `scripts/_session.py`; the drift test (3/3 passing) confirms no silent contract drift was introduced.
+
+### What v9.2.12 explicitly did NOT do
+
+The audit also flagged MEDIUM cadence issues in `stop.py`: `_run_memory_decay`, `_run_working_consolidation`, `_run_quality_telemetry`, `_run_guard_pipeline` all run on every Stop (per-turn-end) when their natural cadence is per-session-end. Fixing those requires either time-since-last-run gating or moving them to a true SessionEnd hook — bigger redesign with risk of breaking decay / drift detection if mistuned. Deferred to its own PR per the audit's recommendation order ("PR 2 (medium-risk)").
+
+The MEDIUM `[Memory]` reflection redesign in `stop.py:437-479` was also deferred — three options (delete entirely / gate on real signal / merge into auto-promotion message) all have trade-offs worth a brainstorm before shipping. The current `memory_reminder_shown` per-session latch from v9.2.2 still works as designed.
+
+### Tests
+
+- 10/10 new latch-gating tests added (`tests/test_hook_latch_gating.py`).
+- 3/3 SessionState field-drift tests passing.
+- 214/214 v10 surface + hook + bootstrap + smaht + session_state smoke tests passing.
+
+### Plugin version
+
+9.2.11 → 9.2.12 (patch — hook noise reduction; no behaviour change beyond suppression of redundant banners).
+
 ## [9.2.11] - 2026-05-06
 
 **Delete the every-10-turn `[Memory] Checkpoint` nudge + delete the dead `_MEMORY_INSTRUCTIONS` constant.**
