@@ -488,20 +488,12 @@ def _read_config():
         return None
 
 
-# ---------------------------------------------------------------------------
-# Memory behavior instructions (injected every session)
-# ---------------------------------------------------------------------------
-
-_MEMORY_INSTRUCTIONS = (
-    "[Memory] This project uses wicked-garden memory for persistence. "
-    "Never write to MEMORY.md directly — use wicked-brain:memory to store decisions. "
-    "MEMORY.md is auto-generated and read-only. "
-    "When editing CLAUDE.md or AGENTS.md, keep both files in sync — "
-    "a PostToolUse hook will remind you. "
-    "Memory uses 3 tiers: semantic (durable project knowledge, prioritized in recall), "
-    "episodic (sprint-level patterns), working (transient session context, auto-consolidated). "
-    "Use --tier semantic for decisions and permanent knowledge."
-)
+# v9.2.11 deleted _MEMORY_INSTRUCTIONS. v9.2.10 stopped APPENDING it to the
+# briefing (CLAUDE.md "Memory Management" section already overrides the
+# system-level auto-memory instructions); v9.2.11 confirmed zero imports
+# across hooks/, scripts/, tests/, commands/ and removed the dead constant.
+# Same cleanup pattern as the v9.2.10 yolo test deletion — a constant kept
+# alive only by a test that asserts it exists is a tautology.
 
 _DANGEROUS_MODE_WARNING = (
     "[Question Mode] Dangerous mode is active (skipDangerousModePermissionPrompt). "
@@ -1510,12 +1502,10 @@ def main():
         if decay_summary:
             briefing_parts.append(f"[Memory] {decay_summary}")
 
-        # NOTE (v9.2.10): _MEMORY_INSTRUCTIONS used to be appended here every
-        # session. CLAUDE.md's "Memory Management" section already overrides
-        # the system-level auto-memory instructions and tells Claude to use
-        # wicked-brain:memory. Emitting the same guidance every session was
-        # redundant noise. The string constant is preserved below for
-        # backwards reference but no longer appended to the briefing.
+        # NOTE (v9.2.10): the per-session _MEMORY_INSTRUCTIONS append was
+        # removed. CLAUDE.md's "Memory Management" section already covers
+        # what the briefing was telling Claude. v9.2.11 deleted the constant
+        # itself after confirming zero imports.
 
         if dangerous_mode:
             briefing_parts.append(_DANGEROUS_MODE_WARNING)

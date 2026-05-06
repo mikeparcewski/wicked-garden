@@ -126,12 +126,17 @@ def test_critical_skills_silent_when_present():
     )
 
 
-def test_memory_instructions_constant_still_defined():
-    """v9.2.10 stopped APPENDING _MEMORY_INSTRUCTIONS to the briefing but
-    kept the constant defined for backwards reference. Removing the
-    constant is a follow-up cleanup; deleting it in this PR would be a
-    silent contract drift if any other module imports it."""
+def test_memory_instructions_constant_removed():
+    """v9.2.11 deleted _MEMORY_INSTRUCTIONS entirely. v9.2.10 only stopped
+    APPENDING it to the briefing; the constant was preserved as a silent-
+    contract-drift defence in case any other module imported it. v9.2.11
+    confirmed zero imports across hooks/, scripts/, tests/, commands/ and
+    removed the dead constant. This test now asserts the absence — adding
+    it back is a regression."""
     import bootstrap
 
-    assert hasattr(bootstrap, "_MEMORY_INSTRUCTIONS")
-    assert "wicked-brain:memory" in bootstrap._MEMORY_INSTRUCTIONS
+    assert not hasattr(bootstrap, "_MEMORY_INSTRUCTIONS"), (
+        "_MEMORY_INSTRUCTIONS was deleted in v9.2.11 because it had zero "
+        "consumers. If you need this constant, prefer adding the guidance "
+        "to CLAUDE.md (which is loaded into context by Claude Code itself)."
+    )
