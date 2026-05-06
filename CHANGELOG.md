@@ -1,5 +1,36 @@
 # Changelog
 
+## [9.2.11] - 2026-05-06
+
+**Delete the every-10-turn `[Memory] Checkpoint` nudge + delete the dead `_MEMORY_INSTRUCTIONS` constant.**
+
+The v9.2.10 bootstrap quietening cleared four bootstrap notices but missed a separate `UserPromptSubmit` periodic emitter. v9.2.11 closes the gap.
+
+### Periodic `[Memory]` checkpoint nudge removed
+
+`hooks/scripts/prompt_submit.py` fired `[Memory] Checkpoint: store decisions/gotchas with wicked-brain:memory.` every 10 turns (`turn_count > 0 and turn_count % 10 == 0`). The nudge surfaced on every prompt submit at turn 10, 20, 30, ... regardless of whether the session had produced anything worth checkpointing — exactly the false-urgency anti-pattern called out in the v9.2.6 [silent-contract-drift] wiki article.
+
+CLAUDE.md tells Claude how to use `wicked-brain:memory` (the "Memory Management" override block); the `wicked-brain-session-teardown` agent is the proper end-of-session synthesis checkpoint. A turn-counter timer added no signal beyond what those two mechanisms already provide. Removed.
+
+### Dead constant `_MEMORY_INSTRUCTIONS` deleted
+
+v9.2.10 stopped APPENDING the constant to the briefing but kept it defined as a silent-contract-drift defence in case any other module imported it. v9.2.11 grepped `hooks/`, `scripts/`, `tests/`, `commands/` — zero imports — and deleted it.
+
+The v9.2.10 `test_memory_instructions_constant_still_defined` test became its own anti-pattern: a constant kept alive only by a test that asserts it exists is a tautology. Same shape as the v9.2.10 `TestCrewYoloAliasStub` deletion — a defence test for code that has no actual consumers is dead weight.
+
+The test now asserts the **absence** of the constant (`test_memory_instructions_constant_removed`). Adding `_MEMORY_INSTRUCTIONS` back would surface as a regression.
+
+### Tests
+
+- 8/8 bootstrap-notice-gating tests passing (the new negative-assertion test replaces the old defence test).
+- 230/230 v10 surface + hook + bootstrap + smaht + session_state smoke tests passing.
+- 35/35 wicked-testing probe + drift tests passing.
+- Relevance lint deny-default clean.
+
+### Plugin version
+
+9.2.10 → 9.2.11 (patch — periodic noise removal + dead-constant cleanup; no behaviour change).
+
 ## [9.2.10] - 2026-05-06
 
 **Bootstrap quietening — gate informational notices on actual condition + delete defunct yolo test class.**

@@ -10,9 +10,14 @@ architecture. The hook is now responsible only for session-level concerns:
   - Session goal capture (turns 1-2)
   - HOT fast-exit on continuation tokens
   - Pull-model directive injection (tiny, ~60-150 chars)
-  - Memory nudge (every 10 turns)
-  - Jam / discovery suggestion
+  - Jam / discovery suggestion (signal-gated)
   - Output formatting
+
+v9.2.11 removed the periodic [Memory] nudge that fired every 10 turns.
+Periodic reminders without a real signal are noise — Claude knows about
+wicked-brain:memory from CLAUDE.md and uses it when there is something
+to checkpoint. The proper checkpoint is the wicked-brain-session-teardown
+agent at session end, not a 10-turn timer.
 
 Subagents pull context on demand via wicked-brain:search/query and
 wicked-garden:search rather than having a briefing pushed every turn.
@@ -1208,12 +1213,14 @@ def main():
         if intent_directive:
             all_parts.append(intent_directive)
 
-        # Periodic memory storage nudge (every 10 turns)
-        _STORAGE_NUDGE_INTERVAL = 10
-        if turn_count > 0 and turn_count % _STORAGE_NUDGE_INTERVAL == 0:
-            all_parts.append(
-                "[Memory] Checkpoint: store decisions/gotchas with wicked-brain:memory."
-            )
+        # NOTE (v9.2.11): the periodic [Memory] checkpoint nudge that fired
+        # every 10 turns was removed. It surfaced on every prompt submit at
+        # turns 10, 20, 30 ... regardless of whether the session had produced
+        # anything worth checkpointing — exactly the false-urgency anti-
+        # pattern the v9.2.6 "silent contract drift" wiki article warns
+        # against. CLAUDE.md tells Claude how to use wicked-brain:memory; the
+        # session-teardown agent handles end-of-session synthesis. A turn-
+        # counter timer added no signal.
 
         # Jam suggestion: when ambiguity signals present
         jam_hint = _suggest_jam(prompt, state)
