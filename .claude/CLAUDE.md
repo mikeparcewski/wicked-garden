@@ -447,7 +447,7 @@ When testing wicked-garden machinery (hooks, skills, agents, scripts) and you hi
 **Template**:
 
 ```
-gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
+gh issue create --label bug --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
 ```
 
 - `<location>`: file path + line, or command path (e.g. `hooks/scripts/pre_tool.py:142` or `/wicked-garden:crew:start`)
@@ -455,13 +455,7 @@ gh issue create --label machinery --title "<hook|skill|agent>: <one-line>" --bod
 - `<impact>`: who/what breaks (single user, all crew runs, audit trail, etc.)
 - `<fix proposal>`: rough direction even if uncertain — gives the triager a starting point
 
-**One-time setup** (the `machinery` label must exist on the repo or `gh issue create` exits non-zero):
-
-```
-gh label create machinery --description "Plugin machinery (hooks/skills/agents/scripts) bugs surfaced via dogfooding" --color B60205
-```
-
-If `gh label create` fails because the label already exists, that's the success case — proceed. If you don't have permission to create labels on the repo, fall back to `--label bug` and prefix the title with `machinery:` so triagers can route by hand.
+Use the `bug` label — it's the canonical label for plugin defects surfaced via dogfooding. (`machinery` is not used.)
 
 If you discover the bug mid-session, file it before continuing the work that surfaced it.
 
