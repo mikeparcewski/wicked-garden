@@ -1,5 +1,61 @@
 # Changelog
 
+## [9.2.17] - 2026-05-06
+
+**Slim 3 platform/ commands using the same Pattern B mechanic — Issue #843 part 1.**
+
+Issue #843 (filed at the end of v9.2.16) listed three Pattern B targets in `commands/platform/`. Same mechanic that's now shipped 4 times this session — the receiving agents (`security-engineer`, `auditor`, `infrastructure-engineer`) hold all the rubric content (OWASP framework, GDPR/HIPAA/SOC2 checklists, IaC pattern catalog).
+
+### Slim conversion
+
+| File | Original | Slim | Reduction |
+|---|---|---|---|
+| `commands/platform/security.md` | 206 | 23 | -88.8% |
+| `commands/platform/audit.md` | 197 | 28 | -85.8% |
+| `commands/platform/infra.md` | 196 | 29 | -85.2% |
+| **Total** | **599** | **80** | **-86.6%** |
+
+All three dispatch parity preserved (1 → 1 each):
+- `security.md` → `wicked-garden:platform:security-engineer`
+- `audit.md` → `wicked-garden:platform:auditor`
+- `infra.md` → `wicked-garden:platform:infrastructure-engineer`
+
+### Why `delivery/setup.md` was excluded from this PR
+
+Issue #843 also listed `commands/delivery/setup.md` (184 lines). Inspection showed it has **no Task() dispatch** — it's an interactive config writer (AskUserQuestion → Read/Write JSON files) with the same shape as the bigger `commands/setup.md`. Pattern B doesn't apply; it needs Pattern C with possible detection-extraction-to-scripts surgery. Both setup-style files defer to the next focused PR.
+
+### Cumulative slimming (20 commands across 5 domains)
+
+| Domain | Files | Original | Slim | Reduction |
+|---|---|---|---|---|
+| `crew/*` (Phase 2A/B/C) | 3 | 2226 | 507 | -77% |
+| `agentic/*` (v9.2.13) | 4 | 2303 | 123 | -94.7% |
+| `product/*` + `engineering/*` (v9.2.14) | 5 | 1516 | 155 | -89.8% |
+| `data/*` (v9.2.16) | 5 | 491 | 113 | -77.0% |
+| `platform/*` (**this PR**) | 3 | 599 | 80 | -86.6% |
+| **Grand total** | **20** | **7135** | **978** | **-86.3%** |
+
+### Pre-commit verification
+
+The dispatch parity check that caught the v9.2.14 (extra `product-manager`) and v9.2.16 (literal `{mapped}` placeholder) silent behavior changes ran clean here. All 3 files: original 1 dispatch → slim 1 dispatch, no additions, no drops. The slimming subagent followed the Pattern B contract correctly on the first pass.
+
+### Tests
+
+- 304/304 v10 surface + hook + bootstrap + smaht + session_state + relevance + commands smoke tests passing
+- Relevance lint deny-default clean
+- All 3 receiving platform agents confirmed present in `agents/platform/`
+- Per-file YAML frontmatter (`phase_relevance` / `archetype_relevance`) preserved verbatim
+
+### Plugin version
+
+9.2.16 → 9.2.17 (patch — surface trim only; no behaviour change).
+
+### Issue #843 follow-on
+
+Remaining work tracked in #843:
+- `commands/setup.md` (571 lines) + `commands/delivery/setup.md` (184) — Pattern C interactive bootstraps, needs detection logic extracted to `scripts/setup/*.py` or `scripts/delivery/*.py`. Their own focused PR.
+- Smaller files in `commands/{jam, persona, search, <top>}/` — opportunistic lower priority per the original survey.
+
 ## [9.2.16] - 2026-05-06
 
 **Slim 5 data/ commands using the same Pattern B mechanic that worked for v9.2.13 (agentic) + v9.2.14 (product+engineering).**
