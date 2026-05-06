@@ -1,5 +1,70 @@
 # Changelog
 
+## [9.0.0] - 2026-05-06
+
+The **v10 architectural series**: collapse parallel-state ceremony, gate emit/suppress on explicit intent, slim command bodies, add cross-session task-chain rescue. Major bump because some ENV-visible knobs are removed (see Breaking Changes).
+
+### Architectural principles (load-bearing for future PRs)
+
+1. **Steering, not blocking** — gates / validators / hooks should ASK whether deviation BLOCKS or STEERS. Default behavior stays prescriptive; the change is what happens on the deviation path.
+2. **Partner, not host platform** — wicked-garden does NOT reimplement Claude Code primitives (TaskCreate, Task() dispatch, system reminders, skill progressive loading). It advises and gates on top of them.
+3. **Slim Body Contract** — three patterns for command/skill bodies (Advisory ≤8, Write-Brief+Dispatch ≤30, Interactive+Dispatch ≤35). Static rubrics → `refs/`; session-specific data → dynamic brief written by a single Python script. Subagent skill loading is the intended pattern, NOT a bug.
+
+Brain memories at importance 8–10: `crew-steering-not-blocking-architectural-principle`, `v10-architecture-partner-not-host-platform`, `v10-slim-skill-body-shape-decision`, `v10-intent-variable-design-decision`, `v10-native-task-store-audit-trail-decision`, `dispatch-log-precedes-reviewer-do-not-move-to-post-hook`, `subagent-skill-loading-is-feature-not-bug`, `multi-pr-review-fix-merge-dogfood-pattern`.
+
+### Phase 1 — intent variable replaces 5 unnamed classifiers (#814)
+
+- `prompt_submit.py` shrinks 1424 → 1282 lines (NET -142). Five overlapping intent-detection layers (HOT fast-exit / `_is_near_hot` / complexity scorer / `_should_emit_context_assembly` / `_resolve_pull_phase`) collapse into one explicit `intent` variable on `SessionState` with a 4-value vocabulary (`simple-edit | feature | rigor | research`).
+- New skill `/wicked-garden:intent` for show/set with explicit override.
+- New tag format `<wg intent="X" t=N />` (~30 bytes) replaces `<wg id="ctx" t=N phase="X" cal="Y/Z">` (~80 bytes).
+- Auto-detected `simple-edit` turns emit NO directive at all — silence is the signal. Substantive turns get the synthesis directive; `rigor` adds active-chain context.
+- Empty `<system-reminder>` blocks are suppressed when nothing material is being injected.
+- 31 tests cover intent classification + directive shape.
+
+### Phase 2A — slim crew:start command body (#815)
+
+- `commands/crew/start.md` shrinks 304 → 134 lines (-56%). Slug generation, flag parsing, conflict check, and project shell creation extracted to `scripts/crew/write_brief.py` (deterministic, testable). Per-session brief at `{project_dir}/crew-brief.md` carries session-specific data; static procedure stays in the facilitator agent body.
+- 29 tests cover slug + flags including 8 regression tests for review-caught bugs (over-stripping flag tokens, KeyError on curly braces in user input, pretty-printed JSON parsing, theme-keyword word boundaries).
+- First demonstration that the Slim Body Contract works on a real fat command. Phase 2B/2C will tackle `crew:just-finish.md` (462) and `crew:execute.md` (1460).
+
+### Phase 3 — cross-session task-audit JSONL via PostToolUse (this release)
+
+- New `scripts/crew/_task_audit_writer.py` (~220 lines) — single-writer JSONL schema for cross-session task-chain index. Solves friction-inventory item 5 (`verify_chain_emission` false-positives because per-session task scan misses tasks from earlier sessions).
+- `hooks/scripts/post_tool.py` calls `append_task_audit` on TaskCreate/TaskUpdate; fails open on any I/O error.
+- `scripts/crew/verify_chain_emission.py` dual-reads native task scan + audit JSONL (deduped by task_id). Drift logged to stderr (steering, never fails the verifier). Soak window per bus-cutover: Phase A this release; Phase B = zero-drift over one cycle; Phase C = retire the script.
+- 10 tests cover the writer + reader + path-traversal sanitisation + fail-open contract.
+- **Critical scope check**: dispatch-log HMAC writes are UNCHANGED. The audit JSONL is a different threat model — see brain memory `dispatch-log-precedes-reviewer-do-not-move-to-post-hook`. Conflating them was an explicit anti-pattern caught by brainstorm 03.
+
+### Steering on plan validator (#812)
+
+- `validate_plan.py` no longer REJECTs facilitator plans on `risk_level/reading` drift. Cross-field consistency is now an advisory warning emitted by `warnings()` with full audit detail. Daily papercut on every facilitator run.
+- First demonstration of the steering-not-blocking principle on a real validator.
+
+### Documentation
+
+- `.claude/CLAUDE.md` adds the **v10 architectural principles** section. The Context Assembly section is rewritten around the intent variable. Operating Notes gets the "three orthogonal task lookup patterns" callout (native / audit JSONL / dispatch-log).
+- `AGENTS.md` adds the v10 quick-reference principles section, kept in lock-step with CLAUDE.md.
+- Dogfooding bug template: `--label bug` (canonical) finalised; the never-adopted `machinery` label is documented as not-used.
+
+### Breaking changes
+
+- **`WG_CONTEXT_ASSEMBLY` env var is no longer honoured.** Replaced by the intent variable + `/wicked-garden:intent` skill. Users who set `WG_CONTEXT_ASSEMBLY=always` should call `/wicked-garden:intent rigor`; users who set `=off` should call `/wicked-garden:intent simple-edit`.
+- Removed dead-code symbols from `hooks/scripts/prompt_submit.py`: `_resolve_pull_phase`, `_build_pull_directive`, `_should_emit_context_assembly`, `_resolve_context_assembly_mode`, `_starts_with_leading_confirmation`, `_contains_meta_phrase`, `_build_synthesis_directive`. External imports of these (none in tree) will fail.
+- Tag format: `<wg id="ctx" t=N phase="X" cal="Y/Z">` is gone; consumers parsing it must switch to `<wg intent="X" t=N />`.
+- The 304-line `commands/crew/start.md` was rewritten. Anyone depending on a specific intermediate step name in that command body must read the new shape.
+
+### Deferred (not in this release)
+
+- **Phase 4 (personas as skills)** — brainstorm 04 was dispatched but did not complete in time for this release. Phase 4 is held until brainstorm 04 lands AND Phases 1–3 dogfood through one or more real sessions to surface failure modes.
+- Slim Body Contract checks in `/wg-check` — follow-up tooling PR.
+- `crew:just-finish.md` and `crew:execute.md` slim-body conversions — Phases 2B / 2C.
+
+### Migration / dogfooding notes
+
+- After upgrading, a `crew:start "implement X"` session should produce a slimmer parent context. The first turn after upgrade auto-detects intent; if it picks the wrong value, override with `/wicked-garden:intent <kind>` (sticky for the session, resets at SessionEnd).
+- "Where are we?"–style status checks should now produce NO `<system-reminder>` block. If you still see one, file a `--label bug` issue per the dogfooding protocol.
+- Scenario suite is expected to need fixes — dogfood the merged code, surface broken scenarios as failures, fix them in a follow-up PR.
+
 ## [8.8.1] - 2026-05-05
 
 ### Bug Fixes

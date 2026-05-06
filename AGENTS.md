@@ -23,6 +23,23 @@ External plugins integrate with wicked-garden by following the contract in
 Plugin authors must pass the v9 discovery conventions (`docs/v9/discovery-conventions.md`)
 and the unique-value test before their skills will be accepted in the marketplace.
 
+## v10 architectural principles
+
+The v10 series shipped across PRs #812 / #814 / #815 / #816 reshapes how wicked-garden interacts with Claude Code. Three principles are load-bearing — see [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "v10 architectural principles" for full detail. Quick reference:
+
+1. **Steering, not blocking** — every gate / validator / hook should ask: when behaviour deviates, does this BLOCK or STEER? Plan validator already shifted this way (#812). New gates must follow the pattern.
+2. **Partner, not host platform** — wicked-garden does NOT reimplement Claude Code primitives. Use native `TaskCreate`, `Task()`, system reminders, skill progressive loading. No parallel state / parallel dispatch / parallel task store.
+3. **Slim Body Contract** — fat bodies are in `commands/`, not `skills/`. Three patterns cover the design space: A (advisory ≤8 lines), B (write-brief + dispatch ≤30), C (interactive + dispatch ≤35). Static rubrics → `refs/`; session-specific data → dynamic `*-brief.md` written by a single Python script.
+
+**Subagent skill loading is the intended pattern, not a problem** — only PARENT-context loads cause permanent burn. See brain memory `subagent-skill-loading-is-feature-not-bug`.
+
+**Three orthogonal task lookup patterns** (do not conflate):
+- Native task store (per-session) — current task state.
+- Cross-session audit JSONL (Phase 3, PR #816) — `verify_chain_emission` cross-session rescue.
+- HMAC-signed dispatch-log (UNCHANGED) — gate authorisation; written BEFORE reviewer invocation. Different threat model.
+
+Brain memories (importance 8–10): `crew-steering-not-blocking-architectural-principle`, `v10-architecture-partner-not-host-platform`, `v10-slim-skill-body-shape-decision`, `v10-intent-variable-design-decision`, `v10-native-task-store-audit-trail-decision`, `dispatch-log-precedes-reviewer-do-not-move-to-post-hook`, `subagent-skill-loading-is-feature-not-bug`.
+
 ## Bus-as-truth contract (v9.x cutover)
 
 The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the source of truth** for every gate-critical and audit-load-bearing artifact; on-disk files are projections materialized by `daemon/projector.py`. 14 sites are default-ON. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Bus-as-truth architecture" for the full inventory and resolver shape.
