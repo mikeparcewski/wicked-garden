@@ -104,3 +104,111 @@ def test_session_state_declares_at_least_60_fields():
         f"SessionState only has {len(declared)} declared fields; "
         f"expected ~62 after v9.2.3. Did the dataclass shrink unexpectedly?"
     )
+
+
+# ---------------------------------------------------------------------------
+# v9.2.5 — extend the test to the OTHER half of the drift class:
+# fields declared and read but NEVER written. v9.2.4 surfaced this when
+# `active_chain_id` was found to have no producer (smaht chain-aware scoring
+# silently degraded). v9.2.5 surfaced two more: `active_project` and
+# `crew_project` (plus `last_reeval_ts` / `last_reeval_task_count` which are
+# known-incomplete and tracked separately).
+#
+# A field declared and read but never written is the same severity as the
+# v9.2.0–v9.2.3 drift class — the consumer always sees the dataclass default,
+# silently. The test catches that mechanically.
+# ---------------------------------------------------------------------------
+
+# Producers that the audit regex doesn't reliably detect — written via
+# `**dict_unpack` patterns or via non-state variables. Listed explicitly so
+# someone reading this list can confirm each one has a real producer.
+KNOWN_DICT_UNPACK_WRITERS = {
+    "complexity_at_session_open",  # bootstrap.py:~1411 — `updates = {"complexity_at_session_open": ...}` then state.update(**updates)
+    "complexity_score",            # same call site as above
+    "extras",                      # bootstrap.py — written via `state.update(**extras_dict)` pattern
+    "turn_count",                  # _session.py::increment_turn does direct attribute assign + save
+}
+
+# Fields with KNOWN producer gaps tracked as separate work — declared and
+# read by consumers but no writer exists. Each produces silent degradation
+# that's understood and tracked, not a regression to fix in this test.
+# Removing an entry from this set means a producer is now wired.
+KNOWN_PRODUCER_GAPS = {
+    # `last_reeval_*` are read by phase_start_gate via prompt_submit context;
+    # writer is supposed to fire after each re-eval completes (per docstring
+    # in scripts/crew/phase_start_gate.py). Phase_start_gate has been silently
+    # treating every check as "first time" because both fields stay at default.
+    # Producer wiring is feature work, deferred from cleanup releases — see
+    # the open follow-on issue for tracking.
+    "last_reeval_ts",
+    "last_reeval_task_count",
+}
+
+
+def _writer_field_names() -> set[str]:
+    """Detect ALL fields written by any producer pattern.
+
+    Patterns this catches (best-effort, not exhaustive):
+    - `state.update(field=value, ...)` — explicit kwarg
+    - `sess.update(field=value, ...)` — alias variable in scripts/crew
+    - `session_state.update(field=value, ...)` — alias variable in stop.py
+    - `state.field = value` / `state.field += value` — direct attribute write
+    - `field=` inside any update() call body (multi-line tolerant)
+    - `**dict_unpack` — captured via the KNOWN_DICT_UNPACK_WRITERS allowlist
+    """
+    written: set[str] = set()
+    for f in (HOOKS_DIR.rglob("*.py")):
+        text = f.read_text(encoding="utf-8")
+        # Catch all `name=` inside any update(...) call (multi-line OK).
+        for m in re.finditer(r"\.update\(([^)]*)\)", text, re.DOTALL):
+            for kw in re.finditer(r"([a-z_][a-z_0-9]*)\s*=", m.group(1)):
+                written.add(kw.group(1))
+        # Catch direct attribute writes on state-like vars.
+        for m in re.finditer(
+            r"(?:state|sess|session_state)\.([a-z_][a-z_0-9]*)\s*[+\-*/]?=(?!=)",
+            text,
+        ):
+            written.add(m.group(1))
+    # Also walk scripts/ for sess.update(...) producers (e.g. phase_manager.py
+    # writes last_phase_approved + skip_reeval_count via `sess.update(...)`).
+    scripts_root = REPO_ROOT / "scripts"
+    for f in scripts_root.rglob("*.py"):
+        if "tests" in f.parts:
+            continue
+        text = f.read_text(encoding="utf-8")
+        for m in re.finditer(r"\.update\(([^)]*)\)", text, re.DOTALL):
+            for kw in re.finditer(r"([a-z_][a-z_0-9]*)\s*=", m.group(1)):
+                written.add(kw.group(1))
+    return written
+
+
+def test_every_declared_field_has_a_producer():
+    """v9.2.5 contract: every declared SessionState field that ANY hook reads
+    must have at least one producer (some piece of code that writes it).
+
+    A field declared + read but never written is silently degraded — consumers
+    always see the dataclass default. v9.2.4 surfaced this for `active_chain_id`
+    (smaht chain-aware scoring); v9.2.5 fixed it for `active_project` and
+    removed `crew_project` (phantom field).
+
+    Failure means a NEW field has the same bug. Either wire a producer or
+    document the gap explicitly in KNOWN_PRODUCER_GAPS with a comment.
+    """
+    declared = _declared_fields()
+    written = _writer_field_names()
+    read_by_hooks = _used_fields_in_hooks()
+
+    # Only declared fields that are READ matter — a field declared but nobody
+    # reads is its own dead-code class (rare, not load-bearing).
+    declared_and_read = declared & read_by_hooks
+    no_producer = declared_and_read - written - KNOWN_DICT_UNPACK_WRITERS - KNOWN_PRODUCER_GAPS
+
+    assert not no_producer, (
+        f"SessionState producer gap — {len(no_producer)} field(s) declared "
+        f"and read by hooks but never written by any producer:\n"
+        f"  {sorted(no_producer)}\n"
+        f"Either wire a producer (preferred — see active_chain_id in "
+        f"hooks/scripts/bootstrap.py for the canonical pattern) or add to "
+        f"KNOWN_PRODUCER_GAPS with a comment explaining why the gap is "
+        f"acceptable (e.g. tracked as a separate issue)."
+    )
