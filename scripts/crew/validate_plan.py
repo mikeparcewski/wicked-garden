@@ -532,8 +532,8 @@ def _check_factor_risk_consistency(plan: dict) -> list:
                     "message": (
                         f"factors.{key} — risk_level '{risk_level}' does not "
                         f"match reading '{reading}' (expected '{expected}'; "
-                        f"see scripts/crew/factor_questionnaire.py::_RISK_INVERSION). "
-                        f"Advisory only — `reading` carries authoritative direction."
+                        f"see scripts/crew/factor_questionnaire.py::_RISK_INVERSION); "
+                        f"advisory only — `reading` carries authoritative direction"
                     ),
                 })
     return out
@@ -747,11 +747,14 @@ def _run_selftest() -> None:
             f"{drift_violations}"
         )
     drift_warnings = warnings(drifted)
-    drift_warn_codes = {w.get("code") for w in drift_warnings}
-    if _WARN_RISK_LEVEL_INVERTED not in drift_warn_codes:
+    drift_warn_matching = [
+        w for w in drift_warnings if w.get("code") == _WARN_RISK_LEVEL_INVERTED
+    ]
+    if len(drift_warn_matching) != 1:
         failures.append(
-            f"steering: risk_level drift did not produce expected warning "
-            f"'{_WARN_RISK_LEVEL_INVERTED}' (got codes: {sorted(drift_warn_codes)})"
+            f"steering: risk_level drift produced {len(drift_warn_matching)} "
+            f"matching warnings (expected exactly 1; got codes "
+            f"{sorted({w.get('code') for w in drift_warnings})})"
         )
     # The drift warning must include enough audit detail to fix the producer.
     drift_warn = next(

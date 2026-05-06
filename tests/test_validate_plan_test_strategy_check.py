@@ -194,30 +194,34 @@ def test_validate_rejects_bad_factor_risk_level_enum():
 
 
 def test_validate_does_not_reject_inverted_factor_risk_level():
-    """Steering-not-blocking (2026-05-05): inversion drift between
-    risk_level and reading was previously a fatal violation (Issue #689).
-    Downgraded to an advisory warning emitted by `warnings()`. The plan
-    still validates; producer drift is recorded with enough audit detail
-    to fix the upstream emitter.
+    """Steering-not-blocking (2026-05-05, supersedes the prior #627/#689
+    enforcement): inversion drift between risk_level and reading was a
+    fatal violation. Downgraded to an advisory warning emitted by
+    `warnings()`. The plan still validates; producer drift is recorded
+    with enough audit detail to fix the upstream emitter.
 
-    The old behavior forced hand-patching on every facilitator output that
-    picked the more intuitive direction (LOW reversibility = low semantic
-    risk). The principle: structure stays prescriptive, but the enforcement
-    model steers (auto-correct + audit) instead of blocking.
+    The old behavior forced hand-patching on every facilitator output
+    that picked the more intuitive direction (LOW reversibility = low
+    semantic risk). The principle: structure stays prescriptive, but
+    the enforcement model emits an advisory warning rather than rejecting
+    — the validator does NOT mutate the plan; downstream consumers
+    preferring `reading` are already correct on the authoritative direction.
     """
     plan = _base_plan()
     plan["factors"]["reversibility"]["risk_level"] = "low_risk"
 
-    # validate() must not reject — drift is no longer fatal.
+    # validate() must accept the plan cleanly — drift is no longer fatal,
+    # and we want to catch any new violations that creep in unrelated to
+    # this codepath, so we assert the full violations list is empty.
     violations = validate_plan.validate(plan)
-    assert not any(
-        "factors.reversibility" in v and "does not match reading" in v
-        for v in violations
-    ), f"inversion drift should warn, not reject: {violations}"
+    assert violations == [], f"drift must not produce violations: {violations}"
 
     # warnings() must surface the drift with full audit detail.
     warns = validate_plan.warnings(plan)
-    drift = [w for w in warns if w.get("code") == "risk-level-inverted-vs-reading"]
+    drift = [
+        w for w in warns
+        if w.get("code") == validate_plan._WARN_RISK_LEVEL_INVERTED
+    ]
     assert len(drift) == 1, warns
     w = drift[0]
     assert w["severity"] == "warn"
@@ -234,8 +238,15 @@ def test_warnings_silent_when_risk_level_matches_reading():
     plan = _base_plan()  # baseline factors all have matching reading/risk_level
     warns = validate_plan.warnings(plan)
     assert not any(
-        w.get("code") == "risk-level-inverted-vs-reading" for w in warns
+        w.get("code") == validate_plan._WARN_RISK_LEVEL_INVERTED for w in warns
     ), warns
+
+
+def test_risk_level_warning_code_is_stable():
+    """2026-05-05: downstream consumers (gate reviewers, dashboards, audit
+    logs) key on the literal warning code string. Pin the value so a
+    rename here surfaces as a test failure rather than silent drift."""
+    assert validate_plan._WARN_RISK_LEVEL_INVERTED == "risk-level-inverted-vs-reading"
 
 
 def test_existing_specialist_check_still_passes():
