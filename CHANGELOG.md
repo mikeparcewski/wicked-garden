@@ -1,5 +1,47 @@
 # Changelog
 
+## [9.2.14] - 2026-05-06
+
+**Slim five product + engineering commands using the same Pattern B shape that worked for v9.2.13's agentic quartet.**
+
+The v9.2.11 commands-slimming subagent survey identified a second tier of bloated dispatch commands: `commands/engineering/review.md` (380), `commands/product/strategy.md` (352), `commands/product/ux-review.md` (346), `commands/product/synthesize.md` (272), `commands/engineering/arch.md` (166). All five hold inline rubric (R1-R6, POUR/WCAG, JTBD, ROI/SWOT/SAM-TAM-SOM, Nielsen heuristics) duplicated from the receiving agents under `agents/product/*` and `agents/engineering/*`.
+
+### Slim conversion
+
+| File | Original | Slim | Reduction | Pattern |
+|---|---|---|---|---|
+| `commands/engineering/review.md` | 380 | 29 | -351 (-92.4%) | C (persona branch) |
+| `commands/product/strategy.md` | 352 | 29 | -323 (-91.8%) | B (2 dispatches) |
+| `commands/product/ux-review.md` | 346 | 32 | -314 (-90.8%) | B (4 dispatches) |
+| `commands/product/synthesize.md` | 272 | 32 | -240 (-88.2%) | B (1 dispatch) |
+| `commands/engineering/arch.md` | 166 | 33 | -133 (-80.1%) | B (2 dispatches) |
+| **Total** | **1516** | **155** | **-1361 (-89.8%)** | |
+
+`engineering/review.md` is Pattern C because it has a `--persona` branch that conditionally dispatches `wicked-garden:persona:persona-agent` when a persona is found, falling through to `senior-engineer` on miss. Three files (`arch`, `synthesize`, `ux-review`) are 2-3 lines over the Pattern B target (≤30) but under the hard cap (≤35) — same trade-off accepted in v9.2.13's `design.md`/`review.md`.
+
+### Bug caught + rolled back during review
+
+The slimming subagent introduced an extra `wicked-garden:product:product-manager` dispatch in `strategy.md` that the original 352-line version did not have. The original only dispatched `market-strategist` + `value-strategist` and rendered the synthesis inline. Caught during pre-commit verification (`git show main:commands/product/strategy.md | grep subagent_type`) and rolled back — final shipped slim preserves original behavior. Same "no behavior change beyond suppression" principle as every prior PR this session.
+
+### Cumulative slimming progress
+
+| Domain | Original | Slim | Reduction |
+|---|---|---|---|
+| `commands/crew/*` (3 files, Phase 2A/B/C) | 2226 | 507 | -77% |
+| `commands/agentic/*` (4 files, v9.2.13) | 2303 | 123 | -94.7% |
+| `commands/{product,engineering}/*` (5 files, **this PR**) | 1516 | 155 | -89.8% |
+| **Grand total (12 files)** | **6045** | **785** | **-87%** |
+
+### Tests
+
+- 296/296 v10 surface + hook + bootstrap + smaht + session_state + relevance + commands smoke tests passing.
+- Relevance lint deny-default clean.
+- All 14 receiving agents (`market-strategist`, `value-strategist`, `ui-reviewer`, `ux-designer`, `a11y-expert`, `user-researcher`, `user-voice`, `senior-engineer`, `solution-architect`, `system-designer`, `persona-agent`, etc.) confirmed present in `agents/product/` and `agents/engineering/`.
+
+### Plugin version
+
+9.2.13 → 9.2.14 (patch — surface trim only; no behaviour change after the strategy.md rollback).
+
 ## [9.2.13] - 2026-05-06
 
 **Item 1 of this session's cleanup — slim the agentic command quartet (-94.7%).**
