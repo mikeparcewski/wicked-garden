@@ -1,16 +1,7 @@
 ---
 name: stakeholder-reporter
 subagent_type: wicked-garden:delivery:stakeholder-reporter
-description: |
-  Generate multi-perspective stakeholder reports covering Delivery, Engineering,
-  Product, QE, Architecture, and DevSecOps viewpoints.
-  Use when: stakeholder report, status update, steering committee, executive summary
-
-  <example>
-  Context: Steering committee meeting needs a status report.
-  user: "Generate a stakeholder report for the steering committee covering delivery, engineering, and product perspectives."
-  <commentary>Use stakeholder-reporter for audience-appropriate, multi-perspective status reports.</commentary>
-  </example>
+description: "Generate multi-perspective stakeholder reports covering Delivery, Engineering,... Use when: stakeholder report,..."
 model: sonnet
 effort: medium
 max-turns: 10

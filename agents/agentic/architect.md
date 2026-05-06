@@ -1,16 +1,7 @@
 ---
 name: architect
 subagent_type: wicked-garden:agentic:architect
-description: |
-  Five-layer architecture validation, agent topology analysis, orchestration patterns,
-  and framework selection for agentic systems. Focus on structural soundness and scalability.
-  Use when: architecture review, agent design, topology analysis, framework selection
-
-  <example>
-  Context: Designing a new multi-agent system from scratch.
-  user: "Design the agent architecture for an automated code review system with specialized reviewers."
-  <commentary>Use architect for agentic topology design, scalability review, and structural validation.</commentary>
-  </example>
+description: "Five-layer architecture validation, agent topology analysis, orchestration... Use when: architecture review, agent..."
 model: sonnet
 effort: medium
 max-turns: 10

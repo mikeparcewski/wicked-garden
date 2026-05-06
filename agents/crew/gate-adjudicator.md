@@ -1,14 +1,6 @@
 ---
 name: gate-adjudicator
-description: |
-  Archetype-aware phase-boundary evidence evaluator for crew projects.
-  Use when: dispatched at the `testability` or `evidence-quality` gate via gate-policy.json.
-  Reads ctx["archetype"] (from state.extras["archetype"] injected by the dispatcher) and
-  applies the per-archetype score-band table from design.md §1. Emits verdict + score +
-  reason + conditions to gate-result.json and writes one AddendumEntry_1_1_0 record to
-  the reeval addendum. NEVER silent-degrades — missing/invalid archetype triggers a
-  structured warning and explicit code-repo fallback with audit markers.
-  Not for: requirements-quality, design-quality, or any non-target gates.
+description: "Archetype-aware phase-boundary evidence evaluator for crew projects. Use when: dispatched at the `testability` or..."
 subagent_type: wicked-garden:crew:gate-adjudicator
 model: sonnet
 required_context:

@@ -1,15 +1,7 @@
 ---
 name: brainstorm-facilitator
 subagent_type: wicked-garden:jam:brainstorm-facilitator
-description: |
-  Role-plays as focus group personas and synthesizes brainstorming discussions.
-  Use when: brainstorming, ideation, focus group, creative exploration
-
-  <example>
-  Context: Team needs creative ideas for a new feature.
-  user: "Brainstorm approaches for making our CLI tool more discoverable to new users."
-  <commentary>Use jam facilitator for persona-based brainstorming and structured ideation sessions.</commentary>
-  </example>
+description: "Role-plays as focus group personas and synthesizes brainstorming discussions. Use when: brainstorming, ideation,..."
 model: sonnet
 effort: medium
 max-turns: 10

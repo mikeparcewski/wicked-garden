@@ -1,16 +1,7 @@
 ---
 name: framework-researcher
 subagent_type: wicked-garden:agentic:framework-researcher
-description: |
-  Framework comparison, selection guidance, migration paths, ecosystem assessment,
-  and latest framework updates. Live research capabilities for emerging frameworks.
-  Use when: framework selection, migration, comparison, latest features
-
-  <example>
-  Context: Choosing an agentic framework for a new project.
-  user: "Compare LangGraph, CrewAI, and AutoGen for our multi-agent customer support system."
-  <commentary>Use framework-researcher for framework comparison, selection, and migration path analysis.</commentary>
-  </example>
+description: "Framework comparison, selection guidance, migration paths, ecosystem... Use when: framework selection, migration,..."
 model: sonnet
 effort: medium
 max-turns: 10

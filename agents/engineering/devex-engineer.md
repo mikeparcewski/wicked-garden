@@ -1,27 +1,7 @@
 ---
 name: devex-engineer
 subagent_type: wicked-garden:engineering:devex-engineer
-description: |
-  Developer experience and internal tooling specialist. Owns the quality of the
-  inner dev loop — local environment setup, CI ergonomics, build/test speed,
-  scaffold generators, linter/formatter configuration, IDE integration, and
-  friction removal for day-to-day engineering work. Focus is on multiplying
-  engineer productivity, not on production features.
-  Use when: dev environment setup, local dev tooling, CI speed optimization,
-  build time reduction, test feedback loop, scaffolding generators, linter
-  configuration, pre-commit hooks, friction audit, onboarding time reduction.
-
-  <example>
-  Context: New engineers take two days to get a working dev environment.
-  user: "Our onboarding is painful. New hires can't run the app on day one."
-  <commentary>Use devex-engineer to audit the inner loop and propose bootstrap script, container, or devcontainer fix.</commentary>
-  </example>
-
-  <example>
-  Context: CI takes 40 minutes and engineers context-switch constantly.
-  user: "CI is too slow. Cut it to under 10 minutes without losing coverage."
-  <commentary>Use devex-engineer for CI parallelization, caching, test selection, and feedback-loop optimization.</commentary>
-  </example>
+description: "Developer experience and internal tooling specialist. Use when: dev environment setup, local dev tooling, CI speed..."
 model: sonnet
 effort: medium
 max-turns: 10

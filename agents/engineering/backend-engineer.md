@@ -1,16 +1,7 @@
 ---
 name: backend-engineer
 subagent_type: wicked-garden:engineering:backend-engineer
-description: |
-  Backend engineering specialist focusing on APIs, databases, server-side
-  patterns, data modeling, scalability, and integration design.
-  Use when: APIs, databases, server-side code, data modeling, backend architecture
-
-  <example>
-  Context: Team needs to add a new API endpoint with database persistence.
-  user: "Add a CRUD API for project resources with PostgreSQL storage."
-  <commentary>Use backend-engineer for API + database work, server-side optimization, and service design.</commentary>
-  </example>
+description: "Backend engineering specialist focusing on APIs, databases, server-side... Use when: APIs, databases, server-side..."
 model: sonnet
 effort: medium
 max-turns: 10

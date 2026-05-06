@@ -1,25 +1,7 @@
 ---
 name: market-strategist
 subagent_type: wicked-garden:product:market-strategist
-description: |
-  Combined business case + competitive strategy. Builds ROI analysis for technical
-  investments AND analyzes competitive landscape, SWOT, Porter's Five Forces,
-  positioning, and strategic recommendations in one agent. Market sizing inputs
-  (TAM/SAM/SOM) are absorbed here from the former market-analyst.
-  Use when: ROI, business case, investment decision, SWOT, competitive positioning,
-  alternatives analysis, market timing, strategic stance.
-
-  <example>
-  Context: Team wants to justify a major investment and needs competitive context.
-  user: "Build the business case for our CI/CD product vs. GitHub Actions and CircleCI."
-  <commentary>Use market-strategist to combine ROI + SWOT + positioning in one strategic analysis.</commentary>
-  </example>
-
-  <example>
-  Context: Product leadership needs strategic stance recommendation.
-  user: "Should we compete head-to-head with Datadog or go niche?"
-  <commentary>Use market-strategist for Five Forces analysis, positioning, and strategic move recommendation.</commentary>
-  </example>
+description: "Combined business case + competitive strategy. Use when: ROI, business case, investment decision, SWOT, competitive..."
 model: sonnet
 effort: medium
 max-turns: 10

@@ -1,27 +1,7 @@
 ---
 name: data-architect
 subagent_type: wicked-garden:data:data-architect
-description: |
-  Unified data architecture role — owns both operational/transactional data
-  modeling (OLTP schemas, domain entities, data flow, caching, consistency) AND
-  analytical data architecture (warehouse/lakehouse design, star/snowflake/data-vault
-  modeling, governance, partitioning, cost optimization, schema evolution).
-  Combines the former engineering:data-architect + data:analytics-architect.
-  Use when: data modeling (entities + warehouse dimensions), storage selection
-  (OLTP + OLAP), schema design, data flow, data governance, warehouse/lakehouse
-  architecture, partitioning/clustering, cost optimization, schema evolution.
-
-  <example>
-  Context: Starting a new feature that needs storage AND analytics.
-  user: "Design the data layer for a multi-tenant task system — operational storage and analytics warehouse."
-  <commentary>Use data-architect for the full OLTP + OLAP design in one pass.</commentary>
-  </example>
-
-  <example>
-  Context: Analytics stack review.
-  user: "Review our data warehouse design — partitioning, cost, governance."
-  <commentary>Use data-architect for warehouse design review, partitioning strategy, and cost optimization.</commentary>
-  </example>
+description: "Unified data architecture role — owns both operational/transactional data... Use when: data modeling (entities +..."
 model: sonnet
 effort: medium
 max-turns: 12

@@ -1,16 +1,7 @@
 ---
 name: data-engineer
 subagent_type: wicked-garden:data:data-engineer
-description: |
-  ETL pipeline design, data quality assessment, schema validation, and performance optimization.
-  Reviews data architectures and ensures robust data engineering practices.
-  Use when: ETL pipelines, data quality, schema validation, pipeline optimization
-
-  <example>
-  Context: Building a data pipeline for a new data source.
-  user: "Design an ETL pipeline to ingest events from our Kafka topics into the data warehouse."
-  <commentary>Use data-engineer for ETL pipeline design, data quality assessment, and schema validation.</commentary>
-  </example>
+description: "ETL pipeline design, data quality assessment, schema validation, and... Use when: ETL pipelines, data quality,..."
 model: sonnet
 effort: medium
 max-turns: 10

@@ -1,15 +1,6 @@
 ---
 name: mockup-generator
-description: |
-  Mockup generation agent. Creates wireframes and design prototypes in ASCII,
-  HTML/CSS, or component spec formats for ideation and developer handoff.
-  Use when: wireframe, mockup, prototype, lo-fi design, component spec, design handoff
-
-  <example>
-  Context: Quick wireframe needed for a feature discussion.
-  user: "Create an ASCII wireframe for a settings page with sidebar navigation and form sections."
-  <commentary>Use mockup-generator for wireframes, HTML/CSS prototypes, and component specs.</commentary>
-  </example>
+description: "Mockup generation agent. Use when: wireframe, mockup, prototype, lo-fi design, component spec, design handoff..."
 subagent_type: wicked-garden:product:mockup-generator
 model: sonnet
 effort: medium

@@ -1,16 +1,7 @@
 ---
 name: api-documentarian
 subagent_type: wicked-garden:engineering:api-documentarian
-description: |
-  Specialize in API documentation - OpenAPI specs, endpoint documentation, request/response
-  examples, and error documentation. Create comprehensive, accurate API reference materials.
-  Use when: API docs, OpenAPI specs, endpoint documentation, API reference
-
-  <example>
-  Context: Team is building a new REST API and needs docs for consumers.
-  user: "Generate OpenAPI spec and docs for our user management endpoints."
-  <commentary>Use api-documentarian for API spec generation, endpoint documentation, and reference materials.</commentary>
-  </example>
+description: "Specialize in API documentation - OpenAPI specs, endpoint documentation,... Use when: API docs, OpenAPI specs,..."
 model: sonnet
 effort: medium
 max-turns: 10

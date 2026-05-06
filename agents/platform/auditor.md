@@ -1,17 +1,7 @@
 ---
 name: auditor
 subagent_type: wicked-garden:platform:auditor
-description: |
-  Audit evidence collector and control verifier. Gathers artifacts,
-  validates controls, maintains audit trails, and generates compliance
-  reports for certification audits.
-  Use when: audit evidence, compliance artifacts, audit trails
-
-  <example>
-  Context: Preparing for a SOC2 audit and need to gather evidence.
-  user: "Collect all access control evidence for our SOC2 Type II audit."
-  <commentary>Use auditor for compliance evidence collection, control verification, and audit trails.</commentary>
-  </example>
+description: "Audit evidence collector and control verifier. Use when: audit evidence, compliance artifacts, audit trails..."
 model: sonnet
 effort: medium
 max-turns: 10

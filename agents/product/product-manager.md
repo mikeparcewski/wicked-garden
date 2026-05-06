@@ -1,16 +1,7 @@
 ---
 name: product-manager
 subagent_type: wicked-garden:product:product-manager
-description: |
-  Strategic product thinking: roadmap planning, prioritization, trade-offs,
-  and business value alignment. Balances customer needs with delivery capacity.
-  Use when: roadmap, prioritization, product strategy, feature decisions
-
-  <example>
-  Context: Quarterly planning with too many feature requests.
-  user: "We have 20 feature requests and capacity for 5. Help prioritize."
-  <commentary>Use product-manager for feature prioritization, roadmap planning, and scope definition.</commentary>
-  </example>
+description: "Strategic product thinking: roadmap planning, prioritization, trade-offs, and... Use when: roadmap, prioritization,..."
 model: sonnet
 effort: medium
 max-turns: 10

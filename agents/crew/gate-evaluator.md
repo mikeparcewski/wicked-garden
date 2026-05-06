@@ -1,23 +1,7 @@
 ---
 name: gate-evaluator
 subagent_type: wicked-garden:crew:gate-evaluator
-description: |
-  Fast-path objective gate evaluator for minimal-tier and self-check gates. Use when:
-  a gate-policy.json entry declares `mode: self-check` OR has an empty `reviewers` list
-  OR is `mode: advisory` (findings-only). DO NOT use for full-rigor specialist gates —
-  those dispatch via their declared reviewers (solution-architect, security-engineer,
-  senior-engineer, etc.).
-
-  <example>
-  Context: A minimal-rigor crew project approves its design phase; gate-policy.json
-  sets `design-quality.minimal` to `mode: self-check` with `reviewers: []`.
-  user: (invoked by phase_manager.approve_phase via _dispatch_gate_reviewer)
-  <commentary>
-  gate-evaluator reads phases/design/design.md, checks byte-count and required-deliverable
-  presence, and emits {verdict: APPROVE|CONDITIONAL, score, reason, conditions}. Never
-  dispatches specialists; never makes subjective calls.
-  </commentary>
-  </example>
+description: "Fast-path objective gate evaluator for minimal-tier and self-check gates. Use when: a gate-policy"
 model: haiku
 effort: low
 max-turns: 3

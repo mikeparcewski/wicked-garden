@@ -1,16 +1,7 @@
 ---
 name: pattern-advisor
 subagent_type: wicked-garden:agentic:pattern-advisor
-description: |
-  Pattern recognition, anti-pattern detection, refactoring recommendations,
-  design pattern application, and code quality for agentic systems.
-  Use when: code review, refactoring, patterns, anti-patterns, design quality
-
-  <example>
-  Context: Agentic codebase growing complex and needs design review.
-  user: "Our agent orchestration code is getting tangled. Identify anti-patterns and recommend fixes."
-  <commentary>Use pattern-advisor for agentic anti-pattern detection and design pattern guidance.</commentary>
-  </example>
+description: "Pattern recognition, anti-pattern detection, refactoring recommendations,... Use when: code review, refactoring,..."
 model: sonnet
 effort: medium
 max-turns: 10

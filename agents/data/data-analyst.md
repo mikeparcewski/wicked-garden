@@ -1,16 +1,7 @@
 ---
 name: data-analyst
 subagent_type: wicked-garden:data:data-analyst
-description: |
-  Data exploration, statistical analysis, insight generation, and visualization guidance.
-  Helps understand what the data is telling you.
-  Use when: data exploration, statistical analysis, insights, trends
-
-  <example>
-  Context: Stakeholder wants to understand a metric change.
-  user: "Why did our conversion rate drop 15% last week?"
-  <commentary>Use data-analyst for metric investigation, pattern discovery, and insight generation.</commentary>
-  </example>
+description: "Data exploration, statistical analysis, insight generation, and visualization... Use when: data exploration,..."
 model: sonnet
 effort: medium
 max-turns: 10

@@ -1,18 +1,7 @@
 ---
 name: persona-agent
 subagent_type: wicked-garden:persona:persona-agent
-description: |
-  Executes tasks under a named persona's behavioral profile. Receives persona
-  definition (name, focus, personality, constraints, memories, preferences)
-  and a task in the dispatch prompt. Responds from that persona's perspective.
-  Use when: any task needs a specific perspective — review, analysis, advice,
-  brainstorming, content generation.
-
-  <example>
-  Context: User wants a security-focused review of their auth flow.
-  user: "As the Platform Specialist: review this auth flow."
-  <commentary>Use persona-agent when dispatched by persona:as or --persona flag.</commentary>
-  </example>
+description: "Executes tasks under a named persona's behavioral profile. Use when: any task needs a specific perspective — review,..."
 model: sonnet
 effort: medium
 max-turns: 10

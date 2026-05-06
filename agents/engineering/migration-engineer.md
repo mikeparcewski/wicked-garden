@@ -1,27 +1,7 @@
 ---
 name: migration-engineer
 subagent_type: wicked-garden:engineering:migration-engineer
-description: |
-  Schema migrations, data backfills, deprecation paths, rollback plans, and
-  zero-downtime cutovers. Specializes in moving a live production system from
-  one shape to another without breaking consumers — dual-write, backfill,
-  cutover, cleanup patterns; expand-contract schema changes; versioned
-  deprecation windows; verifiable rollback plans.
-  Use when: schema migration, data backfill, breaking change rollout,
-  deprecation path, zero-downtime cutover, versioned rollout, rollback
-  planning, database shape change, API version sunset.
-
-  <example>
-  Context: Splitting a monolith table into two.
-  user: "Plan the migration from orders (single table) to orders + order_items."
-  <commentary>Use migration-engineer for expand-contract plan with dual-write, backfill, cutover, and rollback.</commentary>
-  </example>
-
-  <example>
-  Context: Sunsetting a deprecated API version.
-  user: "Deprecate /v1/users and move all consumers to /v2/users."
-  <commentary>Use migration-engineer for consumer inventory, deprecation timeline, and cutover plan.</commentary>
-  </example>
+description: "Schema migrations, data backfills, deprecation paths, rollback plans, and... Use when: schema migration, data..."
 model: sonnet
 effort: medium
 max-turns: 12

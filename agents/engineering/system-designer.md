@@ -1,16 +1,7 @@
 ---
 name: system-designer
 subagent_type: wicked-garden:engineering:system-designer
-description: |
-  Define component boundaries, module organization, and interface contracts.
-  Focus on decomposition and dependency management.
-  Use when: component boundaries, module organization, interface contracts, decomposition
-
-  <example>
-  Context: Monolithic codebase is becoming hard to maintain.
-  user: "Our 50k-line app has no clear module boundaries. Help us decompose it."
-  <commentary>Use system-designer for component boundary analysis, module decomposition, and interface contracts.</commentary>
-  </example>
+description: "Define component boundaries, module organization, and interface contracts. Use when: component boundaries, module..."
 model: opus
 effort: high
 max-turns: 15

@@ -1,13 +1,7 @@
 ---
 name: process-facilitator
 subagent_type: wicked-garden:crew:process-facilitator
-description: |
-  Facilitator rubric for crew project planning. Reads project description,
-  scores 9 factors, picks specialists + phases, sets rigor tier. Writes the
-  resulting plan as JSON to ${project_dir}/process-plan.draft.json — does
-  NOT issue TaskCreate calls (the caller emits the chain). Always dispatched
-  via Task() from skills/propose-process SKILL.md (Pattern A file-handoff
-  contract); not intended to be invoked directly by end users.
+description: "Facilitator rubric for crew project planning."
 model: sonnet
 effort: medium
 max-turns: 12

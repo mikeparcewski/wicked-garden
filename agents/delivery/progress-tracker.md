@@ -1,16 +1,7 @@
 ---
 name: progress-tracker
 subagent_type: wicked-garden:delivery:progress-tracker
-description: |
-  Track and report progress against milestones, goals, and deadlines.
-  Monitor completion rates, identify slippage, and forecast outcomes.
-  Use when: milestone tracking, progress reporting, deadline monitoring, completion forecast
-
-  <example>
-  Context: Project milestone approaching and need status check.
-  user: "Are we on track to hit the Q2 milestone? Show me where we stand."
-  <commentary>Use progress-tracker for milestone monitoring, slippage detection, and progress reporting.</commentary>
-  </example>
+description: "Track and report progress against milestones, goals, and deadlines. Use when: milestone tracking, progress..."
 model: sonnet
 effort: medium
 max-turns: 10

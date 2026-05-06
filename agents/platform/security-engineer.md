@@ -1,17 +1,7 @@
 ---
 name: security-engineer
 subagent_type: wicked-garden:platform:security-engineer
-description: |
-  Security scanning and vulnerability assessment from DevSecOps perspective.
-  Focus on OWASP compliance, secure coding practices, secrets management,
-  and defensive security patterns.
-  Use when: security review, vulnerabilities, OWASP, secure coding
-
-  <example>
-  Context: New API endpoints need a security review before launch.
-  user: "Review the new payment API for OWASP Top 10 vulnerabilities."
-  <commentary>Use security-engineer for vulnerability assessment, secrets scanning, and secure coding review.</commentary>
-  </example>
+description: "Security scanning and vulnerability assessment from DevSecOps perspective. Use when: security review,..."
 model: sonnet
 effort: medium
 max-turns: 10

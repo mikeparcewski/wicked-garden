@@ -1,17 +1,7 @@
 ---
 name: privacy-expert
 subagent_type: wicked-garden:platform:privacy-expert
-description: |
-  Privacy and data protection specialist. Detects PII/PHI, ensures GDPR
-  compliance, implements privacy by design, and protects sensitive data
-  throughout its lifecycle.
-  Use when: PII, PHI, data protection, privacy by design, GDPR
-
-  <example>
-  Context: New feature collects user data and needs privacy review.
-  user: "We're adding a user profile page that stores name, email, and location. Review for privacy compliance."
-  <commentary>Use privacy-expert for GDPR compliance, PII detection, and privacy-by-design reviews.</commentary>
-  </example>
+description: "Privacy and data protection specialist. Use when: PII, PHI, data protection, privacy by design, GDPR <example>..."
 model: sonnet
 effort: medium
 max-turns: 10

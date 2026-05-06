@@ -59,6 +59,41 @@ wc -l skills/*/SKILL.md skills/*/*/SKILL.md 2>/dev/null
 - **Frontmatter ~100 words**: YAML metadata should be concise
 - **Cold-start <500 lines**: Total initial activation should be efficient
 
+**Agent description-discipline check (v10 Phase 4)**:
+
+Every `agents/**/*.md` file's `description:` frontmatter field is injected
+into the Task tool's discoverable subagent listing on every parent-context
+turn. Excessive descriptions burn ~5,400 tokens per turn unconditionally.
+Enforce a ≤120-character limit:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import re
+from pathlib import Path
+violations = []
+for f in Path('agents').rglob('*.md'):
+    text = f.read_text(encoding='utf-8')
+    m = re.match(r'^---\n(.*?)\n---', text, re.DOTALL)
+    if not m: continue
+    fm = m.group(1)
+    dm = re.search(r'^description:\s*\"((?:[^\"\\\\]|\\\\.)*)\"\s*\$', fm, re.MULTILINE)
+    if not dm: continue
+    desc = dm.group(1).replace('\\\\\"', '\"')
+    if len(desc) > 120:
+        violations.append(f'{f}: {len(desc)} chars')
+for v in violations:
+    print(f'  WARN: {v}')
+print(f'\\n{len(violations)} agent description(s) exceed 120-char limit')
+"
+```
+
+Violations are warnings (steer, not block — consistent with the v10
+steering-not-blocking principle). Format: single-line double-quoted YAML
+scalar; pattern is `"{What it does}. Use when: X, Y, Z."`. Fuller behavioral
+detail belongs in the agent body, not the frontmatter description field.
+
+Brain memory: `v10-phase4-agent-discovery-discipline-decision`.
+
 **Progressive Disclosure Structure**:
 - **Tier 1 (Metadata)**: YAML frontmatter with name, description (~100 words max)
 - **Tier 2 (Entry Point)**: SKILL.md ≤200 lines with overview, quick-start, navigation

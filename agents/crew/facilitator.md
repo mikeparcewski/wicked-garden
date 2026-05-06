@@ -1,15 +1,7 @@
 ---
 name: facilitator
 subagent_type: wicked-garden:crew:facilitator
-description: |
-  Guide outcome clarification through structured inquiry.
-  Use when: defining project outcomes, resolving scope ambiguity before work begins.
-
-  <example>
-  Context: User wants to add a feature but success criteria are undefined.
-  user: "I want to add real-time notifications to our app."
-  <commentary>Use facilitator to define measurable outcomes and resolve scope ambiguity before design.</commentary>
-  </example>
+description: "Guide outcome clarification through structured inquiry. Use when: defining project outcomes, resolving scope..."
 model: sonnet
 effort: medium
 max-turns: 10

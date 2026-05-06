@@ -1,25 +1,7 @@
 ---
 name: ux-analyst
 subagent_type: wicked-garden:product:ux-analyst
-description: |
-  User experience analysis through research synthesis, journey mapping, usability
-  heuristics, and A/B result interpretation. Distinct from ux-designer (delivery/
-  execution focus) and ui-reviewer (visual audit focus) — ux-analyst owns the
-  research-to-insight pipeline.
-  Use when: user research synthesis, journey mapping, usability heuristic evaluation,
-  A/B test interpretation, experience gap analysis, UX audit with research grounding.
-
-  <example>
-  Context: Team has user interview transcripts and wants to understand pain points.
-  user: "Synthesize these 12 user interviews into a UX findings report."
-  <commentary>Use ux-analyst to extract themes, map journeys, and surface usability issues from research.</commentary>
-  </example>
-
-  <example>
-  Context: A/B test concluded but results need interpretation.
-  user: "We ran an A/B test on the checkout flow. Variant B had +4% conversion but higher drop-off at step 3. What does this mean?"
-  <commentary>Use ux-analyst to interpret the A/B result through a UX lens — behavior signals, journey friction, and next steps.</commentary>
-  </example>
+description: "User experience analysis through research synthesis, journey mapping, usability... Use when: user research..."
 model: sonnet
 effort: medium
 max-turns: 12
