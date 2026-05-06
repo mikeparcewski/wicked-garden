@@ -35,9 +35,12 @@ The script generates the theme-aware slug, parses v6 flags
 the project shell, and writes `{project_dir}/crew-brief.md`.
 
 **Exit codes**:
-- `0` → parse the JSON on stdout: `{slug, theme_prefix, project_dir, brief_path, flags, conflict_resolved}`. Continue to step 3.
-- `2` → conflict: an active project exists. Parse the JSON on stderr: `{conflict, existing_slug, existing_phase}`. Surface the conflict to the user as a numbered plain-text list of choices (Resume / Rename / Cancel / Switch). Re-invoke `write_brief.py` with `--on-conflict={switch|resume|rename|cancel}` matching the user's choice. On Resume / Cancel, STOP — do not create a new project.
-- `1` → validation/IO error. Surface the stderr message to the user and STOP.
+- `0` → parse the JSON on stdout. The `action` key tells you what happened:
+  - `action=create` → new shell + brief written. Fields: `{slug, theme_prefix, project_dir, brief_path, flags}`. Continue to step 3.
+  - `action=resume` → user chose Resume; carry on with the existing project. Fields: `{slug, phase, project_dir}`. Skip steps 3–8 — the existing project is unchanged.
+  - `action=cancel` → user aborted. STOP cleanly. No further work this command.
+- `2` → conflict: an active project exists and `--on-conflict` was not supplied. Parse the JSON on stderr: `{conflict, existing_slug, existing_phase}`. Surface the conflict to the user as a numbered plain-text list of four choices (Resume / Rename / Cancel / Switch). For **Switch**, **Resume**, **Cancel**, re-invoke `write_brief.py` with the matching `--on-conflict=...` value and parse the next exit-0 response. For **Rename**, ask the user for a new project description and re-invoke `write_brief.py` from step 2 (no `--on-conflict` flag).
+- `1` → validation/IO error (or `--on-conflict=rename` was passed by mistake — write_brief expects the user to re-invoke with a fresh description, not to handle rename in-script). Surface the stderr message and STOP.
 
 ## 3. Invoke the facilitator (rubric scoring + plan emission)
 
@@ -64,7 +67,17 @@ required fields, STOP and surface the error with the first 200 chars of output.
 There is no legacy fallback — the rubric IS the path. Brief and project shell
 remain on disk; the user can refine and re-invoke.
 
-## 4. Validate the plan
+## 4. Persist the plan JSON to disk
+
+The validator and downstream consumers read from disk. Write the raw plan
+JSON to `${project_dir}/process-plan.json` BEFORE running the validator —
+this avoids the file-not-found failure mode where validation tries to
+read a path that hasn't been written yet.
+
+(The human-readable `process-plan.md` rendering happens in step 6 after
+the open-questions gate and the validator both pass.)
+
+## 5. Validate the plan
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
@@ -74,10 +87,10 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
 
 Note: per PR #812, `risk_level/reading` drift is now an advisory warning,
 not a fatal violation — plans with intuitive direction parse cleanly. If
-the validator exits non-zero, copy the draft to
+the validator exits non-zero, copy the JSON to
 `${project_dir}/process-plan.draft.json`, surface stderr to the user, and STOP.
 
-## 5. Open Questions gate
+## 5.5. Open Questions gate
 
 If `open_questions` is non-empty AND `rigor_tier == "full"` AND `--force`
 was NOT in the parsed flags: STOP and surface questions as a numbered
@@ -85,12 +98,12 @@ plain-text list. Persist the draft to `${project_dir}/process-plan.draft.md`.
 For `standard` / `minimal` rigor, questions are surfaced but do NOT block —
 they're appended to `process-plan.md` for the clarify phase to answer.
 
-## 6. Persist `process-plan.md` + emit the task chain
+## 6. Render `process-plan.md` + emit the task chain
 
 Render the plan JSON into the markdown template at
 `skills/propose-process/refs/plan-template.md` and write to
-`${project_dir}/process-plan.md`. Persist the raw JSON as
-`${project_dir}/process-plan.json` for audit.
+`${project_dir}/process-plan.md`. The raw JSON was already persisted in
+step 4 for the validator.
 
 For each task in `plan.tasks[]`, issue one `TaskCreate` call carrying the
 task's metadata envelope (`chain_id`, `event_type`, `source_agent="facilitator"`,

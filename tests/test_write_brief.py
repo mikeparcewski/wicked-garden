@@ -22,12 +22,14 @@ T6: docstrings cite the design record
 import sys
 from pathlib import Path
 
-# write_brief.py lives under scripts/crew — needs scripts/ on sys.path
-# AND scripts/crew on sys.path so its own intra-script imports resolve.
+# conftest.py keeps `scripts/` at sys.path[0]. Append `scripts/crew/` (do NOT
+# insert at 0) so write_brief.py can be imported by name without shadowing
+# scripts/ — same pattern as the rest of the repo's test suite (avoids the
+# scripts/crew/crew.py-shadowing-the-crew-package bug).
 _REPO_ROOT = Path(__file__).resolve().parent.parent
-for _p in (_REPO_ROOT / "scripts", _REPO_ROOT / "scripts" / "crew"):
-    if str(_p) not in sys.path:
-        sys.path.insert(0, str(_p))
+_CREW_DIR = _REPO_ROOT / "scripts" / "crew"
+if str(_CREW_DIR) not in sys.path:
+    sys.path.append(str(_CREW_DIR))
 
 import write_brief  # noqa: E402
 
@@ -195,6 +197,103 @@ def test_multiple_flags_all_parsed():
     assert flags["consensus_threshold"] == 2
     # All flag tokens removed; clean description is just the work text.
     assert clean.strip() == "Build the auth feature"
+
+
+# ---------------------------------------------------------------------------
+# Regression tests — review feedback on PR #815
+# ---------------------------------------------------------------------------
+
+def test_flag_stripping_preserves_literal_word_in_description():
+    """PR #815 review (gemini high): the previous implementation used
+    global re.sub with bare token text, so 'Implement full feature
+    --rigor full' would strip BOTH the flag value `full` (correct) AND
+    the literal word 'full' from the description (data corruption). The
+    fix tracks token indices and removes only the flag tokens. The
+    literal 'full' must remain in the cleaned description."""
+    flags, clean = write_brief.parse_flags(
+        "Implement full feature --rigor full"
+    )
+    assert flags["rigor"] == "full"
+    assert clean == "Implement full feature"
+    assert "--rigor" not in clean
+
+
+def test_theme_detection_word_boundary_protects_short_keyword_add():
+    """PR #815 review (gemini medium / copilot): substring matching on
+    'add' would falsely match inside 'address'. Use word-boundary
+    regex so only the standalone word triggers the feat theme."""
+    # 'address' contains 'add' but is not a feat signal in isolation.
+    _slug, theme = write_brief.generate_slug("update the address book schema")
+    assert theme != "feat"
+
+
+def test_theme_detection_word_boundary_protects_short_keyword_fix():
+    """PR #815 review (gemini medium): 'fix' inside 'suffix', 'prefix'
+    must NOT trigger the fix theme."""
+    _slug, theme = write_brief.generate_slug("update the file suffix logic")
+    assert theme != "fix"
+
+
+def test_theme_keyword_stripping_word_boundary_preserves_debug():
+    """PR #815 review (gemini medium): when fix theme matches via 'bug',
+    keyword stripping must not also drop substrings of unrelated words.
+    'fix the debug counter' should detect fix theme, strip 'fix', but
+    PRESERVE 'debug' (which contains 'bug') so concept extraction sees
+    'debug' as a slug concept."""
+    slug, theme = write_brief.generate_slug("fix the debug counter")
+    assert theme == "fix"
+    assert "debug" in slug
+
+
+def test_brief_template_handles_curly_braces_in_user_description(tmp_path):
+    """PR #815 review (gemini high): user-controlled text inserted into
+    _BRIEF_TEMPLATE via .format() must escape curly braces or .format()
+    raises KeyError. This drives write_crew_brief end-to-end with a
+    brace-bearing description and asserts no exception."""
+    project_dir = tmp_path / "test-project-curly"
+    brief_path = write_brief.write_crew_brief(
+        project_dir,
+        command="crew:start",
+        slug="feat-curly-braces",
+        theme_prefix="feat",
+        description="render {x} as {y} JSON",  # literal braces in user input
+        flags={
+            "yolo": False, "rigor": None, "force": False,
+            "consensus_threshold": None,
+        },
+        resolution=None,
+        conflicting_slug=None,
+    )
+    body = brief_path.read_text(encoding="utf-8")
+    # Doubled braces collapse to single in the rendered output, so the
+    # literal text round-trips faithfully.
+    assert "{x}" in body
+    assert "{y}" in body
+
+
+def test_parse_json_block_handles_pretty_printed_full_object():
+    """PR #815 review (copilot): _phase_manager and find_active_project
+    used to parse `last_line` of pretty-printed JSON, where the last
+    line is `}`. _parse_json_block must parse the FULL stdout."""
+    pretty = '{\n  "project": null,\n  "project_dir": null\n}'
+    parsed = write_brief._parse_json_block(pretty)
+    assert parsed == {"project": None, "project_dir": None}
+
+
+def test_parse_json_block_tolerates_prelude():
+    """_parse_json_block tolerates optional non-JSON prelude lines."""
+    with_prelude = (
+        "[some log line]\n"
+        '{\n  "slug": "my-proj",\n  "project_dir": "/tmp/foo"\n}'
+    )
+    parsed = write_brief._parse_json_block(with_prelude)
+    assert parsed == {"slug": "my-proj", "project_dir": "/tmp/foo"}
+
+
+def test_parse_json_block_returns_empty_dict_on_garbage():
+    """Defensive: unparseable input → empty dict, never raise."""
+    assert write_brief._parse_json_block("not json") == {}
+    assert write_brief._parse_json_block("") == {}
 
 
 def test_no_flags_returns_default_dict_and_unchanged_description():

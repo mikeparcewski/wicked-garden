@@ -35,7 +35,6 @@ import argparse
 import datetime
 import json
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -61,15 +60,6 @@ _ISSUE_NUMBER_RE = re.compile(r"#\d+")
 _STOP_WORDS = frozenset({
     "the", "a", "an", "for", "to", "of", "in", "and", "with",
     "on", "at", "by", "from", "is", "are", "be", "as",
-})
-
-# v6 flags — orthogonal axes. Anything not in this set is treated as part
-# of the description (so "implement --turbo flag" doesn't get parsed as a
-# `--turbo` flag).
-_KNOWN_FLAGS = frozenset({
-    "--yolo", "--just-finish", "--force",
-    # Flags with values:
-    "--rigor", "--consensus-threshold",
 })
 
 _SLUG_MAX = 64
@@ -123,25 +113,49 @@ this brief carries only what's session-specific.
 # Slug generation — three-stage theme-aware algorithm (see start.md history).
 # ---------------------------------------------------------------------------
 
+def _kw_pattern(kw: str) -> re.Pattern:
+    """Word-boundary regex for a theme keyword.
+
+    For multi-word phrases like "github issue" or "clean up", embed the
+    space as `\\s+` so any whitespace separator matches. For single words,
+    use plain `\\b...\\b` so substrings (e.g. "add" inside "address",
+    "fix" inside "suffix") never match.
+    """
+    if " " in kw:
+        # Multi-word: wrap each part in word boundaries, join by \s+.
+        parts = [re.escape(p) for p in kw.split() if p]
+        body = r"\s+".join(parts)
+        return re.compile(rf"\b{body}\b", re.IGNORECASE)
+    return re.compile(rf"\b{re.escape(kw)}\b", re.IGNORECASE)
+
+
 def _detect_theme(text_lower: str) -> str:
-    """Return the matching theme prefix, or '' if no signal matches."""
+    """Return the matching theme prefix, or '' if no signal matches.
+
+    Uses word-boundary regex so short keywords ('add', 'fix', 'new')
+    don't match inside unrelated words (e.g. 'address', 'suffix',
+    'newcomer'). Per PR #815 review feedback.
+    """
     if _ISSUE_NUMBER_RE.search(text_lower):
         return "issue"
     for theme, keywords in _THEME_SIGNALS:
-        if any(kw in text_lower for kw in keywords):
+        if any(_kw_pattern(kw).search(text_lower) for kw in keywords):
             return theme
     return ""
 
 
 def _strip_theme_keywords(text_lower: str, theme: str) -> str:
     """Remove the theme keywords from the description so they don't
-    leak into the concept extraction step."""
+    leak into the concept extraction step. Word-boundary respecting —
+    `fix` does not strip from `suffix`, `add` does not strip from
+    `address`. Per PR #815 review feedback.
+    """
     if not theme:
         return text_lower
     for t, keywords in _THEME_SIGNALS:
         if t == theme:
             for kw in keywords:
-                text_lower = text_lower.replace(kw, " ")
+                text_lower = _kw_pattern(kw).sub(" ", text_lower)
             break
     # Strip issue-number tokens too — they're noise once the theme is set.
     text_lower = _ISSUE_NUMBER_RE.sub(" ", text_lower)
@@ -212,8 +226,13 @@ def parse_flags(description: str) -> tuple[dict[str, Any], str]:
     """Extract recognised v6 flags from the description.
 
     Returns ``(flags_dict, description_clean)`` where description_clean
-    has the parsed flag tokens removed so they don't leak into slug
-    concept extraction.
+    has the parsed flag tokens removed by INDEX (not by global string
+    substitution). The index-based approach prevents over-stripping —
+    e.g. ``Implement full feature --rigor full`` retains the literal
+    word ``full`` in the description while stripping only the flag's
+    own value token.
+
+    Per PR #815 review feedback.
     """
     flags: dict[str, Any] = {
         "yolo": False,
@@ -221,50 +240,54 @@ def parse_flags(description: str) -> tuple[dict[str, Any], str]:
         "force": False,
         "consensus_threshold": None,
     }
-    tokens_to_strip: list[str] = []
+    rigor_values = {"minimal", "standard", "full"}
 
-    # Walk tokens; recognise --flag / --flag=value / --flag value.
     tokens = description.split()
+    consumed: set[int] = set()
+
     i = 0
     while i < len(tokens):
+        if i in consumed:
+            i += 1
+            continue
         tok = tokens[i]
-        # --flag=value form
-        if tok.startswith("--") and "=" in tok:
-            name, _, value = tok.partition("=")
-            if name == "--rigor" and value in {"minimal", "standard", "full"}:
-                flags["rigor"] = value
-                tokens_to_strip.append(tok)
-            elif name == "--consensus-threshold":
-                try:
-                    flags["consensus_threshold"] = int(value)
-                    tokens_to_strip.append(tok)
-                except ValueError:
-                    pass  # unparseable → leave as part of description
-        elif tok in ("--yolo", "--just-finish"):
+
+        if tok in ("--yolo", "--just-finish"):
             flags["yolo"] = True
-            tokens_to_strip.append(tok)
+            consumed.add(i)
         elif tok == "--force":
             flags["force"] = True
-            tokens_to_strip.append(tok)
+            consumed.add(i)
+        elif tok.startswith("--rigor="):
+            value = tok.split("=", 1)[1]
+            if value in rigor_values:
+                flags["rigor"] = value
+                consumed.add(i)
+            # Unrecognised value (e.g. --rigor=turbo): leave the flag
+            # token in the description so the user sees their typo.
         elif tok == "--rigor" and i + 1 < len(tokens):
-            v = tokens[i + 1]
-            if v in {"minimal", "standard", "full"}:
-                flags["rigor"] = v
-                tokens_to_strip.extend([tok, v])
-                i += 1  # skip the value token next loop
+            value = tokens[i + 1]
+            if value in rigor_values:
+                flags["rigor"] = value
+                consumed.add(i)
+                consumed.add(i + 1)
+        elif tok.startswith("--consensus-threshold="):
+            try:
+                flags["consensus_threshold"] = int(tok.split("=", 1)[1])
+                consumed.add(i)
+            except ValueError:
+                pass
         elif tok == "--consensus-threshold" and i + 1 < len(tokens):
             try:
                 flags["consensus_threshold"] = int(tokens[i + 1])
-                tokens_to_strip.extend([tok, tokens[i + 1]])
-                i += 1
+                consumed.add(i)
+                consumed.add(i + 1)
             except ValueError:
                 pass
+
         i += 1
 
-    description_clean = description
-    for t in tokens_to_strip:
-        # Remove with surrounding whitespace, idempotent.
-        description_clean = re.sub(rf"\s*{re.escape(t)}\s*", " ", description_clean)
+    description_clean = " ".join(t for idx, t in enumerate(tokens) if idx not in consumed)
     return flags, description_clean.strip()
 
 
@@ -276,6 +299,42 @@ def _python_shim() -> str:
     return str(_SCRIPTS_DIR / "_python.sh")
 
 
+def _parse_json_block(stdout: str) -> dict:
+    """Parse pretty-printed JSON output from a CLI helper.
+
+    `phase_manager.py --json` and `crew.py --json` both pretty-print
+    multi-line JSON (indent=2), so the trailing line is just `}`. A
+    naive ``json.loads(last_line)`` would always fail. We try the full
+    stripped stdout first; if that fails, fall back to extracting the
+    last balanced ``{...}`` block. Per PR #815 review feedback.
+    """
+    text = stdout.strip()
+    if not text:
+        return {}
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+    # Fallback: find the last top-level JSON object by walking backwards
+    # from end-of-string for matching braces. Tolerant to leading prelude.
+    depth = 0
+    end_idx = len(text)
+    for i in range(len(text) - 1, -1, -1):
+        c = text[i]
+        if c == "}":
+            if depth == 0:
+                end_idx = i + 1
+            depth += 1
+        elif c == "{":
+            depth -= 1
+            if depth == 0:
+                try:
+                    return json.loads(text[i:end_idx])
+                except json.JSONDecodeError:
+                    return {}
+    return {}
+
+
 def _phase_manager(*args: str) -> dict:
     """Invoke phase_manager.py with --json and return its parsed output.
 
@@ -285,31 +344,37 @@ def _phase_manager(*args: str) -> dict:
     cmd = ["sh", _python_shim(), str(_SCRIPTS_DIR / "_run.py"),
            "scripts/crew/phase_manager.py", *args]
     out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
-    # phase_manager prints JSON to stdout when --json passed; tolerate prelude.
-    last_line = out.strip().splitlines()[-1] if out.strip() else "{}"
-    try:
-        return json.loads(last_line)
-    except json.JSONDecodeError:
-        return {"raw": out}
+    return _parse_json_block(out)
 
 
 def find_active_project() -> dict | None:
-    """Return the active project record or None when no active project exists.
+    """Return a normalised active-project record, or None when nothing active.
 
-    `phase_manager find-active --json` prints `{}` (or `{"slug": null}`)
-    when nothing is active; treat both as "none."
+    ``crew.py find-active --json`` prints ``{"project": <record>|null,
+    "project_dir": <path>|null}``. We normalise into a flat dict with
+    keys ``slug``, ``phase``, ``project_dir`` so callers don't have to
+    know the wrapper shape. Per PR #815 review feedback.
     """
     try:
         cmd = ["sh", _python_shim(), str(_SCRIPTS_DIR / "_run.py"),
                "scripts/crew/crew.py", "find-active", "--json"]
         out = subprocess.check_output(cmd, text=True, stderr=subprocess.PIPE)
-        last_line = out.strip().splitlines()[-1] if out.strip() else "{}"
-        record = json.loads(last_line)
-        if not record or not record.get("slug"):
-            return None
-        return record
-    except (subprocess.CalledProcessError, json.JSONDecodeError):
+    except subprocess.CalledProcessError:
         return None
+    record = _parse_json_block(out)
+    if not isinstance(record, dict):
+        return None
+    project = record.get("project")
+    if not isinstance(project, dict):
+        return None
+    name = project.get("name") or project.get("slug")
+    if not name:
+        return None
+    return {
+        "slug": name,
+        "phase": project.get("current_phase") or project.get("phase"),
+        "project_dir": record.get("project_dir") or project.get("project_dir"),
+    }
 
 
 def create_project_shell(slug: str, description: str) -> dict:
@@ -368,7 +433,12 @@ def write_crew_brief(
     project_dir.mkdir(parents=True, exist_ok=True)
     brief_path = project_dir / "crew-brief.md"
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    description_quoted = "> " + description.strip().replace("\n", "\n> ")
+    # Curly braces in user-controlled text would otherwise be interpreted
+    # by str.format() as placeholders and raise KeyError. Escape by
+    # doubling. Per PR #815 review feedback.
+    description_quoted = (
+        "> " + description.strip().replace("\n", "\n> ")
+    ).replace("{", "{{").replace("}", "}}")
     body = _BRIEF_TEMPLATE.format(
         command=command,
         slug=slug,
@@ -417,10 +487,18 @@ def main() -> int:
         print("error: could not derive slug from description", file=sys.stderr)
         return 1
 
-    # Conflict check — fail fast with structured info if the parent didn't
-    # supply --on-conflict resolution.
+    # Conflict check. Outcome contract — every successful exit emits a
+    # JSON object on stdout with an explicit ``action`` key:
+    #   action=create   → new project shell created + brief written
+    #   action=resume   → user chose Resume; nothing created/written
+    #   action=cancel   → user chose Cancel; nothing created/written
+    # Conflict detected without --on-conflict supplied → exit 2 so the
+    # caller can prompt the user. Rename is implemented client-side: the
+    # user re-invokes with a new description, so we treat --on-conflict=rename
+    # as a structured "abort, re-invoke" signal (exit 1 with action=rename).
     existing = find_active_project()
     conflicting_slug = existing.get("slug") if existing else None
+
     if existing and args.on_conflict is None:
         sys.stderr.write(json.dumps({
             "conflict": True,
@@ -430,22 +508,40 @@ def main() -> int:
         }) + "\n")
         return 2
 
+    if existing and args.on_conflict == "resume":
+        # Resume: surface the existing project info so the parent can
+        # carry on with that project. No new shell, no brief, no mutation.
+        print(json.dumps({
+            "action": "resume",
+            "slug": conflicting_slug,
+            "phase": existing.get("phase"),
+            "project_dir": existing.get("project_dir"),
+        }, indent=2))
+        return 0
+
+    if args.on_conflict == "cancel":
+        # Cancel: explicit no-op success. Caller exits cleanly.
+        print(json.dumps({"action": "cancel"}, indent=2))
+        return 0
+
+    if args.on_conflict == "rename":
+        # Rename is "user picks a new description and re-invokes". We
+        # cannot synthesize a new description; surface a structured
+        # signal so the caller can prompt for one.
+        sys.stderr.write(json.dumps({
+            "action": "rename",
+            "hint": "user must supply a new --description and re-invoke",
+        }) + "\n")
+        return 1
+
     if existing and args.on_conflict == "switch":
         try:
             pause_existing_project(conflicting_slug)
         except subprocess.CalledProcessError as exc:
             print(f"error: pause_existing_project failed: {exc}", file=sys.stderr)
             return 1
-    if args.on_conflict in ("resume", "cancel"):
-        # Parent should have aborted before calling us — but if we got here,
-        # surface a clear no-op response.
-        sys.stderr.write(json.dumps({
-            "noop": True,
-            "reason": f"on_conflict={args.on_conflict} — caller should not create new project",
-        }) + "\n")
-        return 1
 
-    # Create the project shell (unless we're in a no-op resume/cancel path).
+    # Default path: create the project shell.
     try:
         shell = create_project_shell(slug, description_clean)
     except subprocess.CalledProcessError as exc:
@@ -470,6 +566,7 @@ def main() -> int:
     )
 
     out = {
+        "action": "create",
         "slug": slug,
         "theme_prefix": theme,
         "project_dir": str(project_dir),
