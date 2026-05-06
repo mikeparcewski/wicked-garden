@@ -193,15 +193,49 @@ def test_validate_rejects_bad_factor_risk_level_enum():
     ), violations
 
 
-def test_validate_rejects_inverted_factor_risk_level():
-    """Issue #689: risk_level must agree with reading."""
+def test_validate_does_not_reject_inverted_factor_risk_level():
+    """Steering-not-blocking (2026-05-05): inversion drift between
+    risk_level and reading was previously a fatal violation (Issue #689).
+    Downgraded to an advisory warning emitted by `warnings()`. The plan
+    still validates; producer drift is recorded with enough audit detail
+    to fix the upstream emitter.
+
+    The old behavior forced hand-patching on every facilitator output that
+    picked the more intuitive direction (LOW reversibility = low semantic
+    risk). The principle: structure stays prescriptive, but the enforcement
+    model steers (auto-correct + audit) instead of blocking.
+    """
     plan = _base_plan()
     plan["factors"]["reversibility"]["risk_level"] = "low_risk"
+
+    # validate() must not reject — drift is no longer fatal.
     violations = validate_plan.validate(plan)
-    assert any(
+    assert not any(
         "factors.reversibility" in v and "does not match reading" in v
         for v in violations
-    ), violations
+    ), f"inversion drift should warn, not reject: {violations}"
+
+    # warnings() must surface the drift with full audit detail.
+    warns = validate_plan.warnings(plan)
+    drift = [w for w in warns if w.get("code") == "risk-level-inverted-vs-reading"]
+    assert len(drift) == 1, warns
+    w = drift[0]
+    assert w["severity"] == "warn"
+    assert w["factor"] == "reversibility"
+    assert w["reading"] == "LOW"
+    assert w["risk_level"] == "low_risk"
+    assert w["expected_risk_level"] == "high_risk"
+    assert "factor_questionnaire.py::_RISK_INVERSION" in w["message"]
+
+
+def test_warnings_silent_when_risk_level_matches_reading():
+    """No drift → no risk-level warning. Confirms the warning is
+    targeted, not noisy."""
+    plan = _base_plan()  # baseline factors all have matching reading/risk_level
+    warns = validate_plan.warnings(plan)
+    assert not any(
+        w.get("code") == "risk-level-inverted-vs-reading" for w in warns
+    ), warns
 
 
 def test_existing_specialist_check_still_passes():

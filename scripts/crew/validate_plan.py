@@ -99,6 +99,15 @@ SCHEMA_DOC = "skills/propose-process/refs/output-schema.md"
 _WARN_TEST_STRATEGY_MISSING = "test-strategy-missing"
 _TEST_STRATEGY_PHASE_NAME = "test-strategy"
 
+# Steering-not-blocking principle (2026-05-05): `risk_level` drift relative
+# to `reading` was previously a fatal violation, forcing hand-patches on
+# every facilitator output that picked the more intuitive direction (LOW
+# reversibility = low semantic risk). Now downgraded to an advisory warning
+# emitted by `_check_factor_risk_consistency`. The reading-derived
+# `_EXPECTED_RISK_LEVEL_FOR_READING` mapping remains the authoritative
+# direction; consumers preferring `reading` are unaffected.
+_WARN_RISK_LEVEL_INVERTED = "risk-level-inverted-vs-reading"
+
 # Per-section anchors within SCHEMA_DOC. Key is the violation-message prefix
 # (the text before ' — ', with [] / . suffixes stripped).
 _SECTION_ANCHORS = {
@@ -271,14 +280,12 @@ def _check_factors(plan: dict, violations: list) -> None:
                     f"factors.{key}.risk_level — '{risk_level}' is not one of "
                     f"{sorted(VALID_FACTOR_RISK_LEVELS)}"
                 )
-            elif reading in _EXPECTED_RISK_LEVEL_FOR_READING:
-                expected = _EXPECTED_RISK_LEVEL_FOR_READING[reading]
-                if risk_level != expected:
-                    violations.append(
-                        f"factors.{key} — risk_level '{risk_level}' does not "
-                        f"match reading '{reading}' (expected '{expected}'; "
-                        f"see scripts/crew/factor_questionnaire.py::_RISK_INVERSION)"
-                    )
+            # Steering, not blocking: cross-field consistency between
+            # `reading` and `risk_level` is an advisory warning emitted by
+            # `_check_factor_risk_consistency` rather than a fatal violation.
+            # Producer drift is a hint, not an error — `reading` carries the
+            # authoritative direction (HIGH=safest), so consumers preferring
+            # `reading` are unaffected when `risk_level` lags.
         why = value.get("why")
         if not why or not str(why).strip():
             violations.append(f"factors.{key}.why — must be a non-empty string")
@@ -478,6 +485,60 @@ def _check_test_strategy_present(plan: dict) -> list:
     ]
 
 
+def _check_factor_risk_consistency(plan: dict) -> list:
+    """Steering-not-blocking advisory: surface drift between a factor's
+    ``reading`` and its ``risk_level`` field.
+
+    Previously enforced as a fatal violation (Issue #627). Downgraded
+    2026-05-05 because the reject loop forced hand-patching on every
+    facilitator output that picked the more intuitive direction
+    (LOW reversibility = low semantic risk). The authoritative direction
+    still lives in ``reading`` (HIGH=safest); consumers preferring
+    ``reading`` are unaffected.
+
+    Each warning dict has:
+      - ``code``: stable identifier (``risk-level-inverted-vs-reading``)
+      - ``severity``: ``"warn"``
+      - ``factor``: the factor key with drift
+      - ``reading``: the reading value seen on the factor
+      - ``risk_level``: the actual risk_level value seen on the factor
+      - ``expected_risk_level``: what risk_level should be per the
+        HIGH=safest inversion mapping
+      - ``message``: human-readable explanation citing
+        ``factor_questionnaire.py::_RISK_INVERSION``
+    """
+    factors = plan.get("factors")
+    if not isinstance(factors, dict):
+        return []
+    out: list = []
+    for key, value in factors.items():
+        if not isinstance(value, dict):
+            continue
+        reading = value.get("reading")
+        risk_level = value.get("risk_level")
+        if (
+            reading in _EXPECTED_RISK_LEVEL_FOR_READING
+            and risk_level in VALID_FACTOR_RISK_LEVELS
+        ):
+            expected = _EXPECTED_RISK_LEVEL_FOR_READING[reading]
+            if risk_level != expected:
+                out.append({
+                    "code": _WARN_RISK_LEVEL_INVERTED,
+                    "severity": "warn",
+                    "factor": key,
+                    "reading": reading,
+                    "risk_level": risk_level,
+                    "expected_risk_level": expected,
+                    "message": (
+                        f"factors.{key} — risk_level '{risk_level}' does not "
+                        f"match reading '{reading}' (expected '{expected}'; "
+                        f"see scripts/crew/factor_questionnaire.py::_RISK_INVERSION). "
+                        f"Advisory only — `reading` carries authoritative direction."
+                    ),
+                })
+    return out
+
+
 def validate(plan: dict) -> list:
     """Return a list of violation strings (empty means valid)."""
     violations = []
@@ -490,14 +551,22 @@ def validate(plan: dict) -> list:
 
 
 def warnings(plan: dict) -> list:
-    """Return a list of non-blocking warning dicts (Issue #583).
+    """Return a list of non-blocking warning dicts.
 
     Warnings are distinct from violations: they do NOT fail validation but
-    surface advisory gaps (test-strategy missing, etc.). Kept as a separate
-    function so callers that only care about reject/accept can ignore them.
+    surface advisory gaps. Kept as a separate function so callers that only
+    care about reject/accept can ignore them.
+
+    Sources:
+      - Issue #583: ``test-strategy-missing`` when ``test_required: true``
+        tasks exist but the plan omits the test-strategy phase.
+      - 2026-05-05 (steering-not-blocking): ``risk-level-inverted-vs-reading``
+        when a factor's risk_level disagrees with the HIGH=safest inversion
+        of its reading.
     """
     out: list = []
     out.extend(_check_test_strategy_present(plan))
+    out.extend(_check_factor_risk_consistency(plan))
     return out
 
 
@@ -588,14 +657,10 @@ _INVALID_FIXTURES = [
             "reversibility": {"reading": "LOW", "why": "idk"},
         },
     }),
-    # #627: risk_level mismatched against reading (LOW reading == high_risk)
-    ("factor risk_level inverted vs reading", lambda p: {
-        **p,
-        "factors": {
-            **p["factors"],
-            "reversibility": {"reading": "LOW", "risk_level": "low_risk", "why": "idk"},
-        },
-    }),
+    # 2026-05-05 (steering-not-blocking): inversion mismatch is no longer
+    # a fatal violation. It now surfaces as an advisory warning emitted by
+    # `_check_factor_risk_consistency` and exposed via `warnings()`. The
+    # corresponding positive assertion lives in `_run_selftest` below.
     # #722: affected_repos must be a list when present
     ("affected_repos not a list", lambda p: {**p, "affected_repos": "foo"}),
     # #722: affected_repos entries must be non-empty strings
@@ -668,6 +733,38 @@ def _run_selftest() -> None:
         result = validate(mutated)
         if not result:
             failures.append(f"invalid fixture '{desc}' produced no violations (expected >=1)")
+
+    # 2026-05-05 (steering-not-blocking): risk_level/reading drift no longer
+    # rejects, but must surface as exactly one warning with the expected code.
+    drifted = copy.deepcopy(_VALID_FIXTURE)
+    drifted["factors"]["reversibility"] = {
+        "reading": "LOW", "risk_level": "low_risk", "why": "drift"
+    }
+    drift_violations = validate(drifted)
+    if drift_violations:
+        failures.append(
+            f"steering: risk_level drift produced violations (should warn only): "
+            f"{drift_violations}"
+        )
+    drift_warnings = warnings(drifted)
+    drift_warn_codes = {w.get("code") for w in drift_warnings}
+    if _WARN_RISK_LEVEL_INVERTED not in drift_warn_codes:
+        failures.append(
+            f"steering: risk_level drift did not produce expected warning "
+            f"'{_WARN_RISK_LEVEL_INVERTED}' (got codes: {sorted(drift_warn_codes)})"
+        )
+    # The drift warning must include enough audit detail to fix the producer.
+    drift_warn = next(
+        (w for w in drift_warnings if w.get("code") == _WARN_RISK_LEVEL_INVERTED),
+        None,
+    )
+    if drift_warn is not None:
+        for required_field in ("factor", "reading", "risk_level", "expected_risk_level"):
+            if required_field not in drift_warn:
+                failures.append(
+                    f"steering: drift warning missing required field "
+                    f"'{required_field}' (got keys: {sorted(drift_warn.keys())})"
+                )
 
     if failures:
         for msg in failures:
