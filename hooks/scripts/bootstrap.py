@@ -1401,6 +1401,20 @@ def main():
                 else:
                     state.update(active_chain_id=None)
 
+                # v9.2.5: also write active_project (the dict snapshot, distinct
+                # from active_project_id which is the slug). Read by:
+                #   - post_tool.py:1428-1431 (tracks current_phase + current_specialist
+                #     for QE change-tracking nudge)
+                #   - pre_compact.py (WIP recovery dump shows "Active Project" section)
+                # Producer was missing — both consumers got None and silently fell
+                # through their default branches. Same bug class as active_chain_id
+                # (declared, read, never written). Same fix: write in bootstrap when
+                # the project is active.
+                if is_active:
+                    state.update(active_project=dict(project_data))
+                else:
+                    state.update(active_project=None)
+
                 # #459 telemetry producer: anchor complexity_at_session_open
                 # from the active project's complexity_score so session-close
                 # drift capture has a delta baseline.  Only set when not

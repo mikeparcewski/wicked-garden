@@ -349,7 +349,10 @@ def _track_qe_change(file_path: str):
             state.update(qe_nudged=True)
 
             # Check if a crew project is active — if so, crew handles QE via execute.md
-            has_crew = bool(getattr(state, "crew_project", None))
+            # v9.2.5: replaced a getattr on a phantom field with active_project_id
+            # which is the slug bootstrap actually writes when a crew project is
+            # active. Same intent ("is a crew project active?"), real producer.
+            has_crew = bool(getattr(state, "active_project_id", None))
             if has_crew:
                 return (
                     f"[QE] {unique_count} files changed this session. "

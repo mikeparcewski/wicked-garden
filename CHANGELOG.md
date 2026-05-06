@@ -1,5 +1,44 @@
 # Changelog
 
+## [9.2.5] - 2026-05-06
+
+**Cleanup — fix the OTHER half of the SessionState drift bug class + extend the CI drift test.**
+
+v9.2.3 / v9.2.4 caught fields declared without writers via the audit. v9.2.5 surfaces and fixes more producer gaps, plus extends the CI drift test to catch this class going forward.
+
+### Producer gaps fixed
+
+- **`active_project`** — read by `post_tool.py` (QE change-tracking nudge) and `pre_compact.py` (WIP recovery dump's "Active Project" section). Both consumers expected the dict snapshot. Producer was missing — both silently fell through to default branches. Wired in `bootstrap.py` as `state.update(active_project=dict(project_data))` next to the existing `active_chain_id` writer. Same is_active gate.
+
+- **`crew_project`** — was declared in v9.2.3 only because we noticed the `getattr(state, "crew_project", None)` read in `post_tool.py:352`. Audit confirmed nothing ever wrote it. Replaced the read with `getattr(state, "active_project_id", None)` (same intent, real producer) and removed the field declaration.
+
+### Producer gap acknowledged but deferred
+
+- **`last_reeval_ts` / `last_reeval_task_count`** — read by `scripts/crew/phase_start_gate.py` via `prompt_submit.py`'s re-eval context dict. No producer exists. **Phase_start_gate has been silently treating every check as "first time"** because both fields stay at default. The fix is feature work (find where re-eval finishes, wire the writer); deferred from this cleanup release. Tracked in `KNOWN_PRODUCER_GAPS` in the new drift test.
+
+### Extended drift test (`tests/test_session_state_field_drift.py`)
+
+New test: `test_every_declared_field_has_a_producer`. Catches "declared and read by hooks but never written" — exactly the bug class that bit `active_chain_id` (v9.2.4) and `active_project` (v9.2.5).
+
+The test detects writers via four patterns, with explicit allowlists for false positives:
+- `KNOWN_DICT_UNPACK_WRITERS`: fields written via `**updates` (regex can't reliably detect; allowlist is small and reviewable).
+- `KNOWN_PRODUCER_GAPS`: documented producer gaps that are tracked as separate work (currently `last_reeval_ts` / `last_reeval_task_count`).
+
+The audit now scans both `hooks/` AND `scripts/` for writer patterns — needed because `scripts/crew/phase_manager.py` writes `last_phase_approved` and `skip_reeval_count` via a `sess.update(...)` alias my v9.2.3 audit missed.
+
+### Plugin version
+
+9.2.4 → 9.2.5 (patch — declarative + producer wiring + test extension; zero behavior change visible to features beyond restoring the silently-degraded ones).
+
+### Cumulative drift class fixed
+
+| Surface | First broken | Fixed in | Now caught by |
+|---|---|---|---|
+| Field used but not declared (silent-drop) | v9.2.0 (5 fields) → v9.2.3 (8 fields total) | v9.2.0 / v9.2.2 / v9.2.3 | `test_every_hook_state_reference_matches_a_declared_field` |
+| Field declared but no producer (silent default) | v9.2.4 (1) → v9.2.5 (2 more) | v9.2.4 / v9.2.5 | `test_every_declared_field_has_a_producer` (NEW) |
+
+The drift class is now mechanically detected on both halves. Adding a SessionState field to either half going forward will fail CI rather than silently no-op.
+
 ## [9.2.4] - 2026-05-06
 
 **Wire the `active_chain_id` producer that v9.2.3 declared but didn't write.**

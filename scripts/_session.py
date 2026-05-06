@@ -346,9 +346,10 @@ class SessionState:
     #   was never wired — the smaht scoring has been silently degraded. The
     #   field declaration here makes the read return None cleanly until a
     #   producer is added.
-    # crew_project: dict snapshot of the active crew project (slug + phase).
-    #   Read by post_tool.py QE check to skip the change-tracking nudge when
-    #   crew is handling QE. Read-only currently; declaring as None default.
+    # crew_project: REMOVED in v9.2.5. The single read site in post_tool.py
+    #   was a phantom — nothing ever wrote the field. Replaced the read with
+    #   `getattr(state, "active_project_id", None)` which is the same intent
+    #   ("is a crew project active?") and has a real producer in bootstrap.
     # last_reeval_ts / last_reeval_task_count: read by prompt_submit when
     #   building re-evaluation context. Currently read-only; declared so the
     #   read returns the documented default rather than via getattr fallback.
@@ -359,7 +360,6 @@ class SessionState:
     #   whose readiness probe failed. Was a write-only orphan; declaration
     #   makes it persistable.
     active_chain_id: str | None = None
-    crew_project: dict | None = None
     last_reeval_ts: str = ""
     last_reeval_task_count: int = 0
     legacy_reeval_entries_detected: bool = False
