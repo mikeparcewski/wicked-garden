@@ -1,5 +1,39 @@
 # Changelog
 
+## [9.1.4] - 2026-05-06
+
+**Closes the v10 series — wg-check skill-discoverability lint + 1 latent bug fix.**
+
+### Lint enhancement (`/wg-check`)
+
+Issue #820. Three frontmatter / file-layout regressions shipped between v9.0.0 and v9.1.3 for the same `/wicked-garden:intent` skill — all machine-checkable. Added two checks to `.claude/agents/wg-quality-checker.md`:
+
+- **ERROR**: skill `name:` frontmatter must equal the directory leaf. Mismatch silently breaks Skill registration in some loaders.
+- **WARN**: if the body documents a `/wicked-garden:X` slash form, a matching `commands/{X}.md` (or nested) must exist. The v9.1.3 patch was about exactly this class — slash docs without command files.
+
+`user-invocable:` is intentionally NOT linted — most skills in this repo don't declare it explicitly and load fine. Discipline is encouraged but lint noise (~80 false positives) outweighs the catch.
+
+### Latent bug surfaced + fixed by the new lint
+
+`skills/smaht/SKILL.md` had `name: context-assembly` (likely a v6 → v7 rename leftover) but the directory is `smaht/`. Fixed: `name: smaht`. The skill apparently still registered as `wicked-garden:smaht` in the listing despite the mismatch (Claude Code's loader is forgiving here), but the inconsistency was a maintenance hazard.
+
+### Outstanding signals (not blocking; surfaced as lint warnings)
+
+12 skill bodies reference slash forms (e.g. `/wicked-garden:search:code`) that don't have matching `commands/*.md` files. Some are real broken references; some are template placeholders. Worth a follow-up sweep but non-blocking — they were silent before this lint shipped.
+
+### Plugin version
+
+9.1.3 → 9.1.4 (patch — additive lint + one frontmatter cleanup).
+
+### v10 closure status
+
+The v10 architectural series (Phases 1, 2A, 3, 4 plus three discoverability patches) is now structurally complete AND has machine-checkable lint to prevent the same regressions. The work that's deferred:
+
+- Phase 2B / 2C — slim `crew:just-finish.md` (462 lines) and `crew:execute.md` (1460 lines)
+- Phase 4 follow-on — add `match_signal:` field if facilitator routing degrades in dogfood
+- 12 skill body slash-reference cleanups (the new WARN signals)
+- Scenario suite fixes — smoke tests at v9.1.4 PASS; deeper scenario run is the next-session pickup if it surfaces issues
+
 ## [9.1.3] - 2026-05-06
 
 **Patch — `/wicked-garden:intent` needs a `commands/` file, not just a skill.**

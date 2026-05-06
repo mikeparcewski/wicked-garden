@@ -1,5 +1,5 @@
 ---
-name: context-assembly
+name: smaht
 description: |
   On-demand context assembly over wicked-brain + wicked-garden:search. v6 replaced
   the v5 push-model orchestrator (deleted in #428) with a pull-model skill —

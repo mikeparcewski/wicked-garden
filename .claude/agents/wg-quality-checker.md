@@ -94,6 +94,77 @@ detail belongs in the agent body, not the frontmatter description field.
 
 Brain memory: `v10-phase4-agent-discovery-discipline-decision`.
 
+**Skill discoverability check (v9.1.4 — issue #820)**:
+
+Three frontmatter / file-layout regressions shipped between v9.0.0 and
+v9.1.3 for the same skill (`/wicked-garden:intent`):
+1. v9.1.1: `name:` field used the full namespaced form instead of the leaf.
+2. v9.1.2: `user-invocable:` was missing entirely, defaulted to hidden.
+3. v9.1.3: a SKILL.md body documented `/wicked-garden:X` but no matching
+   `commands/{X}.md` existed, so the slash form was unreachable.
+
+Two are machine-checkable as ERRORs (literal load failure); the third is a
+WARN (best-practice). Lint walks `skills/**/SKILL.md` and asserts:
+
+- **ERROR**: frontmatter `name:` value matches the directory leaf — name
+  mismatch silently breaks Skill registration in some loaders.
+- **WARN**: if the body documents itself as `/wicked-garden:X` (slash form),
+  a matching `commands/{X}.md` (or `commands/{domain}/{X}.md` for nested
+  forms) must exist. Otherwise the slash form is unreachable even when
+  the SKILL.md is otherwise valid.
+
+`user-invocable:` is intentionally NOT linted — most skills in this repo
+don't declare it explicitly and load fine. Discipline is encouraged but
+making it a warning floods the lint output (~80 false positives at the
+time this lint shipped).
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import re
+import sys
+from pathlib import Path
+
+root = Path('.')
+skills = list((root / 'skills').rglob('SKILL.md'))
+errors = []
+warnings = []
+
+for f in skills:
+    text = f.read_text(encoding='utf-8')
+    m = re.match(r'^---\n(.*?)\n---', text, re.DOTALL)
+    if not m: continue
+    fm, body = m.group(1), text[m.end():]
+    name_m = re.search(r'^name:\s*(.+)\$', fm, re.MULTILINE)
+    name = name_m.group(1).strip() if name_m else ''
+    leaf = f.parent.name
+    if name != leaf:
+        errors.append(f'{f}: name={name!r} != directory leaf={leaf!r}')
+    for slash_match in re.finditer(r'/(wicked-garden(?::[a-z][a-z-]*)+)', body):
+        slash = slash_match.group(1)
+        parts = slash.split(':')[1:]
+        if not parts: continue
+        candidates = [Path('commands') / (parts[-1] + '.md')]
+        if len(parts) > 1:
+            candidates.append(Path('commands') / parts[0] / (parts[-1] + '.md'))
+        if not any((root / p).exists() for p in candidates):
+            warnings.append(f'{f}: documents /{slash} but no commands/*.md found')
+            break  # one warning per file, don't spam
+
+print(f'Skill discoverability: {len(skills)} files scanned')
+for v in errors: print(f'  ERROR: {v}')
+for w in warnings: print(f'  WARN: {w}')
+print(f'{len(errors)} error(s), {len(warnings)} warning(s)')
+sys.exit(1 if errors else 0)
+"
+```
+
+ERRORs are blocking. WARNs are advisory but represent a class of bug that
+has actually shipped before — three patches in PRs #818/#819/#821 fixing
+the same `/wicked-garden:intent` skill before it surfaced correctly.
+
+Brain memory: `skills-vs-commands-empirical-debug-not-theoretical` —
+the lesson from the three patches that motivated this lint.
+
 **Progressive Disclosure Structure**:
 - **Tier 1 (Metadata)**: YAML frontmatter with name, description (~100 words max)
 - **Tier 2 (Entry Point)**: SKILL.md ≤200 lines with overview, quick-start, navigation
