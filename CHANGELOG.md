@@ -1,5 +1,63 @@
 # Changelog
 
+## [9.2.13] - 2026-05-06
+
+**Item 1 of this session's cleanup — slim the agentic command quartet (-94.7%).**
+
+The v9.2.11 commands-slimming subagent survey identified `commands/agentic/*` as the most bloated non-crew domain (4 files, 2303 lines, 0 Pattern-A/B compliant). All four files held inline rubric content (5-layer architecture audit, framework-comparison heuristics, pattern catalog, GDPR/HIPAA/SOC2 checklists, sample output templates) that already exists in the receiving agents under `agents/agentic/*` (448-890 lines each).
+
+The pitfall flagged in the survey was real: agentic/* shares rubric inline. The mitigation worked: slimming all four together in one PR while the agent bodies hold the canonical rubric.
+
+### Slim conversion
+
+| File | Original | Slim | Reduction | Pattern |
+|---|---|---|---|---|
+| `commands/agentic/audit.md` | 816 | 30 | -786 | B |
+| `commands/agentic/frameworks.md` | 653 | 26 | -627 | B |
+| `commands/agentic/design.md` | 426 | 33 | -393 | B (2 dispatches) |
+| `commands/agentic/review.md` | 408 | 34 | -374 | B (3 parallel dispatches + 2 scripts) |
+| **Total** | **2303** | **123** | **-94.7%** | |
+
+`design.md` and `review.md` are 3-4 lines over the Pattern B target (≤30) but under the hard cap (≤35). Both legitimately need multiple dispatch blocks: `design` runs architect → safety-reviewer (validates the architecture), `review` runs three reviewers in parallel (architect + safety-reviewer + performance-analyst) plus pattern-scorer + issue-taxonomy scripts. Compressing further would either drop a dispatch or fuse two distinct subagent_type calls into one ambiguous prompt.
+
+### What's preserved (load-bearing)
+
+- All four YAML frontmatter blocks verbatim, including `phase_relevance` / `archetype_relevance` (set by v9.2.9 bulk-pass).
+- All 4 `Task()` dispatches with correct `subagent_type` strings — verified against existing files in `agents/agentic/`.
+- All CLI flags echoed into prompts (`audit`'s `--output/--standard/--scenarios`, `frameworks`'s `--compare/--language/--use-case`, `design`'s `--output`, `review`'s `--quick/--framework/--output`).
+- Sibling cross-references: `audit ↔ review` disambiguation, `frameworks → design` next-step pointer, `review ↔ audit/design` disambiguation. Same anti-pattern shape as the `crew/just-finish.md` → `crew/execute.md §4.5` reference that survived v9.2.7.
+
+### What's cut
+
+- Inline rubric content (risk-classification matrix, GDPR/HIPAA/SOC2 checklists, HITL pattern code, PII grep patterns, finding→scenario mapping table) — agents already have it.
+- Sample output templates (250-line audit-report skeleton, comparison tables, mermaid + design-doc skeleton, review-report template) — agents render their own output.
+- `## Examples` sections (~100-300 lines each) — frontmatter trigger + brief discriminator covers when-to-use.
+- `frameworks.md`'s wizard question script — researcher knows how to run a 5-question wizard.
+- `design.md`'s per-section sub-prompts (architect was dispatched twice with stacked prompts) — collapsed to one architect dispatch since rubric is in the agent body.
+
+### Cumulative Phase 2 + agentic slimming progress
+
+| File | Original | Slim | Reduction |
+|---|---|---|---|
+| `commands/crew/start.md` (Phase 2A, PR #815) | 304 | 147 | -52% |
+| `commands/crew/just-finish.md` (Phase 2B, PR #831) | 462 | 110 | -76% |
+| `commands/crew/execute.md` (Phase 2C, PR #832) | 1460 | 250 | -83% |
+| `commands/agentic/audit.md` (this PR) | 816 | 30 | -96% |
+| `commands/agentic/frameworks.md` (this PR) | 653 | 26 | -96% |
+| `commands/agentic/design.md` (this PR) | 426 | 33 | -92% |
+| `commands/agentic/review.md` (this PR) | 408 | 34 | -92% |
+| **Total** | **4529** | **630** | **-86%** |
+
+### Tests
+
+- 304/304 v10 surface + hook + bootstrap + smaht + session_state + relevance + commands smoke tests passing.
+- Relevance lint deny-default clean.
+- All 4 receiving agents (`safety-reviewer`, `framework-researcher`, `architect`, `performance-analyst`) confirmed present in `agents/agentic/`.
+
+### Plugin version
+
+9.2.12 → 9.2.13 (patch — surface trim only; no behaviour change beyond moving rubric reading from parent context to subagent context).
+
 ## [9.2.12] - 2026-05-06
 
 **Hook-noise audit (item 3 from this session's cleanup) — fix two HIGH-severity banners that re-fire without state change.**
