@@ -139,7 +139,15 @@ for f in skills:
     leaf = f.parent.name
     if name != leaf:
         errors.append(f'{f}: name={name!r} != directory leaf={leaf!r}')
+    # Match the full namespace greedily; THEN post-filter to skip path
+    # fragments. A negative lookahead inside the regex causes backtracking
+    # (drops the last char to satisfy the lookahead, yielding garbage like
+    # `:produc`), so the path-fragment skip is done in Python instead.
     for slash_match in re.finditer(r'/(wicked-garden(?::[a-z][a-z-]*)+)', body):
+        end = slash_match.end()
+        # Path fragment: namespace immediately followed by `/`. Skip.
+        if end < len(body) and body[end] == '/':
+            continue
         slash = slash_match.group(1)
         parts = slash.split(':')[1:]
         if not parts: continue

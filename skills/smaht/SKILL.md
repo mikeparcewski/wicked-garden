@@ -26,9 +26,8 @@ wicked-brain:search "your query"
 # Brain query — conceptual / "how does X work"
 wicked-brain:query "how does the facilitator rubric work"
 
-# Codebase symbol search
-/wicked-garden:search:code "symbol or pattern"
-/wicked-garden:search:docs "doc or markdown text"
+# Codebase symbol / docs search (FTS5 over indexed code, docs, wiki)
+wicked-brain:search "symbol or pattern"
 
 # Pull active crew project state
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json

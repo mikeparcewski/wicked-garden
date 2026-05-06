@@ -52,9 +52,9 @@ If wicked-* tools are available, prefer them over manual grep/find.
 find . -maxdepth 3 -type f | head -100
 ```
 
-Or use the search index:
+Or use the search index (FTS5 over indexed code):
 ```
-/wicked-garden:search:code "class |function |def |interface " --path .
+wicked-brain:search "class |function |def |interface "
 ```
 
 Identify:
@@ -126,4 +126,4 @@ Good codebase narratives:
 
 - [refs/output-template.md](refs/output-template.md) — full output format
 - `/wicked-garden:search:blast-radius` — for impact analysis of specific symbols
-- `/wicked-garden:search:stats` — quick index stats before diving in
+- `/wicked-garden:search:index` — build or refresh the index before diving in

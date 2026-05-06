@@ -57,10 +57,10 @@ Skill(skill="wicked-brain:memory", args="recall \"architecture decisions\"")
 Skill(skill="wicked-brain:memory", args="recall \"onboarding\"")
 ```
 
-**From codebase**:
+**From codebase** (FTS5 over indexed code, docs, wiki):
 ```
-/wicked-garden:search:docs README
-/wicked-garden:search:code "TODO|FIXME|HACK"
+wicked-brain:search README
+wicked-brain:search "TODO|FIXME|HACK"
 ```
 
 ### 2. Assess Team Health

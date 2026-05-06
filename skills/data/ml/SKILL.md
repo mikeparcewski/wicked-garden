@@ -106,7 +106,7 @@ Generates: Data loading, feature engineering, training config, evaluation framew
 
 ## Integration
 
-- **wicked-garden:search**: Find model code with `/wicked-garden:search:code "model|classifier"`
+- **wicked-brain:search**: Find model code with `wicked-brain:search "model|classifier"` (FTS5 over indexed code)
 - **Native tasks**: Track experiments via TaskCreate with `metadata.event_type="task"`
 - **wicked-garden:data:analyze**: Analyze training data via DuckDB SQL
 

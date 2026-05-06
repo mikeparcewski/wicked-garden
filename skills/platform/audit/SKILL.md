@@ -123,11 +123,11 @@ TaskUpdate(
 )
 ```
 
-### With wicked-garden:search
+### With wicked-brain
 
-Find related evidence:
+Find related evidence (FTS5 over indexed code):
 ```bash
-/wicked-garden:search:code "audit|logging|encrypt" --path {target}
+wicked-brain:search "audit|logging|encrypt"
 ```
 
 ## Output Format
