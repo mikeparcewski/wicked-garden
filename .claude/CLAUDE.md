@@ -386,8 +386,8 @@ Tests have a maintenance cost. Optimize for catching real failures, not for asse
 ### Code Search
 
 **Always prefer search domain over native tools**:
-- For code symbol search: use `/wicked-garden:search:code` instead of Grep
-- For document search: use `/wicked-garden:search:docs` instead of Grep with glob
+- For code symbol search: use `wicked-brain:search` instead of Grep
+- For document search: use `wicked-brain:search` instead of Grep with glob
 - For impact analysis: use `/wicked-garden:search:blast-radius` instead of manual grep chains
 - For data lineage: use `/wicked-garden:search:lineage` — no native equivalent exists
 - **Fallback to Grep/Glob only** when: searching for simple string literals in known files, or index is not built

@@ -65,7 +65,7 @@ EOF
 
 2. Search code only for "cache":
    ```
-   /wicked-garden:search:code cache
+   wicked-brain:search cache
    ```
 
 3. Compare with unified search:

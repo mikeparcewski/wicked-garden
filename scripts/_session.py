@@ -321,6 +321,20 @@ class SessionState:
     # don't warrant individual dataclass fields.
     extras: dict | None = None
 
+    # Hook-reminder latches (v9.2.2 — per-session noise suppression).
+    # SessionState.update silently drops unknown keys, so prior to v9.2.2
+    # the latches below were write-only — the hooks SET them but the values
+    # never persisted, causing the reminders they were meant to gate to fire
+    # every time. Declaring the fields here turns the writes into reads on
+    # the next Stop / PostToolUse and the latches actually take.
+    #
+    # instruction_sync_fired: list of filenames (CLAUDE.md / AGENTS.md) for
+    #   which the [Sync] reminder has already fired this session.
+    # memory_reminder_shown: True when stop.py's [Memory] reminder has
+    #   already fired once this session — replaces the prior every-turn fire.
+    instruction_sync_fired: list | None = None
+    memory_reminder_shown: bool = False
+
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------

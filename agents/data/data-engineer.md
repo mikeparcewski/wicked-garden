@@ -32,7 +32,7 @@ When designing ETL/ELT pipelines:
 
 **Check existing patterns**:
 ```
-/wicked-garden:search:code "pipeline|etl|transform" --path {target}
+wicked-brain:search "pipeline|etl|transform" --path {target}
 ```
 
 **Design checklist**:

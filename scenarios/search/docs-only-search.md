@@ -77,7 +77,7 @@ EOF
 
 2. Search docs only for "password":
    ```
-   /wicked-garden:search:docs password
+   wicked-brain:search password
    ```
 
 3. Compare with unified search:

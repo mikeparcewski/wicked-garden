@@ -59,7 +59,7 @@ Before manual work, leverage available tools:
 
 Find version files:
 ```
-/wicked-garden:search:code "version|package\.json|pyproject\.toml|Cargo\.toml|pom\.xml" --path {target}
+wicked-brain:search "version|package\.json|pyproject\.toml|Cargo\.toml|pom\.xml" --path {target}
 ```
 
 Or manually:

@@ -58,10 +58,10 @@ PLUGIN_SKILL_MAP = {
         "wicked-brain:memory (store mode) — persist a decision or learning for future sessions",
     ],
     "search": [
-        "/wicked-garden:search:code — find code symbols (functions, classes, methods)",
+        "wicked-brain:search — find code symbols (functions, classes, methods)",
         "/wicked-garden:search:refs — find where a symbol is referenced",
         "/wicked-garden:search:blast-radius — analyze what changing a symbol affects",
-        "/wicked-garden:search:docs — search documents (PDF, markdown, Office)",
+        "wicked-brain:search — search documents (PDF, markdown, Office)",
     ],
     "tasks": [
         "TaskCreate/TaskUpdate/TaskList/TaskGet — native Claude Code task tools; metadata validated by PreToolUse",

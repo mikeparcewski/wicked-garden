@@ -58,7 +58,7 @@ Before manual work, leverage available tools:
 
 Search for IaC files:
 ```
-/wicked-garden:search:code "terraform|\.tf$|cloudformation|kubernetes|k8s" --path {target}
+wicked-brain:search "terraform|\.tf$|cloudformation|kubernetes|k8s" --path {target}
 ```
 
 Or manually:

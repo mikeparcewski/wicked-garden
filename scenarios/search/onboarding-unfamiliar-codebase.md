@@ -181,7 +181,7 @@ EOF
 
 6. Search documentation for "User Management":
    ```
-   /wicked-garden:search:docs "User Management"
+   wicked-brain:search "User Management"
    ```
 
 7. Find what code implements user management:
@@ -198,7 +198,7 @@ EOF
 
 9. Find UserAPI implementation:
    ```
-   /wicked-garden:search:code UserAPI
+   wicked-brain:search UserAPI
    ```
 
 10. Understand dependencies of UserAPI:
@@ -215,7 +215,7 @@ EOF
 
 12. Find existing auth-related code:
     ```
-    /wicked-garden:search:code "auth"
+    wicked-brain:search "auth"
     ```
 
 13. Understand UserService dependencies before adding password reset:
