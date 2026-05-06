@@ -1,5 +1,49 @@
 # Changelog
 
+## [9.2.16] - 2026-05-06
+
+**Slim 5 data/ commands using the same Pattern B mechanic that worked for v9.2.13 (agentic) + v9.2.14 (product+engineering).**
+
+### Slim conversion
+
+| File | Original | Slim | Reduction |
+|---|---|---|---|
+| `commands/data/analyze.md` | 197 | 25 | -87.3% |
+| `commands/data/data.md` | 81 | 24 | -70.4% |
+| `commands/data/ml.md` | 76 | 21 | -72.4% |
+| `commands/data/ontology.md` | 67 | 22 | -67.2% |
+| `commands/data/pipeline.md` | 70 | 21 | -70.0% |
+| **Total** | **491** | **113** | **-77.0%** |
+
+All 5 receiving agents (`data-analyst`, `data-engineer`, `data-architect`, `ml-engineer`) confirmed present in `agents/data/`. Dispatch parity verified per-file: each slim command dispatches the same number of `subagent_type=` calls as its pre-slim original.
+
+### Bug caught + fixed during pre-commit verification
+
+The slimming subagent's first draft of `analyze.md` collapsed the four `--focus`-branched dispatches into a single `Task(subagent_type="wicked-garden:data:{mapped}", ...)` with a literal `{mapped}` placeholder. This would not have worked at runtime — Claude can't substitute placeholders inside `subagent_type=` strings; Task() needs a literal value. Caught via `git show main:commands/data/analyze.md | grep -c subagent_type` showing 4 dispatches in the original vs 1 in the slim. Restored to 4 explicit `Task()` lines (one per `--focus` value) following the same shape as v9.2.13's `agentic/review.md` parallel-dispatch pattern.
+
+This is the second pre-commit catch in three slimming PRs (v9.2.14 caught a different bug — extra `product-manager` dispatch). The verification step is load-bearing.
+
+### Cumulative slimming (17 commands across 4 domains)
+
+| Domain | Files | Original | Slim | Reduction |
+|---|---|---|---|---|
+| `crew/` (Phase 2A/B/C) | 3 | 2226 | 507 | -77% |
+| `agentic/` (v9.2.13) | 4 | 2303 | 123 | -94.7% |
+| `product/` + `engineering/` (v9.2.14) | 5 | 1516 | 155 | -89.8% |
+| `data/` (**this PR**) | 5 | 491 | 113 | -77.0% |
+| **Grand total** | **17** | **6536** | **898** | **-86.3%** |
+
+### Tests
+
+- 304/304 v10 surface + hook + bootstrap + smaht + session_state + relevance + commands smoke tests passing
+- Relevance lint deny-default clean
+- All 4 receiving agents confirmed present
+- Pre-commit dispatch parity check caught the `{mapped}` bug
+
+### Plugin version
+
+9.2.15 → 9.2.16 (patch — surface trim only; no behaviour change after the analyze.md placeholder fix).
+
 ## [9.2.15] - 2026-05-06
 
 **stop.py cadence redesign — wire SessionEnd, add 60-min Stop fallback, delete dead [Memory] reflection. Items 2 & 3 from the v9.2.11 hook audit.**
