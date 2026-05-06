@@ -116,10 +116,14 @@ Storage paths: `~/.something-wicked/wicked-garden/local/{domain}/{source}/{id}.j
 
 ### Context Assembly (smaht domain)
 
-The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook. v6 replaced the v5 HOT/FAST/SLOW/SYNTHESIZE tiered orchestrator (deleted in #428) with a pull-model:
+The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook. v6 replaced the v5 HOT/FAST/SLOW/SYNTHESIZE tiered orchestrator (deleted in #428) with a pull-model. **v10 (PR #814)** then collapsed the v6 multi-classifier cascade in `prompt_submit.py` into a single explicit `intent` variable on `SessionState`. Vocabulary is locked: `simple-edit | feature | rigor | research`.
 
-- **Default**: inject a short pull directive telling the model to query wicked-brain on demand.
-- **Complex / risky prompts**: inject an expanded pull directive (complexity or risk keywords scored by inline heuristic in `hooks/scripts/prompt_submit.py`) that explicitly routes through `wicked-brain:query` + `wicked-brain:search` before the model answers. v6.3.6 retired the standalone `wicked-garden:smaht:synthesize` skill — brain now covers what it did.
+- **Auto-detection** runs on turn 1–2 from existing complexity/risk signals. Sticky for the session.
+- **Explicit override** via `/wicked-garden:intent <value>` (skill at `skills/smaht/intent/SKILL.md`). Sticks until session end.
+- **Directive emission**: `simple-edit` (auto-detected) emits NOTHING — silence is the signal. `feature` / `research` emit the synthesis directive. `rigor` adds active-chain context. Auto-detected intent stays invisible to the model; only explicit overrides echo a bare `<wg intent="X" t=N />` label.
+- **Tag format**: `<wg intent="X" t=N />` (~30 bytes), replaces the legacy `<wg id="ctx" t=N phase="X" cal="Y/Z">` (~80 bytes).
+- **Empty-reminder suppression**: when nothing material is being injected (auto-detected simple-edit, no WIP, no onboarding, no hints), the entire `<system-reminder>` block is omitted rather than wrapped around an empty body.
+- **Migration boundary** (Phase 1 only): only `prompt_submit.py` reads `state.intent`. Gate-critical hooks (`phase_manager`, `gate_dispatch`) keep independent detection through one release cycle — same soak pattern as the bus-cutover. Legacy `pull_phase` / `pull_count` / `unpulled_ok` / `corrections` / `pull_regress_at` fields stay on `SessionState` for telemetry compatibility; slated for removal in a follow-up.
 
 Six adapters query domain scripts directly: `domain`, `brain`, `events`, `context7`, `tools`, `delegation`.
 
@@ -437,6 +441,44 @@ Issue #746 cutover is complete (PRs #751 → #791). Bus events are the source of
 **Soak phase**: legacy direct-write paths still run during a soak window per `docs/v9/bus-cutover-staging-plan.md` §4 ("two releases of zero drift" rule). Content-hash idempotency in projector handlers makes the duplicate writes byte-for-byte safe. Direct-write deletion is mechanical follow-up work.
 
 **Architecture refs**: `docs/v9/bus-cutover-staging-plan.md` (wave-1 design), `docs/v9/wave-2-cutover-plan.md` (wave-2 per-site analysis + tranche sequencing), `docs/v9/adr-reconcile-v2.md` (why reconcile_v2 co-exists with reconcile.py).
+
+## v10 architectural principles
+
+The v10 series (Phases 1, 2A, 3 landed; Phase 4 deferred) reshapes how wicked-garden interacts with Claude Code. Three principles are load-bearing for future design decisions:
+
+### Steering, not blocking
+
+Codified across PRs #812, #814, #815, #816. Every gate, validator, or hook should ask: when behaviour deviates from the prescriptive default, does this BLOCK or STEER? Block = "you cannot proceed until X" (REJECT verdicts, validator refusals, `--override-*` flags, gates stuck in `pending`). Steer = "default does X; deviation is possible but takes effort" (auto-normalise + warn, opportunistic inline checks, suggested-not-required reviewers, rigor-tier opt-in). Structure stays prescriptive — the change is what happens on the deviation path. Brain memory: `crew-steering-not-blocking-architectural-principle` (importance 10).
+
+### Partner, not host platform
+
+wicked-garden does NOT reimplement Claude Code primitives. Use native `TaskCreate`, `Task()` dispatch, system reminders, skill progressive loading. wicked-garden's job is advice and gating ON TOP OF those primitives, not parallel state, parallel dispatch, parallel task store, or parallel audit trail. Brain memory: `v10-architecture-partner-not-host-platform` (importance 10).
+
+### Slim Body Contract
+
+Command and skill body files (`commands/{domain}/*.md`, `skills/{domain}/{name}/SKILL.md`) MUST stay slim — they are loaded into the model's parent context permanently across the session. The fat bodies are in `commands/`, not `skills/` (see `crew/execute.md` at 1460 lines). Three patterns cover the full design space:
+
+| Pattern | Lines | When | Example |
+|---|---|---|---|
+| A — Advisory/State | ≤8 | State mutation, no dispatch | `/wicked-garden:intent` |
+| B — Write Brief + Dispatch | ≤30 | Session-specific context needed | `crew:start` (Phase 2A) |
+| C — Interactive Branch + Dispatch | ≤35 | User decision point before dispatch | `crew:just-finish` (planned) |
+
+**Static vs dynamic boundary**: session-specific data → dynamic brief via a `write_brief.py`-style script. Invariant rubrics (phase catalog, gate policy, scoring rules) → static `refs/` files agents read on demand.
+
+**Subagent skill loading is the intended pattern, not a problem**. Parent-context bloat is the problem; subagents loading skills via `Skill()` inside their dispatched task have isolated, short-lived contexts. See brain memory `subagent-skill-loading-is-feature-not-bug` (importance 9).
+
+Brain memory: `v10-slim-skill-body-shape-decision` (importance 8).
+
+### Three orthogonal task lookup patterns (Phase 3, PR #816)
+
+| Lookup | System | Threat model |
+|---|---|---|
+| Current task state | Native `${CLAUDE_CONFIG_DIR}/tasks/{session}/*.json` (unchanged) | Per-session task lifecycle |
+| Cross-session chain index | `${CLAUDE_CONFIG_DIR}/wicked-garden/task-audit/{session}.jsonl` (PostToolUse hook) | `verify_chain_emission` finding tasks across sessions |
+| Gate authorization | `phases/{phase}/dispatch-log.jsonl` (HMAC-signed, written BEFORE reviewer) | Rogue reviewer self-authorising a gate-result |
+
+These are orthogonal. Conflating them was the design bloat brainstorm 03 caught. Brain memory: `dispatch-log-precedes-reviewer-do-not-move-to-post-hook` (importance 9). The dispatch-log HMAC pattern is unchanged in v10.
 
 ## Operating notes
 

@@ -1571,10 +1571,24 @@ def main():
         # Task-management tools — native task store is the source of truth.
         # PreToolUse validates metadata; PostToolUse only runs the mismatch
         # detector for TaskUpdate (status/subject/metadata consistency).
+        # v10 Phase 3 (#813 successor): also append a cross-session audit
+        # entry so verify_chain_emission can find tasks created in earlier
+        # sessions. The writer fails-open — any I/O error swallowed.
         elif tool_name in ("TaskCreate", "TaskUpdate", "TodoWrite"):
             handler_label = "TaskCreate|TaskUpdate|TodoWrite"
             if tool_name == "TaskUpdate":
                 _handle_task_update_mismatch(tool_input)
+            if tool_name in ("TaskCreate", "TaskUpdate"):
+                try:
+                    from crew._task_audit_writer import append_task_audit
+                    append_task_audit(
+                        tool_name=tool_name,
+                        tool_input=tool_input,
+                        tool_response=payload.get("tool_response"),
+                        session_id=_get_session_id(),
+                    )
+                except Exception:
+                    pass  # fail-open per Phase 3 contract
             result = {"continue": True}
         # Write / Edit tools (async — quick operations only)
         elif tool_name in ("Write", "Edit"):
