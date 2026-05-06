@@ -658,12 +658,34 @@ def _consume_facilitator_reeval(state) -> str | None:
         if not getattr(state, "facilitator_reeval_due", False):
             return None
         chain_id = getattr(state, "facilitator_reeval_chain", None) or "unknown"
-        # Clear flag BEFORE returning so a handler failure still produces a
-        # single-shot emission — not an infinite loop.
-        state.update(facilitator_reeval_due=False, facilitator_reeval_chain=None)
 
         # Issue #431: assemble structured current_chain data for the re-eval.
         chain_data = _assemble_current_chain(chain_id) if chain_id != "unknown" else None
+
+        # Issue #830 / v9.2.6: set last_reeval_ts + last_reeval_task_count so
+        # phase_start_gate's heuristics actually work. The gate detects "has
+        # something material happened since the last re-eval" — without these
+        # fields populated, it has been silently treating every check as
+        # "first time" because both stay at the dataclass default.
+        #
+        # We write these here (when re-eval is DIRECTED) rather than when it
+        # COMPLETES because there's no clean hook for completion. Functionally
+        # equivalent for phase_start_gate's purpose: "since the most recent
+        # moment we asked for re-eval" is the right semantic.
+        completed_count = 0
+        if chain_data:
+            completed_count = int(chain_data.get("counts", {}).get("completed", 0) or 0)
+        now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        # Clear flag BEFORE returning so a handler failure still produces a
+        # single-shot emission — not an infinite loop. Bundle the producer
+        # writes into the same call to minimise file I/O.
+        state.update(
+            facilitator_reeval_due=False,
+            facilitator_reeval_chain=None,
+            last_reeval_ts=now_iso,
+            last_reeval_task_count=completed_count,
+        )
         # AC-5: build structured current_chain dict with required keys so the
         # re-eval directive contains "current_chain" as a JSON key — not prose.
         chain_block = ""

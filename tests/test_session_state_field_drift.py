@@ -133,16 +133,12 @@ KNOWN_DICT_UNPACK_WRITERS = {
 # read by consumers but no writer exists. Each produces silent degradation
 # that's understood and tracked, not a regression to fix in this test.
 # Removing an entry from this set means a producer is now wired.
-KNOWN_PRODUCER_GAPS = {
-    # `last_reeval_*` are read by phase_start_gate via prompt_submit context;
-    # writer is supposed to fire after each re-eval completes (per docstring
-    # in scripts/crew/phase_start_gate.py). Phase_start_gate has been silently
-    # treating every check as "first time" because both fields stay at default.
-    # Producer wiring is feature work, deferred from cleanup releases — see
-    # the open follow-on issue for tracking.
-    "last_reeval_ts",
-    "last_reeval_task_count",
-}
+#
+# v9.2.6 closure: `last_reeval_ts` / `last_reeval_task_count` were in this
+# set in v9.2.5 (issue #830) and are now wired by `_consume_facilitator_reeval`
+# in `hooks/scripts/prompt_submit.py`. They no longer need the allowlist
+# entry — the standard writer detection picks them up.
+KNOWN_PRODUCER_GAPS: set[str] = set()
 
 
 def _writer_field_names() -> set[str]:
