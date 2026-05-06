@@ -85,6 +85,48 @@ def test_sidecar_write_no_op_when_path_unresolvable(tmp_path, monkeypatch):
     assert _heavy_cadence._read_sidecar() == {}
 
 
+def test_sidecar_write_is_atomic(tmp_sidecar):
+    """v9.2.15 council mitigation: _write_sidecar must use temp-file + os.replace
+    so a concurrent reader sees either the old sidecar OR the new sidecar,
+    never a half-written file. We can't fully simulate the race in a unit
+    test, but we CAN verify:
+      1. After write, no `.tmp.*` files are left behind in the sidecar dir
+         (the rename succeeded; cleanup is implicit via os.replace).
+      2. The final sidecar is valid JSON (would be the failure mode if
+         bare write_text was interrupted)."""
+    import _heavy_cadence
+    _heavy_cadence._write_sidecar("session_end", session_id="atomicity-test")
+
+    # Final file is valid JSON.
+    data = json.loads(tmp_sidecar.read_text())
+    assert data["session_id"] == "atomicity-test"
+
+    # No leftover temp files. PID-disambiguated names prevent multi-writer
+    # collision; successful os.replace removes the temp file by definition.
+    leftovers = list(tmp_sidecar.parent.glob(f"{tmp_sidecar.name}.tmp.*"))
+    assert leftovers == [], (
+        f"Atomic write left behind temp file(s): {leftovers}. "
+        f"v9.2.15 contract: write to <name>.tmp.<pid> then os.replace."
+    )
+
+
+def test_sidecar_temp_path_uses_pid_disambiguation():
+    """Two processes writing concurrently must not collide on the same temp
+    path before either calls os.replace. Test that the temp path includes
+    `os.getpid()` so parallel writers get unique temp names."""
+    import _heavy_cadence
+    import inspect
+    src = inspect.getsource(_heavy_cadence._write_sidecar)
+    assert "os.getpid()" in src, (
+        "_write_sidecar temp path must include os.getpid() to disambiguate "
+        "parallel writers. v9.2.15 council mitigation."
+    )
+    assert "os.replace" in src, (
+        "_write_sidecar must use os.replace (atomic on POSIX + Windows) "
+        "instead of bare write_text. v9.2.15 council mitigation."
+    )
+
+
 # ---------------------------------------------------------------------------
 # 60-minute fallback gate — the keystone correctness contract
 # ---------------------------------------------------------------------------

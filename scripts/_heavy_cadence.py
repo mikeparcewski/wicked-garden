@@ -27,6 +27,14 @@ session fallback — sidecar is the right persistence boundary.
 
 Brain calls themselves are unchanged. Only WHEN they fire changed.
 
+v9.2.15 council mitigation (3-of-4 reviewers cited TOCTOU race as top risk):
+sidecar writes use the write-temp-then-os.replace pattern instead of bare
+write_text. os.replace is atomic on both POSIX and Windows, so two parallel
+Stop calls passing the should_run_fallback() check simultaneously cannot
+produce a corrupt sidecar JSON. The heavy operations themselves are
+idempotent (per the inventory), so duplicate runs waste work but don't
+corrupt state.
+
 R1: no dead code — every helper is called from main flow + tests.
 R3: constants named (FALLBACK_INTERVAL_SECS, SIDECAR_FILENAME).
 R5: subprocess-free in module body (subprocess only via _brain_api).
@@ -34,6 +42,7 @@ R5: subprocess-free in module body (subprocess only via _brain_api).
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -89,22 +98,44 @@ def _read_sidecar() -> dict:
 
 
 def _write_sidecar(trigger: str, session_id: Optional[str] = None) -> None:
-    """Record `last_heavy_run_ts` + trigger. Best-effort, no raise."""
+    """Record `last_heavy_run_ts` + trigger. Best-effort, no raise.
+
+    Atomic write via temp-file + os.replace (v9.2.15 council mitigation,
+    3-of-4 reviewers cited TOCTOU race as top risk):
+
+      1. Write payload to `<sidecar>.tmp.<pid>` (PID disambiguates parallel
+         writers — two processes won't clobber each other's temp files).
+      2. `os.replace(tmp, sidecar)` — atomic on both POSIX and Windows.
+         Either the old sidecar OR the new sidecar is observable by any
+         concurrent reader; never a half-written file.
+
+    Heavy operations are idempotent (decay is set-difference, compile is
+    deterministic given input chunks, telemetry appends are tagged with
+    session_id, guard overwrites a session-scoped findings file), so two
+    parallel runs waste work but cannot corrupt domain state.
+    """
     p = _sidecar_path()
     if p is None:
         return
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
-        p.write_text(
-            json.dumps({
-                "last_heavy_run_ts": _utc_iso_now(),
-                "trigger": trigger,
-                "session_id": session_id or "",
-            }),
-            encoding="utf-8",
-        )
+        payload = json.dumps({
+            "last_heavy_run_ts": _utc_iso_now(),
+            "trigger": trigger,
+            "session_id": session_id or "",
+        })
+        # PID-disambiguated temp path so two parallel writers don't collide
+        # on the same temp file before either calls os.replace.
+        tmp = p.with_name(f"{p.name}.tmp.{os.getpid()}")
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, p)
     except OSError:
-        pass
+        # Best-effort cleanup of orphaned temp file. Failure to clean up is
+        # not load-bearing — the next successful write displaces it.
+        try:
+            tmp.unlink(missing_ok=True)  # type: ignore[name-defined]
+        except (NameError, OSError):
+            pass
 
 
 def should_run_fallback(now_ts: Optional[float] = None) -> bool:
