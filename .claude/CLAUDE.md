@@ -123,7 +123,7 @@ The "brain" of the plugin. Intercepts every prompt via UserPromptSubmit hook. v6
 - **Directive emission**: `simple-edit` (auto-detected) emits NOTHING — silence is the signal. `feature` / `research` emit the synthesis directive. `rigor` adds active-chain context. Auto-detected intent stays invisible to the model; only explicit overrides echo a bare `<wg intent="X" t=N />` label.
 - **Tag format**: `<wg intent="X" t=N />` (~30 bytes), replaces the legacy `<wg id="ctx" t=N phase="X" cal="Y/Z">` (~80 bytes).
 - **Empty-reminder suppression**: when nothing material is being injected (auto-detected simple-edit, no WIP, no onboarding, no hints), the entire `<system-reminder>` block is omitted rather than wrapped around an empty body.
-- **Migration boundary** (Phase 1 only): only `prompt_submit.py` reads `state.intent`. Gate-critical hooks (`phase_manager`, `gate_dispatch`) keep independent detection through one release cycle — same soak pattern as the bus-cutover. Legacy `pull_phase` / `pull_count` / `unpulled_ok` / `corrections` / `pull_regress_at` fields stay on `SessionState` for telemetry compatibility; slated for removal in a follow-up.
+- **Migration boundary** (Phase 1 only): only `prompt_submit.py` reads `state.intent`. Gate-critical hooks (`phase_manager`, `gate_dispatch`) keep independent detection through one release cycle — same soak pattern as the bus-cutover. The legacy `pull_phase` / `pull_count` / `unpulled_ok` / `corrections` / `pull_regress_at` SessionState fields shipped during Phase 1 for telemetry compatibility were removed in v9.2.0 (no consumer ever read them after v10).
 
 Six adapters query domain scripts directly: `domain`, `brain`, `events`, `context7`, `tools`, `delegation`.
 

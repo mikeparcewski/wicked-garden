@@ -807,49 +807,6 @@ def _check_onboarding_gate(prompt: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Pull-model directive builder (Issue #416)
-# ---------------------------------------------------------------------------
-
-_CORRECTION_SIGNALS = frozenset({
-    "no,", "no ", "wrong", "that's not", "that isn't", "incorrect",
-    "actually,", "actually ", "not what i", "i meant", "i said",
-    "try again", "redo", "you missed", "you forgot", "you ignored",
-})
-
-
-_REGRESS_DURATION = 3  # mandatory pull lasts this many turns after regression
-
-
-def _detect_correction(prompt: str, turn_count: int, state) -> None:
-    """Check if the user's prompt is correcting the model's last response.
-
-    If so, decrement unpulled_ok, increment corrections, and trigger phase
-    regression to mandatory pull when the model has been overconfident.
-    Regression lasts for _REGRESS_DURATION turns, then normal phase resumes.
-    """
-    if not state or not prompt.strip():
-        return
-    lower = prompt.strip().lower()
-    if not any(lower.startswith(s) or s in lower for s in _CORRECTION_SIGNALS):
-        return
-    try:
-        corrections = (state.corrections or 0) + 1
-        unpulled_ok = max((state.unpulled_ok or 0) - 1, 0)
-        updates = {"corrections": corrections, "unpulled_ok": unpulled_ok}
-
-        # Trigger phase regression: force mandatory pull for the next few turns.
-        # Activates when: past bootstrap (turn > 2) and not already in regression.
-        regress_at = getattr(state, "pull_regress_at", 0) or 0
-        already_regressed = regress_at > 0 and (turn_count - regress_at) < _REGRESS_DURATION
-        if turn_count > 2 and not already_regressed:
-            updates["pull_regress_at"] = turn_count
-
-        state.update(**updates)
-    except Exception:
-        pass
-
-
-# ---------------------------------------------------------------------------
 # v10 Phase 1 (#813) — intent variable
 # ---------------------------------------------------------------------------
 # The intent variable names what five overlapping classifiers were collectively
@@ -1161,10 +1118,6 @@ def main():
         state = None
 
     turn_count = _increment_turn(state)
-
-    # Pull-model correction detection (Issue #416): check if user is correcting
-    # the model, which means it was overconfident on the previous turn.
-    _detect_correction(prompt, turn_count, state)
 
     # Session goal capture on turns 1-2
     _capture_session_goal(prompt, turn_count, project, session_id)

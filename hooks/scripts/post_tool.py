@@ -751,18 +751,6 @@ def _handle_skill(tool_input: dict) -> dict:
     """
     skill = (tool_input.get("skill") or "").lower()
 
-    # Pull-model tracking (Issue #416): increment pull_count when the model
-    # calls wicked-brain:query or wicked-brain:search. This feeds the
-    # calibration stats shown in the next turn's pull directive.
-    _PULL_SKILLS = ("wicked-brain:query", "wicked-brain:search")
-    if any(s in skill for s in _PULL_SKILLS):
-        try:
-            from _session import SessionState
-            state = SessionState.load()
-            state.update(pull_count=(state.pull_count or 0) + 1)
-        except Exception:
-            pass  # fail open
-
     # Memory compliance reset: zero the escalation counter when the model
     # calls wicked-brain:memory, confirming it acted on the directive.
     # Issue #608: exact match only — substring would false-positive on future
