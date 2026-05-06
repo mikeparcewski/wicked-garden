@@ -1385,6 +1385,22 @@ def main():
                 is_active = active_phase not in ("", "complete", "done", "archived")
                 state.update(active_project_id=project_name if is_active else None)
 
+                # v9.2.4: also write active_chain_id so smaht's chain-aware
+                # event scoring (CLAUDE.md "Chain-aware smaht scoring") actually
+                # works. Field declared in v9.2.3, producer was missing — events
+                # got the 0.1 baseline instead of the documented 0.8+ chain
+                # boost. Format mirrors the chain_id convention in CLAUDE.md
+                # "Native Tasks as Dual-Purpose Event Queue":
+                #   {slug}.root            for the root chain
+                #   {slug}.{phase}         per active phase
+                # Cleared (set None) when the project is not active so events
+                # in unrelated sessions don't accidentally inherit the chain.
+                if is_active:
+                    chain_id = f"{project_name}.{active_phase}" if active_phase != "clarify" else f"{project_name}.root"
+                    state.update(active_chain_id=chain_id)
+                else:
+                    state.update(active_chain_id=None)
+
                 # #459 telemetry producer: anchor complexity_at_session_open
                 # from the active project's complexity_score so session-close
                 # drift capture has a delta baseline.  Only set when not
