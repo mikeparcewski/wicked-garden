@@ -488,39 +488,20 @@ def _has_imperative_technical_verb(prompt_lower: str) -> bool:
     return any(verb in prompt_lower for verb in _IMPERATIVE_TECHNICAL_VERBS)
 
 
-def _starts_with_leading_confirmation(prompt_lower: str) -> bool:
-    """Return True if the stripped prompt begins with a known confirmation."""
-    stripped = prompt_lower.strip().rstrip(".!?")
-    # Exact-match on the whole stripped prompt catches things like "yes" / "ok"
-    if stripped in _LEADING_CONFIRMATIONS:
-        return True
-    # Prefix match with a word boundary — "ok proceed" and "yes do it" both
-    # qualify, but "okay fix the bug" (has 'fix') would fail substantive check.
-    for phrase in _LEADING_CONFIRMATIONS:
-        if stripped == phrase or stripped.startswith(phrase + " ") or stripped.startswith(phrase + ","):
-            return True
-    return False
-
-
-def _contains_meta_phrase(prompt_lower: str) -> bool:
-    """Return True if any meta / conversational phrase appears in the prompt."""
-    return any(phrase in prompt_lower for phrase in _META_PHRASES)
-
-
 def _should_emit_context_assembly(
     prompt: str,
     env: Mapping,
+    state=None,
 ) -> tuple[bool, str]:
     """Decide whether to emit the Context Assembly directive.
 
-    Returns (should_emit, reason). Reason is a short token for the ops log.
+    v10 Phase 1 (#813): replaces the legacy 5-classifier cascade with a
+    single intent check. The detection logic that lived here (leading
+    confirmations, meta phrases, conversational vs substantive heuristics)
+    is folded into ``_detect_intent``; this function now just maps intent
+    to emit/suppress.
 
-    Rules (first match wins per category; substantive beats conversational):
-      1. Env override: WG_CONTEXT_ASSEMBLY=always → (True, "env_always")
-      2. Env override: WG_CONTEXT_ASSEMBLY=off    → (False, "env_off")
-      3. Substantive signals (long, has path/code, technical verb) → emit
-      4. Conversational signals (short + confirmation/meta)        → suppress
-      5. Default                                                   → emit
+    Returns (should_emit, reason). Reason is the intent value (or env override).
     """
     mode = _resolve_context_assembly_mode(env)
     if mode == _CONTEXT_ASSEMBLY_MODE_ALWAYS:
@@ -528,67 +509,12 @@ def _should_emit_context_assembly(
     if mode == _CONTEXT_ASSEMBLY_MODE_OFF:
         return False, "env_off"
 
-    # --- auto mode: classify ---
-    prompt_stripped = prompt.strip()
-    if not prompt_stripped:
-        return False, "empty"
-
-    prompt_lower = prompt_stripped.lower()
-    word_count = len(prompt_stripped.split())
-
-    # Substantive checks — any one of these is enough to emit.
-    if word_count >= _SUBSTANTIVE_MIN_WORDS:
-        return True, "substantive_length"
-    if _has_file_path(prompt_stripped):
-        return True, "substantive_file_path"
-    if _has_code_markers(prompt_stripped):
-        return True, "substantive_code_marker"
-    if _has_imperative_technical_verb(prompt_lower):
-        return True, "substantive_technical_verb"
-
-    # Conversational checks — require SHORT prompt AND lack of substantive
-    # signals above. Substantive wins on conflict, so we only get here when
-    # the prompt has no file paths, no code, no technical verbs, and is below
-    # the substantive length threshold.
-    if word_count < _CONVERSATIONAL_MAX_WORDS:
-        if _starts_with_leading_confirmation(prompt_lower):
-            return False, "conversational_leading_confirmation"
-        if _contains_meta_phrase(prompt_lower):
-            return False, "conversational_meta_phrase"
-        return False, "conversational_short"
-
-    # Meta phrases in medium-length prompts still read as conversational
-    # ("what do you think about all of this" at 8-15 words) — suppress.
-    if _contains_meta_phrase(prompt_lower):
-        return False, "conversational_meta_phrase"
-
-    # Medium-length prompts (8-29 words) with no substantive signal still
-    # default to emit — they often carry enough novelty to warrant grounding,
-    # and "substantive wins on conflict" tips the scale.
-    return True, "default_emit"
-
-
-def _build_synthesis_directive(prompt: str, complexity: float, is_risky: bool, state) -> str:
-    """Build a pull-directive for complex/risky prompts.
-
-    v6.3.6: the wicked-garden:smaht:synthesize skill was retired — it duplicated
-    wicked-brain (FTS5 over code, docs, wiki, memories) and never registered
-    anyway because Claude Code's skill auto-discovery doesn't recurse into
-    skills/<domain>/<name>/. This directive now tells the model to gather
-    context via wicked-brain before answering.
-    """
-    signal = "RISKY" if is_risky else f"complexity={round(complexity, 2)}"
-    return (
-        f"[Context Assembly — {signal}] Deep context needed before answering.\n"
-        "BEFORE drafting a response:\n"
-        "1. Call wicked-brain:query for conceptual grounding ('how does X work', "
-        "'what are the constraints around Y').\n"
-        "2. Call wicked-brain:search for specific symbols, files, or past decisions. "
-        "Drill into wiki hits with wicked-brain:read depth=2.\n"
-        "3. If results cite a wicked-garden:crew project, check its phase and "
-        "active_chain_id before committing to an approach.\n"
-        "Only after grounding is complete, answer the original prompt."
-    )
+    # auto mode: read intent from session state. Caller is expected to have
+    # populated state.intent before this point (via _detect_intent).
+    intent = getattr(state, "intent", None) if state else None
+    if intent in ("feature", "rigor", "research"):
+        return True, intent
+    return False, intent or "no_intent"
 
 
 # ---------------------------------------------------------------------------
@@ -1005,89 +931,141 @@ def _detect_correction(prompt: str, turn_count: int, state) -> None:
         pass
 
 
-def _resolve_pull_phase(turn_count: int, state=None) -> str:
-    """Determine the pull phase based on turn count and regression state.
+# ---------------------------------------------------------------------------
+# v10 Phase 1 (#813) — intent variable
+# ---------------------------------------------------------------------------
+# The intent variable names what five overlapping classifiers were collectively
+# detecting. Auto-detected on turn 1-2 from existing complexity/risk signals,
+# sticky for the session, overridable via /wicked-garden:intent. Hooks gate
+# directive emission on intent. Design: brainstorms/v10-session-01-intent-and-hook-gating.md.
 
-    If a correction triggered regression, override to 'bootstrap' (mandatory pull)
-    for _REGRESS_DURATION turns from the regression point.
+_INTENT_VALUES = ("simple-edit", "feature", "rigor", "research")
+_AUTO_DETECT_TURN_LIMIT = 2  # auto-detect runs only on turns ≤ this; sticky after
+
+# Crew/rigor command prefixes — invocations that warrant rigor regardless of
+# prompt complexity (answer to brainstorm Q3: rely on auto-detection signals
+# rather than per-command self-declare ceremony).
+_RIGOR_COMMAND_PREFIXES = (
+    "/wicked-garden:crew:",
+    "/wg-issue",
+    "/wg-test",
+)
+
+# Research signal phrases — explanation/analysis prompts that route to research
+# directive even at low complexity.
+_RESEARCH_SIGNALS = (
+    "explain how", "explain why", "why does", "how does", "what is the",
+    "describe the", "walk me through", "analyze", "investigate",
+)
+
+
+def _detect_intent(prompt: str, complexity: float, is_risky: bool, state) -> str:
+    """Auto-detect session intent from prompt + complexity/risk signals.
+
+    Called once per session on turn 1-2. Result is sticky — subsequent turns
+    read state.intent directly. User overrides via /wicked-garden:intent skill
+    set state.intent_explicit=True.
+
+    Detection priority:
+      1. Rigor commands (/wicked-garden:crew:*, etc.) → rigor
+      2. Research signals (explain how, why does, walk me through) → research
+      3. Risk OR complexity ≥ threshold OR technical verb → feature
+      4. Default → simple-edit (conservative; user can /wicked-garden:intent up)
     """
-    # Check for active regression
-    regress_at = getattr(state, "pull_regress_at", 0) if state else 0
-    if regress_at and (turn_count - regress_at) < _REGRESS_DURATION:
-        return "bootstrap"
+    if not prompt or not prompt.strip():
+        return "simple-edit"
 
-    if turn_count <= 2:
-        return "bootstrap"
-    elif turn_count <= 8:
-        return "calibrating"
-    return "cruising"
+    prompt_lower = prompt.lower().strip()
+
+    # 1. Explicit rigor invocations (crew/wg-issue/wg-test commands)
+    if any(prompt_lower.startswith(p) for p in _RIGOR_COMMAND_PREFIXES):
+        return "rigor"
+
+    # 2. Research signals (explanation/analysis intent)
+    if any(s in prompt_lower for s in _RESEARCH_SIGNALS):
+        return "research"
+
+    # 3. Feature signals (risk, complexity, technical verbs)
+    if is_risky or complexity >= _SYNTHESIS_THRESHOLD:
+        return "feature"
+    if _has_imperative_technical_verb(prompt_lower):
+        return "feature"
+    if _has_file_path(prompt) or _has_code_markers(prompt):
+        return "feature"
+
+    # 4. Default conservative classification
+    return "simple-edit"
 
 
-def _build_pull_directive(turn_count: int, state) -> str:
-    """Build the tiny pull-model directive for context-on-demand.
+def _ensure_intent_set(prompt: str, state, complexity: float, is_risky: bool) -> str:
+    """Resolve session intent, auto-detecting if not yet set.
 
-    Returns a short directive string (~60-150 chars) that tells the model
-    to pull context via wicked-brain:query/search when uncertain, instead of
-    us pushing a full briefing every turn.
+    On turn ≤ _AUTO_DETECT_TURN_LIMIT and intent is None → detect, persist,
+    return. On later turns or when intent is already set → return existing
+    value. Never overwrites an explicit override.
 
-    Three phases:
-      bootstrap (turns 1-2):   Mandatory pull, model must query before responding.
-      calibrating (turns 3-8): Optional pull with calibration hints.
-      cruising (turns 9+):     Minimal directive, model pulls only when uncertain.
+    Returns the effective intent value (always a string from _INTENT_VALUES).
     """
-    phase = _resolve_pull_phase(turn_count, state)
+    existing = getattr(state, "intent", None) if state else None
+    if existing in _INTENT_VALUES:
+        return existing
 
-    # Update phase in session state
+    turn = getattr(state, "turn_count", 0) if state else 0
+    if turn > _AUTO_DETECT_TURN_LIMIT and existing is None:
+        # Past the auto-detect window with no intent set — fall back to
+        # conservative default rather than re-classify mid-session.
+        return "simple-edit"
+
+    detected = _detect_intent(prompt, complexity, is_risky, state)
     try:
         if state:
-            state.update(pull_phase=phase)
+            state.update(intent=detected, intent_explicit=False)
     except Exception:
-        pass
+        pass  # fail open — return value still usable for this turn
+    return detected
 
-    # Calibration stats from session state (safe defaults if missing)
-    cal_ok = getattr(state, "unpulled_ok", 0) if state else 0
-    cal_miss = getattr(state, "corrections", 0) if state else 0
 
-    # Probe brain for wiki article count (bootstrap only, <100ms)
-    _wiki_count = 0
-    if phase == "bootstrap":
-        try:
-            result = _brain_api("wiki_list", {}, timeout=1)
-            if result and "articles" in result:
-                _wiki_count = len(result["articles"])
-        except Exception:
-            pass  # fail open
+def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=None) -> str:
+    """Build the system-reminder directive for a given intent.
 
-    if phase == "bootstrap":
-        wiki_line = ""
-        if _wiki_count:
-            wiki_line = (
-                f"\n{_wiki_count} wiki articles available. "
-                "Use wicked-brain:search to find relevant ones "
-                "(results include source_type: wiki/chunk/memory — "
-                "wiki hits are synthesized knowledge, worth reading deeper with wicked-brain:read)."
-            )
-        return (
-            f"<wg id=\"ctx\" t={turn_count} phase=\"bootstrap\">\n"
-            "New session. You MUST gather project context before responding.\n"
-            "Tools: wicked-brain:query (questions) | wicked-brain:search (find) | "
-            f"wicked-brain:read (depth 0=stats, 1=overview, 2=full)"
-            f"{wiki_line}\n"
-            "</wg>"
+    Output rules (brainstorm decision):
+      simple-edit + auto-detect → empty string (silence is the signal)
+      simple-edit + explicit    → bare label only ("user said simple-edit")
+      feature                   → synthesis directive (+ label if explicit)
+      research                  → synthesis directive (+ label if explicit)
+      rigor                     → synthesis directive + chain context (+ label if explicit)
+
+    The label-only-on-explicit rule prevents confirmation-bias drift —
+    auto-detected intent stays invisible to the model so it doesn't
+    second-guess the framework's silent classification.
+    """
+    label = f'<wg intent="{intent}" t={turn_count} />' if explicit else ""
+
+    if intent == "simple-edit":
+        return label  # empty when auto-detected
+
+    # synthesis directive shared by feature / research / rigor
+    directive_lines = [
+        f"[Context Assembly — intent={intent}] Deep context needed before answering.",
+        "BEFORE drafting a response:",
+        "1. Call wicked-brain:query for conceptual grounding ('how does X work', "
+        "'what are the constraints around Y').",
+        "2. Call wicked-brain:search for specific symbols, files, or past decisions. "
+        "Drill into wiki hits with wicked-brain:read depth=2.",
+    ]
+    if intent == "rigor":
+        directive_lines.append(
+            "3. If results cite a wicked-garden:crew project, check its phase and "
+            "active_chain_id before committing to an approach."
         )
-    elif phase == "calibrating":
-        return (
-            f"<wg id=\"ctx\" t={turn_count} phase=\"calibrating\" cal=\"{cal_ok}/{cal_miss}\">\n"
-            "Context: wicked-brain:query | Search: wicked-brain:search\n"
-            "Search results carry source_type — drill into wiki hits with wicked-brain:read.\n"
-            "</wg>"
-        )
-    else:  # cruising
-        return (
-            f"<wg id=\"ctx\" t={turn_count} phase=\"cruising\" cal=\"{cal_ok}/{cal_miss}\">\n"
-            "Context: wicked-brain:query\n"
-            "</wg>"
-        )
+        directive_lines.append("Only after grounding is complete, answer the original prompt.")
+    else:
+        directive_lines.append("Only after grounding is complete, answer the original prompt.")
+
+    directive = "\n".join(directive_lines)
+    if label:
+        return f"{label}\n{directive}"
+    return directive
 
 
 # ---------------------------------------------------------------------------
@@ -1277,82 +1255,35 @@ def main():
     # v6: the v5 Router + Orchestrator pre-fetch were deleted in #428. Classification
     # is an inline heuristic; v6.3.6 retired the wicked-garden:smaht:synthesize skill
     # and replaced it with a directive pointing at wicked-brain directly.
-    # Skipped if onboarding is pending (no context yet to pull from).
+    # v10 Phase 1 (#813): replace the legacy 5-classifier cascade
+    # (complexity scorer → context-assembly classifier → near-HOT guard →
+    # synthesis early-return) with a single intent variable. Intent gates
+    # directive emission downstream — see _ensure_intent_set + _build_intent_directive.
     if not onboarding_directive:
         complexity, is_risky = _score_complexity_and_risk(prompt, state)
-        _word_count = len(prompt.split())
-        _prompt_lower = prompt.lower()
-        _has_technical = (
-            "?" in prompt
-            or any(s in _prompt_lower for s in _DEEP_WORK_SIGNALS)
-            or any(s in _prompt_lower for s in _RISK_SIGNALS)
-        )
-        # Near-HOT guard: very short phrases with no technical signals are continuations.
-        _is_near_hot = (_word_count <= 6) and not _has_technical
-
-        # Issue #578: intent classifier gate. Even when complexity/risk crosses
-        # the threshold, suppress the Context Assembly directive on obviously
-        # conversational prompts. WG_CONTEXT_ASSEMBLY=always|off overrides.
-        _ca_emit, _ca_reason = _should_emit_context_assembly(prompt, os.environ)
-        _log("prompt", "debug", "context_assembly.decision",
+        intent = _ensure_intent_set(prompt, state, complexity, is_risky)
+        _log("prompt", "debug", "intent.resolved",
              detail={
-                 "emit": _ca_emit,
-                 "reason": _ca_reason,
+                 "intent": intent,
+                 "explicit": bool(getattr(state, "intent_explicit", False)),
                  "complexity": round(complexity, 2),
                  "risk": is_risky,
-                 "word_count": _word_count,
+                 "turn": turn_count,
              })
 
-        _should_synthesize = (
-            _ca_emit
-            and not _is_near_hot
-            and (
-                is_risky
-                or (complexity >= _SYNTHESIS_THRESHOLD and _word_count > 8)
-            )
-        )
-
-        if _should_synthesize:
-            # v6.3.6: synthesis is a pull-directive pointing at wicked-brain.
-            # The former wicked-garden:smaht:synthesize skill was retired —
-            # brain's FTS5 index already covers what the skill was doing.
-            synthesis_directive = _build_synthesis_directive(
-                prompt, complexity, is_risky, state
-            )
-            _log("smaht", "debug", "synthesis.triggered",
-                 detail={"complexity": complexity, "risk": is_risky, "turn": turn_count})
-            # v6 Gate 3 (#428): prepend facilitator re-eval directive if pending,
-            # so synthesis-path prompts still honour the re-eval signal.
-            _synth_reeval_prefix = (
-                f"{facilitator_reeval_directive}\n\n" if facilitator_reeval_directive else ""
-            )
-            merged = (
-                f"<system-reminder>\n"
-                f"<!-- wicked-garden | path=synthesis | turn={turn_count} -->\n"
-                f"{_synth_reeval_prefix}{synthesis_directive}\n"
-                f"</system-reminder>"
-            )
-            print(json.dumps({
-                "hookSpecificOutput": {
-                    "hookEventName": "UserPromptSubmit",
-                    "additionalContext": merged,
-                },
-                "continue": True,
-            }))
-            return
-
     try:
-        # --- Pull-model context assembly (Issue #416) ---
-        # Instead of pushing a full briefing every turn, inject a tiny pull
-        # directive (~60-150 chars) that tells the model to fetch context on
-        # demand via wicked-brain:query/search.
-        #
-        # v6: the smaht/v2 orchestrator (and its HOT/FAST/SLOW tiers) was
-        # deleted in #428. v6.3.6 also retired the smaht:synthesize skill — the
-        # complexity+risk gate above now injects a direct wicked-brain directive.
-
-        # Build the pull directive
-        pull_directive = _build_pull_directive(turn_count, state)
+        # --- v10 Phase 1 (#813): intent-driven directive ---
+        # The intent variable resolved earlier (or "simple-edit" when this
+        # block runs from the onboarding-pending branch where no intent was
+        # computed) drives directive emission. Auto-detected simple-edit
+        # turns produce an empty directive; feature/research/rigor produce
+        # the synthesis directive. Explicit overrides additionally echo a
+        # bare label so the model knows the user steered the framework.
+        _intent = getattr(state, "intent", None) if state else None
+        _intent_explicit = bool(getattr(state, "intent_explicit", False)) if state else False
+        intent_directive = _build_intent_directive(
+            _intent or "simple-edit", turn_count, _intent_explicit, state
+        )
 
         # WIP recovery: surface native in-progress tasks (v5 ticket rail gone)
         wip_block = _build_wip_recovery_block(session_id, project)
@@ -1379,8 +1310,10 @@ def main():
         if onboarding_directive:
             all_parts.append(onboarding_directive)
 
-        # Pull directive — the core of the new architecture
-        all_parts.append(pull_directive)
+        # Intent directive (may be empty for auto-detected simple-edit — that
+        # is the v10 win: silence is a signal that the turn is simple).
+        if intent_directive:
+            all_parts.append(intent_directive)
 
         # Periodic memory storage nudge (every 10 turns)
         _STORAGE_NUDGE_INTERVAL = 10
@@ -1399,11 +1332,18 @@ def main():
         if discovery_hint:
             all_parts.append(discovery_hint)
 
+        # If nothing material to inject (simple-edit, no WIP, no onboarding,
+        # no hints), suppress the entire <system-reminder> block — this is
+        # the keystone "improves-me" win: silent turns stay silent.
+        if not all_parts:
+            print(json.dumps({"continue": True}))
+            return
+
         merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
 
-        _log("smaht", "debug", "prompt.pull_directive",
-             detail={"phase": _resolve_pull_phase(turn_count, state), "turn": turn_count,
-                     "directive_bytes": len(pull_directive.encode("utf-8"))})
+        _log("smaht", "debug", "prompt.intent_directive",
+             detail={"intent": _intent, "explicit": _intent_explicit, "turn": turn_count,
+                     "directive_bytes": len(intent_directive.encode("utf-8"))})
 
         output = {
             "hookSpecificOutput": {
