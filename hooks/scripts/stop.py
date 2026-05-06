@@ -66,9 +66,27 @@ def _session_dir(subdir: str) -> Path:
 # ---------------------------------------------------------------------------
 
 def _check_session_outcome() -> list:
-    """Return a list of outcome messages from the issue reporter state."""
+    """Return a list of outcome messages from the issue reporter state.
+
+    v9.2.12: Pre-fix, this function emitted the [Issue Reporter] banner on
+    EVERY Stop hook (i.e. every model response) as long as pending_issues.jsonl
+    or mismatches.jsonl had any content. Users saw the same banner re-fire
+    every turn until the issues were filed — chronic noise. The change-gated
+    latches (last_outcome_pending_count / last_outcome_mismatch_count on
+    SessionState) suppress re-emission unless the count has actually grown
+    since the previous emission. The first emission per session ALWAYS fires
+    (compares against default 0). Subsequent emissions only fire when new
+    issues / mismatches accumulate.
+    """
     messages = []
     try:
+        # Latch state — fail-open if SessionState is unreachable.
+        try:
+            from _session import SessionState
+            session_state = SessionState.load()
+        except Exception:
+            session_state = None
+
         sdir = _session_dir("wicked-issue-reporter")
         pending_file = sdir / "pending_issues.jsonl"
         mismatches_file = sdir / "mismatches.jsonl"
@@ -76,16 +94,28 @@ def _check_session_outcome() -> list:
         # Count pending issues
         if pending_file.exists():
             lines = [l.strip() for l in pending_file.read_text().splitlines() if l.strip()]
-            if lines:
+            count = len(lines)
+            last_count = (
+                int(getattr(session_state, "last_outcome_pending_count", 0) or 0)
+                if session_state else 0
+            )
+            if count and count > last_count:
                 messages.append(
-                    f"[Issue Reporter] {len(lines)} issue(s) queued this session. "
+                    f"[Issue Reporter] {count} issue(s) queued this session. "
                     "Review with /wicked-garden:report-issue --list-unfiled."
                 )
+                if session_state is not None:
+                    session_state.update(last_outcome_pending_count=count)
 
         # Count task mismatches
         if mismatches_file.exists():
             lines = [l.strip() for l in mismatches_file.read_text().splitlines() if l.strip()]
-            if lines:
+            count = len(lines)
+            last_count = (
+                int(getattr(session_state, "last_outcome_mismatch_count", 0) or 0)
+                if session_state else 0
+            )
+            if count and count > last_count:
                 signals = []
                 for line in lines[:3]:
                     try:
@@ -97,9 +127,11 @@ def _check_session_outcome() -> list:
                     except (json.JSONDecodeError, ValueError):
                         pass
                 messages.append(
-                    f"[Issue Reporter] {len(lines)} task completion mismatch(es) detected: "
+                    f"[Issue Reporter] {count} task completion mismatch(es) detected: "
                     + "; ".join(signals)
                 )
+                if session_state is not None:
+                    session_state.update(last_outcome_mismatch_count=count)
     except Exception:
         pass
     return messages
