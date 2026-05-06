@@ -1,5 +1,61 @@
 # Changelog
 
+## [9.2.10] - 2026-05-06
+
+**Bootstrap quietening — gate informational notices on actual condition + delete defunct yolo test class.**
+
+Every session bootstrap surfaced four notices that fired regardless of state:
+
+```
+[Skills] Critical v6 skills are present on disk. If Skill() returns 'Unknown skill: ...', run /reload-plugins
+[Memory] This project uses wicked-garden memory for persistence. Never write to MEMORY.md directly...
+[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard.
+[Quick Start] Available commands for this project: ...
+```
+
+None of them were gated on actual problem state. v9.2.10 fixes each per its real semantics.
+
+### `[Skills]` happy-path message dropped (`_check_critical_skills`)
+
+The function used to emit a one-liner on every healthy session — *"skills are present; if Skill() fails run /reload-plugins"*. That message has zero signal when nothing's broken. A user who has hit a cache-stale failure once knows the fix; emitting it on every healthy session adds no value.
+
+`_check_critical_skills` now returns `None` when all critical skills are present. The real problem case (missing skill files on disk) still surfaces a directive with the install fix.
+
+### `[Memory]` reminder removed from briefing
+
+`_MEMORY_INSTRUCTIONS` was appended to the briefing every session — a 95-character block telling Claude to use `wicked-brain:memory` instead of writing `MEMORY.md`. CLAUDE.md's "Memory Management" section already overrides the system-level auto-memory instructions and tells Claude exactly the same thing. The briefing reminder was redundant prompt budget.
+
+The constant `_MEMORY_INSTRUCTIONS` is preserved (in case any other module imports it — silent contract drift defence per the v9.2.6 wiki article) but no longer appended to the briefing. A future cleanup can delete the constant entirely once a sweep confirms no consumers.
+
+### `[Setup]` and `[Quick Start]` gated on first-session-per-project
+
+Both notices are useful exactly once per project. v9.2.10 adds a per-project sentinel file:
+
+- `_notice_path()` resolves to `<local store>/wicked-garden/bootstrap-notices/shown.json`. The path is per-project automatically because `get_local_path("wicked-garden", ...)` is scoped under the active project's slug.
+- `_notice_already_shown(notice_id)` reads the sentinel; returns False if missing or absent from the file.
+- `_record_notice_shown(notice_id)` writes `{notice_id: {shown_at: ISO-8601-UTC}}`. Best-effort — bootstrap stays fail-open if the local store is unreachable.
+- Briefing emit checks `_notice_already_shown` before appending each notice and records on emission.
+
+Same anti-pattern as the v9.2.6 [Memory] reminder that v9.2.2 first attempted to latch and got bit by SessionState being per-session. v9.2.10 fixes it correctly via cross-session per-project storage.
+
+### `TestCrewYoloAliasStub` deleted (#603 followup)
+
+`commands/crew/yolo.md` was deleted in PR #603 (v9-PR-2 surface cuts) when the CLI compatibility shim moved into `scripts/crew/autonomy.py`. `--yolo` now resolves to `--autonomy=full` via `get_mode()` and emits a one-shot deprecation warning — there is no markdown alias file anymore.
+
+The `TestCrewYoloAliasStub` class kept asserting `commands/crew/yolo.md must still exist for backward compatibility`. That test has been failing since #603 — three test failures with no signal. Class removed; sibling classes (`TestCrewAutoApproveCanonical`, `TestPhaseManagerYoloAction`) remain because their contracts still hold.
+
+### Tests
+
+- 8/8 new bootstrap-notice-gating tests added (`tests/test_bootstrap_notice_gating.py`):
+  - first show records, subsequent shows suppress, multiple notices track independently, ISO timestamp persisted, unresolvable path fails open, corrupt JSON treated as empty, `[Skills]` silent when present, `_MEMORY_INSTRUCTIONS` constant still defined.
+- 230/230 v10 surface + hook + session_state smoke tests passing.
+- 35/35 wicked-testing probe + drift tests passing.
+- Relevance lint (deny default from v9.2.9) clean.
+
+### Plugin version
+
+9.2.9 → 9.2.10 (patch — bootstrap noise reduction; no behaviour change beyond suppression of redundant notices).
+
 ## [9.2.9] - 2026-05-06
 
 **Issue #725 bulk-pass — relevance frontmatter on the remaining 384 commands/skills + lint flips to deny.**

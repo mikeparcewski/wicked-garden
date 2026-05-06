@@ -23,6 +23,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Add shared scripts directory to path so hook can import shared modules
@@ -726,6 +727,60 @@ _CRITICAL_V6_SKILLS = (
 )
 
 
+# v9.2.10 — first-session-per-project gating for informational briefing notices.
+# Both `[Setup]` and `[Quick Start]` are useful exactly once per project; on
+# every subsequent session they are pure noise. The sentinel file lives under
+# the wicked-garden local store (per-project automatically because
+# `get_local_path` resolves under the active project's slug), so a fresh
+# project sees the notices on its first session and never again.
+
+_BOOTSTRAP_NOTICE_FILE = "shown.json"
+_NOTICE_SETUP = "setup_reconfigure"
+_NOTICE_QUICK_START = "quick_start"
+
+
+def _notice_path() -> "Path | None":
+    """Resolve the per-project sentinel file path. None on resolution failure."""
+    try:
+        # Lazy import — keeps bootstrap fail-open if scripts/ is unreachable.
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+        from _domain_store import get_local_path  # type: ignore
+        return get_local_path("wicked-garden", "bootstrap-notices") / _BOOTSTRAP_NOTICE_FILE
+    except Exception:
+        return None
+
+
+def _notice_already_shown(notice_id: str) -> bool:
+    """Return True if `notice_id` has been emitted for this project before."""
+    p = _notice_path()
+    if p is None or not p.exists():
+        return False
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return notice_id in data
+    except (json.JSONDecodeError, OSError):
+        return False
+
+
+def _record_notice_shown(notice_id: str) -> None:
+    """Record `notice_id` as shown. Best-effort; failures don't block bootstrap."""
+    p = _notice_path()
+    if p is None:
+        return
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        data = {}
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                data = {}
+        data[notice_id] = {"shown_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+        p.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass  # fail open
+
+
 def _check_critical_skills() -> str | None:
     """Verify critical v6 skill files are present in the plugin root.
 
@@ -735,9 +790,14 @@ def _check_critical_skills() -> str | None:
     can check the files exist on disk and emit a diagnostic directive so an
     "Unknown skill" error surfaces a fix path instead of being cryptic.
 
-    Returns a directive string (shown in the briefing) when any critical skill
-    is missing from disk, OR a 1-liner when all files are present that tells
-    Claude how to handle a cache-stale Skill() failure. Fails open on errors.
+    Returns a directive string ONLY when one or more critical skills are
+    missing from disk (a real install problem). The previous "happy path"
+    message — "skills are present; if Skill() fails, run /reload-plugins" —
+    fired every session even with a clean install and was chronic noise. A
+    user who has hit a cache-stale failure once knows the fix; emitting it
+    on every healthy session adds no signal. v9.2.10 dropped that branch.
+
+    Fails open on errors.
     """
     try:
         plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
@@ -745,17 +805,13 @@ def _check_critical_skills() -> str | None:
             return None
         root = Path(plugin_root)
         missing = [s for s in _CRITICAL_V6_SKILLS if not (root / s).exists()]
-        if missing:
-            return (
-                "[Skills] Critical v6 skill files are missing from the plugin root:\n"
-                + "\n".join(f"  - {s}" for s in missing)
-                + "\nThe plugin install is incomplete. Reinstall with "
-                "`claude plugin install wicked-garden --scope project`."
-            )
+        if not missing:
+            return None  # healthy install — nothing to say
         return (
-            "[Skills] Critical v6 skills are present on disk. "
-            "If Skill() returns 'Unknown skill: wicked-garden:crew:*', the plugin "
-            "cache is stale — run `/reload-plugins` once, then retry."
+            "[Skills] Critical v6 skill files are missing from the plugin root:\n"
+            + "\n".join(f"  - {s}" for s in missing)
+            + "\nThe plugin install is incomplete. Reinstall with "
+            "`claude plugin install wicked-garden --scope project`."
         )
     except Exception:
         return None  # fail open — never block bootstrap
@@ -1454,22 +1510,35 @@ def main():
         if decay_summary:
             briefing_parts.append(f"[Memory] {decay_summary}")
 
-        # --- Internal instructions for Claude ---
-        briefing_parts.append(_MEMORY_INSTRUCTIONS)
+        # NOTE (v9.2.10): _MEMORY_INSTRUCTIONS used to be appended here every
+        # session. CLAUDE.md's "Memory Management" section already overrides
+        # the system-level auto-memory instructions and tells Claude to use
+        # wicked-brain:memory. Emitting the same guidance every session was
+        # redundant noise. The string constant is preserved below for
+        # backwards reference but no longer appended to the briefing.
 
         if dangerous_mode:
             briefing_parts.append(_DANGEROUS_MODE_WARNING)
 
+        # [Setup] and [Quick Start] are first-session-per-project notices.
+        # Once shown for a project, they are recorded in the per-project
+        # sentinel file and suppressed on every subsequent bootstrap. v9.2.10.
         if not onboarding_directive:
-            briefing_parts.append(
-                "[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard."
-            )
+            if not _notice_already_shown(_NOTICE_SETUP):
+                briefing_parts.append(
+                    "[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard."
+                )
+                _record_notice_shown(_NOTICE_SETUP)
 
-        # Discovery: show 2-3 contextual command suggestions based on project files
+        # Discovery: show 2-3 contextual command suggestions based on project files.
+        # Also gated on first-session-per-project since the suggestions don't change
+        # session-to-session.
         if not onboarding_directive and has_memories:
-            discovery_lines = _suggest_commands_for_project()
-            if discovery_lines:
-                briefing_parts.append(discovery_lines)
+            if not _notice_already_shown(_NOTICE_QUICK_START):
+                discovery_lines = _suggest_commands_for_project()
+                if discovery_lines:
+                    briefing_parts.append(discovery_lines)
+                    _record_notice_shown(_NOTICE_QUICK_START)
 
         # Facilitator context: surface aging action items from process_memory.
         # Additive briefing line (issue #461) — runs last of the informational
