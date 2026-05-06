@@ -1,5 +1,23 @@
 # Changelog
 
+## [9.1.2] - 2026-05-06
+
+**Patch — intent skill needs `user-invocable: true` to appear in the skill listing.**
+
+v9.1.1 fixed the frontmatter `name:` field but the `/wicked-garden:smaht:intent` skill *still* didn't appear in the skill listing after `/reload-plugins`. Investigated by comparing peer skills under `skills/smaht/`:
+
+- `skills/smaht/propose-skills/SKILL.md` — has `user-invocable: true`, LOADS into the user-facing skill list.
+- `skills/smaht/discovery/SKILL.md` — has `user-invocable: false`, intentionally hidden (called by hooks only).
+- `skills/smaht/intent/SKILL.md` (this PR) — MISSING the field, defaulted to non-invocable.
+
+Skills without an explicit `user-invocable: true` default to hidden. Phase 1's intent skill needs the explicit opt-in because users CALL it directly to override auto-detected intent.
+
+Fix: add `user-invocable: true` to the intent skill frontmatter. Plugin: 9.1.1 → 9.1.2 (patch).
+
+After `/reload-plugins`, the skill count should go from 116 → 117 with `wicked-garden:smaht:intent` registered.
+
+Same `wg-check` follow-on still pending (validate skill frontmatter `name:` AND `user-invocable:` discoverability fields). The two failure modes shipped in the same skill in two consecutive patches — both should be machine-checkable.
+
 ## [9.1.1] - 2026-05-06
 
 **Patch — fix Phase 1 intent skill discovery regression.**
