@@ -435,13 +435,11 @@ def main():
         outcome_messages = _check_session_outcome()
 
         # 2b. Automatic memory promotion (fail open — never blocks session end)
+        # KEPT in stop.py per-turn — lightweight (single bus emit per fact),
+        # self-reports cleanly, and the next session's bootstrap relies on
+        # memories being current. Heavy cadence work (decay/consolidation/
+        # telemetry/guard) was extracted in v9.2.15 — see _heavy_cadence.py.
         promotion_messages = _run_memory_promotion(session_id)
-
-        # 2c. Consolidate working-tier memories to episodic (fail open)
-        consolidation_messages = _run_working_consolidation()
-
-        # 3. Memory decay
-        decay_messages = _run_memory_decay()
 
         # 4. Persist session state
         _persist_session_state()
@@ -449,12 +447,31 @@ def main():
         # 5. Event store retention purge
         _purge_old_events()
 
-        # 5b. Cross-session quality telemetry + drift detection (Issue #443)
-        telemetry_messages = _run_quality_telemetry(session_id)
-
-        # 6. Autonomous guard pipeline (Issue #448)
-        # Runs AFTER telemetry — additive, order-independent.
-        guard_messages = _run_guard_pipeline()
+        # 6. Heavy cadence (v9.2.15) — formerly per-turn, now per-session-end
+        # primary via the SessionEnd hook (hooks/scripts/session_end.py).
+        # Stop only runs the heavy work as a 60-min FALLBACK for the partial-
+        # session failure mode (CLI killed, network drop, user walked away —
+        # SessionEnd never fires). Sidecar at <local store>/wicked-garden/
+        # heavy-cadence/last_run.json gates the fallback deterministically.
+        consolidation_messages: list = []
+        decay_messages: list = []
+        telemetry_messages: list = []
+        guard_messages: list = []
+        try:
+            sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+            from _heavy_cadence import (  # type: ignore
+                run_heavy_cadence, should_run_fallback, TRIGGER_STOP_FALLBACK,
+            )
+            if should_run_fallback():
+                fallback_messages = run_heavy_cadence(
+                    TRIGGER_STOP_FALLBACK, session_id=session_id, plugin_root=_PLUGIN_ROOT,
+                )
+                # Single combined list — semantics preserved for downstream
+                # joining; per-category split was only used by the deleted
+                # [Memory] reflection block.
+                consolidation_messages = fallback_messages
+        except Exception as e:
+            print(f"[wicked-garden] heavy cadence fallback error: {e}", file=sys.stderr)
 
         # Read session state for task completion count (fail open)
         tasks_completed_this_session = 0
@@ -466,53 +483,25 @@ def main():
         except Exception:
             pass
 
-        # 2. Memory flush reminder — fires AT MOST once per session.
-        # Stop fires at end of every model response (per turn). Pre-v9.2.2 the
-        # reminder fired every Stop, creating false-urgency noise (friction
-        # inventory item 11). Now latched on session_state.memory_reminder_shown.
-        # After the first fire, subsequent Stop calls skip the reminder; auto-
-        # promotion (step 2b above) keeps doing its job silently.
-        decay_prefix = f"{'; '.join(decay_messages)}. " if decay_messages else ""
-        promoted_count = sum(
-            int(m.split("Auto-extracted ")[1].split(" ")[0])
-            for m in promotion_messages
-            if "Auto-extracted" in m
-        ) if promotion_messages else 0
-
-        already_shown = bool(getattr(session_state, "memory_reminder_shown", False)) if session_state else False
+        # NOTE (v9.2.15): the [Memory] reflection block was deleted.
+        #   - It had a parser bug: looked for substring "Auto-extracted " but
+        #     _run_memory_promotion emits "Emitted N fact event(s)" — so
+        #     `promoted_count` was ALWAYS 0 and only the fallback prompt-mode
+        #     branch ever fired. The "smart" branching had never executed in
+        #     production.
+        #   - _run_memory_promotion already self-reports when facts are
+        #     auto-extracted ("[Memory] Emitted N fact event(s); wicked-brain
+        #     will auto-memorize..."), so the reflection's "use wicked-brain:
+        #     memory" guidance was duplicate noise.
+        #   - The brainstorm in v9.2.15 chose Option A (delete) over Option B
+        #     (fix the parser + re-gate) because the smart branch is dead
+        #     code defending behavior no user has seen. CLAUDE.md's "Memory
+        #     Management" section already tells Claude to use wicked-brain:
+        #     memory for decisions; an end-of-turn reminder adds no signal.
+        # `tasks_completed_this_session` is no longer read; the variable
+        # remains in scope above for any future use without breaking the
+        # `session_state` load.
         reflection = ""
-        if not already_shown:
-            if promoted_count > 0:
-                reflection = (
-                    f"[Memory] {decay_prefix}"
-                    f"Auto-extracted {promoted_count} memories this session. "
-                    "Review or supplement with wicked-brain:memory (recall mode) if needed. "
-                    "If additional decisions or discoveries were made that were not captured, "
-                    "store them with wicked-brain:memory (type: decision, procedural, or episodic)."
-                )
-            else:
-                task_count_note = (
-                    f"You completed {tasks_completed_this_session} tasks this session. "
-                    if tasks_completed_this_session > 0
-                    else ""
-                )
-                reflection = (
-                    f"[Memory] {decay_prefix}"
-                    f"{task_count_note}"
-                    "If any decisions, gotchas, or reusable patterns surfaced this session, "
-                    "consider storing them via wicked-brain:memory (type: decision, procedural, "
-                    "or episodic). Otherwise, no action needed. This reminder fires once per session."
-                )
-            # Latch — subsequent Stop hooks skip this reminder.
-            try:
-                if session_state:
-                    session_state.update(memory_reminder_shown=True)
-            except Exception:
-                pass  # fail open — reminder may fire again, no functional harm
-
-        # Combine all pre-reflection messages (outcome + promotion + consolidation + guard notices)
-        # Note: decay_messages already included via decay_prefix in reflection.
-        # `reflection` may be empty when memory_reminder_shown is already True
         # for this session (post-first-Stop) — only join with separator if both
         # halves have content.
         prepend_messages = outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages

@@ -1,5 +1,69 @@
 # Changelog
 
+## [9.2.15] - 2026-05-06
+
+**stop.py cadence redesign — wire SessionEnd, add 60-min Stop fallback, delete dead [Memory] reflection. Items 2 & 3 from the v9.2.11 hook audit.**
+
+The v9.2.11 audit found four heavy functions running per-turn-end in `stop.py` when their natural cadence is per-session-end. v9.2.12 deferred them as MEDIUM-risk because the cadence rework involved a real architectural choice. The v9.2.15 quick brainstorm settled the design, and a fresh inventory subagent surfaced one new finding worth highlighting: the per-turn telemetry capture wasn't just wasteful, it was a correctness bug — it inflated `timeline.jsonl` 30x and reduced the 4-session drift baseline to a 4-turn baseline.
+
+### Cadence redesign — Option C (Hybrid)
+
+Quick-brainstorm verdict: SessionEnd as primary cadence + 60-min time-gated Stop fallback for partial-session failure mode (CLI killed, network drop, user walked away — SessionEnd may never fire).
+
+**New shared module** `scripts/_heavy_cadence.py` — extracts the four heavy functions:
+- `_run_memory_decay` (brain `lint`)
+- `_run_memory_consolidation` (brain `compile` + `lint`, the 10s heaviest call)
+- `_run_quality_telemetry` (timeline append + drift bus event — the correctness fix)
+- `_run_guard_pipeline` (scalpel/standard profile + findings.json + bus event)
+
+Plus `should_run_fallback()` (60-min gate) and `run_heavy_cadence(trigger, ...)` (orchestration + sidecar write).
+
+**New SessionEnd hook script** `hooks/scripts/session_end.py` — runs `run_heavy_cadence(TRIGGER_SESSION_END)` and emits aggregated messages for the next bootstrap.
+
+**hooks.json** — added `SessionEnd` event binding (was unwired; the event is valid per CLAUDE.md but no script was ever bound to it).
+
+**Sidecar persistence** — `<local store>/wicked-garden/heavy-cadence/last_run.json` records `{last_heavy_run_ts, trigger, session_id}`. Per-project automatic because `get_local_path("wicked-garden", ...)` is scoped under the active project's slug. The Maintainer persona in the brainstorm flagged that SessionState resets per session, so it can't gate cross-session fallback — sidecar is the right persistence boundary.
+
+**stop.py changes**:
+- Removed direct calls to all four heavy functions from the main flow.
+- Added time-gated fallback: read sidecar via `should_run_fallback()`; if 60+ min since last run (or sidecar missing), invoke `run_heavy_cadence(TRIGGER_STOP_FALLBACK)`.
+- KEPT `_run_memory_promotion` per-turn — lightweight (single bus emit per fact), self-reports, and the next session relies on memories being current.
+
+### `[Memory]` reflection — Option A (Delete entirely)
+
+Brainstorm Debugger persona's verdict: the parser bug means the "smart" branch has never executed in production. Looked for substring `"Auto-extracted "` but `_run_memory_promotion` emits `"Emitted N fact event(s)"`. So `promoted_count` was always 0 and only the fallback prompt-mode branch fired.
+
+`_run_memory_promotion` already self-reports when facts are promoted (`"[Memory] Emitted N fact event(s); wicked-brain will auto-memorize..."`). The reflection's "use wicked-brain:memory" guidance was duplicate noise. CLAUDE.md's "Memory Management" section already covers it.
+
+Deleted lines 469-511 of `stop.py` (the entire reflection block including the latch read, the dead parser, and both prompt branches).
+
+### Cost reduction
+
+Brain HTTP calls per typical 30-turn session:
+- **Before**: ~90 calls (30× decay-lint + 30× consolidation-compile + 30× consolidation-lint), with up to 30× 10s compile budget consumed.
+- **After (typical session, SessionEnd fires)**: 3 calls.
+- **After (worst case, Stop fallback every 60 min)**: 6 calls in a 2-hour session.
+
+Other per-turn writes:
+- 30 `timeline.jsonl` appends → 1 (FIXES drift baseline correctness)
+- 30 `findings.json` overwrites → 1 (FIXES mid-session signal loss)
+- Up to 30 each of `wicked.quality.drift_detected` + `wicked.guard.findings` bus events → 1 each
+
+### Pre-merge council
+
+`stop.py` is in CLAUDE.md's pre-merge council trigger path (cross-system bug surface — phase-state transitions, gate decisions, event-bus sync points). Council verdict will be attached to the PR before merge.
+
+### Tests
+
+- 17/17 new heavy-cadence tests passing (sidecar contract, fallback gate, run_heavy_cadence orchestration, stop.py-still-imports-correctly contract, hooks.json wires SessionEnd)
+- 35/35 SessionState field-drift + hook latch + bootstrap notice tests passing
+- 313/313 v10 surface + commands + relevance + heavy_cadence smoke tests passing
+- Relevance lint deny-default clean
+
+### Plugin version
+
+9.2.14 → 9.2.15 (patch — cadence + correctness fix; brain APIs unchanged, only WHEN they fire changed).
+
 ## [9.2.14] - 2026-05-06
 
 **Slim five product + engineering commands using the same Pattern B shape that worked for v9.2.13's agentic quartet.**
