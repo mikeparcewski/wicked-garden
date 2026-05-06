@@ -10,175 +10,70 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:delivery:setup
 
-Interactive setup for delivery metrics configuration.
+Interactive setup for delivery metrics. Defaults, sensitivity presets, and the complexity-cost scaler live in `scripts/delivery/setup_defaults.py`.
+
+## Question Mode
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/detect_state.py" question-mode
+```
+
+`INTERACTIVE` → use the questioning tool below. `PLAIN_TEXT` → present numbered options, **STOP**, wait. Echo the chosen option back before acting.
 
 ## Instructions
 
 ### 1. Resolve Storage Path and Check for Existing Configuration
 
-Resolve the delivery storage root:
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-delivery
 ```
-Use the output as `DELIVERY_ROOT` for all subsequent file paths.
 
-Read existing files if they exist:
-- `{DELIVERY_ROOT}/cost_model.json`
-- `{DELIVERY_ROOT}/settings.json`
-
-If `--reset` is passed, skip loading existing values and start fresh.
-
-If either file exists and `--reset` is NOT passed, show current configuration and ask if the user wants to reconfigure.
+Use the output as `DELIVERY_ROOT`. Read `{DELIVERY_ROOT}/cost_model.json` and `{DELIVERY_ROOT}/settings.json` if they exist. With `--reset`, ignore existing values. Otherwise if either file exists, show the current config and confirm reconfiguration.
 
 ### 2. Cost Model Setup
 
-Ask the user about cost estimation. This is opt-in — if they decline, no cost_model.json is created (or existing one is left alone).
+Cost estimation is opt-in. If declined, leave `cost_model.json` untouched. Use AskUserQuestion (or numbered text in PLAIN_TEXT mode) for each of:
 
-Use AskUserQuestion:
+- **Q1 — Enable cost estimation?** "Yes — configure costs" → continue. "No — skip cost model" / "Keep current" (only if file exists) → skip to section 3.
+- **Q2 — Currency?** "USD", "EUR", "GBP", "Other" (let them type).
+- **Q3 — Priority cost model?** Defaults via `scripts/delivery/setup_defaults.py cost-defaults`. Labels: "AI token costs" (`ai_tokens`), "Developer hours" (`dev_hours`), "Story points" (`story_points`), "Custom" (collect each P0–P3). Show the chosen P0–P3 values, confirm "Accept these values? (Y/n, or provide custom values)".
+- **Q4 — Add complexity-based costs?** "Yes — add complexity costs" / "No — priority only". If yes, scale 0–7 from priority costs (linear: ~20% of P3 to ~150% of P0):
 
-**Question 1**: "Do you want to enable cost estimation for delivery metrics?"
-- "Yes — configure costs" → proceed to cost questions
-- "No — skip cost model" → skip to section 3
-- "Keep current" (only if cost_model.json exists) → skip to section 3
-
-**If enabling cost estimation:**
-
-**Question 2**: "What currency for cost tracking?"
-- "USD" → currency = "USD"
-- "EUR" → currency = "EUR"
-- "GBP" → currency = "GBP"
-- Other → let them type
-
-**Question 3**: "How would you describe your priority cost model?"
-- "AI token costs" → suggest P0=2.50, P1=1.50, P2=0.75, P3=0.40 (estimated AI compute per task)
-- "Developer hours" → suggest P0=8.0, P1=4.0, P2=2.0, P3=1.0 (estimated dev hours per priority)
-- "Story points" → suggest P0=13, P1=8, P2=5, P3=3 (fibonacci-ish)
-- "Custom" → ask for each priority value
-
-Show the suggested values and ask for confirmation:
-```
-Priority costs ({currency}):
-  P0 (Critical): {value}
-  P1 (High):     {value}
-  P2 (Medium):   {value}
-  P3 (Low):      {value}
-
-Accept these values? (Y/n, or provide custom values)
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/setup_defaults.py" scale-complexity '{"P0":<v>,"P1":<v>,"P2":<v>,"P3":<v>}'
 ```
 
-**Question 4**: "Do you want complexity-based costs too?"
-- "Yes — add complexity costs" → ask for scale or use defaults based on their cost model type
-- "No — priority only" → skip complexity costs
-
-If yes, generate complexity costs scaled proportionally to their priority model:
-- Scale: complexity 0-7 maps linearly from ~20% of P3 cost to ~150% of P0 cost
-- Show and confirm
-
-Write `{DELIVERY_ROOT}/cost_model.json`:
-```json
-{
-  "currency": "{currency}",
-  "priority_costs": {
-    "P0": {value},
-    "P1": {value},
-    "P2": {value},
-    "P3": {value}
-  },
-  "complexity_costs": {
-    "0": {value},
-    "1": {value},
-    "2": {value},
-    "3": {value},
-    "4": {value},
-    "5": {value},
-    "6": {value},
-    "7": {value}
-  }
-}
-```
+Show and confirm. Write `{DELIVERY_ROOT}/cost_model.json` as `{"currency": "...", "priority_costs": {...}, "complexity_costs": {...}}` (omit `complexity_costs` if user declined).
 
 ### 3. Commentary Sensitivity
 
-Use AskUserQuestion:
-
-**Question**: "How sensitive should delivery commentary be?"
-- "Conservative" → Higher thresholds, fewer alerts (completion 20%, cycle time 40%, throughput 30%, cooldown 30min)
-- "Balanced (Recommended)" → Default thresholds (completion 10%, cycle time 25%, throughput 20%, cooldown 15min)
-- "Aggressive" → Lower thresholds, more frequent insights (completion 5%, cycle time 15%, throughput 10%, cooldown 10min)
-- "Custom" → ask for each threshold individually
+Use AskUserQuestion for **Q5 — Sensitivity?** Options: "Conservative", "Balanced (Recommended)", "Aggressive", "Custom" (collect each threshold individually). Preset values live in `setup_defaults.py::SENSITIVITY_PRESETS`.
 
 ### 4. Metrics Window
 
-Use AskUserQuestion:
-
-**Question**: "What rolling window for throughput calculation?"
-- "7 days" → rolling_window_days = 7 (weekly sprints or fast-moving teams)
-- "14 days (Recommended)" → rolling_window_days = 14 (two-week sprints)
-- "30 days" → rolling_window_days = 30 (monthly cadence)
+Use AskUserQuestion for **Q6 — Rolling window for throughput?** Options: "7 days" (`rolling_window_days=7`), "14 days (Recommended)" (`14`), "30 days" (`30`).
 
 ### 5. Sprint & Aging
 
-Use AskUserQuestion:
-
-**Question**: "When should a backlog item be considered 'aging'?"
-- "3 days" → aging_threshold_days = 3 (fast-paced teams)
-- "7 days (Recommended)" → aging_threshold_days = 7 (standard)
-- "14 days" → aging_threshold_days = 14 (longer cycles)
+Use AskUserQuestion for **Q7 — Aging threshold?** Options: "3 days" (`aging_threshold_days=3`), "7 days (Recommended)" (`7`), "14 days" (`14`).
 
 ### 6. Write Settings
 
-Create `{DELIVERY_ROOT}/` directory if it doesn't exist.
-
-Write `{DELIVERY_ROOT}/settings.json`:
-```json
-{
-  "rolling_window_days": {value},
-  "aging_threshold_days": {value},
-  "commentary": {
-    "sensitivity": "{preset_name}",
-    "cooldown_minutes": {value},
-    "thresholds": {
-      "completion_rate": {value},
-      "cycle_time_p95": {value},
-      "throughput": {value},
-      "aging_low": {value},
-      "aging_high": {value}
-    }
-  }
-}
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/delivery/setup_defaults.py" build-settings <conservative|balanced|aggressive> --rolling-window-days <N> --aging-threshold-days <N>
 ```
 
-Sensitivity presets for threshold values:
-
-| Preset | Completion | Cycle Time p95 | Throughput | Aging Low/High | Cooldown |
-|--------|-----------|----------------|------------|----------------|----------|
-| conservative | 0.20 | 0.40 | 0.30 | 15/30 | 30 |
-| balanced | 0.10 | 0.25 | 0.20 | 10/20 | 15 |
-| aggressive | 0.05 | 0.15 | 0.10 | 5/15 | 10 |
+For "Custom" sensitivity, build the same envelope but substitute user-supplied threshold values. Write the result to `{DELIVERY_ROOT}/settings.json` (create the directory if needed).
 
 ### 7. Show Summary
-
-Display the full configuration:
 
 ```markdown
 ## Delivery Setup Complete
 
-### Cost Model
-{If configured: show priority costs, complexity costs, currency}
-{If skipped: "Cost estimation disabled (no cost_model.json)"}
+**Cost Model**: {priority costs, complexity costs, currency — or "disabled (no cost_model.json)"}
+**Commentary**: {preset} · cooldown {minutes} min · completion {pct}%, cycle time p95 {pct}%, throughput {pct}%
+**Metrics**: rolling window {days}d · aging threshold {days}d
+**Files**: `cost_model.json` {state} · `settings.json` {state}
 
-### Commentary
-- **Sensitivity**: {preset}
-- **Cooldown**: {minutes} minutes
-- **Thresholds**: completion {pct}%, cycle time p95 {pct}%, throughput {pct}%
-
-### Metrics
-- **Rolling window**: {days} days
-- **Aging threshold**: {days} days
-
-### Files
-- `{DELIVERY_ROOT}/cost_model.json` {created/updated/unchanged}
-- `{DELIVERY_ROOT}/settings.json` {created/updated}
-
-To reconfigure later: `/wicked-garden:delivery:setup --reset`
+Reconfigure later: `/wicked-garden:delivery:setup --reset`
 ```

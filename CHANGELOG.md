@@ -1,5 +1,80 @@
 # Changelog
 
+## [9.2.18] - 2026-05-06
+
+**Slim setup.md + delivery/setup.md (Pattern C with detection extraction) — Issue #843 part 2.**
+
+These are interactive bootstrap commands using AskUserQuestion — Pattern C, not Pattern B. Cannot be reduced to dispatch shells because the question flow lives in the parent context. The slim approach: extract detection logic to scripts, compress repeated mode-switching boilerplate, preserve every AskUserQuestion call site.
+
+### Slim conversion
+
+| File | Original | Slim | Reduction |
+|---|---|---|---|
+| `commands/setup.md` | 571 | 218 | -61.8% |
+| `commands/delivery/setup.md` | 184 | 79 | -57.1% |
+| **Total** | **755** | **297** | **-60.7%** |
+
+Pattern C reductions are smaller than Pattern B (typical -85% for dispatch shells) because the interactive flow + Skill() invocations + bash blocks must stay inline. Targets met: setup.md ≤220, delivery/setup.md ≤80.
+
+### Detection logic extracted to scripts
+
+New `scripts/setup/` directory + `scripts/delivery/setup_defaults.py`:
+
+| Script | Purpose | Replaces inline content |
+|---|---|---|
+| `scripts/setup/detect_state.py` | `detect_question_mode()`, `read_config()`, `detect_project_env()` | Section "Question Mode" probe (~15 lines), Section 1 config detection (~10 lines), Section 5.0 environment scan (~30 lines) |
+| `scripts/setup/migrate_legacy.py` | `scan_qe_evaluator_refs()` | Section 2.6 inline qe-evaluator scan (~30 lines) |
+| `scripts/setup/onboarding.py` | `clear_gate(mode, complete)`, `mark_setup_complete()`, `write_local_config()`, `save_domain_pref(selection)` | Section 4 + Section 6 inline state-mutation Python (~30 lines) |
+| `scripts/delivery/setup_defaults.py` | `COST_MODEL_DEFAULTS`, `SENSITIVITY_PRESETS`, `scale_complexity_costs()`, `build_settings()` | Sensitivity presets table + cost model defaults + complexity scaling rule |
+
+All five new modules tested via both Python imports and CLI subcommands. Each function maps to a `python script.py <subcommand>` invocation that the slim command file uses.
+
+### Load-bearing preservation
+
+| Contract | Original | Slim | Status |
+|---|---|---|---|
+| AskUserQuestion call sites | 6 (setup) + 5 (delivery) | 6 + 5 | ✓ All preserved |
+| `Skill(...)` invocations | 10 (setup) | 10 | ✓ All preserved |
+| Brain pipeline Steps A-F | 6 steps + 3 memory stores | 6 + 3 | ✓ Verbatim |
+| YAML frontmatter | 5 fields each | 5 each | ✓ Preserved |
+| Numbered sections | 1-7 + 2.5/2.6/6.5 | Same | ✓ Preserved |
+
+### What was cut
+
+- Repeated "**INTERACTIVE mode**: ... **PLAIN_TEXT mode**: ..." boilerplate per question — centralized once in the new "Question Mode" section, referenced per question instead of duplicating
+- "Answer Verification (CRITICAL)" 3-rule explanation collapsed from a 9-line numbered list into a single paragraph
+- Long inline Python blocks for state mutation, env detection, legacy scan — moved to the new scripts above
+- Sample report templates compressed (the model knows how to render)
+
+### Cumulative slimming (22 commands across 6 domains)
+
+| Domain | Files | Original | Slim | Reduction |
+|---|---|---|---|---|
+| `crew/*` (Phase 2A/B/C) | 3 | 2226 | 507 | -77% |
+| `agentic/*` (v9.2.13) | 4 | 2303 | 123 | -94.7% |
+| `product/*` + `engineering/*` (v9.2.14) | 5 | 1516 | 155 | -89.8% |
+| `data/*` (v9.2.16) | 5 | 491 | 113 | -77.0% |
+| `platform/*` (v9.2.17) | 3 | 599 | 80 | -86.6% |
+| `setup/*` Pattern C (**this PR**) | 2 | 755 | 297 | -60.7% |
+| **Grand total** | **22** | **7890** | **1275** | **-83.8%** |
+
+### Tests
+
+- 304/304 v10 surface + hook + bootstrap + smaht + session_state + relevance + commands smoke tests passing
+- Relevance lint deny-default clean
+- All 5 new modules importable + CLI-invocable
+- AskUserQuestion call-site count preserved per file
+- `Skill()` invocation count preserved per file
+- YAML frontmatter preserved verbatim
+
+### Plugin version
+
+9.2.17 → 9.2.18 (patch — Pattern C surface trim + detection extraction; no behavior change in the user-facing question flow).
+
+### Issue #843 follow-on
+
+Remaining work: smaller files in `commands/{jam, persona, search, <top>}/`. All under 100 lines individually — opportunistic, lower priority. Issue can stay open or be closed as "core targets shipped, smaller files deferred to opportunistic touches."
+
 ## [9.2.17] - 2026-05-06
 
 **Slim 3 platform/ commands using the same Pattern B mechanic — Issue #843 part 1.**
