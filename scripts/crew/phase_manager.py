@@ -529,7 +529,10 @@ _DEFAULT_REQUIRED_DELIVERABLES: list = []
 # phases.json is the source of truth; this dict is the backward-compat floor.
 # Keep additive and minimal — do not duplicate fields already in phases.json.
 _FALLBACK_REQUIRED_DELIVERABLES: Dict[str, List[Dict[str, Any]]] = {
-    "design": [{"file": "architecture.md", "min_bytes": 200}],
+    # Issue #849: design phase accepts architecture.md OR any *-spec.md OR
+    # design.md OR adr-*.md so projects producing specs/ADRs aren't forced to
+    # write a wrapper architecture.md to satisfy the deliverable check.
+    "design": [{"any_of": ["architecture.md", "*-spec.md", "design.md", "adr-*.md"], "min_bytes": 200}],
     "test": [
         {"file": "test-results.md", "min_bytes": 200},
         {"file": "evidence/report.md", "min_bytes": 100},
@@ -586,12 +589,13 @@ def get_required_deliverables(phase_name: str) -> List[dict]:
         if isinstance(entry, dict):
             result.append({
                 "file": entry.get("file", ""),
+                "any_of": list(entry.get("any_of", [])),
                 "min_bytes": entry.get("min_bytes", 100),
                 "frontmatter": entry.get("frontmatter", []),
             })
         elif isinstance(entry, str):
             # Promote legacy plain-string entries gracefully
-            result.append({"file": entry, "min_bytes": 100, "frontmatter": []})
+            result.append({"file": entry, "any_of": [], "min_bytes": 100, "frontmatter": []})
     return result
 
 
@@ -1331,28 +1335,61 @@ def _check_phase_deliverables(state: ProjectState, phase: str) -> List[str]:
                 except (json.JSONDecodeError, OSError):
                     pass  # fall through to legacy check
 
+    phase_dir = project_dir / "phases" / phase
     for deliverable in deliverables:
-        # Support both string and dict deliverable formats (dict has "file" key)
-        deliverable_name = deliverable["file"] if isinstance(deliverable, dict) else deliverable
-        path = project_dir / "phases" / phase / deliverable_name
-        if not path.exists():
-            issues.append(f"Missing deliverable for {phase}: {deliverable_name}")
+        # Support both string and dict deliverable formats (dict has "file" or "any_of" key)
+        if isinstance(deliverable, dict):
+            min_bytes = deliverable.get("min_bytes", 0)
+            patterns = list(deliverable.get("any_of") or [])
+            if not patterns and deliverable.get("file"):
+                patterns = [deliverable["file"]]
+            label = deliverable.get("file") or " | ".join(patterns) or "<unnamed>"
+        else:
+            patterns = [deliverable]
+            min_bytes = 0
+            label = deliverable
+
+        # Issue #849: resolve each pattern as either a literal path or a glob
+        # so design phases producing *-spec.md / adr-*.md / design.md instead
+        # of architecture.md aren't rejected. The deliverable is satisfied when
+        # ANY pattern matches a non-empty file meeting min_bytes.
+        matched_path: Optional[Path] = None
+        for pattern in patterns:
+            if any(c in pattern for c in "*?["):
+                # Glob match — pick the largest non-empty file (deterministic
+                # tiebreaker: lexicographic name) so partial drafts don't shadow
+                # the real artifact.
+                candidates = sorted(phase_dir.glob(pattern))
+                for candidate in candidates:
+                    if candidate.is_file() and candidate.stat().st_size > 0:
+                        matched_path = candidate
+                        break
+                if matched_path:
+                    break
+            else:
+                candidate = phase_dir / pattern
+                if candidate.exists():
+                    matched_path = candidate
+                    break
+
+        if matched_path is None:
+            issues.append(f"Missing deliverable for {phase}: {label}")
             continue
 
-        # Content validation (AC-1.5)
-        file_stat = path.stat()
-        min_bytes = deliverable.get("min_bytes", 0) if isinstance(deliverable, dict) else 0
+        # Content validation (AC-1.5) — evaluate against the matched file
+        file_stat = matched_path.stat()
+        matched_name = matched_path.relative_to(phase_dir).as_posix()
         if file_stat.st_size == 0:
-            issues.append(f"Empty deliverable for {phase}: {deliverable_name} (0 bytes)")
+            issues.append(f"Empty deliverable for {phase}: {matched_name} (0 bytes)")
         elif min_bytes > 0 and file_stat.st_size < min_bytes:
             issues.append(
-                f"Insufficient content in {phase}: {deliverable_name} "
+                f"Insufficient content in {phase}: {matched_name} "
                 f"({file_stat.st_size} bytes, minimum {min_bytes} required)"
             )
         # Evidence reports need substantive content (AC-3.4)
-        elif deliverable_name == "evidence/report.md" and file_stat.st_size < 100:
+        elif matched_name == "evidence/report.md" and file_stat.st_size < 100:
             issues.append(
-                f"Insufficient content in {phase}: {deliverable_name} "
+                f"Insufficient content in {phase}: {matched_name} "
                 f"({file_stat.st_size} bytes, minimum 100 required for evidence reports)"
             )
 

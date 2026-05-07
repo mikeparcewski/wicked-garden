@@ -689,6 +689,104 @@ class TestPhaseDeliverablesFallback(unittest.TestCase):
             self.assertNotIn("architecture.md", joined)
 
 
+class TestPhaseDeliverablesAnyOf(unittest.TestCase):
+    """Issue #849: deliverables can declare an ``any_of`` list of literals
+    and globs. The deliverable is satisfied when ANY pattern matches a file
+    meeting min_bytes — so the design phase accepts architecture.md OR a
+    *-spec.md OR adr-*.md without forcing a wrapper file.
+    """
+
+    def _config_with_any_of(self):
+        return {"design": {
+            "required_deliverables": [
+                {"any_of": ["architecture.md", "*-spec.md", "design.md", "adr-*.md"],
+                 "min_bytes": 200},
+            ],
+        }}
+
+    def _check(self, project_dir, deliverable_name, size):
+        (project_dir / "phases" / "design").mkdir(parents=True, exist_ok=True)
+        (project_dir / "phases" / "design" / deliverable_name).write_text("x" * size)
+        state = _make_state(name="any-of-proj")
+        with patch.object(pm, "get_project_dir", return_value=project_dir), \
+             patch.object(pm, "load_phases_config", return_value=self._config_with_any_of()):
+            return pm._check_phase_deliverables(state, "design")
+
+    def test_spec_filename_satisfies_any_of(self):
+        with tempfile.TemporaryDirectory() as td:
+            issues = self._check(Path(td) / "p1", "orphan-watchdog-spec.md", 300)
+        self.assertEqual(issues, [], f"spec should satisfy any_of: {issues}")
+
+    def test_legacy_architecture_filename_still_satisfies(self):
+        with tempfile.TemporaryDirectory() as td:
+            issues = self._check(Path(td) / "p2", "architecture.md", 300)
+        self.assertEqual(issues, [])
+
+    def test_adr_glob_satisfies(self):
+        with tempfile.TemporaryDirectory() as td:
+            issues = self._check(Path(td) / "p3", "adr-001-bus-truth.md", 300)
+        self.assertEqual(issues, [])
+
+    def test_design_md_satisfies(self):
+        with tempfile.TemporaryDirectory() as td:
+            issues = self._check(Path(td) / "p4", "design.md", 300)
+        self.assertEqual(issues, [])
+
+    def test_no_matching_file_fails_with_pattern_label(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "p5"
+            (project_dir / "phases" / "design").mkdir(parents=True)
+            # write an unrelated file that matches no pattern
+            (project_dir / "phases" / "design" / "notes.txt").write_text("x" * 300)
+            state = _make_state(name="any-of-proj")
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "load_phases_config", return_value=self._config_with_any_of()):
+                issues = pm._check_phase_deliverables(state, "design")
+        self.assertEqual(len(issues), 1)
+        self.assertIn("Missing deliverable for design", issues[0])
+        # Label should mention the alternatives so the operator knows what's accepted
+        self.assertIn("*-spec.md", issues[0])
+
+    def test_too_small_file_fails_size_check(self):
+        with tempfile.TemporaryDirectory() as td:
+            issues = self._check(Path(td) / "p6", "tiny-spec.md", 50)
+        self.assertEqual(len(issues), 1)
+        self.assertIn("Insufficient", issues[0])
+        self.assertIn("tiny-spec.md", issues[0])
+
+    def test_glob_picks_first_non_empty_match_lexicographic(self):
+        """Tiebreaker is sorted-glob — lower lexicographic name wins so
+        partial drafts in alphabetical order can't shadow a later artifact
+        non-deterministically."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "p7"
+            (project_dir / "phases" / "design").mkdir(parents=True)
+            # both match *-spec.md; lexicographic order gives first
+            (project_dir / "phases" / "design" / "a-spec.md").write_text("x" * 300)
+            (project_dir / "phases" / "design" / "z-spec.md").write_text("x" * 300)
+            state = _make_state(name="any-of-proj")
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "load_phases_config", return_value=self._config_with_any_of()):
+                issues = pm._check_phase_deliverables(state, "design")
+        self.assertEqual(issues, [])
+
+    def test_fallback_design_uses_any_of(self):
+        """When phases.json has no required_deliverables, the fallback map
+        for 'design' uses any_of (not the legacy literal architecture.md)."""
+        state = _make_state(name="fallback-any-of")
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "p8"
+            (project_dir / "phases" / "design").mkdir(parents=True)
+            (project_dir / "phases" / "design" / "bm25-floor-spec.md").write_text("x" * 300)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(
+                     pm, "load_phases_config",
+                     return_value={"design": {"required_deliverables": []}},
+                 ):
+                issues = pm._check_phase_deliverables(state, "design")
+        self.assertEqual(issues, [], f"fallback should accept *-spec.md: {issues}")
+
+
 class TestStatusJsonFieldParity(unittest.TestCase):
     """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
     complexity_score, and is_complete alongside the existing fields."""

@@ -60,7 +60,7 @@
       "triggers": ["architecture", "complexity", "ux", "data"],
       "complexity_range": [3, 7],
       "required_deliverables": [
-        {"file": "architecture.md", "min_bytes": 200, "frontmatter": []}
+        {"any_of": ["architecture.md", "*-spec.md", "design.md", "adr-*.md"], "min_bytes": 200, "frontmatter": []}
       ],
       "optional_deliverables": ["task-breakdown.md", "adrs/"],
       "specialists": ["engineering", "agentic", "product", "qe"],
