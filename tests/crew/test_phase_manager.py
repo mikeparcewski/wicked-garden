@@ -787,6 +787,69 @@ class TestPhaseDeliverablesAnyOf(unittest.TestCase):
         self.assertEqual(issues, [], f"fallback should accept *-spec.md: {issues}")
 
 
+class TestResolveGateCategory(unittest.TestCase):
+    """Issue #852 — resolve_gate_category coerces the legacy 3-name vocab
+    (value | strategy | execution) used by /wicked-garden:crew:gate to the
+    specific gate names defined in gate-policy.json. Phase-aware
+    disambiguation; pass-through for already-specific names; explicit
+    failure when ambiguous.
+    """
+
+    def test_value_category_resolves_to_requirements_quality(self):
+        self.assertEqual(pm.resolve_gate_category("value"), "requirements-quality")
+
+    def test_value_unaffected_by_phase(self):
+        # Single-candidate categories ignore the phase argument
+        self.assertEqual(
+            pm.resolve_gate_category("value", phase="design"),
+            "requirements-quality",
+        )
+
+    def test_strategy_in_design_phase_resolves_to_design_quality(self):
+        self.assertEqual(
+            pm.resolve_gate_category("strategy", phase="design"),
+            "design-quality",
+        )
+
+    def test_strategy_in_test_strategy_phase_resolves_to_testability(self):
+        self.assertEqual(
+            pm.resolve_gate_category("strategy", phase="test-strategy"),
+            "testability",
+        )
+
+    def test_strategy_without_phase_is_ambiguous(self):
+        with self.assertRaises(ValueError) as cm:
+            pm.resolve_gate_category("strategy")
+        self.assertIn("ambiguous", str(cm.exception).lower())
+        self.assertIn("design-quality", str(cm.exception))
+        self.assertIn("testability", str(cm.exception))
+
+    def test_execution_in_build_phase_resolves_to_code_quality(self):
+        self.assertEqual(
+            pm.resolve_gate_category("execution", phase="build"),
+            "code-quality",
+        )
+
+    def test_execution_in_review_phase_resolves_to_evidence_quality(self):
+        self.assertEqual(
+            pm.resolve_gate_category("execution", phase="review"),
+            "evidence-quality",
+        )
+
+    def test_specific_name_passes_through(self):
+        # Already a specific gate name → return unchanged so callers can
+        # use this as a unifying coercion regardless of input vocab.
+        for name in ("requirements-quality", "code-quality", "testability",
+                      "challenge-resolution", "final-audit", "convergence-verify"):
+            self.assertEqual(pm.resolve_gate_category(name), name,
+                             f"specific name should pass through: {name}")
+
+    def test_unknown_name_passes_through_for_downstream_validation(self):
+        # Unknown names are forwarded so the policy lookup raises a
+        # better error message than this function could.
+        self.assertEqual(pm.resolve_gate_category("not-a-gate"), "not-a-gate")
+
+
 class TestStatusJsonFieldParity(unittest.TestCase):
     """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
     complexity_score, and is_complete alongside the existing fields."""
