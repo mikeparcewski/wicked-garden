@@ -115,15 +115,21 @@ Skill descriptions get injected into context; full skill bodies do not unless
 explicitly invoked. The contract below is the authoritative shape callers
 (phase_manager, gate_dispatch) consume — do not defer to a skill ref for it.
 
-Your final message MUST end with a fenced JSON block of this shape:
+Your final message MUST end with a fenced JSON block matching the canonical
+gate-result schema validated by `scripts/crew/gate_result_schema.py`. Field
+names below are exact — `gate_result_schema.py::validate_gate_result` enforces
+them and rejects on missing or wrong-named required fields. Issue #850 added
+soft aliases (`decision`→`verdict`, `timestamp`→`recorded_at`) that emit a
+deprecation warning; do not rely on them.
 
 ```json
 {
   "gate": "value | strategy | execution",
   "target": "<file path or task id>",
-  "decision": "APPROVE | CONDITIONAL | REJECT",
+  "verdict": "APPROVE | CONDITIONAL | REJECT",
   "score": 0.85,
   "reviewer": "qe-orchestrator",
+  "recorded_at": "2026-05-07T22:30:00Z",
   "reviewers_dispatched": ["wicked-testing:test-strategist", "wicked-testing:risk-assessor"],
   "dispatch_mode": "parallel | serial",
   "serial_reason": null,
@@ -138,6 +144,13 @@ Your final message MUST end with a fenced JSON block of this shape:
   "evidence_artifact": "phases/{phase}/{gate}-gate-{TIMESTAMP}.md"
 }
 ```
+
+Required fields enforced by the validator:
+
+- `verdict` (or `result`) — one of `APPROVE | CONDITIONAL | REJECT`.
+- `reviewer` — string; not a banned auto-approve identity.
+- `recorded_at` — ISO-8601 timestamp (e.g. `"2026-05-07T22:30:00Z"`).
+- `score` — numeric in `[0.0, 1.0]`.
 
 Invariants:
 - APPROVE → `conditions: []` AND `blockers: []` AND `score >= 0.70`.

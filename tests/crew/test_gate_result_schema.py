@@ -125,6 +125,84 @@ class RequiredFields(unittest.TestCase):
         self.assertEqual(cm.exception.reason, "invalid-timestamp:recorded_at")
 
 
+class FieldAliasCoercion(unittest.TestCase):
+    """Issue #850 — accept legacy field names from older qe-orchestrator
+    contract examples (``timestamp``, ``decision``) by coercing them to
+    canonical names. Each coercion is a deprecation that survives
+    validation but emits a stderr warning."""
+
+    def _capture_stderr(self):
+        import io, contextlib
+        buf = io.StringIO()
+        return buf, contextlib.redirect_stderr(buf)
+
+    def test_timestamp_alias_coerces_to_recorded_at(self):
+        payload = _valid_gate_result()
+        payload["timestamp"] = payload.pop("recorded_at")
+        buf, ctx = self._capture_stderr()
+        with ctx:
+            validate_gate_result(payload)
+        self.assertEqual(payload.get("recorded_at"), "2026-04-19T10:00:00+00:00")
+        self.assertIn("DEPRECATED", buf.getvalue())
+        self.assertIn("timestamp", buf.getvalue())
+        self.assertIn("recorded_at", buf.getvalue())
+
+    def test_decision_alias_coerces_to_verdict(self):
+        payload = _valid_gate_result()
+        payload["decision"] = payload.pop("verdict")
+        buf, ctx = self._capture_stderr()
+        with ctx:
+            validate_gate_result(payload)
+        self.assertEqual(payload.get("verdict"), "APPROVE")
+        self.assertIn("DEPRECATED", buf.getvalue())
+        self.assertIn("decision", buf.getvalue())
+
+    def test_canonical_wins_when_both_present(self):
+        # Canonical present → alias is ignored, no coercion, no warning.
+        payload = _valid_gate_result()
+        payload["timestamp"] = "WRONG-VALUE-SHOULD-NOT-WIN"
+        buf, ctx = self._capture_stderr()
+        with ctx:
+            validate_gate_result(payload)
+        self.assertEqual(payload["recorded_at"], "2026-04-19T10:00:00+00:00")
+        # No deprecation emitted because canonical was already present
+        self.assertNotIn("DEPRECATED", buf.getvalue())
+
+    def test_aliased_invalid_timestamp_still_validated(self):
+        # After coercion, the canonical field must still pass downstream
+        # checks. Bad timestamp under the alias name should still raise
+        # invalid-timestamp:recorded_at, not pass silently.
+        payload = _valid_gate_result()
+        payload.pop("recorded_at")
+        payload["timestamp"] = "not-a-date"
+        buf, ctx = self._capture_stderr()
+        with ctx, self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertEqual(cm.exception.reason, "invalid-timestamp:recorded_at")
+
+    def test_aliased_invalid_verdict_still_validated(self):
+        payload = _valid_gate_result()
+        payload.pop("verdict")
+        payload["decision"] = "MAYBE"
+        buf, ctx = self._capture_stderr()
+        with ctx, self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertTrue(
+            cm.exception.reason.startswith("invalid-verdict-enum"),
+            f"unexpected reason: {cm.exception.reason!r}",
+        )
+
+    def test_unknown_alias_does_not_coerce(self):
+        # Only mapped aliases are honored; arbitrary keys must not become
+        # canonical-name shadows.
+        payload = _valid_gate_result()
+        payload.pop("recorded_at")
+        payload["recordedAt"] = "2026-04-19T10:00:00+00:00"  # unmapped name
+        with self.assertRaises(GateResultSchemaError) as cm:
+            validate_gate_result(payload)
+        self.assertEqual(cm.exception.reason, "missing-required-field:recorded_at")
+
+
 class FieldSizeCaps(unittest.TestCase):
     def test_reason_oversize_raises(self):
         oversized = "a" * (MAX_REASON_BYTES + 1)

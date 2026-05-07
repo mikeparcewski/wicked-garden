@@ -498,6 +498,37 @@ def _check_per_reviewer_verdicts(verdicts: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
+_FIELD_ALIASES: Dict[str, str] = {
+    # Issue #850 — accept the legacy field names that the qe-orchestrator
+    # contract example documented for years before the validator was added.
+    # Coerce in place to the canonical name so downstream readers see the
+    # validated shape. Each coercion emits a stderr deprecation so subagent
+    # authors notice and migrate. Mapping: alias -> canonical.
+    "timestamp": "recorded_at",
+    "decision": "verdict",
+}
+
+
+def _coerce_field_aliases(data: Dict[str, Any]) -> None:
+    """Copy legacy alias keys onto canonical names when the canonical is
+    absent. Mutates ``data`` in place so the validated/parsed dict the
+    caller receives carries the canonical fields.
+
+    Steering, not blocking: aliases survive validation but emit a
+    stderr deprecation. The qe-orchestrator agent doc is the source of
+    truth for canonical names; aliases are the soak-in path.
+    """
+    for alias, canonical in _FIELD_ALIASES.items():
+        if alias in data and canonical not in data:
+            data[canonical] = data[alias]
+            print(
+                f"[gate-result-schema] DEPRECATED: field '{alias}' is a legacy "
+                f"alias for '{canonical}' and will be removed in a future "
+                "release. Update reviewer output to use the canonical name.",
+                file=sys.stderr,
+            )
+
+
 def validate_gate_result(data: Any) -> None:
     """Validate a parsed gate-result dict. Raises on any violation.
 
@@ -505,9 +536,12 @@ def validate_gate_result(data: Any) -> None:
 
     - ``data`` must be a ``dict``. Anything else raises.
     - At least one of ``verdict`` or ``result`` must be present and a
-      valid enum member.
+      valid enum member. Legacy field name ``decision`` is accepted as
+      an alias for ``verdict`` (deprecation warned).
     - ``reviewer`` required; string; within char cap; not banned.
-    - ``recorded_at`` required; ISO-8601 parseable.
+    - ``recorded_at`` required; ISO-8601 parseable. Legacy field name
+      ``timestamp`` is accepted as an alias (deprecation warned).
+    - ``score`` required; numeric.
     - Field length caps enforced via ``FIELD_CAPS`` table.
     - ``conditions`` list cap + per-entry byte cap.
     - ``rubric_breakdown`` dict cap + per-``notes`` byte cap.
@@ -528,6 +562,12 @@ def validate_gate_result(data: Any) -> None:
             offending_field="<root>",
             violation_class="schema",
         )
+
+    # Issue #850: coerce legacy aliases (timestamp -> recorded_at,
+    # decision -> verdict) before required-field checks so a subagent
+    # following the older qe-orchestrator example doesn't get rejected
+    # purely on field-name drift.
+    _coerce_field_aliases(data)
 
     # AC-1: verdict / result enum. At least one must be present.
     has_verdict = "verdict" in data
