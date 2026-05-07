@@ -994,8 +994,126 @@ def get_project_dir(project_name: str) -> Path:
     return project_dir
 
 
+def _hydrate_from_process_plan(state: ProjectState) -> bool:
+    """Hydrate phase_plan / complexity_score / rigor_tier / specialists from
+    ``process-plan.json`` when the DomainStore record left them empty.
+
+    Issue #846: ``propose-process`` writes the canonical plan to
+    ``process-plan.json`` but did not always reach the DomainStore record
+    via ``phase_manager update`` — leaving ``phase_manager status`` to
+    return ``phase_plan: []`` even though the plan existed on disk.
+    Treat ``process-plan.json`` as the source of truth for these fields
+    and populate the state in place. When both sources have values and
+    they disagree, prefer ``process-plan.json`` and emit a stderr warning
+    so the drift is visible.
+
+    Returns True iff any field was hydrated. Fail-open on parse errors
+    or missing files — never raises out of this helper. The intent is
+    "if the plan exists on disk, surface it"; surfacing a partial state
+    is better than masking it.
+    """
+    try:
+        project_dir = get_project_dir(state.name)
+    except Exception:
+        return False
+
+    plan_json = project_dir / "process-plan.json"
+    if not plan_json.exists():
+        return False
+
+    try:
+        plan = json.loads(plan_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.debug(
+            "[hydrate] process-plan.json unreadable for project %s: %s",
+            state.name, exc,
+        )
+        return False
+
+    hydrated = False
+
+    # phase_plan from plan["phases"][...]["name"]
+    plan_phases = plan.get("phases")
+    if isinstance(plan_phases, list) and plan_phases:
+        plan_phase_names = [
+            resolve_phase(p["name"])
+            for p in plan_phases
+            if isinstance(p, dict) and isinstance(p.get("name"), str)
+        ]
+        if plan_phase_names:
+            if not state.phase_plan:
+                state.phase_plan = plan_phase_names
+                hydrated = True
+            elif state.phase_plan != plan_phase_names:
+                logger.warning(
+                    "[hydrate] DomainStore phase_plan %s disagrees with "
+                    "process-plan.json %s for project %s — preferring "
+                    "process-plan.json (Issue #846).",
+                    state.phase_plan, plan_phase_names, state.name,
+                )
+                state.phase_plan = plan_phase_names
+                hydrated = True
+
+    # complexity_score from plan["complexity"]
+    plan_complexity = plan.get("complexity")
+    if isinstance(plan_complexity, int):
+        if state.complexity_score == 0:
+            state.complexity_score = plan_complexity
+            hydrated = True
+        elif state.complexity_score != plan_complexity:
+            logger.warning(
+                "[hydrate] DomainStore complexity_score %s disagrees with "
+                "process-plan.json %s for project %s — preferring "
+                "process-plan.json.",
+                state.complexity_score, plan_complexity, state.name,
+            )
+            state.complexity_score = plan_complexity
+            hydrated = True
+
+    # rigor_tier lives in extras to match v6 storage convention
+    plan_rigor = plan.get("rigor_tier")
+    if isinstance(plan_rigor, str) and plan_rigor in {"minimal", "standard", "full"}:
+        existing_rigor = (state.extras or {}).get("rigor_tier")
+        if not existing_rigor:
+            state.extras["rigor_tier"] = plan_rigor
+            hydrated = True
+        elif existing_rigor != plan_rigor:
+            logger.warning(
+                "[hydrate] DomainStore rigor_tier %r disagrees with "
+                "process-plan.json %r for project %s — preferring "
+                "process-plan.json.",
+                existing_rigor, plan_rigor, state.name,
+            )
+            state.extras["rigor_tier"] = plan_rigor
+            hydrated = True
+
+    # specialists_recommended from plan["specialists"][...]["name"]
+    plan_specialists = plan.get("specialists")
+    if isinstance(plan_specialists, list) and plan_specialists:
+        names = [
+            s["name"] for s in plan_specialists
+            if isinstance(s, dict) and isinstance(s.get("name"), str)
+        ]
+        if names and not state.specialists_recommended:
+            state.specialists_recommended = names
+            hydrated = True
+
+    return hydrated
+
+
 def load_project_state(project_name: str) -> Optional[ProjectState]:
-    """Load project state from DomainStore."""
+    """Load project state from DomainStore.
+
+    Issue #846: After loading the DomainStore record, attempt to hydrate
+    phase_plan, complexity_score, rigor_tier, and specialists from
+    ``process-plan.json`` when the record left them empty. The plan file
+    is the canonical artifact written by propose-process; the
+    DomainStore record can drift behind it when a caller wrote the plan
+    but never made the corresponding ``phase_manager update`` call.
+    Hydration is read-only at load time — see ``_hydrate_from_process_plan``
+    for the drift-warning behavior. Persist via ``save_project_state``
+    if the caller wants the hydrated state to stick.
+    """
     if not project_name or not is_safe_project_name(project_name):
         return None
 
@@ -1005,7 +1123,23 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         project_dir = get_project_dir(project_name)
         project_md = project_dir / "project.md"
         if project_md.exists():
-            return load_from_markdown(project_md)
+            state = load_from_markdown(project_md)
+            if state is not None:
+                _hydrate_from_process_plan(state)
+            return state
+        # No DomainStore record — try hydrating a minimal state purely
+        # from process-plan.json so callers can still see the plan that
+        # was authored. This is the case the user hit in #846.
+        plan_json = project_dir / "process-plan.json"
+        if plan_json.exists():
+            stub = ProjectState(
+                name=project_name,
+                current_phase="clarify",
+                created_at=get_utc_timestamp(),
+                version="v3-capability-based",
+            )
+            if _hydrate_from_process_plan(stub):
+                return stub
         return None
 
     phases = {}
@@ -1034,7 +1168,7 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
     }
     extras = {k: v for k, v in data.items() if k not in known_keys}
 
-    return ProjectState(
+    state = ProjectState(
         name=data.get("name", project_name),
         current_phase=resolve_phase(data.get("current_phase", "clarify")),
         created_at=data.get("created_at", get_utc_timestamp()),
@@ -1047,6 +1181,11 @@ def load_project_state(project_name: str) -> Optional[ProjectState]:
         cp_project_id=data.get("cp_project_id"),
         extras=extras,
     )
+    # Issue #846: hydrate from process-plan.json when the DomainStore
+    # record is missing fields the plan defines. Read-only at load time;
+    # callers wanting persistence call save_project_state separately.
+    _hydrate_from_process_plan(state)
+    return state
 
 
 def _load_from_markdown_simple(project_md: Path) -> Optional[ProjectState]:
