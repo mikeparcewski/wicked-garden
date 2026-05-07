@@ -1,6 +1,6 @@
 ---
 description: Run QE analysis on a target with configurable rigor
-argument-hint: "[target] [--gate value|strategy|execution] [--rigor quick|standard]"
+argument-hint: "[target] [--gate <category|specific-gate-name>] [--rigor quick|standard]"
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---
@@ -12,13 +12,50 @@ Run quality engineering gate analysis on a target.
 ## Arguments
 
 - `target` (optional): File or directory to analyze. Default: current directory
-- `--gate` (optional): Which gate to run. Default: strategy
-  - `value`: Post-clarify - "Should we build this?"
-  - `strategy`: Post-design - "Can we build it well?"
-  - `execution`: Post-build - "Does it work?"
+- `--gate` (optional): Which gate to run. Default: resolves from current phase.
 - `--rigor` (optional): Analysis depth. Default: standard
   - `quick`: Fast triage (~30s)
   - `standard`: Full analysis (~2min)
+
+### `--gate` accepts two vocabularies (Issue #852)
+
+The runtime has **specific gate names** in `gate-policy.json` and a phase →
+gate mapping in `scripts/crew/phase_manager.py::_PHASE_DEFAULT_GATE`. This
+slash command also accepts three **categorical labels** that resolve to a
+specific gate based on the current phase, for users who don't want to look
+up the per-phase gate name.
+
+**Specific gate names** (preferred — these are what `gate-policy.json`
+defines and what the dispatcher routes on):
+
+| Specific gate           | Default phase    | Question                                |
+|-------------------------|------------------|-----------------------------------------|
+| `requirements-quality`  | `clarify`        | Are the ACs testable and complete?      |
+| `design-quality`        | `design`         | Is the design coherent and minimal?     |
+| `testability`           | `test-strategy`  | Can we test what we built?              |
+| `challenge-resolution`  | `challenge`      | Did we steelman the alternative?        |
+| `code-quality`          | `build`          | Does the code meet R1-R6?               |
+| `evidence-quality`      | `review`         | Does the evidence support the verdict?  |
+| `final-audit`           | (review variant) | Final pre-merge audit                   |
+| `convergence-verify`    | (build/test)     | Are tracked artifacts wired through?    |
+| `semantic-alignment`    | (review)         | Do code and spec match?                 |
+| `uncertainty-gate`      | (any)            | Is uncertainty bounded?                 |
+
+**Categorical labels** (legacy 3-name vocab, resolved by current phase):
+
+| Categorical | Resolves to (by phase) |
+|-------------|------------------------|
+| `value`     | `requirements-quality` (clarify) |
+| `strategy`  | `design-quality` (design) or `testability` (test-strategy) |
+| `execution` | `code-quality` (build) or `evidence-quality` (review) |
+
+If the categorical is ambiguous for the current phase (e.g. `strategy` is
+issued during `build`), surface an error listing the specific names and ask
+the user to disambiguate — do not silently pick one.
+
+The `gate` field written into `gate-result.json` MUST be one of the specific
+names from `gate-policy.json` — that is what the runtime dispatcher and the
+audit log key on. Categorical labels are input convenience, not storage shape.
 
 ## Instructions
 
@@ -26,7 +63,10 @@ Run quality engineering gate analysis on a target.
 
 Extract from the command arguments:
 - `target`: The file or directory path (default: ".")
-- `gate`: value, strategy, or execution (default: strategy)
+- `gate`: Either a specific gate name from the table above, or a categorical
+  (`value | strategy | execution`). If categorical, resolve to the specific
+  name via the current phase using `_PHASE_DEFAULT_GATE` semantics. If
+  omitted, default to the gate for the current phase.
 - `rigor`: quick or standard (default: standard)
 
 ### 2. Validate Target
@@ -88,22 +128,24 @@ Write a JSON file to `{project_dir}/phases/{current_phase}/gate-result.json` wit
 
 ```json
 {
-  "result": "APPROVE|CONDITIONAL|REJECT",
-  "gate": "{gate type}",
+  "verdict": "APPROVE|CONDITIONAL|REJECT",
+  "gate": "value|strategy|execution",
   "phase": "{current phase}",
   "reviewer": "wicked-garden:crew:qe-orchestrator",
-  "score": 0.0-1.0,
+  "score": 0.0,
+  "recorded_at": "2026-05-07T22:30:00Z",
   "findings": ["list of key findings"],
-  "conditions": [{"id": "C-1", "description": "..."}],
-  "timestamp": "ISO 8601"
+  "conditions": [{"id": "C-1", "description": "..."}]
 }
 ```
 
-- `result`: Extract from the orchestrator's decision (APPROVE, CONDITIONAL, or REJECT)
-- `score`: Map the orchestrator's confidence/quality assessment to 0.0-1.0. Use 0.8 for clean APPROVE, 0.6 for CONDITIONAL, 0.3 for REJECT as defaults if no explicit score
-- `reviewer`: Always `"wicked-garden:crew:qe-orchestrator"` (never use auto-approve names)
-- `conditions`: Only include for CONDITIONAL results — list each condition with an `id` and `description`
-- `findings`: Brief list of key observations from the gate analysis
+- `verdict`: Extract from the orchestrator's decision (APPROVE, CONDITIONAL, or REJECT). The validator also accepts `result` as an alias.
+- `gate`: One of the canonical short names (`value | strategy | execution`) — never a descriptive name.
+- `score`: Map the orchestrator's confidence/quality assessment to a number in [0.0, 1.0]. Use 0.8 for clean APPROVE, 0.6 for CONDITIONAL, 0.3 for REJECT as defaults if no explicit score.
+- `reviewer`: Always `"wicked-garden:crew:qe-orchestrator"` (never use auto-approve names).
+- `recorded_at`: ISO-8601 timestamp. The validator also accepts `timestamp` as a deprecated alias (Issue #850) but emits a stderr warning — prefer `recorded_at`.
+- `conditions`: Only include for CONDITIONAL results — list each condition with an `id` and `description`.
+- `findings`: Brief list of key observations from the gate analysis.
 
 ### 6. Complete Gate Task
 

@@ -2539,6 +2539,52 @@ def _gate_name_for_phase(phase: str) -> str:
     return _PHASE_DEFAULT_GATE.get(resolve_phase(phase), resolve_phase(phase))
 
 
+# Issue #852: categorical labels accepted by /wicked-garden:crew:gate
+# (`--gate value|strategy|execution`) map to one or more specific gate names
+# from gate-policy.json. Resolution is phase-dependent — `strategy` resolves
+# to `design-quality` during the design phase or `testability` during
+# test-strategy. The slash command, just-finish skill, and any caller that
+# wants to accept the legacy 3-name vocab should call resolve_gate_category()
+# with the current phase rather than hard-coding their own table.
+_CATEGORY_TO_SPECIFIC_GATES: Dict[str, List[str]] = {
+    "value": ["requirements-quality"],
+    "strategy": ["design-quality", "testability"],
+    "execution": ["code-quality", "evidence-quality", "final-audit"],
+}
+
+
+def resolve_gate_category(category: str, phase: Optional[str] = None) -> str:
+    """Resolve a categorical gate label (`value | strategy | execution`) to
+    a specific gate name from ``gate-policy.json``.
+
+    When ``phase`` is provided, picks the specific gate that matches the
+    phase's default. When ambiguous (multiple specific gates map to the
+    category and none match the phase), raises ``ValueError`` listing the
+    candidates so the caller can prompt the user — never silently picks one.
+
+    Pass-through: if ``category`` is already a specific gate name (i.e. it
+    is not in the categorical table), return it unchanged so callers can
+    use this as a unifying coercion in front of any --gate value.
+    """
+    if category not in _CATEGORY_TO_SPECIFIC_GATES:
+        # Already a specific name (or an unknown name — leave validation
+        # to the downstream policy lookup, which has better error messages).
+        return category
+    candidates = _CATEGORY_TO_SPECIFIC_GATES[category]
+    if len(candidates) == 1:
+        return candidates[0]
+    # Ambiguous category — try to disambiguate by phase
+    if phase is not None:
+        phase_default = _PHASE_DEFAULT_GATE.get(resolve_phase(phase))
+        if phase_default in candidates:
+            return phase_default
+    raise ValueError(
+        f"Categorical gate '{category}' is ambiguous — it maps to "
+        f"{candidates}. Specify one of those names directly, or pass a "
+        f"phase that picks a default."
+    )
+
+
 def _dispatch_gate_reviewer(
     state: Optional["ProjectState"],
     phase: str,
