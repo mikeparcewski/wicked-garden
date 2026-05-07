@@ -956,6 +956,151 @@ class TestAutoReevalStub(unittest.TestCase):
             )
 
 
+class TestHydrateFromProcessPlan(unittest.TestCase):
+    """Issue #846 — load_project_state hydrates phase_plan / complexity /
+    rigor_tier / specialists from process-plan.json when the DomainStore
+    record is empty. Drift between the two sources logs a warning and
+    prefers process-plan.json.
+    """
+
+    def _write_plan(self, project_dir, *, phases=None, complexity=3,
+                    rigor_tier="standard", specialists=None):
+        plan = {
+            "phases": phases or [
+                {"name": "clarify", "why": "x", "primary": []},
+                {"name": "design", "why": "x", "primary": []},
+                {"name": "build", "why": "x", "primary": []},
+            ],
+            "complexity": complexity,
+            "rigor_tier": rigor_tier,
+            "specialists": specialists or [
+                {"name": "engineering", "why": "x"},
+                {"name": "qe", "why": "x"},
+            ],
+        }
+        project_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "process-plan.json").write_text(json.dumps(plan))
+
+    def _empty_state(self, name="hydrate-proj"):
+        s = pm.ProjectState(
+            name=name, current_phase="clarify",
+            created_at="2026-01-01T00:00:00Z",
+        )
+        s.phase_plan = []  # explicit empty for hydration tests
+        return s
+
+    def test_hydrates_empty_phase_plan(self):
+        state = self._empty_state()
+        self.assertEqual(state.phase_plan, [])
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir)
+            with patch.object(pm, "get_project_dir", return_value=project_dir):
+                changed = pm._hydrate_from_process_plan(state)
+        self.assertTrue(changed)
+        self.assertEqual(state.phase_plan, ["clarify", "design", "build"])
+
+    def test_hydrates_complexity_and_rigor(self):
+        state = self._empty_state()
+        self.assertEqual(state.complexity_score, 0)
+        self.assertNotIn("rigor_tier", state.extras)
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir, complexity=5, rigor_tier="full")
+            with patch.object(pm, "get_project_dir", return_value=project_dir):
+                pm._hydrate_from_process_plan(state)
+        self.assertEqual(state.complexity_score, 5)
+        self.assertEqual(state.extras.get("rigor_tier"), "full")
+
+    def test_hydrates_specialists_only_when_empty(self):
+        state = self._empty_state()
+        state.specialists_recommended = ["pre-existing"]
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir)
+            with patch.object(pm, "get_project_dir", return_value=project_dir):
+                pm._hydrate_from_process_plan(state)
+        # Existing specialists list survives — only fill on empty
+        self.assertEqual(state.specialists_recommended, ["pre-existing"])
+
+    def test_drift_logs_warning_and_prefers_plan(self):
+        state = self._empty_state()
+        state.phase_plan = ["clarify", "test"]  # disagrees with plan
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm.logger, "warning") as mock_warn:
+                pm._hydrate_from_process_plan(state)
+        self.assertEqual(state.phase_plan, ["clarify", "design", "build"])
+        # Warning emitted naming the drift
+        self.assertTrue(mock_warn.called)
+        warned = " ".join(str(c) for c in mock_warn.call_args_list)
+        self.assertIn("disagrees", warned)
+        self.assertIn("#846", warned)
+
+    def test_no_plan_file_is_noop(self):
+        state = self._empty_state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            project_dir.mkdir(parents=True)
+            # No process-plan.json written
+            with patch.object(pm, "get_project_dir", return_value=project_dir):
+                changed = pm._hydrate_from_process_plan(state)
+        self.assertFalse(changed)
+        self.assertEqual(state.phase_plan, [])
+
+    def test_malformed_plan_fail_open(self):
+        state = self._empty_state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            project_dir.mkdir(parents=True)
+            (project_dir / "process-plan.json").write_text("{not valid json")
+            with patch.object(pm, "get_project_dir", return_value=project_dir):
+                changed = pm._hydrate_from_process_plan(state)
+        self.assertFalse(changed)
+        self.assertEqual(state.phase_plan, [])
+
+    def test_invalid_rigor_tier_skipped(self):
+        state = self._empty_state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir, rigor_tier="ludicrous")
+            with patch.object(pm, "get_project_dir", return_value=project_dir):
+                pm._hydrate_from_process_plan(state)
+        self.assertNotIn("rigor_tier", state.extras)
+
+    def test_load_project_state_hydrates_when_record_empty(self):
+        """End-to-end: load_project_state returns a state with phase_plan
+        populated from process-plan.json when the DomainStore record had
+        none."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir)
+            stored = {"name": "hydrate-proj", "current_phase": "clarify",
+                      "created_at": "2026-05-07T00:00:00Z", "phases": {}}
+            with patch.object(pm._sm, "get", return_value=stored), \
+                 patch.object(pm, "get_project_dir", return_value=project_dir):
+                state = pm.load_project_state("hydrate-proj")
+        self.assertIsNotNone(state)
+        self.assertEqual(state.phase_plan, ["clarify", "design", "build"])
+        self.assertEqual(state.complexity_score, 3)
+        self.assertEqual(state.extras.get("rigor_tier"), "standard")
+
+    def test_load_project_state_hydrates_stub_when_no_record_but_plan_exists(self):
+        """If DomainStore has no record AND process-plan.json exists,
+        return a stub state hydrated from the plan."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "hydrate-proj"
+            self._write_plan(project_dir)
+            with patch.object(pm._sm, "get", return_value=None), \
+                 patch.object(pm, "get_project_dir", return_value=project_dir):
+                state = pm.load_project_state("hydrate-proj")
+        self.assertIsNotNone(state)
+        self.assertEqual(state.phase_plan, ["clarify", "design", "build"])
+        self.assertEqual(state.complexity_score, 3)
+
+
 class TestStatusJsonFieldParity(unittest.TestCase):
     """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
     complexity_score, and is_complete alongside the existing fields."""
