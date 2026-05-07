@@ -1101,6 +1101,178 @@ class TestHydrateFromProcessPlan(unittest.TestCase):
         self.assertEqual(state.complexity_score, 3)
 
 
+class TestMarkCondition(unittest.TestCase):
+    """Issue #848 — mark_condition pins a CONDITIONAL gate finding to its
+    resolution artifact (satisfied_by + verification_evidence + timestamp).
+    Required audit fields enforced; missing manifest and unknown ids raise.
+    """
+
+    def _write_manifest(self, project_dir, phase, conditions):
+        d = project_dir / "phases" / phase
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "conditions-manifest.json").write_text(
+            json.dumps({"phase": phase, "conditions": conditions}, indent=2)
+        )
+
+    def test_mark_condition_sets_audit_fields(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            self._write_manifest(project_dir, "clarify", [
+                {"id": "C-1", "description": "spec gap", "verified": False},
+            ])
+            updated = pm.mark_condition(
+                project_dir, "clarify", "C-1",
+                satisfied_by="t-build-1",
+                verification_evidence="phases/build/spec-resolution.md",
+                note="resolved during clarify",
+            )
+        self.assertTrue(updated["verified"])
+        self.assertEqual(updated["satisfied_by"], "t-build-1")
+        self.assertEqual(updated["verification_evidence"],
+                         "phases/build/spec-resolution.md")
+        self.assertIn("resolved_at", updated)
+        self.assertEqual(updated["resolution_note"], "resolved during clarify")
+
+    def test_mark_condition_persists_to_disk(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            self._write_manifest(project_dir, "clarify", [
+                {"id": "C-1", "description": "x", "verified": False},
+            ])
+            pm.mark_condition(
+                project_dir, "clarify", "C-1",
+                satisfied_by="t-build-1",
+                verification_evidence="phases/build/x.md",
+            )
+            # Re-read the manifest and confirm the change stuck
+            mf = json.loads(
+                (project_dir / "phases" / "clarify" / "conditions-manifest.json")
+                .read_text()
+            )
+            self.assertTrue(mf["conditions"][0]["verified"])
+
+    def test_mark_condition_unblocks_can_transition(self):
+        """A condition with verified=True must satisfy _verify_conditions()
+        so it does not block phase advancement."""
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            self._write_manifest(project_dir, "clarify", [
+                {"id": "C-1", "description": "x", "verified": False},
+            ])
+            blocking = pm._verify_conditions(project_dir, "clarify")
+            self.assertTrue(len(blocking) == 1)
+            pm.mark_condition(
+                project_dir, "clarify", "C-1",
+                satisfied_by="t-1", verification_evidence="x.md",
+            )
+            blocking = pm._verify_conditions(project_dir, "clarify")
+            self.assertEqual(blocking, [])
+
+    def test_missing_satisfied_by_raises(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            self._write_manifest(project_dir, "clarify", [
+                {"id": "C-1", "description": "x", "verified": False},
+            ])
+            with self.assertRaises(ValueError) as cm:
+                pm.mark_condition(
+                    project_dir, "clarify", "C-1",
+                    satisfied_by="",  # blank not allowed
+                    verification_evidence="x.md",
+                )
+            self.assertIn("satisfied_by", str(cm.exception))
+
+    def test_missing_verification_evidence_raises(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            self._write_manifest(project_dir, "clarify", [
+                {"id": "C-1", "description": "x", "verified": False},
+            ])
+            with self.assertRaises(ValueError) as cm:
+                pm.mark_condition(
+                    project_dir, "clarify", "C-1",
+                    satisfied_by="t-1",
+                    verification_evidence="   ",  # whitespace-only
+                )
+            self.assertIn("verification_evidence", str(cm.exception))
+
+    def test_unknown_condition_id_raises_with_known_ids(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            self._write_manifest(project_dir, "clarify", [
+                {"id": "C-1"}, {"id": "C-2"},
+            ])
+            with self.assertRaises(ValueError) as cm:
+                pm.mark_condition(
+                    project_dir, "clarify", "C-99",
+                    satisfied_by="t", verification_evidence="x",
+                )
+            err = str(cm.exception)
+            self.assertIn("C-99", err)
+            self.assertIn("C-1", err)
+            self.assertIn("C-2", err)
+
+    def test_missing_manifest_raises(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "mark-proj"
+            (project_dir / "phases" / "clarify").mkdir(parents=True)
+            # No manifest written
+            with self.assertRaises(FileNotFoundError) as cm:
+                pm.mark_condition(
+                    project_dir, "clarify", "C-1",
+                    satisfied_by="t", verification_evidence="x",
+                )
+            self.assertIn("conditions-manifest.json", str(cm.exception))
+
+
+class TestConditionsStatus(unittest.TestCase):
+    """Issue #848 — conditions_status reports total/verified/pending counts
+    + per-condition records. Surfaced through phase_manager status --json.
+    """
+
+    def test_empty_when_no_manifest(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "stat-proj"
+            (project_dir / "phases" / "clarify").mkdir(parents=True)
+            cs = pm.conditions_status(project_dir, "clarify")
+        self.assertEqual(cs["total"], 0)
+        self.assertEqual(cs["verified"], 0)
+        self.assertEqual(cs["pending"], 0)
+        self.assertEqual(cs["conditions"], [])
+
+    def test_counts_pending_and_verified(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "stat-proj"
+            d = project_dir / "phases" / "clarify"
+            d.mkdir(parents=True)
+            (d / "conditions-manifest.json").write_text(json.dumps({
+                "phase": "clarify",
+                "conditions": [
+                    {"id": "C-1", "verified": True,
+                     "satisfied_by": "t1", "verification_evidence": "x.md"},
+                    {"id": "C-2", "verified": False, "description": "y"},
+                    {"id": "C-3", "verified": False, "reason": "z"},
+                ],
+            }))
+            cs = pm.conditions_status(project_dir, "clarify")
+        self.assertEqual(cs["total"], 3)
+        self.assertEqual(cs["verified"], 1)
+        self.assertEqual(cs["pending"], 2)
+        self.assertEqual(len(cs["conditions"]), 3)
+        # Description fallbacks to reason when description is absent
+        c3 = next(c for c in cs["conditions"] if c["id"] == "C-3")
+        self.assertEqual(c3["description"], "z")
+
+    def test_malformed_manifest_returns_empty(self):
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "stat-proj"
+            d = project_dir / "phases" / "clarify"
+            d.mkdir(parents=True)
+            (d / "conditions-manifest.json").write_text("{not valid")
+            cs = pm.conditions_status(project_dir, "clarify")
+        self.assertEqual(cs["total"], 0)
+
+
 class TestStatusJsonFieldParity(unittest.TestCase):
     """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
     complexity_score, and is_complete alongside the existing fields."""

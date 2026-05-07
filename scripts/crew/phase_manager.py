@@ -3140,6 +3140,123 @@ def _verify_conditions(
     return unverified
 
 
+# ---------------------------------------------------------------------------
+# Condition resolution (Issue #848)
+# ---------------------------------------------------------------------------
+
+def mark_condition(
+    project_dir: Path,
+    phase: str,
+    condition_id: str,
+    *,
+    satisfied_by: str,
+    verification_evidence: str,
+    note: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Mark a single condition in ``phases/{phase}/conditions-manifest.json``
+    as verified, recording who satisfied it and where the evidence lives.
+
+    Issue #848: CONDITIONAL gate findings accumulated across phases without a
+    mechanism that pinned them to specific build/test artifacts. AC-4.4
+    described "auto-resolve if doesn't change WHAT we're building" but never
+    described how — operators marked conditions resolved informally and
+    advanced phases with the manifest still showing them unverified. This
+    function is the canonical resolution surface: every condition gets a
+    ``verified=True`` flag, a ``satisfied_by`` (task id, agent id, or
+    commit sha), a ``verification_evidence`` link (path or URL), and a
+    ``resolved_at`` timestamp.
+
+    Required arguments encode the audit trail. ``satisfied_by`` and
+    ``verification_evidence`` are mandatory non-empty strings — empty
+    values raise ``ValueError`` so the audit log can never carry a
+    rubber-stamped resolution.
+
+    Returns the mutated condition dict. Raises:
+        FileNotFoundError: manifest does not exist for this phase
+        ValueError: condition_id not found in manifest, or required
+            audit fields are empty
+    """
+    if not satisfied_by or not satisfied_by.strip():
+        raise ValueError("satisfied_by is required (e.g. task id, agent name, commit sha)")
+    if not verification_evidence or not verification_evidence.strip():
+        raise ValueError(
+            "verification_evidence is required (path to artifact or URL "
+            "showing the condition is met)"
+        )
+
+    manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
+    if not manifest_path.exists():
+        raise FileNotFoundError(
+            f"No conditions-manifest.json for phase '{phase}' "
+            f"(expected at {manifest_path}). Was the gate APPROVE rather "
+            "than CONDITIONAL?"
+        )
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    conditions = manifest.get("conditions", [])
+
+    for condition in conditions:
+        if condition.get("id") == condition_id:
+            condition["verified"] = True
+            condition["satisfied_by"] = satisfied_by
+            condition["verification_evidence"] = verification_evidence
+            condition["resolved_at"] = get_utc_timestamp()
+            if note:
+                condition["resolution_note"] = note
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+            return condition
+
+    known_ids = [c.get("id") for c in conditions]
+    raise ValueError(
+        f"Condition '{condition_id}' not found in {manifest_path}. "
+        f"Known ids: {known_ids}"
+    )
+
+
+def conditions_status(project_dir: Path, phase: str) -> Dict[str, Any]:
+    """Return a structured status report for a phase's conditions-manifest.
+
+    Issue #848: surfaced via ``phase_manager status --json`` so operators
+    can see resolution progress at a glance instead of grepping the
+    manifest. Returns a dict with ``total`` / ``verified`` / ``pending``
+    counts and a per-condition list of ``{id, verified, satisfied_by,
+    verification_evidence, description}``. Missing manifest returns the
+    empty-shape report rather than raising — callers want to render
+    "no conditions" cleanly when the gate was APPROVE.
+    """
+    manifest_path = project_dir / "phases" / phase / "conditions-manifest.json"
+    empty = {"phase": phase, "total": 0, "verified": 0, "pending": 0,
+             "conditions": []}
+    if not manifest_path.exists():
+        return empty
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return empty
+    conditions = manifest.get("conditions", [])
+    out = []
+    verified_count = 0
+    for c in conditions:
+        is_verified = bool(c.get("verified", False))
+        if is_verified:
+            verified_count += 1
+        out.append({
+            "id": c.get("id"),
+            "verified": is_verified,
+            "satisfied_by": c.get("satisfied_by"),
+            "verification_evidence": c.get("verification_evidence"),
+            "description": c.get("description") or c.get("reason"),
+            "resolved_at": c.get("resolved_at"),
+        })
+    return {
+        "phase": phase,
+        "total": len(conditions),
+        "verified": verified_count,
+        "pending": len(conditions) - verified_count,
+        "conditions": out,
+    }
+
+
 def _validate_gate_reviewer(
     gate_result: Dict[str, Any],
 ) -> Optional[str]:
@@ -5949,7 +6066,7 @@ def main():
 
     parser = argparse.ArgumentParser(description="Phase manager for wicked-crew")
     parser.add_argument("project", help="Project name")
-    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec", "adopt-clarify", "liveness"])
+    parser.add_argument("action", choices=["status", "start", "complete", "approve", "skip", "can-advance", "validate", "create", "update", "advance", "execute", "yolo", "cutover", "detect-mode", "phase-spec", "adopt-clarify", "liveness", "mark-condition"])
     parser.add_argument("--phase", help="Target phase")
     parser.add_argument("--reason", help="Reason for skip or gate override")
     parser.add_argument("--approved-by", default=None, help="Approver identity (default: 'auto' for skip, 'user' for approve)")
@@ -6033,6 +6150,33 @@ def main():
             "and proceed. Rejected at checkpoint phases (clarify/design/build) "
             "where re-evaluation is the rubric's primary signal."
         ),
+    )
+    # Issue #848 — mark-condition action arguments
+    parser.add_argument(
+        "--condition-id",
+        default=None,
+        help="Issue #848 — condition id to mark as verified (e.g. 'C-1', 'QE-3').",
+    )
+    parser.add_argument(
+        "--satisfied-by",
+        default=None,
+        help=(
+            "Issue #848 — identity that satisfied the condition: task id, "
+            "agent name, commit sha, or PR url. Required for mark-condition."
+        ),
+    )
+    parser.add_argument(
+        "--evidence",
+        default=None,
+        help=(
+            "Issue #848 — path or URL to evidence proving the condition is met "
+            "(test report, screenshot, PR diff, etc.). Required for mark-condition."
+        ),
+    )
+    parser.add_argument(
+        "--note",
+        default=None,
+        help="Issue #848 — optional free-form resolution note.",
     )
     parser.add_argument(
         "--justification",
@@ -6175,6 +6319,18 @@ def main():
             # 'skipped' phases count as terminal here too.
             phase_status_summary = get_phase_status_summary(state)
             is_complete, remaining_phases = compute_project_completion(state)
+            # Issue #848: surface CONDITIONAL gate findings + resolution
+            # progress per phase so operators see condition state at a
+            # glance instead of grepping conditions-manifest.json files.
+            conditions_summary: Dict[str, Any] = {}
+            try:
+                conditions_project_dir = get_project_dir(state.name)
+                for ph in state.phase_plan or []:
+                    cs = conditions_status(conditions_project_dir, resolve_phase(ph))
+                    if cs.get("total", 0) > 0:
+                        conditions_summary[resolve_phase(ph)] = cs
+            except Exception:  # noqa: BLE001 — fail-open on read errors
+                conditions_summary = {}
             summary = {
                 "name": state.name,
                 "current_phase": state.current_phase,
@@ -6188,6 +6344,9 @@ def main():
                 "rigor_tier": (state.extras or {}).get("rigor_tier"),
                 "is_complete": is_complete,
                 "remaining_phases": remaining_phases,
+                # Issue #848: per-phase conditions resolution counters.
+                # Empty dict means no CONDITIONAL gate findings exist.
+                "conditions": conditions_summary,
             }
             print(json.dumps(summary, indent=2))
         else:
@@ -6377,6 +6536,44 @@ def main():
         else:
             print(f"Updated project: {state.name}")
             print(f"Fields: {', '.join(updated_fields)}")
+
+    elif args.action == "mark-condition":
+        # Issue #848 — pin a CONDITIONAL gate finding to its resolution
+        # artifact. Required: --phase, --condition-id, --satisfied-by,
+        # --evidence. Optional: --note.
+        target_phase = resolve_phase(args.phase or state.current_phase)
+        if not args.condition_id:
+            msg = "Error: --condition-id is required for mark-condition"
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
+            sys.exit(1)
+        if not args.satisfied_by:
+            msg = ("Error: --satisfied-by is required for mark-condition "
+                   "(task id, agent name, commit sha, or PR url)")
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
+            sys.exit(1)
+        if not args.evidence:
+            msg = ("Error: --evidence is required for mark-condition "
+                   "(path or URL to artifact proving the condition is met)")
+            print(json.dumps({"ok": False, "error": msg}) if args.json else msg, file=sys.stderr)
+            sys.exit(1)
+        try:
+            project_dir = get_project_dir(state.name)
+            updated = mark_condition(
+                project_dir, target_phase, args.condition_id,
+                satisfied_by=args.satisfied_by,
+                verification_evidence=args.evidence,
+                note=args.note,
+            )
+            if args.json:
+                print(json.dumps({"ok": True, "phase": target_phase,
+                                  "condition": updated}, indent=2))
+            else:
+                print(f"Marked condition '{args.condition_id}' verified for "
+                      f"phase '{target_phase}' (satisfied_by={args.satisfied_by})")
+        except (FileNotFoundError, ValueError) as exc:
+            err_msg = f"Error: {exc}"
+            print(json.dumps({"ok": False, "error": str(exc)}) if args.json else err_msg, file=sys.stderr)
+            sys.exit(1)
 
     elif args.action == "validate":
         injected, warnings = validate_phase_plan(state)
