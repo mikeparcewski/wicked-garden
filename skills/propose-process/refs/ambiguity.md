@@ -30,8 +30,8 @@ Any of:
    the trigger:
    - A single new GitHub issue, file path, or task is **3× or more the size** of
      the median item already in scope (LOC, files touched, or sub-task count).
-   - Total LOC / file-count delta from baseline plan to proposed plan exceeds
-     **2× the original**.
+   - Total proposed plan size is at least **2× the baseline plan total**
+     (i.e. the proposed plan absorbs as much new work as the original ask).
    - A new GitHub issue is labeled `epic`, `project`, or appears in another active
      project — it is its own project and should not be silently bundled.
    - User said "small change" or "fix" but the plan now spans **>3 phases** or

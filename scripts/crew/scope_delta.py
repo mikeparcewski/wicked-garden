@@ -93,8 +93,17 @@ def _normalize_item(raw: Any) -> Dict[str, Any]:
             size = float(size)
         except (TypeError, ValueError):
             size = 1.0
-        return {"id": str(item_id), "size": size,
-                "labels": list(labels) if labels else []}
+        # Labels normalization (Gemini PR #860 review): a bare string must
+        # become a single-element list, not be decomposed by list("epic")
+        # into ['e','p','i','c']. A non-iterable type (int, None, etc.)
+        # falls back to []. Only str/list/tuple yield meaningful labels.
+        if isinstance(labels, str):
+            labels_list = [labels]
+        elif isinstance(labels, (list, tuple)):
+            labels_list = list(labels)
+        else:
+            labels_list = []
+        return {"id": str(item_id), "size": size, "labels": labels_list}
     if isinstance(raw, str):
         return {"id": raw, "size": 1.0, "labels": []}
     return {}

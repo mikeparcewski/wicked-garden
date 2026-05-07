@@ -41,6 +41,36 @@ class TestNormalize(unittest.TestCase):
         self.assertEqual(sd._normalize_item(42), {})
         self.assertEqual(sd._normalize_item(None), {})
 
+    def test_labels_string_becomes_single_element_list(self):
+        # Gemini PR #860 review: a bare string label must NOT be
+        # decomposed by list("epic") into ['e','p','i','c'].
+        item = sd._normalize_item({"id": "i-1", "size": 1, "labels": "epic"})
+        self.assertEqual(item["labels"], ["epic"])
+
+    def test_labels_non_iterable_defaults_to_empty(self):
+        # Non-iterable labels (int, dict, etc.) must not crash with
+        # TypeError — fall back to [].
+        for bad in (42, 3.14, {"k": "v"}, True):
+            item = sd._normalize_item({"id": "i-1", "size": 1, "labels": bad})
+            self.assertEqual(item["labels"], [],
+                             f"non-iterable labels {bad!r} should default to []")
+
+    def test_labels_string_label_still_detects_epic(self):
+        """End-to-end guard: a string-typed labels field with value 'epic'
+        flows through normalization and still trips the epic-class trigger."""
+        baseline = [{"id": "i-1", "size": 10}]
+        proposed = baseline + [
+            # NB: labels passed as bare string, not list — pre-fix this would
+            # decompose into ['e','p','i','c'] and the epic trigger would
+            # silently miss.
+            {"id": "ep-1", "size": 1, "labels": "epic"},
+        ]
+        result = sd.compute_scope_delta(baseline, proposed)
+        self.assertTrue(result["epic_or_project_added"])
+        self.assertTrue(any(
+            "epic-or-project-label" in t for t in result["triggers"]
+        ))
+
 
 class TestEpicLabelDetection(unittest.TestCase):
     def test_epic_match_case_insensitive(self):
