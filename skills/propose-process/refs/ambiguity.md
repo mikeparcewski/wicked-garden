@@ -32,8 +32,9 @@ Any of:
      the median item already in scope (LOC, files touched, or sub-task count).
    - Total proposed plan size is at least **2× the baseline plan total**
      (i.e. the proposed plan absorbs as much new work as the original ask).
-   - A new GitHub issue is labeled `epic`, `project`, or appears in another active
-     project — it is its own project and should not be silently bundled.
+   - A new GitHub issue carries an epic/project-class size label
+     (`epic`, `project`, `large`, `xlarge`, or `xxl`), or appears in another
+     active project — it is its own project and should not be silently bundled.
    - User said "small change" or "fix" but the plan now spans **>3 phases** or
      **>10 tasks**.
 

@@ -213,7 +213,7 @@ def _cli() -> None:
     parser.add_argument("--baseline", required=True,
                         help="Path to JSON file with baseline items, or '-' for stdin.")
     parser.add_argument("--proposed", required=True,
-                        help="Path to JSON file with proposed items, or '-' for stdin.")
+                        help="Path to JSON file with proposed items, or '-' for stdin (mutually exclusive with --baseline -).")
     parser.add_argument("--oversize-factor-trip", type=float,
                         default=DEFAULT_OVERSIZE_FACTOR_TRIP,
                         help=f"Override oversize-factor trip (default {DEFAULT_OVERSIZE_FACTOR_TRIP}).")
@@ -229,6 +229,18 @@ def _cli() -> None:
             return json.loads(sys.stdin.read())
         with open(path, "r", encoding="utf-8") as fh:
             return json.load(fh)
+
+    # Copilot PR #860 review: stdin can only be consumed once. Reject the
+    # ambiguous '--baseline - --proposed -' case explicitly so a second
+    # empty read doesn't surface as a confusing JSONDecodeError.
+    if args.baseline == "-" and args.proposed == "-":
+        print(
+            "Error: --baseline and --proposed cannot BOTH be '-'. "
+            "stdin can only be consumed once. Pass at most one of them as "
+            "'-' and the other as a file path.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
 
     baseline = _load(args.baseline)
     proposed = _load(args.proposed)

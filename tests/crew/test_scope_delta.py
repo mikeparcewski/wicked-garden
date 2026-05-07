@@ -16,10 +16,16 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-# Ensure scripts/ is importable
+# Ensure scripts/ is importable. Copilot PR #860 review: append rather
+# than insert, and keep scripts/ ahead of scripts/crew/ so crew.py-style
+# names don't shadow the crew/ package for later-collected tests.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / "scripts"))
-sys.path.insert(0, str(_REPO_ROOT / "scripts" / "crew"))
+_SCRIPTS = str(_REPO_ROOT / "scripts")
+_CREW = str(_REPO_ROOT / "scripts" / "crew")
+if _SCRIPTS not in sys.path:
+    sys.path.append(_SCRIPTS)
+if _CREW not in sys.path:
+    sys.path.append(_CREW)
 
 import scope_delta as sd  # noqa: E402
 
@@ -240,6 +246,35 @@ class TestCLI(unittest.TestCase):
             baseline, baseline, "--exit-nonzero-on-trip",
             expect_returncode=0,
         )
+
+    def test_cli_rejects_both_stdin(self):
+        """Copilot PR #860 review: --baseline - --proposed - cannot
+        both consume stdin. Reject explicitly with exit 2."""
+        scope_delta_path = _REPO_ROOT / "scripts" / "crew" / "scope_delta.py"
+        result = subprocess.run(
+            [sys.executable, str(scope_delta_path),
+             "--baseline", "-", "--proposed", "-"],
+            input="[]", capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("cannot BOTH be '-'", result.stderr)
+
+
+class TestEpicLabelExtraSizes(unittest.TestCase):
+    """Copilot PR #860 review: doctrine now lists large/xlarge/xxl in
+    addition to epic/project. Verify the implementation matches."""
+
+    def test_large_label_trips_epic_class(self):
+        baseline = [{"id": "i-1", "size": 10}]
+        proposed = baseline + [{"id": "n-1", "size": 1, "labels": ["large"]}]
+        result = sd.compute_scope_delta(baseline, proposed)
+        self.assertTrue(result["epic_or_project_added"])
+
+    def test_xxl_label_trips_epic_class(self):
+        baseline = [{"id": "i-1", "size": 10}]
+        proposed = baseline + [{"id": "n-1", "size": 1, "labels": ["xxl"]}]
+        result = sd.compute_scope_delta(baseline, proposed)
+        self.assertTrue(result["epic_or_project_added"])
 
 
 if __name__ == "__main__":
