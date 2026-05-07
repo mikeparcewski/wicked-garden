@@ -425,19 +425,30 @@ def _check_onboarding_status():
     """Check if the current project has been onboarded (search index + memories).
 
     Returns (has_index, has_memories, directive_or_none).
-    Both checks fail open — if we can't determine status, assume onboarded.
+    Fails open: if brain is unreachable OR config shows setup_complete, assume onboarded.
     """
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     cwd = str(Path.cwd())
+
+    # Persistent setup flag is authoritative. If the user has completed setup,
+    # transient brain unavailability must not flip the project back to "not onboarded".
+    config = _read_config()
+    if config and config.get("setup_complete"):
+        return True, True, None
 
     has_index = False
     has_memories = False  # default: assume not onboarded (fail-closed for new projects)
 
     # Check search index — brain is the knowledge layer
     stats = _brain_api("stats", {}, timeout=2)
+    brain_reachable = stats is not None
     if stats and stats.get("total", 0) > 0:
         has_index = True
-    # else: brain unavailable or empty — covered by _check_brain_dependency directive
+
+    # If brain is unreachable, we cannot determine onboarding state — fail open.
+    # Brain unavailability is surfaced separately by _check_brain_dependency.
+    if not brain_reachable:
+        return False, True, None
 
     # Check for any stored memories (broad: any brain result, not just /mem- paths).
     # If brain has an index with content (has_index=True), that alone is sufficient
@@ -445,17 +456,14 @@ def _check_onboarding_status():
     if has_index:
         has_memories = True  # indexed brain content ≡ project was onboarded
     else:
-        try:
-            result = _brain_api("search", {"query": "project memory onboarding", "limit": 5}, timeout=3)
-            if result and isinstance(result, list) and result:
-                has_memories = True  # any search result = memories exist
-            elif result and isinstance(result, dict) and result.get("results"):
-                has_memories = True
-            else:
-                has_memories = False  # empty result from healthy brain → not onboarded
-        except Exception:
-            has_memories = True  # fail open on exception — assume onboarded
-            print("[wicked-garden] onboarding check: brain API error, assuming onboarded", file=sys.stderr)
+        result = _brain_api("search", {"query": "project memory onboarding", "limit": 5}, timeout=3)
+        if result is None:
+            # Brain went unreachable between calls — fail open.
+            return False, True, None
+        if isinstance(result, list) and result:
+            has_memories = True
+        elif isinstance(result, dict) and result.get("results"):
+            has_memories = True
 
     directive = None
     if not has_index and not has_memories:
