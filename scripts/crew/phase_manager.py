@@ -3275,6 +3275,70 @@ def _write_skip_reeval_log(project_dir: Path, phase: str, reason: str) -> None:
     log_file.write_text(json.dumps(existing, indent=2))
 
 
+# Issue #851: phases that anchor a re-evaluation checkpoint per phases.json.
+# Auto-stub is REJECTED for these — operators must run a real propose-process
+# re-evaluate at clarify, design, and build because that is where the rubric
+# is supposed to revalidate the plan against new factor readings. For
+# non-checkpoint phases (test-strategy, challenge, test, review, operate),
+# auto-stub is allowed because the addendum requirement is mostly defensive
+# bookkeeping and the rubric has no signal to mutate.
+_CHECKPOINT_AUTO_STUB_DENY = ("clarify", "design", "build")
+
+
+def _phase_is_checkpoint(phase: str) -> bool:
+    """Return True if phases.json marks ``phase`` as a checkpoint."""
+    try:
+        config = load_phases_config().get(resolve_phase(phase), {})
+        if "checkpoint" in config:
+            return bool(config["checkpoint"])
+    except Exception:  # noqa: BLE001 — fail-closed below
+        pass
+    # phases.json is unavailable or didn't declare checkpoint — fall back
+    # to the static deny-list so we never auto-stub at the architectural
+    # checkpoints even if config goes missing.
+    return resolve_phase(phase) in _CHECKPOINT_AUTO_STUB_DENY
+
+
+def _write_auto_reeval_stub(
+    project_dir: Path, phase: str, state: "ProjectState"
+) -> None:
+    """Append a no-op re-evaluation stub addendum (Issue #851).
+
+    The stub is identifiable by its trigger (``auto-stub:non-checkpoint``)
+    so audit replay can distinguish auto-stubs from real re-evaluations.
+    Mutations and tier changes are empty — the stub asserts "nothing
+    changed at this phase boundary" and the operator opted in via
+    ``--auto-reeval-stub``.
+
+    Caller MUST verify ``_phase_is_checkpoint(phase) is False`` before
+    calling — checkpoint phases require a real re-evaluation per the
+    rubric's definition.
+
+    Stdlib-only; uses :mod:`reeval_addendum` to share the validate +
+    dual-write + bus-emit path with real re-evaluations.
+    """
+    try:
+        from reeval_addendum import append as _append_reeval
+    except ImportError as exc:  # pragma: no cover — defensive
+        raise RuntimeError(
+            "reeval_addendum module unavailable — cannot write auto-stub"
+        ) from exc
+
+    rigor = (state.extras or {}).get("rigor_tier") or "standard"
+    record = {
+        "chain_id": f"{state.name}.{phase}",
+        "triggered_at": get_utc_timestamp(),
+        "trigger": "auto-stub:non-checkpoint",
+        "prior_rigor_tier": rigor,
+        "new_rigor_tier": rigor,
+        "mutations": [],
+        "mutations_applied": [],
+        "mutations_deferred": [],
+        "validator_version": "1.1.0",
+    }
+    _append_reeval(project_dir, phase=phase, record=record)
+
+
 def _check_addendum_freshness(
     project_dir: Path, phase: str, phase_started_at: "str | None"
 ) -> "str | None":
@@ -3780,6 +3844,7 @@ def approve_phase(
     override_deliverables_reason: str = "",
     skip_reeval: bool = False,
     skip_reeval_reason: str = "",
+    auto_reeval_stub: bool = False,
     *,
     dispatcher: Optional[Any] = None,
 ) -> Tuple[ProjectState, Optional[str]]:
@@ -3795,6 +3860,15 @@ def approve_phase(
                             This is a deliberate, logged, audited bypass — NOT a
                             silent escape (AC-14, AC-15).
         skip_reeval_reason: Mandatory justification string when skip_reeval=True.
+        auto_reeval_stub:   Issue #851 — when True and the phase is NOT a
+                            checkpoint (clarify/design/build), write an
+                            identifiable no-op re-evaluation stub addendum
+                            and proceed. Rejected at checkpoint phases —
+                            those require a real propose-process re-evaluate
+                            run because the rubric is supposed to revalidate
+                            the plan there. The stub trigger is
+                            ``auto-stub:non-checkpoint`` so audit replay
+                            can distinguish auto-stubs from real re-evals.
         dispatcher:         Optional injectable callable for BLEND-RULE gate
                             dispatch (design §3). When provided, and the gate
                             hasn't been run (no existing gate-result.json),
@@ -3860,8 +3934,58 @@ def approve_phase(
                 f"skip-reeval applied for phase '{phase}'. "
                 f"Reason: {skip_reeval_reason}"
             )
+        elif auto_reeval_stub:
+            # Issue #851: auto-stub is rejected at checkpoint phases
+            # because re-evaluation there is the rubric's primary signal.
+            if _phase_is_checkpoint(phase):
+                raise ValueError(
+                    f"Error: --auto-reeval-stub is not allowed at the "
+                    f"'{phase}' phase because it is a checkpoint. Run "
+                    f"propose-process in re-evaluate mode to produce a "
+                    f"real addendum:\n\n"
+                    f"  sh \"${{CLAUDE_PLUGIN_ROOT}}/scripts/_python.sh\" "
+                    f"\"${{CLAUDE_PLUGIN_ROOT}}/scripts/crew/propose_process.py\" "
+                    f"{state.name} --re-evaluate --phase {phase}\n"
+                )
+            try:
+                _write_auto_reeval_stub(project_dir_reeval, phase, state)
+            except Exception as exc:  # noqa: BLE001
+                raise ValueError(
+                    f"Failed to write auto re-eval stub for phase '{phase}': {exc}"
+                ) from exc
+            print(
+                f"NOTE: [auto-reeval-stub] Phase '{phase}' addendum was "
+                "missing. A no-op stub was written with trigger "
+                "'auto-stub:non-checkpoint' so audit replay can "
+                "distinguish it from a real re-evaluation.",
+                file=sys.stderr,
+            )
+            warnings.append(
+                f"auto-reeval-stub applied for non-checkpoint phase '{phase}'."
+            )
         else:
-            raise ValueError(addendum_error)
+            # Issue #851: surface the available bypasses + the canonical
+            # re-evaluate command so subagents have a concrete fix path
+            # rather than just "addendum missing".
+            stub_hint = (
+                ""
+                if _phase_is_checkpoint(phase)
+                else (
+                    f"\n  - Auto-stub (non-checkpoint phases only): "
+                    f"phase_manager.py {state.name} approve --auto-reeval-stub"
+                )
+            )
+            raise ValueError(
+                f"{addendum_error}\n\n"
+                "Fix paths:\n"
+                f"  - Run a real re-evaluation:\n"
+                f"      sh \"${{CLAUDE_PLUGIN_ROOT}}/scripts/_python.sh\" "
+                f"\"${{CLAUDE_PLUGIN_ROOT}}/scripts/crew/propose_process.py\" "
+                f"{state.name} --re-evaluate --phase {phase}\n"
+                f"  - Emergency bypass (audited): "
+                f"phase_manager.py {state.name} approve --skip-reeval --reason '<text>'"
+                f"{stub_hint}"
+            )
 
     # Check 0.1 (AC-16): final-audit gate must surface unresolved skip-reeval entries.
     if resolve_phase(phase) == "review":
@@ -5761,6 +5885,17 @@ def main():
         ),
     )
     parser.add_argument(
+        "--auto-reeval-stub",
+        action="store_true",
+        default=False,
+        help=(
+            "Issue #851 — when the addendum is missing on a non-checkpoint "
+            "phase, auto-write a no-op stub (trigger='auto-stub:non-checkpoint') "
+            "and proceed. Rejected at checkpoint phases (clarify/design/build) "
+            "where re-evaluation is the rubric's primary signal."
+        ),
+    )
+    parser.add_argument(
         "--justification",
         default=None,
         help=(
@@ -5970,6 +6105,7 @@ def main():
                 override_deliverables_reason=args.reason or "",
                 skip_reeval=getattr(args, "skip_reeval", False),
                 skip_reeval_reason=args.reason or "",
+                auto_reeval_stub=getattr(args, "auto_reeval_stub", False),
                 dispatcher=None,
             )
         except ValueError as e:
@@ -6160,6 +6296,9 @@ def main():
                 override_reason=args.reason or "",
                 override_deliverables=args.override_deliverables,
                 override_deliverables_reason=args.reason or "",
+                skip_reeval=getattr(args, "skip_reeval", False),
+                skip_reeval_reason=args.reason or "",
+                auto_reeval_stub=getattr(args, "auto_reeval_stub", False),
             )
         except ValueError as e:
             if args.json:
