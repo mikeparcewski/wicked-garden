@@ -24,6 +24,24 @@ Any of:
    memory entries from similar projects.
 6. **Compliance implied but not stated**. E.g. "let users download their data" — GDPR
    scope is implied but the user may not realize it.
+7. **Scope creep / project-sized addition** (Issue #847). The plan absorbs an item
+   the user did not name in the original ask, AND that item is materially larger
+   than the median item in the planned scope. Concrete heuristics — any one trips
+   the trigger:
+   - A single new GitHub issue, file path, or task is **3× or more the size** of
+     the median item already in scope (LOC, files touched, or sub-task count).
+   - Total proposed plan size is at least **2× the baseline plan total**
+     (i.e. the proposed plan absorbs as much new work as the original ask).
+   - A new GitHub issue carries an epic/project-class size label
+     (`epic`, `project`, `large`, `xlarge`, or `xxl`), or appears in another
+     active project — it is its own project and should not be silently bundled.
+   - User said "small change" or "fix" but the plan now spans **>3 phases** or
+     **>10 tasks**.
+
+   This catches the failure where the facilitator silently expanded a 24-issue
+   wave plan to absorb a 1M-insertion sibling project. **Use the
+   `scripts/crew/scope_delta.py` helper** to compute the numbers when wave
+   planning so the trigger fires on data, not vibes.
 
 Two or more triggers → mandatory stop. One trigger → facilitator judgment (lean toward
 stopping when rigor_tier would be `full`).
