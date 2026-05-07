@@ -850,6 +850,112 @@ class TestResolveGateCategory(unittest.TestCase):
         self.assertEqual(pm.resolve_gate_category("not-a-gate"), "not-a-gate")
 
 
+class TestAutoReevalStub(unittest.TestCase):
+    """Issue #851 — auto_reeval_stub flag writes a no-op addendum stub when
+    the reeval-log is missing on a non-checkpoint phase, and is rejected at
+    checkpoint phases (clarify/design/build) where re-eval is the rubric's
+    primary signal.
+    """
+
+    def _state(self, name="auto-stub-proj"):
+        # Construct ProjectState compatible with the helper signature.
+        return _make_state(name=name, rigor_tier="standard")
+
+    def test_phase_is_checkpoint_for_clarify_design_build(self):
+        for ckpt in ("clarify", "design", "build"):
+            self.assertTrue(
+                pm._phase_is_checkpoint(ckpt),
+                f"{ckpt} should be a checkpoint per phases.json",
+            )
+
+    def test_phase_is_checkpoint_false_for_review_test(self):
+        for noncp in ("test-strategy", "challenge", "test", "review"):
+            self.assertFalse(
+                pm._phase_is_checkpoint(noncp),
+                f"{noncp} should NOT be a checkpoint per phases.json",
+            )
+
+    def test_auto_stub_writes_identifiable_addendum_on_non_checkpoint(self):
+        state = self._state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "auto-stub-proj"
+            phase_dir = project_dir / "phases" / "test-strategy"
+            phase_dir.mkdir(parents=True)
+            pm._write_auto_reeval_stub(project_dir, "test-strategy", state)
+            log = phase_dir / "reeval-log.jsonl"
+            self.assertTrue(log.exists(), "stub should write per-phase log")
+            line = log.read_text(encoding="utf-8").strip()
+            record = json.loads(line)
+            self.assertEqual(record["trigger"], "auto-stub:non-checkpoint")
+            self.assertEqual(record["mutations"], [])
+            self.assertEqual(record["mutations_applied"], [])
+            self.assertEqual(record["mutations_deferred"], [])
+            self.assertEqual(record["prior_rigor_tier"], "standard")
+            self.assertEqual(record["new_rigor_tier"], "standard")
+
+    def test_auto_stub_rejected_at_checkpoint_phases(self):
+        state = self._state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "auto-stub-proj"
+            phase_dir = project_dir / "phases" / "clarify"
+            phase_dir.mkdir(parents=True)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness",
+                              return_value="missing"), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]):
+                with self.assertRaises(ValueError) as cm:
+                    pm.approve_phase(state, "clarify",
+                                     auto_reeval_stub=True)
+            self.assertIn("not allowed", str(cm.exception).lower())
+            self.assertIn("checkpoint", str(cm.exception).lower())
+            # No stub should have been written
+            log = phase_dir / "reeval-log.jsonl"
+            self.assertFalse(log.exists(),
+                             "stub must NOT be written at checkpoint phase")
+
+    def test_actionable_error_when_no_flag_passed(self):
+        """The error message tells the operator the available fix paths
+        (real re-eval, --skip-reeval, and --auto-reeval-stub for
+        non-checkpoint phases). Surfacing the commands matters more than
+        the wording."""
+        state = self._state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "auto-stub-proj"
+            phase_dir = project_dir / "phases" / "test-strategy"
+            phase_dir.mkdir(parents=True)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness",
+                              return_value="missing"), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]):
+                with self.assertRaises(ValueError) as cm:
+                    pm.approve_phase(state, "test-strategy")
+            msg = str(cm.exception)
+            self.assertIn("propose_process.py", msg)
+            self.assertIn("--auto-reeval-stub", msg,
+                          "non-checkpoint phase error must mention auto-stub")
+            self.assertIn("--skip-reeval", msg)
+
+    def test_actionable_error_at_checkpoint_omits_auto_stub_hint(self):
+        """At checkpoint phases the auto-stub is invalid, so the error
+        must not advertise it."""
+        state = self._state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "auto-stub-proj"
+            phase_dir = project_dir / "phases" / "clarify"
+            phase_dir.mkdir(parents=True)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness",
+                              return_value="missing"), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]):
+                with self.assertRaises(ValueError) as cm:
+                    pm.approve_phase(state, "clarify")
+            msg = str(cm.exception)
+            self.assertNotIn(
+                "--auto-reeval-stub", msg,
+                "checkpoint error must NOT advertise the auto-stub flag",
+            )
+
+
 class TestStatusJsonFieldParity(unittest.TestCase):
     """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
     complexity_score, and is_complete alongside the existing fields."""
