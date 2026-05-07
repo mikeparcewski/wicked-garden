@@ -425,16 +425,14 @@ def _check_onboarding_status():
     """Check if the current project has been onboarded (search index + memories).
 
     Returns (has_index, has_memories, directive_or_none).
-    Fails open: if brain is unreachable OR config shows setup_complete, assume onboarded.
+    Fails open when the brain is unreachable: transient API errors must not be
+    interpreted as "this project was never onboarded". Per-install setup state
+    is enforced separately by _check_setup_gate in prompt_submit.py — that
+    flag is user-level (~/.something-wicked/wicked-garden/config.json), not
+    per-project, so it cannot answer the per-project onboarding question here.
     """
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
     cwd = str(Path.cwd())
-
-    # Persistent setup flag is authoritative. If the user has completed setup,
-    # transient brain unavailability must not flip the project back to "not onboarded".
-    config = _read_config()
-    if config and config.get("setup_complete"):
-        return True, True, None
 
     has_index = False
     has_memories = False  # default: assume not onboarded (fail-closed for new projects)
