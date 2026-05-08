@@ -45,6 +45,37 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.project",
         "description": "Crew project completed (final phase approved)",
     },
+    # v11.1.1 archetype lifecycle events. The v11.0.0/v11.1.0 phase_manager
+    # rewrote the project state but didn't register any v11 event types,
+    # so emit_event(...) was returning early on Unknown event type.
+    # These four events let v11 archetype-mode projects flow through the
+    # bus exactly the way v6 universal-pipeline projects did, without
+    # the v6 gate ceremony.
+    "wicked.archetype.created": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.archetype",
+        "description": "v11 archetype-mode project created (carries v11_archetype + initial phase_plan)",
+    },
+    "wicked.archetype.advanced": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.archetype",
+        "description": "v11 archetype phase approved + (when present) next phase named",
+    },
+    "wicked.archetype.completed": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.archetype",
+        "description": "v11 archetype final phase approved (project is_complete)",
+    },
+    "wicked.archetype.hard_gate_passed": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.archetype",
+        "description": "v11 archetype hard gate (cutover/mitigate/etc.) passed with confirmed_by + evidence",
+    },
+    "wicked.archetype.classified": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.classify",
+        "description": "v11 prompt classified into work-shape archetype set (LLM or regex tier)",
+    },
     "wicked.project.complexity_scored": {
         "domain": "wicked-garden",
         "subdomain": "crew.scoring",
