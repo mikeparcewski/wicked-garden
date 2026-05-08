@@ -180,6 +180,67 @@ def _has_ambiguity_signals(prompt: str) -> bool:
     return any(sig in lower for sig in _JAM_AMBIGUITY_SIGNALS)
 
 
+def _build_archetype_directive(prompt: str, intent: str) -> str | None:
+    """v11 — emit a slim work-shape archetype steering directive.
+
+    Skips emission when intent is 'simple-edit' (silence is the signal,
+    matching the v10 directive convention). For other intents, runs the
+    archetype detector and emits a one-line steering hint when a single
+    archetype scores at HIGH confidence, or a two-line shape-card when
+    two archetypes co-fire (e.g. build + migrate on schema-change).
+
+    Fail-open: any import / detection error returns None so the hook
+    never blocks on archetype routing.
+    """
+    if not prompt or not prompt.strip():
+        return None
+    if intent == "simple-edit":
+        return None
+    try:
+        # Lazy import — keeps HOT path cost low when intent gates skip us.
+        from pathlib import Path as _Path
+        import sys as _sys
+        _scripts = _Path(__file__).resolve().parents[1].parent / "scripts"
+        _crew = _scripts / "crew"
+        for p in (_scripts, _crew):
+            if str(p) not in _sys.path:
+                _sys.path.append(str(p))
+        from archetypes_v11 import detect_archetypes, HIGH_CONFIDENCE
+    except Exception:
+        return None
+
+    try:
+        matches = detect_archetypes(prompt)
+    except Exception:
+        return None
+
+    # Filter triage out unless it's the only match
+    real = [(n, s, e) for (n, s, e) in matches if n != "triage"]
+    if not real:
+        # Nothing scored above threshold — let the user clarify naturally.
+        # No directive needed; intent classification already routed this.
+        return None
+
+    # Single high-confidence archetype: emit a slim recommend-tier hint.
+    high = [(n, s, e) for (n, s, e) in real if s >= HIGH_CONFIDENCE]
+    if len(high) == 1 and len(real) == 1:
+        n, s, _ = high[0]
+        return (
+            f"<wg archetype=\"{n}\" score=\"{s:.2f}\" />"
+        )
+
+    # Multi-archetype or medium-confidence: name the shape so the model
+    # picks an appropriate phase order.
+    shape_lines = []
+    for (n, s, _) in real[:3]:  # cap at top-3
+        shape_lines.append(f"  - {n} ({s:.2f})")
+    return (
+        "<wg archetypes>\n"
+        + "\n".join(shape_lines)
+        + "\n</wg>"
+    )
+
+
 def _suggest_jam(prompt: str, state) -> str | None:
     """Return a jam suggestion string if conditions are met, or None.
 
@@ -1212,6 +1273,16 @@ def main():
         # is the v10 win: silence is a signal that the turn is simple).
         if intent_directive:
             all_parts.append(intent_directive)
+
+        # v11: work-shape archetype steering. Skips on simple-edit per the
+        # silence-is-the-signal convention. When the prompt routes to a
+        # specific archetype (build / migrate / incident / specify / ...),
+        # emits a slim tag so the agent knows the work shape it's in.
+        archetype_directive = _build_archetype_directive(
+            prompt, _intent or "simple-edit"
+        )
+        if archetype_directive:
+            all_parts.append(archetype_directive)
 
         # NOTE (v9.2.11): the periodic [Memory] checkpoint nudge that fired
         # every 10 turns was removed. It surfaced on every prompt submit at
