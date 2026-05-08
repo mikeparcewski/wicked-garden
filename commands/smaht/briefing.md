@@ -132,32 +132,11 @@ except Exception:
   fi
 fi
 
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/_stack_signals.py" \
-   "${SCOPE_DIR}" 2>/dev/null
-```
-
-**Archetype lookup (#742, finding 6):** the briefing template requires
-`{archetype}`. Always run `archetype_detect.detect_archetype` against the
-same `SCOPE_DIR` *before* rendering the line — never leave `{archetype}` as
-a literal placeholder.
-
-```bash
-SCOPE_DIR="${SCOPE_DIR}" sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import json, sys, os
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
-from crew.archetype_detect import detect_archetype
-# Pass project_dir via env var to avoid shell-string interpolation of
-# paths that may contain single quotes or special characters.
-# NOTE: detect_archetype uses rglob('*') under the hood when no explicit
-# file list is provided. On large repos with node_modules/.venv/etc.
-# this can be slow. Mitigation tracked in a #742 follow-up; for now
-# the briefing accepts the cost in exchange for a real archetype value
-# instead of a literal {archetype} placeholder.
-result = detect_archetype({'project_dir': os.environ.get('SCOPE_DIR', '')})
-print(result.get('archetype', 'unknown'))
-" 2>/dev/null
-```
+_Stack signal extraction was removed in v11; the v6 helpers
+(`scripts/crew/_stack_signals.py`, `scripts/crew/archetype_detect.py`) were
+target-kind classifiers tied to the old gate-policy. v11 work-shape
+archetypes are emitted by the prompt-submit hook, not derived from
+filesystem traversal. Skip this section in v11 briefings._
 
 If `language` is not `unknown`, include this single line at the top of the
 briefing (omit entirely when language is `unknown`):
@@ -178,14 +157,10 @@ block stays silent on every legacy project. The full DAG / worktrees /
 cross-repo evidence workflow lives in the `wicked-garden-monorepo`
 sibling plugin (see `docs/v9/sibling-plugin-monorepo.md`).
 
-```bash
-# Resolve the active project's directory the same way Step 4 does.
-# When PROJECT_DIR is empty (no active project), the helper still
-# accepts a missing path and stays silent.
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-   "${CLAUDE_PLUGIN_ROOT}/scripts/crew/affected_repos.py" \
-   render --project-dir "${PROJECT_DIR:-/dev/null}" 2>/dev/null
-```
+_The `affected_repos` helper was removed in v11. Multi-repo coordination
+was tied to the v6 universal pipeline's process-plan.json schema, which
+the v11 archetype catalog superseded. Future cross-repo orchestration
+work belongs in the `wicked-garden-monorepo` sibling plugin._
 
 Format (when non-empty):
 

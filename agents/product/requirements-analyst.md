@@ -218,16 +218,14 @@ Include a **Traceability** section in your output for each requirement:
 - **Downstream**: {design decisions, acceptance criteria, and tests that should verify this}
 ```
 
-When requirements are finalized and a crew project is active, create traceability links:
+When requirements are finalized and an archetype-mode project is active, the v11 produces contract carries the requirement-to-artifact link via `scripts/qe/evidence_tracker.py`:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" create \
-  --source-id {req_id} --source-type requirement \
-  --target-id {design_id} --target-type design \
-  --link-type TRACES_TO --project {project} --created-by clarify
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/evidence_tracker.py" claim \
+  <project_dir> --name <produces-item> --artifact <path-or-id> --claimed-by requirements-analyst
 ```
 
-This ensures downstream phases (design, build, test) can trace back to the originating requirement.
+This records that the requirement-bearing artifact was produced; downstream archetypes (build, review) read the tracker via `evidence_tracker.py status <project_dir>` to confirm.
 
 ## Integration with wicked-crew
 
