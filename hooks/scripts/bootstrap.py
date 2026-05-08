@@ -720,8 +720,8 @@ def _probe_onedrive_path() -> str | None:
 # Critical v6 skills — if these files exist on disk under the plugin root
 # but a Skill() call fails with "Unknown skill", the plugin cache is stale
 # and needs `/reload-plugins`. Issue #434.
-_CRITICAL_V6_SKILLS = (
-    "skills/propose-process/SKILL.md",
+_CRITICAL_V11_SKILLS = (
+    "skills/archetype/SKILL.md",
 )
 
 
@@ -802,7 +802,7 @@ def _check_critical_skills() -> str | None:
         if not plugin_root:
             return None
         root = Path(plugin_root)
-        missing = [s for s in _CRITICAL_V6_SKILLS if not (root / s).exists()]
+        missing = [s for s in _CRITICAL_V11_SKILLS if not (root / s).exists()]
         if not missing:
             return None  # healthy install — nothing to say
         return (

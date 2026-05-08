@@ -178,31 +178,18 @@ def _update_session_state(
         )
         escalations = state.memory_compliance_escalations
 
-        # v6 facilitator re-evaluation signal (Gate 3, epic #428, debounced
-        # by Issue #572). prompt_submit.py consumes this on the next
-        # UserPromptSubmit. The old "any chain_id => trigger" rule was the
-        # root cause of 41k+ queued bus events and spurious re-eval
-        # directives after every gate ACK.
-        if should_reeval and chain_id:
-            state.facilitator_reeval_due = True
-            state.facilitator_reeval_chain = chain_id
-            _log("task", "info", "reeval.scheduled", detail={
-                "reason": reeval_reason,
-                "event_type": event_type,
-                "chain_id": chain_id,
-            })
-        else:
-            _log("task", "debug", "reeval.skipped", detail={
-                "reason": reeval_reason,
-                "event_type": event_type,
-                "chain_id": chain_id,
-            })
-
-        # Phase-start gate signal: set when the completed task is a
-        # phase-transition event so prompt_submit.py can dispatch
-        # phase_start_gate.check() before the next phase's specialists engage.
-        if event_type == EVENT_TYPE_PHASE_TRANSITION:
-            state.phase_start_gate_due = True
+        # v11: facilitator re-evaluation signal removed. The v6 re-eval
+        # mechanism was tied to the universal pipeline (propose-process
+        # facilitator rubric). v11 archetypes own their own re-evaluation
+        # cadence via the playbook's checkpoint phases. Telemetry-only
+        # logging preserved so we can detect if the producer fires
+        # against the now-deleted consumers.
+        _log("task", "debug", "reeval.skipped.v11", detail={
+            "reason": reeval_reason,
+            "event_type": event_type,
+            "chain_id": chain_id,
+            "would_have_reeval": bool(should_reeval and chain_id),
+        })
 
         state.save()
         return compliance_required, escalations
