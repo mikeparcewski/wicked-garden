@@ -23,8 +23,8 @@
       "cost_band": "low",
       "maturity": "research",
       "signals": {
+        "phrases": ["what should we", "how might we", "explore options", "options for", "should we", "brainstorm", "approaches to", "not sure how", "ideas for", "could we"],
         "novelty_high": true,
-        "open_ended_phrasing": ["what should", "how might", "explore", "options for", "should we"],
         "ambiguity_high": true
       },
       "next_archetypes": ["specify", "decide", "build"],
@@ -53,7 +53,7 @@
       "cost_band": "medium",
       "maturity": "piloted",
       "signals": {
-        "phrases": ["should we use", "x or y", "adr", "decision", "trade-off"],
+        "phrases": ["should we use", "x or y", "adr", "decision", "trade-off", "pick a", "pick between", "choose between", "which database", "which queue", "which framework"],
         "multiple_viable_options": true,
         "reversibility_medium_or_low": true
       },
@@ -68,7 +68,7 @@
       "cost_band": "medium",
       "maturity": "piloted",
       "signals": {
-        "phrases": ["deploy", "release", "rollout", "cutover", "ramp"],
+        "phrases": ["deploy", "release", "rollout", "ramp", "ship to", "ship the"],
         "blast_radius_high": true,
         "post_build": true
       },
@@ -83,7 +83,7 @@
       "cost_band": "medium",
       "maturity": "piloted",
       "signals": {
-        "phrases": ["review", "audit", "evaluate", "verdict", "code review", "design review"],
+        "phrases": ["review", "audit", "evaluate", "verdict", "code review", "design review", "take a look at", "look at this pr", "look at the pr"],
         "independent_assessment_needed": true
       },
       "next_archetypes": ["build", "migrate", "ship", "incident"],
@@ -97,7 +97,7 @@
       "cost_band": "variable",
       "maturity": "production",
       "signals": {
-        "phrases": ["down", "outage", "incident", "broken in prod", "post-mortem", "5xx", "error rate"],
+        "phrases": ["down", "outage", "incident", "broken in prod", "production is broken", "post-mortem", "postmortem", "5xx", "error rate", "memory leak", "paging us", "paged", "oncall paged"],
         "production_impact": true
       },
       "next_archetypes": ["build", "migrate", "review"],
@@ -111,7 +111,7 @@
       "cost_band": "high",
       "maturity": "research",
       "signals": {
-        "phrases": ["implement", "add", "build", "feature", "fix", "create"],
+        "phrases": ["implement", "add", "build", "feature", "fix", "create", "refactor", "patch", "wire up", "wire in", "hook up", "update the"],
         "code_change": true
       },
       "next_archetypes": ["ship", "review"],
@@ -126,7 +126,7 @@
       "cost_band": "high",
       "maturity": "research",
       "signals": {
-        "phrases": ["migration", "migrate", "schema change", "backfill", "cutover", "rename column", "drop column", "breaking change"],
+        "phrases": ["migration", "migrate", "schema change", "backfill", "cutover", "rename column", "rename the", "drop column", "breaking change", "expand the", "retire the", "take the", "column out"],
         "state_complexity_high": true,
         "reversibility_low": true
       },
