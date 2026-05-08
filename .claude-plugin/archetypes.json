@@ -1,0 +1,150 @@
+{
+  "$schema_version": "v11.0.0",
+  "$comment": "Work-shape archetypes (v11). Each archetype is a complete unit with its own phases, produces, HITL discipline, and cost band. No universal pipeline. Detector classifies a prompt into one or more archetypes; steering emits per-archetype directives. v6.3 archetype detection (code-repo / docs-only / etc.) was about target *kind*; this is about work *shape*.",
+  "archetypes": {
+    "triage": {
+      "description": "Classify the work and route to the right archetype. The entry shape for any prompt that hasn't been routed yet.",
+      "phases": ["classify"],
+      "produces": ["routing-decision"],
+      "hitl": "none",
+      "cost_band": "negligible",
+      "maturity": "production",
+      "signals": {
+        "always_on": true
+      },
+      "next_archetypes": "any",
+      "min_complexity": 0
+    },
+    "explore": {
+      "description": "Diverge then converge on options when the problem space is open. Produces an option set or hypothesis, not a decision.",
+      "phases": ["frame", "diverge", "converge"],
+      "produces": ["option-set", "hypothesis"],
+      "hitl": "continuous",
+      "cost_band": "low",
+      "maturity": "research",
+      "signals": {
+        "novelty_high": true,
+        "open_ended_phrasing": ["what should", "how might", "explore", "options for", "should we"],
+        "ambiguity_high": true
+      },
+      "next_archetypes": ["specify", "decide", "build"],
+      "min_complexity": 0
+    },
+    "specify": {
+      "description": "Turn an ask into structured, testable acceptance criteria.",
+      "phases": ["elicit", "structure", "validate"],
+      "produces": ["smart-acceptance-criteria"],
+      "hitl": "discrete:validate-gate",
+      "cost_band": "low",
+      "maturity": "piloted",
+      "signals": {
+        "spec_ambiguity_high": true,
+        "phrases": ["acceptance criteria", "requirements", "user story", "spec"],
+        "scope_unclear": true
+      },
+      "next_archetypes": ["build", "decide"],
+      "min_complexity": 0
+    },
+    "decide": {
+      "description": "Pick between options with an ADR-shaped artifact. Used when 2+ paths are viable and the choice is load-bearing.",
+      "phases": ["brief", "options", "score", "record"],
+      "produces": ["adr", "decision-artifact"],
+      "hitl": "discrete:select-gate",
+      "cost_band": "medium",
+      "maturity": "piloted",
+      "signals": {
+        "phrases": ["should we use", "x or y", "adr", "decision", "trade-off"],
+        "multiple_viable_options": true,
+        "reversibility_medium_or_low": true
+      },
+      "next_archetypes": ["build", "migrate", "ship"],
+      "min_complexity": 2
+    },
+    "ship": {
+      "description": "Roll out an already-built change with progressively widening blast radius.",
+      "phases": ["canary", "ramp", "full", "soak"],
+      "produces": ["rollout-verdict", "slo-snapshot"],
+      "hitl": "discrete:ramp-gates",
+      "cost_band": "medium",
+      "maturity": "piloted",
+      "signals": {
+        "phrases": ["deploy", "release", "rollout", "cutover", "ramp"],
+        "blast_radius_high": true,
+        "post_build": true
+      },
+      "next_archetypes": ["review"],
+      "min_complexity": 2
+    },
+    "review": {
+      "description": "Independent assessment of an artifact (code / spec / design / incident response). Hard verdict at the end — APPROVE / CONDITIONAL / REJECT — with a remediation list when not APPROVE.",
+      "phases": ["scope", "assess", "findings", "remediate-or-accept"],
+      "produces": ["verdict", "remediation-list"],
+      "hitl": "hard:final-verdict",
+      "cost_band": "medium",
+      "maturity": "piloted",
+      "signals": {
+        "phrases": ["review", "audit", "evaluate", "verdict", "code review", "design review"],
+        "independent_assessment_needed": true
+      },
+      "next_archetypes": ["build", "migrate", "ship", "incident"],
+      "min_complexity": 1
+    },
+    "incident": {
+      "description": "Live-fire response to a production failure. Mitigate first, RCA second, follow-up third.",
+      "phases": ["triage", "investigate", "mitigate", "resolve", "followup"],
+      "produces": ["mitigation", "rca", "followup-list"],
+      "hitl": "hard:mitigate",
+      "cost_band": "variable",
+      "maturity": "production",
+      "signals": {
+        "phrases": ["down", "outage", "incident", "broken in prod", "post-mortem", "5xx", "error rate"],
+        "production_impact": true
+      },
+      "next_archetypes": ["build", "migrate", "review"],
+      "min_complexity": 0
+    },
+    "build": {
+      "description": "Implement and ship a new feature or fix. The most common archetype. Test rigor scales with complexity / blast_radius / novelty.",
+      "phases": ["plan", "implement", "test", "review"],
+      "produces": ["shipped-code", "test-report"],
+      "hitl": "discrete:review-gate",
+      "cost_band": "high",
+      "maturity": "research",
+      "signals": {
+        "phrases": ["implement", "add", "build", "feature", "fix", "create"],
+        "code_change": true
+      },
+      "next_archetypes": ["ship", "review"],
+      "min_complexity": 0,
+      "test_rigor_scales_with": ["complexity", "blast_radius", "novelty"]
+    },
+    "migrate": {
+      "description": "Shape change that requires forward + rollback proof. Schema migrations, data backfills, breaking-API rollouts. Expand-contract pattern.",
+      "phases": ["plan", "expand", "backfill", "cutover", "contract"],
+      "produces": ["shape-change", "rollback-proof"],
+      "hitl": "hard:cutover-gate",
+      "cost_band": "high",
+      "maturity": "research",
+      "signals": {
+        "phrases": ["migration", "migrate", "schema change", "backfill", "cutover", "rename column", "drop column", "breaking change"],
+        "state_complexity_high": true,
+        "reversibility_low": true
+      },
+      "next_archetypes": ["ship", "review"],
+      "min_complexity": 2
+    }
+  },
+  "$detector_notes": [
+    "Archetypes are NOT mutually exclusive. A schema-changing feature is build + migrate. A risky deploy is ship + review.",
+    "triage is the entry archetype — it always fires first to classify.",
+    "Signals come from the prompt text + the propose-process 9-factor scoring. The detector is allowed to be confident (>0.7) on a single archetype OR return a small set.",
+    "When no archetype scores > 0.5, return ['triage'] and ask a clarifying question.",
+    "The phase shapes are EACH archetype's own. There is no universal pipeline. A 'build' that needs a 'specify' first chains: specify -> build, NOT specify-as-build's-clarify-phase."
+  ],
+  "$hitl_levels": {
+    "none": "No human checkpoint. Fires and is done.",
+    "continuous": "Human is a participant throughout. Brainstorm-style.",
+    "discrete:<gate>": "Hard stop at the named gate; human approves before proceeding.",
+    "hard:<gate>": "Same as discrete but the gate cannot be auto-approved or bypassed without explicit override audit log."
+  }
+}
