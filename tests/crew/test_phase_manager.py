@@ -1273,6 +1273,87 @@ class TestConditionsStatus(unittest.TestCase):
         self.assertEqual(cs["total"], 0)
 
 
+class TestV11ArchetypeBypass(unittest.TestCase):
+    """v11 (#861-#864): projects authored under one of the work-shape
+    archetypes carry their own phase shape + produces contract. The
+    universal-pipeline gates (re-eval addendum freshness, deliverable
+    filename schema) must NOT block approve_phase for these projects.
+    Schema validation, dispatch-log orphan check, and banned-reviewer
+    enforcement still run.
+    """
+
+    def _archetype_state(self):
+        s = _make_state(name="v11-proj", rigor_tier="standard")
+        s.extras["phase_plan_mode"] = "archetype"
+        s.extras["v11_archetype"] = "build"
+        s.phase_plan = ["plan", "implement", "test", "review"]
+        return s
+
+    def test_archetype_mode_skips_addendum_check(self):
+        """v11 build archetype should not block on missing reeval-log."""
+        state = self._archetype_state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "v11-proj"
+            (project_dir / "phases" / "implement").mkdir(parents=True)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness",
+                              return_value="missing-error"), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]), \
+                 patch.object(pm, "_load_gate_result", return_value=None):
+                # Should NOT raise even though the addendum check would fail
+                # in legacy mode
+                try:
+                    pm.approve_phase(state, "implement")
+                except ValueError as exc:
+                    # If it raises, must NOT be the addendum error
+                    self.assertNotIn("re-evaluation", str(exc).lower())
+                    self.assertNotIn("missing-error", str(exc))
+
+    def test_legacy_mode_still_enforces_addendum(self):
+        """Legacy (non-archetype) projects still get the addendum check."""
+        state = _make_state(name="legacy-proj", rigor_tier="standard")
+        # No phase_plan_mode = "archetype"
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "legacy-proj"
+            (project_dir / "phases" / "build").mkdir(parents=True)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness",
+                              return_value="missing-error"), \
+                 patch.object(pm, "_check_phase_deliverables", return_value=[]):
+                with self.assertRaises(ValueError) as cm:
+                    pm.approve_phase(state, "build")
+            # Legacy path should still surface the addendum requirement
+            self.assertIn("re-evaluation", str(cm.exception).lower())
+
+    def test_archetype_mode_skips_deliverable_filename_check(self):
+        """v11 archetype should not require architecture.md / etc."""
+        state = self._archetype_state()
+        with tempfile.TemporaryDirectory() as td:
+            project_dir = Path(td) / "v11-proj"
+            (project_dir / "phases" / "plan").mkdir(parents=True)
+            with patch.object(pm, "get_project_dir", return_value=project_dir), \
+                 patch.object(pm, "_check_addendum_freshness", return_value=None), \
+                 patch.object(pm, "_check_phase_deliverables") as mock_check, \
+                 patch.object(pm, "_load_gate_result", return_value=None):
+                mock_check.return_value = ["Missing deliverable: architecture.md"]
+                try:
+                    pm.approve_phase(state, "plan")
+                except ValueError as exc:
+                    # The deliverable error must NOT surface for archetype mode
+                    self.assertNotIn("architecture.md", str(exc))
+            # _check_phase_deliverables must NOT have been consulted in v11
+            mock_check.assert_not_called()
+
+    def test_validate_phase_plan_skips_archetype_mode(self):
+        """v11 archetype phases come from the catalog — phase_manager
+        must not inject test phases into the archetype's phase list."""
+        state = self._archetype_state()
+        state.complexity_score = 5  # would normally trip test-phase injection
+        injected, warnings = pm.validate_phase_plan(state)
+        self.assertEqual(injected, [])
+        self.assertEqual(warnings, [])
+
+
 class TestStatusJsonFieldParity(unittest.TestCase):
     """Issue #494: `phase_manager.py status --json` surfaces rigor_tier,
     complexity_score, and is_complete alongside the existing fields."""
