@@ -10,6 +10,112 @@ dial) that was replaced wholesale.
 
 ---
 
+## [11.1.0] — 2026-05-08
+
+**Closes the structural gaps in the v11.0.0 reframe.** v11.0.0 was the
+research-grade reframe shipped in two hours; v11.1.0 closes 11 of the
+12 items on the post-v11.0.0 critique. The remaining item (wicked-brain
+persistence) needs real session traffic to validate, not a marathon.
+
+### Added
+
+- **LLM-based archetype classifier** via the new `wicked-garden:classify`
+  skill (PR #869). The skill prompts the model to reason through the
+  user's prompt, classify into archetype(s), identify boolean signals,
+  and persist to SessionState via `scripts/classify/persist.py`. The
+  prompt-submit hook prefers persisted classifications over the regex
+  detector — regex is now Tier 2 fallback. When regex returns only
+  triage, the hook emits a `<wg classify-due />` directive inviting the
+  model to classify properly. New SessionState fields: `archetypes_v11`,
+  `signals_v11`, `classified_at`.
+- **Runtime hard-gate enforcement** (PR #870). Five archetype phases —
+  `migrate:cutover`, `incident:mitigate`, `review:remediate-or-accept`,
+  `specify:validate`, `decide:record` — now require non-empty
+  `--confirmed-by` AND `--confirmation-evidence` to advance. The audit
+  trail records both fields with `hard_gate=True`. The doctrine of
+  "hard:* gate" is now mirrored in `phase_manager` code, not just
+  playbook prose.
+- **5 restored QE utilities** under `scripts/qe/` (PR #868), framed as
+  v11 library tools the archetype playbooks call when relevant:
+  - `verdict_schema.py` (~250 LOC) — validates review-archetype
+    verdict artifacts. Slimmed from the v6 `gate_result_schema.py`.
+  - `verdict_audit.py` (~140 LOC) — append-only audit log of verdicts.
+    Slimmed from v6 `gate_ingest_audit.py` + `dispatch_log.py`. No
+    HMAC; v11 review enforces banned-reviewer checks at validation.
+  - `conditions_manifest.py` — track CONDITIONAL findings to
+    resolution. Idempotent re-init preserves prior resolutions.
+    `all_resolved()` answers the contract question.
+  - `content_sanitizer.py` — strip prompt-injection patterns from
+    reviewer free-text fields. Floor not wall.
+  - `evidence_tracker.py` — track per-archetype produces contracts
+    (e.g. `shipped-code` + `test-report` for build).
+- **v6→v11 project state migration tool**
+  (`scripts/setup/migrate_v6_projects.py`, PR #871). Detects v6-v10
+  projects in the DomainStore via phase-list pattern matching,
+  proposes the closest v11 archetype, and (with `--apply`) translates
+  state in place. Original phase plan preserved in
+  `extras.v11_migration_source` for audit.
+- **End-to-end integration test** for the full migrate lifecycle —
+  catalog hydration → state transitions per phase → hard-gate refusal
+  → hard-gate advance → `is_complete` (PR #870).
+- **58-prompt calibration corpus** (PR #872). Exercises all 9
+  archetypes plus paraphrase, multi-archetype, ambiguous edge cases.
+  Three locked-in tests assert overall recall ≥ 85%, overall precision
+  ≥ 80%, per-archetype recall ≥ 70%. Actual: **100% per-archetype
+  recall**, 90%+ precision after phrase tuning.
+- **GitHub Actions workflow** `.github/workflows/test.yml` runs the
+  full pytest suite + smokes phase_manager CLI archetype-mode + smokes
+  the archetype detector + smokes verdict_schema validation + asserts
+  the migrate:cutover hard gate refuses without confirmation and
+  advances with it. End-to-end CI for v11.
+
+### Changed
+
+- `hooks/scripts/prompt_submit.py` — `_build_archetype_directive` now
+  accepts `state`, prefers persisted LLM classification, emits
+  `<wg classify-due />` directive when regex returns only triage. Tag
+  format carries `classified="llm"` or `classified="regex"`.
+- `.claude-plugin/archetypes.json` — phrase lists tuned to 100% recall
+  on the calibration corpus. Added paraphrase coverage for build
+  (refactor / patch / wire up), migrate (rename the / expand the /
+  retire the / take the / column out), incident (production is broken
+  / postmortem / memory leak / paging us), ship (ship to / ship the),
+  review (take a look at / look at this pr), decide (pick a / pick
+  between / which database / which queue / which framework), and
+  explore (what should we / how might we / brainstorm / approaches to
+  / not sure how / ideas for).
+- `agents/crew/reviewer.md`, `agents/product/requirements-analyst.md`,
+  `commands/setup.md`, `commands/smaht/briefing.md` — replaced
+  references to deleted v6 modules (traceability.py, qe-evaluator
+  naming sweep, _stack_signals, archetype_detect, affected_repos)
+  with v11 equivalents (evidence_tracker, conditions_manifest, the v6
+  migration script, an explanatory note).
+- `skills/archetype/refs/build.md` and `refs/review.md` — playbooks
+  now reference the restored `scripts/qe/*` utilities at the right
+  phase boundaries.
+
+### Removed
+
+- `daemon/` (~8600 LOC, PR #871) — the v6-v10 projector daemon was
+  wired to gate-result schemas, dispatch-log HMACs, and projection
+  resolvers, all of which v11.0.0 deleted. v11 treats the bus as an
+  audit substrate, not a projection enforcement layer.
+- `.github/workflows/benchmark.yml` — enforced p95 SLO on
+  `_load_gate_result` (deleted in v11.0.0). Trigger paths no longer
+  exist; the workflow was dormant clutter.
+- 227 lines of dead code in `hooks/scripts/prompt_submit.py` (PR #867)
+  — `_assemble_current_chain`, `_consume_facilitator_reeval`,
+  `_consume_phase_start_gate`, plus their call sites and event-type
+  references that pointed at deleted v6 modules.
+
+### Test summary
+
+384 tests passing across 8 directories: tests/, tests/crew/, tests/qe/,
+tests/calibration/, tests/hooks/, tests/fixtures/, plus utilities.
+Calibration: 100% per-archetype recall on the 58-prompt corpus.
+
+---
+
 ## [11.0.0] — 2026-05-07
 
 **Reframe: work-shape archetypes replace the universal pipeline.**
