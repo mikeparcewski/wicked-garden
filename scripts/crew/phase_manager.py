@@ -664,12 +664,14 @@ def validate_phase_plan(state: 'ProjectState') -> Tuple[List[str], List[str]]:
     if state.complexity_score < _TEST_PHASE_COMPLEXITY_THRESHOLD:
         return ([], [])
 
-    # Honor phase_plan_mode: static and facilitator — don't mutate plans
-    # the facilitator explicitly authored. The facilitator's rubric already
-    # decides whether test-strategy/test phases are warranted (see issue #435
-    # Gap 3; the v6 minimal-rigor 3-phase plan should stay 3 phases even at
-    # complexity >= 2).
-    if state.extras.get("phase_plan_mode") in ("static", "facilitator"):
+    # Honor phase_plan_mode: static, facilitator, and archetype — don't
+    # mutate plans the facilitator or archetype catalog explicitly
+    # authored. The facilitator's rubric / archetype's phase shape
+    # already decided which phases are warranted; phase_manager must not
+    # second-guess them. v11 archetypes (#861-#864) bring their own
+    # phase shapes from .claude-plugin/archetypes.json — see Issue #435
+    # Gap 3 + v11 reframe.
+    if state.extras.get("phase_plan_mode") in ("static", "facilitator", "archetype"):
         return ([], [])
 
     if not state.phase_plan:
@@ -4157,17 +4159,33 @@ def approve_phase(
     if (state.extras or {}).get("rigor_tier") == "full":
         _validate_gate_policy_full_rigor()
 
+    # v11 archetype-mode bypass: projects authored under one of the
+    # work-shape archetypes carry their own phase shape, produces
+    # contract, and HITL discipline from .claude-plugin/archetypes.json.
+    # The universal-pipeline gates (re-eval addendum freshness, fixed
+    # deliverable filenames, conditions-manifest enforcement against a
+    # phases.json schema) don't apply — each archetype is self-contained.
+    # This block is the SINGLE bypass point; everything below still
+    # runs for v11 (gate-result.json schema validation, dispatch-log
+    # orphan check, banned-reviewer enforcement).
+    is_v11_archetype = (state.extras or {}).get("phase_plan_mode") == "archetype"
+
     # Check 0 (AC-8): phase-end re-eval addendum freshness — fail-closed.
     # Must happen before deliverable check so the user sees the most actionable
     # error first.  skip_reeval=True bypasses with a mandatory logged reason.
+    # v11 archetype-mode skips this entirely — addenda are a v6 universal-
+    # pipeline construct, not part of any archetype's produces contract.
     project_dir_reeval = get_project_dir(state.name)
     phase_state_for_ts = state.phases.get(phase)
     phase_started_at = (
         phase_state_for_ts.started_at if phase_state_for_ts else None
     )
-    addendum_error = _check_addendum_freshness(
-        project_dir_reeval, phase, phase_started_at
-    )
+    if is_v11_archetype:
+        addendum_error = None
+    else:
+        addendum_error = _check_addendum_freshness(
+            project_dir_reeval, phase, phase_started_at
+        )
     if addendum_error:
         if skip_reeval:
             if not (skip_reeval_reason and skip_reeval_reason.strip()):
@@ -4282,8 +4300,15 @@ def approve_phase(
         if sem_block_reason:
             raise ValueError(sem_block_reason)
 
-    # Check 1: deliverables for the phase being approved — BLOCKING
-    deliverable_issues = _check_phase_deliverables(state, phase)
+    # Check 1: deliverables for the phase being approved — BLOCKING.
+    # v11 archetype-mode skips the phases.json deliverable check —
+    # archetypes own their own produces contract and don't share the
+    # legacy "architecture.md / test-results.md" filename schema. The
+    # archetype's playbook is responsible for enforcing produces.
+    deliverable_issues = (
+        [] if is_v11_archetype
+        else _check_phase_deliverables(state, phase)
+    )
     if deliverable_issues:
         if override_deliverables:
             project_dir_for_override = get_project_dir(state.name)
@@ -6151,6 +6176,19 @@ def main():
             "where re-evaluation is the rubric's primary signal."
         ),
     )
+    parser.add_argument(
+        "--archetype-mode",
+        default=None,
+        choices=["triage", "explore", "specify", "decide", "ship",
+                 "review", "incident", "build", "migrate"],
+        help=(
+            "v11 — mark project as work-shape-archetype-driven. Hydrates "
+            "phase_plan from .claude-plugin/archetypes.json and bypasses "
+            "the universal-pipeline gates (re-eval addendum freshness, "
+            "deliverable filename schema). Each archetype owns its own "
+            "phase shape + produces contract."
+        ),
+    )
     # Issue #848 — mark-condition action arguments
     parser.add_argument(
         "--condition-id",
@@ -6469,6 +6507,35 @@ def main():
         except ValueError as e:
             print(json.dumps({"ok": False, "error": str(e)}) if args.json else f"Error: {e}")
             return
+
+        # v11: --archetype-mode marks the project as work-shape-archetype-driven.
+        # Skips universal-pipeline gates (re-eval addendum, deliverable filename
+        # schema, conditions-manifest enforcement). The archetype's catalog
+        # entry is the source of truth for the project's phases + produces.
+        archetype_mode = getattr(args, "archetype_mode", None)
+        if archetype_mode:
+            state.extras["phase_plan_mode"] = "archetype"
+            state.extras["v11_archetype"] = archetype_mode
+            # Hydrate phase_plan from the archetype catalog
+            try:
+                _scripts_dir = Path(__file__).resolve().parent
+                if str(_scripts_dir) not in sys.path:
+                    sys.path.insert(0, str(_scripts_dir))
+                from archetypes_v11 import load_catalog as _load_arch_catalog
+                _catalog = _load_arch_catalog()
+                _archetype_def = _catalog.get("archetypes", {}).get(archetype_mode)
+                if _archetype_def:
+                    state.phase_plan = list(_archetype_def.get("phases", []))
+                else:
+                    print(
+                        f"WARNING: archetype '{archetype_mode}' not found in catalog. "
+                        f"phase_plan empty until set explicitly.",
+                        file=sys.stderr,
+                    )
+            except Exception as _arch_exc:
+                print(f"WARNING: could not hydrate archetype phases: {_arch_exc}",
+                      file=sys.stderr)
+            save_project_state(state)
 
         # Resolve solo_mode from --hitl / --solo-mode flags + global config (#651)
         _hitl_flag = getattr(args, "hitl", None)
