@@ -29,7 +29,13 @@ through PR review, council, or the `review` archetype if rigor warrants.
 
 ### plan
 
-1. Name the diff in 2–3 sentences. What changes? What stays the same?
+1. Initialise the evidence tracker for this archetype run:
+   `scripts/qe/evidence_tracker.py init <project_dir> --archetype build`.
+   Pre-populates `shipped-code` and `test-report` as pending.
+2. If picking up open conditions from a prior `review` archetype, read
+   `scripts/qe/conditions_manifest.py status <project_dir>` and pin
+   each one to a build task so they don't get lost.
+3. Name the diff in 2–3 sentences. What changes? What stays the same?
    What's the smallest possible scope?
 2. Pick the test rigor based on signals (factor scoring from the
    propose-process rubric is a fine input):

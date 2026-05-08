@@ -60,11 +60,23 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
 1. Decide the verdict:
    - **APPROVE**: no blockers, no majors, the code is shippable as-is.
    - **CONDITIONAL**: blockers/majors that have a clear fix path. Each
-     condition gets a `mark-condition` entry (Issue #848) so build can
-     pin it to the resolution artifact.
+     condition gets a row in the conditions manifest so the next
+     archetype (build / migrate / etc.) can pin it to the resolution
+     artifact.
    - **REJECT**: fundamental issues. Don't bandaid; send back to the
      author.
-2. Write the verdict. Don't soften — REJECT means REJECT.
+2. Write the verdict JSON. Validate with `scripts/qe/verdict_schema.py`
+   — confirms shape (verdict enum, reviewer not banned, score in
+   range, invariants per verdict type).
+3. Sanitize free-text fields with `scripts/qe/content_sanitizer.py`
+   to strip prompt-injection patterns from reasons / findings /
+   condition descriptions before persisting.
+4. Append to the audit log with `scripts/qe/verdict_audit.py append`
+   so the verdict is replayable.
+5. On CONDITIONAL: initialise the conditions manifest with
+   `scripts/qe/conditions_manifest.py init --from-verdict <path>`.
+   The downstream archetype calls `mark` as it satisfies each one.
+6. Don't soften — REJECT means REJECT.
 
 ## When to stop
 
