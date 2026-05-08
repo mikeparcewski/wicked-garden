@@ -330,6 +330,114 @@ class TestHardGateEnforcement(unittest.TestCase):
         self.assertNotIn("confirmed_by", approvals[0])
 
 
+class TestBusEmits(unittest.TestCase):
+    """v11.1.1 — phase_manager state transitions emit bus events.
+
+    Each emit goes through _bus_emit_safe which is fail-open. We patch
+    the underlying emit_event to assert the right event types fire with
+    the right payloads, without hitting the actual subprocess.
+    """
+
+    def _state(self, archetype=None):
+        s = pm.ProjectState(
+            name="emit-proj", current_phase="plan",
+            created_at="2026-05-08T00:00:00Z",
+            phase_plan=["plan", "implement", "test", "review"],
+            extras={"v11_archetype": archetype} if archetype else {},
+        )
+        return s
+
+    def test_create_archetype_emits_archetype_created(self):
+        with patch.object(pm, "save_project_state"), \
+             patch.object(pm, "_bus_emit_safe") as mock_emit:
+            pm.create_project("emit-proj", archetype_mode="build")
+        events = [c.args[0] for c in mock_emit.call_args_list]
+        self.assertIn("wicked.archetype.created", events)
+
+    def test_create_legacy_emits_project_created(self):
+        with patch.object(pm, "save_project_state"), \
+             patch.object(pm, "_bus_emit_safe") as mock_emit:
+            pm.create_project("emit-proj-legacy")
+        events = [c.args[0] for c in mock_emit.call_args_list]
+        self.assertIn("wicked.project.created", events)
+        self.assertNotIn("wicked.archetype.created", events)
+
+    def test_approve_emits_archetype_advanced(self):
+        state = self._state(archetype="build")
+        with patch.object(pm, "save_project_state"), \
+             patch.object(pm, "_bus_emit_safe") as mock_emit:
+            pm.approve_phase(state, "plan")
+        events = [c.args[0] for c in mock_emit.call_args_list]
+        self.assertIn("wicked.archetype.advanced", events)
+        # Payload contains archetype + phase + next_phase
+        advance_call = next(
+            c for c in mock_emit.call_args_list
+            if c.args[0] == "wicked.archetype.advanced"
+        )
+        self.assertEqual(advance_call.args[1]["archetype"], "build")
+        self.assertEqual(advance_call.args[1]["phase"], "plan")
+        self.assertEqual(advance_call.args[1]["next_phase"], "implement")
+
+    def test_approve_legacy_does_not_emit_archetype_events(self):
+        # No v11_archetype on the state → no archetype.* events
+        state = self._state(archetype=None)
+        with patch.object(pm, "save_project_state"), \
+             patch.object(pm, "_bus_emit_safe") as mock_emit:
+            pm.approve_phase(state, "plan")
+        events = [c.args[0] for c in mock_emit.call_args_list]
+        for ev in events:
+            self.assertFalse(
+                ev.startswith("wicked.archetype."),
+                f"legacy approve emitted archetype event: {ev}",
+            )
+
+    def test_hard_gate_pass_emits_dedicated_event(self):
+        state = pm.ProjectState(
+            name="emit-mig", current_phase="cutover",
+            created_at="2026-05-08T00:00:00Z",
+            phase_plan=["plan", "expand", "backfill", "cutover", "contract"],
+            extras={"v11_archetype": "migrate"},
+        )
+        with patch.object(pm, "save_project_state"), \
+             patch.object(pm, "_bus_emit_safe") as mock_emit:
+            pm.approve_phase(
+                state, "cutover",
+                confirmed_by="oncall-mike",
+                confirmation_evidence="rollback-drill:staging",
+            )
+        events = [c.args[0] for c in mock_emit.call_args_list]
+        self.assertIn("wicked.archetype.hard_gate_passed", events)
+        self.assertIn("wicked.archetype.advanced", events)
+        # hard_gate_passed payload carries confirmed_by + evidence
+        hg_call = next(
+            c for c in mock_emit.call_args_list
+            if c.args[0] == "wicked.archetype.hard_gate_passed"
+        )
+        self.assertEqual(hg_call.args[1]["confirmed_by"], "oncall-mike")
+        self.assertEqual(hg_call.args[1]["confirmation_evidence"],
+                         "rollback-drill:staging")
+
+    def test_completion_emits_archetype_completed(self):
+        # Build state: pre-mark plan/implement/test approved so review
+        # is the last remaining phase.
+        state = pm.ProjectState(
+            name="emit-final", current_phase="review",
+            created_at="2026-05-08T00:00:00Z",
+            phase_plan=["plan", "implement", "test", "review"],
+            phases={
+                "plan": pm.PhaseState(status="approved"),
+                "implement": pm.PhaseState(status="approved"),
+                "test": pm.PhaseState(status="approved"),
+            },
+            extras={"v11_archetype": "build"},
+        )
+        with patch.object(pm, "save_project_state"), \
+             patch.object(pm, "_bus_emit_safe") as mock_emit:
+            pm.approve_phase(state, "review")
+        events = [c.args[0] for c in mock_emit.call_args_list]
+        self.assertIn("wicked.archetype.completed", events)
+
+
 class TestEndToEndArchetypeFlow(unittest.TestCase):
     """Integration test: full archetype flow from creation through final
     approval, exercising:

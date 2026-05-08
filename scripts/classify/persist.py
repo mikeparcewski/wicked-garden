@@ -118,6 +118,26 @@ def persist(payload: dict) -> dict:
         signals_v11=normalized.get("signals") or {},
         classified_at=_utc_now(),
     )
+
+    # v11.1.1: emit a bus event so the classification is in the audit log.
+    # Fail-open: bus unavailable must not break the persist call.
+    try:
+        from _bus import emit_event  # type: ignore
+        archetypes = normalized.get("archetypes") or []
+        primary = archetypes[0]["name"] if archetypes else "triage"
+        emit_event(
+            "wicked.archetype.classified",
+            {
+                "intent": normalized.get("intent"),
+                "primary_archetype": primary,
+                "archetypes": [a.get("name") for a in archetypes],
+                "tier": "llm",
+            },
+            chain_id=f"classify.{primary}.{state.session_id or 'no-session'}",
+        )
+    except Exception:
+        pass
+
     return normalized
 
 

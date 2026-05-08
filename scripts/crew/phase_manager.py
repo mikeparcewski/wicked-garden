@@ -43,6 +43,23 @@ _sm = DomainStore("projects")
 logger = __import__("logging").getLogger("wicked-garden.phase-manager")
 
 
+def _bus_emit_safe(event_type: str, payload: dict, *,
+                   chain_id: Optional[str] = None) -> None:
+    """Fire-and-forget bus emit. Fail-open on every error.
+
+    The phase_manager is the v11 source-of-truth surface for project
+    state transitions. Each transition emits an event for downstream
+    consumers (audit, dashboards, future replay). Bus unavailable
+    must never block the disk write — bus failure is recorded only
+    in emit_stats.
+    """
+    try:
+        from _bus import emit_event  # type: ignore
+        emit_event(event_type, payload, chain_id=chain_id)
+    except Exception:
+        pass  # Bus is optional infrastructure.
+
+
 # ---------------------------------------------------------------------------
 # Naming & resolution
 # ---------------------------------------------------------------------------
@@ -215,6 +232,28 @@ def create_project(
 
     project_dir = get_project_dir(name)
     save_project_state(state)
+
+    # v11.1.1: bus emit for archetype-mode creation. Legacy (no archetype)
+    # projects also emit project.created via the v6 path; archetype-mode
+    # gets its own event so dashboards can distinguish.
+    if archetype_mode:
+        _bus_emit_safe(
+            "wicked.archetype.created",
+            {
+                "project_id": name,
+                "archetype": archetype_mode,
+                "phase_plan": state.phase_plan,
+                "produces": list(state.extras.get("archetype_produces") or []),
+                "hitl": state.extras.get("archetype_hitl"),
+            },
+            chain_id=f"{name}.{archetype_mode}.root",
+        )
+    else:
+        _bus_emit_safe(
+            "wicked.project.created",
+            {"project_id": name},
+            chain_id=f"{name}.root",
+        )
     return state, project_dir
 
 
@@ -339,6 +378,47 @@ def approve_phase(
     if next_phase:
         state.current_phase = next_phase
     save_project_state(state)
+
+    # v11.1.1: emit hard_gate_passed when a hard gate advanced
+    archetype = (state.extras or {}).get("v11_archetype")
+    if archetype and confirmed_by:
+        _bus_emit_safe(
+            "wicked.archetype.hard_gate_passed",
+            {
+                "project_id": state.name,
+                "archetype": archetype,
+                "phase": phase,
+                "confirmed_by": confirmed_by,
+                "confirmation_evidence": confirmation_evidence,
+            },
+            chain_id=f"{state.name}.{archetype}.{phase}.hard-gate",
+        )
+
+    # v11.1.1: emit advance event for any archetype-mode approval
+    if archetype:
+        _bus_emit_safe(
+            "wicked.archetype.advanced",
+            {
+                "project_id": state.name,
+                "archetype": archetype,
+                "phase": phase,
+                "next_phase": next_phase,
+            },
+            chain_id=f"{state.name}.{archetype}.{phase}",
+        )
+
+    # v11.1.1: emit completed event when project is_complete after this approval
+    if archetype and is_complete(state):
+        _bus_emit_safe(
+            "wicked.archetype.completed",
+            {
+                "project_id": state.name,
+                "archetype": archetype,
+                "final_phase": phase,
+            },
+            chain_id=f"{state.name}.{archetype}.completed",
+        )
+
     return state, next_phase
 
 
