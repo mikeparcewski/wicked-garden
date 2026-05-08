@@ -19,13 +19,12 @@ Render the persistent process memory for a crew project — kaizen backlog statu
 
 ### 1. Resolve the target project
 
-If `--project` is supplied, use it. Otherwise find the active crew project:
+`--project` is required in v11. The v6-era "active crew project"
+auto-resolution was tied to the universal pipeline and was deleted with
+the rest of that machinery. If `--project` is missing, abort with:
 
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
-```
-
-If neither resolves to a name, abort with an informative message — this command only operates inside a crew project.
+> Error: --project is required. List known projects with
+> `phase_manager <name> status --json` and pass the one you want.
 
 ### 2. Render the report
 

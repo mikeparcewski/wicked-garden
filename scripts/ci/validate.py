@@ -138,22 +138,85 @@ def main():
             )
 
     # --- 6. Self-referential integrity: script paths in commands/agents ---
+    # Three reference shapes are checked. The first two were caught by
+    # the v11.1.0 validator; the Python-import shape (#3) was added in
+    # v11.1.3 after the council command's `from crew.hitl_judge import`
+    # slipped past — that script was deleted in PR #866 but the doc
+    # reference lived inside a code fence the old validator skipped.
+    #
+    #   1. ${CLAUDE_PLUGIN_ROOT}/<path>.py | <path>.sh
+    #   2. bare scripts/<domain>/<file>.py inside any text
+    #   3. `from <module> import …` Python imports targeting
+    #      scripts/crew/*.py modules (the ones most prone to deletion)
     script_ref_pattern = re.compile(
         r'\$\{CLAUDE_PLUGIN_ROOT\}/([^\s"]+\.(?:py|sh))'
     )
+    bare_script_pattern = re.compile(
+        r'(?<![/\w])(scripts/[a-z_]+(?:/[a-z_]+)*\.py)\b'
+    )
+    crew_import_pattern = re.compile(
+        r'from\s+(?:crew\.)?([a-z_][a-z_0-9]*)\s+import',
+        re.IGNORECASE,
+    )
+    # Modules that are valid import targets — derived at validation
+    # time so deletes are detected automatically. Includes scripts/ and
+    # hooks/scripts/ (the latter holds bootstrap/prompt_submit/etc.).
+    valid_module_names = {
+        p.stem for p in root.glob("scripts/**/*.py")
+        if p.stem != "__init__"
+    } | {
+        p.stem for p in root.glob("hooks/scripts/**/*.py")
+        if p.stem != "__init__"
+    }
     for md_file in sorted(
         list(root.glob("commands/**/*.md"))
         + list(root.glob("agents/**/*.md"))
     ):
         text = md_file.read_text()
         rel = md_file.relative_to(root)
-        refs = script_ref_pattern.findall(text)
-        for ref in refs:
-            # Skip template placeholders like {language}_generator.py
+        # Shape 1
+        for ref in script_ref_pattern.findall(text):
             if re.search(r"\{[^}]+\}", ref):
                 continue
             if not (root / ref).exists():
                 errors.append(f"{rel}: broken script path: {ref}")
+        # Shape 2 — bare scripts/* paths (e.g. inside prose or code fences)
+        for ref in bare_script_pattern.findall(text):
+            if re.search(r"\{[^}]+\}", ref):
+                continue
+            if not (root / ref).exists():
+                errors.append(f"{rel}: broken script path: {ref}")
+        # Shape 3 — `from crew.<module> import` references. These only
+        # break when the referenced module name is missing from
+        # scripts/ entirely.
+        for module in crew_import_pattern.findall(text):
+            # Stdlib modules — skip
+            if module in {"pathlib", "datetime", "json", "os", "sys",
+                          "re", "subprocess", "argparse", "typing",
+                          "collections", "dataclasses", "uuid", "io",
+                          "tempfile", "unittest", "logging", "threading",
+                          "hashlib", "contextlib"}:
+                continue
+            # Common third-party modules — skip
+            if module in {"pytest", "anthropic", "openai", "yaml"}:
+                continue
+            # Module names that look like locals (camelCase / dotted /
+            # placeholders) — skip
+            if any(c in module for c in ".{}<>"):
+                continue
+            # Generic plural names that are likely directory-level package
+            # roots in template / sample code — skip. (e.g. "generators"
+            # in commands/engineering/new-generator.md is a sample
+            # `from generators import {language}_generator`.)
+            if module in {"generators", "fixtures", "factories", "models",
+                          "views", "utils", "helpers", "tests"}:
+                continue
+            if module not in valid_module_names:
+                errors.append(
+                    f"{rel}: import 'from {module} import …' references "
+                    f"a module not present in scripts/. (Was the module "
+                    f"deleted in a v11 cleanup?)"
+                )
 
     # --- 7. specialist.json roles vs ROLE_CATEGORIES ---
     specialist_json = root / ".claude-plugin" / "specialist.json"

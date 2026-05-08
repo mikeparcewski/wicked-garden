@@ -56,10 +56,9 @@ If the event log returns no results (new install, events.db not yet populated), 
 
 **Native tasks:** read task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and summarize counts by `status` and `metadata.event_type`.
 
-**Crew:**
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
-```
+**Crew:** in v11, look up archetype-mode projects explicitly via
+`phase_manager <name> status --json`. The v6-era find-active auto-resolver
+was deleted with the universal pipeline.
 
 ### 2c. Git Activity (always supplement)
 
@@ -87,53 +86,12 @@ Before composing the briefing, name the **detected stack** back to the user
 so it is obvious wicked-garden has read the project shape (#723 — stack
 identity is a projection of the repo, never a hand-edited preset).
 
-**Project scope (#742, finding 5):** if `--project` was supplied, scan that
-project's source directory; otherwise fall back to `${PWD}`. Look up the
-project's `source_dir` from its crew metadata when available — `--project foo`
-must always read foo's tree, never whichever cwd the briefing happened to be
-invoked from.
+**Project scope:** if `--project` was supplied, scan `${PWD}` (the project
+source-dir lookup was a v6 helper tied to `crew.py::list_projects`,
+deleted in v11). The fallback when `--project` is absent is also
+`${PWD}`. Briefings now always read from cwd.
 
-```bash
-# Resolve the scope dir: use --project's recorded source_dir when supplied
-# and known to crew; otherwise the user's current working directory.
-SCOPE_DIR="${PWD}"
-if [ -n "${project:-}" ]; then
-  # Resolve the named project's recorded directory via the public API.
-  # IMPORTANT: pass the project name through an environment variable, NOT
-  # via shell-string interpolation — names may contain quotes or special
-  # chars and direct interpolation would be a shell-injection risk.
-  #
-  # API surface (verified against scripts/crew/crew.py):
-  #   list_projects(active_only=True) -> {"projects": [...]}
-  #
-  # Note: project_dir is the LOCAL crew workspace path
-  # (~/.something-wicked/wicked-garden/projects/...), NOT the source repo
-  # tree. Crew project records don't currently carry a `source_dir` field
-  # — adding one is a separate change (#742 follow-up). Until then, named
-  # briefings can resolve the project's metadata dir but stack signals
-  # may still need to be probed from \${PWD}; we surface this gap rather
-  # than silently using the wrong directory.
-  PROJECT_DIR=$(WG_BRIEFING_PROJECT="${project}" \
-    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import os, sys
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
-try:
-    from crew.crew import list_projects  # type: ignore
-    name = os.environ.get('WG_BRIEFING_PROJECT', '')
-    for entry in list_projects(active_only=True).get('projects', []):
-        if entry.get('name') == name or entry.get('id') == name:
-            print(entry.get('project_dir') or '')
-            break
-except Exception:
-    pass
-" 2>/dev/null)
-  if [ -n "${PROJECT_DIR}" ] && [ -d "${PROJECT_DIR}" ]; then
-    SCOPE_DIR="${PROJECT_DIR}"
-  fi
-fi
-
-_Stack signal extraction was removed in v11; the v6 helpers
-(`scripts/crew/_stack_signals.py`, `scripts/crew/archetype_detect.py`) were
+_Stack signal extraction was removed in v11; the v6 helpers were
 target-kind classifiers tied to the old gate-policy. v11 work-shape
 archetypes are emitted by the prompt-submit hook, not derived from
 filesystem traversal. Skip this section in v11 briefings._

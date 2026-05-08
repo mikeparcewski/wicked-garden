@@ -23,33 +23,24 @@ Task(subagent_type="wicked-garden:jam:council",
      prompt="Run a council evaluation on: {topic}. Options: {options}. Criteria: {criteria}.")
 ```
 
-## Post-synthesis HITL judge (Issue #575)
+## Acting on the council verdict
 
-After the council agent returns its synthesis (verdict + per-model votes + confidences), call the rule-based HITL judge to decide whether the verdict is strong enough to auto-proceed or whether the orchestrator should halt for human adjudication.
+The council returns a synthesised verdict plus per-model raw votes. v11
+archetypes decide what to do with the result; the council itself does
+not gate. Heuristics for the caller:
 
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-from crew.hitl_judge import should_pause_council, write_hitl_decision_evidence
-from pathlib import Path
-votes = [
-    {'model': 'codex',    'verdict': 'APPROVE', 'confidence': 0.9},
-    {'model': 'gemini',   'verdict': 'APPROVE', 'confidence': 0.9},
-    {'model': 'opencode', 'verdict': 'REJECT',  'confidence': 0.7},
-    {'model': 'pi',       'verdict': 'APPROVE', 'confidence': 0.6},
-]
-d = should_pause_council(votes=votes)
-write_hitl_decision_evidence(Path('<project_dir>'), 'council', 'council-decision.json', d)
-print(d.pause, d.rule_id)
-"
-```
+- **Unanimous APPROVE / REJECT with all confidences ≥ 0.7** — proceed with
+  the verdict.
+- **Split verdict (3-1 or closer) OR any confidence < 0.6** — surface the
+  raw votes to the user and pause for human adjudication. The disagreement
+  carries information that the synthesised verdict erases.
+- **High-stakes archetypes (`migrate`, `incident`, anything with
+  `hard:cutover` / `hard:mitigate`)** — always show the raw votes
+  alongside the verdict; never auto-proceed on a synth-only summary.
 
-Pause rules (auto mode):
-
-- top two verdicts within 2 votes (3-1 or closer) ⇒ pause (`council.split-verdict`)
-- any model confidence < 0.6 ⇒ pause (`council.low-confidence-vote`)
-- otherwise ⇒ auto-proceed and persist the votes to `council-decision.json` for the evidence bundle
-
-Operator override: `WG_HITL_COUNCIL=auto|pause|off` (default `auto`).
+A v6-era helper (deleted in v11.0.0) encoded these rules in code as part
+of the universal-pipeline machinery. v11 deleted the gate it fed into;
+the heuristics above are the same shape, applied inline by the agent.
 
 ## Raw per-model votes (Issue #584)
 
