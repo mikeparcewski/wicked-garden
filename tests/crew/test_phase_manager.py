@@ -209,7 +209,6 @@ class TestCLI(unittest.TestCase):
         return result
 
     def test_cli_help_runs(self):
-        # --help exits 0; ensures argparse setup is intact
         result = subprocess.run(
             [sys.executable,
              str(_REPO_ROOT / "scripts" / "crew" / "phase_manager.py"),
@@ -218,6 +217,193 @@ class TestCLI(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertIn("--archetype-mode", result.stdout)
+        self.assertIn("--confirmed-by", result.stdout)
+
+
+class TestHardGateEnforcement(unittest.TestCase):
+    """v11 hard-gate enforcement at the runtime layer.
+
+    The doctrine of `hard:cutover`, `hard:mitigate`, etc. used to live
+    only in playbook prose. v11 mirrors it in code: approve_phase
+    refuses to advance past a hard gate without explicit
+    `--confirmed-by` AND `--confirmation-evidence`. The audit trail
+    records both.
+    """
+
+    def _migrate_state_at_cutover(self):
+        s = pm.ProjectState(
+            name="mig-proj", current_phase="cutover",
+            created_at="2026-05-08T00:00:00Z",
+            phase_plan=["plan", "expand", "backfill", "cutover", "contract"],
+            extras={
+                "phase_plan_mode": "archetype",
+                "v11_archetype": "migrate",
+            },
+        )
+        return s
+
+    def _build_state_at_test(self):
+        s = pm.ProjectState(
+            name="build-proj", current_phase="test",
+            created_at="2026-05-08T00:00:00Z",
+            phase_plan=["plan", "implement", "test", "review"],
+            extras={
+                "phase_plan_mode": "archetype",
+                "v11_archetype": "build",
+            },
+        )
+        return s
+
+    def test_is_hard_gate_for_migrate_cutover(self):
+        s = self._migrate_state_at_cutover()
+        self.assertTrue(pm._is_hard_gate(s, "cutover"))
+        self.assertFalse(pm._is_hard_gate(s, "plan"))
+
+    def test_is_hard_gate_for_incident_mitigate(self):
+        s = pm.ProjectState(
+            name="inc", current_phase="mitigate",
+            created_at="2026-05-08T00:00:00Z",
+            extras={"v11_archetype": "incident"},
+        )
+        self.assertTrue(pm._is_hard_gate(s, "mitigate"))
+        self.assertFalse(pm._is_hard_gate(s, "investigate"))
+
+    def test_is_hard_gate_false_for_legacy_no_archetype(self):
+        s = pm.ProjectState(name="x", current_phase="cutover",
+                            created_at="2026-05-08T00:00:00Z")
+        self.assertFalse(pm._is_hard_gate(s, "cutover"))
+
+    def test_cutover_refuses_without_confirmed_by(self):
+        with patch.object(pm, "save_project_state"):
+            with self.assertRaises(ValueError) as cm:
+                pm.approve_phase(self._migrate_state_at_cutover(), "cutover")
+        msg = str(cm.exception)
+        self.assertIn("requires --confirmed-by", msg)
+        self.assertIn("v11 enforced HITL gate", msg)
+
+    def test_cutover_refuses_without_evidence(self):
+        with patch.object(pm, "save_project_state"):
+            with self.assertRaises(ValueError) as cm:
+                pm.approve_phase(
+                    self._migrate_state_at_cutover(), "cutover",
+                    confirmed_by="oncall-mike",
+                )
+        self.assertIn("requires --confirmation-evidence", str(cm.exception))
+
+    def test_cutover_refuses_blank_confirmed_by(self):
+        with patch.object(pm, "save_project_state"):
+            with self.assertRaises(ValueError):
+                pm.approve_phase(
+                    self._migrate_state_at_cutover(), "cutover",
+                    confirmed_by="   ",
+                    confirmation_evidence="x",
+                )
+
+    def test_cutover_advances_when_both_provided(self):
+        with patch.object(pm, "save_project_state"):
+            state, next_phase = pm.approve_phase(
+                self._migrate_state_at_cutover(), "cutover",
+                confirmed_by="oncall-mike",
+                confirmation_evidence="dashboard:reads-switched-clean",
+            )
+        self.assertEqual(state.phases["cutover"].status, "approved")
+        self.assertEqual(next_phase, "contract")
+        approvals = state.extras["approvals"]
+        self.assertEqual(len(approvals), 1)
+        self.assertEqual(approvals[0]["confirmed_by"], "oncall-mike")
+        self.assertEqual(approvals[0]["confirmation_evidence"],
+                         "dashboard:reads-switched-clean")
+        self.assertTrue(approvals[0]["hard_gate"])
+
+    def test_non_hard_phase_does_not_require_confirmation(self):
+        # build:test is NOT a hard gate; approve without --confirmed-by
+        # must succeed and not include hard_gate=True in the audit row.
+        with patch.object(pm, "save_project_state"):
+            state, next_phase = pm.approve_phase(
+                self._build_state_at_test(), "test",
+            )
+        self.assertEqual(state.phases["test"].status, "approved")
+        self.assertEqual(next_phase, "review")
+        approvals = state.extras["approvals"]
+        self.assertEqual(len(approvals), 1)
+        self.assertNotIn("hard_gate", approvals[0])
+        self.assertNotIn("confirmed_by", approvals[0])
+
+
+class TestEndToEndArchetypeFlow(unittest.TestCase):
+    """Integration test: full archetype flow from creation through final
+    approval, exercising:
+      - archetype-mode project creation
+      - phase_plan hydrated from catalog
+      - state transitions per phase
+      - hard-gate enforcement at cutover
+      - is_complete predicate
+      - audit trail captured in extras
+    """
+
+    def test_full_migrate_lifecycle(self):
+        """A migrate project: plan -> expand -> backfill -> cutover -> contract.
+
+        The cutover phase requires hard-gate confirmation; everything else
+        is a discrete-gate auto-pass."""
+        with patch.object(pm, "save_project_state"):
+            state, _ = pm.create_project(
+                "migrate-int-test",
+                description="drop legacy_id with backfill",
+                archetype_mode="migrate",
+            )
+            self.assertEqual(
+                state.phase_plan,
+                ["plan", "expand", "backfill", "cutover", "contract"],
+            )
+            self.assertEqual(state.current_phase, "plan")
+
+            # plan -> expand
+            state = pm.start_phase(state, "plan")
+            state = pm.complete_phase(state, "plan")
+            state, nxt = pm.approve_phase(state, "plan")
+            self.assertEqual(nxt, "expand")
+
+            # expand -> backfill
+            state = pm.start_phase(state, "expand")
+            state = pm.complete_phase(state, "expand")
+            state, nxt = pm.approve_phase(state, "expand")
+            self.assertEqual(nxt, "backfill")
+
+            # backfill -> cutover
+            state = pm.start_phase(state, "backfill")
+            state = pm.complete_phase(state, "backfill")
+            state, nxt = pm.approve_phase(state, "backfill")
+            self.assertEqual(nxt, "cutover")
+
+            # cutover REFUSES without confirmation
+            state = pm.start_phase(state, "cutover")
+            state = pm.complete_phase(state, "cutover")
+            with self.assertRaises(ValueError):
+                pm.approve_phase(state, "cutover")
+
+            # cutover advances WITH confirmation
+            state, nxt = pm.approve_phase(
+                state, "cutover",
+                confirmed_by="release-eng-lead",
+                confirmation_evidence="rollback-drill-log:staging-2026-05-08",
+            )
+            self.assertEqual(nxt, "contract")
+
+            # contract -> done
+            state = pm.start_phase(state, "contract")
+            state = pm.complete_phase(state, "contract")
+            state, nxt = pm.approve_phase(state, "contract")
+            self.assertIsNone(nxt)
+            self.assertTrue(pm.is_complete(state))
+
+            # Audit trail: 5 approvals, exactly one with hard_gate=True
+            approvals = state.extras["approvals"]
+            self.assertEqual(len(approvals), 5)
+            hard_gate_approvals = [a for a in approvals
+                                    if a.get("hard_gate")]
+            self.assertEqual(len(hard_gate_approvals), 1)
+            self.assertEqual(hard_gate_approvals[0]["phase"], "cutover")
 
 
 if __name__ == "__main__":
