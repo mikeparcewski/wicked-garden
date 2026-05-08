@@ -8,7 +8,7 @@
       "name": "wicked-garden",
       "source": "./",
       "description": "AI-Native SDLC plugin; requires wicked-testing (npm) for QE behavior.",
-      "version": "8.8.1"
+      "version": "11.1.2"
     }
   ],
   "version": "2.0.0"
