@@ -10,6 +10,54 @@ dial) that was replaced wholesale.
 
 ---
 
+## [11.1.1] — 2026-05-08
+
+**Closes the wicked-brain + wicked-bus persistence verification gap.**
+
+Spent a session probing the plugin's relationship with both companion
+plugins. Brain persistence turned out to be functional (11,582 indexed
+items, 108 memories, search round-trip verified). Bus integration had
+a real bug: v11 archetype events were never registered in
+`BUS_EVENT_MAP`, so v11 wicked-garden was invisible to the bus despite
+the bus itself being healthy (19,790+ events from companion plugins).
+
+### Fixed
+
+- v11 archetype events now register + emit (PR #874). Five new event
+  types in `scripts/_bus.py::BUS_EVENT_MAP`:
+  - `wicked.archetype.created` — archetype-mode project init
+  - `wicked.archetype.advanced` — phase approved; carries next_phase
+  - `wicked.archetype.completed` — final phase approved
+  - `wicked.archetype.hard_gate_passed` — confirmed_by + evidence
+  - `wicked.archetype.classified` — LLM classifier result persisted
+- `phase_manager.create_project` emits `wicked.archetype.created` on
+  archetype-mode projects.
+- `phase_manager.approve_phase` emits `wicked.archetype.advanced` on
+  every archetype approval, plus `wicked.archetype.hard_gate_passed`
+  when `confirmed_by` was supplied, plus `wicked.archetype.completed`
+  when `is_complete()` flips true.
+- `scripts/classify/persist.py` emits `wicked.archetype.classified`
+  when the LLM classifier writes its result.
+
+All emits fail-open: bus unavailable never blocks the disk write.
+
+### Verified
+
+- **Brain persistence**: search returns 42 hits for `Session goal` —
+  the prompt-submit hook's `_write_brain_memory()` writes are reaching
+  the FTS5 index. Brain server runs on port 4243; 72 MB SQLite DB at
+  `~/.wicked-brain/projects/wicked-garden/.brain.db`.
+- **Bus round-trip**: real CLI invocation
+  (`phase_manager create … --archetype-mode build` + two approves)
+  advances `newest_event_id` by 3, with per-type counters incrementing
+  as expected.
+
+### Tests
+
+390 passing (was 384 in v11.1.0; +6 new in `TestBusEmits`).
+
+---
+
 ## [11.1.0] — 2026-05-08
 
 **Closes the structural gaps in the v11.0.0 reframe.** v11.0.0 was the
