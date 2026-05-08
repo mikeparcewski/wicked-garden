@@ -245,24 +245,86 @@ def complete_phase(state: ProjectState, phase: str) -> ProjectState:
     return state
 
 
+_HARD_GATE_PHASES: Dict[str, Tuple[str, ...]] = {
+    # Issue: doctrinal hard gates were not enforced in code.
+    # This map names the (archetype, phase) pairs that genuinely need
+    # the user in the loop AT RUNTIME, not just in playbook prose.
+    "migrate": ("cutover",),
+    "incident": ("mitigate",),
+    "review": ("remediate-or-accept",),
+    "specify": ("validate",),
+    "decide": ("record",),
+}
+
+
+def _is_hard_gate(state: ProjectState, phase: str) -> bool:
+    """True iff (archetype, phase) is a hard gate per _HARD_GATE_PHASES."""
+    archetype = (state.extras or {}).get("v11_archetype")
+    if not archetype:
+        return False
+    return resolve_phase(phase) in _HARD_GATE_PHASES.get(archetype, ())
+
+
 def approve_phase(
-    state: ProjectState, phase: str, approver: str = "user"
+    state: ProjectState,
+    phase: str,
+    approver: str = "user",
+    *,
+    confirmed_by: Optional[str] = None,
+    confirmation_evidence: Optional[str] = None,
 ) -> Tuple[ProjectState, Optional[str]]:
     """Approve a phase. Returns (state, next_phase_name_or_None).
 
-    v11: no gate machinery. The archetype's playbook is responsible for
-    enforcing produces and HITL discipline; phase_manager just records
-    the state transition. Legacy projects with phase_plan_mode != "archetype"
-    behave the same way — the v6 gate gauntlet is gone for everyone.
+    Hard-gate enforcement (v11): when (archetype, phase) is in
+    ``_HARD_GATE_PHASES`` (e.g. migrate.cutover, incident.mitigate),
+    advancing past the phase REQUIRES non-empty ``confirmed_by`` AND
+    ``confirmation_evidence``. The audit log records both. ``approver``
+    alone is not enough — the doctrine of "user in the loop" becomes
+    runtime: the caller must explicitly attest that confirmation
+    happened, and name the artifact (commit / dashboard URL / ticket /
+    Slack thread) that proves it.
+
+    Non-hard phases retain the v11 default: lightweight state transition,
+    no gate machinery, archetype's playbook owns discipline.
     """
     phase = resolve_phase(phase)
+
+    # Hard-gate guard: enforce explicit confirmation at runtime.
+    if _is_hard_gate(state, phase):
+        if not confirmed_by or not confirmed_by.strip():
+            archetype = (state.extras or {}).get("v11_archetype")
+            raise ValueError(
+                f"Hard gate at archetype={archetype!r} phase={phase!r} "
+                f"requires --confirmed-by (user / oncall / approver name). "
+                f"This is a v11 enforced HITL gate, not a doctrinal "
+                f"hint — the playbook documents this as hard:* and the "
+                f"runtime mirrors that. Pass --confirmed-by AND "
+                f"--confirmation-evidence (path / URL / ticket id)."
+            )
+        if not confirmation_evidence or not confirmation_evidence.strip():
+            archetype = (state.extras or {}).get("v11_archetype")
+            raise ValueError(
+                f"Hard gate at archetype={archetype!r} phase={phase!r} "
+                f"requires --confirmation-evidence (path to artifact "
+                f"proving the gate-specific check passed: rollback "
+                f"drill log, dashboard screenshot, mitigation commit, "
+                f"approval ticket, etc.)."
+            )
+
     ps = state.phases.get(phase) or PhaseState()
     ps.status = "approved"
     ps.approved_at = get_utc_timestamp()
     state.phases[phase] = ps
-    state.extras.setdefault("approvals", []).append({
+
+    approval_record = {
         "phase": phase, "approver": approver, "at": ps.approved_at,
-    })
+    }
+    if confirmed_by:
+        approval_record["confirmed_by"] = confirmed_by
+        approval_record["confirmation_evidence"] = confirmation_evidence
+        approval_record["hard_gate"] = True
+
+    state.extras.setdefault("approvals", []).append(approval_record)
 
     # Resolve next phase from phase_plan
     next_phase: Optional[str] = None
@@ -327,6 +389,19 @@ def main() -> None:
     parser.add_argument("--description", default="")
     parser.add_argument("--reason", default="")
     parser.add_argument("--approver", default="user")
+    parser.add_argument(
+        "--confirmed-by", default=None,
+        help="v11 hard-gate confirmation: name of the user/oncall/approver "
+             "who confirmed the gate-specific check (required for "
+             "migrate:cutover, incident:mitigate, review:remediate-or-accept, "
+             "specify:validate, decide:record).",
+    )
+    parser.add_argument(
+        "--confirmation-evidence", default=None,
+        help="v11 hard-gate confirmation evidence: path / URL / ticket id "
+             "proving the check passed (e.g. rollback drill log, "
+             "dashboard screenshot, mitigation commit).",
+    )
     parser.add_argument(
         "--archetype-mode",
         default=None,
@@ -399,10 +474,20 @@ def main() -> None:
         return
 
     if args.action == "approve":
-        state, next_phase = approve_phase(state, phase, approver=args.approver)
+        try:
+            state, next_phase = approve_phase(
+                state, phase, approver=args.approver,
+                confirmed_by=args.confirmed_by,
+                confirmation_evidence=args.confirmation_evidence,
+            )
+        except ValueError as exc:
+            _emit({"ok": False, "error": str(exc)}, args.json,
+                  f"Error: {exc}")
+            sys.exit(1)
         _emit(
             {"ok": True, "phase": phase, "status": "approved",
-             "next_phase": next_phase, "is_complete": is_complete(state)},
+             "next_phase": next_phase, "is_complete": is_complete(state),
+             "hard_gate_confirmed": bool(args.confirmed_by)},
             args.json,
             f"Approved phase '{phase}'. "
             f"{'Next: ' + next_phase if next_phase else 'Project complete.'}",
@@ -417,7 +502,16 @@ def main() -> None:
         return
 
     if args.action == "advance":
-        state, next_phase = approve_phase(state, phase, approver=args.approver)
+        try:
+            state, next_phase = approve_phase(
+                state, phase, approver=args.approver,
+                confirmed_by=args.confirmed_by,
+                confirmation_evidence=args.confirmation_evidence,
+            )
+        except ValueError as exc:
+            _emit({"ok": False, "error": str(exc)}, args.json,
+                  f"Error: {exc}")
+            sys.exit(1)
         if next_phase:
             state = start_phase(state, next_phase)
         _emit(
