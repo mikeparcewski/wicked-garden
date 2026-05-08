@@ -10,6 +10,35 @@ dial) that was replaced wholesale.
 
 ---
 
+## [11.1.2] — 2026-05-08
+
+**marketplace.json plugin version sync.**
+
+The marketplace registration's `plugins[0].version` field had drifted —
+stuck at `8.8.1` across the three v11 releases (`v11.0.0`, `v11.1.0`,
+`v11.1.1`) because nobody bumped it. The plugin manifest reported
+`11.1.1`; the marketplace listing reported `8.8.1`. Anyone consulting
+the marketplace registration saw a stale number.
+
+### Fixed
+
+- `.claude-plugin/marketplace.json` `plugins[0].version` bumped to
+  `11.1.2` to match `.claude-plugin/plugin.json`.
+
+### Added
+
+- `scripts/ci/validate.py` now enforces the version-parity invariant.
+  When `plugin.json` and `marketplace.json` disagree on the plugin's
+  version, validation fails with a named error: *"marketplace.json
+  plugins[name=X].version = '8.8.1' does not match plugin.json version
+  = '11.1.1'. Bump both together."* This catches the same drift class
+  on the next release attempt rather than the release after.
+
+No behavior change beyond the version bump and the validator addition.
+Tests still 390/390 passing.
+
+---
+
 ## [11.1.1] — 2026-05-08
 
 **Closes the wicked-brain + wicked-bus persistence verification gap.**

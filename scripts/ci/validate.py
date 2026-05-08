@@ -31,6 +31,7 @@ def main():
 
     # --- 1. plugin.json validity ---
     plugin_json = root / ".claude-plugin" / "plugin.json"
+    plugin_version = None
     if not plugin_json.exists():
         errors.append("Missing .claude-plugin/plugin.json")
     else:
@@ -39,13 +40,36 @@ def main():
             for field in ("name", "version", "description"):
                 if field not in plugin:
                     errors.append(f"plugin.json missing required field: {field}")
-            version = plugin.get("version", "")
+            plugin_version = plugin.get("version", "")
             # Allow semver core X.Y.Z plus optional pre-release (-alpha.N, -beta.N, -rc.N)
             # per semver.org; v6 ships as 6.0.0-beta.1.
-            if not re.match(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$", version):
-                errors.append(f"plugin.json version is not semver: {version}")
+            if not re.match(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$", plugin_version):
+                errors.append(f"plugin.json version is not semver: {plugin_version}")
         except json.JSONDecodeError as e:
             errors.append(f"plugin.json is invalid JSON: {e}")
+
+    # --- 1b. marketplace.json must agree with plugin.json on plugin version ---
+    # Drift caught at v11.1.1: plugins[0].version was stuck at 8.8.1 across
+    # 3 v11 releases because nobody bumped it. The marketplace registration
+    # is the public-facing version; the plugin manifest is the runtime-
+    # facing version; if they diverge, marketplace consumers see a stale
+    # number.
+    marketplace_json = root / ".claude-plugin" / "marketplace.json"
+    if marketplace_json.exists() and plugin_version:
+        try:
+            mkt = json.loads(marketplace_json.read_text())
+            for entry in mkt.get("plugins") or []:
+                if entry.get("name") == plugin.get("name"):
+                    mkt_version = entry.get("version")
+                    if mkt_version != plugin_version:
+                        errors.append(
+                            f"marketplace.json plugins[name={entry['name']}].version "
+                            f"= {mkt_version!r} does not match plugin.json version "
+                            f"= {plugin_version!r}. Bump both together."
+                        )
+                    break
+        except json.JSONDecodeError as e:
+            errors.append(f"marketplace.json is invalid JSON: {e}")
 
     # --- 2. SKILL.md line counts ---
     for skill_md in sorted(root.glob("skills/**/SKILL.md")):
