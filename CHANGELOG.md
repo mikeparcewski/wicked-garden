@@ -10,6 +10,51 @@ dial) that was replaced wholesale.
 
 ---
 
+## [11.1.3] — 2026-05-08
+
+**Council command + 4 sibling commands had broken refs the validator missed.**
+
+The validator at v11.1.2 caught script-path drift in YAML/JSON fields
+and `${CLAUDE_PLUGIN_ROOT}/...` strings, but missed two reference
+shapes that hide inside markdown code fences and prose:
+
+- **Bare `scripts/<domain>/<file>.py` paths** — references that don't
+  use the `${CLAUDE_PLUGIN_ROOT}` prefix.
+- **`from <module> import …` Python imports** — references that name
+  a module deleted in a v11 cleanup.
+
+`commands/jam/council.md` had a documented `from crew.hitl_judge import …`
+example pointing at a script deleted in PR #866. The council itself ran
+fine; the post-synthesis HITL judge step was broken. 9 other places
+across `commands/delivery/`, `commands/engineering/`, `commands/smaht/`
+had similar breaks (mostly references to the deleted
+`scripts/crew/crew.py::find-active` auto-resolver).
+
+### Fixed
+
+- `commands/jam/council.md` — replaced the HITL judge code example with
+  inline prose heuristics that the agent applies. Council itself
+  unchanged; only the gate-feeding step removed.
+- `commands/delivery/process-health.md`, `commands/smaht/state.md`,
+  `commands/smaht/briefing.md` — replaced the v6 `crew.py find-active`
+  invocations with v11 explicit-`--project` semantics.
+
+### Added
+
+- `scripts/ci/validate.py` now checks two additional reference shapes:
+  bare `scripts/.../*.py` paths anywhere in commands/agents markdown,
+  and `from <module> import` patterns whose module name doesn't exist
+  under `scripts/` or `hooks/scripts/`. Stdlib + common third-party
+  + obvious-template-placeholder names are whitelisted to keep the
+  signal-to-noise ratio high.
+
+The validator is now strict enough that a future v11 cleanup will
+catch its own drift on the next CI run rather than the next user run.
+
+390 / 390 tests still passing.
+
+---
+
 ## [11.1.2] — 2026-05-08
 
 **marketplace.json plugin version sync.**

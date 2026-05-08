@@ -72,21 +72,21 @@ except Exception as exc:
 {bulleted list of event_type + summary}
 ```
 
-### 4. Display Active Project Context (if any)
+### 4. Display Project Context (when --project is given)
 
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
-```
-
-Display:
+The v6-era "active crew project" auto-resolver was deleted with the
+universal pipeline in v11. v11 archetype-mode projects are looked up
+explicitly via `phase_manager <name> status --json`. When the caller
+passes `--project <name>` to this command, render the v11 shape:
 
 ```markdown
-## Active Crew Project
+## Project (v11 archetype-mode)
 
-**Slug**: {slug}
-**Phase**: {current_phase}
-**Rigor tier**: {rigor_tier}
-**Process plan**: `{project_dir}/process-plan.md`
+**Name**: {name}
+**Archetype**: {v11_archetype}
+**Current phase**: {current_phase}
+**Phase plan**: {phase_plan}
+**Is complete**: {is_complete}
 ```
 
 ### When context is thin
