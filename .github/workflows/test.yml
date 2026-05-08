@@ -1,0 +1,77 @@
+name: v11 Test Suite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest
+        # Stdlib-only project; only pytest is needed for the test suite.
+        run: pip install pytest
+
+      - name: Run v11 test suite
+        run: python -m pytest tests/ -q
+
+      - name: Smoke phase_manager CLI (v11 archetype-mode)
+        run: |
+          python scripts/crew/phase_manager.py ci-smoke create \
+            --description "ci smoke" --archetype-mode build --json
+          python scripts/crew/phase_manager.py ci-smoke status --json
+          python scripts/crew/phase_manager.py ci-smoke delete
+
+      - name: Smoke archetype detector
+        run: |
+          python scripts/crew/archetypes_v11.py detect \
+            --prompt "drop the legacy_id column from orders" \
+            --signals '{"reversibility_low": true, "state_complexity_high": true}' \
+            --steering | python -c "
+          import json, sys
+          payload = json.load(sys.stdin)
+          assert any(m['archetype'] == 'migrate' for m in payload['matches']), \
+              f'expected migrate match, got: {payload}'
+          print('archetype detector smoke: OK')
+          "
+
+      - name: Verdict schema validator smoke
+        run: |
+          cat > /tmp/verdict.json <<'EOF'
+          {
+            "verdict": "APPROVE",
+            "reviewer": "ci-runner",
+            "recorded_at": "2026-05-08T10:00:00Z",
+            "score": 0.9,
+            "conditions": [],
+            "findings": []
+          }
+          EOF
+          python scripts/qe/verdict_schema.py /tmp/verdict.json
+
+      - name: Hard-gate refusal smoke
+        run: |
+          python scripts/crew/phase_manager.py mig-ci-smoke create \
+            --description "ci hard gate" --archetype-mode migrate --json
+          # Should refuse without --confirmed-by
+          if python scripts/crew/phase_manager.py mig-ci-smoke approve \
+            --phase cutover --json; then
+            echo "FAIL: cutover should have refused without confirmation"
+            exit 1
+          fi
+          # Should advance with confirmation
+          python scripts/crew/phase_manager.py mig-ci-smoke approve \
+            --phase cutover --confirmed-by "ci-runner" \
+            --confirmation-evidence "ci:smoke" --json
+          python scripts/crew/phase_manager.py mig-ci-smoke delete

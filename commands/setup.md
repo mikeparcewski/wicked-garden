@@ -60,13 +60,15 @@ npx wicked-testing --version 2>/dev/null || echo "MISSING"
 - `MISSING` → blocking. Show "wicked-testing is not installed. wicked-garden v7.0+ requires wicked-testing >= 0.1 as a peer plugin. Upgrading from v6.x? See `docs/MIGRATION-v7.md`." **INTERACTIVE mode**: AskUserQuestion header "wicked-testing Required", options "Install now (Required)" = "Run: npx wicked-testing install" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npx wicked-testing install`, re-probe with `npx wicked-testing --version`, confirm the version. On failure, show stderr and exit with manual instructions. If exit: "Run `npx wicked-testing install` then restart with `/wicked-garden:setup`."
 - Version string (e.g. `0.2.1`) → check it satisfies `^0.2.0` (the pin from `plugin.json`). In range: show "wicked-testing {version} — ready." Out of range: warn "wicked-testing {version} is outside the supported range (^0.2.0). Update with: `npx wicked-testing install`" and ask whether to update now (same INTERACTIVE / PLAIN_TEXT pattern). Updating is strongly recommended but not a hard block — the SessionStart hook will warn each session.
 
-### 2.6 Migrate Legacy qe-evaluator References (AC-39)
+### 2.6 v6→v11 Project State Migration (optional)
+
+If the user has v6-v10 crew projects on disk, advise them to run the v11 migration script:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/migrate_legacy.py"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/migrate_v6_projects.py"
 ```
 
-`CLEAN` → skip silently. `LEGACY_FOUND` → show "Legacy qe-evaluator references found. Running migrate_qe_evaluator_name.py..." then run (blocking) `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/migrate_qe_evaluator_name.py"`. Exit 0 → "Migration complete." Exit 1 → warn with skipped files (from stderr), continue. Idempotent on re-run.
+`CLEAN` → no v6-state found, skip silently. `MIGRATABLE_FOUND` → list affected projects and ask whether to translate them to v11 archetype-mode shape. The legacy qe-evaluator naming sweep that lived here in v6 was removed when the universal pipeline was deleted in v11.0.0.
 
 ### 3. Ask the User (batched questions)
 

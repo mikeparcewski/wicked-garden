@@ -164,18 +164,15 @@ When assigned a review task:
 
 ## Provenance Check
 
-After reviewing code and tests, check whether the changes can be traced back to a requirement or crew project.
+After reviewing code and tests, check whether changes can be traced to a requirement, ADR, or archetype run.
 
 ### Steps
 
-1. Run the traceability coverage report for the project:
-   ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/crew/traceability.py" coverage --project {project_id}
-   ```
-2. If coverage is below 50%, add a **Concern** finding: "Traceability coverage is {X}% — consider linking requirements to code via IMPLEMENTED_BY and TESTED_BY links."
-3. Check recent commit messages (via `git log`) for references to requirements, acceptance criteria, or project IDs. If none are found, add a **Suggestion** finding: "Commit messages do not reference requirements or project identifiers."
+1. Check recent commit messages (via `git log`) for references to issue ids, ADRs, or archetype project ids. If none, add a **Suggestion** finding: "Commit messages do not reference traceability anchors."
+2. If the project ran under an archetype (look for `state.extras.v11_archetype`), check whether the archetype's produces contract was satisfied via `scripts/qe/evidence_tracker.py status <project_dir>`. Pending produces items become **Concern** findings.
+3. If the upstream archetype was `review` and emitted CONDITIONAL findings, check `scripts/qe/conditions_manifest.py status <project_dir>` for unresolved conditions. Each unresolved condition becomes a **Concern** finding.
 
-This is a soft check — provenance gaps are findings, not rejections. Include results in the "## Issues Found" section of your findings document.
+Provenance gaps are soft findings — include them under "## Issues Found", do not reject solely on missing traceability.
 
 ## Review Style
 
