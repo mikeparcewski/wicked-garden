@@ -243,6 +243,16 @@ class SessionState:
     intent: str | None = None
     intent_explicit: bool = False
 
+    # v11: LLM-classified work-shape archetype + signals.
+    # Populated by the wicked-garden:classify skill. When set, the
+    # prompt_submit hook prefers this over the regex detector.
+    # archetypes_v11: list of {name, score, evidence} dicts (top-3).
+    # signals_v11: dict of boolean signal flags (blast_radius_high, etc.).
+    # classified_at: ISO timestamp; None means not classified yet.
+    archetypes_v11: list | None = None
+    signals_v11: dict | None = None
+    classified_at: str | None = None
+
     # PostToolUse hook latency profiling (Issue #312).
     # Cumulative milliseconds spent in the post_tool.py main() function.
     post_tool_total_ms: int = 0

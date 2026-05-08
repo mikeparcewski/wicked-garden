@@ -180,24 +180,52 @@ def _has_ambiguity_signals(prompt: str) -> bool:
     return any(sig in lower for sig in _JAM_AMBIGUITY_SIGNALS)
 
 
-def _build_archetype_directive(prompt: str, intent: str) -> str | None:
+def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | None:
     """v11 — emit a slim work-shape archetype steering directive.
 
-    Skips emission when intent is 'simple-edit' (silence is the signal,
-    matching the v10 directive convention). For other intents, runs the
-    archetype detector and emits a one-line steering hint when a single
-    archetype scores at HIGH confidence, or a two-line shape-card when
-    two archetypes co-fire (e.g. build + migrate on schema-change).
+    Two-tier classification:
 
-    Fail-open: any import / detection error returns None so the hook
-    never blocks on archetype routing.
+    1. **Persisted (LLM)**: when SessionState carries a recent
+       `classified_at` + `archetypes_v11`, prefer that — the model
+       already classified through the wicked-garden:classify skill.
+    2. **Fallback (regex)**: when no persisted classification exists,
+       run archetypes_v11.detect_archetypes() against the prompt
+       directly. If the prompt is non-trivial (intent != simple-edit)
+       AND the regex result is weak (only triage matched), emit a
+       directive asking the model to invoke the classify skill —
+       LLM reasoning beats regex on ambiguous prompts.
+
+    Skips emission when intent is 'simple-edit' (silence is the signal).
+    Fail-open on any error.
     """
     if not prompt or not prompt.strip():
         return None
     if intent == "simple-edit":
         return None
+
+    # Tier 1: persisted classification from the classify skill
+    persisted = (getattr(state, "archetypes_v11", None) or []) if state else []
+    if persisted:
+        # Filter triage out unless sole match; emit shape-card from persisted.
+        real = [a for a in persisted if a.get("name") != "triage"]
+        if not real:
+            return None
+        if len(real) == 1 and float(real[0].get("score", 0)) >= 0.7:
+            n = real[0]["name"]
+            s = float(real[0]["score"])
+            return f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"llm\" />"
+        shape_lines = [
+            f"  - {a['name']} ({float(a.get('score', 0)):.2f})"
+            for a in real[:3]
+        ]
+        return (
+            "<wg archetypes classified=\"llm\">\n"
+            + "\n".join(shape_lines)
+            + "\n</wg>"
+        )
+
+    # Tier 2: regex fallback
     try:
-        # Lazy import — keeps HOT path cost low when intent gates skip us.
         from pathlib import Path as _Path
         import sys as _sys
         _scripts = _Path(__file__).resolve().parents[1].parent / "scripts"
@@ -214,28 +242,28 @@ def _build_archetype_directive(prompt: str, intent: str) -> str | None:
     except Exception:
         return None
 
-    # Filter triage out unless it's the only match
     real = [(n, s, e) for (n, s, e) in matches if n != "triage"]
-    if not real:
-        # Nothing scored above threshold — let the user clarify naturally.
-        # No directive needed; intent classification already routed this.
-        return None
 
-    # Single high-confidence archetype: emit a slim recommend-tier hint.
+    if not real:
+        # Regex couldn't classify cleanly — ask the model to do it instead.
+        # This is the LLM-classifier opt-in path: the model invokes the
+        # wicked-garden:classify skill, persists the result, and on the
+        # next turn the persisted-tier branch above takes over.
+        return (
+            "<wg classify-due />\n"
+            "Regex classifier could not route this prompt to a v11 archetype. "
+            "Invoke the `wicked-garden:classify` skill to classify with model "
+            "reasoning, then run the chosen archetype's playbook."
+        )
+
     high = [(n, s, e) for (n, s, e) in real if s >= HIGH_CONFIDENCE]
     if len(high) == 1 and len(real) == 1:
         n, s, _ = high[0]
-        return (
-            f"<wg archetype=\"{n}\" score=\"{s:.2f}\" />"
-        )
+        return f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"regex\" />"
 
-    # Multi-archetype or medium-confidence: name the shape so the model
-    # picks an appropriate phase order.
-    shape_lines = []
-    for (n, s, _) in real[:3]:  # cap at top-3
-        shape_lines.append(f"  - {n} ({s:.2f})")
+    shape_lines = [f"  - {n} ({s:.2f})" for (n, s, _) in real[:3]]
     return (
-        "<wg archetypes>\n"
+        "<wg archetypes classified=\"regex\">\n"
         + "\n".join(shape_lines)
         + "\n</wg>"
     )
@@ -1042,7 +1070,7 @@ def main():
         # specific archetype (build / migrate / incident / specify / ...),
         # emits a slim tag so the agent knows the work shape it's in.
         archetype_directive = _build_archetype_directive(
-            prompt, _intent or "simple-edit"
+            prompt, _intent or "simple-edit", state=state,
         )
         if archetype_directive:
             all_parts.append(archetype_directive)
