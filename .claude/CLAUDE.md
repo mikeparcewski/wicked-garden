@@ -108,6 +108,10 @@ wicked-garden/
 
 Each archetype's playbook documents what *should* happen, not what gets blocked. HITL discipline ranges from `none` (triage) through `continuous` (explore) and `discrete:*` gates to `hard:*` gates (mitigate, cutover, final-verdict). Hard gates require explicit user approval; discrete gates may auto-pass when the produces contract is met. Nothing else gates.
 
+### Evidence is re-derived, not asserted
+
+A produces-gate does not pass because an agent claimed "done". It re-derives through **wicked-vault** (a required peer; on npm, `>= 0.3`): the gate runs `scripts/qe/vault_gate.py` → `wicked-vault cross-check`, which re-hashes the recorded evidence and **re-runs its verifier**, never trusting a cached status. A claimed-but-false "tests pass" is REJECTED; a missing vault **fails closed** (`gate: "unavailable"`), never a vacuous pass. Hard gates (review/incident/migrate) additionally require an *independent* attestation — the evaluator is not the agent that did the work (`--with-attestations`). So when building/migrating/etc., **record verifiable evidence** (`wicked-vault record … --run`); don't self-assert completion. The vault is resolved at runtime (`WICKED_VAULT_BIN` → config → PATH → `node_modules/.bin` → `npx`); `WICKED_VAULT_BIN=""` is the kill-switch.
+
 ### Per-archetype, not per-phase
 
 There is no universal pipeline. A `migrate` doesn't have a `clarify` phase; a `build` doesn't have a `cutover` phase. Phase names mean different things inside different archetypes. Don't try to factor common phases — that's how the v6 universal pipeline emerged, and it forced every kind of work into the same shape.
@@ -149,6 +153,12 @@ Skills use **progressive disclosure**:
 Valid events: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `TaskCompleted`, `SubagentStart`, `SubagentStop`, `Stop`, `PreCompact`, `Notification`, `PermissionRequest`, `TeammateIdle`, `SessionEnd`.
 
 Prefer `command` hooks over `prompt`/`agent` (deterministic, testable, no token cost). Use `"async": true` for Stop hooks. Return `{"ok": true}` on success, `{"ok": false, "reason": "..."}` to block. Stdlib-only for Python hook scripts.
+
+## Evidence backend + compiler
+
+**The gate (`scripts/qe/vault_gate.py`)** — resolves the wicked-vault CLI and runs `cross-check` for an archetype's produces. `gate_satisfied()` is the front door (`require=True` default → fail-closed when the vault is absent; `--no-require` opts back to the doctrine-light `evidence_tracker` claim-only path). This *replaced* `evidence_tracker.py`'s satisfied-when-claimed model as the gate; the tracker remains the fallback/bookkeeping.
+
+**The compiler (`scripts/compiler/`)** — emits a self-contained, vault-backed gate into *any* repo. `compile.py` builds on `phase0/detect.py` (binding detector: test/lint/build commands, ecosystem, claims docs, risk surfaces) → derives a multi-claim contract → writes `<repo>/.wicked/{contract.json, gate.py, claims_lint.py, README, bindings.json}` and can install triggers (git pre-push hook + GitHub Actions). The emitted `gate.py` is **stdlib-only, imports nothing from the garden** (AST-enforced in tests), and resolves the vault via `npx` — it runs with no wicked-garden present. Surface: `/wicked-garden:compile <repo> [--trigger hook,ci]` (`commands/compile.md`). The on-switch rule: **compile the trigger + enforcement; never the tool** — the vault is a runtime-resolved utility. Tests: `tests/compiler/test_compile.py`.
 
 ## Storage
 

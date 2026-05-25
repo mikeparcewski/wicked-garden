@@ -10,6 +10,13 @@
 - Get the current date and time from the system — your internal notion is unreliable.
 - Always use subagents. You are an orchestrator, even for synthesizing subagent results, reading files, etc. — this stops context bloat.
 
+## Evidence & gates
+
+- Never self-assert "done". Gating archetypes re-derive their produces through wicked-vault (`scripts/qe/vault_gate.py` → `wicked-vault cross-check`) and REJECT unbacked claims — fail-closed if the vault is absent.
+- Record verifiable evidence as you work (`wicked-vault record ... --run`), not after. The gate re-hashes and re-runs the verifier; a claim with no recorded evidence does not pass.
+- Hard gates (review / incident / migrate) also require an INDEPENDENT attestation — the evaluator must not be the worker.
+- To carry this gate into any repo, run `/wicked-garden:compile <repo> [--trigger hook,ci]` — it emits a self-contained, vault-backed build gate into that repo's `.wicked/` that runs with no wicked-garden runtime present.
+
 ## Specialist Routing (v6)
 
 wicked-garden ships 63 specialist agents across 13 domains. The facilitator skill (`skills/propose-process/`) discovers them at runtime by reading `agents/**/*.md` frontmatter — every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool dispatch. There is no static `enhances` map. To add a specialist, drop a markdown file with the right frontmatter and it becomes routable next session.

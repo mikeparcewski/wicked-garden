@@ -69,7 +69,7 @@ Each archetype's playbook documents its phases, what it produces, where the huma
 
 ## Why it works
 
-**Steering, not blocking.** Each archetype's playbook tells you what *should* happen. Hard gates exist where they matter (mitigate during an incident, cutover during a migration, final-verdict during review). Everything else is a discrete or continuous gate that auto-passes when the produces contract is met.
+**Steering, not blocking.** Each archetype's playbook tells you what *should* happen. Hard gates exist where they matter (mitigate during an incident, cutover during a migration, final-verdict during review). Everything else is a discrete or continuous gate that auto-passes when the produces contract is met — and "met" is *re-derived*, never self-asserted (see below).
 
 **Per-archetype, not per-phase.** A `migrate` doesn't have a `clarify` phase; a `build` doesn't have a `cutover` phase. Phase names mean different things inside different archetypes. We don't try to factor common phases — that's how the v6 universal pipeline emerged, and it forced every kind of work into the same shape.
 
@@ -77,11 +77,15 @@ Each archetype's playbook documents its phases, what it produces, where the huma
 
 **The bus carries the audit trail.** Every meaningful event flows through [wicked-bus](https://github.com/mikeparcewski/wicked-bus). The v6–v10 "bus-as-truth" enforcement (signed dispatches, projection resolvers per event type) is gone; the bus is now an audit substrate, not a gate enforcement mechanism. Archetypes own their own discipline.
 
+**Evidence is re-derived, not asserted.** A produces-gate doesn't go green because an agent said "done." It re-derives through [wicked-vault](https://www.npmjs.com/package/wicked-vault) — the evidence is re-hashed and its verifier re-run, never trusting a cached status. A claimed-but-false "tests pass" is **REJECTED**; a missing vault **fails closed** rather than passing on a self-assertion. Hard gates (review, incident, migrate) additionally require an *independent* judgment — the evaluator is not the agent that did the work. This is what makes "auto-passes when the produces contract is met" trustworthy: *met* means re-derived.
+
 ---
 
 ## What's in the box
 
 - **9 work-shape archetypes** with playbooks, slash commands, and a detector.
+- **Vault-backed gates** — every gating archetype re-derives its produces through [wicked-vault](https://www.npmjs.com/package/wicked-vault) (required), fail-closed. "Done" can't be asserted into truth.
+- **The compiler** (`/wicked-garden:compile`) — detect a repo's test/lint/build commands and emit a self-contained, vault-backed build gate into `<repo>/.wicked/`. It runs with **no wicked-garden runtime present** (resolves the vault via `npx`), and can install the triggers that fire it (pre-push hook / GitHub Actions).
 - **Hooks** for prompt classification, tool tracking, session lifecycle.
 - **Domain skills + agents** across engineering, platform, product, data, jam, search, agentic, persona, and delivery — invoked by archetypes when their work needs domain expertise.
 - **wicked-brain integration** for persistent memory across sessions.
@@ -95,8 +99,14 @@ Each archetype's playbook documents its phases, what it produces, where the huma
 # In Claude Code
 /plugin install wicked-garden
 
-# First time setup
+# First time setup (verifies the required peers below)
 /wicked-garden:setup
+```
+
+Required peers (`/wicked-garden:setup` checks these and blocks without them):
+```bash
+npx wicked-testing install     # evidence-gated acceptance testing (≥ 0.3)
+npx wicked-vault-install       # the honest-evidence backend gates re-derive against (≥ 0.3)
 ```
 
 Recommended companions:
@@ -123,6 +133,12 @@ Recommended companions:
 
 Each command loads `skills/archetype/refs/{archetype}.md` and runs the per-archetype phase shape.
 
+```bash
+# Compile a self-contained, vault-backed gate into ANY repo
+# (the emitted gate runs with no wicked-garden runtime present)
+/wicked-garden:compile ~/path/to/repo --trigger ci
+```
+
 ---
 
 ## Principles
@@ -147,7 +163,9 @@ Each command loads `skills/archetype/refs/{archetype}.md` and runs the per-arche
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0
 - Python 3.9+ (stdlib only for hook scripts)
-- Optional: `wicked-brain`, `wicked-bus`, `wicked-testing` plugins
+- Node.js + `npx` — required by `wicked-vault` (the evidence backend) and `wicked-testing`
+- **Required peers:** `wicked-testing` (≥ 0.3) and `wicked-vault` (≥ 0.3, the backend gates re-derive against). `/wicked-garden:setup` verifies both and blocks without them.
+- Optional: `wicked-brain` (session memory + search), `wicked-bus` (audit trail)
 
 ---
 

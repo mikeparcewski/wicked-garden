@@ -1,8 +1,9 @@
 {
   "name": "wicked-garden",
   "version": "11.1.3",
-  "description": "AI-Native SDLC organized around 9 work-shape archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate). Each archetype owns its own phase shape, produces contract, HITL discipline, and cost band \u2014 there is no universal pipeline. The UserPromptSubmit hook auto-classifies prompts into archetypes and emits steering directives. Each archetype has a slim playbook (skills/archetype/refs/), a slash command (commands/archetype/), and detection signals declared in .claude-plugin/archetypes.json. Steering, not blocking. Coexists with domain skills + agents (engineering, platform, data, product, jam, search, agentic, persona, delivery), wicked-brain for persistent memory, and wicked-bus for the event audit substrate.",
+  "description": "AI-Native SDLC organized around 9 work-shape archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate). Each archetype owns its own phase shape, produces contract, HITL discipline, and cost band \u2014 there is no universal pipeline. The UserPromptSubmit hook auto-classifies prompts into archetypes and emits steering directives. Each archetype has a slim playbook (skills/archetype/refs/), a slash command (commands/archetype/), and detection signals declared in .claude-plugin/archetypes.json. Steering, not blocking. Gating archetypes re-derive their produces through wicked-vault (required, fail-closed) instead of trusting a self-asserted 'done', and the compiler (/wicked-garden:compile) emits a self-contained, vault-backed build gate into any repo. Coexists with domain skills + agents (engineering, platform, data, product, jam, search, agentic, persona, delivery), wicked-brain for persistent memory, and wicked-bus for the event audit substrate.",
   "wicked_testing_version": "^0.3.0",
+  "wicked_vault_version": "^0.3.0",
   "author": {
     "name": "Mike Parcewski"
   },
