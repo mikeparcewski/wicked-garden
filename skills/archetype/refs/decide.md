@@ -21,6 +21,19 @@ path and the reasons.
 - A **decision artifact**: which option was picked, and the explicit
   trade-offs accepted by picking it.
 
+The select gate **re-derives** these via `wicked-vault`
+(`scripts/qe/vault_gate.py`): the ADR's bytes are re-hashed and its
+structure verifier re-run, never trusting a cached "ADR written". The
+check is **deterministic document-structure** — it proves the ADR
+contains the required sections, not that the call was wise. wicked-vault
+is a **required** peer (installed by `/wicked-garden:setup`); if it is
+genuinely absent the gate **fails closed** (`gate: "unavailable"`,
+`satisfied: false`) rather than self-asserting a PASS. `--no-require`
+opts a throwaway/low-rigor decision back to the doctrine-light
+claim-only path. (A judgment tier — `wicked-vault analyze-evidence` —
+exists for "was this the right call" sign-off; it's optional here and
+not part of this discrete gate.)
+
 ## HITL
 
 `discrete:select-gate` — the user (or a council) picks. Don't auto-select.
@@ -35,6 +48,16 @@ path and the reasons.
 3. If reversibility is HIGH and blast radius is LOW, **stop and ask**
    whether this even needs an ADR. Cheap-to-reverse decisions don't
    benefit from this archetype's overhead.
+4. If a vault is resolvable
+   (`scripts/qe/vault_gate.py resolve` → `available: true`), declare the
+   re-derivable contract so the select gate has a bar to check against:
+   `wicked-vault init` (once per repo) then
+   `wicked-vault declare-contract --scope <scope> --phase decide --spec contract.json`.
+   `required_evidence` pins `adr` (kind `adr-doc`) to a `regex_match`
+   verifier proving the ADR carries every required section — Status,
+   Context, Decision, Consequences — and pins `decision-artifact` to a
+   presence/structure check (`regex_match`, or `commit_exists` once the
+   ADR is committed). Skip silently if no vault.
 
 ### options
 
@@ -62,13 +85,30 @@ path and the reasons.
    consequences, trade-offs accepted.
 3. Commit the ADR with the implementing change, not separately. The ADR
    is the explanation for the diff.
+4. Record the ADR as re-derivable evidence (vault present):
+   `wicked-vault record --scope <scope> --phase decide --claim adr
+   --kind adr-doc --source "<path to the ADR>"
+   --criteria "ADR has Status / Context / Decision / Consequences"
+   --verifier 'regex_match:(?ims)^#+\s*(status|context|decision|consequences)\b'
+   --run`, then record `decision-artifact` against the committed ADR
+   (`--verifier commit_exists:<sha>` once committed, else a `regex_match`
+   on the decision line). The `--run` hashes the file's bytes now and the
+   gate re-derives the structure later — a claim you can't re-derive is
+   not evidence. No vault → fall back to `evidence_tracker.py claim`.
 
 ## When to stop
 
-Decide is done when an ADR is committed and the chosen option is named.
-Hand off to `build` (implement the chosen path), `migrate` (when the
-choice is a shape change), or `ship` (when the choice is a rollout
-strategy).
+Decide is done when the produces-gate is satisfied AND the chosen option
+is named. Check the gate — don't self-assert it:
+`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase decide`
+(exit 0 = satisfied). This is a re-derived PASS over the declared
+contract — the ADR was re-hashed and its structure verifier re-run. A
+REJECT means the recorded ADR doesn't clear its contract (a missing
+section, an uncommitted artifact) — fix the document, not the claim. An
+`unavailable` verdict means the required vault isn't installed — run
+`/wicked-garden:setup`. Then hand off to `build` (implement the chosen
+path), `migrate` (when the choice is a shape change), or `ship` (when the
+choice is a rollout strategy).
 
 ## Anti-patterns
 

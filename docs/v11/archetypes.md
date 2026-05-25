@@ -122,6 +122,27 @@ There is no global `gate-policy.json`. There is no universal banned-
 reviewer list. There is no rigor-tier × gate matrix. Each archetype's
 playbook is the policy.
 
+## What "produces contract met" means now
+
+The gating archetypes (`build`, `specify`, `decide`, `ship`, `review`,
+`incident`, `migrate`) no longer self-assert "done". A produces gate is
+not the agent declaring its own contract satisfied — it is the contract
+**re-derived**. The gate runs `scripts/qe/vault_gate.py`, which calls
+`wicked-vault cross-check`: it re-hashes the recorded evidence and
+**re-runs its verifier** rather than trusting a cached status. A
+claimed-but-false "tests pass" is rejected at the gate; a missing vault
+**fails closed** — there is no vacuous pass. "Met" means re-derived,
+not asserted.
+
+The `hard:*` gates (`review`/final-verdict, `incident`/mitigate,
+`migrate`/cutover) additionally require an **independent judgment** —
+the evaluator is not the agent that did the work, recorded as a
+tamper-evident attestation (`--with-attestations`). Self-graded "done"
+cannot clear a hard gate.
+
+This makes **wicked-vault** a required peer alongside wicked-bus,
+wicked-brain, and wicked-testing — on npm, `>= 0.3`.
+
 ## What replaces propose-process
 
 Nothing, structurally. The `triage` archetype handles classification.

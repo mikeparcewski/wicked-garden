@@ -23,6 +23,16 @@ investigate before mitigating unless investigation IS the mitigation.
 - **Followup list**: action items with owners. Each gets a github issue
   or tracked task.
 
+The mitigate gate **re-derives** these via `wicked-vault`
+(`scripts/qe/vault_gate.py`): the evidence is re-hashed and its verifier
+re-run, never trusting a cached "mitigated". The honesty move here is the
+mitigation pin — a claimed mitigation that doesn't actually make the
+symptom check pass must REJECT. wicked-vault is a **required** peer
+(installed by `/wicked-garden:setup`); if it is genuinely absent the gate
+**fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+self-asserting a PASS. `--no-require` opts a throwaway/low-rigor run back
+to the doctrine-light claim-only path.
+
 ## HITL
 
 `hard:mitigate` — mitigate is a hard gate. Don't move past it without
@@ -37,6 +47,15 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 2. Page the right people. SEV-1 is a phone call, not a slack message.
 3. Open an incident channel + tracking ticket. The ticket is the
    single source of truth for the timeline.
+4. If a vault is resolvable
+   (`scripts/qe/vault_gate.py resolve` → `available: true`), declare the
+   re-derivable contract so the mitigate gate has a bar to check against:
+   `wicked-vault init` (once per repo) then
+   `wicked-vault declare-contract --scope <scope> --phase incident --spec contract.json`.
+   `required_evidence` pins `mitigation` to a deterministic re-run of the
+   symptom check (`exit_code_eq:0`), and `rca` / `followup-list` to
+   presence/structure `regex_match` (required RCA sections present;
+   followup list non-empty). Skip silently if no vault.
 
 ### investigate
 
@@ -46,6 +65,9 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 3. **Time-box investigation to 15 minutes during SEV-1.** If you don't
    have a mitigation hypothesis in 15 min, escalate; don't keep
    investigating.
+4. Capture the **symptom check** — the command that reproduces the break
+   (it fails now). This becomes the deterministic verifier the mitigate
+   gate re-runs: a real mitigation makes this same command pass.
 
 ### mitigate
 
@@ -56,7 +78,15 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
    - Circuit break a downstream (when a dependency is the issue).
 2. **Confirm the bleeding stopped.** Watch the same dashboards that
    surfaced the incident. Don't declare mitigated based on logs alone.
-3. Update the incident channel: "MITIGATED via {action} at {time}".
+3. Record the mitigation as re-derivable evidence (vault present):
+   `wicked-vault record --scope <scope> --phase incident --claim mitigation
+   --kind mitigation-check --source "<the symptom-check command>"
+   --criteria "symptom check passes post-mitigation"
+   --verifier exit_code_eq:0 --run`. The `--run` captures the symptom
+   check's real exit code now and the gate re-runs it later — a mitigation
+   you can't re-derive is not evidence. No vault → fall back to
+   `evidence_tracker.py claim`.
+4. Update the incident channel: "MITIGATED via {action} at {time}".
 
 ### resolve
 
@@ -73,12 +103,35 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 2. Use `wicked-garden:incident-to-scenario-synthesizer` to convert the
    incident into a regression scenario that would catch the same break.
 3. Track action items in github. Don't bury them in a Slack thread.
+4. Record the docs evidence (vault present):
+   `wicked-vault record --scope <scope> --phase incident --claim rca
+   --kind doc --artifact docs/postmortems/INC-{N}.md
+   --criteria "required RCA sections present"
+   --verifier "regex_match:## Root Cause"` and
+   `wicked-vault record --scope <scope> --phase incident
+   --claim followup-list --kind doc --artifact <followup-list>
+   --criteria "followup list non-empty"
+   --verifier "regex_match:- \["`. No vault → `evidence_tracker.py claim`.
 
 ## When to stop
 
-Incident is done when the followup list is owned and tracked. Hand off
-to `build` (forward-fix work), `migrate` (when the fix is a shape
-change), or `review` (when the followup includes auditing prevention).
+`mitigate` is a **hard gate** — confirm the bleeding stopped before
+moving past it, and don't self-grade the mitigation. Check the gate WITH
+judgment:
+`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase incident --with-attestations`
+(exit 0 = satisfied). This re-runs the symptom check (the mitigation pin)
+and requires an **independent attestation** — an evaluator who is *not*
+the responder confirms the mitigation holds and the RCA is adequate,
+recorded via `wicked-vault:analyze-evidence`. It fails closed on a
+self-grade. A REJECT means the symptom check still fails or the
+attestation is missing/negative — fix the work, not the claim. An
+`unavailable` verdict means the required vault isn't installed — run
+`/wicked-garden:setup`.
+
+Incident is done when the gate is satisfied and the followup list is
+owned and tracked. Hand off to `build` (forward-fix work), `migrate`
+(when the fix is a shape change), or `review` (when the followup includes
+auditing prevention).
 
 ## Anti-patterns
 

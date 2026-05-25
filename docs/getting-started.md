@@ -6,11 +6,24 @@
 claude plugins add mikeparcewski/wicked-garden
 ```
 
-That's it. No configuration, no API keys, no external services required. Everything works locally out of the box.
+No API keys, no external services, no cloud — everything runs locally. Two companion plugins are required (below); like wicked-garden itself, both install locally via npm.
+
+### Required peer plugins
+
+Two companion plugins are **required** — `/wicked-garden:setup` verifies both and blocks until they are present:
+
+```bash
+npx wicked-vault-install      # wicked-vault (≥0.3) — vault-backed evidence
+npx wicked-testing install    # wicked-testing (≥0.3) — evidence-gated testing
+```
+
+### Optional companions
+
+[wicked-brain](https://github.com/mikeparcewski/wicked-brain) (cross-session memory) and [wicked-bus](https://github.com/mikeparcewski/wicked-bus) (event bridge) are optional but recommended — install them when you want those capabilities.
 
 ## Your First Session
 
-After installing, you can use any command immediately. Here are five ways to start:
+After installing, you can use any command immediately. Here are six ways to start:
 
 ### 1. Run a Full Workflow
 
@@ -53,6 +66,14 @@ Not grep — structural code intelligence across 73 languages. Find functions, c
 ```
 
 Plain English to SQL results via DuckDB. Works on CSV, Excel, Parquet — files up to 10GB+. Zero setup.
+
+### 6. Compile a Standalone Build Gate
+
+```bash
+/wicked-garden:compile ./my-service --trigger hook,ci  # emit a vault-backed gate into ./my-service/.wicked/
+```
+
+Detects the repo's test/lint/build commands and emits a self-contained `gate.py` that re-derives the build's claims through wicked-vault — runs with no wicked-garden runtime present (resolves the vault via npx). The `--trigger` flag installs a git pre-push hook and/or GitHub Actions workflow.
 
 ## Common Workflows
 

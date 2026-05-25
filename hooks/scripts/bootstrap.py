@@ -634,6 +634,58 @@ def _check_brain_dependency():
 
 
 # ---------------------------------------------------------------------------
+# wicked-vault dependency check (required evidence backend)
+# ---------------------------------------------------------------------------
+
+def _check_vault_dependency():
+    """Return a briefing note if wicked-vault is not resolvable, else None.
+
+    wicked-vault is a required peer (sibling to wicked-bus / wicked-brain /
+    wicked-testing): every archetype produces-gate re-derives against it via
+    ``scripts/qe/vault_gate.py``. When it is absent those gates fail closed,
+    so we surface a one-line install pointer at SessionStart.
+
+    Fast + stdlib-only (no subprocess to npx): checks PATH and loose skill
+    installs only. Always fails open — never blocks the session.
+    """
+    try:
+        import shutil
+
+        # WICKED_VAULT_BIN explicitly set (even empty kill-switch) → operator
+        # is driving resolution deliberately; don't nag.
+        if "WICKED_VAULT_BIN" in os.environ:
+            return None
+
+        if shutil.which("wicked-vault"):
+            return None
+
+        # Loose skill installs land as skills/wicked-vault-*/ under each CLI
+        # config root (npx wicked-vault-install). PATH miss + skills present
+        # still means the CLI runs via npx, so treat skills as "installed".
+        skill_roots = [Path.home() / ".claude" / "skills"]
+        cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+        if cfg:
+            skill_roots.append(Path(cfg) / "skills")
+        for root in skill_roots:
+            try:
+                if root.exists():
+                    for entry in root.iterdir():
+                        if entry.is_dir() and entry.name.startswith("wicked-vault"):
+                            return None
+            except OSError:
+                continue  # fail open
+
+        return (
+            "[wicked-vault] REQUIRED but not installed.\n"
+            "Install now: npx wicked-vault-install  (or: npm i -g wicked-vault)\n"
+            "wicked-vault is the evidence backend every archetype gate "
+            "re-derives against — without it, produces-gates fail closed."
+        )
+    except Exception:
+        return None  # Fail open — never block session start
+
+
+# ---------------------------------------------------------------------------
 # Discovery: contextual command suggestions based on project type (Issue #322)
 # ---------------------------------------------------------------------------
 
@@ -1295,6 +1347,10 @@ def main():
         # CH-02: inject legacy reeval-log migration notice when legacy entries are found.
         if _legacy_reeval_notice:
             mode_notes.append(_legacy_reeval_notice)
+        # Required-peer check: wicked-vault (the evidence backend for gates).
+        _vault_note = _check_vault_dependency()
+        if _vault_note:
+            mode_notes.append(_vault_note)
         if onedrive_path:
             mode_notes.append(
                 f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "
