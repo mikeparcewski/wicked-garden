@@ -193,21 +193,30 @@ if __name__ == "__main__":
 '''
 
 
-def emit(bindings: dict, out_dir: str) -> str:
+def render_lint(bindings: dict) -> str:
+    """Render the claims-vs-evidence lint source for a repo's bindings.
+
+    Single source of the lint logic — both the phase-0 ``emit()`` and the
+    ``compile`` emit stage (which writes it as ``.wicked/claims_lint.py``)
+    render through here. Stdlib-only output.
+    """
     tc = bindings["test_command"]
     es = bindings["evidence_sink"]
     cs = bindings["claims_surface"]
-    rendered = TEMPLATE.format(
+    return TEMPLATE.format(
         repo=bindings["repo"],
         test_command=tc.get("value") or "(none-detected)",
         evidence_sink=es.get("value") or ".wg/evidence",
         claims_mode=cs.get("value"),
         claims_glob=cs.get("glob", []),
     )
+
+
+def emit(bindings: dict, out_dir: str) -> str:
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     target = out / "wg_check_claims.py"
-    target.write_text(rendered)
+    target.write_text(render_lint(bindings))
     return str(target)
 
 

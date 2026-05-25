@@ -95,6 +95,57 @@ class EmitterOutputTests(unittest.TestCase):
             self.assertNotIn("sys.path", gate_src)
             self.assertIn("'command': 'npm test'", gate_src)
 
+    def test_claims_surface_adds_claims_backed_and_emits_lint(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "go.mod").write_text("module x\n\ngo 1.21\n")
+            docs = repo / "docs"
+            docs.mkdir()
+            (docs / "build.md").write_text(
+                "---\nclaims:\n  - id: c1\n    text: tests pass\n    evidence: c1\n---\n# build\n")
+            m = wgc.compile_repo(str(repo))
+            self.assertIn("claims-backed", m["claims"])
+            self.assertEqual(m["claims"]["claims-backed"], "python3 .wicked/claims_lint.py")
+            self.assertIn("claims_lint.py", m["emitted"])
+            self.assertTrue((repo / ".wicked" / "claims_lint.py").exists())
+
+    def test_no_claims_docs_means_no_claims_backed(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "go.mod").write_text("module x\n\ngo 1.21\n")
+            m = wgc.compile_repo(str(repo))
+            self.assertNotIn("claims-backed", m["claims"])
+            self.assertNotIn("claims_lint.py", m["emitted"])
+
+    def test_emitted_claims_lint_flags_unbacked_claim(self):
+        # The lint itself is stdlib + dependency-free — run it directly.
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "go.mod").write_text("module x\n\ngo 1.21\n")
+            docs = repo / "docs"
+            docs.mkdir()
+            claim_doc = docs / "build.md"
+            claim_doc.write_text(
+                "---\nclaims:\n  - id: c1\n    text: tests pass\n    evidence: c1\n---\n")
+            wgc.compile_repo(str(repo))
+            lint = repo / ".wicked" / "claims_lint.py"
+            # No evidence file yet -> the success-claim is unbacked -> exit 1.
+            r = subprocess.run([sys.executable, str(lint), "--repo-root", str(repo),
+                                "--claims-file", str(claim_doc)],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 1, r.stdout)
+
+    def test_risk_surfaces_listed_advisorily_in_readme(self):
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "go.mod").write_text("module x\n\ngo 1.21\n")
+            for mod in ("alpha", "beta"):
+                (repo / "src" / mod).mkdir(parents=True)
+            wgc.compile_repo(str(repo))
+            readme = (repo / ".wicked" / "README.md").read_text()
+            self.assertIn("Risk surfaces (advisory)", readme)
+            self.assertIn("src/alpha", readme)
+
     def test_unknown_ecosystem_flags_needs_review(self):
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)  # no package.json / go.mod / pyproject → unknown

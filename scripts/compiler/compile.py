@@ -44,6 +44,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE / "phase0"))
 import detect as _detect  # noqa: E402  (phase0/detect.py — the proven binding detector)
+import emit as _emit      # noqa: E402  (phase0/emit.py — the claims-vs-evidence lint renderer)
 
 # A detected test command below this confidence is emitted but flagged: the
 # harness still works, but a human should confirm the command is right.
@@ -76,6 +77,17 @@ def claim_specs(bindings: dict) -> list[dict]:
                 "claim_id": claim_id, "kind": kind, "command": cmd,
                 "source": b.get("source"), "confidence": b.get("confidence"),
             })
+    # claims_surface: when the repo carries structured `claims:` docs (the
+    # command_iq shape), emit a claims-lint and gate on it too — every
+    # success-claim in the docs must point to backing evidence. The lint is
+    # just another verifiable command; the vault re-derives it like the rest.
+    cs = bindings.get("claims_surface") or {}
+    if cs.get("value") == "frontmatter":
+        specs.append({
+            "claim_id": "claims-backed", "kind": "claims-lint",
+            "command": "python3 .wicked/claims_lint.py",
+            "source": cs.get("source"), "confidence": cs.get("confidence"),
+        })
     return specs
 
 
@@ -251,7 +263,7 @@ claim re-derives.
 ### Claims this gate re-derives
 
 {claims_md}
-{flag_block}
+{flag_block}{risk_block}
 ## Run it
 
 ```bash
@@ -290,6 +302,20 @@ def _claims_md(specs: list[dict]) -> str:
         rows.append(f"- `{s['claim_id']}` → {cmd}  "
                     f"_({s.get('source')}, confidence {s.get('confidence')})_")
     return "\n".join(rows)
+
+
+def _risk_block(bindings: dict) -> str:
+    """Advisory: list detected risk surfaces. Fuzzy binding — informational,
+    not enforced. Changes touching these surfaces warrant a claim."""
+    rs = bindings.get("risk_surfaces") or {}
+    surfaces = rs.get("value") or []
+    if not surfaces:
+        return ""
+    src = rs.get("from", "module structure")
+    listed = ", ".join(f"`{s}`" for s in surfaces[:12])
+    return (f"\n### Risk surfaces (advisory)\n\n"
+            f"Detected from {src}: {listed}. Changes here warrant their own "
+            f"claim + evidence — not yet enforced by this gate.\n")
 
 
 def _flag_block(bindings: dict, specs: list[dict]) -> str:
@@ -337,15 +363,24 @@ def compile_repo(repo_root: str, out_subdir: str = ".wicked") -> dict:
     (out / "bindings.json").write_text(json.dumps(bindings, indent=2))
     (out / "contract.json").write_text(json.dumps(contract, indent=2))
 
+    emitted = ["bindings.json", "contract.json", "gate.py", "README.md"]
+
     gate_claims = [{"claim": s["claim_id"], "kind": s["kind"], "command": s["command"]}
                    for s in specs]
     (out / "gate.py").write_text(_GATE_TEMPLATE.format(
         repo=bindings["repo"], scope=scope, claims=gate_claims,
     ))
 
+    # claims_surface consumer: emit the claims-vs-evidence lint when the repo
+    # has structured claims docs (its `claims-backed` claim runs it).
+    if (bindings.get("claims_surface") or {}).get("value") == "frontmatter":
+        (out / "claims_lint.py").write_text(_emit.render_lint(bindings))
+        emitted.append("claims_lint.py")
+
     (out / "README.md").write_text(_README_TEMPLATE.format(
         repo=bindings["repo"], scope=scope,
         claims_md=_claims_md(specs), flag_block=_flag_block(bindings, specs),
+        risk_block=_risk_block(bindings),
     ))
 
     tc = bindings["test_command"]
@@ -361,7 +396,7 @@ def compile_repo(repo_root: str, out_subdir: str = ".wicked") -> dict:
         "root": str(root),
         "scope": scope,
         "out_dir": str(out),
-        "emitted": ["bindings.json", "contract.json", "gate.py", "README.md"],
+        "emitted": emitted,
         "claims": {s["claim_id"]: s["command"] for s in specs},
         "needs_review": needs_review,
         "bindings": bindings,
