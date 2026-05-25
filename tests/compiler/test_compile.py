@@ -23,7 +23,11 @@ import unittest
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(_REPO_ROOT / "scripts" / "compiler"))
+# Append (not insert(0)) so scripts/ stays at sys.path[0] for the rest of the
+# suite (tests/conftest.py convention); we only need compile importable here.
+_COMPILER_DIR = str(_REPO_ROOT / "scripts" / "compiler")
+if _COMPILER_DIR not in sys.path:
+    sys.path.append(_COMPILER_DIR)
 import compile as wgc  # noqa: E402
 
 
@@ -152,6 +156,20 @@ class EmitterOutputTests(unittest.TestCase):
             m = wgc.compile_repo(str(repo))
             self.assertTrue(m["needs_review"])
 
+    def test_emitted_gate_honors_killswitch_fails_closed(self):
+        # WICKED_VAULT_BIN="" (set-but-empty) disables resolution -> the
+        # emitted gate must fail closed, not fall through to npx.
+        with tempfile.TemporaryDirectory() as d:
+            repo = Path(d)
+            (repo / "go.mod").write_text("module x\n\ngo 1.21\n")
+            wgc.compile_repo(str(repo))
+            env = {"PATH": os.environ.get("PATH", ""), "WICKED_VAULT_BIN": ""}
+            proc = subprocess.run(
+                [sys.executable, str(repo / ".wicked" / "gate.py")],
+                cwd=str(repo), capture_output=True, text=True, env=env, timeout=60)
+            self.assertEqual(proc.returncode, 1)
+            self.assertEqual(json.loads(proc.stdout).get("gate"), "unavailable")
+
     def test_go_repo_pins_test_lint_build(self):
         with tempfile.TemporaryDirectory() as d:
             repo = Path(d)
@@ -245,6 +263,18 @@ class TriggerInstallTests(unittest.TestCase):
         repo = self._repo(git=False)
         res = wgc.install_triggers(str(repo), ["hook"])[0]
         self.assertEqual(res["status"], "skipped")
+
+    def test_hook_resolves_gitdir_pointer_for_worktree(self):
+        # In worktrees/submodules `.git` is a FILE with a `gitdir:` pointer.
+        repo = self._repo(git=False)
+        realgit = repo / "realgit"
+        realgit.mkdir()
+        (repo / ".git").write_text("gitdir: ./realgit\n")
+        res = wgc.install_triggers(str(repo), ["hook"])[0]
+        self.assertEqual(res["status"], "created")
+        hook = realgit / "hooks" / "pre-push"
+        self.assertTrue(hook.exists())
+        self.assertIn(".wicked/gate.py", hook.read_text())
 
     def test_ci_workflow_uses_detected_ecosystem_setup(self):
         repo = self._repo()

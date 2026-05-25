@@ -21,13 +21,6 @@ DETECTED = "detected"          # inferred from a real repo signal
 DEFAULT = "proposed-default"   # emitted convention; repo had none
 
 
-def _exists(root: Path, *names: str) -> str | None:
-    for n in names:
-        if (root / n).exists():
-            return n
-    return None
-
-
 def _read_json(p: Path) -> dict:
     try:
         return json.loads(p.read_text())
@@ -74,7 +67,6 @@ def _detect_test_command(root: Path) -> dict:
                 "ecosystem": "go"}
 
     # python — the ambiguous case: Makefile test target vs pytest vs pyproject
-    py_signals = []
     has_pyproject = (root / "pyproject.toml").exists()
     has_setup = (root / "setup.py").exists() or (root / "setup.cfg").exists()
     tests_dir = ("tests" if (root / "tests").is_dir()

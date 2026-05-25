@@ -151,7 +151,6 @@ import os
 import shutil
 import subprocess  # noqa: S404 — argv lists, shell=False
 import sys
-import tempfile
 from pathlib import Path
 
 # ---- COMPILED BINDINGS (repo-specific; emitted, not hand-written) ----
@@ -167,10 +166,13 @@ _CONTRACT = Path(__file__).resolve().parent / "contract.json"
 
 
 def _vault_prefix():
-    """Resolve the wicked-vault CLI argv prefix. npx is the portable default
-    so this harness works on a fresh checkout with no global install."""
-    env = os.environ.get("WICKED_VAULT_BIN", "").strip()
-    if env:
+    """Resolve the wicked-vault CLI argv prefix. npx is the portable fallback,
+    so this harness works on a fresh checkout. WICKED_VAULT_BIN set-but-empty
+    is a kill-switch: disables resolution (the gate then fails closed)."""
+    if "WICKED_VAULT_BIN" in os.environ:
+        env = os.environ["WICKED_VAULT_BIN"].strip()
+        if not env:
+            return None  # kill-switch
         return ["node", env] if env.endswith((".mjs", ".js")) else [env]
     found = shutil.which("wicked-vault")
     if found:
@@ -181,9 +183,13 @@ def _vault_prefix():
 
 
 def _vault(prefix, args, timeout=600):
-    proc = subprocess.run(  # noqa: S603 — argv list, shell=False
-        prefix + args, cwd=str(_ROOT), capture_output=True, text=True, timeout=timeout,
-    )
+    try:
+        proc = subprocess.run(  # noqa: S603 — argv list, shell=False
+            prefix + args, cwd=str(_ROOT), capture_output=True, text=True, timeout=timeout,
+        )
+    except FileNotFoundError:
+        # node/npx/wicked-vault not on PATH — fail closed, don't crash.
+        return 127, {{"error": "wicked-vault executable not found"}}
     out = proc.stdout.strip()
     try:
         parsed = json.loads(out) if out else {{}}
@@ -461,6 +467,19 @@ def _install_pre_push_hook(root: Path) -> dict:
     git_dir = root / ".git"
     if not git_dir.exists():
         return {"trigger": "pre-push-hook", "status": "skipped", "reason": "not a git repo"}
+    # In submodules / worktrees, `.git` is a FILE holding a `gitdir:` pointer
+    # to the real git directory — not a directory we can mkdir hooks/ under.
+    if git_dir.is_file():
+        try:
+            content = git_dir.read_text(encoding="utf-8").strip()
+        except OSError:
+            return {"trigger": "pre-push-hook", "status": "skipped",
+                    "reason": "could not read .git file"}
+        if content.startswith("gitdir:"):
+            git_dir = (root / content.split(":", 1)[1].strip()).resolve()
+        if not git_dir.is_dir():
+            return {"trigger": "pre-push-hook", "status": "skipped",
+                    "reason": "resolved gitdir is not a directory"}
     hooks = git_dir / "hooks"
     hooks.mkdir(parents=True, exist_ok=True)
     hook = hooks / "pre-push"

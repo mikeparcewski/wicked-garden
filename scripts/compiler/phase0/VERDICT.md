@@ -1,7 +1,9 @@
 # Phase-0 Verdict — compiler falsification probe
 
 **Result: PASS (4/4).** The compiler thesis cleared its Phase-0 bar.
-Throwaway prototype under `scripts/compiler/phase0/` (uncommitted).
+Prototype under `scripts/compiler/phase0/` — committed as provenance, not
+production code. The production emit stage is `scripts/compiler/compile.py`,
+which reuses this prototype's `detect.py` and `emit.py`.
 
 ## What was tested
 

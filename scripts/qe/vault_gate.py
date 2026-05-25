@@ -12,22 +12,27 @@ pure verifier every time, never trusting a cached status — and answers
 So the gate becomes: *is the claim actually backed by evidence that
 clears its declared contract?* — not *did someone say it was done?*
 
-**Optional sibling, never a hard dependency.** wicked-vault is resolved
-the same way the vault resolves wicked-bus: if it isn't installed, the
-gate degrades gracefully to the doctrine-light ``evidence_tracker``
-fallback and says so loudly (``re_derived: false``). A missing vault
-never crashes a playbook; it only downgrades the gate's *trust*.
+**Required peer, fail-closed by default.** wicked-vault is a required
+sibling (like wicked-bus / wicked-brain / wicked-testing). When it is
+genuinely unresolvable, ``gate_satisfied`` (``require=True`` default)
+**fails closed** — it never self-asserts a PASS. ``require=False`` is an
+explicit opt-out to the doctrine-light ``evidence_tracker`` claim-only
+path for throwaway/low-rigor work.
 
-Resolution order for the vault CLI:
+Resolution order for the vault CLI (see ``resolve_vault``):
     1. ``WICKED_VAULT_BIN`` env var (explicit override; a ``.mjs``/``.js``
        path is invoked via ``node``, anything else is run directly).
+       **Set-but-empty is a kill-switch** → unresolvable (forces
+       fail-closed / opt-out; used for offline dev, see CONTRIBUTING.md).
     2. ``tool_preferences.wicked-vault`` in
        ``~/.something-wicked/wicked-garden/config.json``.
-    3. A ``wicked-vault`` executable on ``PATH`` (``shutil.which``).
-    4. None → fall back to claim-only.
-
-We never silently shell out to ``npx`` (it would hit the network); the
-caller opts in by setting the env var or installing the CLI.
+    3. A ``wicked-vault`` executable on ``PATH``.
+    4. A project-local ``node_modules/.bin/wicked-vault``.
+    5. ``npx --yes wicked-vault`` — the portable fallback. The vault is
+       commonly run via npx (``npx wicked-vault-install`` does not place a
+       global binary), so this tier is what lets the required peer resolve
+       out of the box; it is *not* counted as a concrete install
+       (``vault_available`` excludes it). ``--yes`` fetches once, then caches.
 
 Stdlib-only. Cross-platform (argv lists, ``shutil.which``, no shell).
 """
@@ -61,20 +66,20 @@ def _argv_for(target: str) -> List[str]:
     return [target]
 
 
-def resolve_vault(*, allow_npx: bool = True) -> Optional[List[str]]:
+def resolve_vault(*, allow_npx: bool = True,
+                  project_dir: Optional[Path] = None) -> Optional[List[str]]:
     """Return the argv prefix that invokes wicked-vault, or None.
 
     Resolution tiers (first hit wins):
       1. ``WICKED_VAULT_BIN`` env. Set-but-empty is a deliberate
-         **kill-switch** → return None (forces the fail-closed / opt-out
-         path; never silently reaches for npx).
+         **kill-switch** → return None (forces fail-closed / opt-out).
       2. ``tool_preferences.wicked-vault`` in config.json.
-      3. ``wicked-vault`` on PATH (a global ``npm i -g`` — what setup does).
-      4. a project-local ``node_modules/.bin/wicked-vault``.
-      5. ``npx --yes wicked-vault`` — last resort, only when ``allow_npx``.
-         npx exists almost everywhere, so this tier is what makes the
-         required-but-not-globally-installed case still work; it is *not*
-         counted as a concrete install (see ``vault_available``).
+      3. ``wicked-vault`` on PATH (a global ``npm i -g``).
+      4. a project-local ``node_modules/.bin/wicked-vault`` — resolved
+         under ``project_dir`` when given, else the cwd (so a gate run from
+         a different cwd still finds the target repo's local install).
+      5. ``npx --yes wicked-vault`` — the portable fallback, only when
+         ``allow_npx``; not counted as a concrete install (``vault_available``).
 
     None means no vault is resolvable at all.
     """
@@ -90,7 +95,8 @@ def resolve_vault(*, allow_npx: bool = True) -> Optional[List[str]]:
     if found:
         return [found]
 
-    local = Path.cwd() / "node_modules" / ".bin" / "wicked-vault"
+    base = Path(project_dir) if project_dir else Path.cwd()
+    local = base / "node_modules" / ".bin" / "wicked-vault"
     if local.exists():
         return [str(local)]
 
@@ -100,12 +106,12 @@ def resolve_vault(*, allow_npx: bool = True) -> Optional[List[str]]:
     return None
 
 
-def vault_available() -> bool:
+def vault_available(project_dir: Optional[Path] = None) -> bool:
     """True iff a **concrete** vault install is resolvable (env, config,
     PATH, or node_modules) — not the npx last-resort. This is the signal
     setup and the SessionStart bootstrap use to decide whether the
     required peer is actually installed."""
-    return resolve_vault(allow_npx=False) is not None
+    return resolve_vault(allow_npx=False, project_dir=project_dir) is not None
 
 
 def _read_config_preference(key: str) -> Optional[str]:
@@ -139,7 +145,7 @@ def _run(
     ``error`` is populated (and exit_code left None) only when the CLI
     could not be executed at all — not found, or timed out.
     """
-    prefix = resolve_vault()
+    prefix = resolve_vault(project_dir=project_dir)
     if prefix is None:
         return {"exit_code": None, "stdout": "", "stderr": "",
                 "error": "wicked-vault not resolvable"}
@@ -234,7 +240,7 @@ def gate_satisfied(
     - vault unresolvable, ``require=False`` → legacy claim-only path
       (opt-out for throwaway/low-rigor work; treat "done" with suspicion).
     """
-    if resolve_vault() is not None:
+    if resolve_vault(project_dir=Path(project_dir)) is not None:
         cc = cross_check(scope, phase, project_dir=Path(project_dir),
                          with_attestations=with_attestations)
         if cc.get("available"):
