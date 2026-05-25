@@ -132,3 +132,7 @@ _meta/
 # Gate 1 facilitator measurement artifact (narrow exception to *.log rule)
 !scripts/ci/facilitator_outputs/_measurement.log
 .hypothesis/
+
+# wicked-garden compiler: transient probe transcripts (regenerable)
+scripts/compiler/phase0/evidence/
+scripts/compiler/**/__pycache__/
