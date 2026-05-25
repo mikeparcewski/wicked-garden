@@ -10,6 +10,50 @@ dial) that was replaced wholesale.
 
 ---
 
+## [12.0.0] — 2026-05-25
+
+**"Done" is re-derived, not asserted — and the garden can compile that guarantee onto any repo.**
+
+Every gating archetype's produces-gate stops trusting a self-asserted "done"
+and re-derives it through [wicked-vault](https://www.npmjs.com/package/wicked-vault),
+a new **required** peer. A new compiler emits that same re-derivation as a
+self-contained harness into any repo.
+
+### Breaking changes
+
+- **wicked-vault is now a required peer** (`^0.3.0`; sibling to wicked-bus /
+  wicked-brain / wicked-testing). `/wicked-garden:setup` verifies it and blocks
+  without it, and the SessionStart hook warns. Install with
+  `npx wicked-vault-install`. Offline/dev kill-switch: `WICKED_VAULT_BIN=""`
+  (see CONTRIBUTING.md).
+
+### Features
+
+- **Vault-backed gates for all gating archetypes** (`scripts/qe/vault_gate.py`).
+  The gate runs `wicked-vault cross-check` — re-hashing the recorded evidence
+  and re-running its verifier — instead of `evidence_tracker`'s
+  satisfied-when-claimed model. A claimed-but-false "tests pass" is REJECTED; a
+  missing vault **fails closed** rather than passing on a self-assertion. Hard
+  gates (review / incident / migrate) require an *independent* attestation —
+  the evaluator is not the agent that did the work.
+- **The compiler emit stage + `/wicked-garden:compile`** (`scripts/compiler/`).
+  Detects a repo's test/lint/build commands and emits a self-contained,
+  vault-backed gate into `<repo>/.wicked/` (contract + a stdlib-only `gate.py`
+  + a claims-vs-evidence lint + README) that runs with **no wicked-garden
+  runtime present** (resolves the vault via `npx`). Optionally installs the
+  triggers that fire it — a git pre-push hook and a GitHub Actions workflow
+  whose toolchain setup is derived from the detected ecosystem. Multi-claim
+  contracts (test/lint/build), each pinned to its own verifier.
+
+### Notes
+
+- 422 tests; proven on an unseen repo (memos) and self-hosted on wicked-garden
+  (which surfaced and fixed a detector scoping bug).
+- Follow-up: #879 — two rotted test files CI never collected, found while
+  self-hosting the compiler.
+
+---
+
 ## [11.1.3] — 2026-05-08
 
 **Council command + 4 sibling commands had broken refs the validator missed.**
