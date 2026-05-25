@@ -19,6 +19,18 @@ REJECT, with a remediation list when not APPROVE.
 - **Remediation list**: each item has an id, severity, and a concrete
   action. Empty when APPROVE.
 
+The final-verdict gate **re-derives** these via `wicked-vault`
+(`scripts/qe/vault_gate.py`): the verdict JSON is re-validated and the
+remediation-list structure re-checked, never trusting a self-asserted
+"done". wicked-vault is a **required** peer (installed by
+`/wicked-garden:setup`); if it is genuinely absent the gate **fails
+closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
+on a claim alone. Because final-verdict is a **hard** gate, the contract
+also demands an **independent attestation** — the verdict must be signed
+off by an evaluator that is NOT the worker who did the reviewed work
+(anti-self-grade, G10). `--no-require` opts a throwaway/low-rigor run
+back to the doctrine-light claim-only path.
+
 ## HITL
 
 `hard:final-verdict` — the verdict is a hard gate. Auto-approve is
@@ -34,6 +46,17 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
    changed.
 3. Pick the rubric: code review uses R1–R6; design review uses
    testability + boundary clarity; spec review uses SMART+T.
+4. If a vault is resolvable (`scripts/qe/vault_gate.py resolve` →
+   `available: true`), declare the re-derivable contract for this phase
+   so the final-verdict gate has a bar to check against:
+   `wicked-vault init` (once per repo) then
+   `wicked-vault declare-contract --scope <scope> --phase review --spec contract.json`.
+   `required_evidence` should pin `verdict` to `exit_code_eq:0` on a
+   verdict-schema validation (`scripts/qe/verdict_schema.py`) and
+   `remediation-list` to a presence/structure `regex_match`. Because
+   this is a **hard** gate, the contract also requires a passing
+   independent `opinion_attestation` (the judgment tier). Skip silently
+   if no vault.
 
 ### assess
 
@@ -73,6 +96,21 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
    condition descriptions before persisting.
 4. Append to the audit log with `scripts/qe/verdict_audit.py append`
    so the verdict is replayable.
+   Then record both produces as re-derivable evidence (vault present):
+   `wicked-vault record --scope <scope> --phase review --claim verdict
+   --kind verdict --source "<verdict.json>" --criteria "<the bar>"
+   --verifier exit_code_eq:0 --run` where the run is
+   `scripts/qe/verdict_schema.py <verdict.json>`, and a second `record`
+   for `--claim remediation-list ... --verifier regex_match:<pattern>`.
+   The `--run` captures the validator's real exit code now and the gate
+   re-runs it later — a claim you can't re-derive is not evidence. No
+   vault → fall back to `evidence_tracker.py claim`.
+   Then have an **independent** evaluator sign off via the
+   `wicked-vault:analyze-evidence` skill, which records an
+   `opinion_attestation` over the frozen criteria. The evaluator must
+   NOT be the agent that did the reviewed work — the gate fails closed
+   on a self-grade. This is the "never let work self-grade its own done"
+   guarantee.
 5. On CONDITIONAL: initialise the conditions manifest with
    `scripts/qe/conditions_manifest.py init --from-verdict <path>`.
    The downstream archetype calls `mark` as it satisfies each one.
@@ -80,7 +118,17 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
 
 ## When to stop
 
-Review is done when the verdict is recorded. Hand off to `build` (when
+Review is done when the produces-gate is satisfied. Check the gate —
+don't self-assert it:
+`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase review --with-attestations`
+(exit 0 = satisfied). This is a re-derived PASS over the declared
+contract. `--with-attestations` makes the gate require a passing
+independent `opinion_attestation` recorded via the
+`wicked-vault:analyze-evidence` skill, where the evaluator ≠ the agent
+that did the reviewed work — it fails closed on a self-grade. A REJECT
+means the recorded evidence does not clear its contract — fix the work,
+not the claim. An `unavailable` verdict means the required vault isn't
+installed — run `/wicked-garden:setup`. Then hand off to `build` (when
 fixes are needed before ship) or `ship` (when APPROVE).
 
 ## Anti-patterns

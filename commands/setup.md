@@ -60,7 +60,16 @@ npx wicked-testing --version 2>/dev/null || echo "MISSING"
 - `MISSING` → blocking. Show "wicked-testing is not installed. wicked-garden v7.0+ requires wicked-testing >= 0.1 as a peer plugin. Upgrading from v6.x? See `docs/MIGRATION-v7.md`." **INTERACTIVE mode**: AskUserQuestion header "wicked-testing Required", options "Install now (Required)" = "Run: npx wicked-testing install" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npx wicked-testing install`, re-probe with `npx wicked-testing --version`, confirm the version. On failure, show stderr and exit with manual instructions. If exit: "Run `npx wicked-testing install` then restart with `/wicked-garden:setup`."
 - Version string (e.g. `0.2.1`) → check it satisfies `^0.2.0` (the pin from `plugin.json`). In range: show "wicked-testing {version} — ready." Out of range: warn "wicked-testing {version} is outside the supported range (^0.2.0). Update with: `npx wicked-testing install`" and ask whether to update now (same INTERACTIVE / PLAIN_TEXT pattern). Updating is strongly recommended but not a hard block — the SessionStart hook will warn each session.
 
-### 2.6 v6→v11 Project State Migration (optional)
+### 2.6 Verify wicked-vault (Required)
+
+```bash
+npx wicked-vault --version 2>/dev/null || echo "MISSING"
+```
+
+- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a peer (sibling to wicked-bus / wicked-brain / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npx wicked-vault-install" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npx wicked-vault-install` (installs the cross-CLI skills) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npx wicked-vault-install` then restart with `/wicked-garden:setup`."
+- Version string (e.g. `0.3.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
+
+### 2.7 v6→v11 Project State Migration (optional)
 
 If the user has v6-v10 crew projects on disk, advise them to run the v11 migration script:
 
@@ -203,6 +212,7 @@ wicked-garden is ready!
 
 Storage:         Local (DomainStore)
 wicked-testing:  {version e.g. "0.1.2 — ready" or "MISSING — install required"}
+wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
 Onboarding:      {Full | Quick scout | Skipped}
 Directories:     {paths onboarded}
 Project type:    {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected")

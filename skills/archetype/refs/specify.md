@@ -18,6 +18,18 @@ Achievable, Relevant, Time-bound — that downstream `build` can verify.
 - One-line invariants: "A response time over 500ms is a regression".
 - Optional: a `requirements.md` artifact in the project dir.
 
+The validate gate **re-derives** this via `wicked-vault`
+(`scripts/qe/vault_gate.py`): the recorded `smart-acceptance-criteria`
+artifact is re-hashed and its structural verifier re-run, never trusting
+a self-asserted "the ACs are testable". wicked-vault is a **required**
+peer (installed by `/wicked-garden:setup`); if it is genuinely absent the
+gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
+than claiming a PASS. `--no-require` opts a throwaway/low-rigor run back
+to the doctrine-light claim-only path. This is a discrete (light) gate —
+the deterministic check proves *shape* (each AC is measurable); if the
+AC *quality* needs an independent sign-off, the judgment tier
+(`wicked-vault analyze-evidence` / `--with-attestations`) is available.
+
 ## HITL
 
 `discrete:validate-gate` — the validate phase is a hard checkpoint. Don't
@@ -37,12 +49,29 @@ proceed past validate without explicit user agreement on the AC set.
 
 ### structure
 
-1. Convert each elicited fact into one acceptance criterion: `AC-N: when
+1. If a vault is resolvable
+   (`scripts/qe/vault_gate.py resolve` → `available: true`), declare the
+   re-derivable contract for this phase so the validate gate has a bar to
+   check against: `wicked-vault init` (once per repo) then
+   `wicked-vault declare-contract --scope <scope> --phase specify --spec contract.json`
+   — `required_evidence` should pin `smart-acceptance-criteria`
+   (kind `spec-doc`) to a `regex_match` verifier proving the criteria are
+   testable/measurable (e.g. each AC carries a measurable assertion or a
+   Given/When/Then shape). Skip silently if no vault.
+2. Convert each elicited fact into one acceptance criterion: `AC-N: when
    <trigger>, then <observable>`.
-2. Add invariants for things that should NOT change: `INV-N: <thing> must
+3. Add invariants for things that should NOT change: `INV-N: <thing> must
    stay under <threshold>`.
-3. Keep ACs minimal — 3–7 is the sweet spot. More than 10 means you're
+4. Keep ACs minimal — 3–7 is the sweet spot. More than 10 means you're
    treating ACs as design.
+5. Record the AC artifact as re-derivable evidence (vault present):
+   `wicked-vault record --scope <scope> --phase specify
+   --claim smart-acceptance-criteria --kind spec-doc
+   --artifact <path/to/requirements.md>
+   --criteria "<the testability bar>"
+   --verifier regex_match:'(?im)^(AC|INV)-\d+:' --run`. The verifier
+   re-runs against the artifact later — a claim you can't re-derive is
+   not evidence. No vault → fall back to the claim-only path.
 
 ### validate
 
@@ -54,8 +83,15 @@ proceed past validate without explicit user agreement on the AC set.
 
 ## When to stop
 
-Specify is done when the user has signed off on the AC list. Hand off to
-`build` (when the next step is implementation), `decide` (when you've
+Specify is done when the user has signed off on the AC list AND the
+produces-gate is satisfied. Check the gate — don't self-assert it:
+`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase specify`
+(exit 0 = satisfied). This is a re-derived PASS over the declared
+contract: the AC artifact is re-hashed and its structural verifier
+re-run. A REJECT means the recorded ACs don't clear the testability bar —
+fix the criteria, not the claim. An `unavailable` verdict means the
+required vault isn't installed — run `/wicked-garden:setup`. Then hand off
+to `build` (when the next step is implementation), `decide` (when you've
 uncovered competing options), or `explore` (when the act of writing ACs
 revealed the problem isn't well understood).
 

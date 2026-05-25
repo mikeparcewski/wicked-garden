@@ -21,6 +21,20 @@ readers, switch writers, remove the old shape.
 - **Rollback proof**: an executable rollback path. Tested in staging
   before cutover.
 
+The cutover gate **re-derives** these via `wicked-vault`
+(`scripts/qe/vault_gate.py`): the rollback drill is re-run and the
+shape-change post-condition re-checked, never trusting a self-asserted
+"rolled back fine". This is the original evidence-vault use case — for a
+migration the load-bearing honesty move is **no cutover without a
+re-derivable rollback proof**. wicked-vault is a **required** peer
+(installed by `/wicked-garden:setup`); if it is genuinely absent the gate
+**fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+self-asserting a PASS. Because `cutover` is a HARD gate, the gate also
+demands an **independent attestation**: an evaluator who is **not** the
+migrator confirms the rollback proof and shape change are adequate
+(recorded via `wicked-vault:analyze-evidence`), and the gate fails closed
+on a self-grade.
+
 ## HITL
 
 `hard:cutover-gate` — cutover is a hard gate. Don't cutover without
@@ -39,7 +53,19 @@ tested, backfill complete, dual-read working).
    - The expand-contract phase boundaries: when each step happens.
 2. Use `wicked-garden:engineering:migration-engineer` for the canonical
    playbook.
-3. **If the shape change is reversible HIGH (e.g. a column add), this
+3. Declare the re-derivable contract early so the cutover gate has a bar
+   to check against. If a vault is resolvable
+   (`scripts/qe/vault_gate.py resolve` → `available: true`):
+   `wicked-vault init` (once per repo) then
+   `wicked-vault declare-contract --scope <scope> --phase migrate --spec contract.json`.
+   `required_evidence` must pin both claim_ids:
+   - `rollback-proof` → `exit_code_eq:0` on the rollback-drill command —
+     the rollback was actually exercised and succeeded, not asserted.
+   - `shape-change` → a deterministic post-condition: `exit_code_eq:0`
+     on a migration-applied verification, or `jq_pred` over a captured
+     schema-state JSON.
+   Skip silently if no vault.
+4. **If the shape change is reversible HIGH (e.g. a column add), this
    archetype is overkill.** Drop back to `build`.
 
 ### expand
@@ -48,6 +74,12 @@ tested, backfill complete, dual-read working).
 2. New writes go to BOTH shapes (dual-write). New reads still come from
    the old shape.
 3. Land + deploy expand. Don't combine with backfill.
+4. Record the **shape-change** as re-derivable evidence (vault present):
+   `wicked-vault record --scope <scope> --phase migrate --claim shape-change
+   --kind schema-state --source "<migration-applied verification>"
+   --criteria "<the post-condition>" --verifier exit_code_eq:0 --run`. The
+   `--run` captures the real exit code now and the gate re-runs it later —
+   a claim you can't re-derive is not evidence.
 
 ### backfill
 
@@ -57,6 +89,14 @@ tested, backfill complete, dual-read working).
 2. Run in batches; rate-limit against the production DB.
 3. Verify completeness: the row count + checksum + spot-check sample
    match the old shape.
+4. **Exercise the rollback drill and record it as re-derivable evidence —
+   this must exist and re-derive BEFORE cutover** (vault present):
+   `wicked-vault record --scope <scope> --phase migrate --claim rollback-proof
+   --kind rollback-drill --source "<the rollback-drill command>"
+   --criteria "rollback exercised and succeeded" --verifier exit_code_eq:0 --run`.
+   The `--run` captures the drill's real exit code now; the gate re-runs
+   it at cutover. A rollback path you can't re-derive is not a rollback
+   path. No vault → fall back to `evidence_tracker.py claim`.
 
 ### cutover
 
@@ -65,10 +105,20 @@ tested, backfill complete, dual-read working).
    - Backfill complete + verified.
    - Dual-write running cleanly for at least 24h.
    - Monitoring + alerts updated to surface new shape's anomalies.
-2. **Cutover staged**: switch readers first, watch for 1h, then switch
+2. **Gate before any switch** — don't self-assert the checklist. Run the
+   produces-gate WITH judgment:
+   `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase migrate --with-attestations`
+   (exit 0 = satisfied). This re-derives the rollback drill and the
+   shape-change post-condition over the declared contract, and requires
+   the independent attestation (evaluator ≠ migrator, via
+   `wicked-vault:analyze-evidence`). A REJECT means the rollback proof or
+   shape change doesn't clear its contract — fix the work, not the claim.
+   An `unavailable` verdict means the required vault isn't installed — run
+   `/wicked-garden:setup`. **No cutover on a fail-closed verdict.**
+3. **Cutover staged**: switch readers first, watch for 1h, then switch
    writers. Don't switch both at once.
-3. The cutover gate is HARD — explicit user "go" before each switch.
-4. If anything looks off post-cutover: **rollback first, debug second.**
+4. The cutover gate is HARD — explicit user "go" before each switch.
+5. If anything looks off post-cutover: **rollback first, debug second.**
 
 ### contract
 
@@ -79,6 +129,13 @@ tested, backfill complete, dual-read working).
    complete.
 
 ## When to stop
+
+Cutover may only proceed when the produces-gate is satisfied — check it,
+don't self-assert it:
+`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase migrate --with-attestations`
+(exit 0 = satisfied). This is a re-derived PASS over the declared contract
+plus the independent attestation; a missing vault is `gate: "unavailable"`
+/ `satisfied: false`, never a claim-only pass.
 
 Migrate is done when the old shape is removed AND the contract phase
 has soaked. Hand off to `review` for a post-migration audit when the
