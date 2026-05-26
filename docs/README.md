@@ -1,30 +1,32 @@
 # Wicked Garden Documentation
 
-Detailed guides for getting the most out of wicked-garden (v6).
+Detailed guides for getting the most out of wicked-garden.
+
+Work in wicked-garden is organized around **9 work-shape archetypes** — not a fixed pipeline. Each prompt classifies into one or more archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate); each owns its own phase shape, produces contract, and HITL discipline.
 
 ## Guides
 
 | Guide | Description |
 |-------|-------------|
-| [Getting Started](getting-started.md) | Installation, first session, common workflows |
-| [Domains](domains.md) | All 13 domains with commands, agents, and use cases |
-| [Crew Workflow](crew-workflow.md) | Facilitator rubric, archetype detection, gates, convergence |
-| [Architecture](architecture.md) | Storage, native task metadata, gate policy, context assembly |
-| [Advanced Usage](advanced.md) | Multi-model reviews, yolo mode, customization, dev commands |
-| [Cross-Phase Intelligence](cross-phase-intelligence.md) | Traceability, verification, convergence, knowledge graph |
+| [Getting Started](getting-started.md) | Installation, required peers, first session, common workflows |
+| [Archetypes](v11/archetypes.md) | The 9 work-shape archetypes — why the universal pipeline went away |
+| [Domains](domains.md) | The 10 domain skill/agent families archetypes invoke for expertise |
+| [Required Peers](required-peers.md) | The four required peer plugins and the install/runtime stance |
+| [The Compiler](compiler.md) | `/wicked-garden:compile` — emit a self-contained vault-backed gate into any repo |
+| [Brain Chunk Format](brain-chunk-format.md) | How wicked-garden content is chunked for the brain index |
 
 ## Quick Links
 
-- **New to wicked-garden?** Start with [Getting Started](getting-started.md)
-- **Want to understand the workflow engine?** Read [Crew Workflow](crew-workflow.md)
-- **Looking for a specific command?** Browse [Domains](domains.md)
-- **Building on top of wicked-garden?** See [Architecture](architecture.md)
-- **Curious what v6 changed?** The [README changelog](../README.md#changelog) summarizes v6.0 → v6.3.
+- **New to wicked-garden?** Start with [Getting Started](getting-started.md).
+- **Want to understand how work is shaped?** Read [Archetypes](v11/archetypes.md).
+- **Setting up?** The [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus — are verified by `/wicked-garden:setup`.
+- **Looking for domain expertise or a specific command?** Browse [Domains](domains.md).
+- **Want a build gate that runs without wicked-garden present?** See [The Compiler](compiler.md).
 
 ## Need Help?
 
 ```bash
+/wicked-garden:setup                   # verify required peers + onboard
 /wicked-garden:help                    # list all commands
-/wicked-garden:{domain}:help           # domain-specific help
-/wicked-garden:smaht:onboard           # guided codebase onboarding
+/wicked-garden:where-am-i              # show current session state
 ```

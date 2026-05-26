@@ -6,31 +6,33 @@
 
 ## What we believe
 
-**Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Forcing one fixed sequence on both wastes the small one and under-protects the large one. Adaptive rigor is the point, not an optional setting.
+**Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Each prompt classifies into one or more of nine **work-shape archetypes**; each owns its own phase shape, produces contract, and HITL discipline. A typo and a migration get appropriately-scaled rigor — not the same rigor, and not the same shape.
 
-**Quality pressure must be structural, not delegated to willpower.** Reviews skipped under deadline pressure are gates that didn't exist. Hard enforcement, signed dispatch logs, and append-only audit trails are not bureaucracy — they're how good intentions survive a Friday afternoon.
+**"Done" is re-derived, not asserted.** A gate does not go green because someone said so. Evidence is re-hashed and its verifier re-run through wicked-vault every time — a claimed-but-false "tests pass" is REJECTED, and a missing backend fails closed rather than passing on a self-assertion. The cheapest lie in software is a green checkmark with nothing behind it; we refuse to accept it.
 
-**Knowledge compounds across sessions or it isn't knowledge.** If a decision, gotcha, or pattern lives only in the current chat, it dies with the chat. Every memorable thing belongs in a tier-appropriate memory store with confidence and decay rules. The brain is the difference between learning once and learning every time.
+**Quality pressure must be structural, not delegated to willpower.** Reviews skipped under deadline pressure are gates that didn't exist. So enforcement lives in code, not prose: hard gates refuse to advance at runtime, produces re-derive through the vault, and the audit trail is append-only. Good intentions don't have to survive a Friday afternoon — the gates do.
+
+**Knowledge compounds across sessions or it isn't knowledge.** If a decision, gotcha, or pattern lives only in the current chat, it dies with the chat. Every memorable thing belongs in a tier-appropriate memory store with confidence and decay rules. wicked-brain is the difference between learning once and learning every time.
 
 **Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, hooks, and slash commands are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; an agent with a frontmatter description is more discoverable than a registry call.
 
-**Local-first, graceful degradation, always works standalone.** Optional integrations enhance, they never gate. wicked-brain offline? The plugin still ships verdicts. wicked-bus down? The hooks still fire. If a feature requires an external dependency to function at all, it isn't a feature — it's a coupling bug.
+**Required infrastructure, resilient at runtime.** wicked-garden stands on four siblings: **wicked-testing** (proves behavior), **wicked-vault** (makes "done" re-derivable), **wicked-brain** (carries knowledge across sessions), **wicked-bus** (carries the audit trail). These are *required infrastructure*, not optional add-ons — the honest-evidence model does not work if any of them is merely nice-to-have, so `/wicked-garden:setup` verifies all four and blocks without them. But required-at-install is not brittle-at-runtime: a transient outage — brain server down, bus momentarily unavailable — degrades gracefully and never bricks a session. We depend on our infrastructure; we don't crash with it.
 
 **Cross-platform is non-negotiable.** macOS, Linux, Windows (Git Bash, WSL, native). Bare `python3` doesn't exist on Windows; bare `/tmp` doesn't exist on Windows; the shim and `${TMPDIR:-/tmp}` exist for a reason. If a contributor adds shell that breaks on Windows, the contribution is incomplete.
 
-**Honest verdicts beat green dashboards.** A FAIL that surfaces a real bug is worth more than a PASS that masked it. Bot reviews catch what self-review can't. Independent reviewers exist because authors cannot review their own work credibly.
+**Honest verdicts beat green dashboards.** A FAIL that surfaces a real bug is worth more than a PASS that masked it. Hard gates demand an *independent* judgment — the evaluator is not the agent that did the work — because authors cannot review their own work credibly.
 
 ---
 
 ## What we refuse
 
-**We do not require one fixed sequence of phases.** Other plugins ship a single rigid pipeline. The facilitator scores nine factors, detects one of seven archetypes, and picks phases per project. A typo and a migration get appropriately-scaled rigor — not the same rigor.
+**We do not require one fixed sequence of phases.** No universal pipeline. A prompt routes to a *set* of work-shape archetypes, and each runs its own phases. We deliberately do not factor "common phases" — that's how the old universal pipeline emerged, and it forced every kind of work into the same shape.
 
-**We do not gate via heuristics that ignore project shape.** A 0.85 score threshold means nothing if the rubric reading the project is the same one used for a docs-only PR and a database refactor. Per-archetype score bands replace one-size-fits-all thresholds.
+**We do not let work grade its own "done".** Self-assessment is not evidence. A produces-gate re-derives the claim; a hard gate's verdict comes from an evaluator who is not the worker, recorded as a tamper-evident attestation. A "done" with no re-derivable backing is a fabrication, not a verdict.
 
-**We do not require a custom toolchain to install.** Stdlib Python, sh-shim, JSON state files, SQLite for FTS — all present on the platforms we target. No npm-only paths, no compiled extensions, no proprietary registries.
+**We do not silently degrade quality signals.** When the evidence backend isn't resolvable, the gate **fails closed** and says so — it never invents a pass. When a signal is missing, we surface it as a finding; we don't paper over it to keep a dashboard green.
 
-**We do not silently degrade quality signals.** When the semantic reviewer is unavailable we say so as an `info` finding — we don't pretend it ran clean. When a panel reviewer fails to respond, the gate stays `pending` — never silently approved.
+**We do not hide our dependencies.** The four required peers are named, pinned, and checked at setup — not silent transitive surprises. If wicked-garden needs something to function, it says so up front and verifies it, rather than failing mysteriously three commands in.
 
 **We do not let vendors land regressions in the name of cleanup.** Five legitimate skill rewrites bundled with three frontmatter regressions and a vendor-CI hook is not a contribution worth merging. Reject the bundle, salvage the wins in-house.
 
@@ -38,37 +40,38 @@
 
 ## What we optimize for
 
-**Time to first useful gate verdict — minutes, not hours.** A reviewer who waits an hour for a verdict has lost flow before they read it. Targets: under 5 min for minimal rigor, under 30 min for full rigor, with parallel dispatch where the panel allows.
+**A verdict you can trust on the first read.** A reviewer who can't trust the gate re-reads everything by hand, and flow is gone. We optimize for verdicts that are *re-derived* (recomputed, not cached) and *independent* (not self-graded) — trustworthy enough that the green means green.
 
-**Cross-platform install with zero compiled toolchain.** Anyone with `python3` (or `python`, or `py -3` on Windows) and `git` should have a working plugin in under 5 minutes. No build step, no vendor account, no API key required.
+**Archetype-shaped rigor.** The detector classifies *work shape*, and rigor follows the shape — not a global dial that defaults to maximum. A `triage` is negligible; a `migrate` cutover is a hard gate with a rollback proof. The output is rigor that fits the work, applied where it matters.
 
-**Adaptive rigor: archetype-detected, factor-scored, project-shaped.** Every project starts with a 9-factor scoring pass and a 1-of-7 archetype detection. Both feed phase selection, specialist routing, gate evidence demands, and review depth. The output is rigor that fits, not rigor that defaults to maximum.
+**Enforcement that travels.** `/wicked-garden:compile` emits a self-contained, vault-backed gate into any repo — one that re-derives the build's claims with **no wicked-garden runtime present**. We compile the *trigger* and the *enforcement*; we never compile the *tool*. The guarantee outlives the session that created it.
 
-**Append-only audit trails that survive context resets.** Decisions, gate verdicts, dispatch records, and reeval addenda all land on disk in JSONL form. A new session can resume work without losing the chain of reasoning. State that lives only in chat history is state that doesn't exist.
+**Append-only audit trails that survive context resets.** Decisions, gate verdicts, and evidence all land on disk in append-only form. A new session resumes work without losing the chain of reasoning. State that lives only in chat history is state that doesn't exist.
 
-**Honest measurement over vanity metrics.** PASS counts inflated by SKIPped scenarios are not coverage. MANUAL-ONLY is a distinct verdict from SKIP. A 70% real PASS rate beats a 95% inflated one because the second hides regressions.
+**Honest measurement over vanity metrics.** PASS counts inflated by SKIPped scenarios are not coverage. MANUAL-ONLY is a distinct verdict from SKIP. A 70% real PASS rate beats a 95% inflated one, because the second hides regressions.
 
 ---
 
 ## What this is not
 
-**Not a prompt library.** Skills, agents, and commands are executable surfaces with frontmatter contracts and hard enforcement — not text snippets to copy.
+**Not a prompt library.** Skills, agents, and commands are executable surfaces with frontmatter contracts and runtime enforcement — not text snippets to copy.
 
-**Not a fixed-sequence pipeline.** No two projects run the same phase chain. Phase selection is rubric-driven per project, not configured once per repo.
+**Not a fixed-sequence pipeline.** No two prompts run the same phase chain. Work shape is detected per prompt, not configured once per repo.
 
 **Not a starter for learning Claude Code.** This is a working SDLC, not a tutorial. Bring some Claude Code fluency or expect a steep first hour.
 
-**Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. Generators support Python, TypeScript, Java, Go, SQL out of the box; new languages plug in via wicked-patch's generator interface.
+**Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. wicked-patch's generators support Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, Ruby out of the box; new languages plug in via the generator interface.
 
-**Not closed.** Third-party plugins integrate via the [v9 drop-in contract](docs/v9/drop-in-plugin-contract.md). wicked-testing is the canonical example of a sibling plugin slotting into the unified workflow without forking.
+**Not closed.** The four siblings (testing, vault, brain, bus) are required peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
 
 ---
 
 ## How to read the rest
 
-- **`CLAUDE.md`** — operational guidance. How the surfaces compose, what the hooks enforce, where state lives.
+- **`CLAUDE.md`** — operational guidance. How the surfaces compose, what the gates enforce, where state lives.
 - **`README.md`** — what to install, how to start, where to go next.
-- **`docs/v9/`** — the contract surface for sibling plugins.
+- **`docs/v11/archetypes.md`** — the design note: why the universal pipeline went away and what replaced it.
+- **`docs/required-peers.md`** · **`docs/compiler.md`** — the four required siblings, and the compiler.
 - **`scenarios/`** — acceptance tests; each scenario is an executable assertion of intended behavior.
 
 If you can quote one sentence from this page after reading it once, the document worked. If you can quote three, we won.

@@ -103,17 +103,15 @@ Each archetype's playbook documents its phases, what it produces, where the huma
 /wicked-garden:setup
 ```
 
-Required peers (`/wicked-garden:setup` checks these and blocks without them):
+Required peers — `/wicked-garden:setup` verifies all four and blocks without them (required at install, resilient to a transient runtime outage):
 ```bash
 npx wicked-testing install     # evidence-gated acceptance testing (≥ 0.3)
 npx wicked-vault-install       # the honest-evidence backend gates re-derive against (≥ 0.3)
-```
-
-Recommended companions:
-```bash
-/plugin install wicked-brain   # session memory + cited search
+/plugin install wicked-brain   # cross-session memory + cited search
 /plugin install wicked-bus     # event audit substrate
 ```
+
+See [`docs/required-peers.md`](docs/required-peers.md) for why each is load-bearing.
 
 ---
 
@@ -164,8 +162,7 @@ Each command loads `skills/archetype/refs/{archetype}.md` and runs the per-arche
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0
 - Python 3.9+ (stdlib only for hook scripts)
 - Node.js + `npx` — required by `wicked-vault` (the evidence backend) and `wicked-testing`
-- **Required peers:** `wicked-testing` (≥ 0.3) and `wicked-vault` (≥ 0.3, the backend gates re-derive against). `/wicked-garden:setup` verifies both and blocks without them.
-- Optional: `wicked-brain` (session memory + search), `wicked-bus` (audit trail)
+- **Required peers (all four):** `wicked-testing` (≥ 0.3), `wicked-vault` (≥ 0.3, the backend gates re-derive against), `wicked-brain` (cross-session memory + search), `wicked-bus` (audit substrate). `/wicked-garden:setup` verifies all four and blocks without them — required at install, resilient at runtime. See [`docs/required-peers.md`](docs/required-peers.md).
 
 ---
 

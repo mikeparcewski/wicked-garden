@@ -686,6 +686,89 @@ def _check_vault_dependency():
 
 
 # ---------------------------------------------------------------------------
+# wicked-bus dependency check (required event backbone)
+# ---------------------------------------------------------------------------
+
+def _check_bus_dependency():
+    """Return a briefing note if wicked-bus is not installed, else None.
+
+    wicked-bus is a required peer (sibling to wicked-brain / wicked-vault /
+    wicked-testing): the garden's archetype events flow through it. When it
+    is absent, cross-plugin event wiring is silently dropped, so we surface a
+    one-line install pointer at SessionStart.
+
+    Detection mirrors ``_check_brain_dependency`` — wicked-bus installs as a
+    Claude Code *plugin*, not an npx CLI, so we verify by presence:
+      1. ``enabledPlugins`` in ~/.claude/settings.json, project-local
+         .claude/settings.json, and CLAUDE_CONFIG_DIR/settings.json.
+      2. Loose skill installs at ``skills/wicked-bus-*`` under the home and
+         CLAUDE_CONFIG_DIR skills directories.
+
+    Fast + stdlib-only (no subprocess). Always fails open — never blocks the
+    session.
+    """
+    try:
+        # Settings file locations to check (global first, then project-local)
+        settings_candidates = [
+            Path.home() / ".claude" / "settings.json",
+            Path(".claude") / "settings.json",
+        ]
+
+        # Also honour CLAUDE_CONFIG_DIR if set
+        config_dir_env = os.environ.get("CLAUDE_CONFIG_DIR")
+        if config_dir_env:
+            settings_candidates.append(Path(config_dir_env) / "settings.json")
+
+        bus_installed = False
+
+        # Check 1: enabledPlugins in settings.json (plugin-style install)
+        for settings_path in settings_candidates:
+            try:
+                if not settings_path.exists():
+                    continue
+                settings = json.loads(settings_path.read_text(encoding="utf-8"))
+                enabled = settings.get("enabledPlugins", {})
+                if isinstance(enabled, dict) and "wicked-bus" in enabled:
+                    bus_installed = True
+                    break
+                if isinstance(enabled, list) and "wicked-bus" in enabled:
+                    bus_installed = True
+                    break
+            except (json.JSONDecodeError, OSError):
+                continue
+
+        # Check 2: loose skill installs at skills/wicked-bus-* under the home
+        # and CLAUDE_CONFIG_DIR skills directories.
+        if not bus_installed:
+            skill_roots = [Path.home() / ".claude" / "skills"]
+            if config_dir_env:
+                skill_roots.append(Path(config_dir_env) / "skills")
+            for root in skill_roots:
+                try:
+                    if root.exists():
+                        for entry in root.iterdir():
+                            if entry.is_dir() and entry.name.startswith("wicked-bus"):
+                                bus_installed = True
+                                break
+                except OSError:
+                    continue  # fail open
+                if bus_installed:
+                    break
+
+        if not bus_installed:
+            return (
+                "[wicked-bus] REQUIRED but not installed.\n"
+                "Install now: /plugin install wicked-bus\n"
+                "wicked-bus is the event backbone the garden's archetype events "
+                "flow through — without it, cross-plugin event wiring is silently dropped."
+            )
+
+        return None
+    except Exception:
+        return None  # Fail open — never block session start
+
+
+# ---------------------------------------------------------------------------
 # Discovery: contextual command suggestions based on project type (Issue #322)
 # ---------------------------------------------------------------------------
 
@@ -1351,6 +1434,10 @@ def main():
         _vault_note = _check_vault_dependency()
         if _vault_note:
             mode_notes.append(_vault_note)
+        # Required-peer check: wicked-bus (the event backbone for archetype events).
+        _bus_note = _check_bus_dependency()
+        if _bus_note:
+            mode_notes.append(_bus_note)
         if onedrive_path:
             mode_notes.append(
                 f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "
