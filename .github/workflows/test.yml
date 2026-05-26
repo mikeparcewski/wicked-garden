@@ -26,6 +26,12 @@ jobs:
       - name: Run v11 test suite
         run: python -m pytest tests/ -q
 
+      - name: Run wicked-patch generator conformance tests
+        # Self-contained suite under scripts/engineering/patch/tests/ — run as a
+        # separate invocation because its package is named `tests` and would
+        # collide with the repo-root tests/ package in a single collection (#879).
+        run: python -m pytest scripts/engineering/patch/tests/test_conformance.py -q
+
       - name: Smoke phase_manager CLI (v11 archetype-mode)
         run: |
           python scripts/crew/phase_manager.py ci-smoke create \

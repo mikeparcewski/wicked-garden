@@ -1,53 +1,29 @@
 """
-Conformance tests for wicked-patch generators.
+Conformance (contract) tests for wicked-patch generators.
 
-Runs contract tests and golden tests for all registered generators.
+Each registered generator is run against the generator contract for every
+supported language. (Golden-output tests were removed — they loaded a
+`fixtures/` directory that was never created; see #879.)
 
 Usage:
-    # Run all tests
-    python test_conformance.py
-
-    # Run with pytest
-    pytest test_conformance.py -v
-
-    # Run specific generator
-    pytest test_conformance.py -k "java"
+    python test_conformance.py          # standalone runner
+    pytest test_conformance.py -v       # via pytest
+    pytest test_conformance.py -k java  # one generator
 """
 
-import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Any
 
-# Add parent to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Make the patch package + this tests dir importable regardless of the cwd
+# pytest collects from, so `generators` and `generator_contract` resolve
+# whether this runs from here or from the repo root.
+_PATCH_DIR = Path(__file__).resolve().parent.parent
+for _p in (str(_PATCH_DIR), str(_PATCH_DIR / "tests")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-from generators import (
-    BaseGenerator,
-    ChangeSpec,
-    ChangeType,
-    FieldSpec,
-    Patch,
-    GeneratorRegistry,
-)
-from tests.generator_contract import (
-    GeneratorContract,
-    ConformanceReport,
-    run_conformance_tests,
-)
-
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def load_fixtures() -> Dict[str, Dict[str, Any]]:
-    """Load all golden test fixtures."""
-    fixtures = {}
-    for fixture_file in FIXTURES_DIR.glob("*.json"):
-        with open(fixture_file) as f:
-            data = json.load(f)
-            fixtures[data["name"]] = data
-    return fixtures
+from generators import GeneratorRegistry
+from generator_contract import run_conformance_tests
 
 
 class TestGeneratorContract:
@@ -92,26 +68,26 @@ export class TestClass {
 
     def test_jsp_generator_contract(self):
         """JSP generator passes all contract tests."""
-        from generators.jsp_generator import JSPGenerator
+        from generators.jsp_generator import JspGenerator
 
         sample = """
 <form:form modelAttribute="entity">
     <form:input path="existingField" />
 </form:form>
 """
-        report = run_conformance_tests(JSPGenerator, sample)
+        report = run_conformance_tests(JspGenerator, sample)
         assert report.passed, report.summary()
 
     def test_sql_generator_contract(self):
         """SQL generator passes all contract tests."""
-        from generators.sql_generator import SQLGenerator
+        from generators.sql_generator import SqlGenerator
 
         sample = """
 CREATE TABLE test_table (
     id INTEGER PRIMARY KEY
 );
 """
-        report = run_conformance_tests(SQLGenerator, sample)
+        report = run_conformance_tests(SqlGenerator, sample)
         assert report.passed, report.summary()
 
     def test_go_generator_contract(self):
@@ -207,135 +183,8 @@ has 'existing_field' => (
         assert report.passed, report.summary()
 
 
-class TestGoldenOutput:
-    """Golden output tests for generators."""
-
-    def _run_golden_test(self, fixture_name: str):
-        """Run a golden test from a fixture file."""
-        fixtures = load_fixtures()
-        if fixture_name not in fixtures:
-            raise ValueError(f"Fixture not found: {fixture_name}")
-
-        fixture = fixtures[fixture_name]
-        input_data = fixture["input"]
-        expected = fixture["expected"]
-
-        # Get generator
-        generator_name = fixture["generator"]
-        ext_map = {
-            "java": ".java",
-            "python": ".py",
-            "typescript": ".ts",
-            "jsp": ".jsp",
-            "sql": ".sql",
-            "go": ".go",
-            "csharp": ".cs",
-            "ruby": ".rb",
-            "kotlin": ".kt",
-            "rust": ".rs",
-            "php": ".php",
-            "perl": ".pm",
-        }
-        ext = ext_map.get(generator_name)
-        generator_class = GeneratorRegistry.list_generators().get(ext)
-        assert generator_class is not None, f"Generator not found for {generator_name}"
-
-        generator = generator_class()
-
-        # Build change spec
-        field_spec = None
-        if "field_spec" in input_data:
-            fs = input_data["field_spec"]
-            field_spec = FieldSpec(
-                name=fs["name"],
-                type=fs["type"],
-                nullable=fs.get("nullable", True),
-                column_name=fs.get("column_name"),
-                label=fs.get("label"),
-            )
-
-        change_spec = ChangeSpec(
-            change_type=ChangeType(input_data["change_type"]),
-            target_symbol_id=input_data["symbol"]["id"],
-            field_spec=field_spec,
-            old_name=input_data.get("old_name"),
-            new_name=input_data.get("new_name"),
-        )
-
-        # Generate patches
-        patches = generator.generate(
-            change_spec,
-            input_data["symbol"],
-            input_data["sample_content"],
-        )
-
-        # Validate expectations
-        if "patch_count_min" in expected:
-            assert len(patches) >= expected["patch_count_min"], \
-                f"Expected at least {expected['patch_count_min']} patches, got {len(patches)}"
-
-        # Check must_contain
-        all_content = "\n".join(p.new_content for p in patches)
-        for required in expected.get("must_contain", []):
-            assert required in all_content, \
-                f"Expected '{required}' in output, got:\n{all_content}"
-
-        # Check must_not_contain
-        for forbidden in expected.get("must_not_contain", []):
-            assert forbidden not in all_content, \
-                f"Forbidden '{forbidden}' found in output:\n{all_content}"
-
-    def test_java_add_field(self):
-        """Java add_field golden test."""
-        self._run_golden_test("java_add_field")
-
-    def test_python_add_field(self):
-        """Python add_field golden test."""
-        self._run_golden_test("python_add_field")
-
-    def test_typescript_add_field(self):
-        """TypeScript add_field golden test."""
-        self._run_golden_test("typescript_add_field")
-
-    def test_jsp_add_field(self):
-        """JSP add_field golden test."""
-        self._run_golden_test("jsp_add_field")
-
-    def test_sql_add_field(self):
-        """SQL add_field golden test."""
-        self._run_golden_test("sql_add_field")
-
-    def test_go_add_field(self):
-        """Go add_field golden test."""
-        self._run_golden_test("go_add_field")
-
-    def test_csharp_add_field(self):
-        """C# add_field golden test."""
-        self._run_golden_test("csharp_add_field")
-
-    def test_ruby_add_field(self):
-        """Ruby add_field golden test."""
-        self._run_golden_test("ruby_add_field")
-
-    def test_kotlin_add_field(self):
-        """Kotlin add_field golden test."""
-        self._run_golden_test("kotlin_add_field")
-
-    def test_rust_add_field(self):
-        """Rust add_field golden test."""
-        self._run_golden_test("rust_add_field")
-
-    def test_php_add_field(self):
-        """PHP add_field golden test."""
-        self._run_golden_test("php_add_field")
-
-    def test_perl_add_field(self):
-        """Perl add_field golden test."""
-        self._run_golden_test("perl_add_field")
-
-
 def run_all_tests():
-    """Run all conformance and golden tests."""
+    """Run all generator contract tests."""
     print("=" * 60)
     print("WICKED-PATCH GENERATOR CONFORMANCE TESTS")
     print("=" * 60)
@@ -376,23 +225,6 @@ def run_all_tests():
             for result in report.results:
                 if not result.passed:
                     print(f"    - {result.test_name}: {result.message}")
-
-    print()
-
-    # Run golden tests
-    print("GOLDEN TESTS")
-    print("-" * 40)
-
-    fixtures = load_fixtures()
-    test_runner = TestGoldenOutput()
-
-    for name in sorted(fixtures.keys()):
-        try:
-            test_runner._run_golden_test(name)
-            print(f"  {name}: PASS")
-        except Exception as e:
-            print(f"  {name}: FAIL - {e}")
-            all_passed = False
 
     print()
     print("=" * 60)
