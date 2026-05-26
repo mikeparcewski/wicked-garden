@@ -17,69 +17,37 @@
 
 ---
 
-## The problem
+## Why you'd want it
 
-Every Claude Code session starts from scratch. Session 47 has no idea what session 1 decided. The auth token format, the migration that caused the outage, the architectural call you spent two hours debating — all gone. So Claude fills the gap the only way it can: it guesses, skips review steps, and ships things that feel right but aren't grounded in your actual history.
+AI coding assistants confidently announce "tests pass" and "done" — sometimes when neither is true — and the reasoning behind last week's decisions is gone by next session. Wicked Garden doesn't take "done" on faith. Every gate **re-derives** the evidence (re-runs the test command, re-checks the artifact) instead of trusting the claim, and the gates that matter are signed off by an **independent** reviewer — not the agent that did the work. Decisions, evidence, and audit persist across sessions, so session 47 knows what session 1 decided.
 
-The second problem is shape. Software work is not one shape. A typo fix is not a schema migration. A spec elicitation is not a code review. A production incident is not a roadmap brainstorm. Most workflows force every kind of work through one fixed pipeline (`clarify → design → build → test → review`) and modulate "rigor" with a dial. The dial saves you from the worst ceremony but doesn't change the shape — a typo fix still goes through the same phases as a feature.
-
-The third problem is context. The right specialist for a security decision is different from the right specialist for a data architecture call. Claude doesn't route. It answers from whatever context happens to be in the window.
+You get verdicts you can trust, not green checkmarks you can't. *Done is not claimed; done is re-derived.*
 
 ---
 
-## The fix
+## How it works (four beats)
 
-Wicked Garden is an AI-native SDLC plugin for Claude Code. v11 reframed the workflow primitive: instead of a fixed pipeline, every prompt classifies into one or more **work-shape archetypes**. Each archetype is a complete unit with its own phase shape, produces, HITL discipline, and cost band.
+**1 · Detect the shape.** A `UserPromptSubmit` hook classifies your prompt into one or more of nine **work-shape archetypes** — a typo is `triage`, a feature is `build`, a schema change is `build + migrate`. There's no universal pipeline; each shape runs its own phases. (Why archetypes and not one pipeline? → [`docs/v11/archetypes.md`](docs/v11/archetypes.md).)
 
-| Archetype | Phases                                                  | Produces                       | HITL                  | Cost      |
-|-----------|---------------------------------------------------------|--------------------------------|-----------------------|-----------|
-| triage    | classify                                                | routing decision               | none                  | negligible|
-| explore   | frame → diverge → converge                              | option set / hypothesis        | continuous            | low       |
-| specify   | elicit → structure → validate                           | SMART acceptance criteria      | discrete:validate     | low       |
-| decide    | brief → options → score → record                        | ADR / decision artifact        | discrete:select       | medium    |
-| ship      | canary → ramp → full → soak                             | rollout verdict / SLO snapshot | discrete:ramp         | medium    |
-| review    | scope → assess → findings → remediate-or-accept         | verdict / remediation list     | hard:final-verdict    | medium    |
-| incident  | triage → investigate → mitigate → resolve → followup    | mitigation / RCA / followup    | hard:mitigate         | variable  |
-| build     | plan → implement → test → review                        | shipped code / test report     | discrete:review       | high      |
-| migrate   | plan → expand → backfill → cutover → contract           | shape change / rollback proof  | hard:cutover          | high      |
+| Archetype | Phases | Produces | HITL |
+|---|---|---|---|
+| triage | classify | routing decision | none |
+| explore | frame → diverge → converge | option set / hypothesis | continuous |
+| specify | elicit → structure → validate | SMART acceptance criteria | discrete:validate |
+| decide | brief → options → score → record | ADR / decision artifact | discrete:select |
+| ship | canary → ramp → full → soak | rollout verdict / SLO snapshot | discrete:ramp |
+| review | scope → assess → findings → remediate-or-accept | verdict / remediation list | hard:final-verdict |
+| incident | triage → investigate → mitigate → resolve → followup | mitigation / RCA / followup | hard:mitigate |
+| build | plan → implement → test → review | shipped code / test report | discrete:review |
+| migrate | plan → expand → backfill → cutover → contract | shape change / rollback proof | hard:cutover |
 
-Archetypes are NOT mutually exclusive. A schema-changing feature is `build + migrate`. A risky deploy is `ship + review`.
+**2 · Run the archetype.** Each has its own phases, produces contract, and human-in-the-loop (HITL) gates — light for a fix, hard for a migration cutover. Archetypes compose: a schema-changing feature is `build + migrate`; a risky deploy is `ship + review`.
 
----
+**3 · Gate on re-derived evidence.** At each gate, [wicked-vault](https://www.npmjs.com/package/wicked-vault) re-hashes the evidence and re-runs its verifier — a false "tests pass" is **REJECTED**, a missing backend **fails closed** (never a vacuous pass). Hard gates also require an *independent* attestation: the evaluator is not the agent that did the work.
 
-## How it works
+**4 · Carry it forward.** Decisions, evidence, and audit persist on disk via the four required peers — testing · vault · brain · bus — so the next session resumes with the chain intact.
 
-```
-prompt
-  ↓
-UserPromptSubmit hook → archetypes_v11.detect_archetypes()
-  ↓
-emits <wg archetype="incident" score="0.90" /> system reminder
-  ↓
-agent invokes /wicked-garden:archetype:incident OR auto-routes
-  ↓
-skills/archetype/SKILL.md → loads refs/incident.md (the playbook)
-  ↓
-agent runs: triage → investigate → mitigate → resolve → followup
-  ↓
-HITL discipline enforced per the archetype (mitigate is hard:*)
-```
-
-Each archetype's playbook documents its phases, what it produces, where the human gates are, and what NOT to do. No universal pipeline. No rigor-tier dial. Each shape is self-contained.
-
----
-
-## Why it works
-
-**Steering, not blocking.** Each archetype's playbook tells you what *should* happen. Hard gates exist where they matter (mitigate during an incident, cutover during a migration, final-verdict during review). Everything else is a discrete or continuous gate that auto-passes when the produces contract is met — and "met" is *re-derived*, never self-asserted (see below).
-
-**Per-archetype, not per-phase.** A `migrate` doesn't have a `clarify` phase; a `build` doesn't have a `cutover` phase. Phase names mean different things inside different archetypes. We don't try to factor common phases — that's how the v6 universal pipeline emerged, and it forced every kind of work into the same shape.
-
-**The brain carries knowledge across sessions.** Decisions, gotchas, and patterns persist via [wicked-brain](https://github.com/mikeparcewski/wicked-brain) and surface when relevant. Wicked Garden's archetype detector + steering directives don't replace context — they sit on top of it.
-
-**The bus carries the audit trail.** Every meaningful event flows through [wicked-bus](https://github.com/mikeparcewski/wicked-bus). The v6–v10 "bus-as-truth" enforcement (signed dispatches, projection resolvers per event type) is gone; the bus is now an audit substrate, not a gate enforcement mechanism. Archetypes own their own discipline.
-
-**Evidence is re-derived, not asserted.** A produces-gate doesn't go green because an agent said "done." It re-derives through [wicked-vault](https://www.npmjs.com/package/wicked-vault) — the evidence is re-hashed and its verifier re-run, never trusting a cached status. A claimed-but-false "tests pass" is **REJECTED**; a missing vault **fails closed** rather than passing on a self-assertion. Hard gates (review, incident, migrate) additionally require an *independent* judgment — the evaluator is not the agent that did the work. This is what makes "auto-passes when the produces contract is met" trustworthy: *met* means re-derived.
+`/wicked-garden:compile` can stamp that same evidence gate into *any* repo; the emitted gate runs with **no wicked-garden installed**.
 
 ---
 
