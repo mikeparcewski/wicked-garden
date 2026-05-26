@@ -40,10 +40,12 @@ _MAX_ARCHETYPES = 3
 
 
 def _safe_session_id(raw: str | None) -> str | None:
-    """Sanitize a session id the same way _session.py does (path-safe)."""
+    """Sanitize a session id EXACTLY as _session.py::_get_session_id does —
+    disallowed chars are *replaced with* ``_`` (not stripped) — so we resolve
+    the same on-disk filename the hooks wrote."""
     if not raw:
         return None
-    safe = re.sub(r"[^A-Za-z0-9_-]", "", str(raw))
+    safe = re.sub(r"[^a-zA-Z0-9\-_]", "_", str(raw))
     return safe or None
 
 
@@ -111,7 +113,13 @@ def render(state: dict) -> str:
     if intent:
         segments.append(f"intent: {intent}")
 
-    phase = state.get("last_approved_phase")
+    # Phase: prefer the live phase of an active project, else the last
+    # approved phase. (Real SessionState fields — see scripts/_session.py.)
+    phase = None
+    active = state.get("active_project")
+    if isinstance(active, dict):
+        phase = active.get("current_phase") or active.get("phase")
+    phase = phase or state.get("last_phase_approved")
     if phase:
         segments.append(f"phase: {phase}")
 

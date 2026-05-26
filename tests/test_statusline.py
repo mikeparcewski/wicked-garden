@@ -30,12 +30,32 @@ class RenderTests(unittest.TestCase):
             "archetypes_v11": [{"name": "build", "score": 0.9},
                                {"name": "migrate", "score": 0.7}],
             "intent": "feature",
-            "last_approved_phase": "implement",
+            "last_phase_approved": "implement",  # real SessionState field
         })
         self.assertIn("build·migrate", line)
         self.assertIn("intent: feature", line)
         self.assertIn("phase: implement", line)
         self.assertTrue(line.startswith("🌱 wg"))
+
+    def test_active_project_current_phase_takes_precedence(self):
+        # The live phase of an active project beats last_phase_approved.
+        line = sl.render({
+            "active_project": {"current_phase": "cutover"},
+            "last_phase_approved": "backfill",
+        })
+        self.assertIn("phase: cutover", line)
+
+    def test_renderer_only_reads_real_sessionstate_fields(self):
+        # Anti-tautology guard: every key the renderer reads must be a real
+        # SessionState field, so a rename can't silently blank the status line
+        # (the exact bug independent review caught on #883). last_gate_verdict
+        # is intentionally forward-compatible (not yet in the schema).
+        import dataclasses
+        import _session
+        real = {f.name for f in dataclasses.fields(_session.SessionState)}
+        for key in ("intent", "archetypes_v11", "last_phase_approved", "active_project"):
+            self.assertIn(key, real,
+                          f"statusline reads '{key}' but it is not a SessionState field")
 
     def test_empty_state_is_idle_not_crash(self):
         line = sl.render({})
@@ -98,10 +118,16 @@ class StateLoadingTests(unittest.TestCase):
         Path(self._tmp, "wicked-garden-session-bad.json").write_text("{not json")
         self.assertEqual(sl._load_state(json.dumps({"session_id": "bad"})), {})
 
-    def test_session_id_sanitized(self):
-        # path-traversal / odd chars stripped to match _session.py
-        self.assertEqual(sl._safe_session_id("../../etc/passwd"), "etcpasswd")
-        self.assertIsNone(sl._safe_session_id("///"))
+    def test_session_id_sanitized_matches_session_module(self):
+        # _session.py REPLACES disallowed chars with '_' (does not strip), so
+        # the status line resolves the same filename the hooks wrote.
+        self.assertEqual(sl._safe_session_id("../../etc/passwd"), "______etc_passwd")
+        self.assertEqual(sl._safe_session_id("a b.c"), "a_b_c")
+        self.assertEqual(sl._safe_session_id("///"), "___")
+        # Cross-check against the real implementation for a special-char id.
+        import _session
+        os.environ["CLAUDE_SESSION_ID"] = "x/y.z"
+        self.assertEqual(sl._safe_session_id("x/y.z"), _session._get_session_id())
 
 
 class SubprocessSmokeTests(unittest.TestCase):
