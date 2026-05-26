@@ -60,6 +60,40 @@ npx wicked-testing --version 2>/dev/null || echo "MISSING"
 - `MISSING` → blocking. Show "wicked-testing is not installed. wicked-garden v7.0+ requires wicked-testing >= 0.1 as a peer plugin. Upgrading from v6.x? See `docs/MIGRATION-v7.md`." **INTERACTIVE mode**: AskUserQuestion header "wicked-testing Required", options "Install now (Required)" = "Run: npx wicked-testing install" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npx wicked-testing install`, re-probe with `npx wicked-testing --version`, confirm the version. On failure, show stderr and exit with manual instructions. If exit: "Run `npx wicked-testing install` then restart with `/wicked-garden:setup`."
 - Version string (e.g. `0.3.0`) → check it satisfies `^0.3.0` (the pin from `plugin.json`). In range: show "wicked-testing {version} — ready." Out of range: warn "wicked-testing {version} is outside the supported range (^0.3.0). Update with: `npx wicked-testing install`" and ask whether to update now (same INTERACTIVE / PLAIN_TEXT pattern). Updating is strongly recommended but not a hard block — the SessionStart hook will warn each session.
 
+### 2.5b Verify wicked-brain (Required)
+
+wicked-brain installs as a **Claude Code plugin** (not an npx CLI), so verify by presence rather than a version probe.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
+import json, os
+from pathlib import Path
+installed = False
+candidates = [Path.home()/".claude"/"settings.json", Path(".claude")/"settings.json"]
+cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+if cfg: candidates.append(Path(cfg)/"settings.json")
+for p in candidates:
+    try:
+        if not p.exists(): continue
+        enabled = json.loads(p.read_text(encoding="utf-8")).get("enabledPlugins", {})
+        if "wicked-brain" in (enabled if isinstance(enabled, (dict, list)) else {}):
+            installed = True; break
+    except Exception: continue
+if not installed:
+    roots = [Path.home()/".claude"/"skills"]
+    if cfg: roots.append(Path(cfg)/"skills")
+    for r in roots:
+        try:
+            if r.exists() and any(e.is_dir() and e.name.startswith("wicked-brain") for e in r.iterdir()):
+                installed = True; break
+        except OSError: continue
+print("READY" if installed else "MISSING")
+PY
+```
+
+- `MISSING` → blocking. wicked-brain is the memory, search, and context-assembly layer wicked-garden depends on — it cannot function without it. Show "wicked-brain is not installed. wicked-garden requires it as a peer (sibling to wicked-bus / wicked-vault / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-brain Required", options "Install now (Required)" = "Run: /plugin install wicked-brain" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: instruct the user to run `/plugin install wicked-brain` (a Claude Code slash command, not a shell command), then re-run the presence check above and confirm `READY`. On failure, exit with manual instructions (`/plugin install wicked-brain`). If exit: "Run `/plugin install wicked-brain` then restart with `/wicked-garden:setup`."
+- `READY` → show "wicked-brain — ready (plugin installed)."
+
 ### 2.6 Verify wicked-vault (Required)
 
 ```bash
@@ -69,7 +103,41 @@ npx wicked-vault --version 2>/dev/null || echo "MISSING"
 - `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a peer (sibling to wicked-bus / wicked-brain / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npx wicked-vault-install" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npx wicked-vault-install` (installs the cross-CLI skills) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npx wicked-vault-install` then restart with `/wicked-garden:setup`."
 - Version string (e.g. `0.3.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
 
-### 2.7 v6→v11 Project State Migration (optional)
+### 2.7 Verify wicked-bus (Required)
+
+wicked-bus installs as a **Claude Code plugin** (not an npx CLI), so verify by presence rather than a version probe.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
+import json, os
+from pathlib import Path
+installed = False
+candidates = [Path.home()/".claude"/"settings.json", Path(".claude")/"settings.json"]
+cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+if cfg: candidates.append(Path(cfg)/"settings.json")
+for p in candidates:
+    try:
+        if not p.exists(): continue
+        enabled = json.loads(p.read_text(encoding="utf-8")).get("enabledPlugins", {})
+        if "wicked-bus" in (enabled if isinstance(enabled, (dict, list)) else {}):
+            installed = True; break
+    except Exception: continue
+if not installed:
+    roots = [Path.home()/".claude"/"skills"]
+    if cfg: roots.append(Path(cfg)/"skills")
+    for r in roots:
+        try:
+            if r.exists() and any(e.is_dir() and e.name.startswith("wicked-bus") for e in r.iterdir()):
+                installed = True; break
+        except OSError: continue
+print("READY" if installed else "MISSING")
+PY
+```
+
+- `MISSING` → blocking. wicked-bus is the event backbone the garden's archetype events flow through — without it, cross-plugin event wiring is silently dropped. Show "wicked-bus is not installed. wicked-garden requires it as a peer (sibling to wicked-brain / wicked-vault / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-bus Required", options "Install now (Required)" = "Run: /plugin install wicked-bus" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: instruct the user to run `/plugin install wicked-bus` (a Claude Code slash command, not a shell command), then re-run the presence check above and confirm `READY`. On failure, exit with manual instructions (`/plugin install wicked-bus`). If exit: "Run `/plugin install wicked-bus` then restart with `/wicked-garden:setup`."
+- `READY` → show "wicked-bus — ready (plugin installed)."
+
+### 2.8 v6→v11 Project State Migration (optional)
 
 If the user has v6-v10 crew projects on disk, advise them to run the v11 migration script:
 
@@ -211,6 +279,8 @@ Show:
 wicked-garden is ready!
 
 Storage:         Local (DomainStore)
+wicked-brain:    {"ready (plugin installed)" or "MISSING — install required"}
+wicked-bus:      {"ready (plugin installed)" or "MISSING — install required"}
 wicked-testing:  {version e.g. "0.1.2 — ready" or "MISSING — install required"}
 wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
 Onboarding:      {Full | Quick scout | Skipped}

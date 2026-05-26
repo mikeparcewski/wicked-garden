@@ -40,7 +40,7 @@ of what kind of work was happening.
 ## The dogfood that surfaced the structural issue
 
 Across a single session in May 2026, seven dogfooding bugs were filed
-(#854 through #860) and fixed:
+(#846 through #852) and fixed:
 
 1. Hardcoded `architecture.md` deliverable in design phase (#849)
 2. Missing `recorded_at` field in qe-orchestrator's gate-result example (#850)
@@ -214,11 +214,15 @@ That's it. No phase machinery to extend. No gate matrix to update.
   If two archetypes co-fire and the agent runs them out of order,
   v11 doesn't catch it. We may need an explicit "must come after"
   field if this surfaces as a real issue.
-- **HITL `hard:*` enforcement is doctrine, not code.** The playbook
-  tells the agent to stop and ask. There's no runtime gate that
-  refuses to advance until the user has confirmed. v11 trusts the
-  agent to follow the playbook. If that trust breaks down, we add
-  enforcement; we don't pre-emptively over-engineer.
+- **HITL `hard:*` enforcement is now code, not just doctrine.**
+  `scripts/crew/phase_manager.py` (`_HARD_GATE_PHASES`) refuses to advance
+  past a hard gate at runtime, and the produces-gate re-derives evidence
+  through wicked-vault (fail-closed) rather than trusting playbook prose
+  (see "What 'produces contract met' means now" above). *Discrete* gates
+  remain doctrine-driven (auto-pass when the contract is met). Watch that
+  the runtime hard-gate map and each archetype's declared HITL stay in
+  sync — `_HARD_GATE_PHASES` currently also flags `specify.validate` and
+  `decide.record`, which the table lists as `discrete:*`.
 - **The `triage` archetype is the safety net for anything else.**
   When the detector returns only `triage`, it means the prompt
   didn't match anything cleanly. The agent should ASK, not GUESS.
