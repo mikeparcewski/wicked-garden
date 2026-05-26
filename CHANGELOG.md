@@ -10,6 +10,28 @@ dial) that was replaced wholesale.
 
 ---
 
+## [12.1.0] — 2026-05-25
+
+**All four siblings are now required, and the work mode is visible on screen.**
+
+### Required peers (all four)
+
+- **wicked-brain and wicked-bus join wicked-testing and wicked-vault as required peers.** `/wicked-garden:setup` now verifies all four and blocks without them; the SessionStart hook warns. `plugin.json` pins all four (`wicked_brain_version` `^0.14.0`, `wicked_bus_version` `^2.0.0`). The stance is **required at install, resilient at runtime**: a transient outage (brain server down, bus unavailable) degrades gracefully and never bricks a session — it never means a gate treats missing evidence as a pass (that path fails closed). See [`docs/required-peers.md`](docs/required-peers.md).
+
+### Features
+
+- **A work-mode status line** (`scripts/statusline.py`, opt-in via `settings.json` — see getting-started or `/wicked-garden:setup` step 6.6). Renders the live archetype · intent · phase · gate verdict at the bottom of the screen — `🌱 wg │ build·migrate │ intent: feature │ phase: implement │ ⚖ PASS`. Reads existing session state only (one read), fail-soft (degrades to `🌱 wg │ idle`, never blocks a render).
+
+### Documentation
+
+- **Rethought, not patched.** The docs were reoriented from the deleted v6 crew model to v12. README restructured around what/why/how (leads with the re-derived-evidence trust pitch, not the pipeline rationale); ETHOS rewritten (required-infrastructure / resilient-at-runtime; the nine archetypes named; the *"done is not claimed; done is re-derived"* slogan); `docs/domains.md` reframed off the dead orchestrator; new [`docs/required-peers.md`](docs/required-peers.md) + [`docs/compiler.md`](docs/compiler.md); `docs/v11/archetypes.md` corrected (hard gates are enforced at runtime). Stale `crew:*` references removed from setup.
+
+### Notes
+
+- The status line's two bugs (wrong field name, mismatched sanitization) were caught by independent review, not by the tests that shipped CI-green — those were tautological. The fix added a guard test cross-checking the renderer's fields against the real `SessionState` schema. *Honest verdicts beat green dashboards.*
+
+---
+
 ## [12.0.0] — 2026-05-25
 
 **"Done" is re-derived, not asserted — and the garden can compile that guarantee onto any repo.**
