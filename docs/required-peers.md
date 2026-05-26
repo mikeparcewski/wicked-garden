@@ -33,6 +33,9 @@ contradiction and isn't.
 - **Resilient at runtime.** A transient outage — the brain server
   momentarily down, the bus briefly unavailable — **degrades gracefully**
   and does **not** crash your session. A hiccup won't brick you.
+  Graceful degradation means a session continues where it's safe to; it
+  never means a gate treats missing evidence as a pass — that path fails
+  closed.
 
 "Required" means *you must install it*. "Resilient" means *a runtime
 hiccup won't take down the session*. Those answer two different

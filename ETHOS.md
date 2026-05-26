@@ -1,12 +1,16 @@
 # ETHOS
 
-> **What this is.** A single-page identity for wicked-garden — what we believe, what we refuse, what we optimize for. `CLAUDE.md` tells you *how* the system works. This tells you *why*.
+> **What this is.** A single-page identity for wicked-garden — what we believe, what we refuse, what we optimize for.
+>
+> wicked-garden is an evidence-driven SDLC for Claude Code: it detects the shape of work, applies the rigor that shape needs, verifies "done" through independent, re-derived evidence, and preserves decisions, evidence, and learning across sessions. **Done is not claimed; done is re-derived.**
+>
+> `CLAUDE.md` tells you *how* the system works. This tells you *why*.
 
 ---
 
 ## What we believe
 
-**Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Each prompt classifies into one or more of nine **work-shape archetypes**; each owns its own phase shape, produces contract, and HITL discipline. A typo and a migration get appropriately-scaled rigor — not the same rigor, and not the same shape.
+**Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Each prompt classifies into one or more of nine **work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `build`, `review`, `ship`, `incident`, `migrate` — and each owns its own phase shape, produces contract, and human-in-the-loop (HITL) discipline. A typo and a migration get appropriately-scaled rigor — not the same rigor, and not the same shape.
 
 **"Done" is re-derived, not asserted.** A gate does not go green because someone said so. Evidence is re-hashed and its verifier re-run through wicked-vault every time — a claimed-but-false "tests pass" is REJECTED, and a missing backend fails closed rather than passing on a self-assertion. The cheapest lie in software is a green checkmark with nothing behind it; we refuse to accept it.
 
@@ -16,7 +20,7 @@
 
 **Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, hooks, and slash commands are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; an agent with a frontmatter description is more discoverable than a registry call.
 
-**Required infrastructure, resilient at runtime.** wicked-garden stands on four siblings: **wicked-testing** (proves behavior), **wicked-vault** (makes "done" re-derivable), **wicked-brain** (carries knowledge across sessions), **wicked-bus** (carries the audit trail). These are *required infrastructure*, not optional add-ons — the honest-evidence model does not work if any of them is merely nice-to-have, so `/wicked-garden:setup` verifies all four and blocks without them. But required-at-install is not brittle-at-runtime: a transient outage — brain server down, bus momentarily unavailable — degrades gracefully and never bricks a session. We depend on our infrastructure; we don't crash with it.
+**Required infrastructure, resilient at runtime.** wicked-garden stands on four siblings: **wicked-testing** (proves behavior), **wicked-vault** (makes "done" re-derivable), **wicked-brain** (carries knowledge across sessions), **wicked-bus** (carries the audit trail). These are *required infrastructure*, not optional add-ons — the honest-evidence model does not work if any of them is merely nice-to-have, so `/wicked-garden:setup` verifies all four and blocks without them. But required-at-install is not brittle-at-runtime: a transient outage — brain server down, bus momentarily unavailable — degrades gracefully and never bricks a session. Graceful degradation means a session continues where it's *safe* to; it never means a gate pretends missing evidence is a pass — that path **fails closed**. We depend on our infrastructure; we don't crash with it.
 
 **Cross-platform is non-negotiable.** macOS, Linux, Windows (Git Bash, WSL, native). Bare `python3` doesn't exist on Windows; bare `/tmp` doesn't exist on Windows; the shim and `${TMPDIR:-/tmp}` exist for a reason. If a contributor adds shell that breaks on Windows, the contribution is incomplete.
 
@@ -58,7 +62,7 @@
 
 **Not a fixed-sequence pipeline.** No two prompts run the same phase chain. Work shape is detected per prompt, not configured once per repo.
 
-**Not a starter for learning Claude Code.** This is a working SDLC, not a tutorial. Bring some Claude Code fluency or expect a steep first hour.
+**Not a starter for learning Claude Code.** This is a working SDLC, not a beginner tutorial. Basic Claude Code fluency makes the first hour productive rather than steep.
 
 **Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. wicked-patch's generators support Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, Ruby out of the box; new languages plug in via the generator interface.
 

@@ -9,9 +9,11 @@
 
 # Wicked Garden
 
+**An evidence-driven SDLC for Claude Code: it detects the shape of work, applies the rigor that shape needs, verifies "done" through independent re-derived evidence, and preserves decisions, evidence, and learning across sessions. Done is not claimed; done is re-derived.**
+
 > **Identity at a glance:** see [`ETHOS.md`](ETHOS.md) — what we believe, what we refuse, what we optimize for.
 >
-> **Vision (v11):** work-shape archetypes, not a fixed pipeline. Each prompt routes to one or more archetypes; each archetype owns its phase shape, produces, and HITL discipline. Steering, not blocking.
+> **Vision (v11):** work-shape archetypes, not a fixed pipeline. Each prompt routes to one or more archetypes; each archetype owns its phase shape, produces, and human-in-the-loop (HITL) discipline. Steering, not blocking.
 
 ---
 

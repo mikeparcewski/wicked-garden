@@ -1,5 +1,7 @@
 # Getting Started
 
+This guide gets wicked-garden installed and shows five ways to start your first session.
+
 ## Installation
 
 ```bash
@@ -10,7 +12,7 @@ No API keys, no external services, no cloud — everything runs locally.
 
 ### Required peer plugins
 
-Four companion plugins are **required** — `/wicked-garden:setup` verifies all four and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session).
+Four companion plugins are **required** — `/wicked-garden:setup` verifies all four and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
 
 ```bash
 npx wicked-testing install    # wicked-testing — evidence-gated testing
@@ -174,7 +176,7 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 
 ## Next Steps
 
-- [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, HITL discipline, cost bands
+- [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
 - [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
 - [Domains](domains.md) — browse the domain skill/agent families and their commands
