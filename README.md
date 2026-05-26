@@ -56,6 +56,7 @@ You get verdicts you can trust, not green checkmarks you can't. *Done is not cla
 - **9 work-shape archetypes** with playbooks, slash commands, and a detector.
 - **Vault-backed gates** — every gating archetype re-derives its produces through [wicked-vault](https://www.npmjs.com/package/wicked-vault) (required), fail-closed. "Done" can't be asserted into truth.
 - **The compiler** (`/wicked-garden:compile`) — detect a repo's test/lint/build commands and emit a self-contained, vault-backed build gate into `<repo>/.wicked/`. It runs with **no wicked-garden runtime present** (resolves the vault via `npx`), and can install the triggers that fire it (pre-push hook / GitHub Actions).
+- **A work-mode status line** — `scripts/statusline.py` renders the live archetype · intent · phase · gate verdict (`🌱 wg │ build·migrate │ intent: feature │ phase: implement │ ⚖ PASS`) at the bottom of the screen, so the detected shape and the gate's honest verdict are always visible. Opt-in via `settings.json` (see [getting-started](docs/getting-started.md#show-the-active-mode-status-line)).
 - **Hooks** for prompt classification, tool tracking, session lifecycle.
 - **Domain skills + agents** across engineering, platform, product, data, jam, search, agentic, persona, and delivery — invoked by archetypes when their work needs domain expertise.
 - **wicked-brain integration** for persistent memory across sessions.

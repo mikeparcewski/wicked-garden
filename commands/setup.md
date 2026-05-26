@@ -266,10 +266,25 @@ Before implementing manually, check if wicked-garden has a domain for it:
 - Code review: `/wicked-garden:engineering:review`
 - Brainstorm/decide: `/wicked-garden:jam:quick "your question"`
 - Security/compliance: `/wicked-garden:platform:security`
-- Full workflow: `/wicked-garden:crew:start "description"`
+- Any task: describe it (the hook routes to a work-shape archetype) or invoke one directly, e.g. `/wicked-garden:archetype:build "description"`
 
-Run `/wicked-garden:help` for all commands across 16 domains.
+Run `/wicked-garden:help` for all commands.
 ```
+
+### 6.6 Enable the work-mode status line (optional)
+
+Offer to surface the detected archetype on screen. **INTERACTIVE mode**: AskUserQuestion header "Status line", options "Enable (Recommended)" = "Show the live work mode at the bottom of the screen" / "Skip" = "Don't change my status line". **PLAIN_TEXT mode**: ask in plain text and STOP.
+
+If enabled, add (non-destructively — skip if a `statusLine` key already exists) to the user's `settings.json`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "sh \"$CLAUDE_PLUGIN_ROOT/scripts/_python.sh\" \"$CLAUDE_PLUGIN_ROOT/scripts/statusline.py\""
+}
+```
+
+The bar then shows `🌱 wg │ <archetypes> │ intent · phase · gate verdict`. It reads session state only, is fail-soft, and never blocks a render. If a `statusLine` is already set, show the snippet and let the user merge it manually rather than overwriting.
 
 ### 7. Done
 
@@ -289,7 +304,7 @@ Project type:    {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected")
 Integrations:    {available tools, or "None detected"}
 Preferences:     Delivery → {selected issue tracker}
 
-Quick start: /wicked-garden:help · /wicked-garden:crew:start · /wicked-garden:engineering:review · wicked-brain:search "query"
+Quick start: /wicked-garden:help · /wicked-garden:archetype:build · /wicked-garden:compile · /wicked-garden:engineering:review · wicked-brain:search "query"
 ```
 
 ## Graceful Degradation

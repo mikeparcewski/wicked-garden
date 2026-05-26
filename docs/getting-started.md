@@ -28,6 +28,25 @@ npx wicked-vault-install      # wicked-vault — vault-backed evidence (gates re
 
 `wicked-testing` and `wicked-vault` install locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through wicked-vault (fail-closed) — a claim is never self-asserted.
 
+### Show the active mode (status line)
+
+Wicked Garden detects a work-shape archetype for every prompt. To keep that
+visible, point Claude Code's status line at the bundled renderer — add this to
+`settings.json`:
+
+```json
+"statusLine": {
+  "type": "command",
+  "command": "sh \"$CLAUDE_PLUGIN_ROOT/scripts/_python.sh\" \"$CLAUDE_PLUGIN_ROOT/scripts/statusline.py\""
+}
+```
+
+The bottom of the screen then shows the live mode — e.g.
+`🌱 wg │ build·migrate │ intent: feature │ phase: implement │ ⚖ PASS` — so the
+detected shape and the latest gate verdict are always on screen, not buried in
+scrollback. It reads existing session state only (a single JSON read), is
+fail-soft (degrades to `🌱 wg │ idle`), and never blocks a render.
+
 ## Your First Session
 
 There is no fixed pipeline. Work is organized around **9 work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, and `migrate`. Each archetype owns its own phase shape, what it produces, and how much human-in-the-loop discipline it demands. After installing, you can use any command immediately. Here are five ways to start:
