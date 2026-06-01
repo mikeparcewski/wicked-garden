@@ -1,5 +1,13 @@
 # Changelog
 
+## [12.2.0] - 2026-06-01
+
+### Features
+- skill(engineering): large-scale-migration — the map→transform→gate leverage pattern for cross-cutting migrations / refactors / renames / dialect-ports (21b1842)
+
+### Bug Fixes
+- fix(#879): clean up the two rotted test files outside tests/ (#885) (7db380d)
+
 This project follows [Semantic Versioning](https://semver.org/).
 
 The version line restarted at **v11.0.0** with the v11 work-shape archetype
