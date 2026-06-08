@@ -49,6 +49,14 @@ The vault carries a literal kill-switch for the same reason — set
 `WICKED_VAULT_BIN=""` and the runtime resolution short-circuits cleanly
 rather than thrashing.
 
+`WICKED_LOOM_CUTOVER=off` is loom's parallel coarse kill-switch. After the
+contract phase there is no in-process fallback for it to select, so `off` is
+an **emergency disable**: the gate + peer-resolution surfaces become
+unavailable and the gate **fails closed** (never a vacuous pass) until loom is
+restored. Use it to stop garden shelling out to loom during an incident (e.g. a
+wedged `npx`), accepting that gating pauses — exactly the vault kill-switch
+posture: disable cleanly, fail closed, never thrash.
+
 ## Why each is load-bearing
 
 The five together are the garden's infrastructure, and each holds up a
@@ -65,9 +73,10 @@ different beam:
   of what the archetypes actually did.
 - **wicked-loom runs the work.** Garden classifies and steers; loom resolves
   the peers, re-derives the gates, and advances the phases — parking at every
-  hard gate. Without it, garden has the archetype intelligence but no runtime
-  to execute it (during cutover, garden falls back to its in-process runtime;
-  after the contract phase, loom is the only runtime).
+  hard gate. The garden's in-process runtime fallback was **removed in the
+  contract phase**: loom is now the *sole* re-derivation + peer-resolution
+  engine for the gate. Without it, the produces-gate has no engine and **fails
+  closed** — 'done' cannot be re-derived, so it cannot be asserted.
 
 Make any one of them merely optional and the honest-evidence model
 springs a leak: behavior goes unproven, "done" becomes self-asserted,
