@@ -18,7 +18,6 @@ Site 3 addition: autouse fixture that resets _bus.py emit counters before
 each test so counter state from one test cannot bleed into another.
 """
 
-import os
 import sys
 from pathlib import Path
 
@@ -46,27 +45,16 @@ def pytest_configure(config):
         sys.path.append(_SCRIPTS_CREW)
 
 
-@pytest.fixture(autouse=True)
-def _loom_cutover_default_off():
-    """Default WICKED_LOOM_CUTOVER=off for the suite so in-process unit tests
-    exercise the in-process path deterministically.
-
-    The loom cutover defaults to ``auto`` in production: use loom iff it
-    resolves. On a dev/CI box that has ``npx``, ``auto`` resolves loom via the
-    npx fallback and the loom shim would fire — turning in-process unit tests
-    into (slow, network-bound, non-deterministic) loom subprocess calls. The
-    contract tests opt back in by setting WICKED_LOOM_CUTOVER explicitly in
-    their own body (after unittest setUp), so this default only governs the
-    legacy in-process suites — exactly the "auto keeps in-process active,
-    nothing regresses" invariant, made deterministic regardless of host npx.
-    """
-    saved = os.environ.get("WICKED_LOOM_CUTOVER")
-    os.environ["WICKED_LOOM_CUTOVER"] = "off"
-    yield
-    if saved is None:
-        os.environ.pop("WICKED_LOOM_CUTOVER", None)
-    else:
-        os.environ["WICKED_LOOM_CUTOVER"] = saved
+# NOTE (contract phase): the former ``_loom_cutover_default_off`` autouse
+# fixture was removed here. It forced WICKED_LOOM_CUTOVER=off suite-wide so the
+# legacy *in-process* gate/resolve paths ran deterministically. The contract
+# phase deleted those in-process paths — loom is now the sole re-derivation +
+# resolution engine for the shimmed surfaces — so there is nothing for ``off``
+# to select. Each loom-touching test now OWNS its flag (sets WICKED_LOOM_CUTOVER
+# explicitly in setUp) and injects/mocks the loom runner (_loom.resolve_loom /
+# _loom._default_run), so no test spawns a real loom or hits the network (T3
+# isolation). A test that forgets fails loudly (a real-loom attempt errors
+# hermetically when npx is absent) — the correct signal, not a silent default.
 
 
 @pytest.fixture(autouse=True)

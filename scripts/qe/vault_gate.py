@@ -19,20 +19,18 @@ genuinely unresolvable, ``gate_satisfied`` (``require=True`` default)
 explicit opt-out to the doctrine-light ``evidence_tracker`` claim-only
 path for throwaway/low-rigor work.
 
-Resolution order for the vault CLI (see ``resolve_vault``):
-    1. ``WICKED_VAULT_BIN`` env var (explicit override; a ``.mjs``/``.js``
-       path is invoked via ``node``, anything else is run directly).
-       **Set-but-empty is a kill-switch** → unresolvable (forces
-       fail-closed / opt-out; used for offline dev, see CONTRIBUTING.md).
-    2. ``tool_preferences.wicked-vault`` in
-       ``~/.something-wicked/wicked-garden/config.json``.
-    3. A ``wicked-vault`` executable on ``PATH``.
-    4. A project-local ``node_modules/.bin/wicked-vault``.
-    5. ``npx --yes wicked-vault`` — the portable fallback. The vault is
-       commonly run via npx (``npx wicked-vault-install`` does not place a
-       global binary), so this tier is what lets the required peer resolve
-       out of the box; it is *not* counted as a concrete install
-       (``vault_available`` excludes it). ``--yes`` fetches once, then caches.
+**Loom is authoritative (contract phase).** The re-derivation engine is
+now ``wicked-loom``: ``cross_check`` shells ``loom gate`` and ``resolve_vault``
+(default ``allow_npx=True``) shells ``loom resolve vault``. The in-process
+vault re-derivation + npx resolution ladder were removed once loom became
+load-bearing. Resolution splits into two paths (see ``resolve_vault``):
+    - ``allow_npx=True`` — loom authoritative; loom-unresolvable/disabled/
+      erroring → None (no in-process fallback; the gate then fails closed).
+    - ``allow_npx=False`` — the ``vault_available`` concrete-install probe:
+      an in-process ladder (``WICKED_VAULT_BIN`` env, with set-but-empty as
+      the kill-switch → config → PATH → ``node_modules/.bin``; **no npx, no
+      loom** — npx/loom would report the last-resort as resolvable and corrupt
+      the "is a concrete vault installed?" signal). Unchanged from pre-contract.
 
 Stdlib-only. Cross-platform (argv lists, ``shutil.which``, no shell).
 """
@@ -42,7 +40,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess  # noqa: S404 — argv lists only, shell=False
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -50,11 +47,13 @@ from typing import Any, Dict, List, Optional
 _CONFIG_PATH = Path.home() / ".something-wicked" / "wicked-garden" / "config.json"
 _DEFAULT_TIMEOUT = 120
 
-# Strangler shim toward wicked-loom (cutover phase). The in-process body below
-# STAYS as the fallback; loom is tried first only when the cutover flag allows.
+# wicked-loom is the authoritative runtime for the resolve + gate surfaces
+# (contract phase: the in-process re-derivation + npx ladder were removed).
+# When the loom shim is absent the shimmed surfaces are unavailable and the
+# gate fails closed — there is no in-process fallback.
 try:
     import _loom  # scripts/ is on sys.path for hook + CLI invocations
-except ImportError:  # pragma: no cover — loom shim absent => pure in-process
+except ImportError:  # pragma: no cover — loom shim absent => surfaces unavailable
     _loom = None  # type: ignore
 
 
@@ -77,30 +76,34 @@ def resolve_vault(*, allow_npx: bool = True,
                   project_dir: Optional[Path] = None) -> Optional[List[str]]:
     """Return the argv prefix that invokes wicked-vault, or None.
 
-    Resolution tiers (first hit wins):
-      1. ``WICKED_VAULT_BIN`` env. Set-but-empty is a deliberate
-         **kill-switch** → return None (forces fail-closed / opt-out).
-      2. ``tool_preferences.wicked-vault`` in config.json.
-      3. ``wicked-vault`` on PATH (a global ``npm i -g``).
-      4. a project-local ``node_modules/.bin/wicked-vault`` — resolved
-         under ``project_dir`` when given, else the cwd (so a gate run from
-         a different cwd still finds the target repo's local install).
-      5. ``npx --yes wicked-vault`` — the portable fallback, only when
-         ``allow_npx``; not counted as a concrete install (``vault_available``).
+    Two distinct callers, two paths (contract phase):
 
-    None means no vault is resolvable at all.
+    - ``allow_npx=True`` (default; the run-the-vault path): **loom is
+      authoritative.** Garden asks ``wicked-loom resolve vault`` and returns
+      its ``command`` array (None when loom reports the vault unresolvable /
+      kill-switched). loom unresolvable, disabled (``WICKED_LOOM_CUTOVER=off``),
+      or erroring → None. There is no in-process npx ladder here anymore (the
+      contract removed it); a missing loom means a missing resolver, and the
+      gate downstream fails closed (I2).
+
+    - ``allow_npx=False`` (the ``vault_available`` concrete-install probe):
+      the in-process ladder (``WICKED_VAULT_BIN`` env → config → PATH →
+      ``node_modules/.bin``; **no npx, no loom**). loom is deliberately NOT
+      consulted: it would report the npx last-resort as resolvable and corrupt
+      the "is a concrete vault actually installed?" signal. This path is
+      unchanged from before the contract. ``WICKED_VAULT_BIN=""`` (set-but-
+      empty) is the deliberate kill-switch → None.
     """
-    # --- loom cutover head (resolve surface) ---------------------------------
-    # Try loom first iff the cutover flag allows AND loom is reachable. Any loom
-    # error falls through to the unchanged in-process ladder (fail-soft, §7/§10).
-    if _loom is not None and allow_npx and _loom.use_loom(project_dir=project_dir):
+    if allow_npx:
+        # Run-the-vault path: loom authoritative, no in-process fallback.
+        if _loom is None or not _loom.use_loom(project_dir=project_dir):
+            return None  # loom disabled / unresolvable -> no resolver
         out = _loom.run_json(["resolve", "vault"], project_dir=project_dir)
-        if out["error"] is None and isinstance(out.get("json"), dict):
-            # loom resolve returns {"peer","command":[...]|null}; null == the
-            # vault kill-switch / unresolvable, which we surface as None.
-            return out["json"].get("command")  # list[str] or None
-        # loom errored -> fall through to in-process (transition fail-soft).
-    # -------------------------------------------------------------------------
+        if out["error"] is not None or not isinstance(out.get("json"), dict):
+            return None  # loom errored -> fail-closed (no in-process fallback)
+        return out["json"].get("command")  # list[str] or None
+
+    # Concrete-install probe (allow_npx=False): in-process ladder, no loom/npx.
     if "WICKED_VAULT_BIN" in os.environ:
         env = os.environ["WICKED_VAULT_BIN"].strip()
         return _argv_for(env) if env else None  # empty == kill-switch
@@ -117,9 +120,6 @@ def resolve_vault(*, allow_npx: bool = True,
     local = base / "node_modules" / ".bin" / "wicked-vault"
     if local.exists():
         return [str(local)]
-
-    if allow_npx and shutil.which("npx"):
-        return ["npx", "--yes", "wicked-vault"]
 
     return None
 
@@ -152,39 +152,6 @@ def _read_config_preference(key: str) -> Optional[str]:
 # Invocation
 # ---------------------------------------------------------------------------
 
-def _run(
-    args: List[str],
-    *,
-    project_dir: Optional[Path],
-    timeout: int,
-) -> Dict[str, Any]:
-    """Run the vault CLI; return ``{exit_code, stdout, stderr, error}``.
-
-    ``error`` is populated (and exit_code left None) only when the CLI
-    could not be executed at all — not found, or timed out.
-    """
-    prefix = resolve_vault(project_dir=project_dir)
-    if prefix is None:
-        return {"exit_code": None, "stdout": "", "stderr": "",
-                "error": "wicked-vault not resolvable"}
-    try:
-        proc = subprocess.run(  # noqa: S603 — argv list, shell=False
-            prefix + args,
-            cwd=str(project_dir) if project_dir else None,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-        return {"exit_code": proc.returncode, "stdout": proc.stdout,
-                "stderr": proc.stderr, "error": None}
-    except FileNotFoundError:
-        return {"exit_code": None, "stdout": "", "stderr": "",
-                "error": "vault executable not found on PATH"}
-    except subprocess.TimeoutExpired:
-        return {"exit_code": None, "stdout": "", "stderr": "",
-                "error": f"vault cross-check exceeded {timeout}s"}
-
-
 def cross_check(
     scope: str,
     phase: str,
@@ -193,71 +160,52 @@ def cross_check(
     with_attestations: bool = False,
     timeout: int = _DEFAULT_TIMEOUT,
 ) -> Dict[str, Any]:
-    """Run ``wicked-vault cross-check`` and return its mechanical verdict.
+    """Run the produces re-derivation via ``wicked-loom gate`` and return its
+    mechanical verdict.
 
-    Returns a dict with ``available`` (False when no vault is resolvable
-    or it could not be run) and, when available, the parsed ``overall``
-    (PASS / REJECT / ERROR), ``exit_code``, ``claims``, ``mode``, and
-    ``contract_version``.
+    loom is the **sole** re-derivation engine (the in-process vault path was
+    removed in the contract phase). loom re-hashes the recorded evidence and
+    re-runs the verifier, mapping the result onto ``{available, overall,
+    claims, mode, contract_version, detail, raw}``.
 
-    Per G5 the vault is fail-closed: no contract declared → ERROR. We
-    surface that verbatim; we never invent a PASS.
+    **Fail-closed (I2).** When loom is unresolvable, disabled
+    (``WICKED_LOOM_CUTOVER=off``), errors, returns non-JSON, or reports the
+    vault unavailable behind it, ``available`` is False and ``overall`` is
+    ERROR — we never invent a PASS. There is no in-process fallback; a missing
+    loom is a missing gate, and a missing gate fails closed.
     """
-    # --- loom cutover head (gate surface) ------------------------------------
-    # Try loom first iff the cutover flag allows AND loom is reachable. Maps
-    # loom's {"gate": <verdict>} onto cross_check's return shape. Any loom error
-    # falls through to the in-process re-derivation (which itself fails closed).
-    if _loom is not None and _loom.use_loom(project_dir=project_dir):
-        loom_args = ["gate", phase, "--scope", scope]
-        if with_attestations:
-            loom_args.append("--with-attestations")
-        out = _loom.run_json(loom_args, project_dir=project_dir, timeout=timeout)
-        if out["error"] is None and isinstance(out.get("json"), dict):
-            verdict = out["json"].get("gate") or {}
-            gate_kind = verdict.get("gate")
-            if gate_kind == "unavailable":
-                # loom reached but the vault is unresolvable behind it -> the
-                # gate is unavailable; fail closed exactly as in-process (I2).
-                return {"available": False, "overall": "ERROR",
-                        "error": verdict.get("error", "vault unavailable via loom"),
-                        "exit_code": out.get("exit_code")}
-            return {
-                "available": True,
-                "overall": verdict.get("overall", "ERROR"),
-                "exit_code": out.get("exit_code"),
-                "claims": verdict.get("claims", []),
-                "mode": verdict.get("mode"),
-                "contract_version": verdict.get("contract_version"),
-                "detail": verdict.get("detail"),
-                "raw": verdict,
-            }
-        # loom errored -> fall through to in-process re-derivation (fail-soft).
-    # -------------------------------------------------------------------------
-    args = ["cross-check", "--scope", scope, "--phase", phase]
-    if with_attestations:
-        args.append("--with-attestations")
-
-    run = _run(args, project_dir=project_dir, timeout=timeout)
-    if run["error"] is not None:
+    if _loom is None or not _loom.use_loom(project_dir=project_dir):
+        # loom shim absent, or WICKED_LOOM_CUTOVER=off / auto-unresolvable.
+        # No in-process re-derivation remains -> the gate is unavailable.
         return {"available": False, "overall": "ERROR",
-                "error": run["error"], "exit_code": None}
+                "error": "wicked-loom not in use (disabled or unresolvable)",
+                "exit_code": None}
 
-    try:
-        parsed = json.loads(run["stdout"]) if run["stdout"].strip() else {}
-    except json.JSONDecodeError:
-        return {"available": True, "overall": "ERROR", "exit_code": run["exit_code"],
-                "error": "vault returned non-JSON output",
-                "stderr": run["stderr"][:500]}
+    loom_args = ["gate", phase, "--scope", scope]
+    if with_attestations:
+        loom_args.append("--with-attestations")
+    out = _loom.run_json(loom_args, project_dir=project_dir, timeout=timeout)
+    if out["error"] is not None or not isinstance(out.get("json"), dict):
+        # loom unresolvable / timed out / non-JSON -> fail closed (I2).
+        return {"available": False, "overall": "ERROR",
+                "error": out.get("error") or "loom returned no usable verdict",
+                "exit_code": out.get("exit_code")}
 
+    verdict = out["json"].get("gate") or {}
+    if verdict.get("gate") == "unavailable":
+        # loom reached but the vault is unresolvable behind it -> fail closed.
+        return {"available": False, "overall": "ERROR",
+                "error": verdict.get("error", "vault unavailable via loom"),
+                "exit_code": out.get("exit_code")}
     return {
         "available": True,
-        "overall": parsed.get("overall", "ERROR"),
-        "exit_code": run["exit_code"],
-        "claims": parsed.get("claims", []),
-        "mode": parsed.get("mode"),
-        "contract_version": parsed.get("contract_version"),
-        "detail": parsed.get("detail"),
-        "raw": parsed,
+        "overall": verdict.get("overall", "ERROR"),
+        "exit_code": out.get("exit_code"),
+        "claims": verdict.get("claims", []),
+        "mode": verdict.get("mode"),
+        "contract_version": verdict.get("contract_version"),
+        "detail": verdict.get("detail"),
+        "raw": verdict,
     }
 
 

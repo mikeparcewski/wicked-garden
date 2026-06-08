@@ -690,9 +690,11 @@ def _check_loom_dependency():
 
     wicked-loom is a required peer (the 5th, sibling to wicked-testing /
     wicked-vault / wicked-brain / wicked-bus): garden shells to it for peer
-    resolution, evidence gating, and flow execution. During the cutover
-    transition garden falls back to its in-process runtime when loom is
-    absent, so this is a one-line install pointer, never a block.
+    resolution, evidence gating, and flow execution. The in-process runtime
+    fallback was removed in the contract phase — gating + peer resolution now
+    route through loom, and without it the produces-gate fails closed. This
+    probe is a one-line install pointer, never a block (it still fails open at
+    session start; the fail-closed behavior is at the gate, not here).
 
     Fast + stdlib-only (no subprocess to npx): checks PATH and loose skill
     installs only. Always fails open — never blocks the session.
@@ -726,8 +728,9 @@ def _check_loom_dependency():
             "[wicked-loom] REQUIRED but not installed.\n"
             "Install now: npm i -g wicked-loom  (or run via: npx wicked-loom)\n"
             "wicked-loom is the orchestration runtime garden drives for peer "
-            "resolution, evidence gating, and flow execution. (Cutover phase: "
-            "garden falls back to its in-process runtime when loom is absent.)"
+            "resolution, evidence gating, and flow execution. (Gating + peer "
+            "resolution route through loom; without it the produces-gate fails "
+            "closed.)"
         )
     except Exception:
         return None  # Fail open — never block session start

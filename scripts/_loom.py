@@ -12,9 +12,11 @@ Python; it shells the published ``wicked-loom`` CLI exactly as it shells
      stderr, error}. Never raises (R4 — surface as data). Non-JSON / not-found
      / timeout all come back as error, json=None.
   3. cutover_mode() / use_loom() — the WICKED_LOOM_CUTOVER feature flag
-     ({auto,on,off}, default auto) that lets every cutover try loom first and
-     fall back to the in-process path (the transition default), or be killed
-     (off) for instant rollback.
+     ({auto,on,off}, default auto). loom is now load-bearing for the shimmed
+     surfaces (resolve, gate); there is no in-process fallback left to select.
+     auto = use loom iff resolvable; on = force loom. off = emergency disable:
+     the shimmed surfaces become unavailable and the gate FAILS CLOSED (never a
+     vacuous pass), parallel to the vault's WICKED_VAULT_BIN="" kill-switch.
 
 Stdlib-only. Cross-platform (argv lists, shutil.which, no shell).
 """
@@ -159,8 +161,12 @@ def use_loom(*, project_dir: Optional[Path] = None) -> bool:
     """Should this call go through loom?
 
     off  -> never. on -> always (caller must handle an unresolvable loom).
-    auto -> only when loom resolves (the transition default: fall back to the
-            in-process path otherwise).
+    auto -> only when loom resolves.
+
+    Post-contract there is no in-process fallback for the shimmed surfaces:
+    when this returns False (off, or auto-unresolvable), the caller treats the
+    surface as unavailable and the gate fails closed — it does NOT run an
+    in-process path (none remains).
     """
     mode = cutover_mode()
     if mode == "off":
