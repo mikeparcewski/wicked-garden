@@ -137,6 +137,15 @@ PY
 - `MISSING` → blocking. wicked-bus is the event backbone the garden's archetype events flow through — without it, cross-plugin event wiring is silently dropped. Show "wicked-bus is not installed. wicked-garden requires it as a peer (sibling to wicked-brain / wicked-vault / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-bus Required", options "Install now (Required)" = "Run: /plugin install wicked-bus" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: instruct the user to run `/plugin install wicked-bus` (a Claude Code slash command, not a shell command), then re-run the presence check above and confirm `READY`. On failure, exit with manual instructions (`/plugin install wicked-bus`). If exit: "Run `/plugin install wicked-bus` then restart with `/wicked-garden:setup`."
 - `READY` → show "wicked-bus — ready (plugin installed)."
 
+### 2.7b Verify wicked-loom (Required)
+
+```bash
+npx wicked-loom doctor 2>/dev/null && npx wicked-loom resolve vault 2>/dev/null || echo "MISSING"
+```
+
+- `MISSING` → blocking. wicked-loom is the orchestration runtime garden drives — peer resolution, evidence gating, and flow execution. Show "wicked-loom is not installed. wicked-garden requires it as a peer (sibling to wicked-testing / wicked-vault / wicked-brain / wicked-bus)." **INTERACTIVE mode**: AskUserQuestion header "wicked-loom Required", options "Install now (Required)" = "Run: npm i -g wicked-loom (or use via npx)" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-loom` (or confirm `npx wicked-loom doctor` resolves), then re-probe. On failure, show stderr and exit with manual instructions. If exit: "Install wicked-loom then restart with `/wicked-garden:setup`."
+- A JSON line from `doctor` → check the version satisfies `^0.2.0` (the pin from `plugin.json`; 0.2.0 ships the gate + flow surfaces this garden shells to). Then verify the garden can resolve it: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys; sys.path.insert(0,'scripts'); import _loom; print(_loom.resolve_loom())"` should print a non-null argv. Note: `WICKED_LOOM_CUTOVER=off` disables the loom path (the garden runs its in-process fallback) — used for rollback during the cutover transition.
+
 ### 2.8 v6→v11 Project State Migration (optional)
 
 If the user has v6-v10 crew projects on disk, advise them to run the v11 migration script:

@@ -685,6 +685,54 @@ def _check_vault_dependency():
         return None  # Fail open — never block session start
 
 
+def _check_loom_dependency():
+    """Return a briefing note if wicked-loom is not resolvable, else None.
+
+    wicked-loom is a required peer (the 5th, sibling to wicked-testing /
+    wicked-vault / wicked-brain / wicked-bus): garden shells to it for peer
+    resolution, evidence gating, and flow execution. During the cutover
+    transition garden falls back to its in-process runtime when loom is
+    absent, so this is a one-line install pointer, never a block.
+
+    Fast + stdlib-only (no subprocess to npx): checks PATH and loose skill
+    installs only. Always fails open — never blocks the session.
+    """
+    try:
+        import shutil
+
+        # WICKED_LOOM_BIN explicitly set (even empty kill-switch) or the cutover
+        # flag turned off → operator is driving deliberately; don't nag.
+        if "WICKED_LOOM_BIN" in os.environ:
+            return None
+        if os.environ.get("WICKED_LOOM_CUTOVER", "").strip().lower() == "off":
+            return None
+        if shutil.which("wicked-loom"):
+            return None
+
+        skill_roots = [Path.home() / ".claude" / "skills"]
+        cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+        if cfg:
+            skill_roots.append(Path(cfg) / "skills")
+        for root in skill_roots:
+            try:
+                if root.exists():
+                    for entry in root.iterdir():
+                        if entry.is_dir() and entry.name.startswith("wicked-loom"):
+                            return None
+            except OSError:
+                continue  # fail open
+
+        return (
+            "[wicked-loom] REQUIRED but not installed.\n"
+            "Install now: npm i -g wicked-loom  (or run via: npx wicked-loom)\n"
+            "wicked-loom is the orchestration runtime garden drives for peer "
+            "resolution, evidence gating, and flow execution. (Cutover phase: "
+            "garden falls back to its in-process runtime when loom is absent.)"
+        )
+    except Exception:
+        return None  # Fail open — never block session start
+
+
 # ---------------------------------------------------------------------------
 # wicked-bus dependency check (required event backbone)
 # ---------------------------------------------------------------------------
@@ -1438,6 +1486,10 @@ def main():
         _bus_note = _check_bus_dependency()
         if _bus_note:
             mode_notes.append(_bus_note)
+        # Required-peer check: wicked-loom (the orchestration runtime garden drives).
+        _loom_note = _check_loom_dependency()
+        if _loom_note:
+            mode_notes.append(_loom_note)
         if onedrive_path:
             mode_notes.append(
                 f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "

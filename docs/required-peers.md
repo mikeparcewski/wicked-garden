@@ -1,16 +1,16 @@
 # Required Peers
 
-Wicked Garden does not stand alone. As of **v12**, four peer plugins are
+Wicked Garden does not stand alone. As of **v12**, five peer plugins are
 **required infrastructure** — not optional integrations you bolt on for
 extra credit. The garden's honest-evidence model is load-bearing on all
-four; remove any one and "done" stops being re-derivable.
+five; remove any one and "done" stops being re-derivable.
 
 This is a deliberate shift. Earlier versions framed wicked-brain and
 wicked-bus as *recommended companions* — nice to have, fine to skip.
-v12 retired that framing. The four peers below are what the garden is
+v12 retired that framing. The five peers below are what the garden is
 built on, and `/wicked-garden:setup` treats them that way.
 
-## The four peers
+## The five peers
 
 | Peer | What it does | Install | How it's verified |
 |------|--------------|---------|-------------------|
@@ -18,8 +18,9 @@ built on, and `/wicked-garden:setup` treats them that way.
 | **wicked-vault** | The honest-evidence backend every archetype gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npx wicked-vault-install` (npm; pinned `^0.3.0`) | `/wicked-garden:setup` verifies at install; resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault` |
 | **wicked-brain** | Cross-session memory and cited search — the knowledge layer that carries decisions, gotchas, and patterns from session 1 to session 47. Runs a local server. | `/plugin install wicked-brain` (also on npm `0.14.0`) | SessionStart bootstrap probe |
 | **wicked-bus** | The event audit substrate — fire-and-forget events that record what happened. | `/plugin install wicked-bus` (also on npm `2.0.0`) | SessionStart bootstrap probe |
+| **wicked-loom** | The orchestration runtime garden drives: peer resolution (`loom resolve`), synchronous fail-closed evidence gating (`loom gate`), and the archetype-agnostic flow runtime (`loom flow run/status/resume`). Garden compiles its archetype catalog into a flow definition and shells to loom to run it. | `npx wicked-loom` (npm; pinned `^0.2.0` in `plugin.json`) | `/wicked-garden:setup` verifies at install; resolved at runtime via `WICKED_LOOM_BIN` → config → `PATH` → `node_modules` → `npx wicked-loom`, with `WICKED_LOOM_BIN=""` as the kill-switch |
 
-`/wicked-garden:setup` verifies all four and **blocks** without them. The
+`/wicked-garden:setup` verifies all five and **blocks** without them. The
 SessionStart bootstrap hook independently probes for them and **warns**
 (non-blocking) when one isn't resolvable.
 
@@ -28,7 +29,7 @@ SessionStart bootstrap hook independently probes for them and **warns**
 This is the part worth reading twice, because it looks like a
 contradiction and isn't.
 
-- **Required at install.** You must install all four. Setup will not let
+- **Required at install.** You must install all five. Setup will not let
   you skip them. The garden assumes they are present.
 - **Resilient at runtime.** A transient outage — the brain server
   momentarily down, the bus briefly unavailable — **degrades gracefully**
@@ -50,7 +51,7 @@ rather than thrashing.
 
 ## Why each is load-bearing
 
-The four together are the garden's infrastructure, and each holds up a
+The five together are the garden's infrastructure, and each holds up a
 different beam:
 
 - **wicked-testing proves behavior.** Without it, "the tests pass" is a
@@ -62,6 +63,11 @@ different beam:
   session starts from scratch and guesses at history it can't see.
 - **wicked-bus carries the audit trail.** Without it, there's no record
   of what the archetypes actually did.
+- **wicked-loom runs the work.** Garden classifies and steers; loom resolves
+  the peers, re-derives the gates, and advances the phases — parking at every
+  hard gate. Without it, garden has the archetype intelligence but no runtime
+  to execute it (during cutover, garden falls back to its in-process runtime;
+  after the contract phase, loom is the only runtime).
 
 Make any one of them merely optional and the honest-evidence model
 springs a leak: behavior goes unproven, "done" becomes self-asserted,
