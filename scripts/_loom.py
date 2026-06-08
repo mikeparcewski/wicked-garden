@@ -119,17 +119,23 @@ Runner = Callable[..., Dict[str, Any]]
 
 def run_json(args: List[str], *, timeout: int = _DEFAULT_TIMEOUT,
              project_dir: Optional[Path] = None,
-             _run: Runner = _default_run) -> Dict[str, Any]:
+             _run: Optional[Runner] = None) -> Dict[str, Any]:
     """Run ``loom <args>``; return {exit_code, json, stdout, stderr, error}.
 
     Never raises (R4). json is the parsed stdout or None (unresolvable,
     not-found, timeout, or non-JSON output).
+
+    ``_run`` is the injected subprocess runner (tests pass a fake). When
+    None it resolves the module-level ``_default_run`` *at call time* — so
+    monkeypatching ``_loom._default_run`` (the documented test seam) takes
+    effect; binding it as a default-arg value would freeze it at def-time.
     """
+    runner = _run if _run is not None else _default_run
     prefix = resolve_loom(project_dir=project_dir)
     if prefix is None:
         return {"exit_code": None, "json": None, "stdout": "", "stderr": "",
                 "error": "wicked-loom not resolvable"}
-    run = _run(prefix, args, timeout)
+    run = runner(prefix, args, timeout)
     if run["error"] is not None:
         return {"exit_code": None, "json": None, "stdout": "", "stderr": "",
                 "error": run["error"]}

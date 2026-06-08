@@ -203,6 +203,36 @@ def cross_check(
     Per G5 the vault is fail-closed: no contract declared → ERROR. We
     surface that verbatim; we never invent a PASS.
     """
+    # --- loom cutover head (gate surface) ------------------------------------
+    # Try loom first iff the cutover flag allows AND loom is reachable. Maps
+    # loom's {"gate": <verdict>} onto cross_check's return shape. Any loom error
+    # falls through to the in-process re-derivation (which itself fails closed).
+    if _loom is not None and _loom.use_loom(project_dir=project_dir):
+        loom_args = ["gate", phase, "--scope", scope]
+        if with_attestations:
+            loom_args.append("--with-attestations")
+        out = _loom.run_json(loom_args, project_dir=project_dir, timeout=timeout)
+        if out["error"] is None and isinstance(out.get("json"), dict):
+            verdict = out["json"].get("gate") or {}
+            gate_kind = verdict.get("gate")
+            if gate_kind == "unavailable":
+                # loom reached but the vault is unresolvable behind it -> the
+                # gate is unavailable; fail closed exactly as in-process (I2).
+                return {"available": False, "overall": "ERROR",
+                        "error": verdict.get("error", "vault unavailable via loom"),
+                        "exit_code": out.get("exit_code")}
+            return {
+                "available": True,
+                "overall": verdict.get("overall", "ERROR"),
+                "exit_code": out.get("exit_code"),
+                "claims": verdict.get("claims", []),
+                "mode": verdict.get("mode"),
+                "contract_version": verdict.get("contract_version"),
+                "detail": verdict.get("detail"),
+                "raw": verdict,
+            }
+        # loom errored -> fall through to in-process re-derivation (fail-soft).
+    # -------------------------------------------------------------------------
     args = ["cross-check", "--scope", scope, "--phase", phase]
     if with_attestations:
         args.append("--with-attestations")
