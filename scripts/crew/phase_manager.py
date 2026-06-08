@@ -332,6 +332,54 @@ def _is_hard_gate(state: ProjectState, phase: str) -> bool:
     return resolve_phase(phase) in _HARD_GATE_PHASES.get(archetype, ())
 
 
+def resolve_hard_gate(state: ProjectState, phase: str) -> bool:
+    """Authoritative hard-gate decision for ``(archetype, phase)`` (flow cutover).
+
+    The flow surface is now loom-AUTHORITATIVE for *where the human stops*:
+    loom's verdict (derived from the compiled flow-def, which reproduces loom's
+    own ``hitl.startswith("hard:")`` park rule) decides whether this phase is a
+    hard gate — WHEN loom is available. The in-process ``_HARD_GATE_PHASES`` map
+    is two things at once:
+
+      - the FALLBACK: when loom is unavailable/uncertain
+        (``_loom_confirms_hard_gate`` returns None — off, auto-unresolvable, or
+        a compile error), the map answers (fail-soft, rollback-safe).
+      - the FLOOR: even when loom answers, the resolved decision is
+        ``loom or in_process`` — loom may ADD a park the map omits, but can
+        NEVER remove a park the map asserts. This is the fail-closed posture of
+        the flow surface: we never silently skip a human-in-the-loop stop that
+        the in-process doctrine demands. A loom that (wrongly) says "not hard"
+        for migrate.cutover cannot disarm the cutover gate.
+
+    A divergence (loom != in_process, with loom present) is surfaced as a
+    ``wicked.loom.parity_mismatch`` signal — retained from the parity mirror —
+    so operators see drift even though the resolved decision is the safe OR.
+    """
+    in_process = _is_hard_gate(state, phase)
+    archetype = (state.extras or {}).get("v11_archetype")
+    if not archetype:
+        return in_process
+
+    loom_says = _loom_confirms_hard_gate(archetype, phase)
+    if loom_says is None:
+        return in_process  # fail-soft: in-process map is authoritative
+
+    if loom_says != in_process:
+        print(f"[wicked-garden] loom/in-process hard-gate parity mismatch: "
+              f"archetype={archetype} phase={phase} "
+              f"loom={loom_says} in_process={in_process}", file=sys.stderr)
+        _bus_emit_safe(
+            "wicked.loom.parity_mismatch",
+            {"project_id": state.name, "archetype": archetype,
+             "phase": phase, "loom": loom_says, "in_process": in_process,
+             "resolved": loom_says or in_process},
+            chain_id=f"{state.name}.{archetype}.{phase}.parity",
+        )
+    # loom authoritative, but fail-closed floor: a park is required if EITHER
+    # source says hard. loom can add a park; it can never remove the map's.
+    return loom_says or in_process
+
+
 def approve_phase(
     state: ProjectState,
     phase: str,
@@ -356,28 +404,15 @@ def approve_phase(
     """
     phase = resolve_phase(phase)
 
-    # --- loom cutover mirror (flow surface) ----------------------------------
-    # Cross-check loom's park decision against the in-process map. A DISAGREEMENT
-    # is surfaced (stderr + bus emit) but does NOT change behavior — the
-    # in-process guard below stays authoritative during cutover (rollback-safe).
-    archetype_for_parity = (state.extras or {}).get("v11_archetype")
-    if archetype_for_parity:
-        loom_says = _loom_confirms_hard_gate(archetype_for_parity, phase)
-        in_proc_says = _is_hard_gate(state, phase)
-        if loom_says is not None and loom_says != in_proc_says:
-            print(f"[wicked-garden] loom/in-process hard-gate parity mismatch: "
-                  f"archetype={archetype_for_parity} phase={phase} "
-                  f"loom={loom_says} in_process={in_proc_says}", file=sys.stderr)
-            _bus_emit_safe(
-                "wicked.loom.parity_mismatch",
-                {"project_id": state.name, "archetype": archetype_for_parity,
-                 "phase": phase, "loom": loom_says, "in_process": in_proc_says},
-                chain_id=f"{state.name}.{archetype_for_parity}.{phase}.parity",
-            )
+    # --- loom cutover (flow surface): loom-AUTHORITATIVE park decision -------
+    # The hard-gate verdict now routes through resolve_hard_gate: loom wins when
+    # present, the in-process _HARD_GATE_PHASES map is the fallback (loom
+    # unavailable) AND the floor (loom can ADD a park, never remove one the map
+    # asserts). The parity-mismatch signal lives inside resolve_hard_gate.
     # -------------------------------------------------------------------------
 
     # Hard-gate guard: enforce explicit confirmation at runtime.
-    if _is_hard_gate(state, phase):
+    if resolve_hard_gate(state, phase):
         if not confirmed_by or not confirmed_by.strip():
             archetype = (state.extras or {}).get("v11_archetype")
             raise ValueError(
