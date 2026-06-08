@@ -152,6 +152,8 @@ Runs flow definitions. Salvaged from `qe/vault_gate.py`, `crew/phase_manager.py`
 
 `→ loom` = moves; `STAY` = remains in garden; `PARTIAL` = split.
 
+> **OUTCOME (shipped 2026-06-08 — supersedes the forward-looking `→ loom` dispositions below).** What *actually* moved to loom: **resolve** (peer resolution) and **gate** (`vault_gate.cross_check`) — both fully cut over **and contracted** (in-process deleted; loom is the sole path, fail-closed). **flow** landed as a loom-*authoritative* hard-gate park decision with an in-process fail-closed floor — the `phase_manager` state machine was **not** moved (incompatible execution models: garden advances one phase agent-in-loop; loom runs a whole flow-def). Everything else listed `→ loom` below **STAYS in garden permanently** — re-decided, *not* future loom work: `_integration_resolver` / `_capability_resolver` / `_capability_registry` (agent/domain MCP-tool discovery — a different concern from wicked-peer orchestration), `bootstrap` (session assembly; loom peer-detection already shimmed), `_bus`/`_event_*` (not migrated), `phase_manager` storage (rejected). The loom migration is **complete**; nothing further is owed. Shipped: garden **v12.3.0** (resolve/gate) + **v12.4.0** (flow); loom **v0.2.x**.
+
 | File | Lines | Disposition |
 |---|---:|---|
 | `hooks/scripts/bootstrap.py` | 1711 | **PARTIAL** — peer detect/install/resolve → loom compose; session-bootstrap (state init, archetype priming, brain orientation) STAYS |
