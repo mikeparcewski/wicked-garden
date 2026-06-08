@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.3.0] - 2026-06-08
+
+### Features
+- feat: wicked-loom contract — loom is the sole gate/resolve path (delete in-process re-derivation) (#891) (7e4492a)
+- feat: wicked-loom cutover — garden shells to loom resolve/gate/flow (additive, flag-gated) (#890) (ae928a7)
+- feat(#878): worktree cwd-leak guard on Bash PreToolUse (#888) (859d2a0)
+
+### Documentation
+- docs: wicked-loom north-star spec (extract the orchestration runtime) (#889) (16c3e70)
+
 ## [12.2.0] - 2026-06-01
 
 ### Features
