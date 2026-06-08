@@ -55,6 +55,27 @@ def _locate_vault() -> str | None:
     return None
 
 
+def _locate_loom() -> str | None:
+    """Resolve a runnable loom .mjs path, or None.
+
+    Post-contract, garden's gate re-derives through ``wicked-loom`` (which
+    shells the vault), not the vault directly. So the end-to-end re-derivation
+    integration test below needs BOTH a real vault AND a real loom; absent
+    either it skips (keeping CI Python-only / hermetic — the same skip-when-the-
+    integration-peer-is-absent posture this suite always had for the vault)."""
+    if shutil.which("node") is None:
+        return None
+    env = os.environ.get("WICKED_LOOM_BIN")
+    if env and Path(env).exists():
+        return env
+    if shutil.which("wicked-loom"):
+        return shutil.which("wicked-loom")
+    sibling = _REPO_ROOT.parent / "wicked-loom" / "bin" / "wicked-loom.mjs"
+    if sibling.exists():
+        return str(sibling)
+    return None
+
+
 def _vault(bin_path: str, work: Path, *args: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         ["node", bin_path, *args],
@@ -63,6 +84,13 @@ def _vault(bin_path: str, work: Path, *args: str) -> subprocess.CompletedProcess
 
 
 class ResolutionTests(unittest.TestCase):
+    """The in-process concrete-install ladder is the ``allow_npx=False`` probe
+    (``vault_available``) after the contract phase: ``WICKED_VAULT_BIN`` env →
+    config → PATH → ``node_modules`` (no npx, no loom). The default
+    ``allow_npx=True`` path is loom-authoritative and is covered in
+    ``tests/crew/test_loom_resolve_contract.py``; here we pin the in-process
+    ladder that survives the contract."""
+
     def setUp(self):
         self._saved = os.environ.get("WICKED_VAULT_BIN")
         os.environ.pop("WICKED_VAULT_BIN", None)
@@ -74,16 +102,18 @@ class ResolutionTests(unittest.TestCase):
 
     def test_env_mjs_path_resolves_via_node(self):
         os.environ["WICKED_VAULT_BIN"] = "/some/where/wicked-vault.mjs"
-        self.assertEqual(vg.resolve_vault(), ["node", "/some/where/wicked-vault.mjs"])
+        self.assertEqual(vg.resolve_vault(allow_npx=False),
+                         ["node", "/some/where/wicked-vault.mjs"])
 
     def test_env_executable_resolves_directly(self):
         os.environ["WICKED_VAULT_BIN"] = "/usr/local/bin/wicked-vault"
-        self.assertEqual(vg.resolve_vault(), ["/usr/local/bin/wicked-vault"])
+        self.assertEqual(vg.resolve_vault(allow_npx=False),
+                         ["/usr/local/bin/wicked-vault"])
 
     def test_empty_env_is_killswitch(self):
-        # Set-but-empty disables resolution entirely (no silent npx reach).
+        # Set-but-empty disables resolution entirely (no silent reach).
         os.environ["WICKED_VAULT_BIN"] = ""
-        self.assertIsNone(vg.resolve_vault())
+        self.assertIsNone(vg.resolve_vault(allow_npx=False))
         self.assertFalse(vg.vault_available())
 
 
@@ -93,12 +123,18 @@ class RequiredFailClosedTests(unittest.TestCase):
 
     def setUp(self):
         self._saved = os.environ.get("WICKED_VAULT_BIN")
+        self._saved_loom = os.environ.get("WICKED_LOOM_CUTOVER")
         os.environ["WICKED_VAULT_BIN"] = ""  # kill-switch: force unresolvable
+        # Loom off too: no loom path AND no vault -> unambiguous fail-closed.
+        os.environ["WICKED_LOOM_CUTOVER"] = "off"
 
     def tearDown(self):
         os.environ.pop("WICKED_VAULT_BIN", None)
         if self._saved is not None:
             os.environ["WICKED_VAULT_BIN"] = self._saved
+        os.environ.pop("WICKED_LOOM_CUTOVER", None)
+        if self._saved_loom is not None:
+            os.environ["WICKED_LOOM_CUTOVER"] = self._saved_loom
 
     def test_required_missing_vault_fails_closed(self):
         with tempfile.TemporaryDirectory() as d:
@@ -127,15 +163,28 @@ class RequiredFailClosedTests(unittest.TestCase):
             self.assertFalse(out["re_derived"])
 
 
-@unittest.skipIf(_locate_vault() is None,
-                 "no runnable wicked-vault (set WICKED_VAULT_BIN or sibling checkout)")
+@unittest.skipIf(_locate_vault() is None or _locate_loom() is None,
+                 "needs a runnable wicked-vault AND wicked-loom (set "
+                 "WICKED_VAULT_BIN / WICKED_LOOM_BIN or sibling checkouts) — "
+                 "post-contract the gate re-derives through loom, not the vault "
+                 "directly")
 class VaultBackedGateTests(unittest.TestCase):
-    """The real point: a re-derived gate that rejects a self-asserted 'done'."""
+    """The real point: a re-derived gate that rejects a self-asserted 'done'.
+
+    Post-contract this is an end-to-end integration test: garden shells
+    ``wicked-loom gate``, loom shells ``wicked-vault cross-check`` against the
+    recorded evidence. It runs only when BOTH peers are concretely resolvable;
+    otherwise it skips (hermetic CI)."""
 
     def setUp(self):
         self._bin = _locate_vault()
+        self._loom_bin = _locate_loom()
         self._saved = os.environ.get("WICKED_VAULT_BIN")
+        self._saved_loom = os.environ.get("WICKED_LOOM_BIN")
+        self._saved_flag = os.environ.get("WICKED_LOOM_CUTOVER")
         os.environ["WICKED_VAULT_BIN"] = self._bin
+        os.environ["WICKED_LOOM_BIN"] = self._loom_bin
+        os.environ["WICKED_LOOM_CUTOVER"] = "on"  # force the loom path
         self._tmp = tempfile.TemporaryDirectory()
         self.work = Path(self._tmp.name)
         subprocess.run(["git", "init", "-q"], cwd=str(self.work), check=True)
@@ -154,6 +203,12 @@ class VaultBackedGateTests(unittest.TestCase):
         os.environ.pop("WICKED_VAULT_BIN", None)
         if self._saved is not None:
             os.environ["WICKED_VAULT_BIN"] = self._saved
+        os.environ.pop("WICKED_LOOM_BIN", None)
+        if self._saved_loom is not None:
+            os.environ["WICKED_LOOM_BIN"] = self._saved_loom
+        os.environ.pop("WICKED_LOOM_CUTOVER", None)
+        if self._saved_flag is not None:
+            os.environ["WICKED_LOOM_CUTOVER"] = self._saved_flag
         self._tmp.cleanup()
 
     def _record(self, source: str):
