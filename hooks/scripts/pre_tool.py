@@ -10,7 +10,8 @@ Dispatches by tool_name from hook payload:
   TaskUpdate    → validate event metadata envelope on updates
   EnterPlanMode → deny and redirect to crew workflow
   Write / Edit  → MEMORY.md write guard (AGENTS.md writes allowed, synced via PostToolUse)
-  Bash          → crew gate preflight for phase_manager.py approve calls
+  Bash          → crew gate preflight (phase_manager.py approve calls) +
+                  worktree cwd-leak guard (#878, hooks/scripts/worktree_guard.py)
 
 Always fails open — any unhandled exception returns permissionDecision: "allow".
 """
@@ -25,6 +26,8 @@ from pathlib import Path
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
+# Allow importing sibling hook modules (e.g. worktree_guard) in any context.
+sys.path.append(str(Path(__file__).resolve().parent))
 
 
 # ---------------------------------------------------------------------------
@@ -1181,22 +1184,34 @@ def _crew_gate_preflight(command: str) -> dict:
     return {"ok": True, "_warning": warning}
 
 
-def _handle_bash(tool_input: dict) -> str:
-    """Run crew gate preflight on Bash calls that invoke phase_manager.py approve."""
+def _handle_bash(tool_input: dict, cwd: str = "") -> str:
+    """Bash preflight: crew gate check + worktree cwd-leak guard (#878)."""
     command = tool_input.get("command", "") or ""
 
-    # Fast path — non-approve Bash commands take <1ms
+    # Crew gate preflight first — a hard deny here blocks regardless of cwd.
+    # Fast path — non-approve Bash commands take <1ms.
     result = _crew_gate_preflight(command)
-
     if not result.get("ok"):
-        reason = result.get("reason", "Gate preflight check failed.")
-        return _deny(reason)
+        return _deny(result.get("reason", "Gate preflight check failed."))
+    warning = result.get("_warning", "") or None
 
-    warning = result.get("_warning", "")
-    if warning:
-        return _allow(system_message=warning)
+    # Worktree cwd-leak guard (#878): when an isolated-worktree agent runs a
+    # Bash command, anchor it in the worktree (cd <root> && ...) so a leaked
+    # persistent cwd cannot land commits in the main repo. Fail-open by design.
+    try:
+        from worktree_guard import evaluate as _wt_evaluate
+        decision = _wt_evaluate(command, cwd)
+    except Exception:
+        decision = None
+    if decision:
+        if decision.get("action") == "deny":
+            return _deny(decision["reason"])
+        if decision.get("action") == "rewrite":
+            updated = dict(tool_input)
+            updated["command"] = decision["command"]
+            return _allow(updated_input=updated, system_message=warning)
 
-    return _allow()
+    return _allow(system_message=warning)
 
 
 # ---------------------------------------------------------------------------
@@ -1244,7 +1259,7 @@ def main():
             return
 
         if tool_name == "Bash":
-            result = _handle_bash(tool_input)
+            result = _handle_bash(tool_input, input_data.get("cwd", "") or "")
             _log("pretool", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
             print(result)
             return
