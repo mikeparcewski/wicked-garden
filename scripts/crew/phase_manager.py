@@ -60,6 +60,34 @@ def _bus_emit_safe(event_type: str, payload: dict, *,
         pass  # Bus is optional infrastructure.
 
 
+# Strangler shim toward wicked-loom (cutover phase). Read-only parity mirror:
+# the in-process hard-gate enforcement below STAYS authoritative; loom is
+# consulted only to cross-check the park-at-hard-gate decision during cutover.
+try:
+    import _loom  # scripts/ is on sys.path
+except ImportError:  # pragma: no cover
+    _loom = None  # type: ignore
+
+
+def _loom_confirms_hard_gate(archetype: str, phase: str) -> "Optional[bool]":
+    """Ask loom (via the compiled flow def) whether (archetype, phase) is a
+    hard gate. Returns True/False, or None when loom is unavailable/uncertain
+    (in which case the in-process _HARD_GATE_PHASES map remains authoritative).
+    Best-effort, fail-soft — never raises, never blocks the state write."""
+    if _loom is None or not _loom.use_loom():
+        return None
+    try:
+        from flow_compiler import compile_flow
+        flow_def = compile_flow(archetype, flow_id=f"{archetype}-parity")
+        for p in flow_def.get("phases", []):
+            if p.get("name") == phase:
+                hitl = p.get("hitl")
+                return isinstance(hitl, str) and hitl.startswith("hard:")
+        return False
+    except Exception:
+        return None  # fail-soft: in-process map stays authoritative
+
+
 # ---------------------------------------------------------------------------
 # Naming & resolution
 # ---------------------------------------------------------------------------
@@ -327,6 +355,26 @@ def approve_phase(
     no gate machinery, archetype's playbook owns discipline.
     """
     phase = resolve_phase(phase)
+
+    # --- loom cutover mirror (flow surface) ----------------------------------
+    # Cross-check loom's park decision against the in-process map. A DISAGREEMENT
+    # is surfaced (stderr + bus emit) but does NOT change behavior — the
+    # in-process guard below stays authoritative during cutover (rollback-safe).
+    archetype_for_parity = (state.extras or {}).get("v11_archetype")
+    if archetype_for_parity:
+        loom_says = _loom_confirms_hard_gate(archetype_for_parity, phase)
+        in_proc_says = _is_hard_gate(state, phase)
+        if loom_says is not None and loom_says != in_proc_says:
+            print(f"[wicked-garden] loom/in-process hard-gate parity mismatch: "
+                  f"archetype={archetype_for_parity} phase={phase} "
+                  f"loom={loom_says} in_process={in_proc_says}", file=sys.stderr)
+            _bus_emit_safe(
+                "wicked.loom.parity_mismatch",
+                {"project_id": state.name, "archetype": archetype_for_parity,
+                 "phase": phase, "loom": loom_says, "in_process": in_proc_says},
+                chain_id=f"{state.name}.{archetype_for_parity}.{phase}.parity",
+            )
+    # -------------------------------------------------------------------------
 
     # Hard-gate guard: enforce explicit confirmation at runtime.
     if _is_hard_gate(state, phase):

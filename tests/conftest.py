@@ -18,6 +18,7 @@ Site 3 addition: autouse fixture that resets _bus.py emit counters before
 each test so counter state from one test cannot bleed into another.
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -43,6 +44,29 @@ def pytest_configure(config):
     # Append scripts/crew/ for backward-compat direct imports (import phase_manager)
     if _SCRIPTS_CREW not in sys.path:
         sys.path.append(_SCRIPTS_CREW)
+
+
+@pytest.fixture(autouse=True)
+def _loom_cutover_default_off():
+    """Default WICKED_LOOM_CUTOVER=off for the suite so in-process unit tests
+    exercise the in-process path deterministically.
+
+    The loom cutover defaults to ``auto`` in production: use loom iff it
+    resolves. On a dev/CI box that has ``npx``, ``auto`` resolves loom via the
+    npx fallback and the loom shim would fire — turning in-process unit tests
+    into (slow, network-bound, non-deterministic) loom subprocess calls. The
+    contract tests opt back in by setting WICKED_LOOM_CUTOVER explicitly in
+    their own body (after unittest setUp), so this default only governs the
+    legacy in-process suites — exactly the "auto keeps in-process active,
+    nothing regresses" invariant, made deterministic regardless of host npx.
+    """
+    saved = os.environ.get("WICKED_LOOM_CUTOVER")
+    os.environ["WICKED_LOOM_CUTOVER"] = "off"
+    yield
+    if saved is None:
+        os.environ.pop("WICKED_LOOM_CUTOVER", None)
+    else:
+        os.environ["WICKED_LOOM_CUTOVER"] = saved
 
 
 @pytest.fixture(autouse=True)
