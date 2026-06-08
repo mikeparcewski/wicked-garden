@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.4.0] - 2026-06-08
+
+### Features
+- feat: flow surface — loom-authoritative hard-gate park decision (fail-closed floor) (#893) (a4bab29)
+
 ## [12.3.0] - 2026-06-08
 
 ### Features
