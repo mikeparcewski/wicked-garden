@@ -98,7 +98,12 @@ def _scan_files() -> List[Path]:
     for p in _REPO.rglob("*"):
         if not p.is_file() or p.suffix not in _SCAN_EXT:
             continue
-        if any(part in _EXCLUDE_PARTS for part in p.parts):
+        # Exclude on the path RELATIVE to the repo root — otherwise, when this runs
+        # from inside a git worktree (which lives at .claude/worktrees/agent-X/), the
+        # worktree's own ".claude" prefix would match and exclude the entire repo,
+        # making every agent look orphaned.
+        rel = p.relative_to(_REPO)
+        if any(part in _EXCLUDE_PARTS for part in rel.parts):
             continue
         out.append(p)
     return out
