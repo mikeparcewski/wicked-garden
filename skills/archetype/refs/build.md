@@ -30,6 +30,18 @@ back to the doctrine-light claim-only path.
 `discrete:review-gate` — review is the discrete gate. Approve happens
 through PR review, council, or the `review` archetype if rigor warrants.
 
+## Ground in the repo's method first
+
+Before you plan, check for **wicked-understanding** repo playbooks (the opt-in
+"how to work in THIS repo" layer). If its skills are present — `add-feature` /
+`fix-bug` / `scaffold` / `write-tests`, or the routing block in
+`AGENTS.md` / `CLAUDE.md` — **load the one matching this task and follow its
+repo-specific method**: the file that owns this kind of change, the wiring step
+("register it here or it won't boot"), the real test command, the gotcha. That
+turns the plan phase from "discover how this repo works" into "follow the known
+method." Absent? Discover it the usual way — and consider
+`npx skills add mikeparcewski/wicked-understanding --all` so next time it's known.
+
 ## How to run
 
 ### plan

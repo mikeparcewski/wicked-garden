@@ -96,6 +96,30 @@ PY
 - `MISSING` → **recommended, not blocking.** wicked-brain is the memory/context layer (cross-session recall, cited search, `smaht:briefing`); the rest of the toolkit works without it. Show "wicked-brain isn't installed — you'll lose cross-session memory + brain-backed search until you add it." **INTERACTIVE mode**: AskUserQuestion header "wicked-brain (optional layer)", options "Install now" = "Run: /plugin install wicked-brain" / "Skip" = "Continue without the memory layer". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: instruct the user to run `/plugin install wicked-brain` (a Claude Code slash command), then re-run the presence check and confirm `READY`. If skipped: continue setup.
 - `READY` → show "wicked-brain — ready (plugin installed)."
 
+### 2.5c Verify wicked-understanding (Recommended — repo-playbooks layer)
+
+wicked-understanding installs as **`skills`-standard skills** (multi-CLI; no server). It analyzes the current repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`) the agent loads on demand — the "how to work in THIS repo" layer that pairs with wicked-brain's "what". Per-repo, so verify by presence of its generated skills rather than a version probe.
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
+import os
+from pathlib import Path
+found = False
+roots = [Path.home()/".claude"/"skills"]
+cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+if cfg: roots.append(Path(cfg)/"skills")
+for r in roots:
+    try:
+        if r.exists() and any(e.is_dir() and e.name.startswith(("repo-", "fix-bug", "add-feature")) for e in r.iterdir()):
+            found = True; break
+    except OSError: continue
+print("READY" if found else "ABSENT")
+PY
+```
+
+- `ABSENT` → **recommended, not blocking.** Show "wicked-understanding isn't set up — without it the agent re-derives *how to work in this repo* each task. Add the repo-playbooks layer: `npx skills add mikeparcewski/wicked-understanding --all`, then run its `repo-analyst` to generate this repo's playbooks." **INTERACTIVE mode**: AskUserQuestion header "wicked-understanding (optional layer)", options "Install now" = "Run: npx skills add mikeparcewski/wicked-understanding --all" / "Skip" = "Continue without repo playbooks". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If skipped: continue setup.
+- `READY` → show "wicked-understanding — ready (repo playbooks installed)." Suggest re-running `repo-analyst` after large changes so the playbooks track HEAD.
+
 ### 2.6 Verify wicked-vault (Required — the evidence gate)
 
 ```bash

@@ -31,6 +31,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | greps and reads — blind to string-wired links | sees the **injected edges** (event→consumer, command→agent, agent→capability) grep never will → `blast-radius`, `lineage` |
 | refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
 | forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → wicked-brain |
+| re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
 | asks *itself* for a second opinion | convenes a **real multi-model panel** (Gemini / Codex / …) → `jam:council` |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
 | grades its own homework | author ≠ executor ≠ reviewer → evidence-gated testing |
@@ -68,7 +69,8 @@ The rest of the kit is **opt-in layers** — add what you want, skip the rest an
 
 ```bash
 npx wicked-testing install     # the acceptance-testing layer (author ≠ executor ≠ reviewer)
-/plugin install wicked-brain   # the memory layer — cross-session recall + cited search
+/plugin install wicked-brain   # the memory layer — cross-session recall + cited search (the "what")
+npx skills add mikeparcewski/wicked-understanding --all   # the repo-playbooks layer — "how to work in THIS repo" (the "how"; pairs with brain)
 /plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 

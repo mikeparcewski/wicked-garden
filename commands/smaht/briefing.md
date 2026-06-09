@@ -68,6 +68,37 @@ Git history is not in the event log — always query directly:
 git log --oneline --since="${days:-1} days ago" --no-merges 2>/dev/null | head -15
 ```
 
+### 2d. Repo method — wicked-understanding (advisory, fail-open)
+
+Surface whether this repo's **how-to-work-here playbooks** exist (the opt-in
+wicked-understanding layer — the *how*, complementing brain's *what*). Prints
+nothing if absent or unavailable:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || true
+import os
+from pathlib import Path
+roots = [Path.home()/".claude"/"skills"]
+cfg = os.environ.get("CLAUDE_CONFIG_DIR")
+if cfg: roots.append(Path(cfg)/"skills")
+names = set()
+for r in roots:
+    try:
+        if r.exists():
+            names |= {e.name for e in r.iterdir()
+                      if e.is_dir() and e.name.startswith(("repo-", "fix-bug", "add-feature"))}
+    except OSError:
+        pass
+if names:
+    print("Repo playbooks available (wicked-understanding): " + ", ".join(sorted(names)[:8]))
+PY
+```
+
+If present, add a **Repo method:** line to the briefing and tell the agent to load
+the matching playbook for build / fix / migrate work instead of rediscovering the
+method. If absent, you may note that `npx skills add mikeparcewski/wicked-understanding --all`
+would generate them.
+
 ### 3. Categorize Events
 
 Group events from the timeline by type:

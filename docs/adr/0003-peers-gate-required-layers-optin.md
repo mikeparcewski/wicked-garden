@@ -17,7 +17,7 @@ The author's counter-point matters too: **garden's goal is a curated toolkit**, 
 Split the peers by what actually needs them:
 
 - **Required — the evidence gate:** `wicked-vault` + `wicked-loom`. The toolkit's central promise is *re-derived, fail-closed "done."* A gate that can't re-derive evidence is the one thing we refuse to fake, so setup **blocks** without these two. Trading adoption for honesty here is deliberate.
-- **Opt-in layers:** `wicked-testing` (acceptance-testing tool), `wicked-brain` (memory + search), `wicked-bus` (audit trail). Each unlocks one capability; none is a prerequisite for the others or for the gate. Setup **recommends** them and continues; bootstrap surfaces them informationally.
+- **Opt-in layers:** `wicked-testing` (acceptance-testing tool), `wicked-brain` (memory + search — the *what*), `wicked-understanding` (repo playbooks — the *how*; `skills`-standard, added in v12.16), `wicked-bus` (audit trail). Each unlocks one capability; none is a prerequisite for the others or for the gate. Setup **recommends** them and continues; bootstrap surfaces them informationally.
 
 This is the toolkit stance: **breadth you adopt incrementally**, not a five-thing prerequisite wall.
 
