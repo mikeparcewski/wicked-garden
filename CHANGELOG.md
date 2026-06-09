@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.5.1] - 2026-06-09
+
+### Bug Fixes
+- fix: vault_gate CLI imports _loom (gate was failing closed via its own documented commands) (d0ce3eb)
+
 ## [12.5.0] - 2026-06-09
 
 ### Features
