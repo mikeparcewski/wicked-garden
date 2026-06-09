@@ -22,6 +22,8 @@ Refresh the two code-intelligence layers the other `search:*` commands query:
 
 2. **Structural layer** — rebuild the codegraph graph, then re-apply the injected edges:
    ```bash
+   # first time on a repo: codegraph must be initialized before it can index
+   npx -y @colbymchenry/codegraph init 2>/dev/null || true
    codegraph index "<path>"   # or: npx -y @colbymchenry/codegraph index "<path>"
    # codegraph indexes CODE only; re-apply the injected layer (bus producer→consumer,
    # command→agent dispatch, agent→capability) it doesn't know about and a re-index drops:
