@@ -51,8 +51,16 @@ _DEFAULT_TIMEOUT = 120
 # (contract phase: the in-process re-derivation + npx ladder were removed).
 # When the loom shim is absent the shimmed surfaces are unavailable and the
 # gate fails closed — there is no in-process fallback.
+# ``_loom`` is a sibling module in scripts/. When this runs as a CLI
+# (`python3 scripts/qe/vault_gate.py …`, incl. via _python.sh) only scripts/qe
+# is on sys.path, so add scripts/ — otherwise the import fails, the loom shim
+# is None, and EVERY gate silently fails closed ("unavailable") even with loom
+# + vault installed. Module-level imports (hooks, conftest) already have
+# scripts/ on the path; this makes the CLI path behave the same. phase_manager
+# does the same insert. (Regression introduced by the loom cutover, #891.)
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 try:
-    import _loom  # scripts/ is on sys.path for hook + CLI invocations
+    import _loom
 except ImportError:  # pragma: no cover — loom shim absent => surfaces unavailable
     _loom = None  # type: ignore
 
@@ -327,6 +335,11 @@ if __name__ == "__main__":
             "resolvable": prefix is not None,
             "installed": vault_available(),  # concrete install (not npx)
             "argv_prefix": prefix,
+            # Honesty signal: did the loom shim import succeed? If False, the
+            # gate fails closed regardless of whether loom/vault are installed
+            # (the CLI sys.path bug). Lets callers/tests distinguish "loom shim
+            # broken" from "vault genuinely absent".
+            "loom_shim_loaded": _loom is not None,
         }))
         sys.exit(0)
 

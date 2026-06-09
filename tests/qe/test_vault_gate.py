@@ -247,5 +247,37 @@ class VaultBackedGateTests(unittest.TestCase):
         self.assertEqual(len(cc["claims"]), 1)
 
 
+class CliInvocationTests(unittest.TestCase):
+    """The gate must work when run as a CLI, not only imported as a module.
+
+    Regression (loom cutover, #891): this scripts/qe/ module imports its
+    sibling ``_loom`` from scripts/. Invoked as a CLI (``python3
+    scripts/qe/vault_gate.py …``, incl. via _python.sh) only scripts/qe is on
+    sys.path, so the import failed, ``_loom`` became None, and EVERY gate
+    silently failed closed ("unavailable") even with loom + vault installed.
+    Module-level tests run with scripts/ already on sys.path (conftest), so
+    they cannot catch this — only a subprocess invocation can. The fix inserts
+    scripts/ onto sys.path before importing _loom; this test pins it.
+    """
+
+    def test_cli_resolve_imports_loom_shim(self):
+        repo = Path(__file__).resolve().parents[2]
+        script = repo / "scripts" / "qe" / "vault_gate.py"
+        # Strip PYTHONPATH so the subprocess sees the same sys.path the real
+        # CLI/_python.sh invocation does (only the script's own dir, scripts/qe).
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        proc = subprocess.run(
+            [sys.executable, str(script), "resolve"],
+            capture_output=True, text=True, cwd=str(repo), env=env, timeout=60,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        out = json.loads(proc.stdout)
+        self.assertTrue(
+            out.get("loom_shim_loaded"),
+            "vault_gate CLI failed to import the _loom shim — the gate would "
+            "fail closed regardless of whether loom/vault are installed",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
