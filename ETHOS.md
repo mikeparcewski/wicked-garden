@@ -22,7 +22,7 @@
 
 **Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, hooks, and slash commands are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; an agent with a frontmatter description is more discoverable than a registry call.
 
-**The gate is required; the rest is a toolkit.** wicked-garden's one non-negotiable is the evidence gate, so it stands on two required peers: **wicked-vault** (the backend that makes "done" re-derivable) and **wicked-loom** (the engine that re-runs the verifier). `/wicked-garden:setup` blocks without them — a gate you can fake is worse than no gate. The other three siblings are **opt-in layers**, not prerequisites: **wicked-testing** (the acceptance-testing tool), **wicked-brain** (cross-session memory + cited search), **wicked-bus** (the audit trail). Install the ones you'll use; the toolkit works without the others — breadth you adopt incrementally, not a five-thing prerequisite wall. And required-at-install is not brittle-at-runtime: a transient outage degrades gracefully and never bricks a session — but a gate never pretends missing evidence is a pass; that path **fails closed**. We depend on the gate; we don't crash with the layers.
+**The gate is required; the rest is a toolkit.** wicked-garden's one non-negotiable is the evidence gate, so it stands on two required peers: **wicked-vault** (the backend that makes "done" re-derivable) and **wicked-loom** (the engine that re-runs the verifier). `/wicked-garden:setup` blocks without them — a gate you can fake is worse than no gate. The other siblings are **opt-in layers**, not prerequisites: **wicked-testing** (acceptance testing), **wicked-brain** (cross-session memory — the *what*), **wicked-understanding** (repo playbooks — the *how*), **wicked-bus** (the audit trail). Install the ones you'll use; the toolkit works without the others — breadth you adopt incrementally, not a five-thing prerequisite wall. And required-at-install is not brittle-at-runtime: a transient outage degrades gracefully and never bricks a session — but a gate never pretends missing evidence is a pass; that path **fails closed**. We depend on the gate; we don't crash with the layers.
 
 **Cross-platform is non-negotiable.** macOS, Linux, Windows (Git Bash, WSL, native). Bare `python3` doesn't exist on Windows; bare `/tmp` doesn't exist on Windows; the shim and `${TMPDIR:-/tmp}` exist for a reason. If a contributor adds shell that breaks on Windows, the contribution is incomplete.
 
@@ -68,7 +68,7 @@
 
 **Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. wicked-patch's generators support Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, Ruby out of the box; new languages plug in via the generator interface.
 
-**Not closed.** The siblings (vault + loom required for the gate; testing, brain, bus opt-in) are peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
+**Not closed.** The siblings (vault + loom required for the gate; testing, brain, understanding, bus opt-in) are peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
 
 ---
 

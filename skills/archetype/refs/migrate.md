@@ -38,6 +38,17 @@ on a self-grade.
 explicit user approval AND a green pre-cutover checklist (rollback
 tested, backfill complete, dual-read working).
 
+## Ground in the repo's method first
+
+Before you plan, check for **wicked-understanding** repo playbooks (the opt-in
+"how to work in THIS repo" layer). A migration lives or dies on repo-specific
+wiring — where readers/writers are switched, how schema/config is loaded, the
+deploy/rollback command. If its skills are present — `add-domain` / `add-feature`
+/ `scaffold`, or the routing block in `AGENTS.md` / `CLAUDE.md` — **load the
+matching playbook** and let it name those exact points instead of rediscovering
+them mid-cutover. Absent? Discover it the usual way — and consider
+`npx skills add mikeparcewski/wicked-understanding --all` so next time it's known.
+
 ## How to run
 
 ### plan
