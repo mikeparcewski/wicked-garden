@@ -1,5 +1,13 @@
 # Changelog
 
+## [12.8.0] - 2026-06-09
+
+### Features
+- feat(qe): prove.py validates OUTPUTS, not just exit codes (regex_match/not_contains/jq_pred) (d7d3dd2)
+
+### Chores
+- Merge pull request #902 from mikeparcewski/feat/prove-output-verifiers (213da9b)
+
 ## [12.7.1] - 2026-06-09
 
 ### Bug Fixes
