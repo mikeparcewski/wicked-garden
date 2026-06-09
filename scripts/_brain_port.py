@@ -63,3 +63,9 @@ def resolve_port() -> int:
 
     # 4. Fallback
     return _DEFAULT_PORT
+
+
+if __name__ == "__main__":
+    # CLI entrypoint so shell/markdown commands can resolve the port without
+    # hardcoding it:  PORT=$(python3 scripts/_brain_port.py)
+    print(resolve_port())

@@ -24,7 +24,8 @@ Detect services and their connections from infrastructure configuration files an
 
 2. **Search brain for service patterns** in the codebase:
    ```bash
-   curl -s -X POST http://localhost:4242/api \
+   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
+   curl -s -X POST "http://localhost:${PORT}/api" \
      -H "Content-Type: application/json" \
      -d '{"action":"search","params":{"query":"service endpoint controller route","limit":30}}'
    ```

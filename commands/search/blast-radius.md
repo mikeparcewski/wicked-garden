@@ -50,7 +50,8 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 2. **Cross-reference via brain** (semantic neighbors the graph may not name):
    ```bash
-   curl -s -X POST http://localhost:4243/api \
+   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
+   curl -s -X POST "http://localhost:${PORT}/api" \
      -H "Content-Type: application/json" \
      -d '{"action":"search","params":{"query":"<symbol>","limit":30}}'
    ```
