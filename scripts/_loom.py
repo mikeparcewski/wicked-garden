@@ -101,10 +101,12 @@ def loom_available(project_dir: Optional[Path] = None) -> bool:
     return resolve_loom(allow_npx=False, project_dir=project_dir) is not None
 
 
-def _default_run(prefix: List[str], args: List[str], timeout: int) -> Dict[str, Any]:
+def _default_run(prefix: List[str], args: List[str], timeout: int,
+                 cwd: Optional[str] = None) -> Dict[str, Any]:
     try:
         proc = subprocess.run(  # noqa: S603 — argv list, shell=False
             prefix + args, capture_output=True, text=True, timeout=timeout,
+            cwd=cwd,
         )
         return {"exit_code": proc.returncode, "stdout": proc.stdout,
                 "stderr": proc.stderr, "error": None}
@@ -132,12 +134,20 @@ def run_json(args: List[str], *, timeout: int = _DEFAULT_TIMEOUT,
     monkeypatching ``_loom._default_run`` (the documented test seam) takes
     effect; binding it as a default-arg value would freeze it at def-time.
     """
-    runner = _run if _run is not None else _default_run
     prefix = resolve_loom(project_dir=project_dir)
     if prefix is None:
         return {"exit_code": None, "json": None, "stdout": "", "stderr": "",
                 "error": "wicked-loom not resolvable"}
-    run = runner(prefix, args, timeout)
+    # loom subcommands (gate/resolve/flow) inspect the *project* dir, not the
+    # parent process cwd — so the subprocess must run in project_dir. The
+    # in-process vault path set cwd=project_dir before the loom cutover; that
+    # was dropped when re-derivation moved into this shim (#891 regression).
+    # The injected ``_run`` test seam keeps its documented 3-arg contract.
+    if _run is not None:
+        run = _run(prefix, args, timeout)
+    else:
+        cwd = str(project_dir) if project_dir is not None else None
+        run = _default_run(prefix, args, timeout, cwd=cwd)
     if run["error"] is not None:
         return {"exit_code": None, "json": None, "stdout": "", "stderr": "",
                 "error": run["error"]}

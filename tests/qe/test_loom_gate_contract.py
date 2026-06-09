@@ -32,7 +32,7 @@ class GateLoomAuthoritative(unittest.TestCase):
             os.environ.pop(v, None)
 
     def _loom_gate_runner(self, overall):
-        def fake_run(prefix, args, timeout):
+        def fake_run(prefix, args, timeout, cwd=None):
             import json
             verdict = {"satisfied": overall == "PASS", "overall": overall,
                        "gate": "vault-cross-check", "claims": [{"id": "tests-pass"}]}
@@ -57,7 +57,7 @@ class GateLoomAuthoritative(unittest.TestCase):
 
     def test_loom_gate_unavailable_maps_to_fail_closed(self):
         # loom reached, but vault unresolvable behind it -> gate: unavailable.
-        def fake_run(prefix, args, timeout):
+        def fake_run(prefix, args, timeout, cwd=None):
             import json
             return {"exit_code": 1, "stdout": json.dumps(
                 {"gate": {"gate": "unavailable", "error": "no vault"}}),
@@ -71,7 +71,7 @@ class GateLoomAuthoritative(unittest.TestCase):
     def test_loom_error_fails_closed_no_in_process_pass(self):
         # loom resolves but the subprocess errors (timeout/not-found). There is
         # NO in-process fallback now -> cross_check must report unavailable.
-        def boom(prefix, args, timeout):
+        def boom(prefix, args, timeout, cwd=None):
             return {"exit_code": None, "stdout": "", "stderr": "",
                     "error": "loom call exceeded 120s"}
         with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
@@ -110,7 +110,7 @@ class GateLoomAuthoritative(unittest.TestCase):
     def test_with_attestations_forwarded_to_loom(self):
         seen = {}
 
-        def fake_run(prefix, args, timeout):
+        def fake_run(prefix, args, timeout, cwd=None):
             import json
             seen["args"] = args
             return {"exit_code": 0, "stdout": json.dumps(
