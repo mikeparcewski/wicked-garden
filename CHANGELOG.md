@@ -1,5 +1,13 @@
 # Changelog
 
+## [12.7.1] - 2026-06-09
+
+### Bug Fixes
+- fix(qe): prove.py --with-attestations actually enforces (was a vacuous hard gate in v12.7.0) (7d0f85b)
+
+### Chores
+- Merge pull request #901 from mikeparcewski/fix/prove-attestation-enforcement (b14cd27)
+
 ## [12.7.0] - 2026-06-09
 
 ### Features
