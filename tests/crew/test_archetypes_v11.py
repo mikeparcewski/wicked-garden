@@ -17,7 +17,12 @@ if _SCRIPTS not in sys.path:
 if _CREW not in sys.path:
     sys.path.append(_CREW)
 
+_HOOKS = str(_REPO_ROOT / "hooks" / "scripts")
+if _HOOKS not in sys.path:
+    sys.path.append(_HOOKS)
+
 import archetypes_v11 as av  # noqa: E402
+import prompt_submit as ps  # noqa: E402
 
 
 class TestCatalogShape(unittest.TestCase):
@@ -247,6 +252,68 @@ class TestCLI(unittest.TestCase):
         payload = json.loads(result.stdout)
         names = set(payload.get("archetypes", {}).keys())
         self.assertEqual(names, TestCatalogShape.EXPECTED_NAMES)
+
+
+class TestArchetypeProveHints(unittest.TestCase):
+    """The steering directive must be *actionable* — for archetypes with a
+    produces-gate it surfaces the exact `prove.py` one-liner the agent should
+    re-derive through, not just a bare <wg archetype/> tag (Issue: actionable
+    steering)."""
+
+    def test_build_directive_includes_prove_hint(self):
+        # "add a CSV export" routes to the build archetype; whether the regex
+        # emits the single <wg archetype/> tag or the multi-archetype shape
+        # card, the build produces-gate prove hint must be appended.
+        directive = ps._build_archetype_directive("add a CSV export", "feature")
+        self.assertIsNotNone(directive)
+        self.assertIn("build", directive)
+        self.assertIn("prove: scripts/qe/prove.py tests-pass", directive)
+        self.assertIn("--scope build", directive)
+        self.assertIn("--phase review", directive)
+
+    def test_build_single_high_confidence_directive_includes_prove_hint(self):
+        # A more explicit build prompt scores high enough for the single tag.
+        directive = ps._build_archetype_directive("add a CSV export feature", "feature")
+        self.assertIn("<wg archetype=\"build\"", directive)
+        self.assertIn("prove: scripts/qe/prove.py tests-pass", directive)
+
+    def test_build_prove_hint_is_soft_gate(self):
+        # build is a discrete (soft) gate — no independent attestation.
+        directive = ps._build_archetype_directive("implement a search box", "feature")
+        self.assertIn("prove:", directive)
+        self.assertNotIn("--with-attestations", directive)
+
+    def test_hard_gate_archetypes_carry_attestations(self):
+        for name in ("review", "incident", "migrate"):
+            hint = ps._prove_hint_for(name)
+            self.assertIsNotNone(hint, f"{name} should have a prove hint")
+            self.assertIn("--with-attestations", hint,
+                          f"{name} is a hard gate and must require attestations")
+
+    def test_soft_gate_archetypes_omit_attestations(self):
+        for name in ("build", "specify", "decide", "ship"):
+            hint = ps._prove_hint_for(name)
+            self.assertIsNotNone(hint)
+            self.assertNotIn("--with-attestations", hint)
+
+    def test_non_gated_archetypes_have_no_prove_hint(self):
+        # explore / triage have no produces-gate — silence is correct.
+        self.assertIsNone(ps._prove_hint_for("explore"))
+        self.assertIsNone(ps._prove_hint_for("triage"))
+
+    def test_prove_hint_phase_matches_catalog_terminal_phase(self):
+        # The gate phase named in each hint must be a real phase of that
+        # archetype in the catalog (so the agent isn't told a fictional phase).
+        catalog = av.load_catalog()["archetypes"]
+        for name, (_claim, phase, _hard) in ps._PROVE_GATE.items():
+            self.assertIn(name, catalog)
+            self.assertIn(phase, catalog[name]["phases"],
+                          f"{name} gate phase '{phase}' not in catalog phases")
+
+    def test_directive_unchanged_for_non_gated_when_no_hint(self):
+        # _with_prove_hints is a no-op when no archetype is gated.
+        base = "<wg archetype=\"explore\" score=\"0.80\" classified=\"regex\" />"
+        self.assertEqual(ps._with_prove_hints(base, ["explore"]), base)
 
 
 if __name__ == "__main__":

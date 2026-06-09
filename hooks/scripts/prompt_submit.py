@@ -180,6 +180,71 @@ def _has_ambiguity_signals(prompt: str) -> bool:
     return any(sig in lower for sig in _JAM_AMBIGUITY_SIGNALS)
 
 
+# Archetypes whose playbook ends in a produces-gate that re-derives through
+# wicked-loom. For these, steering is only actionable if it names the exact
+# `prove.py` one-liner the agent should reach for at the gate phase. Keyed by
+# archetype -> (claim, gate-phase, hard-gate?). Hard gates (incident/migrate/
+# review) require an INDEPENDENT attestation, so they carry --with-attestations.
+# Archetypes absent from this map (explore, triage) have no produces-gate, so
+# no prove hint is emitted for them (silence is correct).
+_PROVE_GATE = {
+    "build":    ("tests-pass",       "review",               False),
+    "specify":  ("criteria-met",     "validate",             False),
+    "decide":   ("adr-recorded",     "record",               False),
+    "ship":     ("rollout-healthy",  "soak",                 False),
+    "review":   ("review-verdict",   "remediate-or-accept",  True),
+    "incident": ("incident-resolved", "resolve",             True),
+    "migrate":  ("rollback-proven",  "cutover",              True),
+}
+
+
+def _prove_hint_for(archetype: str) -> str | None:
+    """Return the concrete `prove:` one-liner for an archetype's produces-gate,
+    or None when the archetype has no gate. Tells the agent exactly how to
+    re-derive (not assert) the produce at the gate phase. Fail-open: any
+    unexpected input yields None rather than raising.
+
+    The verify command is a placeholder (`<verify cmd>`) the agent fills in —
+    e.g. the project's test command for build, a `cat <artifact>` + --verifier
+    for doc-shaped produces. Hard gates append --with-attestations so the gate
+    stays REJECT until an independent evaluator attests.
+    """
+    spec = _PROVE_GATE.get(archetype)
+    if not spec:
+        return None
+    claim, phase, hard = spec
+    line = (
+        f"prove: scripts/qe/prove.py {claim} --by \"<verify cmd>\" "
+        f"--scope {archetype} --phase {phase}"
+    )
+    if hard:
+        line += " --with-attestations"
+    return line
+
+
+def _with_prove_hints(directive: str, archetypes: list[str]) -> str:
+    """Append prove-hint line(s) to a directive for any gated archetypes.
+
+    Dedupes, preserves catalog order, and is a no-op when none of the
+    archetypes have a produces-gate. Fail-open on any error (returns the
+    original directive unchanged)."""
+    try:
+        hints = []
+        seen = set()
+        for a in archetypes:
+            if a in seen:
+                continue
+            seen.add(a)
+            h = _prove_hint_for(a)
+            if h:
+                hints.append(h)
+        if not hints:
+            return directive
+        return directive + "\n" + "\n".join(hints)
+    except Exception:
+        return directive
+
+
 def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | None:
     """v11 — emit a slim work-shape archetype steering directive.
 
@@ -213,16 +278,18 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
         if len(real) == 1 and float(real[0].get("score", 0)) >= 0.7:
             n = real[0]["name"]
             s = float(real[0]["score"])
-            return f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"llm\" />"
+            base = f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"llm\" />"
+            return _with_prove_hints(base, [n])
         shape_lines = [
             f"  - {a['name']} ({float(a.get('score', 0)):.2f})"
             for a in real[:3]
         ]
-        return (
+        base = (
             "<wg archetypes classified=\"llm\">\n"
             + "\n".join(shape_lines)
             + "\n</wg>"
         )
+        return _with_prove_hints(base, [a["name"] for a in real[:3]])
 
     # Tier 2: regex fallback
     try:
@@ -259,14 +326,16 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
     high = [(n, s, e) for (n, s, e) in real if s >= HIGH_CONFIDENCE]
     if len(high) == 1 and len(real) == 1:
         n, s, _ = high[0]
-        return f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"regex\" />"
+        base = f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"regex\" />"
+        return _with_prove_hints(base, [n])
 
     shape_lines = [f"  - {n} ({s:.2f})" for (n, s, _) in real[:3]]
-    return (
+    base = (
         "<wg archetypes classified=\"regex\">\n"
         + "\n".join(shape_lines)
         + "\n</wg>"
     )
+    return _with_prove_hints(base, [n for (n, _s, _e) in real[:3]])
 
 
 def _suggest_jam(prompt: str, state) -> str | None:
