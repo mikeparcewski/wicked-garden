@@ -10,19 +10,14 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:platform:audit
 
-Collect audit evidence, verify controls, and generate compliance artifacts for a target framework. Use for SOC2/HIPAA/GDPR/PCI evidence packages. NOT for policy definition (use platform:compliance) or vulnerability scans (use platform:security).
+Collect audit evidence, verify controls, and generate compliance artifacts for SOC2/HIPAA/GDPR/PCI.
 
-## 1. Dispatch
+## Run it inline (no dispatch)
 
-```
-Task(subagent_type="wicked-garden:platform:auditor",
-     prompt="""Collect audit evidence.
-
-Args: $ARGUMENTS  (framework [control_id])
-Framework: soc2 | hipaa | gdpr | pci
-Control: specific control ID if given, else 'all' in framework.
-
-Gather control implementation, configuration artifacts, access-control docs, log samples, policies.
-Return per-control evidence with file:line refs, code/config snippets, verification checklist
-(implemented/configured/enforced/documented), Pass/Partial/Fail status, gaps, auditor notes.""")
-```
+1. Parse `$ARGUMENTS`: `<framework> [control_id]` (framework = `soc2|hipaa|gdpr|pci`; control_id or `all`).
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/audit/refs/audit.md")` — full collection rubric,
+   control-testing checklist, SOC2/HIPAA control matrix, gap analysis, bus emit, and output format.
+3. For framework-specific checklists: `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/audit/refs/checklists-soc2-hipaa.md")`
+   or `refs/checklists-gdpr-pci-evidence.md`. For evidence scripts and organization: `refs/checklists-evidence-operations.md`.
+4. Apply the rubric directly: collect evidence via code search, verify each control, document
+   Pass/Partial/Fail with file:line refs, then emit the bus event and produce the audit report.
