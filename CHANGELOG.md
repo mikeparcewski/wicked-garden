@@ -1,5 +1,13 @@
 # Changelog
 
+## [12.15.0] - 2026-06-09
+
+### Features
+- feat: two required peers (the gate), three opt-in layers + curated-toolkit reframe (ADR 0003) (ad7f312)
+
+### Chores
+- Merge pull request #922 from mikeparcewski/feat/toolkit-optin-peers (14107cf)
+
 ## [12.14.0] - 2026-06-09
 
 ### Bug Fixes
