@@ -101,9 +101,17 @@ through PR review, council, or the `review` archetype if rigor warrants.
 ## When to stop
 
 Build is done when the produces-gate is satisfied AND the PR is merged.
-Check the gate — don't self-assert it:
+Check the gate — don't self-assert it.
+
+**Frictionless (recommended for a single decisive claim):** skip the
+init/declare/record/gate ritual and re-derive in one call —
+`scripts/qe/prove.py tests-pass --by "<your test command>" --scope <scope> --phase build`
+(exit 0 = re-derived PASS; exit 1 = REJECT; exit 3 = backend down / fail-closed).
+Run it before you tell anyone the build is done.
+
+**Full contract (multi-claim):** declare a contract then
 `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase build`
-(exit 0 = satisfied). This is a re-derived PASS over the declared
+(exit 0 = satisfied). Either way it is a re-derived PASS over the declared
 contract. A REJECT means the recorded evidence does not clear its
 contract — fix the work, not the claim. An `unavailable` verdict means
 the required vault isn't installed — run `/wicked-garden:setup`. If the
