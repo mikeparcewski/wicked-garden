@@ -8,7 +8,7 @@
       "name": "wicked-garden",
       "source": "./",
       "description": "Your coding agent already plans and swarms \u2014 Wicked Garden fills the gaps it can't: proof-not-claims gates, code links grep can't see, deterministic refactor, cross-session memory, real multi-model second opinions. Don't fight the harness; fill its gaps. Needs wicked-testing/vault/brain/bus/loom (npm).",
-      "version": "12.13.0"
+      "version": "12.14.0"
     }
   ],
   "version": "2.0.0"

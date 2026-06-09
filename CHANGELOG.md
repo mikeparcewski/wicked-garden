@@ -1,5 +1,18 @@
 # Changelog
 
+## [12.14.0] - 2026-06-09
+
+### Bug Fixes
+- fix(search): hotspots query from codegraph graph instead of brain curl (a7cf0a0)
+
+### Documentation
+- docs: tighten the reframe — concise + fun (0e609e2)
+- docs: reframe wicked-garden as gap-filler for coding-agent harnesses (not 'an SDLC') (931a2a8)
+
+### Chores
+- Merge pull request #921 from mikeparcewski/docs/reframe-gap-filler (4843d73)
+- Merge pull request #920 from mikeparcewski/fix/hotspots-codegraph (c2e821e)
+
 ## [12.13.0] - 2026-06-09
 
 ### Bug Fixes
