@@ -1,5 +1,16 @@
 # Changelog
 
+## [12.7.0] - 2026-06-09
+
+### Features
+- feat(qe): prove.py supports --with-attestations (universal across hard gates) (3df9d57)
+
+### Documentation
+- docs(archetypes): recommend prove.py frictionless gate in all 7 gating playbooks (08e2c05)
+
+### Chores
+- Merge pull request #900 from mikeparcewski/feat/prove-universal (c80bd6a)
+
 ## [12.6.0] - 2026-06-09
 
 ### Features
