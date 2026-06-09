@@ -1,5 +1,19 @@
 # Changelog
 
+## [12.5.0] - 2026-06-09
+
+### Features
+- feat(capabilities): register apm/tracing/logging/telemetry; lock agent caps to the registry (cde4bda)
+
+### Bug Fixes
+- fix(detector): match 'roll out' (spaced) for the ship archetype (54048e0)
+- fix(phase-manager): align hard-gate map to the catalog (drop specify/decide over-reach) (9c042f1)
+- fix: loom gate re-derives against project_dir, not process cwd (#891 regression) (ea8a3f8)
+
+### Documentation
+- docs: reconcile with the v12 loom cutover (loom is the gate; five required peers) (f66010d)
+- docs(spec): record loom migration terminal outcome (§6 remainder stays in garden) (#895) (eb228d0)
+
 ## [12.4.0] - 2026-06-08
 
 ### Features
