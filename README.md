@@ -9,103 +9,79 @@
 
 # Wicked Garden
 
-**An evidence-driven SDLC for Claude Code: it detects the shape of work, applies the rigor that shape needs, verifies "done" through independent re-derived evidence, and preserves decisions, evidence, and learning across sessions. Done is not claimed; done is re-derived.**
+**Your coding agent already plans and swarms. Wicked Garden fills the gaps it can't fill alone — and otherwise gets out of the way.**
 
-> **Identity at a glance:** see [`ETHOS.md`](ETHOS.md) — what we believe, what we refuse, what we optimize for.
->
-> **Vision (v11):** work-shape archetypes, not a fixed pipeline. Each prompt routes to one or more archetypes; each archetype owns its phase shape, produces, and human-in-the-loop (HITL) discipline. Steering, not blocking.
+> Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
 
 ---
 
-## Why you'd want it
+## The premise
 
-AI coding assistants confidently announce "tests pass" and "done" — sometimes when neither is true — and the reasoning behind last week's decisions is gone by next session. Wicked Garden doesn't take "done" on faith. Every gate **re-derives** the evidence (re-runs the test command, re-checks the artifact) instead of trusting the claim, and the gates that matter are signed off by an **independent** reviewer — not the agent that did the work. Decisions, evidence, and audit persist across sessions, so session 47 knows what session 1 decided.
+Coding agents grew up. Claude Code, Codex, Cursor, Antigravity, Aider, OpenCode, Gemini CLI, Zed/ACP — they're not autocomplete anymore. They plan. They parallelize. And each has *strong opinions* about how it likes to work.
 
-You get verdicts you can trust, not green checkmarks you can't. *Done is not claimed; done is re-derived.*
+Most plugins try to boss them around — re-implement planning, impose a workflow, make the agent dance. You end up fighting your own tools.
 
----
+**Wicked Garden refuses to wrestle the harness.** It assumes your agent is good at the things it's good at, and fills the gaps it *can't* fill on its own.
 
-## How it works (four beats)
+## The gaps it fills
 
-**1 · Detect the shape.** A `UserPromptSubmit` hook classifies your prompt into one or more of nine **work-shape archetypes** — a typo is `triage`, a feature is `build`, a schema change is `build + migrate`. There's no universal pipeline; each shape runs its own phases. (Why archetypes and not one pipeline? → [`docs/v11/archetypes.md`](docs/v11/archetypes.md).)
+| Your harness… | Wicked Garden… |
+|---|---|
+| says *"tests pass"* (sometimes it's lying) | re-runs the proof. False "done" → **rejected.** Missing backend → **fails closed.** Never a vacuous green. |
+| greps and reads — blind to string-wired links | sees the **injected edges** (event→consumer, command→agent, agent→capability) grep never will → `blast-radius`, `lineage` |
+| refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
+| forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → wicked-brain |
+| asks *itself* for a second opinion | convenes a **real multi-model panel** (Gemini / Codex / …) → `jam:council` |
+| re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
+| grades its own homework | author ≠ executor ≠ reviewer → evidence-gated testing |
 
-| Archetype | Phases | Produces | HITL |
-|---|---|---|---|
-| triage | classify | routing decision | none |
-| explore | frame → diverge → converge | option set / hypothesis | continuous |
-| specify | elicit → structure → validate | SMART acceptance criteria | discrete:validate |
-| decide | brief → options → score → record | ADR / decision artifact | discrete:select |
-| ship | canary → ramp → full → soak | rollout verdict / SLO snapshot | discrete:ramp |
-| review | scope → assess → findings → remediate-or-accept | verdict / remediation list | hard:final-verdict |
-| incident | triage → investigate → mitigate → resolve → followup | mitigation / RCA / followup | hard:mitigate |
-| build | plan → implement → test → review | shipped code / test report | discrete:review |
-| migrate | plan → expand → backfill → cutover → contract | shape change / rollback proof | hard:cutover |
+The throughline: **done is re-derived, not asserted.** Verdicts you can trust on the first read — not green checkmarks you can't.
 
-**2 · Run the archetype.** Each has its own phases, produces contract, and human-in-the-loop (HITL) gates — light for a fix, hard for a migration cutover. Archetypes compose: a schema-changing feature is `build + migrate`; a risky deploy is `ship + review`.
+## What it's *not*
 
-**3 · Gate on re-derived evidence.** At each gate, [wicked-loom](https://www.npmjs.com/package/wicked-loom) re-derives the produces — it re-hashes the evidence and re-runs its verifier through [wicked-vault](https://www.npmjs.com/package/wicked-vault) underneath — a false "tests pass" is **REJECTED**, a missing backend **fails closed** (never a vacuous pass). Hard gates also require an *independent* attestation: the evaluator is not the agent that did the work.
+- **Not a workflow it forces on you.** Your harness still drives. Wicked Garden reads the *shape* of the work, applies the right amount of rigor, and steps back.
+- **Not a reinvention** of the planning and swarm your agent already nails.
+- **Not Claude-only under the hood.** Ships as a Claude Code plugin, but the engine is CLI/npm peers — and the gate **compiles into any repo and runs with no wicked-garden installed** (`/wicked-garden:compile`). Stand on the harness, fill its gaps, hand off. Never absorb.
 
-**4 · Carry it forward.** Decisions, evidence, and audit persist on disk via the five required peers — testing · vault · brain · bus · loom — so the next session resumes with the chain intact.
+<details><summary><b>How it stays out of the way: work-shape, not pipeline</b></summary>
 
-`/wicked-garden:compile` can stamp that same evidence gate into *any* repo; the emitted gate runs with **no wicked-garden installed**.
-
----
-
-## What's in the box
-
-- **9 work-shape archetypes** with playbooks, slash commands, and a detector.
-- **Loom-driven gates** — every gating archetype re-derives its produces through [wicked-loom](https://www.npmjs.com/package/wicked-loom) (required), which re-runs the verifier via [wicked-vault](https://www.npmjs.com/package/wicked-vault) underneath, fail-closed. "Done" can't be asserted into truth.
-- **The compiler** (`/wicked-garden:compile`) — detect a repo's test/lint/build commands and emit a self-contained, vault-backed build gate into `<repo>/.wicked/`. It runs with **no wicked-garden runtime present** (resolves the vault via `npx`), and can install the triggers that fire it (pre-push hook / GitHub Actions).
-- **A work-mode status line** — `scripts/statusline.py` renders the live archetype · intent · phase · gate verdict (`🌱 wg │ build·migrate │ intent: feature │ phase: implement │ ⚖ PASS`) at the bottom of the screen, so the detected shape and the gate's honest verdict are always visible. Opt-in via `settings.json` (see [getting-started](docs/getting-started.md#show-the-active-mode-status-line)).
-- **Hooks** for prompt classification, tool tracking, session lifecycle.
-- **Domain skills + agents** across engineering, platform, product, data, jam, search, agentic, persona, and delivery — invoked by archetypes when their work needs domain expertise.
-- **wicked-brain integration** for persistent memory across sessions.
-- **wicked-bus integration** for the audit trail.
+No universal pipeline to obey. A hook reads each prompt's *shape* and that decides one thing: **how much rigor this work earns.** A typo (`triage`) gets none; a migration cutover (`migrate`) gets a hard, independently-attested gate with a rollback proof. Nine shapes — `triage · explore · specify · decide · build · review · ship · incident · migrate` — steering, not blocking. Why shapes and not one pipeline → [`docs/v11/archetypes.md`](docs/v11/archetypes.md).
+</details>
 
 ---
 
 ## Install
 
 ```bash
-# In Claude Code
-/plugin install wicked-garden
-
-# First time setup (verifies the required peers below)
-/wicked-garden:setup
+/plugin install wicked-garden      # in Claude Code
+/wicked-garden:setup               # verifies the five peers below
 ```
 
-Required peers — `/wicked-garden:setup` verifies all five and blocks without them (required at install, resilient to a transient runtime outage):
+Honest evidence needs five CLI/npm peers — setup verifies all five and blocks without them (required at install, resilient to a transient runtime blip):
+
 ```bash
 npx wicked-testing install     # evidence-gated acceptance testing (≥ 0.3)
 npx wicked-vault-install       # the honest-evidence backend gates re-derive against (≥ 0.3)
 /plugin install wicked-brain   # cross-session memory + cited search
-/plugin install wicked-bus     # event audit substrate
-npm i -g wicked-loom           # the gate engine — re-derives produces via the vault (or use via npx)
+/plugin install wicked-bus     # event audit trail
+npm i -g wicked-loom           # the gate engine (re-derives produces via the vault; or via npx)
 ```
 
-See [`docs/required-peers.md`](docs/required-peers.md) for why each is load-bearing.
+Optional, lights up the code graph: `npx @colbymchenry/codegraph` (Node ≥ 22.5) → powers `blast-radius` / `lineage` / `hotspots` / wicked-patch. Details: [`docs/required-peers.md`](docs/required-peers.md).
 
----
-
-## Quick start
+## Try it
 
 ```bash
-# Let the hook auto-route a prompt
+# Just work — the hook applies the right rigor underneath, quietly
 "implement caching for the dashboard"
-# → emits <wg archetype="build" score="0.55" /> → invokes the build archetype
 
-# Or invoke an archetype directly
-/wicked-garden:archetype:incident "checkout 5xx spiking"
-/wicked-garden:archetype:migrate  "drop legacy_id column with backfill"
-/wicked-garden:archetype:decide   "redis or memcached for sessions"
-/wicked-garden:archetype:specify  "write acceptance criteria for the export feature"
-```
+# Or reach for a gap-filler on purpose
+/wicked-garden:prove                              # re-derive "done" from evidence (fail-closed)
+/wicked-garden:search:blast-radius emit_event     # impact, incl. edges grep can't see
+/wicked-garden:engineering:rename oldField newField   # deterministic, graph-driven
+/wicked-garden:jam:council "redis or memcached?"  # a panel that isn't just you
 
-Each command loads `skills/archetype/refs/{archetype}.md` and runs the per-archetype phase shape.
-
-```bash
-# Compile a self-contained, vault-backed gate into ANY repo
-# (the emitted gate runs with no wicked-garden runtime present)
+# Stamp the evidence gate into ANY repo (runs with no wicked-garden installed)
 /wicked-garden:compile ~/path/to/repo --trigger ci
 ```
 
@@ -113,30 +89,19 @@ Each command loads `skills/archetype/refs/{archetype}.md` and runs the per-arche
 
 ## Principles
 
-- **Steering, not blocking.** Tell the agent what should happen; hard gates exist only where they matter.
-- **Per-archetype, not per-phase.** Each work shape is self-contained.
-- **Slim body contract.** Command and skill bodies stay small; refs/ carry the detail.
-- **Partner, not host platform.** Use Claude Code's native primitives (`TaskCreate`, `Task()`, system reminders, skill progressive loading); don't reimplement them.
+- **Don't fight the harness.** Fill the gaps; never re-implement what it already does well.
+- **Done is re-derived, not asserted.** Every gate recomputes the evidence; the gates that matter are signed by someone who isn't the author.
+- **Steering, not blocking.** Rigor follows the shape of the work, applied only where it earns its keep.
+- **Enforcement that travels.** The gate compiles into any repo and runs without wicked-garden present.
+- **Borrow the harness's primitives.** Extend `TaskCreate`/`Task()`/skills/hooks — don't rebuild them.
 
----
+## More
 
-## Documentation
-
-- `docs/v11/archetypes.md` — design notes for the v11 reframe (the why)
-- `.claude/CLAUDE.md` — repo-internal guidance for Claude
-- `ETHOS.md` — what we believe, refuse, optimize for
-- `CHANGELOG.md` — release history (v11+ live; pre-v11 in git tags)
-
----
+[`ETHOS.md`](ETHOS.md) · [`docs/getting-started.md`](docs/getting-started.md) · [`docs/domains.md`](docs/domains.md) · [`docs/required-peers.md`](docs/required-peers.md) · [`docs/compiler.md`](docs/compiler.md)
 
 ## Requirements
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0
-- Python 3.9+ (stdlib only for hook scripts)
-- Node.js + `npx` — required by `wicked-loom` (the gate engine), `wicked-vault` (the evidence backend it re-derives through), and `wicked-testing`
-- **Required peers (all five):** `wicked-testing` (≥ 0.3), `wicked-vault` (≥ 0.3, the backend gates re-derive against), `wicked-brain` (cross-session memory + search), `wicked-bus` (audit substrate), `wicked-loom` (the gate engine — re-derives produces through the vault). `/wicked-garden:setup` verifies all five and blocks without them — required at install, resilient at runtime. See [`docs/required-peers.md`](docs/required-peers.md).
-
----
+A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the five peers (`wicked-testing` · `wicked-vault` · `wicked-brain` · `wicked-bus` · `wicked-loom`).
 
 ## License
 

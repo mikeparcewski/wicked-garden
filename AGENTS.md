@@ -1,6 +1,8 @@
 # Agent Instructions
 
 > **Identity:** see [`ETHOS.md`](ETHOS.md) for what wicked-garden believes / refuses / optimizes for. AGENTS.md is *how to act*; ETHOS.md is *why we act this way*.
+>
+> **Positioning:** wicked-garden fills the gaps a coding-agent *harness* (Claude Code, Codex, Cursor, Aider, OpenCode, Zed/ACP, …) can't fill on its own — proof instead of claims, code relationships grep can't see, deterministic multi-file refactor, cross-session memory, a real multi-model second opinion, evidence-gated testing. It rides on how the harness already plans and executes — it does *not* impose a workflow. Don't fight the harness; fill its gaps.
 
 ## General
 

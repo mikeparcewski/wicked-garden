@@ -1,9 +1,10 @@
 # Getting Started
 
-Wicked Garden is an evidence-driven SDLC for Claude Code: it detects the shape
-of your work, applies the rigor that shape needs, and won't call anything "done"
-without re-derivable proof. (The *why* lives in [`ETHOS.md`](../ETHOS.md); this
-guide is the *how-to-start*.)
+Wicked Garden fills the gaps your coding agent's harness can't fill on its own —
+proof instead of claims, code relationships grep can't see, deterministic refactor,
+memory across sessions, a real second opinion. It reads the shape of your work to
+apply the right rigor, and won't call anything "done" without re-derivable proof.
+(The *why* lives in [`ETHOS.md`](../ETHOS.md); this guide is the *how-to-start*.)
 
 This guide gets it installed and shows five ways to start your first session.
 
