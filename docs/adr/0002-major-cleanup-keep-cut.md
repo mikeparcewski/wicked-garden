@@ -1,6 +1,6 @@
 # ADR 0002 — Major cleanup: collapse rubric-wrappers to skills; keep only what the agent actually uses
 
-- **Status:** Proposed (dead-command removal executed; **product domain collapsed as the executed pattern**; the rest awaits greenlight)
+- **Status:** Accepted — **fully executed**. All domains collapsed (product #910; engineering #911; platform #912; data+delivery #913; agentic+jam+persona+smaht #914), orphan agents purged via `scripts/ci/find_orphan_agents.py`, and `components.json` re-derived via `scripts/ci/sync_components.py`. End state: 90 commands, 40 agents (from 56), 71 skills.
 - **Date:** 2026-06-09
 
 ## The test
@@ -81,11 +81,11 @@ Only the genuinely-dead DELETE rows lose anything, and those had no rubric worth
 ## Phased execution (each phase = one worktree PR, parallelizable, suite-gated)
 
 0. ✅ Remove dead commands (`crew:archive`, `delivery:process-health`).
-1. ✅ **product** domain collapse (12 commands → slim inline bodies + `skills/product/refs/`; removed 3 dispatch-only agents) — **the executed pattern the rest follow.**
-2. **delivery** + **agentic** collapses.
-3. **engineering** + **platform** rubric-wrapper collapses (keep security/toolchain).
-4. **data** (keep ontology) + **jam**/`persona`/`smaht` trims.
-5. Agent sweep — remove now-orphaned dispatch-only agents per domain; update `help.md`/`components.json`/`docs/domains.md` each phase.
-6. Update CLAUDE.md/README to reflect the leaner surface.
+1. ✅ **product** domain collapse (#910) — the executed pattern the rest followed.
+2. ✅ **engineering** collapse (#911) — arch/debug/docs/plan/review; patch family kept.
+3. ✅ **platform** collapse (#912) — 8 wrappers; security/toolchain/assert/plugin-health kept.
+4. ✅ **data + delivery** collapse (#913) — keep ontology + setup.
+5. ✅ **agentic + jam + persona + smaht** collapse (#914) — keep council/brainstorm/revisit/briefing; delete persona:submit + smaht:propose-skills.
+6. ✅ **Agent-orphan purge + registry sync** — `find_orphan_agents.py` did a reachability analysis (roots = commands/skills/scenarios/registries, **not** the generated `components.json`); removed 3 truly-orphaned delivery agents (cloud-cost-intelligence, delivery-manager, progress-tracker) while correctly keeping the 4 that live scenarios still dispatch to. `sync_components.py` re-derived the manifest; `docs/domains.md` updated.
 
-Each phase is reversible (git), suite-gated, and PR'd for review before the next.
+Each phase was reversible (git), suite-gated, and PR'd. Two reusable anti-drift tools fell out of phase 6: `find_orphan_agents.py` (dead-agent detection) and `sync_components.py` (manifest never silently drifts again).
