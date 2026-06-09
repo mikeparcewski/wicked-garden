@@ -1,5 +1,13 @@
 # Changelog
 
+## [12.16.0] - 2026-06-09
+
+### Features
+- feat: integrate wicked-understanding as the repo-playbooks opt-in layer (full: layer + wired in) (cade19d)
+
+### Chores
+- Merge pull request #923 from mikeparcewski/feat/integrate-wicked-understanding (99d56dc)
+
 ## [12.15.0] - 2026-06-09
 
 ### Features
