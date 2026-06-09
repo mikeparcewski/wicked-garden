@@ -1,83 +1,80 @@
 {
   "_comment": "Issue #328: Component declarations for wicked-garden plugin. Claude Code plugin.json does not yet support inline component declarations beyond path overrides. This manifest documents all components for tooling, validation, and future schema support. When plugin.json gains a 'components' field, merge this data into plugin.json.",
-
-  "domains": [
-    "agentic", "crew", "data", "delivery", "engineering",
-    "jam", "mem", "persona", "platform",
-    "product", "qe", "search", "smaht"
-  ],
-
+  "domains": ["agentic", "crew", "data", "delivery", "engineering", "jam", "mem", "persona", "platform", "product", "qe", "search", "smaht"],
   "summary": {
-    "commands": 147,
-    "agents": 69,
-    "skills": 88,
-    "hooks": 12,
+    "commands": 90,
+    "agents": 40,
+    "skills": 71,
+    "hooks": 13,
     "specialists": 8
   },
-
   "agents_by_domain": {
-    "agentic":     ["architect", "framework-researcher", "pattern-advisor", "performance-analyst", "safety-reviewer"],
-    "crew":        ["facilitator", "implementer", "independent-reviewer", "qe-orchestrator", "researcher", "reviewer"],
-    "data":        ["data-analyst", "data-architect", "data-engineer", "ml-engineer"],
-    "delivery":    ["cloud-cost-intelligence", "delivery-manager", "experiment-designer", "progress-tracker", "risk-monitor", "rollout-manager", "stakeholder-reporter"],
-    "engineering": ["api-documentarian", "backend-engineer", "debugger", "devex-engineer", "frontend-engineer", "migration-engineer", "senior-engineer", "solution-architect", "system-designer", "technical-writer"],
-    "jam":         ["council", "facilitator"],
-    "mem":         ["memory-archivist", "memory-learner", "memory-recaller"],
-    "persona":     ["persona-agent"],
-    "platform":    ["auditor", "chaos-engineer", "compliance-officer", "devops-engineer", "incident-responder", "infrastructure-engineer", "observability-engineer", "privacy-expert", "release-engineer", "security-engineer", "sre"],
-    "product":     ["a11y-expert", "market-strategist", "product-manager", "requirements-analyst", "ui-reviewer", "user-researcher", "ux-designer", "value-strategist"],
-    "qe":          ["code-analyzer", "continuous-quality-monitor", "contract-testing-engineer", "production-quality-engineer", "requirements-quality-analyst", "risk-assessor", "test-automation-engineer", "test-designer", "test-strategist", "testability-reviewer"]
+    "agentic": ["architect", "performance-analyst", "safety-reviewer"],
+    "crew": ["implementer", "researcher", "reviewer"],
+    "data": ["data-analyst", "data-architect", "data-engineer", "ml-engineer"],
+    "delivery": ["experiment-designer", "risk-monitor", "rollout-manager", "stakeholder-reporter"],
+    "engineering": ["api-documentarian", "backend-engineer", "debugger", "frontend-engineer", "migration-engineer", "senior-engineer", "solution-architect", "technical-writer"],
+    "jam": ["brainstorm-facilitator", "council", "quick-facilitator"],
+    "persona": ["persona-agent"],
+    "platform": ["compliance-officer", "incident-responder", "privacy-expert", "security-engineer", "sre"],
+    "product": ["a11y-expert", "market-strategist", "product-manager", "requirements-analyst", "ui-reviewer", "user-researcher", "ux-designer", "value-strategist"],
+    "qe": ["semantic-reviewer"]
   },
-
   "skills_by_domain": {
-    "agentic":               ["agentic-patterns", "context-engineering", "five-layer-architecture", "frameworks", "maturity-model", "review-methodology", "trust-and-safety"],
-    "crew":                  ["adaptive", "change-type-detector", "crew-qe-gate", "evidence-validation", "issue-reporting", "test-task-factory"],
-    "data":                  ["analysis", "data", "ml", "numbers", "pipeline"],
-    "deliberate":            ["deliberate"],
-    "delivery":              ["design", "onboarding-guide", "reporting", "rollout"],
-    "engineering":           ["architecture", "backend", "debugging", "docs-audit", "engineering", "frontend", "generate", "integration", "patch", "sync", "system-design"],
-    "acceptance-testing":    ["acceptance-testing"],
-    "adopt-legacy":          ["adopt-legacy"],
+    "agentic": ["agentic-patterns", "context-engineering", "frameworks", "review-methodology", "trust-and-safety"],
+    "archetype": ["archetype"],
+    "classify": ["classify"],
+    "data": ["analysis", "data", "ml", "pipeline"],
+    "deliberate": ["deliberate"],
+    "delivery": ["design", "onboarding-guide", "reporting", "rollout"],
+    "engineering": ["architecture", "backend", "debugging", "docs", "engineering", "frontend", "integration", "large-scale-migration", "patch", "system-design", "unit-test-quality"],
+    "ground": ["ground"],
     "integration-discovery": ["integration-discovery"],
-    "jam":                   ["jam"],
-    "mem":                   ["mem"],
-    "multi-model":           ["multi-model"],
-    "persona":               ["persona"],
-    "propose-process":       ["propose-process"],
-    "unified-search":        ["unified-search"],
-    "workflow":              ["workflow"],
-    "platform":              ["audit", "compliance", "errors", "gh-cli", "github-actions", "gitlab-ci", "glab-cli", "health", "observability", "policy", "prereq-doctor", "traces"],
-    "product":               ["acceptance-criteria", "accessibility", "analyze", "design-review", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-flow", "ux-review", "visual-review"],
-    "qe":                    [],
-    "runtime-exec":          ["runtime-exec"],
-    "search":                ["codebase-narrator"],
-    "smaht":                 ["discovery", "smaht"],
-    "wickedizer":            ["wickedizer"]
+    "jam": ["jam"],
+    "multi-model": ["multi-model"],
+    "persona": ["persona"],
+    "platform": ["audit", "compliance", "errors", "gate-benchmark-rebaseline", "gh-cli", "github-actions", "gitlab-ci", "glab-cli", "health", "observability", "prereq-doctor"],
+    "product": ["acceptance-criteria", "accessibility", "analyze", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-review", "visual-review"],
+    "runtime-exec": ["runtime-exec"],
+    "search": ["codebase-narrator"],
+    "smaht": ["discovery", "intent", "propose-skills", "smaht"],
+    "wickedizer": ["wickedizer"],
+    "workflow": ["workflow"],
+    "worktrees": ["worktrees"]
   },
-
-  "hooks": [
-    "SessionStart",
-    "UserPromptSubmit",
-    "PreToolUse",
-    "PostToolUse",
-    "PostToolUseFailure",
-    "TaskCompleted",
-    "SubagentStart",
-    "SubagentStop",
-    "Stop",
-    "Notification",
-    "PermissionRequest",
-    "PreCompact"
-  ],
-
+  "hooks": ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "TaskCompleted", "SubagentStart", "SubagentStop", "PermissionRequest", "Notification", "PreCompact", "Stop", "SessionEnd"],
   "specialists": [
-    {"name": "engineering",  "role": "engineering"},
-    {"name": "platform",     "role": "devsecops"},
-    {"name": "product",      "role": "product"},
-    {"name": "qe",           "role": "quality-engineering"},
-    {"name": "data",         "role": "data-engineering"},
-    {"name": "delivery",     "role": "project-management"},
-    {"name": "jam",          "role": "brainstorming"},
-    {"name": "agentic",      "role": "agentic-architecture"}
+    {
+      "name": "engineering",
+      "role": "engineering"
+    },
+    {
+      "name": "platform",
+      "role": "devsecops"
+    },
+    {
+      "name": "product",
+      "role": "product"
+    },
+    {
+      "name": "qe",
+      "role": "quality-engineering"
+    },
+    {
+      "name": "data",
+      "role": "data-engineering"
+    },
+    {
+      "name": "delivery",
+      "role": "project-management"
+    },
+    {
+      "name": "jam",
+      "role": "brainstorming"
+    },
+    {
+      "name": "agentic",
+      "role": "agentic-architecture"
+    }
   ]
 }

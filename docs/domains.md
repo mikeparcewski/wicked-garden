@@ -8,11 +8,13 @@ Every command follows the pattern `/wicked-garden:{domain}:{command}`. Every age
 
 There are **10 domains**: engineering, platform, product, data, jam, search, agentic, persona, delivery, smaht.
 
+> **v12 cleanup (ADR 0002).** Most domain commands are *rubric-wrappers* — a checklist the agent already applies. These were **collapsed**: the rubric moved to an on-demand `skills/{domain}/refs/{name}.md` and the command now loads it and works **inline** (no `Task` dispatch hop). Dispatch is kept only where it earns it — real parallelism (multiple lenses at once), a real external tool, or an independent gate. The dispatch-only agents that nothing reaches anymore were removed; agents still referenced by a surviving command, skill, scenario, or the specialist registry stay. Capability is preserved; only the token-burning hop is gone.
+
 ---
 
 ## engineering — Software Engineering
 
-Senior engineer, solution architect, system designer, backend/frontend specialists, debugger, technical writer, API documentarian, developer-experience and migration engineers. The workhorse for `build` and `migrate` work.
+Senior engineer, solution architect, backend/frontend specialists, debugger, technical writer, API documentarian, and migration engineer. The workhorse for `build` and `migrate` work. The wicked-patch family (`patch-plan`/`apply`/`rename`/`add-field`/`remove`) and `new-generator` are real refactor/scaffolding tools and stay as-is; `arch`/`debug`/`docs`/`plan`/`review` collapsed to inline skill-refs.
 
 | Command | What It Does |
 |---------|-------------|
@@ -28,11 +30,11 @@ Senior engineer, solution architect, system designer, backend/frontend specialis
 | `engineering:docs` | Generate or improve documentation |
 | `engineering:new-generator` | Create a language generator for wicked-patch |
 
-**Agents**: `senior-engineer`, `solution-architect`, `system-designer`, `backend-engineer`, `frontend-engineer`, `debugger`, `technical-writer`, `api-documentarian`, `devex-engineer`, `migration-engineer`
+**Agents**: `senior-engineer`, `solution-architect`, `backend-engineer`, `frontend-engineer`, `debugger`, `technical-writer`, `api-documentarian`, `migration-engineer` — the dispatch-only `system-designer` and `devex-engineer` were removed when their commands collapsed inline.
 
 ## platform — DevSecOps
 
-SRE, security, compliance, incident response, infrastructure, DevOps, release, auditing, privacy, chaos and observability engineering. Backs `ship`, `incident`, and `review` work.
+SRE, security, compliance, incident response, and privacy engineering. Backs `ship`, `incident`, and `review` work. `security` (real gitleaks/semgrep), `toolchain`, `assert`, and `plugin-health` stay as real tools; `actions`/`audit`/`compliance`/`gh`/`health`/`incident`/`infra`/`traces` collapsed to inline skill-refs.
 
 | Command | What It Does |
 |---------|-------------|
@@ -49,7 +51,7 @@ SRE, security, compliance, incident response, infrastructure, DevOps, release, a
 | `platform:assert` | Contract assertions against subprocess outputs |
 | `platform:plugin-health` | Health probes against installed plugins |
 
-**Agents**: `security-engineer`, `sre`, `compliance-officer`, `incident-responder`, `infrastructure-engineer`, `devops-engineer`, `release-engineer`, `auditor`, `privacy-expert`, `chaos-engineer`, `observability-engineer`
+**Agents**: `security-engineer`, `sre`, `compliance-officer`, `incident-responder`, `privacy-expert` — the dispatch-only `infrastructure-engineer`, `devops-engineer`, `release-engineer`, `auditor`, `chaos-engineer`, and `observability-engineer` were removed when their commands collapsed inline.
 
 ## product — Product Management & Design
 
@@ -126,7 +128,7 @@ Structural understanding via tree-sitter — symbol-level, not text search. Blas
 
 ## agentic — Agentic Architecture
 
-Architecture review, safety auditing, pattern advice, performance analysis, framework research — for reviewing and designing AI agent systems.
+Architecture review, safety auditing, and performance analysis — for reviewing and designing AI agent systems. All four commands (`review`/`design`/`audit`/`frameworks`) collapsed to inline skill-refs (the 8-layer trust-and-safety rubric is preserved in `skills/agentic/refs/`).
 
 | Command | What It Does |
 |---------|-------------|
@@ -135,7 +137,7 @@ Architecture review, safety auditing, pattern advice, performance analysis, fram
 | `agentic:audit` | Trust and safety audit |
 | `agentic:frameworks` | Research and compare frameworks |
 
-**Agents**: `architect`, `safety-reviewer`, `pattern-advisor`, `performance-analyst`, `framework-researcher`
+**Agents**: `architect`, `safety-reviewer`, `performance-analyst` — the dispatch-only `pattern-advisor` and `framework-researcher` were removed when their commands collapsed inline.
 
 ## persona — On-Demand Personas
 
@@ -146,13 +148,12 @@ Invoke any specialist persona directly. Define custom personas with personality,
 | `persona:as` | Invoke a named persona to perform a task |
 | `persona:define` | Create or update a custom persona |
 | `persona:list` | List all available personas |
-| `persona:submit` | PR a persona to the built-in registry |
 
-**Agents**: `persona-agent`
+**Agents**: `persona-agent` (`persona:as` builds its prompt from the registry at runtime — kept). `persona:define` collapsed to an inline skill-ref; the no-op `persona:submit` stub was deleted.
 
 ## delivery — Delivery Management
 
-Delivery manager, stakeholder reporter, rollout manager, experiment designer, risk and progress tracking, cloud-cost intelligence. Backs `ship` and post-ship reporting.
+Stakeholder reporter, rollout manager, experiment designer, and risk monitor. Backs `ship` and post-ship reporting. `setup` (interactive configurator) stays; `experiment`/`report`/`rollout` collapsed to inline skill-refs.
 
 | Command | What It Does |
 |---------|-------------|
@@ -161,7 +162,7 @@ Delivery manager, stakeholder reporter, rollout manager, experiment designer, ri
 | `delivery:report` | Multi-perspective stakeholder reports |
 | `delivery:setup` | Configure delivery metrics (cost model, sprint cadence) |
 
-**Agents**: `delivery-manager`, `stakeholder-reporter`, `rollout-manager`, `experiment-designer`, `risk-monitor`, `progress-tracker`, `cloud-cost-intelligence`
+**Agents**: `stakeholder-reporter`, `rollout-manager`, `experiment-designer`, `risk-monitor` — the dispatch-only `delivery-manager`, `progress-tracker`, and `cloud-cost-intelligence` were removed as orphaned after the command collapse.
 
 ## smaht — Context Assembly
 
@@ -172,7 +173,8 @@ On-demand context assembly over wicked-brain and the search index. A pull-model 
 | `smaht:briefing` | What happened since the last session — recent events and updates |
 | `smaht:state` | Snapshot and report current session state |
 | `smaht:events-import` | Import existing domain JSON records into the event log |
-| `smaht:propose-skills` | Suggest skills worth adding based on observed work |
+
+> `smaht:briefing` and `events-import` are real event-store tools and stay; `smaht:state` collapsed to an inline skill-ref (its dead v6 half dropped); the weak-signal `smaht:propose-skills` was deleted.
 
 ---
 
