@@ -18,7 +18,7 @@ and routing tier definitions.
 | product | product |
 | compliance | platform |
 | ambiguity | jam |
-| complexity | delivery, engineering |
+| complexity | engineering |
 | data | data |
 | infrastructure | platform |
 | architecture | agentic, engineering |
@@ -26,7 +26,7 @@ and routing tier definitions.
 | strategy | product |
 | content | jam, product |
 | text-as-code | qe, engineering |
-| reversibility | platform, delivery |
+| reversibility | platform |
 | novelty | jam, engineering |
 | quality | qe |
 | imagery | _(no specialist in default set)_ |
@@ -58,9 +58,7 @@ These rules apply AFTER signal-based routing:
 |------------|------|
 | 0-2 | Built-in agents only (facilitator, reviewer, implementer, researcher) |
 | 3-4 | Core specialists based on detected signals |
-| 5-7 | All relevant specialists + always include delivery |
-
-For complexity >= 5, `delivery` specialist is always added regardless of signals.
+| 5-7 | All relevant specialists |
 
 ---
 
@@ -83,7 +81,7 @@ When a specialist is not available (not installed), use this fallback:
 | product | facilitator |
 | engineering | implementer |
 | platform | implementer |
-| delivery | _(no fallback — skip if unavailable)_ |
+
 | data | researcher |
 | agentic | reviewer |
 | design | facilitator |

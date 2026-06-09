@@ -107,7 +107,7 @@ After gathering perspectives from different models, synthesize using:
 Council responses are persisted as transcript entries:
 - Each model's response stored with `persona_type: council`
 - Synthesis appended as `entry_type: synthesis`
-- Retrievable via `/jam:transcript` and `/jam:thinking`
+- Retrievable via `wicked-brain:query` for past session context
 
 ### Manual (via wicked-brain:memory)
 

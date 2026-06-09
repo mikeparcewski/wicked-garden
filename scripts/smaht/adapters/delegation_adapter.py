@@ -19,7 +19,7 @@ DOMAIN_HINTS = {
     "brainstorm": ("wicked-garden:jam", "facilitator", "Brainstorming session"),
     "requirements": ("wicked-garden:product", "requirements-analyst", "Requirements elicitation"),
     "agent": ("wicked-garden:agentic", "architect", "Agentic system review"),
-    "cost": ("wicked-garden:delivery", "cost-optimizer", "Cost optimization"),
+
     "review": ("wicked-garden:engineering", "senior-engineer", "Code review"),
     "debug": ("wicked-garden:engineering", "debugger", "Debugging session"),
     "performance": ("wicked-garden:platform", "performance-engineer", "Performance analysis"),
@@ -36,7 +36,6 @@ DOMAIN_KEYWORDS = {
     "brainstorm": ["brainstorm", "ideas", "explore", "alternatives", "perspectives", "ideation"],
     "requirements": ["requirements", "user story", "acceptance criteria", "stakeholder", "feature request"],
     "agent": ["agent", "agentic", "llm", "prompt", "guardrail", "tool use", "subagent"],
-    "cost": ["cost", "budget", "cloud spend", "optimization", "right-sizing", "finops"],
     "review": ["review", "code review", "pull request", "pr review", "peer review"],
     "debug": ["debug", "error", "bug", "stacktrace", "root cause", "investigate", "troubleshoot"],
     "performance": ["performance", "latency", "throughput", "bottleneck", "optimize", "profiling"],

@@ -255,17 +255,6 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "platform.compliance",
         "description": "Compliance check failed for a framework",
     },
-    # Delivery domain
-    "wicked.rollout.decided": {
-        "domain": "wicked-garden",
-        "subdomain": "delivery.rollout",
-        "description": "Rollout go/no-go decision made",
-    },
-    "wicked.experiment.concluded": {
-        "domain": "wicked-garden",
-        "subdomain": "delivery.experiment",
-        "description": "A/B experiment concluded with results",
-    },
     # Auto-advance audit event
     "wicked.phase.auto_advanced": {
         "domain": "wicked-garden",

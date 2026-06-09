@@ -77,7 +77,7 @@ always available.** Don't bypass the gate; widen the criteria.
    can't re-derive is not evidence. Each ramp step supersedes the prior
    snapshot, so the cross-check runs against fresh captured evidence at
    every step. No vault → fall back to `evidence_tracker.py claim`.
-5. Use `wicked-garden:delivery:rollout` for the canonical playbook.
+5. The `ship` archetype owns the canonical rollout playbook.
 
 ### full
 
