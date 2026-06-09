@@ -46,6 +46,18 @@ class VerifierParsingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             pv._parse_verifier("magic:1")
 
+    def test_output_verifiers_parse(self):
+        self.assertEqual(pv._parse_verifier("regex_match:## Decision"),
+                         {"kind": "regex_match", "params": {"pattern": "## Decision"}})
+        self.assertEqual(pv._parse_verifier("not_contains:TODO"),
+                         {"kind": "not_contains", "params": {"pattern": "TODO"}})
+        self.assertEqual(pv._parse_verifier("jq_pred:.a>=2"),
+                         {"kind": "jq_pred", "params": {"expr": ".a>=2"}})
+
+    def test_content_verifier_requires_argument(self):
+        with self.assertRaises(ValueError):
+            pv._parse_verifier("regex_match")  # no pattern
+
 
 class AttestationForwardingTests(unittest.TestCase):
     """--with-attestations must reach the gate (hard gates require an
@@ -157,6 +169,42 @@ class ProveEndToEndTests(unittest.TestCase):
              "--with-attestations"],
             capture_output=True, text=True, env=env, cwd=str(_REPO), timeout=120)
         self.assertTrue(json.loads(gate.stdout)["satisfied"])
+
+    # --- OUTPUT validation (not just exit codes): the capability the gate
+    #     needs to be useful for produced artifacts, final or interim. ---
+    def _prove_out(self, claim, command, verifier, phase):
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_BIN=_LOOM,
+                   WICKED_LOOM_CUTOVER="on")
+        proc = subprocess.run(
+            [sys.executable, str(_PROVE_CLI), claim, "--by", command,
+             "--verifier", verifier, "--kind", "doc", "--scope", "s",
+             "--phase", phase, "--project-dir", str(self.proj)],
+            capture_output=True, text=True, env=env, cwd=str(_REPO), timeout=120)
+        return json.loads(proc.stdout)["overall"]
+
+    def test_regex_match_validates_output_content(self):
+        (self.proj / "adr.md").write_text("## Decision\nUse PG.\n", encoding="utf-8")
+        self.assertEqual(self._prove_out("has-decision", "cat adr.md",
+                                         "regex_match:## Decision", "p1"), "PASS")
+        self.assertEqual(self._prove_out("has-rollback", "cat adr.md",
+                                         "regex_match:## Rollback", "p2"), "REJECT")
+
+    def test_not_contains_validates_absence(self):
+        (self.proj / "f.txt").write_text("clean line\n", encoding="utf-8")
+        self.assertEqual(self._prove_out("no-todo", "cat f.txt",
+                                         "not_contains:TODO", "p3"), "PASS")
+        (self.proj / "g.txt").write_text("x  # TODO\n", encoding="utf-8")
+        self.assertEqual(self._prove_out("no-todo2", "cat g.txt",
+                                         "not_contains:TODO", "p4"), "REJECT")
+
+    def test_jq_pred_validates_structured_output(self):
+        (self.proj / "d.json").write_text('{"options":3}\n', encoding="utf-8")
+        # natural expr (prove targets the command's JSON stdout automatically)
+        self.assertEqual(self._prove_out("enough", "cat d.json",
+                                         "jq_pred:.options >= 2", "p5"), "PASS")
+        self.assertEqual(self._prove_out("too-few", "cat d.json",
+                                         "jq_pred:.options >= 9", "p6"), "REJECT")
 
 
 if __name__ == "__main__":
