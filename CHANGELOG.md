@@ -1,5 +1,19 @@
 # Changelog
 
+## [12.10.0] - 2026-06-09
+
+### Features
+- feat(codegraph): adopt codegraph as the static graph engine + injected-edge extractor (ADR 0001) (88cb6c1)
+- feat: wire real security scanners + make archetype steering actionable (6e1ae61)
+
+### Bug Fixes
+- fix: repair 9 confirmed-broken wicked-garden command surfaces (678f972)
+
+### Chores
+- Merge pull request #906 from mikeparcewski/fix/broken-commands-batch (254677a)
+- Merge pull request #905 from mikeparcewski/feat/security-scanners-and-actionable-steering (1c1329f)
+- Merge pull request #904 from mikeparcewski/feat/code-relationship-graph (805b5a3)
+
 ## [12.9.0] - 2026-06-09
 
 ### Features

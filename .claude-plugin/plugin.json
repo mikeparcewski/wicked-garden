@@ -1,6 +1,6 @@
 {
   "name": "wicked-garden",
-  "version": "12.9.0",
+  "version": "12.10.0",
   "description": "AI-Native SDLC organized around 9 work-shape archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate). Each archetype owns its own phase shape, produces contract, HITL discipline, and cost band \u2014 there is no universal pipeline. The UserPromptSubmit hook auto-classifies prompts into archetypes and emits steering directives. Each archetype has a slim playbook (skills/archetype/refs/), a slash command (commands/archetype/), and detection signals declared in .claude-plugin/archetypes.json. Steering, not blocking. Gating archetypes re-derive their produces through wicked-vault (required, fail-closed) instead of trusting a self-asserted 'done', and the compiler (/wicked-garden:compile) emits a self-contained, vault-backed build gate into any repo. Requires five sibling peers verified at setup \u2014 wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom \u2014 required at install but resilient to a transient runtime outage. Coexists with domain skills + agents (engineering, platform, data, product, jam, search, agentic, persona, delivery).",
   "wicked_testing_version": "^0.3.0",
   "wicked_vault_version": "^0.3.0",
