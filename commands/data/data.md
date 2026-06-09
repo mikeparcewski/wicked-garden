@@ -10,15 +10,12 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:data:data
 
-Core data engineering ops: `profile`, `validate`, `quality`. Use this for schema-level checks. NOT for interactive exploration (use `data:analyze`) or ML pipeline review (use `data:ml`).
+Core data engineering ops: `profile`, `validate`, `quality`. NOT for interactive exploration
+(use `data:analyze`) or ML pipeline review (use `data:ml`).
 
-## 1. Arg parse + read
+## Run it inline (no dispatch)
 
-Extract `subcommand` (profile|validate|quality) and its args (`<path>`, `--schema` for validate). Read the data file head/tail + capture columns/types/nulls.
-
-## 2. Dispatch
-
-```
-Task(subagent_type="wicked-garden:data:data-engineer",
-     prompt="""Run data {subcommand} on {path}. Schema: {schema-path or n/a}. Profile: {columns/types/nulls/sample}. Apply your standard rubric for the requested subcommand and return structured markdown with tables and prioritized findings.""")
-```
+1. Parse `subcommand` (profile|validate|quality) and its args (`<path>`, `--schema` for validate).
+2. Read the data file head/tail to capture columns / types / nulls / sample.
+3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/data/refs/data.md")` — the profile, validate, and quality rubrics with output formats.
+4. Apply the rubric for the requested subcommand and emit structured markdown with tables and prioritized findings.
