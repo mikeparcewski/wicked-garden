@@ -1,0 +1,20 @@
+{
+  "scope": "wicked-garden",
+  "phase": "release",
+  "required_evidence": [
+    {
+      "claim_id": "tests-pass",
+      "kind": "check",
+      "verifier": {
+        "kind": "exit_code_eq",
+        "params": {
+          "code": 0
+        }
+      },
+      "required": true
+    }
+  ],
+  "contract_version": "7348781e4b79adbc",
+  "origin": "cli",
+  "declared_at": "2026-06-09T22:22:45.735Z"
+}

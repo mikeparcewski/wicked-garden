@@ -1,5 +1,17 @@
 # Changelog
 
+## [12.17.0] - 2026-06-09
+
+### Features
+- feat: the claim sentinel — state-transition gates without command lists (ADR-worthy core) (6ff25f5)
+
+### Bug Fixes
+- fix(search): index.md — codegraph init required before first index (found on real-repo test) (013d5a6)
+
+### Chores
+- Merge pull request #925 from mikeparcewski/fix/index-init-and-release-prep (5ab3d85)
+- Merge pull request #924 from mikeparcewski/feat/claim-sentinel (589650e)
+
 ## [12.16.0] - 2026-06-09
 
 ### Features

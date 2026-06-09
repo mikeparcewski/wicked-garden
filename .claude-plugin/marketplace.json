@@ -8,7 +8,7 @@
       "name": "wicked-garden",
       "source": "./",
       "description": "Your coding agent already plans and swarms \u2014 Wicked Garden is the curated toolkit for what it can't: proof-not-claims gates, code links grep can't see, deterministic refactor, cross-session memory, real multi-model second opinions. Don't fight the harness; fill its gaps. The gate needs wicked-vault + wicked-loom; testing/brain/bus are opt-in layers.",
-      "version": "12.16.0"
+      "version": "12.17.0"
     }
   ],
   "version": "2.0.0"

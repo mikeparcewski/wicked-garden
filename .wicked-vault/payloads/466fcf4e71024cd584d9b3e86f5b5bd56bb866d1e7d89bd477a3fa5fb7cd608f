@@ -1,0 +1,1 @@
+{"captured_at":"2026-06-09T22:22:18.576Z","command":"python3 scripts/ci/validate.py","exit_code":0,"stderr":"","stdout":"============================================================\nwicked-garden structural validation\n============================================================\n\nRESULT: PASS (0 errors, 0 warnings)\n"}

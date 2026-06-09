@@ -1,0 +1,26 @@
+{
+  "id": "019EAE7C70178C02A493AEAF8B60",
+  "scope": "wicked-garden",
+  "phase": "release",
+  "claim_id": "tests-pass",
+  "kind": "check",
+  "source": "python3 -m pytest tests/ -q",
+  "verifier": {
+    "kind": "exit_code_eq",
+    "params": {
+      "code": 0
+    }
+  },
+  "criteria_sha256": "c291c114183c050a633b2a97c381eaf764561fef74099a48b34a0e255290e817",
+  "payload_sha256": "e7e290e1704620f2ab3ddb9d8b93637c6a10a6b8ef23ea969e7c0c7c63ac85fd",
+  "acceptance_criteria": "tests-pass: `python3 -m pytest tests/ -q` satisfies exit_code_eq:0",
+  "criteria_authored_by": "record",
+  "payload_ref": "payloads/e7e290e1704620f2ab3ddb9d8b93637c6a10a6b8ef23ea969e7c0c7c63ac85fd",
+  "envelope_hash": "2940f48ce3d050839701b3d35aea83f43943c2cd218b8e5985e0e11f60aac00e",
+  "status_at_record": "pass",
+  "state": "active",
+  "supersedes": null,
+  "contract_version": "7348781e4b79adbc",
+  "created_at": "2026-06-09T22:24:11.287Z",
+  "created_by": "michael.parcewski"
+}
