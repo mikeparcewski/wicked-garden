@@ -47,6 +47,25 @@ class VerifierParsingTests(unittest.TestCase):
             pv._parse_verifier("magic:1")
 
 
+class AttestationForwardingTests(unittest.TestCase):
+    """--with-attestations must reach the gate (hard gates require an
+    independent attestation). Mocked — no peers, deterministic."""
+
+    def test_with_attestations_forwarded_to_gate(self):
+        import unittest.mock as mock
+        captured = {}
+
+        def fake_gate(pd, scope, phase, with_attestations=False):
+            captured["wa"] = with_attestations
+            return {"satisfied": True, "re_derived": True, "overall": "PASS"}
+
+        with mock.patch.object(pv.vault_gate, "resolve_vault", return_value=["echo"]), \
+             mock.patch.object(pv, "_vault", lambda *a, **k: None), \
+             mock.patch.object(pv.vault_gate, "gate_satisfied", fake_gate):
+            pv.prove("c", "true", with_attestations=True)
+        self.assertTrue(captured.get("wa"), "with_attestations not forwarded to gate")
+
+
 class FailClosedTests(unittest.TestCase):
     """No peers needed: with the loom cutover disabled the backend is
     unresolvable, so prove must fail closed — never a vacuous pass."""
