@@ -27,11 +27,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Resolve _domain_store from the parent scripts/ directory
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Resolve _domain_store from the scripts/ directory.
+# This file lives at scripts/platform/observability/, so scripts/ is parents[2].
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from _domain_store import DomainStore
 
 _sm = DomainStore("wicked-observability")
+
+# Repo root (the wicked-garden plugin itself). This file lives at
+# scripts/platform/observability/, so the repo root is parents[3].
+PLUGIN_ROOT = Path(__file__).resolve().parents[3]
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -774,8 +779,14 @@ def _rel_from(path: Path, base: Path) -> str:
 # Plugins directory discovery
 # ---------------------------------------------------------------------------
 
-def find_plugins_dir(start: Path) -> Path:
-    """Walk up from start to find a 'plugins/' directory in the monorepo root."""
+def find_plugins_dir(start: Path) -> Path | None:
+    """Walk up from start to find a 'plugins/' directory in the monorepo root.
+
+    Returns None when no ``plugins/`` directory exists anywhere up the tree.
+    The single-plugin layout (this repo *is* the plugin — no ``plugins/``
+    monorepo wrapper) is handled by the caller, which treats PLUGIN_ROOT as
+    the lone plugin rather than iterating a non-existent ``plugins/`` dir.
+    """
     candidate = start
     for _ in range(10):
         plugins = candidate / "plugins"
@@ -785,8 +796,7 @@ def find_plugins_dir(start: Path) -> Path:
         if parent == candidate:
             break
         candidate = parent
-    # Fallback: relative to script location (scripts/ → wicked-observability/ → plugins/)
-    return Path(__file__).resolve().parent.parent.parent
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -829,30 +839,46 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    # Resolve plugins directory
+    # Resolve plugins directory. When --plugins-dir is omitted we walk up
+    # looking for a 'plugins/' monorepo wrapper; if none exists this repo IS
+    # the single plugin, so we fall back to PLUGIN_ROOT.
     if args.plugins_dir:
         plugins_dir = Path(args.plugins_dir).resolve()
     else:
         plugins_dir = find_plugins_dir(Path.cwd())
 
-    if not plugins_dir.is_dir():
-        print(f"ERROR: plugins directory not found: {plugins_dir}", file=sys.stderr)
-        return 2
-
-    # Determine which plugins to probe
-    if args.plugin:
-        plugin_root = plugins_dir / args.plugin
-        if not plugin_root.is_dir():
+    if plugins_dir is None:
+        # Single-plugin layout: the repo root is the lone plugin. Its parent
+        # acts as the synthetic "plugins/" dir so --plugin <name> still works.
+        single_plugin_root = PLUGIN_ROOT
+        plugins_dir = PLUGIN_ROOT.parent
+        if args.plugin and args.plugin != single_plugin_root.name:
             print(
-                f"ERROR: plugin '{args.plugin}' not found in {plugins_dir}",
+                f"ERROR: plugin '{args.plugin}' not found (single-plugin repo "
+                f"is '{single_plugin_root.name}')",
                 file=sys.stderr,
             )
             return 2
-        plugin_roots = [plugin_root]
+        plugin_roots = [single_plugin_root]
     else:
-        plugin_roots = sorted(
-            p for p in plugins_dir.iterdir() if p.is_dir() and p.name.startswith("wicked-")
-        )
+        if not plugins_dir.is_dir():
+            print(f"ERROR: plugins directory not found: {plugins_dir}", file=sys.stderr)
+            return 2
+
+        # Determine which plugins to probe
+        if args.plugin:
+            plugin_root = plugins_dir / args.plugin
+            if not plugin_root.is_dir():
+                print(
+                    f"ERROR: plugin '{args.plugin}' not found in {plugins_dir}",
+                    file=sys.stderr,
+                )
+                return 2
+            plugin_roots = [plugin_root]
+        else:
+            plugin_roots = sorted(
+                p for p in plugins_dir.iterdir() if p.is_dir() and p.name.startswith("wicked-")
+            )
 
     # Run probes
     all_violations: list[dict[str, Any]] = []

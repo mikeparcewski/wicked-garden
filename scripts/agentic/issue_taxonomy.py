@@ -202,7 +202,32 @@ def render_markdown(taxonomy: dict) -> str:
 
 
 def _assess_maturity(findings: list, agents: list) -> dict:
-    """Assess maturity level based on findings."""
+    """Assess maturity level based on findings.
+
+    Guards against a false clean bill of health: if NO agents were detected,
+    the analysis had nothing to evaluate, so an empty findings list does NOT
+    mean "Optimized". Returning level 5 in that case would hand a dangerous
+    5/5 verdict to a codebase the scanner couldn't actually read. Instead we
+    return an *indeterminate* verdict (level 0) so callers surface "couldn't
+    assess" rather than "perfect".
+    """
+    # No agents detected → nothing was analyzed → indeterminate, NOT 5/5.
+    if not agents:
+        return {
+            "level": 0,
+            "name": "Indeterminate",
+            "description": (
+                "No agents were detected, so maturity could not be assessed. "
+                "An empty findings list here means the scanner found nothing to "
+                "evaluate — not that the system is mature. Re-run with agent "
+                "detection (analyze_agents.py → --agents) to get a real verdict."
+            ),
+            "next_level_actions": [
+                "Confirm this is an agentic codebase and that agent detection ran",
+                "Provide --agents (analyze_agents.py output) so maturity can be scored",
+            ],
+        }
+
     severities = [f["severity"] for f in findings]
     categories = [f["category"] for f in findings]
 

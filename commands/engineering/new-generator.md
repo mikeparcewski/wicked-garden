@@ -217,7 +217,7 @@ from generators import {language}_generator
 
 Execute:
 ```bash
-cd ~/Projects/wicked-garden/plugins/wicked-patch/scripts
+cd "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch"
 python3 tests/test_conformance.py
 ```
 

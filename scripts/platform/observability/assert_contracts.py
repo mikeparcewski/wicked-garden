@@ -27,14 +27,15 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Resolve _domain_store from the parent scripts/ directory
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Resolve _domain_store from the scripts/ directory.
+# This file lives at scripts/platform/observability/, so scripts/ is parents[2].
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from _domain_store import DomainStore
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent  # scripts/observability/ → scripts/ → wicked-garden/
+PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # scripts/platform/observability/ → scripts/ → repo root
 SCHEMAS_DIR = PLUGIN_ROOT / "schemas"
 PLUGINS_ROOT = PLUGIN_ROOT.parent  # …/plugins/
 TIMEOUT_SECONDS = 10

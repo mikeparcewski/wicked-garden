@@ -8,7 +8,7 @@ phase_relevance: ["build", "review", "operate"]
 archetype_relevance: ["*"]
 ---
 
-# /wicked-garden:platform:health
+# /wicked-garden:platform:plugin-health
 
 Run health probes to validate ecosystem integrity.
 

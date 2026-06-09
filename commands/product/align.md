@@ -138,7 +138,6 @@ Format the agent's output into the standard alignment analysis structure.
 Automatically:
 - **Native tasks**: Documents alignment status via TaskCreate/TaskUpdate with `metadata.event_type="task"`
 - **wicked-brain:memory**: Stores stakeholder patterns for future reference
-- **Event**: Emits `[product:alignment:achieved:success]` or `[product:concern:raised:warning]`
 
 ## Example
 
@@ -180,7 +179,6 @@ Next Steps:
 3. Document OAuth roadmap for v2
 
 Stored on active task (initiative: alignment-001)
-Events emitted: [product:concern:raised:warning]
 ```
 
 ## Facilitation Tips

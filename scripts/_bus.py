@@ -684,6 +684,115 @@ def _bus_reset_stats() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Tail — read-only recent-event view (no cursor, no subscriber side effects)
+# ---------------------------------------------------------------------------
+
+
+def _resolve_bus_db_path() -> Optional[str]:
+    """Return the wicked-bus event-store DB path via ``status --json``.
+
+    Uses the same binary resolver as every other call in this module so the
+    path stays correct regardless of how wicked-bus was installed. Returns
+    None when the bus is unavailable or the status payload lacks ``db_path``.
+    Never raises.
+    """
+    if not _check_available():
+        return None
+    try:
+        result = subprocess.run(
+            _build_cmd("status", "--json"),
+            capture_output=True, text=True,
+            timeout=_EMIT_TIMEOUT_SECONDS,
+        )
+        if result.returncode != 0:
+            return None
+        data = json.loads(result.stdout)
+    except Exception:
+        _invalidate_cache()
+        return None
+    db_path = data.get("db_path")
+    return db_path if isinstance(db_path, str) and db_path else None
+
+
+def tail_events(limit: int = 10) -> List[Dict[str, Any]]:
+    """Return the most recent ``limit`` bus events, newest first. Read-only.
+
+    This is a *display* helper (e.g. ``/wicked-garden:smaht:state``). It does
+    NOT register a subscriber, advance a cursor, or mutate the bus in any way:
+    the wicked-bus ``replay`` command resets a cursor rather than returning
+    rows, and ``list`` returns subscribers, so neither yields event rows
+    synchronously. Instead we resolve the event-store path via ``status``
+    (through the shared binary resolver) and read the ``events`` table in
+    read-only mode.
+
+    Each returned dict carries the canonical bus columns plus a ``data`` alias
+    for the parsed ``payload`` (consumers index ``event.get("data", {})``).
+
+    Fail-open: any error — bus absent, unreadable DB, malformed rows — returns
+    ``[]``. Never raises.
+
+    Args:
+        limit: Max number of recent events to return (clamped to >= 0).
+    """
+    if limit <= 0:
+        return []
+
+    db_path = _resolve_bus_db_path()
+    if not db_path or not os.path.exists(db_path):
+        return []
+
+    import sqlite3  # stdlib; imported lazily so the module loads without it
+
+    events: List[Dict[str, Any]] = []
+    conn = None
+    try:
+        # Read-only URI connection — never creates or writes the DB.
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True, timeout=2.0)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT event_id, event_type, domain, subdomain, payload, "
+            "metadata, emitted_at "
+            "FROM events ORDER BY event_id DESC LIMIT ?",
+            (int(limit),),
+        ).fetchall()
+    except Exception:
+        return []  # fail open — bus DB unreadable or schema mismatch
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    for row in rows:
+        try:
+            payload_raw = row["payload"]
+            payload = json.loads(payload_raw) if payload_raw else {}
+            if not isinstance(payload, dict):
+                payload = {"value": payload}
+        except (json.JSONDecodeError, TypeError):
+            payload = {}
+        try:
+            meta_raw = row["metadata"]
+            metadata = json.loads(meta_raw) if meta_raw else {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+        except (json.JSONDecodeError, TypeError):
+            metadata = {}
+        events.append({
+            "event_id": row["event_id"],
+            "event_type": row["event_type"],
+            "domain": row["domain"],
+            "subdomain": row["subdomain"],
+            "payload": payload,
+            "data": payload,  # alias — consumers read event.get("data", {})
+            "metadata": metadata,
+            "emitted_at": row["emitted_at"],
+        })
+    return events
+
+
+# ---------------------------------------------------------------------------
 # Poll — on-invoke consumption
 # ---------------------------------------------------------------------------
 

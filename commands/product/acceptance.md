@@ -127,7 +127,6 @@ Format the agent's output into the standard acceptance criteria structure.
 Automatically:
 - **Native tasks**: AC stored via TaskCreate/TaskUpdate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"requirements-analyst", phase:"clarify", initiative:"{req_id}"}` for traceability
 - **qe**: AC available for test scenario generation
-- **Event**: Emits `[product:acceptance:defined:success]`
 
 ## Example
 
@@ -159,7 +158,6 @@ AC8: Given login attempt, When check, Then password encrypted
 
 Stored on active task (initiative: US-001)
 Ready for QE test scenario generation
-Event emitted: [product:acceptance:defined:success]
 ```
 
 ### 4. Optional: Generate Wicked-Scenarios Format

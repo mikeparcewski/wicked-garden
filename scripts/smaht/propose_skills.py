@@ -117,13 +117,15 @@ _DOMAIN_KEYWORDS: dict[str, tuple[str, ...]] = {
 def project_slug(cwd: Path | None = None) -> str:
     """Return the Claude Code project slug for ``cwd`` (default: real cwd).
 
-    Claude Code encodes project paths by replacing path separators with ``-``
-    and prefixing with ``-``. Cross-platform: uses ``Path.as_posix()`` so
-    Windows ``\\`` separators and drive letters (``C:``) are normalized before
+    Claude Code encodes project paths by replacing path separators *and dots*
+    with ``-`` and prefixing with ``-``. Cross-platform: uses ``Path.as_posix()``
+    so Windows ``\\`` separators and drive letters (``C:``) are normalized before
     the substitution.
 
     Example (POSIX): ``/home/alice/Projects/wicked-garden`` →
     ``-home-alice-Projects-wicked-garden``.
+    Example (dotted user): ``/Users/first.last/Projects/wg`` →
+    ``-Users-first-last-Projects-wg`` (the ``.`` becomes ``-``).
     Example (Windows): ``C:\\Users\\x\\Projects\\wg`` → ``-C-Users-x-Projects-wg``.
     """
     base = (cwd or Path.cwd()).expanduser().resolve()
@@ -131,7 +133,9 @@ def project_slug(cwd: Path | None = None) -> str:
     # Strip the Windows drive colon (e.g. ``C:`` → ``C``) so the slug stays
     # filesystem-safe under Claude Code's project-dir naming convention.
     posix = posix.replace(":", "")
-    return "-" + posix.strip("/").replace("/", "-")
+    # Claude Code replaces dots with ``-`` too, so a dotted username
+    # (``first.last``) maps to the real ~/.claude/projects/ directory.
+    return "-" + posix.strip("/").replace("/", "-").replace(".", "-")
 
 
 def resolve_claude_config_dir() -> Path:
