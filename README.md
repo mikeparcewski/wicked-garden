@@ -43,9 +43,9 @@ You get verdicts you can trust, not green checkmarks you can't. *Done is not cla
 
 **2 · Run the archetype.** Each has its own phases, produces contract, and human-in-the-loop (HITL) gates — light for a fix, hard for a migration cutover. Archetypes compose: a schema-changing feature is `build + migrate`; a risky deploy is `ship + review`.
 
-**3 · Gate on re-derived evidence.** At each gate, [wicked-vault](https://www.npmjs.com/package/wicked-vault) re-hashes the evidence and re-runs its verifier — a false "tests pass" is **REJECTED**, a missing backend **fails closed** (never a vacuous pass). Hard gates also require an *independent* attestation: the evaluator is not the agent that did the work.
+**3 · Gate on re-derived evidence.** At each gate, [wicked-loom](https://www.npmjs.com/package/wicked-loom) re-derives the produces — it re-hashes the evidence and re-runs its verifier through [wicked-vault](https://www.npmjs.com/package/wicked-vault) underneath — a false "tests pass" is **REJECTED**, a missing backend **fails closed** (never a vacuous pass). Hard gates also require an *independent* attestation: the evaluator is not the agent that did the work.
 
-**4 · Carry it forward.** Decisions, evidence, and audit persist on disk via the four required peers — testing · vault · brain · bus — so the next session resumes with the chain intact.
+**4 · Carry it forward.** Decisions, evidence, and audit persist on disk via the five required peers — testing · vault · brain · bus · loom — so the next session resumes with the chain intact.
 
 `/wicked-garden:compile` can stamp that same evidence gate into *any* repo; the emitted gate runs with **no wicked-garden installed**.
 
@@ -54,7 +54,7 @@ You get verdicts you can trust, not green checkmarks you can't. *Done is not cla
 ## What's in the box
 
 - **9 work-shape archetypes** with playbooks, slash commands, and a detector.
-- **Vault-backed gates** — every gating archetype re-derives its produces through [wicked-vault](https://www.npmjs.com/package/wicked-vault) (required), fail-closed. "Done" can't be asserted into truth.
+- **Loom-driven gates** — every gating archetype re-derives its produces through [wicked-loom](https://www.npmjs.com/package/wicked-loom) (required), which re-runs the verifier via [wicked-vault](https://www.npmjs.com/package/wicked-vault) underneath, fail-closed. "Done" can't be asserted into truth.
 - **The compiler** (`/wicked-garden:compile`) — detect a repo's test/lint/build commands and emit a self-contained, vault-backed build gate into `<repo>/.wicked/`. It runs with **no wicked-garden runtime present** (resolves the vault via `npx`), and can install the triggers that fire it (pre-push hook / GitHub Actions).
 - **A work-mode status line** — `scripts/statusline.py` renders the live archetype · intent · phase · gate verdict (`🌱 wg │ build·migrate │ intent: feature │ phase: implement │ ⚖ PASS`) at the bottom of the screen, so the detected shape and the gate's honest verdict are always visible. Opt-in via `settings.json` (see [getting-started](docs/getting-started.md#show-the-active-mode-status-line)).
 - **Hooks** for prompt classification, tool tracking, session lifecycle.
@@ -74,12 +74,13 @@ You get verdicts you can trust, not green checkmarks you can't. *Done is not cla
 /wicked-garden:setup
 ```
 
-Required peers — `/wicked-garden:setup` verifies all four and blocks without them (required at install, resilient to a transient runtime outage):
+Required peers — `/wicked-garden:setup` verifies all five and blocks without them (required at install, resilient to a transient runtime outage):
 ```bash
 npx wicked-testing install     # evidence-gated acceptance testing (≥ 0.3)
 npx wicked-vault-install       # the honest-evidence backend gates re-derive against (≥ 0.3)
 /plugin install wicked-brain   # cross-session memory + cited search
 /plugin install wicked-bus     # event audit substrate
+npm i -g wicked-loom           # the gate engine — re-derives produces via the vault (or use via npx)
 ```
 
 See [`docs/required-peers.md`](docs/required-peers.md) for why each is load-bearing.
@@ -132,8 +133,8 @@ Each command loads `skills/archetype/refs/{archetype}.md` and runs the per-arche
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0
 - Python 3.9+ (stdlib only for hook scripts)
-- Node.js + `npx` — required by `wicked-vault` (the evidence backend) and `wicked-testing`
-- **Required peers (all four):** `wicked-testing` (≥ 0.3), `wicked-vault` (≥ 0.3, the backend gates re-derive against), `wicked-brain` (cross-session memory + search), `wicked-bus` (audit substrate). `/wicked-garden:setup` verifies all four and blocks without them — required at install, resilient at runtime. See [`docs/required-peers.md`](docs/required-peers.md).
+- Node.js + `npx` — required by `wicked-loom` (the gate engine), `wicked-vault` (the evidence backend it re-derives through), and `wicked-testing`
+- **Required peers (all five):** `wicked-testing` (≥ 0.3), `wicked-vault` (≥ 0.3, the backend gates re-derive against), `wicked-brain` (cross-session memory + search), `wicked-bus` (audit substrate), `wicked-loom` (the gate engine — re-derives produces through the vault). `/wicked-garden:setup` verifies all five and blocks without them — required at install, resilient at runtime. See [`docs/required-peers.md`](docs/required-peers.md).
 
 ---
 

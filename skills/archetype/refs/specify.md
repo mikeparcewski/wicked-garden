@@ -18,12 +18,9 @@ Achievable, Relevant, Time-bound — that downstream `build` can verify.
 - One-line invariants: "A response time over 500ms is a regression".
 - Optional: a `requirements.md` artifact in the project dir.
 
-The validate gate **re-derives** this via `wicked-vault`
-(`scripts/qe/vault_gate.py`): the recorded `smart-acceptance-criteria`
+The validate gate **re-derives** this via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the recorded `smart-acceptance-criteria`
 artifact is re-hashed and its structural verifier re-run, never trusting
-a self-asserted "the ACs are testable". wicked-vault is a **required**
-peer (installed by `/wicked-garden:setup`); if it is genuinely absent the
-gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
+a self-asserted "the ACs are testable". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
 than claiming a PASS. `--no-require` opts a throwaway/low-rigor run back
 to the doctrine-light claim-only path. This is a discrete (light) gate —
 the deterministic check proves *shape* (each AC is measurable); if the

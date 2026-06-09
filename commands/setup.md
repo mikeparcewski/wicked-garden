@@ -307,6 +307,7 @@ wicked-brain:    {"ready (plugin installed)" or "MISSING — install required"}
 wicked-bus:      {"ready (plugin installed)" or "MISSING — install required"}
 wicked-testing:  {version e.g. "0.1.2 — ready" or "MISSING — install required"}
 wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
+wicked-loom:     {"ready (gate/resolve engine)" or "MISSING — install required"}
 Onboarding:      {Full | Quick scout | Skipped}
 Directories:     {paths onboarded}
 Project type:    {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected")

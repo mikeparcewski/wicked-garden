@@ -10,62 +10,68 @@
 - Get the current date and time from the system — your internal notion is unreliable.
 - Always use subagents. You are an orchestrator, even for synthesizing subagent results, reading files, etc. — this stops context bloat.
 
+## Architecture: v11 work-shape archetypes
+
+As of **v12.4.0**, work is organized around **9 work-shape archetypes**, not a fixed pipeline: `triage, explore, specify, decide, ship, review, incident, build, migrate`. Each prompt classifies into one or more archetypes; each archetype owns its own phase shape, produces contract, HITL discipline, and cost band. There is **no universal pipeline**.
+
+- Source of truth: [`.claude-plugin/archetypes.json`](.claude-plugin/archetypes.json).
+- Detector + steering engine: [`scripts/crew/archetypes_v11.py`](scripts/crew/archetypes_v11.py).
+- Per-archetype playbooks: `skills/archetype/refs/{archetype}.md` (one per archetype).
+- Slash commands: `commands/archetype/{archetype}.md` (one per archetype).
+- Design note (why the pipeline went away): [`docs/v11/archetypes.md`](docs/v11/archetypes.md).
+
+The `UserPromptSubmit` hook auto-classifies the prompt, emits a `<wg archetype="X" .../>` steering reminder, and the agent runs that archetype's phase shape. Multi-archetype is normal — a schema-changing feature is `build + migrate`; a risky deploy is `ship + review`. Run co-fired archetypes in dependency order (`next_archetypes` in the catalog).
+
+**Steering, not blocking.** Each playbook documents what *should* happen, not what gets blocked. HITL ranges from `none` (triage) through `continuous` (explore), `discrete:*` gates (auto-pass when the produces contract is met), to `hard:*` gates (`review`/final-verdict, `incident`/mitigate, `migrate`/cutover) that require explicit approval. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the canonical architecture.
+
 ## Evidence & gates
 
-- Never self-assert "done". Gating archetypes re-derive their produces through wicked-vault (`scripts/qe/vault_gate.py` → `wicked-vault cross-check`) and REJECT unbacked claims — fail-closed if the vault is absent.
-- Record verifiable evidence as you work (`wicked-vault record ... --run`), not after. The gate re-hashes and re-runs the verifier; a claim with no recorded evidence does not pass.
-- Hard gates (review / incident / migrate) also require an INDEPENDENT attestation — the evaluator must not be the worker.
-- To carry this gate into any repo, run `/wicked-garden:compile <repo> [--trigger hook,ci]` — it emits a self-contained, vault-backed build gate into that repo's `.wicked/` that runs with no wicked-garden runtime present.
+- Never self-assert "done". Gating archetypes re-derive their produces through **wicked-loom**: the gate ([`scripts/qe/vault_gate.py`](scripts/qe/vault_gate.py)) shells `wicked-loom gate`, which in turn shells `wicked-vault cross-check` to re-hash the recorded evidence and **re-run its verifier**. Unbacked claims are REJECTED; a missing/disabled loom **fails closed** — never a vacuous pass.
+- Record verifiable evidence as you work (`wicked-vault record ... --run`), not after. A claim with no recorded evidence does not pass.
+- Hard gates (`review` / `incident` / `migrate`) also require an INDEPENDENT attestation — the evaluator must not be the worker (`--with-attestations`).
+- The vault/loom are runtime-resolved utilities. `WICKED_VAULT_BIN=""` and `WICKED_LOOM_CUTOVER=off` are the kill-switches (both fail closed, never thrash).
+- To carry this gate into any repo, run `/wicked-garden:compile <repo> [--trigger hook,ci]` — it emits a self-contained, stdlib-only build gate into that repo's `.wicked/` that resolves the vault via `npx` and runs with no wicked-garden runtime present. See [`docs/compiler.md`](docs/compiler.md).
 
-## Specialist Routing (v6)
+## Required peers
 
-wicked-garden ships 63 specialist agents across 13 domains. The facilitator skill (`skills/propose-process/`) discovers them at runtime by reading `agents/**/*.md` frontmatter — every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool dispatch. There is no static `enhances` map. To add a specialist, drop a markdown file with the right frontmatter and it becomes routable next session.
+wicked-garden does not stand alone. As of **v12**, FIVE peer plugins are **required infrastructure** (verified at `/wicked-garden:setup`, which blocks without them; the SessionStart bootstrap hook independently probes and warns):
 
-For anything non-trivial, route through `/wicked-garden:crew:start` instead of dispatching specialists directly — the facilitator picks the right panel based on 9-factor scoring, detected archetype, and rigor tier.
+| Peer | Role |
+|------|------|
+| **wicked-testing** | Evidence-gated acceptance testing (writer / executor / reviewer separation). |
+| **wicked-vault** | Honest-evidence backend: record → re-hash + re-run verifier → cross-check. |
+| **wicked-brain** | Cross-session memory + cited search. The knowledge layer. |
+| **wicked-bus** | Event audit substrate — fire-and-forget records of what happened. |
+| **wicked-loom** | Orchestration runtime: peer resolution (`loom resolve`), fail-closed evidence gating (`loom gate`), and the archetype-agnostic flow runtime. |
 
-## Drop-in plugins (v9 contract)
+Required at install, resilient at runtime: a transient outage degrades gracefully and won't brick the session, but a gate never treats missing evidence as a pass. See [`docs/required-peers.md`](docs/required-peers.md).
 
-External plugins integrate with wicked-garden by following the contract in
-`docs/v9/drop-in-plugin-contract.md`. wicked-testing is the canonical example.
-Plugin authors must pass the v9 discovery conventions (`docs/v9/discovery-conventions.md`)
-and the unique-value test before their skills will be accepted in the marketplace.
+## Specialist routing
 
-## v10 architectural principles
+wicked-garden ships specialist agents across the domains (engineering, platform, data, product, jam, search, agentic, persona, delivery). Agents are discovered at runtime by reading `agents/**/*.md` frontmatter — every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool dispatch. To add a specialist, drop a markdown file with the right frontmatter and it becomes routable next session. Archetype playbooks invoke these domain skills and agents as needed; there is no separate facilitator skill or crew "start" command.
 
-The v10 series shipped across PRs #812 / #814 / #815 / #816 reshapes how wicked-garden interacts with Claude Code. Three principles are load-bearing — see [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "v10 architectural principles" for full detail. Quick reference:
+## Slim Body Contract
 
-1. **Steering, not blocking** — every gate / validator / hook should ask: when behaviour deviates, does this BLOCK or STEER? Plan validator already shifted this way (#812). New gates must follow the pattern.
-2. **Partner, not host platform** — wicked-garden does NOT reimplement Claude Code primitives. Use native `TaskCreate`, `Task()`, system reminders, skill progressive loading. No parallel state / parallel dispatch / parallel task store.
-3. **Slim Body Contract** — fat bodies are in `commands/`, not `skills/`. Three patterns cover the design space: A (advisory ≤8 lines), B (write-brief + dispatch ≤30), C (interactive + dispatch ≤35). Static rubrics → `refs/`; session-specific data → dynamic `*-brief.md` written by a single Python script.
+Command and skill body files MUST stay slim — they load into the parent context permanently. Fat bodies belong in `commands/`, not `skills/`. Three patterns cover the design space: A (advisory ≤8 lines), B (write-brief + dispatch ≤30), C (interactive + dispatch ≤35). Static rubrics → `refs/`; session-specific data → a dynamic `*-brief.md` written by a single Python script.
 
-**Subagent skill loading is the intended pattern, not a problem** — only PARENT-context loads cause permanent burn. See brain memory `subagent-skill-loading-is-feature-not-bug`.
+**Subagent skill loading is the intended pattern, not a problem** — only PARENT-context loads cause permanent burn. Subagents have isolated, short-lived contexts.
 
-**Three orthogonal task lookup patterns** (do not conflate):
-- Native task store (per-session) — current task state.
-- Cross-session audit JSONL (Phase 3, PR #816) — `verify_chain_emission` cross-session rescue.
-- HMAC-signed dispatch-log (UNCHANGED) — gate authorisation; written BEFORE reviewer invocation. Different threat model.
+**Partner, not host platform.** wicked-garden does NOT reimplement Claude Code primitives. Use native `TaskCreate`, `Task()`, system reminders, skill progressive loading. No parallel state / parallel dispatch / parallel task store.
 
-Brain memories (importance 8–10): `crew-steering-not-blocking-architectural-principle`, `v10-architecture-partner-not-host-platform`, `v10-slim-skill-body-shape-decision`, `v10-intent-variable-design-decision`, `v10-native-task-store-audit-trail-decision`, `dispatch-log-precedes-reviewer-do-not-move-to-post-hook`, `subagent-skill-loading-is-feature-not-bug`.
+## Bus as audit substrate
 
-## Bus-as-truth contract (v9.x cutover)
+**wicked-bus** is the event audit substrate — fire-and-forget events recording what happened, consumed by subscribers (e.g. wicked-brain's auto-memorize). It is a required peer, not the gate: gate-pass/fail is re-derived through loom + the vault, not read back from the bus. When emitting events from plugin code:
 
-The bus-cutover (#746) shipped across PRs #751 → #791. **Bus events are the source of truth** for every gate-critical and audit-load-bearing artifact; on-disk files are projections materialized by `daemon/projector.py`. 14 sites are default-ON. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Bus-as-truth architecture" for the full inventory and resolver shape.
+1. Wrap emits so a bus failure never blocks the primary write (fail-open for audit; the gate itself fails closed).
+2. Use a `chain_id` with a uniqueness segment when an operation can repeat within a phase, so dedupe doesn't drop later events.
 
-**Rules for agents writing code that produces a tracked artifact**:
-
-1. **Emit BEFORE the disk write.** Pattern: `emit_event("wicked.<domain>.<verb>", payload, chain_id=...)` then `write_text(...)`. Never write first and emit after — the projector replays from the event, so the event must precede the write.
-2. **Fail-open per Decision #8.** Wrap the emit in `try/except`. A bus emit failure must NEVER block the legacy disk write — evidence loss is preferable visible (the disk write succeeds; missing event surfaces as drift).
-3. **chain_id includes a uniqueness segment** when the operation can repeat in a phase. Per `memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md`: phase-level `chain_id` lets `is_processed` dedupe drop subsequent events in the same phase. Include `condition_id`, `artifact_id`, `amendment_id`, etc. as the discriminator.
-4. **Carve out `raw_payload`** in `scripts/_bus.py::_PAYLOAD_ALLOW_OVERRIDES` if the projector needs the canonical bytes (JSONL append handlers always do; full-file rewrite handlers may instead carry structured fields).
-5. **For new artifacts**: follow the 7-step add-a-bus-projected-artifact procedure in [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Bus-as-truth architecture" — event registration → carve-out → handler → resolver → handler-available → file-flag → default-ON.
-
-**Soak window**: legacy direct-write paths still run alongside the bus path. Don't delete them yet — `docs/v9/bus-cutover-staging-plan.md` §4 requires two releases of zero drift before deletion. Content-hash idempotency in projector handlers makes the duplicate writes safe.
+Event helper: [`scripts/_bus.py`](scripts/_bus.py). Event schema: [`scripts/_event_schema.py`](scripts/_event_schema.py).
 
 ## Pre-merge council requirement
 
-Cross-system bugs at the boundary between subsystems (phase-state transitions, gate decisions, event-bus sync points, orchestrator logic) are structurally invisible to unit tests. Council review catches them; pytest cannot.
+Cross-system bugs at the boundary between subsystems (phase-state transitions, gate decisions, event-bus sync points) are structurally invisible to unit tests. Council review catches them; pytest cannot.
 
-**Trigger paths**: `scripts/crew/phase_manager.py`, `scripts/crew/gate_dispatch.py`, `scripts/crew/reconcile_v2.py`, `scripts/crew/convergence.py`, `scripts/_bus.py`, `scripts/_event_schema.py`, `scripts/_session.py`, `daemon/projector.py`, anything under `agents/crew/`.
+**Trigger paths** (run a council review when touching these): [`scripts/crew/phase_manager.py`](scripts/crew/phase_manager.py), [`scripts/crew/archetypes_v11.py`](scripts/crew/archetypes_v11.py), [`scripts/qe/vault_gate.py`](scripts/qe/vault_gate.py), [`scripts/_bus.py`](scripts/_bus.py), [`scripts/_event_schema.py`](scripts/_event_schema.py), [`scripts/_session.py`](scripts/_session.py), anything under `agents/crew/`.
 
 **Convention**: run `/wicked-garden:jam:council` on the diff and attach the verdict bundle to the PR. Pre-merge convention — not a hook-enforced gate yet.
 
@@ -77,9 +83,7 @@ When dogfooding wicked-garden machinery (hooks, skills, agents, scripts) and hit
 gh issue create --label bug --title "<hook|skill|agent>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
 ```
 
-Use the `bug` label — it's the canonical label for plugin defects. (`machinery` is not used.)
-
-File before continuing the work that surfaced the bug. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Operating notes / Dogfooding bug protocol".
+Use the `bug` label — it's the canonical label for plugin defects. File before continuing the work that surfaced the bug.
 
 ## Planning & Execution
 
@@ -91,12 +95,20 @@ File before continuing the work that surfaced the bug. See [`.claude/CLAUDE.md`]
 - When debugging test failures, prefer structured output formats (JUnit XML, JSON) over parsing stdout. Do not spend multiple iterations trying to capture/parse terminal output that gets truncated.
 - When I report a bug or issue, investigate the systemic root cause first before applying surface-level fixes. Ask "why is this happening?" not "how do I patch this instance?".
 - When reviewing code or doing analysis, go deep into architectural patterns, agentic design, response validation, and context optimization. Do not produce surface-level checklist findings (e.g., "no auth", "no rate limits").
-- **Test value**: write tests for phase-transition logic, condition evaluation, cross-domain invariants, event-bus contracts, and idempotency. Delete shallow tests on markdown output, skill-description text, and brittle path/format strings. Split a composite test only when assertions have independent failure causes — not 1:1 per assertion. See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) "Test value philosophy".
+- **Test value**: write tests for phase-transition logic, gate decisions, cross-domain invariants, event-bus contracts, and idempotency. Delete shallow tests on markdown output, skill-description text, and brittle path/format strings. Split a composite test only when assertions have independent failure causes — not 1:1 per assertion.
 
 ## Architecture & Design
 
 - This project uses a prompt-based hooks pattern (not script-based). New hooks should follow the existing prompt-based approach. Do not create standalone scripts for hooks unless explicitly asked.
-- Native tasks carry a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) validated by a PreToolUse hook. When creating tasks in crew phases, populate the envelope — don't rely on defaults. See `scripts/_event_schema.py`.
+- Native tasks carry a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) validated by a PreToolUse hook. When creating tasks in archetype phases, populate the envelope — don't rely on defaults. See [`scripts/_event_schema.py`](scripts/_event_schema.py).
+
+## Naming Conventions
+
+- All names: kebab-case, max 64 chars.
+- Commands: `wicked-garden:{domain}:{command}` (colon-separated namespace).
+- Agents: `wicked-garden:{domain}:{agent-name}`.
+- Skills: `wicked-garden:{domain}:{skill-name}`.
+- Events: `{domain}:{action}:{outcome}`.
 
 ## Memory Management
 

@@ -678,8 +678,8 @@ def _check_vault_dependency():
         return (
             "[wicked-vault] REQUIRED but not installed.\n"
             "Install now: npx wicked-vault-install  (or: npm i -g wicked-vault)\n"
-            "wicked-vault is the evidence backend every archetype gate "
-            "re-derives against — without it, produces-gates fail closed."
+            "wicked-vault is the evidence backend wicked-loom re-runs every "
+            "gate's verifier against — without it, produces-gates fail closed."
         )
     except Exception:
         return None  # Fail open — never block session start

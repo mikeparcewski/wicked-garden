@@ -17,16 +17,17 @@ No API keys, no external services, no cloud — everything runs locally.
 
 ### Required peer plugins
 
-Four companion plugins are **required** — `/wicked-garden:setup` verifies all four and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
+Five companion plugins are **required** — `/wicked-garden:setup` verifies all five and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
 
 ```bash
 npx wicked-testing install    # wicked-testing — evidence-gated testing
-npx wicked-vault-install      # wicked-vault — vault-backed evidence (gates re-derive against it)
+npx wicked-vault-install      # wicked-vault — vault-backed evidence (loom re-runs the verifier against it)
+npx wicked-loom               # wicked-loom — the gate engine (re-derives "done" via the vault)
 /plugin install wicked-brain  # wicked-brain — cross-session memory + search
 /plugin install wicked-bus    # wicked-bus — event bridge
 ```
 
-`wicked-testing` and `wicked-vault` install locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through wicked-vault (fail-closed) — a claim is never self-asserted.
+`wicked-testing`, `wicked-vault`, and `wicked-loom` install locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable; a claim is never self-asserted.
 
 ### Show the active mode (status line)
 
@@ -72,7 +73,7 @@ When you already know the shape of the work, skip auto-routing and call the arch
 /wicked-garden:archetype:decide "Redis vs Postgres for session storage"
 ```
 
-All nine are available: `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, `migrate`. Gates re-derive "done" through wicked-vault (fail-closed) — sign-off is evidence-backed, never self-asserted.
+All nine are available: `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, `migrate`. Gates re-derive "done" through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable; sign-off is evidence-backed, never self-asserted.
 
 ### 3. Use a Domain Skill Directly
 
@@ -194,13 +195,13 @@ When you submit a prompt, a `UserPromptSubmit` hook runs the archetype detector 
 
 A context assembly layer called **smaht** enriches prompts with relevant context — recent memory, active work, native tasks, and code intelligence. Every `TaskCreate` / `TaskUpdate` carries a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) validated by a PreToolUse hook, and a SubagentStart hook injects the matching procedure bundle — R1–R6 bulletproof standards for coding tasks, the Gate Finding Protocol for review findings, and per-role procedures otherwise.
 
-Gates re-derive every claim through wicked-vault (fail-closed): "done" is *re-derived from evidence*, never self-asserted. Hard gates (incident mitigate, migrate cutover, review final-verdict) require explicit human approval; discrete gates auto-pass only when their produces contract is met.
+Gates re-derive every claim through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable: "done" is *re-derived from evidence*, never self-asserted. Hard gates (incident mitigate, migrate cutover, review final-verdict) require explicit human approval; discrete gates auto-pass only when their produces contract is met.
 
 Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON files, scoped per working directory. No data leaves your machine unless you configure external integrations.
 
 ## Next Steps
 
 - [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
-- [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus
+- [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
 - [Domains](domains.md) — browse the domain skill/agent families and their commands
