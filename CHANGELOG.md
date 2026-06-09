@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.11.0] - 2026-06-09
+
+### Features
+- feat(codegraph): add dispatch + capability injected-edge extractors; wire blast-radius/lineage to graph (95c5205)
+- feat(patch): revive wicked-patch via codegraph — adapter builds its --db from the code-graph (3c904f1)
+
+### Chores
+- Merge pull request #909 from mikeparcewski/feat/codegraph-injected-extractors (37b7be2)
+- Merge pull request #908 from mikeparcewski/feat/patch-codegraph-db (49686b8)
+
 ## [12.10.1] - 2026-06-09
 
 ### Chores
