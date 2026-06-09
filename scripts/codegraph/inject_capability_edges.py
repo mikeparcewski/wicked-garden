@@ -46,6 +46,10 @@ _SCRIPTS = _REPO / "scripts"
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
+# self-noding helpers live beside this script
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _graph_nodes import ensure_file_node, ensure_virtual_node  # noqa: E402
+
 
 def _registry_capabilities() -> Set[str]:
     """The set of capability names defined in CAPABILITY_REGISTRY.
@@ -107,23 +111,6 @@ def _agent_capabilities() -> List[Tuple[str, str]]:
     return out
 
 
-def _file_node_id(conn: sqlite3.Connection, relpath: str) -> str | None:
-    """codegraph file node ids are 'file:<relpath>'. Confirm it exists."""
-    nid = f"file:{relpath}"
-    row = conn.execute("SELECT 1 FROM nodes WHERE id = ?", (nid,)).fetchone()
-    return nid if row else None
-
-
-def _ensure_capability_node(conn: sqlite3.Connection, cap: str) -> str:
-    """Create (idempotently) the synthetic ``capability:<name>`` node, return its id."""
-    nid = f"capability:{cap}"
-    conn.execute(
-        "INSERT OR IGNORE INTO nodes (id, kind, name, file_path) VALUES (?, ?, ?, ?)",
-        (nid, _CAPABILITY_NODE_KIND, cap, None),
-    )
-    return nid
-
-
 def inject(db_path: Path) -> Dict[str, int]:
     conn = sqlite3.connect(str(db_path))
     try:
@@ -132,14 +119,12 @@ def inject(db_path: Path) -> Dict[str, int]:
         conn.execute("DELETE FROM edges WHERE provenance = ?", (_INJECTED_PROVENANCE,))
         conn.execute("DELETE FROM nodes WHERE kind = ?", (_CAPABILITY_NODE_KIND,))
         pairs = _agent_capabilities()
-        added, skipped = 0, 0
+        added = 0
         caps_created: Set[str] = set()
         for agent_rel, cap in pairs:
-            src = _file_node_id(conn, agent_rel)
-            if src is None:  # agent file not indexed in this graph — skip
-                skipped += 1
-                continue
-            tgt = _ensure_capability_node(conn, cap)
+            # self-node the agent .md (codegraph indexes code, not markdown — #916)
+            src = ensure_file_node(conn, agent_rel)
+            tgt = ensure_virtual_node(conn, f"capability:{cap}", _CAPABILITY_NODE_KIND, cap)
             caps_created.add(cap)
             conn.execute(
                 "INSERT INTO edges (source, target, kind, metadata, provenance) "
@@ -150,7 +135,9 @@ def inject(db_path: Path) -> Dict[str, int]:
             )
             added += 1
         conn.commit()
-        return {"edges_added": added, "skipped": skipped,
+        # skipped stays 0: caps absent from the registry are dropped in
+        # _agent_capabilities(), and we now create whatever node we need.
+        return {"edges_added": added, "skipped": 0,
                 "capabilities": len(caps_created), "pairs": len(pairs)}
     finally:
         conn.close()
