@@ -158,7 +158,6 @@ Delivery manager, stakeholder reporter, rollout manager, experiment designer, ri
 | `delivery:experiment` | A/B test design with statistical rigor |
 | `delivery:report` | Multi-perspective stakeholder reports |
 | `delivery:setup` | Configure delivery metrics (cost model, sprint cadence) |
-| `delivery:process-health` | Surface process health and unresolved action items |
 
 **Agents**: `delivery-manager`, `stakeholder-reporter`, `rollout-manager`, `experiment-designer`, `risk-monitor`, `progress-tracker`, `cloud-cost-intelligence`
 
