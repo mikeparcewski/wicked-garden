@@ -9,7 +9,7 @@
 
 # Wicked Garden
 
-**Your coding agent already plans and swarms. Wicked Garden fills the gaps it can't fill alone — and otherwise gets out of the way.**
+**Your coding agent already plans and swarms. Wicked Garden is the curated toolkit for what it can't do alone.**
 
 > Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
 
@@ -54,17 +54,22 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 
 ```bash
 /plugin install wicked-garden      # in Claude Code
-/wicked-garden:setup               # verifies the five peers below
+/wicked-garden:setup               # verifies peers; blocks only on the two the gate needs
 ```
 
-Honest evidence needs five CLI/npm peers — setup verifies all five and blocks without them (required at install, resilient to a transient runtime blip):
+**Two required, three opt-in.** The evidence gate is the floor we won't fake, so it needs two peers — setup blocks without them:
 
 ```bash
-npx wicked-testing install     # evidence-gated acceptance testing (≥ 0.3)
-npx wicked-vault-install       # the honest-evidence backend gates re-derive against (≥ 0.3)
-/plugin install wicked-brain   # cross-session memory + cited search
-/plugin install wicked-bus     # event audit trail
-npm i -g wicked-loom           # the gate engine (re-derives produces via the vault; or via npx)
+npx wicked-vault-install       # the honest-evidence backend the gate re-derives against (≥ 0.3)
+npm i -g wicked-loom           # the gate engine that re-runs the verifier (or via npx)
+```
+
+The rest of the kit is **opt-in layers** — add what you want, skip the rest and the toolkit still works:
+
+```bash
+npx wicked-testing install     # the acceptance-testing layer (author ≠ executor ≠ reviewer)
+/plugin install wicked-brain   # the memory layer — cross-session recall + cited search
+/plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 
 Optional, lights up the code graph: `npx @colbymchenry/codegraph` (Node ≥ 22.5) → powers `blast-radius` / `lineage` / `hotspots` / wicked-patch. Details: [`docs/required-peers.md`](docs/required-peers.md).
@@ -101,7 +106,7 @@ Optional, lights up the code graph: `npx @colbymchenry/codegraph` (Node ≥ 22.5
 
 ## Requirements
 
-A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the five peers (`wicked-testing` · `wicked-vault` · `wicked-brain` · `wicked-bus` · `wicked-loom`).
+A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's two required peers (`wicked-vault` + `wicked-loom`) plus opt-in layers (`wicked-testing` · `wicked-brain` · `wicked-bus`).
 
 ## License
 
