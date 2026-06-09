@@ -22,6 +22,9 @@ _GATE_CLI = _REPO / "scripts" / "qe" / "vault_gate.py"
 _INVOKE = _REPO / "hooks" / "scripts" / "invoke.py"
 _ENV = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(_REPO)}
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _helpers import configured_home, has_python_traceback  # noqa: E402
+
 
 def _clean_env(**overrides) -> dict:
     env = {k: v for k, v in _ENV.items() if k != "PYTHONPATH"}
@@ -94,18 +97,29 @@ class HooksFailOpenTests(unittest.TestCase):
         json.loads(proc.stdout)
 
     def test_prompt_submit_fails_open_with_backends_down(self):
-        env = _clean_env(WICKED_LOOM_CUTOVER="off", WICKED_VAULT_BIN="",
-                         WICKED_BRAIN_PORT="59999")
-        payload = json.dumps({"hook_event_name": "UserPromptSubmit",
-                              "prompt": "implement a feature",
-                              "cwd": str(_REPO), "session_id": "e2e-chaos"})
-        proc = subprocess.run([sys.executable, str(_INVOKE), "prompt_submit"],
-                              input=payload, capture_output=True, text=True,
-                              env=env, cwd=str(_REPO), timeout=30)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        for line in proc.stdout.splitlines():
-            if line.strip():
-                json.loads(line)
+        # Configured HOME so the hook proceeds PAST the setup gate and actually
+        # exercises the backend-down path (in a fresh/unconfigured env the setup
+        # gate blocks first — correct, but it wouldn't test resilience). All
+        # evidence backends are killswitched + brain unreachable: the hook must
+        # still produce a controlled exit and never crash.
+        home = configured_home()
+        try:
+            env = _clean_env(WICKED_LOOM_CUTOVER="off", WICKED_VAULT_BIN="",
+                             WICKED_BRAIN_PORT="59999", HOME=home.name)
+            payload = json.dumps({"hook_event_name": "UserPromptSubmit",
+                                  "prompt": "implement a feature",
+                                  "cwd": str(_REPO), "session_id": "e2e-chaos"})
+            proc = subprocess.run([sys.executable, str(_INVOKE), "prompt_submit"],
+                                  input=payload, capture_output=True, text=True,
+                                  env=env, cwd=str(_REPO), timeout=30)
+            self.assertFalse(has_python_traceback(proc.stderr),
+                             f"hook crashed under peer-down: {proc.stderr}")
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            for line in proc.stdout.splitlines():
+                if line.strip():
+                    json.loads(line)
+        finally:
+            home.cleanup()
 
 
 if __name__ == "__main__":

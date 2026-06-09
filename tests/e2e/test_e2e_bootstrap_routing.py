@@ -29,6 +29,9 @@ _DETECT = _REPO / "scripts" / "crew" / "archetypes_v11.py"
 sys.path.insert(0, str(_REPO / "tests" / "calibration"))
 from corpus import CORPUS  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _helpers import configured_home, unconfigured_home, has_python_traceback  # noqa: E402
+
 _ENV = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(_REPO)}
 
 
@@ -96,30 +99,55 @@ class RoutingRecallEndToEndTests(unittest.TestCase):
 
 
 class HookSmokeEndToEndTests(unittest.TestCase):
-    """prompt_submit must never crash and always emit valid JSON (fail-open)."""
+    """prompt_submit must never CRASH (no uncaught traceback) and must always
+    produce a controlled outcome — regardless of prompt or whether the project
+    is configured. Uses an isolated, explicitly-configured HOME so it behaves
+    identically in CI and on a developer machine (the assumption that broke the
+    first version of this test)."""
 
-    def test_prompt_submit_fails_open_for_varied_prompts(self):
-        prompts = [
-            "add a CSV export button to the dashboard",
-            "the prod API is down with 500s",
-            "",                       # empty
-            "yes",                    # continuation token
-            "rm -rf /; drop table",   # adversarial-ish, must not crash
-        ]
-        for p in prompts:
-            payload = json.dumps({"hook_event_name": "UserPromptSubmit",
-                                  "prompt": p, "cwd": str(_REPO),
-                                  "session_id": "e2e-smoke"})
-            proc = subprocess.run([sys.executable, str(_INVOKE), "prompt_submit"],
-                                  input=payload, capture_output=True, text=True,
-                                  env=_ENV, cwd=str(_REPO), timeout=30)
-            # fail-open: returncode 0 (or 2 only if the setup gate hard-blocks,
-            # which it must not here since the project is configured).
-            self.assertIn(proc.returncode, (0,), f"prompt={p!r} stderr={proc.stderr}")
-            # every line of stdout that is non-empty must be valid JSON
-            for line in proc.stdout.splitlines():
-                if line.strip():
-                    json.loads(line)
+    def _run(self, prompt: str, home_dir: str) -> subprocess.CompletedProcess:
+        payload = json.dumps({"hook_event_name": "UserPromptSubmit",
+                              "prompt": prompt, "cwd": str(_REPO),
+                              "session_id": "e2e-smoke"})
+        env = {**_ENV, "HOME": home_dir}
+        return subprocess.run([sys.executable, str(_INVOKE), "prompt_submit"],
+                              input=payload, capture_output=True, text=True,
+                              env=env, cwd=str(_REPO), timeout=30)
+
+    def test_configured_project_proceeds_without_crash(self):
+        home = configured_home()
+        try:
+            for p in ["add a CSV export button to the dashboard",
+                      "the prod API is down with 500s",
+                      "", "yes", "rm -rf /; drop table"]:
+                proc = self._run(p, home.name)
+                self.assertFalse(has_python_traceback(proc.stderr),
+                                 f"prompt={p!r} crashed: {proc.stderr}")
+                # configured → setup gate passes → controlled exit 0
+                self.assertEqual(proc.returncode, 0,
+                                 f"prompt={p!r} rc={proc.returncode} err={proc.stderr}")
+                for line in proc.stdout.splitlines():
+                    if line.strip():
+                        json.loads(line)  # valid JSON or raises
+        finally:
+            home.cleanup()
+
+    def test_unconfigured_project_setup_gate_blocks_and_cannot_be_bypassed(self):
+        # The contract that broke the first version of this test: an
+        # unconfigured project HARD-BLOCKS (exit 2) — setup cannot be bypassed,
+        # even by a continuation token. That is correct, controlled behavior
+        # (not a crash), and it must hold deterministically.
+        home = unconfigured_home()
+        try:
+            for p in ["implement a feature", "yes"]:
+                proc = self._run(p, home.name)
+                self.assertFalse(has_python_traceback(proc.stderr),
+                                 f"prompt={p!r} crashed: {proc.stderr}")
+                self.assertEqual(proc.returncode, 2,
+                                 f"setup gate must hard-block unconfigured; "
+                                 f"prompt={p!r} rc={proc.returncode}")
+        finally:
+            home.cleanup()
 
 
 if __name__ == "__main__":
