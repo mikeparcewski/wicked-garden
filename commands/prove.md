@@ -23,6 +23,16 @@ Instructions:
     <claim> --by "<command>" [--verifier exit_code_eq:0] [--project-dir <dir>]
   ```
   e.g. `prove.py tests-pass --by "pytest -q"` · `prove.py build-clean --by "npm run build"`
+- **Validate the OUTPUT, not just an exit code.** `--verifier` re-runs against the
+  command's output: `regex_match:<re>` / `not_contains:<re>` scan stdout;
+  `jq_pred:<expr>` evaluates a predicate over the command's JSON stdout;
+  `commit_exists:<sha>` checks a git commit. This works on **final and interim**
+  artifacts — prove an intermediate produce the moment it exists, not only at the end:
+  ```
+  prove.py adr-has-decision --by "cat decision.md" --verifier "regex_match:## Decision" --kind doc
+  prove.py config-no-secrets --by "cat app.yaml"   --verifier "not_contains:(?i)password" --kind doc
+  prove.py enough-options    --by "cat options.json" --verifier "jq_pred:.options | length >= 2" --kind doc
+  ```
 - Read the JSON verdict: `satisfied` is the truth; `re_derived: true` means it
   was recomputed from frozen evidence (not your claim); `gate: "unavailable"`
   means the backend is down and the gate failed closed.
