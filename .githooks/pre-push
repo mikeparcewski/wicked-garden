@@ -1,0 +1,19 @@
+#!/bin/sh
+# wicked-garden claim sentinel — local pre-push gate (layer 1 of 3).
+#
+# Tool-agnostic by construction: gh, glab, IDEs, and raw git all shell `git
+# push`, and git fires this hook regardless of the caller — no command list.
+# It blocks a push of the default branch or a tag when no re-derived verdict
+# covers the pushed sha (the sentinel ledger is stamped by every prove/gate
+# run via scripts/qe/vault_gate.gate_satisfied).
+#
+#   override: `git push --no-verify`  — git's own explicit-skip; the server
+#   layer (required CI check) still gates, and the skip is visible in history.
+#
+# Enable with:  git config core.hooksPath .githooks
+# stdin: "<local_ref> <local_sha> <remote_ref> <remote_sha>" per pushed ref.
+
+PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+
+python3 "$PLUGIN_ROOT/scripts/sentinel/pre_push.py" "$@" \
+  || python "$PLUGIN_ROOT/scripts/sentinel/pre_push.py" "$@"

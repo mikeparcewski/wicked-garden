@@ -271,6 +271,41 @@ def main():
             )
             system_message = (system_message or "") + evidence_nudge
 
+        # Claim sentinel — a completed deliverable task is the in-session "done"
+        # moment. Two invariants, both answer-tier, both observed-state (never a
+        # guess): (1) does a re-derived verdict cover HEAD? (2) is the recorded
+        # testing evidence fresher than the modified source? Fail-open.
+        if subject and _is_deliverable_task(subject):
+            try:
+                sentinel_dir = str(_PLUGIN_ROOT / "scripts" / "sentinel")
+                if sentinel_dir not in sys.path:
+                    sys.path.insert(0, sentinel_dir)
+                from invariants import (  # type: ignore
+                    check_evidence_freshness, log_sentinel_event, render,
+                    repo_toplevel, verdict_for,
+                )
+                repo = repo_toplevel()
+                if repo is not None:
+                    if verdict_for(repo) is None:
+                        violation = {
+                            "tier": "answer",
+                            "invariant": "done-claim-verdict",
+                            "evidence": (f'task "{subject}" completed with no re-derived '
+                                         "verdict covering HEAD"),
+                            "action": ("Run `/wicked-garden:prove` to re-derive the claim, "
+                                       "or state the override reason — this completion is "
+                                       "logged either way."),
+                        }
+                        log_sentinel_event(repo, "unverified_task_done",
+                                           {"task": subject,
+                                            "invariant": "done-claim-verdict"})
+                        system_message = ((system_message + "\n") if system_message else "") + render(violation)
+                    stale = check_evidence_freshness(repo)
+                    if stale:
+                        system_message = ((system_message + "\n") if system_message else "") + render(stale)
+            except Exception:  # noqa: BLE001 — the sentinel never breaks the hook
+                pass
+
         output: dict = {"ok": True}
         if system_message:
             output["systemMessage"] = system_message

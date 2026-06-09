@@ -38,6 +38,8 @@ Trace data lineage paths through the codebase. Follow data flow from UI fields t
 
 2. **Query the codegraph graph for reference flow** (when a `.codegraph/codegraph.db` index exists). The graph gives both static reference edges and the *injected* edges grep can't see (bus producer→consumer, command→agent dispatch, agent→capability) — useful when the data/reference path crosses a string-keyed link rather than a literal call:
    ```bash
+   # Freshness first — a silently-stale graph gives confident wrong answers:
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" staleness
    codegraph impact <symbol> --json   # or: npx -y @colbymchenry/codegraph@latest impact <symbol> --json
    # injected reference flow (string-keyed links static analysis misses):
    sqlite3 .codegraph/codegraph.db \

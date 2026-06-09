@@ -24,6 +24,8 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 1. **Query the codegraph graph** for static + injected dependents (the authoritative layer — covers what grep can't see):
    ```bash
+   # Freshness first — a silently-stale graph gives confident wrong answers:
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" staleness
    # Static refs (imports/calls/instantiations) resolved by the engine:
    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" 2>/dev/null  # shim is library-only; run the CLI:
    codegraph impact <symbol> --json   # or: npx -y @colbymchenry/codegraph@latest impact <symbol> --json

@@ -221,6 +221,29 @@ def cross_check(
 # The gate
 # ---------------------------------------------------------------------------
 
+def _sentinel_stamp(project_dir: Path, result: Dict[str, Any],
+                    scope: str, phase: str) -> None:
+    """Stamp this verdict into the claim-sentinel ledger (fail-open).
+
+    gate_satisfied is the single front door for re-derivation, so stamping here
+    means every prove/gate run — from any command, any cwd — leaves the record
+    the sentinel's claim-time invariants (ref-watch, TaskCompleted) check against."""
+    try:
+        from pathlib import Path as _P
+        import sys as _sys
+        sentinel_dir = _P(__file__).resolve().parents[1] / "sentinel"
+        if str(sentinel_dir) not in _sys.path:
+            _sys.path.insert(0, str(sentinel_dir))
+        from invariants import stamp_verdict  # type: ignore
+        stamp_verdict(_P(project_dir),
+                      overall=str(result.get("overall", "ERROR")),
+                      satisfied=bool(result.get("satisfied")),
+                      re_derived=bool(result.get("re_derived")),
+                      scope=scope, phase=phase)
+    except Exception:  # noqa: BLE001 — the sentinel must never break the gate
+        return
+
+
 def gate_satisfied(
     project_dir: Path,
     scope: str,
@@ -248,7 +271,7 @@ def gate_satisfied(
         cc = cross_check(scope, phase, project_dir=Path(project_dir),
                          with_attestations=with_attestations)
         if cc.get("available"):
-            return {
+            result = {
                 "satisfied": cc.get("overall") == "PASS",
                 "re_derived": True,
                 "gate": "vault-cross-check",
@@ -258,6 +281,8 @@ def gate_satisfied(
                 "detail": cc.get("detail"),
                 "error": cc.get("error"),
             }
+            _sentinel_stamp(Path(project_dir), result, scope, phase)
+            return result
         # Resolver pointed at a vault but it could not be run (offline npx,
         # missing executable). Fail closed — do not invent a PASS.
         if require:

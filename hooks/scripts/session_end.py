@@ -57,6 +57,26 @@ def main() -> None:
         print(f"[wicked-garden] session_end error: {e}", file=sys.stderr)
         messages = []
 
+    # Claim sentinel — info-tier session-close lines (never blocking): a
+    # significant session that captured zero brain memories, or repo playbooks
+    # (wicked-understanding) that have drifted well behind HEAD. Observed state
+    # only; each check is fail-open and silent when its layer is absent.
+    try:
+        sentinel_dir = str(_PLUGIN_ROOT / "scripts" / "sentinel")
+        if sentinel_dir not in sys.path:
+            sys.path.insert(0, sentinel_dir)
+        from invariants import session_end_lines  # type: ignore
+        from _session import SessionState  # type: ignore
+        state = SessionState.load()
+        started = float(getattr(state, "created_at_epoch", 0) or 0)
+        if not started:
+            started = time.time() - 3600  # unknown start — assume the last hour
+        activity = int(getattr(state, "bash_count", 0) or 0) + int(
+            getattr(state, "memory_compliance_tasks_completed", 0) or 0)
+        messages.extend(session_end_lines(None, started, activity))
+    except Exception:  # noqa: BLE001 — the sentinel never blocks session end
+        pass
+
     elapsed_ms = int((time.monotonic() - _t0) * 1000)
     _log("session", "info", "session_end.done", ms=elapsed_ms,
          detail={"messages": len(messages)})
