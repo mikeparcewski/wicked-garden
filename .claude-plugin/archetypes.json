@@ -68,7 +68,7 @@
       "cost_band": "medium",
       "maturity": "piloted",
       "signals": {
-        "phrases": ["deploy", "release", "rollout", "ramp", "ship to", "ship the"],
+        "phrases": ["deploy", "release", "rollout", "roll out", "ramp", "ship to", "ship the"],
         "blast_radius_high": true,
         "post_build": true
       },

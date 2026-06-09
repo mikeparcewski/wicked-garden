@@ -19,12 +19,9 @@ REJECT, with a remediation list when not APPROVE.
 - **Remediation list**: each item has an id, severity, and a concrete
   action. Empty when APPROVE.
 
-The final-verdict gate **re-derives** these via `wicked-vault`
-(`scripts/qe/vault_gate.py`): the verdict JSON is re-validated and the
+The final-verdict gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the verdict JSON is re-validated and the
 remediation-list structure re-checked, never trusting a self-asserted
-"done". wicked-vault is a **required** peer (installed by
-`/wicked-garden:setup`); if it is genuinely absent the gate **fails
-closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
+"done". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
 on a claim alone. Because final-verdict is a **hard** gate, the contract
 also demands an **independent attestation** — the verdict must be signed
 off by an evaluator that is NOT the worker who did the reviewed work

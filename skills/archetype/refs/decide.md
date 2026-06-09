@@ -21,13 +21,10 @@ path and the reasons.
 - A **decision artifact**: which option was picked, and the explicit
   trade-offs accepted by picking it.
 
-The select gate **re-derives** these via `wicked-vault`
-(`scripts/qe/vault_gate.py`): the ADR's bytes are re-hashed and its
+The select gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the ADR's bytes are re-hashed and its
 structure verifier re-run, never trusting a cached "ADR written". The
 check is **deterministic document-structure** — it proves the ADR
-contains the required sections, not that the call was wise. wicked-vault
-is a **required** peer (installed by `/wicked-garden:setup`); if it is
-genuinely absent the gate **fails closed** (`gate: "unavailable"`,
+contains the required sections, not that the call was wise. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`,
 `satisfied: false`) rather than self-asserting a PASS. `--no-require`
 opts a throwaway/low-rigor decision back to the doctrine-light
 claim-only path. (A judgment tier — `wicked-vault analyze-evidence` —

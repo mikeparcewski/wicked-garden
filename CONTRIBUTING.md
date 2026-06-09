@@ -49,9 +49,12 @@ setup wizard output, or the README. It is not a supported production configurati
 **For offline CI and dev environments without the wicked-vault peer only.**
 
 wicked-vault (npm, ≥0.3, install `npx wicked-vault-install`) is a required peer
-alongside wicked-bus/brain/testing. The garden's produces-gates re-derive evidence
-through it (`scripts/qe/vault_gate.py` → `wicked-vault cross-check`). The CLI is
-resolved in order:
+alongside wicked-loom/bus/brain/testing. The garden's produces-gates re-derive
+evidence through **wicked-loom** — `scripts/qe/vault_gate.py` shells `wicked-loom
+gate`, which in turn shells `wicked-vault cross-check`, so the vault is the backend
+loom re-runs the verifier against. loom resolves the vault; the concrete-install
+probe (`vault_available`) and the `WICKED_VAULT_BIN` kill-switch below still apply.
+The vault CLI is resolved in order:
 
 1. `WICKED_VAULT_BIN` env var
 2. a config preference

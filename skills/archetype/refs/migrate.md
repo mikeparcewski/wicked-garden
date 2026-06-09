@@ -21,14 +21,11 @@ readers, switch writers, remove the old shape.
 - **Rollback proof**: an executable rollback path. Tested in staging
   before cutover.
 
-The cutover gate **re-derives** these via `wicked-vault`
-(`scripts/qe/vault_gate.py`): the rollback drill is re-run and the
+The cutover gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the rollback drill is re-run and the
 shape-change post-condition re-checked, never trusting a self-asserted
 "rolled back fine". This is the original evidence-vault use case — for a
 migration the load-bearing honesty move is **no cutover without a
-re-derivable rollback proof**. wicked-vault is a **required** peer
-(installed by `/wicked-garden:setup`); if it is genuinely absent the gate
-**fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+re-derivable rollback proof**. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. Because `cutover` is a HARD gate, the gate also
 demands an **independent attestation**: an evaluator who is **not** the
 migrator confirms the rollback proof and shape change are adequate

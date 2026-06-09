@@ -217,12 +217,14 @@ That's it. No phase machinery to extend. No gate matrix to update.
 - **HITL `hard:*` enforcement is now code, not just doctrine.**
   `scripts/crew/phase_manager.py` (`_HARD_GATE_PHASES`) refuses to advance
   past a hard gate at runtime, and the produces-gate re-derives evidence
-  through wicked-vault (fail-closed) rather than trusting playbook prose
-  (see "What 'produces contract met' means now" above). *Discrete* gates
-  remain doctrine-driven (auto-pass when the contract is met). Watch that
-  the runtime hard-gate map and each archetype's declared HITL stay in
-  sync — `_HARD_GATE_PHASES` currently also flags `specify.validate` and
-  `decide.record`, which the table lists as `discrete:*`.
+  through wicked-loom — which re-runs the verifier via wicked-vault —
+  (fail-closed) rather than trusting playbook prose (see "What 'produces
+  contract met' means now" above). *Discrete* gates remain doctrine-driven
+  (auto-pass when the contract is met). The runtime hard-gate map now mirrors
+  exactly the three archetypes the catalog declares `hard:*`
+  (`migrate.cutover`, `incident.mitigate`, `review.remediate-or-accept`);
+  `specify.validate` and `decide.record` are `discrete:*` and were removed
+  from the map. `test_hard_gate_map_matches_catalog` locks that alignment.
 - **The `triage` archetype is the safety net for anything else.**
   When the detector returns only `triage`, it means the prompt
   didn't match anything cleanly. The agent should ASK, not GUESS.

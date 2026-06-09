@@ -30,7 +30,7 @@ class ResolveLoomAuthoritative(unittest.TestCase):
             os.environ.pop(v, None)
 
     def test_loom_resolve_is_authoritative(self):
-        def fake_run(prefix, args, timeout):
+        def fake_run(prefix, args, timeout, cwd=None):
             return {"exit_code": 0,
                     "stdout": '{"peer":"vault","command":["npx","--yes","wicked-vault"]}',
                     "stderr": "", "error": None}
@@ -40,7 +40,7 @@ class ResolveLoomAuthoritative(unittest.TestCase):
 
     def test_loom_command_null_surfaces_as_none(self):
         # loom reports the vault kill-switch / unresolvable -> command=null -> None.
-        def fake_run(prefix, args, timeout):
+        def fake_run(prefix, args, timeout, cwd=None):
             return {"exit_code": 1, "stdout": '{"peer":"vault","command":null}',
                     "stderr": "", "error": None}
         with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
@@ -58,7 +58,7 @@ class ResolveLoomAuthoritative(unittest.TestCase):
 
     def test_loom_error_returns_none_no_in_process_npx(self):
         # loom resolves but the subprocess errors -> None (no fallback).
-        def boom(prefix, args, timeout):
+        def boom(prefix, args, timeout, cwd=None):
             return {"exit_code": None, "stdout": "", "stderr": "",
                     "error": "loom call exceeded 120s"}
         with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \

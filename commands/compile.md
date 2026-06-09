@@ -15,6 +15,10 @@ runs with **no wicked-garden runtime present**. Optionally installs the
 triggers that fire it (pre-push hook / GitHub Actions). The vault is resolved
 at runtime via `npx` — it is the one thing the compiler never compiles.
 
+> The emitted gate is deliberately **vault-direct** (shells `wicked-vault`,
+> not `wicked-loom`). The garden's own gate uses loom; the emitted gate can't
+> assume loom is installed in a foreign repo, so it depends only on the vault.
+
 ## Run
 
 Parse `$ARGUMENTS`: first non-flag token is the repo path (default `.`); pass

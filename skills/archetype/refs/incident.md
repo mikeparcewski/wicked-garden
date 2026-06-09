@@ -23,13 +23,10 @@ investigate before mitigating unless investigation IS the mitigation.
 - **Followup list**: action items with owners. Each gets a github issue
   or tracked task.
 
-The mitigate gate **re-derives** these via `wicked-vault`
-(`scripts/qe/vault_gate.py`): the evidence is re-hashed and its verifier
+The mitigate gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the evidence is re-hashed and its verifier
 re-run, never trusting a cached "mitigated". The honesty move here is the
 mitigation pin — a claimed mitigation that doesn't actually make the
-symptom check pass must REJECT. wicked-vault is a **required** peer
-(installed by `/wicked-garden:setup`); if it is genuinely absent the gate
-**fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+symptom check pass must REJECT. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. `--no-require` opts a throwaway/low-rigor run back
 to the doctrine-light claim-only path.
 

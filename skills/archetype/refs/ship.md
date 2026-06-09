@@ -18,16 +18,13 @@ to production. Each phase widens blast radius; gates are explicit ramps.
 - **SLO snapshot**: error rate, latency, saturation at each phase
   boundary, compared to the pre-rollout baseline.
 
-The ramp gate **re-derives** these via `wicked-vault`
-(`scripts/qe/vault_gate.py`): the SLO snapshot's verifier is re-run and
+The ramp gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the SLO snapshot's verifier is re-run and
 the rollout-verdict command's exit code re-checked, never trusting a
 cached "looked clean". Because live observation verifiers
 (`http_status_eq`, `pr_check_status`) aren't implemented yet, **capture
 the SLO metrics to a snapshot file** and verify with `jq_pred` over that
 captured JSON — deterministic and re-derivable, not a one-shot live
-probe. wicked-vault is a **required** peer (installed by
-`/wicked-garden:setup`); if it is genuinely absent the gate **fails
-closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+probe. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting an APPROVE. `--no-require` opts a throwaway/low-rigor
 rollout back to the doctrine-light claim-only path.
 

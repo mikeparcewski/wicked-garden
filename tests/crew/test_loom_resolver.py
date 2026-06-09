@@ -73,6 +73,35 @@ class RunTests(unittest.TestCase):
         self.assertIsNone(out["json"])
         self.assertIn("non-JSON", out["error"])
 
+    def test_run_passes_project_dir_as_subprocess_cwd(self):
+        # Regression guard (#891 loom cutover): loom gate/resolve/flow inspect
+        # the *project* dir, not the parent process cwd. run_json MUST run the
+        # loom subprocess in project_dir, or the gate re-derives against the
+        # wrong repo. Before the fix _default_run got no cwd, and the real-peer
+        # gate tests returned ERROR (empty claims) when run from any other cwd.
+        seen = {}
+
+        def capturing_default_run(prefix, args, timeout, cwd=None):
+            seen["cwd"] = cwd
+            return {"exit_code": 0, "stdout": "{}", "stderr": "", "error": None}
+
+        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+             patch.object(_loom, "_default_run", capturing_default_run):
+            _loom.run_json(["gate", "build"], project_dir=Path("/tmp/some-proj"))
+        self.assertEqual(seen["cwd"], "/tmp/some-proj")
+
+    def test_run_without_project_dir_passes_none_cwd(self):
+        seen = {}
+
+        def capturing_default_run(prefix, args, timeout, cwd=None):
+            seen["cwd"] = cwd
+            return {"exit_code": 0, "stdout": "{}", "stderr": "", "error": None}
+
+        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+             patch.object(_loom, "_default_run", capturing_default_run):
+            _loom.run_json(["doctor"])
+        self.assertIsNone(seen["cwd"])
+
 
 class CutoverModeTests(unittest.TestCase):
     def setUp(self):

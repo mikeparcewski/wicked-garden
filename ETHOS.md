@@ -12,15 +12,15 @@
 
 **Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Each prompt classifies into one or more of nine **work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `build`, `review`, `ship`, `incident`, `migrate` — and each owns its own phase shape, produces contract, and human-in-the-loop (HITL) discipline. A typo and a migration get appropriately-scaled rigor — not the same rigor, and not the same shape.
 
-**"Done" is re-derived, not asserted.** A gate does not go green because someone said so. Evidence is re-hashed and its verifier re-run through wicked-vault every time — a claimed-but-false "tests pass" is REJECTED, and a missing backend fails closed rather than passing on a self-assertion. The cheapest lie in software is a green checkmark with nothing behind it; we refuse to accept it.
+**"Done" is re-derived, not asserted.** A gate does not go green because someone said so. Evidence is re-hashed and its verifier re-run through wicked-loom every time — which re-runs the verifier via wicked-vault underneath — a claimed-but-false "tests pass" is REJECTED, and a missing backend fails closed rather than passing on a self-assertion. The cheapest lie in software is a green checkmark with nothing behind it; we refuse to accept it.
 
-**Quality pressure must be structural, not delegated to willpower.** Reviews skipped under deadline pressure are gates that didn't exist. So enforcement lives in code, not prose: hard gates refuse to advance at runtime, produces re-derive through the vault, and the audit trail is append-only. Good intentions don't have to survive a Friday afternoon — the gates do.
+**Quality pressure must be structural, not delegated to willpower.** Reviews skipped under deadline pressure are gates that didn't exist. So enforcement lives in code, not prose: hard gates refuse to advance at runtime, produces re-derive through wicked-loom (which re-runs the verifier via the vault), and the audit trail is append-only. Good intentions don't have to survive a Friday afternoon — the gates do.
 
 **Knowledge compounds across sessions or it isn't knowledge.** If a decision, gotcha, or pattern lives only in the current chat, it dies with the chat. Every memorable thing belongs in a tier-appropriate memory store with confidence and decay rules. wicked-brain is the difference between learning once and learning every time.
 
 **Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, hooks, and slash commands are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; an agent with a frontmatter description is more discoverable than a registry call.
 
-**Required infrastructure, resilient at runtime.** wicked-garden stands on four siblings: **wicked-testing** (proves behavior), **wicked-vault** (makes "done" re-derivable), **wicked-brain** (carries knowledge across sessions), **wicked-bus** (carries the audit trail). These are *required infrastructure*, not optional add-ons — the honest-evidence model does not work if any of them is merely nice-to-have, so `/wicked-garden:setup` verifies all four and blocks without them. But required-at-install is not brittle-at-runtime: a transient outage — brain server down, bus momentarily unavailable — degrades gracefully and never bricks a session. Graceful degradation means a session continues where it's *safe* to; it never means a gate pretends missing evidence is a pass — that path **fails closed**. We depend on our infrastructure; we don't crash with it.
+**Required infrastructure, resilient at runtime.** wicked-garden stands on five siblings: **wicked-testing** (proves behavior), **wicked-vault** (the evidence backend that makes "done" re-derivable), **wicked-brain** (carries knowledge across sessions), **wicked-bus** (carries the audit trail), **wicked-loom** (the gate engine that re-derives produces through the vault). These are *required infrastructure*, not optional add-ons — the honest-evidence model does not work if any of them is merely nice-to-have, so `/wicked-garden:setup` verifies all five and blocks without them. But required-at-install is not brittle-at-runtime: a transient outage — brain server down, bus momentarily unavailable — degrades gracefully and never bricks a session. Graceful degradation means a session continues where it's *safe* to; it never means a gate pretends missing evidence is a pass — that path **fails closed**. We depend on our infrastructure; we don't crash with it.
 
 **Cross-platform is non-negotiable.** macOS, Linux, Windows (Git Bash, WSL, native). Bare `python3` doesn't exist on Windows; bare `/tmp` doesn't exist on Windows; the shim and `${TMPDIR:-/tmp}` exist for a reason. If a contributor adds shell that breaks on Windows, the contribution is incomplete.
 
@@ -36,7 +36,7 @@
 
 **We do not silently degrade quality signals.** When the evidence backend isn't resolvable, the gate **fails closed** and says so — it never invents a pass. When a signal is missing, we surface it as a finding; we don't paper over it to keep a dashboard green.
 
-**We do not hide our dependencies.** The four required peers are named, pinned, and checked at setup — not silent transitive surprises. If wicked-garden needs something to function, it says so up front and verifies it, rather than failing mysteriously three commands in.
+**We do not hide our dependencies.** The five required peers are named, pinned, and checked at setup — not silent transitive surprises. If wicked-garden needs something to function, it says so up front and verifies it, rather than failing mysteriously three commands in.
 
 **We do not let vendors land regressions in the name of cleanup.** Five legitimate skill rewrites bundled with three frontmatter regressions and a vendor-CI hook is not a contribution worth merging. Reject the bundle, salvage the wins in-house.
 
@@ -66,7 +66,7 @@
 
 **Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. wicked-patch's generators support Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, Ruby out of the box; new languages plug in via the generator interface.
 
-**Not closed.** The four siblings (testing, vault, brain, bus) are required peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
+**Not closed.** The five siblings (testing, vault, brain, bus, loom) are required peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
 
 ---
 
@@ -75,7 +75,7 @@
 - **`CLAUDE.md`** — operational guidance. How the surfaces compose, what the gates enforce, where state lives.
 - **`README.md`** — what to install, how to start, where to go next.
 - **`docs/v11/archetypes.md`** — the design note: why the universal pipeline went away and what replaced it.
-- **`docs/required-peers.md`** · **`docs/compiler.md`** — the four required siblings, and the compiler.
+- **`docs/required-peers.md`** · **`docs/compiler.md`** — the five required siblings, and the compiler.
 - **`scenarios/`** — acceptance tests; each scenario is an executable assertion of intended behavior.
 
 If you can quote one sentence from this page after reading it once, the document worked. If you can quote three, we won.

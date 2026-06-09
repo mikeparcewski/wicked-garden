@@ -273,6 +273,35 @@ class TestHardGateEnforcement(unittest.TestCase):
                             created_at="2026-05-08T00:00:00Z")
         self.assertFalse(pm._is_hard_gate(s, "cutover"))
 
+    def test_specify_and_decide_are_not_hard_gates(self):
+        # Regression guard: specify (discrete:validate) and decide
+        # (discrete:select) must NOT be runtime hard gates — they auto-pass
+        # when the produces contract re-derives. Promoting them over-reached
+        # the catalog and contradicted "steering, not blocking".
+        spec = pm.ProjectState(name="s", current_phase="validate",
+                               created_at="2026-05-08T00:00:00Z",
+                               extras={"v11_archetype": "specify"})
+        self.assertFalse(pm._is_hard_gate(spec, "validate"))
+        dec = pm.ProjectState(name="d", current_phase="record",
+                              created_at="2026-05-08T00:00:00Z",
+                              extras={"v11_archetype": "decide"})
+        self.assertFalse(pm._is_hard_gate(dec, "record"))
+
+    def test_hard_gate_map_matches_catalog(self):
+        # _HARD_GATE_PHASES must mirror exactly the archetypes the catalog
+        # declares as hard:<gate>. This locks code↔catalog alignment so the
+        # runtime hard-gate set can't silently drift from the source of truth.
+        import json
+        from pathlib import Path
+        catalog = json.loads(
+            (Path(__file__).resolve().parents[2]
+             / ".claude-plugin" / "archetypes.json").read_text(encoding="utf-8"))
+        hard_in_catalog = {
+            name for name, a in catalog["archetypes"].items()
+            if str(a.get("hitl", "")).startswith("hard:")
+        }
+        self.assertEqual(set(pm._HARD_GATE_PHASES.keys()), hard_in_catalog)
+
     def test_cutover_refuses_without_confirmed_by(self):
         with patch.object(pm, "save_project_state"):
             with self.assertRaises(ValueError) as cm:

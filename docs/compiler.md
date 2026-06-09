@@ -43,6 +43,14 @@ You compile once; the gate then lives in the target repo and runs on its
 own, in CI or on a developer's machine, with nothing of the garden
 installed.
 
+> **Why vault-direct, not loom?** Inside wicked-garden the produces-gate
+> re-derives through **wicked-loom** (which shells the vault). The *emitted*
+> gate deliberately does **not** — it shells **wicked-vault** directly via
+> `npx`. It has to run in a foreign repo with neither wicked-garden nor
+> wicked-loom present, so it depends only on the one public re-derivation
+> utility (the vault). This split is intentional, not drift: the garden gate
+> assumes loom is installed; the emitted gate cannot.
+
 ## The on-switch rule
 
 Compile the **trigger** and the **enforcement**; never compile the
