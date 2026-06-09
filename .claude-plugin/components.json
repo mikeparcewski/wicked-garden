@@ -1,18 +1,17 @@
 {
   "_comment": "Issue #328: Component declarations for wicked-garden plugin. Claude Code plugin.json does not yet support inline component declarations beyond path overrides. This manifest documents all components for tooling, validation, and future schema support. When plugin.json gains a 'components' field, merge this data into plugin.json.",
-  "domains": ["agentic", "crew", "data", "delivery", "engineering", "jam", "mem", "persona", "platform", "product", "qe", "search", "smaht"],
+  "domains": ["agentic", "crew", "data", "engineering", "jam", "mem", "persona", "platform", "product", "qe", "search", "smaht"],
   "summary": {
-    "commands": 90,
-    "agents": 40,
-    "skills": 71,
+    "commands": 77,
+    "agents": 36,
+    "skills": 67,
     "hooks": 13,
-    "specialists": 8
+    "specialists": 7
   },
   "agents_by_domain": {
     "agentic": ["architect", "performance-analyst", "safety-reviewer"],
     "crew": ["implementer", "researcher", "reviewer"],
     "data": ["data-analyst", "data-architect", "data-engineer", "ml-engineer"],
-    "delivery": ["experiment-designer", "risk-monitor", "rollout-manager", "stakeholder-reporter"],
     "engineering": ["api-documentarian", "backend-engineer", "debugger", "frontend-engineer", "migration-engineer", "senior-engineer", "solution-architect", "technical-writer"],
     "jam": ["brainstorm-facilitator", "council", "quick-facilitator"],
     "persona": ["persona-agent"],
@@ -26,7 +25,6 @@
     "classify": ["classify"],
     "data": ["analysis", "data", "ml", "pipeline"],
     "deliberate": ["deliberate"],
-    "delivery": ["design", "onboarding-guide", "reporting", "rollout"],
     "engineering": ["architecture", "backend", "debugging", "docs", "engineering", "frontend", "integration", "large-scale-migration", "patch", "system-design", "unit-test-quality"],
     "ground": ["ground"],
     "integration-discovery": ["integration-discovery"],
@@ -63,10 +61,6 @@
     {
       "name": "data",
       "role": "data-engineering"
-    },
-    {
-      "name": "delivery",
-      "role": "project-management"
     },
     {
       "name": "jam",

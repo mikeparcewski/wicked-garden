@@ -6,7 +6,7 @@ Work is shaped by the **9 archetypes** (triage, explore, specify, decide, ship, 
 
 Every command follows the pattern `/wicked-garden:{domain}:{command}`. Every agent declares `subagent_type: wicked-garden:{domain}:{name}` for Task-tool dispatch.
 
-There are **10 domains**: engineering, platform, product, data, jam, search, agentic, persona, delivery, smaht.
+There are **9 domains**: engineering, platform, product, data, jam, search, agentic, persona, smaht.
 
 > **v12 cleanup (ADR 0002).** Most domain commands are *rubric-wrappers* — a checklist the agent already applies. These were **collapsed**: the rubric moved to an on-demand `skills/{domain}/refs/{name}.md` and the command now loads it and works **inline** (no `Task` dispatch hop). Dispatch is kept only where it earns it — real parallelism (multiple lenses at once), a real external tool, or an independent gate. The dispatch-only agents that nothing reaches anymore were removed; agents still referenced by a surviving command, skill, scenario, or the specialist registry stay. Capability is preserved; only the token-burning hop is gone.
 
@@ -99,32 +99,23 @@ Dynamic focus groups with AI personas plus structured multi-model council sessio
 | `jam:brainstorm` | Full multi-perspective session with dynamic focus groups |
 | `jam:quick` | Lightweight exploration (fewer personas, one round) |
 | `jam:council` | Structured multi-model evaluation via external LLM CLIs |
-| `jam:perspectives` | Get multiple perspectives on a decision (no synthesis) |
-| `jam:thinking` | View individual persona perspectives pre-synthesis |
-| `jam:persona` | View a specific persona's contributions |
-| `jam:transcript` | View the full conversation transcript |
 | `jam:revisit` | Revisit a past brainstorm decision |
 
-**Agents**: `brainstorm-facilitator`, `quick-facilitator`, `council`
+**Agents**: `brainstorm-facilitator`, `quick-facilitator`, `council`. The post-hoc viewers (`perspectives`/`thinking`/`persona`/`transcript`) were removed — niche retrieval the agent rarely reached for.
 
 ## search — Code Intelligence
 
-Structural understanding via tree-sitter — symbol-level, not text search. Blast radius, lineage, and service-map detection. Heavily used during `build`, `migrate`, and `review` to ground changes.
+Structural code intelligence on the **codegraph** graph (column-precise tree-sitter) plus the plugin's **injected edges** — bus producer→consumer, command→agent dispatch, agent→capability — that grep and a static call-graph can't see. Heavily used during `build`, `migrate`, and `review` to ground changes.
 
 | Command | What It Does |
 |---------|-------------|
-| `search:index` | Build/rebuild the unified code + document index |
-| `search:blast-radius` | Dependencies and dependents of a symbol |
-| `search:lineage` | Trace data from UI to DB (or reverse) |
+| `search:index` | Refresh both layers — brain (semantic) + codegraph (structural) incl. injected edges |
+| `search:blast-radius` | Dependencies and dependents of a symbol, including injected (string-keyed) links |
+| `search:lineage` | Trace data/reference flow from UI to DB (or reverse) |
 | `search:service-map` | Detect service architecture from infra files |
-| `search:hotspots` | Most-referenced symbols |
-| `search:categories` | Symbol categories, layers, and directory groupings |
-| `search:coverage` | Report lineage coverage |
-| `search:sources` | Manage external content sources |
-| `search:quality` | Improve index accuracy |
-| `search:validate` | Validate index consistency |
+| `search:hotspots` | Most-referenced symbols (find god-objects / coupling) |
 
-> For open-ended symbol and concept search, prefer `wicked-brain:search` / `wicked-brain:query` when the brain index is available; the `search:*` commands cover structural analysis the brain doesn't.
+> For open-ended symbol and concept search, prefer `wicked-brain:search` / `wicked-brain:query`; the `search:*` commands cover the structural + injected-relationship analysis the brain doesn't. The thin index-admin wrappers (`categories`/`coverage`/`sources`/`quality`/`validate`) were removed — they duplicated `wicked-brain` tooling.
 
 ## agentic — Agentic Architecture
 
@@ -151,19 +142,6 @@ Invoke any specialist persona directly. Define custom personas with personality,
 
 **Agents**: `persona-agent` (`persona:as` builds its prompt from the registry at runtime — kept). `persona:define` collapsed to an inline skill-ref; the no-op `persona:submit` stub was deleted.
 
-## delivery — Delivery Management
-
-Stakeholder reporter, rollout manager, experiment designer, and risk monitor. Backs `ship` and post-ship reporting. `setup` (interactive configurator) stays; `experiment`/`report`/`rollout` collapsed to inline skill-refs.
-
-| Command | What It Does |
-|---------|-------------|
-| `delivery:rollout` | Progressive rollout plans with risk management |
-| `delivery:experiment` | A/B test design with statistical rigor |
-| `delivery:report` | Multi-perspective stakeholder reports |
-| `delivery:setup` | Configure delivery metrics (cost model, sprint cadence) |
-
-**Agents**: `stakeholder-reporter`, `rollout-manager`, `experiment-designer`, `risk-monitor` — the dispatch-only `delivery-manager`, `progress-tracker`, and `cloud-cost-intelligence` were removed as orphaned after the command collapse.
-
 ## smaht — Context Assembly
 
 On-demand context assembly over wicked-brain and the search index. A pull-model skill — archetypes and subagents call it when they need a briefing, rather than pushing context onto every prompt.
@@ -186,6 +164,6 @@ An archetype playbook (`skills/archetype/refs/{archetype}.md`) doesn't hardcode 
 - A `review` reaches for `engineering:review`, `platform:security`, and `agentic:review` depending on the target.
 - An `explore` reaches for `jam` to diverge across perspectives.
 - A `specify` reaches for `product:elicit` and `product:acceptance`.
-- A `ship` reaches for `delivery:rollout` and `platform:health`.
+- A `ship` runs its own canary→ramp→soak rollout playbook and reaches for `platform:health`.
 
 Domains are the *how*; archetypes are the *when* and *what shape*. The two compose — neither replaces the other.

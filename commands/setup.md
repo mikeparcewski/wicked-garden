@@ -218,7 +218,7 @@ First, ask which directories to onboard. **INTERACTIVE mode**: Use AskUserQuesti
 
 ##### Brain Pipeline (in order)
 
-**Step A — Brain init** (if brain doesn't exist). Probe `curl -s -X POST http://localhost:4242/api -H "Content-Type: application/json" -d '{"action":"health","params":{}}' 2>/dev/null`. If connection refused or no brain directory at `~/.wicked-brain`, run `Skill(skill="wicked-brain-init")`.
+**Step A — Brain init** (if brain doesn't exist). Probe the brain (resolve its port dynamically): `PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"; curl -s -X POST "http://localhost:${PORT}/api" -H "Content-Type: application/json" -d '{"action":"health","params":{}}' 2>/dev/null`. If connection refused or no brain directory at `~/.wicked-brain`, run `Skill(skill="wicked-brain-init")`.
 Then start the server with `Skill(skill="wicked-brain-server")`.
 
 **Step B — Ingest codebase**. Show "Indexing codebase into brain..." then `Skill(skill="wicked-brain-ingest", args="{selected_directory}")`.

@@ -3,9 +3,9 @@
 
 Three naming systems used to collide for the same concept:
 
-1. ``.claude-plugin/specialist.json`` lists 8 **domains**
+1. ``.claude-plugin/specialist.json`` lists the **domains**
    (``engineering``, ``platform``, ``product``, ``qe``, ``data``,
-   ``delivery``, ``jam``, ``agentic``).
+   ``jam``, ``agentic``).
 2. The facilitator rubric (``skills/propose-process/SKILL.md`` Step 4)
    picks bare **role** names like ``requirements-analyst`` or
    ``solution-architect``.

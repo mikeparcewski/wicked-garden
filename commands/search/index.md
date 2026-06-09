@@ -34,7 +34,8 @@ Refresh the two code-intelligence layers the other `search:*` commands query:
 
 3. **Verify**:
    ```bash
-   curl -s -X POST http://localhost:4243/api -H "Content-Type: application/json" \
+   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
+   curl -s -X POST "http://localhost:${PORT}/api" -H "Content-Type: application/json" \
      -d '{"action":"stats","params":{}}'                       # brain chunk/tag counts
    ```
    `inject_all` prints per-extractor edge counts + a `total_injected_edges` — report both.

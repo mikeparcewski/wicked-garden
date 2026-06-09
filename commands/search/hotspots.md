@@ -13,7 +13,8 @@ Identify hotspot symbols ranked by total reference count (incoming + outgoing). 
 
 1. **Search brain for high-connectivity symbols**:
    ```bash
-   curl -s -X POST http://localhost:4242/api \
+   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
+   curl -s -X POST "http://localhost:${PORT}/api" \
      -H "Content-Type: application/json" \
      -d '{"action":"search","params":{"query":"class function module export","limit":50}}'
    ```

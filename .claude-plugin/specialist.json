@@ -46,12 +46,6 @@
       "enhances": ["design", "build", "*"]
     },
     {
-      "name": "delivery",
-      "role": "project-management",
-      "description": "Feature delivery specialist covering PMO, onboarding, experimentation, rollout, and FinOps domains.",
-      "enhances": ["build", "review"]
-    },
-    {
       "name": "jam",
       "role": "brainstorming",
       "description": "Multi-perspective brainstorming with dynamic focus groups. Explores ideas through persona-based discussion rounds and synthesis.",
