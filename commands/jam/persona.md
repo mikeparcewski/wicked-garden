@@ -9,16 +9,12 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:jam:persona
 
-Retrieve all contributions from a specific persona across every round of a brainstorm session. Useful for quoting a particular expert's position, understanding how their view evolved across rounds, or identifying perspectives the synthesis may have compressed.
+Retrieve all contributions from a specific persona across every round of a
+brainstorm session. Useful for quoting a particular expert's position or
+understanding how their view evolved.
 
-Persona name matching is case-insensitive. Use the persona's display name as it appeared in the session (e.g., "Technical Architect", "Cost Optimizer", "Security Reviewer").
+## Run it inline (no dispatch)
 
-Without `--session-id`, searches the most recent session.
-
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/jam/jam.py persona $ARGUMENTS
-```
-
-After running the script, present the output. If entries are returned, add a brief note about how many rounds the persona participated in and whether their position shifted between rounds (you can infer this from the raw_text content).
-
-If no match is found, list the personas that did participate (by running `jam.py transcript --json` and extracting unique `persona_name` values) so the user can correct their query.
+1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/persona.md")` — the rubric:
+   script invocation, round-count note, and no-match fallback (list session personas).
+2. Run the script and present the output per the rubric.

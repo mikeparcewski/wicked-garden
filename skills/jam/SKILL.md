@@ -36,7 +36,7 @@ Generate diverse perspectives through structured focus group sessions.
 
 ## Agents
 
-- `agents/jam/quick-facilitator.md` — single-pass, 4 personas, no storage, no bus events
+- `agents/jam/quick-facilitator.md` — single-pass, 4 personas, no storage, no bus events (retained for scenarios; `jam:quick` now runs inline via `skills/jam/refs/quick.md`)
 - `agents/jam/brainstorm-facilitator.md` — multi-round, evidence gathering, transcript storage, decision record
 
 ## References

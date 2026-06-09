@@ -7,27 +7,18 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:agentic:design
 
-Interactive design session for a new agentic system: requirements → pattern + five-layer architecture → safety validation → design doc. Greenfield design; use `agentic:review` to assess existing code, `agentic:audit` for compliance evidence.
+Interactive design session for a new agentic system: requirements → pattern +
+five-layer architecture → safety validation → design doc.
 
-## 1. Dispatch architect (design mode)
+Greenfield design; use `agentic:review` to assess existing code, `agentic:audit`
+for compliance evidence.
 
-```
-Task(subagent_type="wicked-garden:agentic:architect",
-     prompt="""Mode: design
-Problem: {problem_statement or 'gather via 3-5 clarifying questions'}
-Output: {output_file or 'inline'}
-Load skill wicked-garden:agentic:agentic-patterns. Pick the agentic pattern, render
-five-layer architecture (mermaid), agent breakdown, control flow, state mgmt, error
-handling, and framework recommendation.""")
-```
+## Run it inline (no dispatch)
 
-## 2. Dispatch safety reviewer (design validation)
-
-```
-Task(subagent_type="wicked-garden:agentic:safety-reviewer",
-     prompt="""Mode: design_validation
-Architecture: {architect_output}
-Load skill wicked-garden:agentic:trust-and-safety. Add safety section: tool risk, HITL,
-PII, input validation, rate limits, failure modes, compliance, testing recs. Merge into
-the design doc. Write to {output_file} if set, else inline.""")
-```
+1. Parse `[problem description]` and `--output`.
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/agentic/refs/design.md")` — the design
+   rubric: requirements gathering, pattern selection, five-layer architecture,
+   safety section, framework recommendation, and output format.
+3. Work through the rubric phases directly. If no problem statement is supplied,
+   ask the 3–5 clarifying questions from the ref before proceeding.
+4. Write to `--output` file when set; otherwise return inline.
