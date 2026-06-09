@@ -1,5 +1,13 @@
 # Changelog
 
+## [12.9.0] - 2026-06-09
+
+### Features
+- feat(qe): real SEMANTIC spec-to-code review — the agent the script always referenced but never existed (631d1b5)
+
+### Chores
+- Merge pull request #903 from mikeparcewski/feat/semantic-reviewer-agent (215e536)
+
 ## [12.8.0] - 2026-06-09
 
 ### Features
