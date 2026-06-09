@@ -7,7 +7,7 @@
     {
       "name": "wicked-garden",
       "source": "./",
-      "description": "AI-Native SDLC plugin; requires wicked-testing (npm) for QE behavior.",
+      "description": "Gap-filling capabilities for modern coding-agent harnesses \u2014 proof-not-claims evidence gates, code-relationship intelligence (incl. injected edges grep can't see), deterministic refactor, cross-session memory, multi-model second opinions. Don't fight the harness; fill its gaps. Requires wicked-testing/vault/brain/bus/loom (npm).",
       "version": "12.13.0"
     }
   ],

@@ -1,7 +1,7 @@
 {
   "name": "wicked-garden",
   "version": "12.13.0",
-  "description": "AI-Native SDLC organized around 9 work-shape archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate). Each archetype owns its own phase shape, produces contract, HITL discipline, and cost band \u2014 there is no universal pipeline. The UserPromptSubmit hook auto-classifies prompts into archetypes and emits steering directives. Each archetype has a slim playbook (skills/archetype/refs/), a slash command (commands/archetype/), and detection signals declared in .claude-plugin/archetypes.json. Steering, not blocking. Gating archetypes re-derive their produces through wicked-vault (required, fail-closed) instead of trusting a self-asserted 'done', and the compiler (/wicked-garden:compile) emits a self-contained, vault-backed build gate into any repo. Requires five sibling peers verified at setup \u2014 wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom \u2014 required at install but resilient to a transient runtime outage. Coexists with domain skills + agents (engineering, platform, data, product, jam, search, agentic, persona, delivery).",
+  "description": "Gap-filling capabilities for modern coding-agent harnesses (Claude Code, Codex, Cursor, Aider, OpenCode, Gemini CLI, Zed/ACP). Harnesses already plan and swarm well; wicked-garden fills what they can't do on their own, without fighting how they work. Proof, not claims: gates re-derive 'done' through wicked-loom/wicked-vault (fail-closed, independent attestation) instead of trusting a self-asserted pass. Code-relationship intelligence grep can't see: codegraph + injected bus/dispatch/capability edges power search:blast-radius and lineage. Deterministic multi-file refactor (wicked-patch). Cross-session memory (wicked-brain). Real multi-model second opinions (jam:council). Portable domain rubrics as on-demand skill-refs. Evidence-gated testing (wicked-testing). It reads the work-shape of each prompt to apply the right rigor and the right gate \u2014 steering, not a pipeline \u2014 then gets out of the way. The compiler (/wicked-garden:compile) emits a self-contained evidence gate into any repo that runs with no wicked-garden installed. Requires five peers verified at setup: wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom.",
   "wicked_testing_version": "^0.3.0",
   "wicked_vault_version": "^0.3.0",
   "wicked_brain_version": "^0.14.0",
@@ -13,16 +13,15 @@
   "repository": "https://github.com/mikeparcewski/wicked-garden",
   "license": "MIT",
   "keywords": [
-    "sdlc",
-    "workflow",
-    "engineering",
-    "testing",
-    "delivery",
-    "memory",
-    "search",
-    "brainstorming",
-    "personas",
+    "coding-agent",
+    "harness",
+    "evidence-gate",
+    "code-graph",
     "code-intelligence",
+    "refactoring",
+    "testing",
+    "memory",
+    "multi-model",
     "agentic"
   ],
   "_future_userConfig": {

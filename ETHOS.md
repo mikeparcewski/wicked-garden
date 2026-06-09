@@ -2,13 +2,15 @@
 
 > **What this is.** A single-page identity for wicked-garden — what we believe, what we refuse, what we optimize for.
 >
-> wicked-garden is an evidence-driven SDLC for Claude Code: it detects the shape of work, applies the rigor that shape needs, verifies "done" through independent, re-derived evidence, and preserves decisions, evidence, and learning across sessions. **Done is not claimed; done is re-derived.**
+> Coding agents have become *harnesses* — they plan and execute well, and each has an opinionated way it wants to work. wicked-garden fills the gaps the harness can't fill on its own — proof instead of claims, relationships grep can't see, deterministic refactor, memory across sessions, a second opinion that isn't itself — without fighting how it already works. It reads the *shape* of the work to apply the right rigor, then gets out of the way. **Done is not claimed; done is re-derived.**
 >
 > `CLAUDE.md` tells you *how* the system works. This tells you *why*.
 
 ---
 
 ## What we believe
+
+**Don't fight the harness; fill its gaps.** Modern coding agents already plan, parallelize, and execute — and each has a prescriptive way it wants to work. The worst thing a plugin can do is wrestle that. We add only what a planner-executor genuinely can't do on its own: re-derive "done" from evidence, surface relationships grep can't see, refactor deterministically across files, remember across sessions, and get a second opinion that isn't the same model arguing with itself. Everything the harness already does well, we leave to the harness.
 
 **Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Each prompt classifies into one or more of nine **work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `build`, `review`, `ship`, `incident`, `migrate` — and each owns its own phase shape, produces contract, and human-in-the-loop (HITL) discipline. A typo and a migration get appropriately-scaled rigor — not the same rigor, and not the same shape.
 
@@ -62,7 +64,7 @@
 
 **Not a fixed-sequence pipeline.** No two prompts run the same phase chain. Work shape is detected per prompt, not configured once per repo.
 
-**Not a starter for learning Claude Code.** This is a working SDLC, not a beginner tutorial. Basic Claude Code fluency makes the first hour productive rather than steep.
+**Not a starter for learning Claude Code.** This is a working toolkit that rides on a real harness, not a beginner tutorial. Basic harness fluency makes the first hour productive rather than steep.
 
 **Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. wicked-patch's generators support Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, Ruby out of the box; new languages plug in via the generator interface.
 
