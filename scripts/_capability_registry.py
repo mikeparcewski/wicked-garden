@@ -223,4 +223,112 @@ CAPABILITY_REGISTRY: dict[str, CapabilityDef] = {
             ),
         ],
     ),
+    "apm": CapabilityDef(
+        name="apm",
+        description="Application performance monitoring via Datadog, New Relic, or Grafana.",
+        tools=[
+            ToolOption(
+                name="mcp__datadog__*",
+                detection="mcp:datadog",
+                mcp_pattern="datadog",
+                priority=40,
+                install_hint="Configure a Datadog MCP server for APM.",
+            ),
+            ToolOption(
+                name="mcp__newrelic__*",
+                detection="mcp:newrelic",
+                mcp_pattern="newrelic",
+                priority=45,
+                install_hint="Configure a New Relic MCP server for APM.",
+            ),
+            ToolOption(
+                name="mcp__grafana__*",
+                detection="mcp:grafana",
+                mcp_pattern="grafana",
+                priority=50,
+                install_hint="Configure a Grafana MCP server for APM dashboards.",
+            ),
+        ],
+    ),
+    "tracing": CapabilityDef(
+        name="tracing",
+        description="Distributed tracing via Honeycomb, Grafana Tempo, or Datadog.",
+        tools=[
+            ToolOption(
+                name="mcp__honeycomb__*",
+                detection="mcp:honeycomb",
+                mcp_pattern="honeycomb",
+                priority=40,
+                install_hint="Configure a Honeycomb MCP server for distributed tracing.",
+            ),
+            ToolOption(
+                name="mcp__grafana__*",
+                detection="mcp:grafana",
+                mcp_pattern="grafana",
+                priority=50,
+                install_hint="Configure a Grafana MCP server (Tempo) for tracing.",
+            ),
+            ToolOption(
+                name="mcp__datadog__*",
+                detection="mcp:datadog",
+                mcp_pattern="datadog",
+                priority=50,
+                install_hint="Configure a Datadog MCP server for tracing.",
+            ),
+        ],
+    ),
+    "logging": CapabilityDef(
+        name="logging",
+        description="Log aggregation and search via Grafana Loki, Datadog, or Elasticsearch.",
+        tools=[
+            ToolOption(
+                name="mcp__grafana__*",
+                detection="mcp:grafana",
+                mcp_pattern="grafana",
+                priority=45,
+                install_hint="Configure a Grafana MCP server (Loki) for log search.",
+            ),
+            ToolOption(
+                name="mcp__datadog__*",
+                detection="mcp:datadog",
+                mcp_pattern="datadog",
+                priority=45,
+                install_hint="Configure a Datadog MCP server for log search.",
+            ),
+            ToolOption(
+                name="mcp__elasticsearch__*",
+                detection="mcp:elastic",
+                mcp_pattern="elastic",
+                priority=55,
+                install_hint="Configure an Elasticsearch MCP server for log search.",
+            ),
+        ],
+    ),
+    "telemetry": CapabilityDef(
+        name="telemetry",
+        description="OpenTelemetry and metrics pipelines via Grafana, Prometheus, or OTel tooling.",
+        tools=[
+            ToolOption(
+                name="mcp__grafana__*",
+                detection="mcp:grafana",
+                mcp_pattern="grafana",
+                priority=45,
+                install_hint="Configure a Grafana MCP server for metrics.",
+            ),
+            ToolOption(
+                name="mcp__prometheus__*",
+                detection="mcp:prometheus",
+                mcp_pattern="prometheus",
+                priority=50,
+                install_hint="Configure a Prometheus MCP server for metrics.",
+            ),
+            ToolOption(
+                name="otel",
+                detection="cli:otel",
+                cli_binary="otel",
+                priority=70,
+                install_hint="Install the OpenTelemetry CLI (otel).",
+            ),
+        ],
+    ),
 }
