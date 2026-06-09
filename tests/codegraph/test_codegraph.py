@@ -161,8 +161,8 @@ class InjectDispatchEdgesTests(unittest.TestCase):
         self.assertIsNone(idis._agent_relpath_for("wicked-garden:search:lineage"))
         # A real agent handle resolves to its file.
         self.assertEqual(
-            idis._agent_relpath_for("wicked-garden:platform:auditor"),
-            "agents/platform/auditor.md",
+            idis._agent_relpath_for("wicked-garden:platform:security-engineer"),
+            "agents/platform/security-engineer.md",
         )
 
     def test_injects_command_to_agent_edge(self):
