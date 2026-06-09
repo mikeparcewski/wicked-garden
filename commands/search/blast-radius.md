@@ -22,22 +22,45 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 ## Instructions
 
-1. **Search via brain** for reference discovery:
+1. **Query the codegraph graph** for static + injected dependents (the authoritative layer — covers what grep can't see):
    ```bash
-   curl -s -X POST http://localhost:4242/api \
+   # Static refs (imports/calls/instantiations) resolved by the engine:
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" 2>/dev/null  # shim is library-only; run the CLI:
+   codegraph impact <symbol> --json   # or: npx -y @colbymchenry/codegraph@latest impact <symbol> --json
+
+   # INJECTED relationships grep + the static graph miss (bus producer→consumer,
+   # command→agent dispatch, agent→capability) — read straight from the graph DB:
+   python3 - "$SYMBOL" <<'PY'
+   import sqlite3, sys, pathlib
+   sym = sys.argv[1]
+   db = pathlib.Path(".codegraph/codegraph.db")
+   if not db.exists():
+       print("no index — run `codegraph index` first"); raise SystemExit
+   c = sqlite3.connect(str(db))
+   # dependents reaching this symbol's file via any injected edge
+   rows = c.execute(
+     "SELECT source, target, provenance, metadata FROM edges "
+     "WHERE provenance LIKE 'injected:%' AND (source LIKE ? OR target LIKE ?)",
+     (f"%{sym}%", f"%{sym}%")).fetchall()
+   for r in rows: print(r)
+   c.close()
+   PY
+   ```
+   `codegraph impact` gives static dependents; the `injected:%` query adds bus/dispatch/capability edges (materialized by `scripts/codegraph/inject_edges.py`, `inject_dispatch_edges.py`, `inject_capability_edges.py`). Union both — a complete blast radius needs the injected layer, since a command that *dispatches* an agent or a consumer that *subscribes* to an event has no literal reference for grep to find.
+
+2. **Cross-reference via brain** (semantic neighbors the graph may not name):
+   ```bash
+   curl -s -X POST http://localhost:4243/api \
      -H "Content-Type: application/json" \
      -d '{"action":"search","params":{"query":"<symbol>","limit":30}}'
    ```
-   Use matching chunks as the starting set for blast radius analysis.
+   Use matching chunks to corroborate the dependent set.
 
-2. **Expand with native tools**: Use Grep to find transitive dependencies at the requested depth. For each direct reference found, search for its callers/importers to build the dependency graph.
+3. **If neither graph nor brain is available**: Use Grep and Glob to trace literal references only — and flag that injected relationships (bus/dispatch/capability) will be MISSING from the result. Suggest `codegraph index` + the inject extractors, or `wicked-brain:ingest`, for a complete picture.
 
-3. **If brain is unavailable**: Use Grep and Glob exclusively to trace the dependency chain.
-   Suggest: `wicked-brain:ingest` for richer graph-based analysis.
-
-3. Report the impact assessment:
+4. Report the impact assessment:
    - **Dependencies** (outgoing): What this symbol uses/imports
-   - **Dependents** (incoming): What uses this symbol (direct and transitive)
+   - **Dependents** (incoming): What uses this symbol — static (from `codegraph impact`) AND injected (from the `injected:%` edges)
    - Total blast radius count
    - Files affected
 
@@ -56,6 +79,6 @@ Analyze what would be affected if you changed a symbol. Shows both what this sym
 
 ## Notes
 
-- Requires indexing first with `/wicked-garden:search:index`
+- **Requires a codegraph index**: run `codegraph index` (writes `.codegraph/codegraph.db`), then materialize the injected edges (`scripts/codegraph/inject_edges.py`, `inject_dispatch_edges.py`, `inject_capability_edges.py`) so the `injected:%` query returns bus/dispatch/capability dependents. Without an index, the graph steps no-op and you fall back to grep (literal refs only).
 - Deeper depth = more complete but slower analysis
 - For data lineage tracing (UI → DB), use `/wicked-garden:search:lineage` instead

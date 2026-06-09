@@ -25,7 +25,7 @@ Trace data lineage paths through the codebase. Follow data flow from UI fields t
 
 1. **Search brain for the symbol** to find its location and references:
    ```bash
-   curl -s -X POST http://localhost:4242/api \
+   curl -s -X POST http://localhost:4243/api \
      -H "Content-Type: application/json" \
      -d '{"action":"search","params":{"query":"<symbol>","limit":20}}'
    ```
@@ -35,13 +35,22 @@ Trace data lineage paths through the codebase. Follow data flow from UI fields t
    ```
    If no results at all, suggest: `wicked-brain:ingest` to index the codebase first.
 
-2. **Trace data flow** using Grep to follow the symbol through layers:
+2. **Query the codegraph graph for reference flow** (when a `.codegraph/codegraph.db` index exists). The graph gives both static reference edges and the *injected* edges grep can't see (bus producer→consumer, command→agent dispatch, agent→capability) — useful when the data/reference path crosses a string-keyed link rather than a literal call:
+   ```bash
+   codegraph impact <symbol> --json   # or: npx -y @colbymchenry/codegraph@latest impact <symbol> --json
+   # injected reference flow (string-keyed links static analysis misses):
+   sqlite3 .codegraph/codegraph.db \
+     "SELECT source, target, provenance FROM edges WHERE provenance LIKE 'injected:%' AND (source LIKE '%<symbol>%' OR target LIKE '%<symbol>%');"
+   ```
+   No index → skip this step (run `codegraph index` first for graph-backed lineage); fall back to Grep below.
+
+3. **Trace data flow** using Grep to follow the symbol through layers:
    - Search for imports/requires of the file containing the symbol
    - Search for function calls that pass the symbol as an argument
    - Search for assignments, mappings, and transformations of the symbol
    - Follow the chain through controller → service → repository → database layers
 
-3. Report the lineage paths found:
+4. Report the lineage paths found:
    - Show each path with steps from source to sink
    - Include file locations at each step
    - Note any gaps in the lineage chain
