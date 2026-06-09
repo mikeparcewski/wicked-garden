@@ -3,7 +3,7 @@
 PostToolUse / PostToolUseFailure hook — wicked-garden unified post-tool dispatcher.
 
 Consolidates: crew posttool_task, delivery metrics_refresh, mem task_checkpoint,
-search mark_stale, qe change_tracker, agentic detect_framework,
+search mark_stale, agentic detect_framework,
 observability trace_writer.
 
 Dispatches by tool_name from hook payload:
@@ -11,8 +11,8 @@ Dispatches by tool_name from hook payload:
   Write / Edit                         → stale file marking + QE change tracking + MEMORY.md guard
   Task                                 → subagent activity tracking
   Read                                 → large-file-read warning + agentic framework detection
-  Bash                                 → activity tracking + discovery hints
-  Grep / Glob                          → discovery hints for search commands
+  Bash                                 → activity tracking + claim-sentinel ref-watch
+  Grep / Glob                          → no-op (ambient tips retired; sentinel replaced them)
   PostToolUseFailure (any tool_name)   → failure counting + auto issue detection
 
 Traces are written to a session-scoped JSONL file in $TMPDIR (local only).
@@ -101,80 +101,13 @@ def _bus_as_truth_flag_on() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Discovery hints — "did you know?" suggestions (Issue #322)
-#
-# Each hint has an ID, a one-line suggestion, and fires at most once per session.
-# Detects patterns in tool usage and suggests wicked-garden commands that could
-# do the job better. Lightweight — single SessionState read/write.
-# ---------------------------------------------------------------------------
-
-_DISCOVERY_HINTS = {
-    "grep_search": (
-        "[Tip] wicked-garden has semantic code search: "
-        "`wicked-brain:search <query>` finds symbols with context, "
-        "or `/wicked-garden:search:blast-radius <symbol>` for impact analysis."
-    ),
-    "manual_review": (
-        "[Tip] For structured code review with senior-engineer perspective, "
-        "try `/wicked-garden:engineering:review`."
-    ),
-    "debugging": (
-        "[Tip] For systematic debugging with root cause analysis, "
-        "try `/wicked-garden:engineering:debug`."
-    ),
-    "requirements": (
-        "[Tip] For structured requirements elicitation, "
-        "try `/wicked-garden:product:elicit`."
-    ),
-    "architecture": (
-        "[Tip] For architecture analysis and design review, "
-        "try `/wicked-garden:engineering:arch`."
-    ),
-    "data_analysis": (
-        "[Tip] For interactive data analysis with DuckDB, "
-        "try `/wicked-garden:data:analyze`."
-    ),
-}
-
-
-def _try_discovery_hint(hint_id: str) -> str | None:
-    """Emit a discovery hint if it hasn't been shown this session.
-
-    Returns the hint message, or None if already shown or on any error.
-    At most one hint is shown per session to avoid nagging.
-    """
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        shown = state.hints_shown or []
-
-        # Cap: at most 2 hints per session total to stay subtle
-        if len(shown) >= 2:
-            return None
-
-        if hint_id in shown:
-            return None
-
-        hint_text = _DISCOVERY_HINTS.get(hint_id)
-        if not hint_text:
-            return None
-
-        shown.append(hint_id)
-        state.update(hints_shown=shown)
-        return hint_text
-    except Exception:
-        return None
-
-
-# ---------------------------------------------------------------------------
 # Handler: Grep / Glob (discovery hint for search commands)
 # ---------------------------------------------------------------------------
 
 def _handle_grep_glob(tool_name: str, tool_input: dict) -> dict:
-    """On repeated Grep/Glob usage, suggest wicked-garden search commands."""
-    hint = _try_discovery_hint("grep_search")
-    if hint:
-        return {"continue": True, "systemMessage": hint}
+    """No-op handler. The ambient discovery tips that lived here were retired —
+    repetition trained the agent to ignore the channel. Claim-time signals
+    (scripts/sentinel/) replaced them."""
     return {"continue": True}
 
 
@@ -183,11 +116,8 @@ def _handle_grep_glob(tool_name: str, tool_input: dict) -> dict:
 # (stale file marking, QE change tracking)
 # ---------------------------------------------------------------------------
 
-_QE_CHANGE_THRESHOLD = 3
-
-
 def _handle_write_edit(tool_input: dict) -> dict:
-    """Mark file as stale for search index + track change count for QE nudge + scenario staleness + CLAUDE.md/AGENTS.md sync."""
+    """Mark file as stale for search index + CLAUDE.md/AGENTS.md sync directive."""
     file_path = tool_input.get("file_path", "")
     if not file_path:
         return {"continue": True}
@@ -203,10 +133,10 @@ def _handle_write_edit(tool_input: dict) -> dict:
     _mark_file_stale(file_path)
     _brain_reindex_file(file_path)
 
-    # 2. QE change tracking
-    qe_nudge = _track_qe_change(file_path)
-    if qe_nudge:
-        messages.append(qe_nudge)
+    # 2. The QE threshold nudge was retired: it recommended test menus off a
+    #    file-count heuristic (it once suggested unit tests for a README edit).
+    #    The testing signal now fires at claim time via the sentinel's
+    #    evidence-freshness invariant (scripts/sentinel/invariants.py).
 
     # v9.2.2: dropped the [Scenarios] staleness nudge entirely. The heuristic
     # (any edit under commands/{domain}/ or skills/{domain}/ → "scenarios in
@@ -330,146 +260,6 @@ def _brain_reindex_file(file_path: str) -> None:
         urllib.request.urlopen(req, timeout=2)
     except Exception:
         pass  # brain re-index is best-effort, never blocks the hook
-
-
-def _track_qe_change(file_path: str):
-    """Track changed file via SessionState. Return nudge message if threshold crossed.
-
-    When no active crew project exists, classifies accumulated file changes as
-    UI/API/both and suggests specific QE tools (AC-6: one-off work coverage).
-    """
-    try:
-        from _session import SessionState
-        state = SessionState.load()
-        # stale_files already includes this file (added by _mark_file_stale above)
-        stale = state.stale_files or []
-        unique_count = len(stale)
-
-        if unique_count >= _QE_CHANGE_THRESHOLD and not state.qe_nudged:
-            state.update(qe_nudged=True)
-
-            # Check if a crew project is active — if so, crew handles QE via execute.md
-            # v9.2.5: replaced a getattr on a phantom field with active_project_id
-            # which is the slug bootstrap actually writes when a crew project is
-            # active. Same intent ("is a crew project active?"), real producer.
-            has_crew = bool(getattr(state, "active_project_id", None))
-            if has_crew:
-                return (
-                    f"[QE] {unique_count} files changed this session. "
-                    "Crew project active — QE testing will run during the test phase."
-                )
-
-            # No crew project: classify files and suggest specific QE tools
-            # Full testing pyramid: unit → integration → functional → E2E
-            change_type = _classify_changed_files(stale)
-
-            if change_type == "ui":
-                return (
-                    f"[QE] {unique_count} UI files changed this session. "
-                    "Recommended testing:\n"
-                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests for changed components\n"
-                    "- **Visual**: `/wicked-garden:product:screenshot` — capture UI state + visual diff\n"
-                    "- **Scenario**: `/wicked-testing:plan` — generate user journey test scenarios\n"
-                    "- **Regression**: run existing test suite to verify no breakage\n"
-                    "- **Acceptance**: `/wicked-testing:execution` — evidence-gated acceptance tests"
-                )
-            elif change_type == "api":
-                return (
-                    f"[QE] {unique_count} API files changed this session. "
-                    "Recommended testing:\n"
-                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests for changed logic\n"
-                    "- **Integration**: test API contracts — request/response schema validation\n"
-                    "- **Security**: `/wicked-garden:platform:security` — auth boundaries + input validation\n"
-                    "- **Scenario**: `/wicked-testing:plan` — generate endpoint test scenarios\n"
-                    "- **Regression**: run existing test suite to verify no breakage\n"
-                    "- **Acceptance**: `/wicked-testing:execution` — evidence-gated acceptance tests"
-                )
-            elif change_type == "both":
-                return (
-                    f"[QE] {unique_count} files changed (UI + API) this session. "
-                    "Recommended testing:\n"
-                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests for changed code\n"
-                    "- **Integration**: test API contracts + component integration\n"
-                    "- **Visual**: `/wicked-garden:product:screenshot` — capture UI state + visual diff\n"
-                    "- **Security**: `/wicked-garden:platform:security` — auth + input validation\n"
-                    "- **Scenario**: `/wicked-testing:plan` — generate E2E user journey scenarios\n"
-                    "- **Regression**: run existing test suite to verify no breakage\n"
-                    "- **Acceptance**: `/wicked-testing:execution` — evidence-gated acceptance tests"
-                )
-            else:
-                short_paths = [Path(f).name for f in sorted(stale)]
-                return (
-                    f"[QE] {unique_count} files changed this session "
-                    f"({', '.join(short_paths[:5])}). "
-                    "Recommended testing:\n"
-                    "- **Unit**: `/wicked-testing:authoring` — generate unit tests\n"
-                    "- **Regression**: run existing test suite\n"
-                    "- **Scenario**: `/wicked-testing:plan` — generate test scenarios"
-                )
-        return None
-    except Exception:
-        return None
-
-
-def _classify_changed_files(file_paths: list) -> str:
-    """Classify accumulated changed files using change_type_detector logic.
-
-    Returns: "ui", "api", "both", or "unknown".
-    Imports classify_file from scripts/crew/change_type_detector.py (stdlib-only).
-    Falls back to "unknown" on any import or classification error.
-    """
-    try:
-        scripts_crew = _PLUGIN_ROOT / "scripts" / "crew"
-        if str(scripts_crew) not in sys.path:
-            sys.path.insert(0, str(scripts_crew))
-        from change_type_detector import classify_file
-
-        ui_count = 0
-        api_count = 0
-        for fp in file_paths:
-            classification, _ = classify_file(fp)
-            if classification == "ui":
-                ui_count += 1
-            elif classification == "api":
-                api_count += 1
-            elif classification == "ambiguous":
-                ui_count += 1
-                api_count += 1
-
-        if ui_count and api_count:
-            return "both"
-        if ui_count:
-            return "ui"
-        if api_count:
-            return "api"
-        return "unknown"
-    except Exception:
-        return "unknown"
-
-
-# ---------------------------------------------------------------------------
-# Handler: Task (subagent dispatch tracking + permission failure detection)
-# ---------------------------------------------------------------------------
-
-# Patterns that indicate a subagent completed without doing work due to
-# permission/access issues (Issue #318). Checked case-insensitively.
-_PERMISSION_FAILURE_PATTERNS = [
-    "i need bash access",
-    "bash permission was denied",
-    "permission denied",
-    "tool was not available",
-    "i don't have access to",
-    "i do not have access to",
-    "unable to execute bash",
-    "bash tool is not available",
-    "don't have permission",
-    "do not have permission",
-    "requires bash access",
-    "couldn't run the command",
-    "could not run the command",
-    "bash tool was denied",
-    "not permitted to run",
-]
 
 
 def _check_permission_failure(tool_response) -> str | None:
@@ -1164,22 +954,16 @@ _SEARCH_INVOCATION_RE = re.compile(
 )
 
 
-def _looks_like_search_invocation(command_lower: str) -> bool:
-    """Return True iff ``command_lower`` actually invokes grep/rg/ag/ripgrep.
-
-    Caller passes the lowercased command string.  Returns False on empty
-    input or any regex failure (fail-quiet — discovery hints are advisory).
-    """
-    if not command_lower:
-        return False
-    try:
-        return bool(_SEARCH_INVOCATION_RE.search(command_lower))
-    except (TypeError, re.error):
-        return False
-
-
 def _handle_bash(tool_input: dict, tool_response) -> dict:
-    """Track bash activity + detect usage patterns for discovery hints."""
+    """Track bash activity + run the claim-sentinel ref-watch.
+
+    The ref-watch is the tool-agnostic claim detector: it never parses the
+    command (gh / glab / raw git / an API curl all look different) — it diffs
+    the publish-shaped refs every command converges on. When origin's default
+    branch advances or a new tag appears with no re-derived verdict on the
+    sentinel ledger, it emits an answer-tier message (act, or the skip is
+    logged). Throttled + fail-open inside refwatch_tick.
+    """
     messages = []
     try:
         from _session import SessionState
@@ -1190,17 +974,27 @@ def _handle_bash(tool_input: dict, tool_response) -> dict:
     except Exception:
         pass
 
-    # --- Discovery hints from bash command patterns ---
-    command = (tool_input.get("command") or "").lower()
-    if command:
-        # Theme 9: bare ``"grep " in command`` matches comments like
-        # ``# grep is fine``.  Require the tool to appear at command start
-        # OR after a separator (``;``, ``&&``, ``||``, ``|``, newline) so
-        # the hint only fires on actual invocations, not stale references.
-        if _looks_like_search_invocation(command):
-            hint = _try_discovery_hint("grep_search")
-            if hint:
-                messages.append(hint)
+    # --- Claim sentinel: ref-watch (state diff, never command matching) ---
+    try:
+        import sys as _sys
+        _sentinel_dir = str(_PLUGIN_ROOT / "scripts" / "sentinel")
+        if _sentinel_dir not in _sys.path:
+            _sys.path.insert(0, _sentinel_dir)
+        from invariants import refwatch_tick, render  # type: ignore
+        from _session import SessionState
+        state = SessionState.load()
+
+        def _get(key):
+            return getattr(state, key, None)
+
+        def _set(key, value):
+            state.update(**{key: value})
+
+        violation = refwatch_tick(_get, _set)
+        if violation:
+            messages.append(render(violation))
+    except Exception:
+        pass  # the sentinel must never break the hook
 
     result = {"continue": True}
     if messages:

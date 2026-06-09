@@ -95,6 +95,35 @@ def db_path(project_dir: Optional[Path] = None) -> Path:
     return base / ".codegraph" / "codegraph.db"
 
 
+def staleness(project_dir: Optional[Path] = None) -> Dict[str, Any]:
+    """How far the graph has drifted from HEAD — the anti-false-confidence stamp.
+
+    A stale graph is fine; a *silently* stale graph gives blast-radius/lineage/
+    patch answers that look authoritative and aren't. This lives in the shim —
+    the single path every consumer flows through — so no caller can forget it.
+
+    Returns {present, stale, commits_behind, indexed_at} (commits_behind = commits
+    committed after the db's mtime). Fail-open: errors report present-but-unknown,
+    never raise (R4)."""
+    base = Path(project_dir) if project_dir else Path.cwd()
+    db = db_path(base)
+    if not db.exists():
+        return {"present": False, "stale": None, "commits_behind": None, "indexed_at": None}
+    try:
+        import time as _time
+        mtime = db.stat().st_mtime
+        iso = _time.strftime("%Y-%m-%dT%H:%M:%S", _time.localtime(mtime))
+        proc = subprocess.run(  # noqa: S603 — argv list, shell=False
+            ["git", "-C", str(base), "rev-list", "--count", f"--since={iso}", "HEAD"],
+            capture_output=True, text=True, timeout=10,
+        )
+        behind = int(proc.stdout.strip()) if proc.returncode == 0 and proc.stdout.strip() else 0
+        return {"present": True, "stale": behind > 0, "commits_behind": behind,
+                "indexed_at": iso}
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return {"present": True, "stale": None, "commits_behind": None, "indexed_at": None}
+
+
 def _default_run(prefix: List[str], args: List[str], timeout: int,
                  cwd: Optional[str] = None) -> Dict[str, Any]:
     try:
@@ -134,8 +163,30 @@ def run_json(args: List[str], *, timeout: int = _DEFAULT_TIMEOUT,
         return {"exit_code": run["exit_code"], "json": None,
                 "stdout": run["stdout"], "stderr": run["stderr"],
                 "error": "codegraph returned non-JSON output"}
-    return {"exit_code": run["exit_code"], "json": parsed,
-            "stdout": run["stdout"], "stderr": run["stderr"], "error": None}
+    out = {"exit_code": run["exit_code"], "json": parsed,
+           "stdout": run["stdout"], "stderr": run["stderr"], "error": None}
+    # Anti-false-confidence: every engine answer carries its own freshness.
+    out["staleness"] = staleness(project_dir)
+    return out
 
 
-__all__ = ["resolve_codegraph", "codegraph_available", "db_path", "run_json"]
+__all__ = ["resolve_codegraph", "codegraph_available", "db_path", "run_json",
+           "staleness"]
+
+
+if __name__ == "__main__":
+    # CLI: `python3 scripts/_codegraph.py staleness` — one line for command docs
+    # (blast-radius / lineage / hotspots / index) to surface before query results.
+    import sys as _sys
+    if len(_sys.argv) > 1 and _sys.argv[1] == "staleness":
+        s = staleness()
+        if not s["present"]:
+            print("codegraph: no index (.codegraph/codegraph.db missing) — run `codegraph index .`")
+        elif s["stale"]:
+            print(f"codegraph: index is {s['commits_behind']} commits behind HEAD "
+                  f"(built {s['indexed_at']}) — results may miss recent changes; "
+                  "re-run `codegraph index .` + inject_all for current answers")
+        else:
+            print(f"codegraph: index fresh (built {s['indexed_at']})")
+    else:
+        print(json.dumps({"error": "usage: _codegraph.py staleness"}))

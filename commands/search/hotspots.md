@@ -11,7 +11,8 @@ Rank symbols by incoming reference count to expose god-objects, coupling hotspot
 
 ## Instructions
 
-1. **Primary path — codegraph** (when `.codegraph/codegraph.db` exists):
+1. **Freshness check** — `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" staleness` — surface the warning line if stale.
+2. **Primary path — codegraph** (when `.codegraph/codegraph.db` exists):
    ```bash
    python3 - <<'PY'
    import sqlite3, pathlib
@@ -35,7 +36,7 @@ Rank symbols by incoming reference count to expose god-objects, coupling hotspot
    ```
    Report the ranked list. Call out anything with an unusually high count as a likely god-object or coupling hotspot worth refactoring. Note that injected edges (provenance LIKE `'injected:%'`) are included — a heavily-dispatched agent or capability appears here too.
 
-2. **Fallback — brain** (no `.codegraph` index):
+3. **Fallback — brain** (no `.codegraph` index):
    ```bash
    PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
    curl -s -X POST "http://localhost:${PORT}/api" \

@@ -208,6 +208,13 @@ class SessionState:
     # List of hint IDs like ["grep_search", "manual_review", "debugging"].
     hints_shown: list | None = None
 
+    # Claim sentinel (scripts/sentinel/invariants.py) — ref-watch state.
+    # sentinel_refs caches the last {ref: sha} snapshot of publish-shaped refs
+    # (origin default branch + newest tag); sentinel_last_check throttles the
+    # snapshot to at most once per few seconds so hot Bash loops stay cheap.
+    sentinel_refs: dict | None = None
+    sentinel_last_check: float = 0.0
+
     # OneDrive / spaces-in-paths resolution (Issue #321).
     # Stores the resolved canonical base path when cwd is under a OneDrive
     # or CloudStorage directory (macOS ~/Library/CloudStorage/OneDrive - .../...).

@@ -369,100 +369,6 @@ def _suggest_jam(prompt: str, state) -> str | None:
 
 
 # ---------------------------------------------------------------------------
-# Discovery hints — prompt-based command suggestions (Issue #322)
-# ---------------------------------------------------------------------------
-
-_DISCOVERY_PATTERNS = [
-    {
-        "id": "manual_review",
-        "signals": ["review this code", "code review", "review the changes", "review my code",
-                     "check this code", "look at the code quality", "review this pr",
-                     "review this pull request"],
-        "hint": (
-            "[Tip] For a structured code review with senior-engineer perspective, "
-            "try `/wicked-garden:engineering:review`."
-        ),
-    },
-    {
-        "id": "debugging",
-        "signals": ["debug", "why is this failing", "root cause", "not working",
-                     "figure out why", "investigate this error", "this bug",
-                     "troubleshoot", "diagnose"],
-        "hint": (
-            "[Tip] For systematic debugging with root cause analysis, "
-            "try `/wicked-garden:engineering:debug`."
-        ),
-    },
-    {
-        "id": "requirements",
-        "signals": ["requirements", "user stories", "write requirements",
-                     "define the requirements", "gather requirements",
-                     "acceptance criteria", "what should this do"],
-        "hint": (
-            "[Tip] For structured requirements elicitation, "
-            "try `/wicked-garden:product:elicit`."
-        ),
-    },
-    {
-        "id": "architecture",
-        "signals": ["architecture", "system design", "how should i architect",
-                     "design this system", "technical design", "design doc"],
-        "hint": (
-            "[Tip] For architecture analysis and design review, "
-            "try `/wicked-garden:engineering:arch`."
-        ),
-    },
-    {
-        "id": "data_analysis",
-        "signals": ["analyze this csv", "analyze this data", "data analysis",
-                     "look at the data", "explore this dataset", "analyze the spreadsheet"],
-        "hint": (
-            "[Tip] For interactive data analysis with DuckDB, "
-            "try `/wicked-garden:data:analyze`."
-        ),
-    },
-]
-
-
-def _suggest_discovery(prompt: str, state) -> str | None:
-    """Return a discovery hint if prompt matches a pattern and hint not yet shown.
-
-    At most one discovery hint per session. Does not fire if the prompt already
-    references a wicked-garden command.
-    """
-    lower = prompt.lower()
-
-    # Skip if already using wicked-garden commands
-    if "/wicked-garden:" in lower or ":wicked-garden:" in lower:
-        return None
-
-    # Check session state for already-shown hints
-    hints_shown = (getattr(state, "hints_shown", None) or []) if state else []
-
-    # Cap: at most 1 discovery hint from prompt matching per session
-    prompt_hints = [h for h in hints_shown if h.startswith("prompt:")]
-    if prompt_hints:
-        return None
-
-    for pattern in _DISCOVERY_PATTERNS:
-        hint_id = pattern["id"]
-        if hint_id in hints_shown:
-            continue
-        if any(sig in lower for sig in pattern["signals"]):
-            try:
-                if state:
-                    shown = list(hints_shown)
-                    shown.append(hint_id)
-                    shown.append(f"prompt:{hint_id}")
-                    state.update(hints_shown=shown)
-            except Exception:
-                pass
-            return pattern["hint"]
-
-    return None
-
-
-# ---------------------------------------------------------------------------
 # Complexity + risk scoring (inline, no API calls, no external imports)
 # ---------------------------------------------------------------------------
 
@@ -1158,10 +1064,8 @@ def main():
         if jam_hint:
             all_parts.append(jam_hint)
 
-        # Discovery hints: suggest commands based on prompt intent (Issue #322)
-        discovery_hint = _suggest_discovery(prompt, state)
-        if discovery_hint:
-            all_parts.append(discovery_hint)
+        # (Prompt-time discovery tips retired — ambient suggestions trained the
+        # agent to ignore the channel; claim-time sentinel signals replaced them.)
 
         # If nothing material to inject (simple-edit, no WIP, no onboarding,
         # no hints), suppress the entire <system-reminder> block — this is
