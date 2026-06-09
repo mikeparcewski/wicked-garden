@@ -71,20 +71,41 @@ Before manual analysis, leverage available tools:
 
 ### 1. Analyze System with Issue Taxonomy
 
-Use the taxonomy script to identify safety issues:
+`issue_taxonomy.py` does NOT scan a codebase directly — it categorizes
+*pre-computed* findings. Run the upstream scripts first, then feed their
+JSON in. The pipeline is: `analyze_agents.py` (detect agents) →
+`pattern_scorer.py` (score patterns into findings, including `safety`-category
+ones) → `issue_taxonomy.py` (build the report).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/issue_taxonomy.py" \
-  --path /path/to/codebase \
-  --category safety \
-  --output safety-report.json
+PY="${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"
+AGENTIC="${CLAUDE_PLUGIN_ROOT}/scripts/agentic"
+
+# 1. Detect agents in the target codebase (prints agents JSON to stdout)
+sh "$PY" "$AGENTIC/analyze_agents.py" --path /path/to/codebase > agents.json
+
+# 2. Score patterns into findings (requires --agents; prints findings JSON)
+sh "$PY" "$AGENTIC/pattern_scorer.py" --agents agents.json > findings.json
+
+# 3. Build the taxonomy report (requires --findings; --agents/--framework optional)
+sh "$PY" "$AGENTIC/issue_taxonomy.py" \
+  --findings findings.json \
+  --agents agents.json \
+  --format json > report.json
 ```
 
-Output includes:
-- Categorized safety issues (guardrails, validation, PII, injection)
-- Severity levels (CRITICAL, HIGH, MEDIUM, LOW)
-- Evidence and location
-- Remediation suggestions
+`issue_taxonomy.py` flags (verified against its argparse):
+- `--findings PATH` (required) — findings JSON from `pattern_scorer.py`
+- `--agents PATH` (optional) — agents JSON from `analyze_agents.py`. **Supply
+  this**: with no agents detected, the maturity verdict is *Indeterminate*
+  (level 0), not a false 5/5 clean bill.
+- `--framework PATH` (optional) — framework JSON from `detect_framework.py`
+- `--format {markdown,json,both}` (default `markdown`)
+
+For a safety-only view, filter the report's findings to the `safety` category
+(it is a property of each finding — there is no `--category` flag). The report
+includes severity levels (CRITICAL, HIGH, MEDIUM, LOW), evidence, locations,
+and remediation suggestions.
 
 ### 2. Prompt Injection Assessment
 

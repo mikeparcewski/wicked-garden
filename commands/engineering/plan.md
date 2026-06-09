@@ -132,7 +132,7 @@ After presenting the plan, ask:
 
 > Ready to proceed with implementation, or would you like to adjust the approach?
 
-If approved, the plan can be executed using `/wicked-garden:crew:execute` or manual implementation.
+If approved, the plan can be executed using `/wicked-garden:archetype:build` or manual implementation.
 
 ## Example
 
