@@ -1,5 +1,5 @@
 ---
-description: Build unified index for code and documents in a directory
+description: Build/refresh the code-intelligence index (semantic brain + structural codegraph)
 argument-hint: "<path>"
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
@@ -7,41 +7,40 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:search:index
 
-Build a searchable index of code symbols and document content. Indexing is now handled by the brain knowledge layer.
+Refresh the two code-intelligence layers the other `search:*` commands query:
+
+- **semantic** (wicked-brain) — concept/symbol search, `wicked-brain:search`/`query`.
+- **structural** (codegraph) — `search:blast-radius`, `search:lineage`, and the wicked-patch family.
 
 ## Arguments
 
-- `path` (required): Directory to index
+- `path` (required): Directory to index.
 
 ## Instructions
 
-1. **Delegate to brain ingest** — all indexing now goes through `wicked-brain:ingest`:
+1. **Semantic layer** — invoke `/wicked-brain:ingest` with `<path>` (incremental; only changed files re-ingest).
 
-   Tell the user:
-   > Indexing is now handled by the brain. Running `wicked-brain:ingest` to index your codebase.
-
-   Then invoke `/wicked-brain:ingest` with the provided path.
-
-2. **Verify the index** by checking brain stats:
+2. **Structural layer** — rebuild the codegraph graph, then re-apply the injected edges:
    ```bash
-   curl -s -X POST http://localhost:4242/api \
-     -H "Content-Type: application/json" \
-     -d '{"action":"stats","params":{}}'
+   codegraph index "<path>"   # or: npx -y @colbymchenry/codegraph index "<path>"
+   # codegraph indexes CODE only; re-apply the injected layer (bus producer→consumer,
+   # command→agent dispatch, agent→capability) it doesn't know about and a re-index drops:
+   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+      "${CLAUDE_PLUGIN_ROOT}/scripts/codegraph/inject_all.py" "<path>/.codegraph/codegraph.db"
    ```
+   The `inject_all` step is **required** for `blast-radius`/`lineage` to surface the string-keyed
+   relationships grep and the static graph can't see (#916). Skipping it leaves the injected
+   layer empty after every re-index.
 
-3. Report the results showing chunk and tag counts from the brain stats response.
-
-## Examples
-
-```bash
-# Basic indexing
-/wicked-garden:search:index /path/to/project
-
-# This is equivalent to:
-/wicked-brain:ingest /path/to/project
-```
+3. **Verify**:
+   ```bash
+   curl -s -X POST http://localhost:4243/api -H "Content-Type: application/json" \
+     -d '{"action":"stats","params":{}}'                       # brain chunk/tag counts
+   ```
+   `inject_all` prints per-extractor edge counts + a `total_injected_edges` — report both.
 
 ## Notes
 
-- Re-running only updates changed files (incremental)
-- Check `wicked-brain-status` to verify indexing results
+- Both layers are incremental/idempotent — safe to re-run.
+- If `codegraph` isn't resolvable, the structural commands degrade to grep + brain (and say so);
+  run `codegraph index` once to enable blast-radius/lineage/patch.

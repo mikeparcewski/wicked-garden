@@ -23,6 +23,8 @@ for _p in (_REPO / "scripts", _REPO / "scripts" / "codegraph"):
         sys.path.insert(0, str(_p))
 
 import _codegraph as cg  # noqa: E402
+import _graph_nodes as gn  # noqa: E402
+import inject_all as iall  # noqa: E402
 import inject_capability_edges as ice  # noqa: E402
 import inject_dispatch_edges as idis  # noqa: E402
 import inject_edges as ie  # noqa: E402
@@ -68,13 +70,26 @@ class ResolverTests(unittest.TestCase):
 
 
 def _codegraph_shaped_db(path: str, file_relpaths):
+    """Create a db with codegraph's REAL nodes/edges schema (incl. its NOT NULL
+    columns), so self-noding INSERTs are exercised exactly as against a live graph."""
     conn = sqlite3.connect(path)
-    conn.execute("CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT, name TEXT, file_path TEXT)")
-    conn.execute("CREATE TABLE edges (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, "
-                 "target TEXT, kind TEXT, metadata TEXT, line INT, col INT, provenance TEXT)")
+    conn.execute(
+        "CREATE TABLE nodes (id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, "
+        "qualified_name TEXT NOT NULL, file_path TEXT NOT NULL, language TEXT NOT NULL, "
+        "start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, start_column INTEGER NOT NULL, "
+        "end_column INTEGER NOT NULL, docstring TEXT, signature TEXT, visibility TEXT, "
+        "is_exported INTEGER, is_async INTEGER, is_static INTEGER, is_abstract INTEGER, "
+        "decorators TEXT, type_parameters TEXT, updated_at INTEGER NOT NULL)"
+    )
+    conn.execute("CREATE TABLE edges (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, "
+                 "target TEXT NOT NULL, kind TEXT NOT NULL, metadata TEXT, line INT, col INT, "
+                 "provenance TEXT)")
     for rel in file_relpaths:
-        conn.execute("INSERT INTO nodes (id, kind, name, file_path) VALUES (?,?,?,?)",
-                     (f"file:{rel}", "file", rel, rel))
+        conn.execute(
+            "INSERT INTO nodes (id, kind, name, qualified_name, file_path, language, "
+            "start_line, end_line, start_column, end_column, updated_at) "
+            "VALUES (?, 'file', ?, ?, ?, 'python', 1, 1, 0, 0, 0)",
+            (f"file:{rel}", rel, rel, rel))
     conn.commit()
     conn.close()
 
@@ -185,20 +200,32 @@ class InjectDispatchEdgesTests(unittest.TestCase):
             self.assertEqual(row[0], f"file:{cmd_rel}")
             self.assertEqual(row[1], f"file:{agent_rel}")
 
-    def test_skips_when_agent_node_absent(self):
-        # The dispatch is real, but the agent file is NOT a node in this graph
-        # (only the command is). The edge must be skipped, not fabricated — this is
-        # the "grep can't link them" guard: no node, no edge.
+    def test_self_nodes_md_files_when_absent_issue_916(self):
+        # codegraph indexes CODE, not the .md command/agent files — so in a real
+        # graph NEITHER node exists. The extractor must self-node both and still
+        # create the edge. The old behavior (skip when the node was absent) left the
+        # entire command→agent layer empty for this markdown-defined plugin (#916).
         dispatches = idis._dispatches()
         if not dispatches:
             self.skipTest("no resolvable command→agent dispatch")
-        cmd_rel, _agent_rel, _handle = dispatches[0]
+        cmd_rel, agent_rel, _handle = dispatches[0]
         with tempfile.TemporaryDirectory() as d:
             dbp = str(Path(d) / "cg.db")
-            _codegraph_shaped_db(dbp, [cmd_rel])  # command node only
+            _codegraph_shaped_db(dbp, [])  # empty graph — no .md nodes, as codegraph leaves it
             stats = idis.inject(Path(dbp))
-            self.assertEqual(stats["edges_added"], 0)
-            self.assertGreaterEqual(stats["skipped"], 1)
+            self.assertGreaterEqual(stats["edges_added"], 1)
+            self.assertEqual(stats["skipped"], 0)
+            conn = sqlite3.connect(dbp)
+            edge = conn.execute(
+                "SELECT 1 FROM edges WHERE provenance='injected:dispatch' "
+                "AND source=? AND target=?", (f"file:{cmd_rel}", f"file:{agent_rel}")
+            ).fetchone()
+            src_node = conn.execute("SELECT 1 FROM nodes WHERE id=?", (f"file:{cmd_rel}",)).fetchone()
+            tgt_node = conn.execute("SELECT 1 FROM nodes WHERE id=?", (f"file:{agent_rel}",)).fetchone()
+            conn.close()
+            self.assertIsNotNone(edge, "dispatch edge not created from self-noded .md files")
+            self.assertIsNotNone(src_node, "command .md was not self-noded")
+            self.assertIsNotNone(tgt_node, "agent .md was not self-noded")
 
     def test_inject_is_idempotent(self):
         dispatches = idis._dispatches()
@@ -268,23 +295,33 @@ class InjectCapabilityEdgesTests(unittest.TestCase):
             self.assertIsNotNone(node, "synthetic capability node not created")
             self.assertEqual(node[1], "capability")
 
-    def test_skips_when_agent_node_absent(self):
-        # Agent declares a real registry capability, but the agent file is not a
-        # node in this graph → no edge, no synthetic node fabricated.
+    def test_self_nodes_agent_and_capability_when_absent_issue_916(self):
+        # The agent .md isn't a codegraph node (codegraph indexes code, not markdown).
+        # The extractor must self-node the agent file AND create the synthetic
+        # capability node, then wire the edge. The old behavior skipped everything,
+        # leaving the agent→capability layer empty (#916).
         pairs = ice._agent_capabilities()
         if not pairs:
             self.skipTest("no resolvable agent→capability pair")
+        agent_rel, cap = pairs[0]
         with tempfile.TemporaryDirectory() as d:
             dbp = str(Path(d) / "cg.db")
-            _codegraph_shaped_db(dbp, [])  # no nodes at all
+            _codegraph_shaped_db(dbp, [])  # empty graph
             stats = ice.inject(Path(dbp))
-            self.assertEqual(stats["edges_added"], 0)
+            self.assertGreaterEqual(stats["edges_added"], 1)
+            self.assertEqual(stats["skipped"], 0)
             conn = sqlite3.connect(dbp)
-            cnodes = conn.execute(
-                "SELECT count(*) FROM nodes WHERE kind='capability'"
-            ).fetchone()[0]
+            edge = conn.execute(
+                "SELECT 1 FROM edges WHERE provenance='injected:capability' "
+                "AND source=? AND target=?", (f"file:{agent_rel}", f"capability:{cap}")
+            ).fetchone()
+            anode = conn.execute("SELECT 1 FROM nodes WHERE id=?", (f"file:{agent_rel}",)).fetchone()
+            cnode = conn.execute("SELECT kind FROM nodes WHERE id=?", (f"capability:{cap}",)).fetchone()
             conn.close()
-            self.assertEqual(cnodes, 0)
+            self.assertIsNotNone(edge, "capability edge not created from self-noded agent .md")
+            self.assertIsNotNone(anode, "agent .md was not self-noded")
+            self.assertIsNotNone(cnode, "synthetic capability node not created")
+            self.assertEqual(cnode[0], "capability")
 
     def test_inject_is_idempotent(self):
         pairs = ice._agent_capabilities()
@@ -309,6 +346,63 @@ class InjectCapabilityEdgesTests(unittest.TestCase):
             conn.close()
             self.assertEqual(edges, n2)
             self.assertEqual(cnodes, distinct_caps)  # one node per referenced cap, no dupes
+
+
+class GraphNodeHelperTests(unittest.TestCase):
+    """The self-noding helpers populate every NOT NULL column and are idempotent."""
+
+    def test_ensure_file_node_satisfies_schema_and_is_idempotent(self):
+        with tempfile.TemporaryDirectory() as d:
+            dbp = str(Path(d) / "cg.db")
+            _codegraph_shaped_db(dbp, [])  # real schema, no rows
+            conn = sqlite3.connect(dbp)
+            nid1 = gn.ensure_file_node(conn, "commands/x/y.md")
+            nid2 = gn.ensure_file_node(conn, "commands/x/y.md")  # idempotent
+            conn.commit()
+            self.assertEqual(nid1, nid2)
+            row = conn.execute(
+                "SELECT kind, language, file_path FROM nodes WHERE id=?", (nid1,)
+            ).fetchone()
+            count = conn.execute("SELECT count(*) FROM nodes WHERE id=?", (nid1,)).fetchone()[0]
+            conn.close()
+            self.assertEqual(count, 1)
+            self.assertEqual(row[0], "file")
+            self.assertEqual(row[1], "markdown")  # .md self-nodes carry markdown language
+
+    def test_ensure_virtual_node_satisfies_schema(self):
+        with tempfile.TemporaryDirectory() as d:
+            dbp = str(Path(d) / "cg.db")
+            _codegraph_shaped_db(dbp, [])
+            conn = sqlite3.connect(dbp)
+            nid = gn.ensure_virtual_node(conn, "capability:foo", "capability", "foo")
+            conn.commit()
+            row = conn.execute("SELECT kind, name FROM nodes WHERE id=?", (nid,)).fetchone()
+            conn.close()
+            self.assertEqual(row, ("capability", "foo"))
+
+
+class InjectAllTests(unittest.TestCase):
+    """The orchestrator runs every extractor and sums the injected edges."""
+
+    def test_runs_all_extractors_and_totals(self):
+        dispatches = idis._dispatches()
+        pairs = ice._agent_capabilities()
+        rels = sorted({c for c, _, _ in dispatches} | {a for _, a, _ in dispatches}
+                      | {a for a, _ in pairs})
+        with tempfile.TemporaryDirectory() as d:
+            dbp = str(Path(d) / "cg.db")
+            _codegraph_shaped_db(dbp, rels)
+            out = iall.inject_all(Path(dbp))
+            self.assertIn("bus", out)
+            self.assertIn("dispatch", out)
+            self.assertIn("capability", out)
+            expected = sum(out[k]["edges_added"] for k in ("bus", "dispatch", "capability"))
+            self.assertEqual(out["total_injected_edges"], expected)
+            # the markdown layers must contribute (the #916 fix) when dispatches/pairs exist
+            if dispatches:
+                self.assertGreaterEqual(out["dispatch"]["edges_added"], 1)
+            if pairs:
+                self.assertGreaterEqual(out["capability"]["edges_added"], 1)
 
 
 if __name__ == "__main__":

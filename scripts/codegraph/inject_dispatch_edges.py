@@ -36,6 +36,10 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Set, Tuple
 
+# self-noding helper lives beside this script
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _graph_nodes import ensure_file_node  # noqa: E402
+
 _REPO = Path(__file__).resolve().parents[2]
 _COMMANDS_DIR = _REPO / "commands"
 _AGENTS_DIR = _REPO / "agents"
@@ -89,26 +93,18 @@ def _dispatches() -> List[Tuple[str, str, str]]:
     return out
 
 
-def _file_node_id(conn: sqlite3.Connection, relpath: str) -> str | None:
-    """codegraph file node ids are 'file:<relpath>'. Confirm it exists."""
-    nid = f"file:{relpath}"
-    row = conn.execute("SELECT 1 FROM nodes WHERE id = ?", (nid,)).fetchone()
-    return nid if row else None
-
-
 def inject(db_path: Path) -> Dict[str, int]:
     conn = sqlite3.connect(str(db_path))
     try:
         # idempotent: clear prior injected dispatch edges
         conn.execute("DELETE FROM edges WHERE provenance = ?", (_INJECTED_PROVENANCE,))
         dispatches = _dispatches()
-        added, skipped = 0, 0
+        added = 0
         for cmd_rel, agent_rel, handle in dispatches:
-            src = _file_node_id(conn, cmd_rel)
-            tgt = _file_node_id(conn, agent_rel)
-            if src is None or tgt is None:
-                skipped += 1
-                continue
+            # self-node the .md command + agent (codegraph indexes code, not markdown,
+            # so these file nodes don't exist until we create them — issue #916)
+            src = ensure_file_node(conn, cmd_rel)
+            tgt = ensure_file_node(conn, agent_rel)
             conn.execute(
                 "INSERT INTO edges (source, target, kind, metadata, provenance) "
                 "VALUES (?, ?, ?, ?, ?)",
@@ -118,7 +114,9 @@ def inject(db_path: Path) -> Dict[str, int]:
             )
             added += 1
         conn.commit()
-        return {"edges_added": added, "skipped": skipped, "dispatches": len(dispatches)}
+        # skipped stays 0: _dispatches() already drops handles that don't resolve to
+        # an agent file, and we now create whatever node we need.
+        return {"edges_added": added, "skipped": 0, "dispatches": len(dispatches)}
     finally:
         conn.close()
 
