@@ -22,7 +22,7 @@
 
 **Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, hooks, and slash commands are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; an agent with a frontmatter description is more discoverable than a registry call.
 
-**Required infrastructure, resilient at runtime.** wicked-garden stands on five siblings: **wicked-testing** (proves behavior), **wicked-vault** (the evidence backend that makes "done" re-derivable), **wicked-brain** (carries knowledge across sessions), **wicked-bus** (carries the audit trail), **wicked-loom** (the gate engine that re-derives produces through the vault). These are *required infrastructure*, not optional add-ons — the honest-evidence model does not work if any of them is merely nice-to-have, so `/wicked-garden:setup` verifies all five and blocks without them. But required-at-install is not brittle-at-runtime: a transient outage — brain server down, bus momentarily unavailable — degrades gracefully and never bricks a session. Graceful degradation means a session continues where it's *safe* to; it never means a gate pretends missing evidence is a pass — that path **fails closed**. We depend on our infrastructure; we don't crash with it.
+**The gate is required; the rest is a toolkit.** wicked-garden's one non-negotiable is the evidence gate, so it stands on two required peers: **wicked-vault** (the backend that makes "done" re-derivable) and **wicked-loom** (the engine that re-runs the verifier). `/wicked-garden:setup` blocks without them — a gate you can fake is worse than no gate. The other three siblings are **opt-in layers**, not prerequisites: **wicked-testing** (the acceptance-testing tool), **wicked-brain** (cross-session memory + cited search), **wicked-bus** (the audit trail). Install the ones you'll use; the toolkit works without the others — breadth you adopt incrementally, not a five-thing prerequisite wall. And required-at-install is not brittle-at-runtime: a transient outage degrades gracefully and never bricks a session — but a gate never pretends missing evidence is a pass; that path **fails closed**. We depend on the gate; we don't crash with the layers.
 
 **Cross-platform is non-negotiable.** macOS, Linux, Windows (Git Bash, WSL, native). Bare `python3` doesn't exist on Windows; bare `/tmp` doesn't exist on Windows; the shim and `${TMPDIR:-/tmp}` exist for a reason. If a contributor adds shell that breaks on Windows, the contribution is incomplete.
 
@@ -38,7 +38,7 @@
 
 **We do not silently degrade quality signals.** When the evidence backend isn't resolvable, the gate **fails closed** and says so — it never invents a pass. When a signal is missing, we surface it as a finding; we don't paper over it to keep a dashboard green.
 
-**We do not hide our dependencies.** The five required peers are named, pinned, and checked at setup — not silent transitive surprises. If wicked-garden needs something to function, it says so up front and verifies it, rather than failing mysteriously three commands in.
+**We do not hide our dependencies.** The gate's two required peers — and the three opt-in layers — are named, pinned, and checked at setup, not silent transitive surprises. If wicked-garden needs something to function, it says so up front and verifies it, rather than failing mysteriously three commands in.
 
 **We do not let vendors land regressions in the name of cleanup.** Five legitimate skill rewrites bundled with three frontmatter regressions and a vendor-CI hook is not a contribution worth merging. Reject the bundle, salvage the wins in-house.
 
@@ -68,7 +68,7 @@
 
 **Not a single-language toolkit.** Cross-platform stdlib-only Python for the plumbing. wicked-patch's generators support Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, Ruby out of the box; new languages plug in via the generator interface.
 
-**Not closed.** The five siblings (testing, vault, brain, bus, loom) are required peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
+**Not closed.** The siblings (vault + loom required for the gate; testing, brain, bus opt-in) are peers, not forks — and the compiler emits a vault-backed harness any repo can adopt **without installing wicked-garden at all**. The plugin's relationship to other tools is "stand on, and hand off," not "absorb."
 
 ---
 
@@ -77,7 +77,7 @@
 - **`CLAUDE.md`** — operational guidance. How the surfaces compose, what the gates enforce, where state lives.
 - **`README.md`** — what to install, how to start, where to go next.
 - **`docs/v11/archetypes.md`** — the design note: why the universal pipeline went away and what replaced it.
-- **`docs/required-peers.md`** · **`docs/compiler.md`** — the five required siblings, and the compiler.
+- **`docs/required-peers.md`** · **`docs/compiler.md`** — the peers (two required, three opt-in), and the compiler.
 - **`scenarios/`** — acceptance tests; each scenario is an executable assertion of intended behavior.
 
 If you can quote one sentence from this page after reading it once, the document worked. If you can quote three, we won.

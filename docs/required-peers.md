@@ -1,84 +1,59 @@
-# Required Peers
+# Peers — two required, three opt-in
 
-Wicked Garden does not stand alone. As of **v12**, five peer plugins are
-**required infrastructure** — not optional integrations you bolt on for
-extra credit. The garden's honest-evidence model is load-bearing on all
-five; remove any one and "done" stops being re-derivable.
+Wicked Garden is a **curated toolkit**, and like any toolkit you can use the
+parts you want. Only one thing is non-negotiable: the **evidence gate**. A gate
+that can't re-derive its own evidence is the single thing the toolkit refuses to
+fake — so its two peers are required. Everything else is an **opt-in layer**:
+install it for the capability it unlocks, skip it and the rest of the kit still
+works.
 
-This is a deliberate shift. Earlier versions framed wicked-brain and
-wicked-bus as *recommended companions* — nice to have, fine to skip.
-v12 retired that framing. The five peers below are what the garden is
-built on, and `/wicked-garden:setup` treats them that way.
+> **History:** v12 briefly made all five peers required infrastructure. That
+> maximized the honesty guarantee and minimized adoption — you couldn't try the
+> toolkit without standing up five things first. We walked it back: the gate
+> stays required (that's the floor), the other three became opt-in layers.
 
-## The five peers
+## Required — the evidence gate (setup blocks without these)
 
-| Peer | What it does | Install | How it's verified |
-|------|--------------|---------|-------------------|
-| **wicked-testing** | Evidence-gated acceptance testing with three-agent writer/executor/reviewer separation — the writer designs, the executor collects artifacts, the reviewer judges independently. Eliminates self-graded "it passed." | `npx wicked-testing install` (npm; pinned `^0.3.0` in `plugin.json`) | `/wicked-garden:setup` verifies at install |
-| **wicked-vault** | The honest-evidence backend every archetype gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npx wicked-vault-install` (npm; pinned `^0.3.0`) | `/wicked-garden:setup` verifies at install; resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault` |
-| **wicked-brain** | Cross-session memory and cited search — the knowledge layer that carries decisions, gotchas, and patterns from session 1 to session 47. Runs a local server. | `/plugin install wicked-brain` (also on npm `0.14.0`) | SessionStart bootstrap probe |
-| **wicked-bus** | The event audit substrate — fire-and-forget events that record what happened. | `/plugin install wicked-bus` (also on npm `2.0.0`) | SessionStart bootstrap probe |
-| **wicked-loom** | The orchestration runtime garden drives: peer resolution (`loom resolve`), synchronous fail-closed evidence gating (`loom gate`), and the archetype-agnostic flow runtime (`loom flow run/status/resume`). Garden compiles its archetype catalog into a flow definition and shells to loom to run it. | `npx wicked-loom` (npm; pinned `^0.2.0` in `plugin.json`) | `/wicked-garden:setup` verifies at install; resolved at runtime via `WICKED_LOOM_BIN` → config → `PATH` → `node_modules` → `npx wicked-loom`, with `WICKED_LOOM_BIN=""` as the kill-switch |
+| Peer | What it does | Install |
+|------|--------------|---------|
+| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npx wicked-vault-install` (npm; pinned `^0.3.0`). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
+| **wicked-loom** | The gate engine garden drives: peer resolution (`loom resolve`), synchronous fail-closed evidence gating (`loom gate`), and the flow runtime (`loom flow run/status/resume`). It is the *sole* re-derivation engine — without it the produces-gate fails closed. | `npx wicked-loom` (npm; pinned `^0.2.0`). Resolved via `WICKED_LOOM_BIN` → config → `PATH` → `node_modules` → `npx wicked-loom`; `WICKED_LOOM_BIN=""` is the kill-switch. |
 
-`/wicked-garden:setup` verifies all five and **blocks** without them. The
-SessionStart bootstrap hook independently probes for them and **warns**
-(non-blocking) when one isn't resolvable.
+`/wicked-garden:setup` **blocks** without these two — a toolkit whose headline is
+"done is re-derived, not asserted" cannot ship the gate as optional.
 
-## The stance: required at install, resilient at runtime
+## Opt-in layers (setup recommends; never blocks)
 
-This is the part worth reading twice, because it looks like a
-contradiction and isn't.
+Add what you want. Each unlocks one capability; the rest of the toolkit (the gate,
+the code graph, wicked-patch, the council, the rubric skill-refs) runs without any
+of them.
 
-- **Required at install.** You must install all five. Setup will not let
-  you skip them. The garden assumes they are present.
-- **Resilient at runtime.** A transient outage — the brain server
-  momentarily down, the bus briefly unavailable — **degrades gracefully**
-  and does **not** crash your session. A hiccup won't brick you.
-  Graceful degradation means a session continues where it's safe to; it
-  never means a gate treats missing evidence as a pass — that path fails
-  closed.
+| Layer | What it unlocks | Skip it and… | Install |
+|-------|-----------------|--------------|---------|
+| **wicked-testing** | Evidence-gated acceptance testing with writer/executor/**independent reviewer** separation — no self-graded "it passed." | the produces-gate still works (via vault+loom); you just don't get the acceptance-testing tool. | `npx wicked-testing install` (npm `^0.3.0`) |
+| **wicked-brain** | The memory layer — cross-session recall, cited search, `smaht:briefing`. Carries decisions/gotchas from session 1 to session 47. | structural search (`blast-radius`/`lineage`/`hotspots`, via codegraph) still works; you lose cross-session memory + semantic search. | `/plugin install wicked-brain` (npm `0.14.0`) |
+| **wicked-bus** | The audit-trail layer — append-only events recording what happened. | nothing breaks — emission is already fire-and-forget / fail-open; events just aren't recorded. | `/plugin install wicked-bus` (npm `2.0.0`) |
 
-"Required" means *you must install it*. "Resilient" means *a runtime
-hiccup won't take down the session*. Those answer two different
-questions. The first is about setup-time guarantees; the second is about
-defense-in-depth at runtime. Holding both is deliberate: we want the
-strong guarantee that the infrastructure exists, and we want the system
-to survive the moment that infrastructure flickers.
+The SessionStart bootstrap hook probes for all peers and **warns** (non-blocking)
+when one isn't resolvable — informational for the opt-in layers, a real flag for
+the gate's two.
 
-The vault carries a literal kill-switch for the same reason — set
-`WICKED_VAULT_BIN=""` and the runtime resolution short-circuits cleanly
-rather than thrashing.
+## The stance: gate required, layers optional, runtime resilient
 
-`WICKED_LOOM_CUTOVER=off` is loom's parallel coarse kill-switch. After the
-contract phase there is no in-process fallback for it to select, so `off` is
-an **emergency disable**: the gate + peer-resolution surfaces become
-unavailable and the gate **fails closed** (never a vacuous pass) until loom is
-restored. Use it to stop garden shelling out to loom during an incident (e.g. a
-wedged `npx`), accepting that gating pauses — exactly the vault kill-switch
-posture: disable cleanly, fail closed, never thrash.
+- **The gate is the floor.** vault + loom are required because the toolkit's
+  central promise — re-derived, fail-closed "done" — is meaningless without them.
+  This is the one place we trade adoption for honesty on purpose.
+- **The layers are a toolkit, not a checklist.** Testing/brain/bus each add a
+  capability; none is a prerequisite for the others. Install the toolkit and reach
+  for the layers you need. Breadth is the point of a toolkit — but breadth you can
+  *adopt incrementally*, not a five-thing prerequisite wall.
+- **Resilient at runtime.** Even the required gate degrades cleanly: a transient
+  outage never crashes a session, and the kill-switches (`WICKED_VAULT_BIN=""`,
+  `WICKED_LOOM_CUTOVER=off`) disable cleanly and **fail closed** — they never let a
+  gate treat missing evidence as a pass. `WICKED_LOOM_CUTOVER=off` is an emergency
+  disable (e.g. a wedged `npx`): gating pauses and fails closed until loom is
+  restored, rather than thrashing.
 
-## Why each is load-bearing
-
-The five together are the garden's infrastructure, and each holds up a
-different beam:
-
-- **wicked-testing proves behavior.** Without it, "the tests pass" is a
-  claim no independent party checked.
-- **wicked-vault makes "done" re-derivable.** Gates re-hash the evidence
-  and re-run the verifier instead of trusting a status field. A
-  claimed-but-false pass is rejected; a missing vault fails closed.
-- **wicked-brain carries knowledge across sessions.** Without it, every
-  session starts from scratch and guesses at history it can't see.
-- **wicked-bus carries the audit trail.** Without it, there's no record
-  of what the archetypes actually did.
-- **wicked-loom runs the work.** Garden classifies and steers; loom resolves
-  the peers, re-derives the gates, and advances the phases — parking at every
-  hard gate. The garden's in-process runtime fallback was **removed in the
-  contract phase**: loom is now the *sole* re-derivation + peer-resolution
-  engine for the gate. Without it, the produces-gate has no engine and **fails
-  closed** — 'done' cannot be re-derived, so it cannot be asserted.
-
-Make any one of them merely optional and the honest-evidence model
-springs a leak: behavior goes unproven, "done" becomes self-asserted,
-context evaporates between sessions, or the audit trail goes dark. That
-is why they are required — and why the runtime stays resilient anyway.
+The line is simple: **fake-able honesty is worse than no honesty**, so the gate is
+required. Everything else earns its place by being useful when you reach for it —
+which is exactly what makes it a toolkit and not a monolith.

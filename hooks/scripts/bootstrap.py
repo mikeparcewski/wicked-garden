@@ -609,10 +609,10 @@ def _check_brain_dependency():
 
         if not brain_installed:
             note = (
-                "[wicked-brain] REQUIRED but not installed.\n"
-                "Install now: claude plugin install wicked-brain --scope project\n"
-                "wicked-brain provides the memory, search, and context assembly that "
-                "wicked-garden depends on — it cannot function without it."
+                "[wicked-brain] optional layer not installed.\n"
+                "Add it for cross-session memory + cited search: claude plugin install wicked-brain --scope project\n"
+                "The toolkit works without it — you lose the memory/context layer "
+                "(cross-session recall, brain-backed search, smaht:briefing)."
             )
             return False, note
 
@@ -808,10 +808,10 @@ def _check_bus_dependency():
 
         if not bus_installed:
             return (
-                "[wicked-bus] REQUIRED but not installed.\n"
-                "Install now: /plugin install wicked-bus\n"
-                "wicked-bus is the event backbone the garden's archetype events "
-                "flow through — without it, cross-plugin event wiring is silently dropped."
+                "[wicked-bus] optional layer not installed.\n"
+                "Add it for the cross-session audit trail: /plugin install wicked-bus\n"
+                "The toolkit works without it — events are simply not recorded "
+                "(emission is already fire-and-forget / fail-open)."
             )
 
         return None
@@ -1562,22 +1562,14 @@ def main():
         if registry_note:
             mode_notes.append(registry_note)
 
-        # 7d. Check wicked-brain dependency (required, not optional)
+        # 7d. Check wicked-brain dependency (opt-in memory/context layer)
         brain_available, brain_note = _check_brain_dependency()
         if state is not None and brain_available is not None:
             state.update(brain_available=brain_available)
         if brain_note:
-            if brain_available is False:
-                # Not installed — escalate to imperative directive
-                mode_notes.insert(0, (
-                    "[Action Required] wicked-brain is not installed.\n"
-                    "You MUST tell the user to install it immediately:\n"
-                    "  claude plugin install wicked-brain --scope project\n"
-                    "wicked-garden cannot function without wicked-brain. "
-                    "Do NOT proceed with other tasks until brain is installed."
-                ))
-            else:
-                mode_notes.append(brain_note)
+            # brain is an opt-in toolkit layer, not a hard requirement — surface
+            # the install pointer informationally, never block the session.
+            mode_notes.append(brain_note)
 
         # 7e. Brain auto-init and auto-ingest
         #     If brain is installed but has no content for this project, emit
