@@ -87,10 +87,19 @@ def prove(claim: str, command: str, *, verifier: str = "exit_code_eq:0",
 
     # init (idempotent — ignore "already initialized"), declare, record --run.
     _vault(prefix, pd, "init")
-    contract = {"required_evidence": [{
+    claim_spec = {
         "claim_id": claim, "kind": "test-run",
         "verifier": verifier_spec, "required": True,
-    }]}
+    }
+    if with_attestations:
+        # Hard gate (incident/migrate/review): the doer's own evidence cannot
+        # satisfy it. Opt the contract into the vault's attestation enforcement
+        # (`require_attestation`) so the gate REJECTs as UNATTESTED until an
+        # INDEPENDENT evaluator records `wicked-vault attest` (evaluator !=
+        # creator). Without this flag the contract is integrity-only and the
+        # gate would pass on the doer's evidence alone — a vacuous hard gate.
+        claim_spec["require_attestation"] = True
+    contract = {"required_evidence": [claim_spec]}
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as fh:
         fh.write(json.dumps(contract))
         spec_path = fh.name
@@ -126,8 +135,11 @@ def main() -> int:
     p.add_argument("--phase", default="verify")
     p.add_argument("--project-dir", default=".")
     p.add_argument("--with-attestations", action="store_true",
-                   help="require an independent attestation (hard gates: "
-                        "incident/migrate/review)")
+                   help="hard gate (incident/migrate/review): require an "
+                        "INDEPENDENT attestation. The gate stays REJECT "
+                        "(UNATTESTED) until someone other than the doer runs "
+                        "`wicked-vault attest <artifact> --opinion pass` — the "
+                        "doer's own evidence cannot satisfy it")
     a = p.parse_args()
     verdict = prove(a.claim, a.by, verifier=a.verifier, scope=a.scope,
                     phase=a.phase, project_dir=a.project_dir,
