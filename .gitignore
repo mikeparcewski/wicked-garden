@@ -136,3 +136,6 @@ _meta/
 # wicked-garden compiler: transient probe transcripts (regenerable)
 scripts/compiler/phase0/evidence/
 scripts/compiler/**/__pycache__/
+
+# codegraph local index (per-machine, do not commit)
+.codegraph/
