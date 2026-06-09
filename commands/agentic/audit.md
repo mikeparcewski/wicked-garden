@@ -7,24 +7,18 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:agentic:audit
 
-Deep trust+safety audit: classifies tool risks, verifies HITL gates, checks PII handling, optionally emits compliance evidence + wicked-scenarios. Use for compliance-grade evidence; use `agentic:review` for the broader architecture+perf+safety sweep.
+Deep trust+safety audit: classifies tool risks, verifies HITL gates, checks PII
+handling, optionally emits compliance evidence + wicked-scenarios.
 
-## 1. Detect framework + topology
+Use `agentic:review` for the broader architecture+perf+safety sweep.
 
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/agentic/detect_framework.py --path "$TARGET_PATH"
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/agentic/analyze_agents.py --path "$TARGET_PATH" --framework "$DETECTED_FRAMEWORK"
-```
+## Run it inline (no dispatch)
 
-## 2. Dispatch safety reviewer (deep audit mode)
-
-```
-Task(subagent_type="wicked-garden:agentic:safety-reviewer",
-     prompt="""Mode: deep_audit
-Path: {path}  Framework: {fw}  Topology: {topology_json}
-Standard: {standard or 'none'}  Output: {output_file or 'inline'}  Scenarios: {true/false}
-Load skill wicked-garden:agentic:trust-and-safety. Run the 8-layer audit (tool risk, HITL,
-PII, injection, authn/authz, rate limits, observability, failure modes). If --standard given,
-add the matching compliance checklist. If --scenarios, emit a wicked-scenarios block per
-CRITICAL/HIGH finding. Write to {output_file} when set, else return inline.""")
-```
+1. Parse `[path]`, `--standard`, `--output`, `--scenarios`.
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/agentic/refs/audit.md")` — the 8-layer rubric,
+   checklist, compliance extensions, and output format.
+3. Apply the rubric directly to the target path. For each layer, assess findings,
+   classify severity, and build the risk matrix.
+4. If `--standard` is given, append the matching compliance checklist from the ref.
+5. If `--scenarios`, emit a `wicked-scenarios` block per CRITICAL/HIGH finding.
+6. Write to `--output` file when set; otherwise return inline.

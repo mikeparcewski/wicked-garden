@@ -9,14 +9,13 @@ archetype_relevance: ["*"]
 
 Quick 60-second exploration with 4 personas and 1 round.
 
-> **Progression**: `quick` (60s gut-check, ephemeral) → `brainstorm` (full session with evidence + decision storage) → `council` (structured verdict with external LLMs).
+> **Progression**: `quick` (60s gut-check, ephemeral) → `brainstorm` (full session
+> with evidence + decision storage) → `council` (structured verdict with external LLMs).
 > See also: `/wicked-garden:jam:brainstorm`, `/wicked-garden:jam:council`
 
-This command uses forced fast convergence: exactly 1 round, then immediately synthesize. Do NOT run additional rounds regardless of topic complexity. The point is speed to outcome.
+## Run it inline (no dispatch)
 
-Delegate to the quick facilitator agent:
-
-```
-Task(subagent_type="wicked-garden:jam:quick-facilitator",
-     prompt="Run a quick jam session on: {topic}")
-```
+1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/quick.md")` — the single-pass
+   rubric: 4 personas, 1 forced round, synthesis format (Key Insights / Action
+   Items / Open Questions), hard constraints (no storage, no multi-AI, ≤200 words).
+2. Apply the rubric directly to the topic. Do NOT run additional rounds. Do NOT store.

@@ -7,11 +7,12 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:jam:perspectives
 
-Get raw viewpoints from 4-6 personas on a decision or question — no synthesis, no recommendation. Each persona provides their position, key concern, and what would change their mind. Use this for self-directed thinking and discussion prep.
+Raw viewpoints from 4–6 personas on a decision or question — no synthesis, no
+recommendation. Use for self-directed thinking and discussion prep.
 
-Delegate to the facilitator agent:
+## Run it inline (no dispatch)
 
-```
-Task(subagent_type="wicked-garden:jam:brainstorm-facilitator",
-     prompt="Run a perspectives-only session on: {topic}. Use 4-6 personas, 1 round only. Each persona must state: (1) their position, (2) their key concern, (3) what evidence would change their mind. Do NOT synthesize or recommend — just present raw perspectives. Do NOT store a decision record. Keep it fast (~60 seconds).")
-```
+1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/perspectives.md")` — the rubric:
+   persona selection, single-round format (position / key concern / what-would-change),
+   and the no-synthesis rule.
+2. Apply the rubric directly. Do NOT synthesize. Do NOT store a decision record.
