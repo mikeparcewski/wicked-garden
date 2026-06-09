@@ -1,5 +1,11 @@
 # Changelog
 
+## [12.10.1] - 2026-06-09
+
+### Chores
+- Merge pull request #907 from mikeparcewski/chore/remove-dead-commands (a10f2b0)
+- chore: remove dead commands (crew:archive, delivery:process-health) + major-cleanup plan (ADR 0002) (504883f)
+
 ## [12.10.0] - 2026-06-09
 
 ### Features
