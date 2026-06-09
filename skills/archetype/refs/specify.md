@@ -82,7 +82,7 @@ proceed past validate without explicit user agreement on the AC set.
 
 Specify is done when the user has signed off on the AC list AND the
 produces-gate is satisfied. Check the gate — don't self-assert it:
-`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase specify`
+`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase specify` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase specify`
 (exit 0 = satisfied). This is a re-derived PASS over the declared
 contract: the AC artifact is re-hashed and its structural verifier
 re-run. A REJECT means the recorded ACs don't clear the testability bar —

@@ -115,7 +115,7 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 `mitigate` is a **hard gate** — confirm the bleeding stopped before
 moving past it, and don't self-grade the mitigation. Check the gate WITH
 judgment:
-`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase incident --with-attestations`
+`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase incident --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase incident --with-attestations`
 (exit 0 = satisfied). This re-runs the symptom check (the mitigation pin)
 and requires an **independent attestation** — an evaluator who is *not*
 the responder confirms the mitigation holds and the RCA is adequate,
