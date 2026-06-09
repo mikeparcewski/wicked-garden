@@ -64,8 +64,12 @@ def _vault(prefix: list[str], project_dir: Path, *args: str) -> subprocess.Compl
 
 def prove(claim: str, command: str, *, verifier: str = "exit_code_eq:0",
           scope: str = "prove", phase: str = "verify",
-          project_dir: str = ".") -> dict:
-    """Re-derive a single claim end to end; return the gate verdict dict."""
+          project_dir: str = ".", with_attestations: bool = False) -> dict:
+    """Re-derive a single claim end to end; return the gate verdict dict.
+
+    ``with_attestations`` forwards to the gate's hard-gate requirement (the
+    evaluator must not be the agent that did the work) — use it for
+    incident/migrate/review gates."""
     if vault_gate is None:
         return {"satisfied": False, "gate": "unavailable", "re_derived": False,
                 "error": "vault_gate import failed"}
@@ -104,7 +108,8 @@ def prove(claim: str, command: str, *, verifier: str = "exit_code_eq:0",
             pass
 
     # The verdict is RE-DERIVED by the gate, not taken from the record above.
-    return vault_gate.gate_satisfied(pd, scope, phase)
+    return vault_gate.gate_satisfied(pd, scope, phase,
+                                     with_attestations=with_attestations)
 
 
 def main() -> int:
@@ -120,9 +125,13 @@ def main() -> int:
     p.add_argument("--scope", default="prove")
     p.add_argument("--phase", default="verify")
     p.add_argument("--project-dir", default=".")
+    p.add_argument("--with-attestations", action="store_true",
+                   help="require an independent attestation (hard gates: "
+                        "incident/migrate/review)")
     a = p.parse_args()
     verdict = prove(a.claim, a.by, verifier=a.verifier, scope=a.scope,
-                    phase=a.phase, project_dir=a.project_dir)
+                    phase=a.phase, project_dir=a.project_dir,
+                    with_attestations=a.with_attestations)
     print(json.dumps(verdict, indent=2))
     if verdict.get("satisfied"):
         return 0

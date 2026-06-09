@@ -104,7 +104,7 @@ tested, backfill complete, dual-read working).
    - Monitoring + alerts updated to surface new shape's anomalies.
 2. **Gate before any switch** — don't self-assert the checklist. Run the
    produces-gate WITH judgment:
-   `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase migrate --with-attestations`
+   `scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase migrate --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase migrate --with-attestations`
    (exit 0 = satisfied). This re-derives the rollback drill and the
    shape-change post-condition over the declared contract, and requires
    the independent attestation (evaluator ≠ migrator, via
@@ -129,7 +129,7 @@ tested, backfill complete, dual-read working).
 
 Cutover may only proceed when the produces-gate is satisfied — check it,
 don't self-assert it:
-`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase migrate --with-attestations`
+`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase migrate --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase migrate --with-attestations`
 (exit 0 = satisfied). This is a re-derived PASS over the declared contract
 plus the independent attestation; a missing vault is `gate: "unavailable"`
 / `satisfied: false`, never a claim-only pass.

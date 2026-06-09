@@ -95,7 +95,7 @@ always available.** Don't bypass the gate; widen the criteria.
 
 Each ramp step advances only when the produces-gate is satisfied — check
 it, don't self-assert it:
-`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase ship`
+`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase ship` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase ship`
 (exit 0 = satisfied). This is a re-derived APPROVE over the declared
 contract, re-run at **every** ramp step against the fresh captured
 snapshot. A REJECT means the recorded SLO snapshot doesn't clear its
