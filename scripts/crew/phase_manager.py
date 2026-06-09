@@ -313,14 +313,17 @@ def complete_phase(state: ProjectState, phase: str) -> ProjectState:
 
 
 _HARD_GATE_PHASES: Dict[str, Tuple[str, ...]] = {
-    # Issue: doctrinal hard gates were not enforced in code.
-    # This map names the (archetype, phase) pairs that genuinely need
-    # the user in the loop AT RUNTIME, not just in playbook prose.
+    # The (archetype, phase) pairs that genuinely need the user in the loop
+    # AT RUNTIME — not just in playbook prose. These MUST mirror the archetypes
+    # declared ``hard:<gate>`` in .claude-plugin/archetypes.json (the source of
+    # truth). Only migrate/incident/review are hard; specify (discrete:validate)
+    # and decide (discrete:select) are discrete gates that auto-pass when the
+    # produces contract re-derives — promoting them here over-reached the
+    # catalog and contradicted the "steering, not blocking" doctrine, so they
+    # were removed. test_hard_gate_map_matches_catalog locks this alignment.
     "migrate": ("cutover",),
     "incident": ("mitigate",),
     "review": ("remediate-or-accept",),
-    "specify": ("validate",),
-    "decide": ("record",),
 }
 
 
