@@ -7,15 +7,11 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:data:pipeline
 
-Data pipeline `design` and `review`. Use this for ETL/streaming pipeline architecture. NOT for ML training pipelines (use `data:ml`) or one-off file analysis (use `data:analyze`).
+Data pipeline `design` and `review`. NOT for ML training pipelines (use `data:ml`)
+or one-off file analysis (use `data:analyze`).
 
-## 1. Arg parse + gather
+## Run it inline (no dispatch)
 
-Extract `subcommand` (design|review) and args. For review, read pipeline files at `<path>`. For design, capture `--source`, `--target`, `--frequency`.
-
-## 2. Dispatch
-
-```
-Task(subagent_type="wicked-garden:data:data-engineer",
-     prompt="""Run pipeline {subcommand}. Path: {path or n/a}. Source/Target/Frequency: {src or n/a} / {tgt or n/a} / {freq or n/a}. For review: code quality, idempotency, monitoring, validation, silent-loss, P1/P2/P3 with code fixes. For design: architecture pattern, orchestrator, stage flow, quality gates, monitoring, costs, risks. Return structured markdown.""")
-```
+1. Parse `subcommand` (design|review) and args. For `review`, read pipeline files at `<path>`. For `design`, capture `--source`, `--target`, `--frequency`.
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/data/refs/pipeline.md")` — the design checklist, review rubric with P1/P2/P3 findings, and engineering standards.
+3. Apply the rubric for the requested subcommand and emit structured markdown.
