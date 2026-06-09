@@ -1,5 +1,16 @@
 # Changelog
 
+## [12.6.0] - 2026-06-09
+
+### Features
+- feat(qe): prove.py — the one-line re-derivation verb (gate without the ritual) (37d586e)
+
+### Documentation
+- docs(build): recommend prove.py as the frictionless gate path (c3132be)
+
+### Chores
+- Merge pull request #899 from mikeparcewski/feat/prove-verb (43d98c5)
+
 ## [12.5.2] - 2026-06-09
 
 ### Tests
