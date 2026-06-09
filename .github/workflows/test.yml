@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,11 +19,25 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Setup Node
+        # Needed so the E2E gate/resilience tests (tests/e2e/) can resolve the
+        # wicked-loom / wicked-vault peers and RUN rather than skip.
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Install pytest
         # Stdlib-only project; only pytest is needed for the test suite.
         run: pip install pytest
 
-      - name: Run v11 test suite
+      - name: Install wicked peers for E2E (best-effort)
+        # The E2E gate/resilience tests skip cleanly when these are absent, so a
+        # registry hiccup must not fail the build — but when present, the gate is
+        # exercised through its REAL CLI surface (the path that hid two
+        # loom-cutover regressions module-level tests could not see).
+        run: npm i -g wicked-vault wicked-loom wicked-testing || echo "peer install failed — E2E gate tests will skip"
+
+      - name: Run v11 test suite (incl. tests/e2e/ — real-surface gate + resilience)
         run: python -m pytest tests/ -q
 
       - name: Run wicked-patch generator conformance tests
