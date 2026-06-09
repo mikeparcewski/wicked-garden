@@ -10,83 +10,11 @@ archetype_relevance: ["*"]
 # /wicked-garden:product:ux
 
 Design and analyze user flows, interaction patterns, and information architecture.
-Use `--mode create` to generate flows from requirements; `--mode analyze` to evaluate
-existing flows in code or documents.
+For a broad design audit (UI + a11y + research), use `product:ux-review` instead.
 
-> **Scope**: `ux` is for **generative flow work** — designing and mapping user journeys.
-> For a **broad design audit** (UI, a11y, accessibility, research quality), use
-> `/wicked-garden:product:ux-review` instead.
+## Run it inline (no dispatch)
 
-## Usage
-
-```bash
-# Analyze existing flows in code
-/wicked-garden:product:ux src/pages/
-
-# Create a flow from a description
-/wicked-garden:product:ux "user registration with email verification" --mode create
-
-# Analyze flows in a requirements document
-/wicked-garden:product:ux outcome.md --mode analyze
-
-# Default: auto-detect mode from input type
-/wicked-garden:product:ux src/components/Checkout
-```
-
-## Instructions
-
-### 1. Parse Arguments
-
-Extract `<target>` (file path, directory, or description string) and `--mode` flag.
-
-Auto-detect mode if not specified:
-- Description string (no path) → `create`
-- File/directory path → `analyze`
-
-### 2. Gather Content
-
-- If a path: read the target files (components, pages, routing config)
-- If a description: use as-is for the agent prompt
-
-### 3. Delegate to UX Analyst
-
-```
-Task(
-  subagent_type="wicked-garden:product:ux-analyst",
-  prompt="""Perform UX flow {analysis | design} for the following.
-
-## Target
-{target path or description}
-
-## Content
-{file contents or description}
-
-## Mode
-{create: generate flows from requirements | analyze: evaluate existing flows}
-
-For create mode:
-- Map information architecture
-- Design happy path flow diagram (ASCII or Mermaid)
-- Define edge cases (empty, error, loading, cancel)
-- Note open questions
-
-For analyze mode:
-- Trace the existing happy path
-- Find dead ends and missing error handling
-- Check back navigation and recovery paths
-- Score against the flow checklist
-- Provide specific improvement recommendations
-
-Return diagrams, IA map, and findings."""
-)
-```
-
-### 4. Present Results
-
-Display the UX analyst's output directly to the user.
-
-## Integration
-
-- **design:mockup**: Request wireframes for designed flows
-- **design:review**: Visual review of the implemented flow
-- **Native tasks**: Track flow issues via TaskCreate/TaskUpdate with `metadata.event_type="task"`
+1. Parse `<target>` (path or description) and `--mode`. Auto-detect: description string -> `create`; file/dir path -> `analyze`.
+2. Gather content: if a path, read the target files (components, pages, routing); if a description, use as the brief.
+3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/product/refs/ux.md")` — create/analyze steps, flow checklist, Nielsen heuristics, interaction patterns, diagram + output formats.
+4. Apply the rubric directly and emit the flow/IA + findings. Pair with `product:mockup` for wireframes.

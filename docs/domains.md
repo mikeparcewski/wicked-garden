@@ -70,7 +70,9 @@ Requirements, UX, customer voice, market/value strategy, accessibility, visual d
 | `product:screenshot` | Screenshot-based UI review (multimodal) |
 | `product:a11y` | WCAG 2.1 AA accessibility audit |
 
-**Agents**: `product-manager`, `requirements-analyst`, `ux-designer`, `ux-analyst`, `user-researcher`, `user-voice`, `market-strategist`, `value-strategist`, `a11y-expert`, `ui-reviewer`, `mockup-generator`
+> **Collapsed to skill (cleanup ADR 0002).** Most product commands now load their rubric inline from `skills/product/refs/<name>.md` and apply it directly — no `Task` dispatch hop. Dispatch is kept only where multiple lenses run in parallel: `product:ux-review --focus all` (flows + ui + a11y + research) and `product:strategy --focus all` (market + value).
+
+**Agents**: `product-manager`, `requirements-analyst`, `ux-designer`, `user-researcher`, `market-strategist`, `value-strategist`, `a11y-expert`, `ui-reviewer` — the dispatch-only `ux-analyst`, `user-voice`, and `mockup-generator` were removed when their commands collapsed inline.
 
 ## data — Data Engineering
 

@@ -25,7 +25,7 @@
     "mem":         ["memory-archivist", "memory-learner", "memory-recaller"],
     "persona":     ["persona-agent"],
     "platform":    ["auditor", "chaos-engineer", "compliance-officer", "devops-engineer", "incident-responder", "infrastructure-engineer", "observability-engineer", "privacy-expert", "release-engineer", "security-engineer", "sre"],
-    "product":     ["a11y-expert", "market-strategist", "mockup-generator", "product-manager", "requirements-analyst", "ui-reviewer", "user-researcher", "user-voice", "ux-designer", "value-strategist"],
+    "product":     ["a11y-expert", "market-strategist", "product-manager", "requirements-analyst", "ui-reviewer", "user-researcher", "ux-designer", "value-strategist"],
     "qe":          ["code-analyzer", "continuous-quality-monitor", "contract-testing-engineer", "production-quality-engineer", "requirements-quality-analyst", "risk-assessor", "test-automation-engineer", "test-designer", "test-strategist", "testability-reviewer"]
   },
 
