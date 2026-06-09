@@ -1,5 +1,23 @@
 # Changelog
 
+## [12.12.0] - 2026-06-09
+
+### Refactoring
+- refactor(agentic,jam,persona,smaht): collapse rubric-wrapper commands to inline skill-refs (ADR 0002 pattern) (7eeb8e7)
+- refactor(platform): collapse 8 dispatch-only commands to inline rubrics (0d86a74)
+- refactor(data,delivery): collapse 7 rubric-wrapper commands to inline skill-refs (ADR 0002 pattern) (8ce6f2b)
+- refactor(engineering): collapse 5 rubric-wrapper commands to inline skill-refs (ADR 0002 pattern) (d26cec6)
+- refactor(product): collapse 12 rubric-wrapper commands to inline skill-refs (cleanup ADR 0002 pattern) (264e619)
+
+### Chores
+- Merge pull request #915 from mikeparcewski/cleanup/agent-purge-and-sync (8ab295b)
+- cleanup: purge 3 orphaned agents + re-derive registry + anti-drift tools (ADR 0002 phase 6) (932b4b8)
+- Merge pull request #914 from mikeparcewski/cleanup/agentic-jam-persona-smaht-collapse (61aa0c8)
+- Merge pull request #913 from mikeparcewski/cleanup/data-delivery-collapse (9c5548d)
+- Merge pull request #912 from mikeparcewski/cleanup/platform-collapse (20621c2)
+- Merge pull request #911 from mikeparcewski/cleanup/engineering-collapse (a9cf769)
+- Merge pull request #910 from mikeparcewski/cleanup/product-collapse (b785732)
+
 ## [12.11.0] - 2026-06-09
 
 ### Features
