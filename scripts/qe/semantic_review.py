@@ -1,18 +1,29 @@
 #!/usr/bin/env python3
-"""Semantic reviewer — spec-to-code alignment verification (issue #444).
+"""Spec-to-code TRACEABILITY heuristic (issue #444) — NOT a semantic judgment.
 
 Autonomous post-implementation pass that extracts numbered acceptance criteria
 (AC-*) and functional requirements (FR-*/REQ-*) from clarify-phase specs
-(``acceptance-criteria.md``, ``objective.md``) and compares them against the
-build-phase implementation corpus plus test results.
+(``acceptance-criteria.md``, ``objective.md``) and checks whether each one is
+*referenced* in the build-phase implementation + test corpus.
 
 Emits a structured Gap Report (JSON) per spec item with ``status`` in
 ``{aligned, divergent, missing}``, confidence score, evidence, and reason.
 
-This complements — but does NOT replace — ``verification_protocol.py``
-check #6 (traceability), which verifies existence of req → design → code →
-test chains. Semantic review asks a different question: given the chain
-exists, does the code actually implement what the AC described?
+**Important — what this does NOT do.** It matches the AC *identifier* (e.g.
+``AC-1``) and surrounding keywords, not the AC's *meaning*. An untagged-but-
+correct implementation reads as MISSING (the code below `subtract` fully
+implements "AC-2: subtract" but, lacking an ``AC-2`` reference, is reported
+missing); a tagged-but-wrong one can read ALIGNED. So this is a traceability
+pre-filter — "is each AC referenced?" — that complements
+``verification_protocol.py`` check #6.
+
+The genuinely *semantic* question — "does the code correctly implement what the
+AC described?" — is answered by the ``agents/qe/semantic-reviewer`` agent (LLM):
+it reads the code, judges each AC by **meaning** (behavior, not id occurrence),
+and records its verdict as an independent vault **attestation**. A gate declared
+with ``require_attestation`` then enforces it (UNATTESTED/REJECT until the
+independent reviewer attests pass). This script is that agent's cheap pre-filter
+— do not gate on its verdict alone.
 
 CLI::
 
