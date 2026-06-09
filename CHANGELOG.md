@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.5.2] - 2026-06-09
+
+### Tests
+- test(e2e): fix CI environment assumption — own $HOME, test both configured + unconfigured (9398b08)
+- test(e2e): real-surface harness — gate CLI, bootstrap, routing, resilience (Tiers A+C) (f83cf90)
+
+### Chores
+- Merge pull request #898 from mikeparcewski/test/e2e-three-tier-harness (685c007)
+- ci: install node + wicked peers so tests/e2e gate+resilience RUN (not skip) (8e59ba7)
+
 ## [12.5.1] - 2026-06-09
 
 ### Bug Fixes
