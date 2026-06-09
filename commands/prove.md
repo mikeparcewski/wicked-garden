@@ -28,3 +28,10 @@ Instructions:
   means the backend is down and the gate failed closed.
 - Only report the work as done when `satisfied: true`. On `REJECT`, the claim is
   false — fix it, don't narrate around it.
+
+**Hard gates (incident/migrate/review): `--with-attestations`.** Add it and the
+gate stays `REJECT` (`UNATTESTED`) until an INDEPENDENT evaluator — not the agent
+that did the work — runs `wicked-vault attest <artifact-id> --opinion pass`. The
+doer's own evidence cannot satisfy a hard gate; that's the point. Find the
+artifact with `wicked-vault list --scope <scope> --phase <phase>`. A `reject`
+attestation flips the gate to `REJECT` even if the evidence re-derives.

@@ -117,7 +117,7 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
 
 Review is done when the produces-gate is satisfied. Check the gate —
 don't self-assert it:
-`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase review --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase review --with-attestations`
+`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase review --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase review --with-attestations` **`--with-attestations`** keeps this gate `UNATTESTED`/`REJECT` until an INDEPENDENT evaluator (not the doer) runs `wicked-vault attest <artifact-id> --opinion pass` — find it via `wicked-vault list --scope <scope> --phase review`. The doer's own evidence cannot satisfy a hard gate.
 (exit 0 = satisfied). This is a re-derived PASS over the declared
 contract. `--with-attestations` makes the gate require a passing
 independent `opinion_attestation` recorded via the

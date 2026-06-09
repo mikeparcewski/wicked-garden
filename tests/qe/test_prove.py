@@ -122,6 +122,42 @@ class ProveEndToEndTests(unittest.TestCase):
         self.assertEqual(out["overall"], "REJECT")
         self.assertEqual(proc.returncode, 1)
 
+    def test_with_attestations_rejects_until_independent_attestation(self):
+        # The fix for the v12.7.0 false guarantee: --with-attestations must set
+        # require_attestation on the contract so a hard gate CANNOT be satisfied
+        # by the doer's own evidence — it stays REJECT (UNATTESTED) until an
+        # independent evaluator attests. A mock test cannot catch this (it was
+        # green while the gate vacuously passed); only the real round-trip can.
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_BIN=_LOOM,
+                   WICKED_LOOM_CUTOVER="on")
+        # doer-only run → REJECT / UNATTESTED
+        proc = subprocess.run(
+            [sys.executable, str(_PROVE_CLI), "tests-pass", "--by", "true",
+             "--scope", "s", "--phase", "migrate", "--with-attestations",
+             "--project-dir", str(self.proj)],
+            capture_output=True, text=True, env=env, cwd=str(_REPO), timeout=120)
+        out = json.loads(proc.stdout)
+        self.assertFalse(out["satisfied"])
+        self.assertEqual(out["overall"], "REJECT")
+        self.assertEqual(out["claims"][0]["result"], "UNATTESTED")
+        self.assertEqual(proc.returncode, 1)
+
+        # independent evaluator attests PASS → gate flips to PASS
+        listing = subprocess.run(["node", _VAULT, "list", "--scope", "s",
+                                  "--phase", "migrate"], cwd=str(self.proj),
+                                 capture_output=True, text=True, timeout=60)
+        aid = json.loads(listing.stdout)[0]["id"]
+        subprocess.run(["node", _VAULT, "attest", aid, "--opinion", "pass",
+                        "--evaluator", "independent-reviewer", "--rationale", "ok"],
+                       cwd=str(self.proj), capture_output=True, text=True, timeout=60)
+        gate = subprocess.run(
+            [sys.executable, str(_REPO / "scripts" / "qe" / "vault_gate.py"),
+             "gate", str(self.proj), "--scope", "s", "--phase", "migrate",
+             "--with-attestations"],
+            capture_output=True, text=True, env=env, cwd=str(_REPO), timeout=120)
+        self.assertTrue(json.loads(gate.stdout)["satisfied"])
+
 
 if __name__ == "__main__":
     unittest.main()
