@@ -1,5 +1,20 @@
 # Changelog
 
+## [12.13.0] - 2026-06-09
+
+### Bug Fixes
+- fix(search): dynamic brain port + cut 5 broken admin wrappers + finish delivery retire (27b64df)
+- fix(ci): find_orphan_agents excludes relative to repo root, not absolute path (92f3b15)
+- fix(search): make blast-radius/lineage injected layer actually work (#916) (305ff3e)
+
+### Refactoring
+- refactor: retire delivery domain and jam post-hoc viewer endpoints (f087c2b)
+
+### Chores
+- Merge pull request #919 from mikeparcewski/cleanup/final-search-trim (149331a)
+- Merge pull request #918 from mikeparcewski/cleanup/retire-delivery-jam-viewers (e953ef4)
+- Merge pull request #917 from mikeparcewski/fix/codeintel-injected-edges-916 (bcd6444)
+
 ## [12.12.0] - 2026-06-09
 
 ### Refactoring
