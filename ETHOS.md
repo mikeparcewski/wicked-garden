@@ -2,7 +2,7 @@
 
 > **What this is.** A single-page identity for wicked-garden — what we believe, what we refuse, what we optimize for.
 >
-> Coding agents have become *harnesses* — they plan and execute well, and each has an opinionated way it wants to work. wicked-garden fills the gaps the harness can't fill on its own — proof instead of claims, relationships grep can't see, deterministic refactor, memory across sessions, a second opinion that isn't itself — without fighting how it already works. It reads the *shape* of the work to apply the right rigor, then gets out of the way. **Done is not claimed; done is re-derived.**
+> Coding agents grew into *harnesses* — they plan and execute well, with strong opinions about how they work. wicked-garden fills the gaps they can't fill alone — proof not claims, links grep can't see, deterministic refactor, memory across sessions, a second opinion that isn't itself — and never fights how the harness already works. It reads the *shape* of the work to apply the right rigor, then steps back. **Done is not claimed; done is re-derived.**
 >
 > `CLAUDE.md` tells you *how* the system works. This tells you *why*.
 
@@ -10,7 +10,7 @@
 
 ## What we believe
 
-**Don't fight the harness; fill its gaps.** Modern coding agents already plan, parallelize, and execute — and each has a prescriptive way it wants to work. The worst thing a plugin can do is wrestle that. We add only what a planner-executor genuinely can't do on its own: re-derive "done" from evidence, surface relationships grep can't see, refactor deterministically across files, remember across sessions, and get a second opinion that isn't the same model arguing with itself. Everything the harness already does well, we leave to the harness.
+**Don't fight the harness; fill its gaps.** Modern coding agents already plan, parallelize, and execute — and each has strong opinions about how it works. Wrestling that is wasted effort. We add only what a planner-executor genuinely can't do alone: re-derive "done" from evidence, see relationships grep can't, refactor deterministically across files, remember across sessions, and get a second opinion that isn't itself talking. Everything it already does well, we leave well alone.
 
 **Project shape determines ceremony.** A typo fix and a multi-repo schema migration are not the same project. Each prompt classifies into one or more of nine **work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `build`, `review`, `ship`, `incident`, `migrate` — and each owns its own phase shape, produces contract, and human-in-the-loop (HITL) discipline. A typo and a migration get appropriately-scaled rigor — not the same rigor, and not the same shape.
 
