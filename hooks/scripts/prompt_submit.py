@@ -609,14 +609,24 @@ def _check_brain_gate(prompt: str) -> None:
         with urllib.request.urlopen(req, timeout=1) as _resp:
             pass  # Brain is running — no action needed
     except Exception:
-        print(
-            "[wicked-brain] Brain server is not running on port "
-            f"{_resolve_brain_port()}.\n"
-            "wicked-garden requires wicked-brain for context assembly and memory.\n"
-            "Start the brain server, then continue. "
-            "If not installed: claude plugin install wicked-brain --scope project",
-            file=sys.stderr,
-        )
+        # Deterministic auto-start before nagging: a stopped server is a
+        # hook-fixable condition, not something to delegate to the model.
+        started = False
+        try:
+            from _brain_port import ensure_server
+            started = ensure_server(wait_secs=2.0)
+        except Exception:
+            pass
+        if not started:
+            print(
+                "[wicked-brain] Brain server is not running on port "
+                f"{_resolve_brain_port()} and auto-start failed.\n"
+                "wicked-garden requires wicked-brain for context assembly and memory.\n"
+                "Brain skills auto-start the server on every call — do NOT skip "
+                "brain usage. Diagnose with: wicked-brain-call --start. "
+                "If not installed: claude plugin install wicked-brain --scope project",
+                file=sys.stderr,
+            )
 
 
 # v11: _assemble_current_chain, _consume_facilitator_reeval, and

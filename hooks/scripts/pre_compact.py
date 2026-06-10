@@ -95,7 +95,13 @@ def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="ep
 
         chunk_path.write_text("\n".join(lines), encoding="utf-8")
 
-        # Index in brain FTS5
+        # Index in brain FTS5 — auto-start the server first so a stopped
+        # server doesn't silently drop the index entry (fail-open).
+        try:
+            from _brain_port import ensure_server
+            ensure_server(wait_secs=2.0)
+        except Exception:
+            pass
         search_text = f"{title} {content} {' '.join(tags_list)}"
         _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
         return chunk_id

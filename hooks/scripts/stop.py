@@ -313,6 +313,14 @@ def _run_memory_decay() -> list:
     """Run decay maintenance via brain lint API. Return list of result message strings."""
     messages = []
     try:
+        # Session-end maintenance writes — auto-start the server so a stopped
+        # server doesn't silently skip decay (fail-open, lock-safe, one
+        # spawn attempt per process).
+        try:
+            from _brain_port import ensure_server
+            ensure_server(wait_secs=2.0)
+        except Exception:
+            pass
         result = _brain_api("lint", {}, timeout=5)
         if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
             messages.append(
@@ -330,6 +338,11 @@ def _run_working_consolidation() -> list:
     """
     messages = []
     try:
+        try:
+            from _brain_port import ensure_server
+            ensure_server(wait_secs=2.0)
+        except Exception:
+            pass
         compile_result = _brain_api("compile", {}, timeout=10)
         lint_result = _brain_api("lint", {}, timeout=5)
         compiled = compile_result.get("compiled", 0) if compile_result else 0

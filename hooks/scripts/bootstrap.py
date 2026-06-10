@@ -415,7 +415,20 @@ def _check_search_staleness():
     """
     stats = _brain_api("stats", {}, timeout=2)
     if stats is None:
-        return "Brain server is not reachable — start wicked-brain to enable context assembly"
+        # Deterministic auto-start — server lifecycle is a hook job, not a
+        # model directive. ensure_server is lock-safe and fails open.
+        try:
+            from _brain_port import ensure_server
+            if ensure_server():
+                stats = _brain_api("stats", {}, timeout=2)
+        except Exception:
+            pass
+    if stats is None:
+        return (
+            "Brain server unreachable and auto-start failed — run "
+            "`wicked-brain-call --start` to see the cause. Brain skills "
+            "auto-start the server on every call; do NOT skip brain usage."
+        )
     if stats.get("total", 0) == 0:
         return "Brain index is empty — run `wicked-brain:ingest` to index your codebase"
     return None  # Brain is healthy
@@ -616,16 +629,27 @@ def _check_brain_dependency():
             )
             return False, note
 
-        # wicked-brain is installed — optionally probe server health
-        # Use a short timeout so we never block the hook budget.
-        # _brain_api returns None on any error (server not running, connection
-        # refused, timeout, parse error) — informational note covers all cases.
+        # wicked-brain is installed — probe server health and auto-start on
+        # miss. _brain_api returns None on any error (server not running,
+        # connection refused, timeout, parse error); ensure_server is the
+        # deterministic fix for the "not running" case and fails open.
         server_note = None
         if _brain_api("health", {}, timeout=1) is None:
-            server_note = (
-                "[wicked-brain] Plugin installed but server is not running. "
-                "Start it to enable enhanced code intelligence."
-            )
+            started = False
+            try:
+                from _brain_port import ensure_server
+                started = ensure_server()
+            except Exception:
+                pass
+            if started:
+                server_note = "[wicked-brain] Server was down — auto-started for this session."
+            else:
+                server_note = (
+                    "[wicked-brain] Plugin installed but the server could not be "
+                    "auto-started. Diagnose with `wicked-brain-call --start` "
+                    "(log: {brain}/_meta/server.log). Brain skills auto-start the "
+                    "server on every call — do NOT skip brain usage."
+                )
 
         return True, server_note
 
@@ -1578,9 +1602,18 @@ def main():
         if brain_available:
             stats = _brain_api("stats", {}, timeout=2)
             if stats is None:
+                # The dependency check above already attempted a deterministic
+                # auto-start; re-probe once in case readiness landed late.
+                try:
+                    from _brain_port import ensure_server
+                    if ensure_server():
+                        stats = _brain_api("stats", {}, timeout=2)
+                except Exception:
+                    pass
+            if stats is None:
                 mode_notes.append(
-                    "[wicked-brain] Plugin installed but server is not running. "
-                    "You MUST invoke `wicked-brain-server` to start the brain server, "
+                    "[wicked-brain] Plugin installed but the server did not respond "
+                    "after auto-start. Diagnose with `wicked-brain-call --start`, "
                     "then run the brain pipeline: ingest → retag → compile."
                 )
             elif stats.get("total", 0) == 0:
