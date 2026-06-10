@@ -7,43 +7,32 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:search:index
 
-Refresh the two code-intelligence layers the other `search:*` commands query:
+Refresh the two code-intelligence layers the other `search:*` commands query. Both
+live in **wicked-brain** now (ADR 0004):
 
 - **semantic** (wicked-brain) — concept/symbol search, `wicked-brain:search`/`query`.
-- **structural** (codegraph) — `search:blast-radius`, `search:lineage`, and the wicked-patch family.
+- **structural** (codegraph graph, owned by brain) — `wicked-brain:graph` (blast-radius/lineage) and the wicked-patch family.
 
 ## Arguments
-
-- `path` (required): Directory to index.
+- `path` (required): directory to index (the brain server's `--source` repo).
 
 ## Instructions
 
 1. **Semantic layer** — invoke `/wicked-brain:ingest` with `<path>` (incremental; only changed files re-ingest).
 
-2. **Structural layer** — rebuild the codegraph graph, then re-apply the injected edges:
+2. **Structural layer** — one call rebuilds the codegraph static graph **and** re-applies every injected-edge extractor (built-in bus/dispatch/capability + any per-repo drop-ins under `.codegraph-extractors/`):
    ```bash
-   # first time on a repo: codegraph must be initialized before it can index
-   npx -y @colbymchenry/codegraph init 2>/dev/null || true
-   codegraph index "<path>"   # or: npx -y @colbymchenry/codegraph index "<path>"
-   # codegraph indexes CODE only; re-apply the injected layer (bus producer→consumer,
-   # command→agent dispatch, agent→capability) it doesn't know about and a re-index drops:
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-      "${CLAUDE_PLUGIN_ROOT}/scripts/codegraph/inject_all.py" "<path>/.codegraph/codegraph.db"
+   npx -y wicked-brain-call graph-index
    ```
-   The `inject_all` step is **required** for `blast-radius`/`lineage` to surface the string-keyed
-   relationships grep and the static graph can't see (#916). Skipping it leaves the injected
-   layer empty after every re-index.
+   This replaces the old `codegraph index` + `inject_all.py` two-step — brain runs the build and the extractors in a single pass, so the injected layer is never left empty after a re-index. The result reports per-extractor counts, `total_injected_edges`, and a `staleness` stamp.
 
 3. **Verify**:
    ```bash
-   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
-   curl -s -X POST "http://localhost:${PORT}/api" -H "Content-Type: application/json" \
-     -d '{"action":"stats","params":{}}'                       # brain chunk/tag counts
+   npx -y wicked-brain-call stats         # brain chunk/tag counts (semantic layer)
    ```
-   `inject_all` prints per-extractor edge counts + a `total_injected_edges` — report both.
+   and confirm `graph-index` reported `total_injected_edges > 0` on a repo with wiring.
 
 ## Notes
-
 - Both layers are incremental/idempotent — safe to re-run.
-- If `codegraph` isn't resolvable, the structural commands degrade to grep + brain (and say so);
-  run `codegraph index` once to enable blast-radius/lineage/patch.
+- Freshness is lazy by design (no file-watcher reindex). `graph-*` results carry `commits_behind`/`indexed_at`; re-run `graph-index` when stale.
+- If codegraph isn't resolvable where brain runs, `graph-*` returns `engine:"unavailable"` — install `@colbymchenry/codegraph` or set `WICKED_CODEGRAPH_BIN`.

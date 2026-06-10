@@ -1,7 +1,8 @@
 ---
 description: |
-  Use when you need to know what would break or be affected by changing a symbol — traces both
-  dependencies (what this uses) and dependents (what uses this) via the graph index.
+  Use when you need to know what would break or be affected by changing a symbol — traces
+  dependents (what uses this) over the code-relationship graph, including injected edges
+  (bus/dispatch/capability) that grep and a static call-graph cannot see.
   NOT for full data lineage tracing (use search:lineage) or general code search (use wicked-brain:search).
 argument-hint: "<symbol> [--depth N]"
 phase_relevance: ["build", "review"]
@@ -10,78 +11,48 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:search:blast-radius
 
-Analyze what would be affected if you changed a symbol. Shows both what this symbol depends on and what depends on it.
+Analyze what would be affected if you changed a symbol — **delegates to wicked-brain's
+code-relationship graph** (`wicked-brain:graph`), which owns the unified static + injected
+graph as of ADR 0004. Garden no longer maintains its own graph; it consumes brain's.
 
-> **Scope**: `blast-radius` answers "what breaks if I change X?" — impact of changing a symbol (dependents graph).
-> For **data flow tracing** (UI field → DB column or reverse), use `/wicked-garden:search:lineage` instead.
+> **Scope**: `blast-radius` answers "what breaks if I change X?" (the dependents graph).
+> For **data-flow tracing** (UI field → DB column or reverse), use `/wicked-garden:search:lineage`.
 
 ## Arguments
-
-- `symbol` (required): The symbol to analyze
-- `--depth` (optional): How deep to traverse dependencies (default: 2)
+- `symbol` (required): the symbol to analyze (a file like `scripts/foo.py`, or a symbol name).
+- `--depth` (optional): traversal depth (brain default applies if omitted).
 
 ## Instructions
 
-1. **Query the codegraph graph** for static + injected dependents (the authoritative layer — covers what grep can't see):
+1. **Ensure the graph is fresh** (brain builds the codegraph static graph + runs the injected-edge extractors in one pass):
    ```bash
-   # Freshness first — a silently-stale graph gives confident wrong answers:
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" staleness
-   # Static refs (imports/calls/instantiations) resolved by the engine:
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" 2>/dev/null  # shim is library-only; run the CLI:
-   codegraph impact <symbol> --json   # or: npx -y @colbymchenry/codegraph@latest impact <symbol> --json
-
-   # INJECTED relationships grep + the static graph miss (bus producer→consumer,
-   # command→agent dispatch, agent→capability) — read straight from the graph DB:
-   python3 - "$SYMBOL" <<'PY'
-   import sqlite3, sys, pathlib
-   sym = sys.argv[1]
-   db = pathlib.Path(".codegraph/codegraph.db")
-   if not db.exists():
-       print("no index — run `codegraph index` first"); raise SystemExit
-   c = sqlite3.connect(str(db))
-   # dependents reaching this symbol's file via any injected edge
-   rows = c.execute(
-     "SELECT source, target, provenance, metadata FROM edges "
-     "WHERE provenance LIKE 'injected:%' AND (source LIKE ? OR target LIKE ?)",
-     (f"%{sym}%", f"%{sym}%")).fetchall()
-   for r in rows: print(r)
-   c.close()
-   PY
+   npx -y wicked-brain-call graph-index
    ```
-   `codegraph impact` gives static dependents; the `injected:%` query adds bus/dispatch/capability edges (materialized by `scripts/codegraph/inject_edges.py`, `inject_dispatch_edges.py`, `inject_capability_edges.py`). Union both — a complete blast radius needs the injected layer, since a command that *dispatches* an agent or a consumer that *subscribes* to an event has no literal reference for grep to find.
+   The result carries a `staleness` stamp; if `stale` is true after editing, re-run it.
 
-2. **Cross-reference via brain** (semantic neighbors the graph may not name):
+2. **Resolve the symbol to a graph node id.** Node ids are `file:<relpath>` for files, or `function:<hash>` etc. for symbols. For a file, use `file:<path>` directly. For a named symbol, find its id via brain:
    ```bash
-   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
-   curl -s -X POST "http://localhost:${PORT}/api" \
-     -H "Content-Type: application/json" \
-     -d '{"action":"search","params":{"query":"<symbol>","limit":30}}'
+   npx -y wicked-brain-call symbols --query "<symbol>"     # or wicked-brain:lsp workspace-symbols
    ```
-   Use matching chunks to corroborate the dependent set.
 
-3. **If neither graph nor brain is available**: Use Grep and Glob to trace literal references only — and flag that injected relationships (bus/dispatch/capability) will be MISSING from the result. Suggest `codegraph index` + the inject extractors, or `wicked-brain:ingest`, for a complete picture.
+3. **Query blast radius from brain** (static + injected dependents in one answer — the authoritative layer):
+   ```bash
+   npx -y wicked-brain-call graph-blast-radius --node "file:<path-or-resolved-id>"
+   ```
+   The `dependents` array includes relationships grep can't see: a command that *dispatches* an agent (`injected:dispatch`), a consumer that *subscribes* to an event (`injected:bus`), an agent that *declares* a capability (`injected:capability`). Each result carries a `staleness` stamp.
 
-4. Report the impact assessment:
-   - **Dependencies** (outgoing): What this symbol uses/imports
-   - **Dependents** (incoming): What uses this symbol — static (from `codegraph impact`) AND injected (from the `injected:%` edges)
-   - Total blast radius count
-   - Files affected
+4. **Fallbacks** (in order):
+   - If `graph-blast-radius` returns `engine: "unavailable"`, codegraph isn't installed where brain runs — install it (`npx @colbymchenry/codegraph`) or set `WICKED_CODEGRAPH_BIN`, then `graph-index`.
+   - If brain is unreachable, fall back to `wicked-brain:search` for semantic neighbors, then Grep/Glob for literal refs — and **flag that injected relationships will be MISSING** from the result.
+
+5. Report: **dependents** (static + injected, with provenance), total blast-radius count, files affected, and the graph's staleness.
 
 ## Example
-
 ```
-/wicked-garden:search:blast-radius DatabaseConnection --depth 3
-/wicked-garden:search:blast-radius UserService
+/wicked-garden:search:blast-radius scripts/_bus.py
+/wicked-garden:search:blast-radius UserService --depth 3
 ```
-
-## Use Cases
-
-- **Pre-refactoring**: Know what will break before changing code
-- **Safe changes**: Identify low-risk symbols to modify
-- **Tech debt prioritization**: Focus on high-impact components
 
 ## Notes
-
-- **Requires a codegraph index**: run `codegraph index` (writes `.codegraph/codegraph.db`), then materialize the injected edges (`scripts/codegraph/inject_edges.py`, `inject_dispatch_edges.py`, `inject_capability_edges.py`) so the `injected:%` query returns bus/dispatch/capability dependents. Without an index, the graph steps no-op and you fall back to grep (literal refs only).
-- Deeper depth = more complete but slower analysis
-- For data lineage tracing (UI → DB), use `/wicked-garden:search:lineage` instead
+- The graph + queries live in **wicked-brain** now (ADR 0004); this command is a thin wrapper over `wicked-brain:graph`. For lineage (downstream dependencies) use `/wicked-garden:search:lineage`.
+- Garden contributes its proprietary **archetype** edges to brain's graph via the drop-in extractor `.codegraph-extractors/archetype.mjs` (discovered by brain's registry) — so archetype→playbook relationships are in the blast radius too.

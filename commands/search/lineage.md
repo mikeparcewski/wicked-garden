@@ -1,5 +1,5 @@
 ---
-description: Trace data lineage from source to sink (UI → DB or reverse)
+description: Trace data lineage / dependency flow (downstream dependencies or upstream dependents)
 argument-hint: "<symbol> [--direction upstream|downstream|both] [--depth N]"
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
@@ -7,88 +7,41 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:search:lineage
 
-Trace data lineage paths through the codebase. Follow data flow from UI fields to database columns (downstream) or reverse (upstream).
+Trace flow through the code-relationship graph — **delegates to wicked-brain's
+`wicked-brain:graph`** (ADR 0004). Downstream = what the symbol depends on; upstream
+= what depends on it. Includes injected edges (bus/dispatch/capability/archetype)
+that grep and a static call-graph can't see.
 
-> **Scope**: `lineage` answers "where does this data come from / go to?" — data flow tracing (source → sink).
-> For **dependency impact** ("what breaks if I change X?"), use `/wicked-garden:search:blast-radius` instead.
+> **Scope**: `lineage` answers "where does this flow from / to?". For pure
+> "what breaks if I change X?" use `/wicked-garden:search:blast-radius`.
 
 ## Arguments
-
-- `symbol` (required): The symbol to trace from
-- `--direction` (optional): Direction to trace (default: downstream)
-  - `downstream`: Source → sink (e.g., UI field → DB column)
-  - `upstream`: Sink → source (e.g., DB column → UI fields)
-  - `both`: Trace in both directions
-- `--depth` (optional): Maximum traversal depth (default: 10)
+- `symbol` (required): the symbol/file to trace from (`file:<relpath>` or a resolved node id).
+- `--direction` (optional, default downstream): `downstream` (dependencies), `upstream` (dependents), or `both`.
+- `--depth` (optional): traversal depth (brain default applies if omitted).
 
 ## Instructions
 
-1. **Search brain for the symbol** to find its location and references:
-   ```bash
-   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
-   curl -s -X POST "http://localhost:${PORT}/api" \
-     -H "Content-Type: application/json" \
-     -d '{"action":"search","params":{"query":"<symbol>","limit":20}}'
-   ```
-   If brain is unavailable or returns no results, fall back to Grep:
-   ```
-   Grep: <symbol> across all source files
-   ```
-   If no results at all, suggest: `wicked-brain:ingest` to index the codebase first.
+1. **Ensure the graph is fresh**: `npx -y wicked-brain-call graph-index` (builds codegraph + runs the injected-edge extractors; reports `staleness`).
 
-2. **Query the codegraph graph for reference flow** (when a `.codegraph/codegraph.db` index exists). The graph gives both static reference edges and the *injected* edges grep can't see (bus producer→consumer, command→agent dispatch, agent→capability) — useful when the data/reference path crosses a string-keyed link rather than a literal call:
-   ```bash
-   # Freshness first — a silently-stale graph gives confident wrong answers:
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" staleness
-   codegraph impact <symbol> --json   # or: npx -y @colbymchenry/codegraph@latest impact <symbol> --json
-   # injected reference flow (string-keyed links static analysis misses):
-   sqlite3 .codegraph/codegraph.db \
-     "SELECT source, target, provenance FROM edges WHERE provenance LIKE 'injected:%' AND (source LIKE '%<symbol>%' OR target LIKE '%<symbol>%');"
-   ```
-   No index → skip this step (run `codegraph index` first for graph-backed lineage); fall back to Grep below.
+2. **Resolve the symbol to a node id** (`file:<relpath>` directly, or via `npx -y wicked-brain-call symbols --query "<symbol>"`).
 
-3. **Trace data flow** using Grep to follow the symbol through layers:
-   - Search for imports/requires of the file containing the symbol
-   - Search for function calls that pass the symbol as an argument
-   - Search for assignments, mappings, and transformations of the symbol
-   - Follow the chain through controller → service → repository → database layers
+3. **Trace** via brain:
+   - **downstream** (what it depends on): `npx -y wicked-brain-call graph-lineage --node "<id>"` → `dependencies`.
+   - **upstream** (what depends on it): `npx -y wicked-brain-call graph-blast-radius --node "<id>"` → `dependents`.
+   - **both**: run both and present each direction.
+   Each result includes injected edges (e.g. a consumer reached via `injected:bus`, an archetype via `injected:archetype`) and a `staleness` stamp.
 
-4. Report the lineage paths found:
-   - Show each path with steps from source to sink
-   - Include file locations at each step
-   - Note any gaps in the lineage chain
+4. **Fallbacks**: `engine:"unavailable"` → install codegraph where brain runs. Brain unreachable → `wicked-brain:search` + Grep for literal flow only (flag that injected/string-keyed links will be MISSING).
+
+5. Report each path (source → sink), file locations per step, provenance of injected hops, and gaps.
 
 ## Examples
-
 ```bash
-# Trace downstream from a UI field
-/wicked-garden:search:lineage firstName --direction downstream
-
-# Find all UI fields that use a database column
-/wicked-garden:search:lineage EMAIL --direction upstream
-
-# Trace both directions
+/wicked-garden:search:lineage file:scripts/_bus.py --direction upstream
 /wicked-garden:search:lineage User.email --direction both
 ```
 
-## Output
-
-### Table Format
-```
-| # | Source | Sink | Steps | Confidence | Complete |
-|---|--------|------|-------|------------|----------|
-| 1 | firstName | FIRST_NAME | 3 | high | yes |
-| 2 | lastName | LAST_NAME | 3 | medium | yes |
-```
-
-## Use Cases
-
-- **Impact analysis**: Before changing a database column, find all UI fields that use it
-- **Data flow documentation**: Understand how data flows through the system
-- **Debugging**: Trace why a UI field isn't displaying expected data
-- **Compliance**: Document which UI fields expose sensitive database columns
-
 ## Notes
-
-- Brain search provides indexed symbol locations; Grep traces the connections
-- Use `/wicked-garden:search:blast-radius` for reverse lineage (upstream consumers and impact analysis)
+- The graph + queries live in **wicked-brain** now; this command is a thin wrapper over `wicked-brain:graph`.
+- Use `/wicked-garden:search:blast-radius` for the dedicated "impact of changing X" view.
