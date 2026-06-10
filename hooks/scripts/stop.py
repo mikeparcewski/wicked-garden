@@ -22,6 +22,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Optional
 
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
@@ -59,6 +60,80 @@ def _get_session_id() -> str:
 def _session_dir(subdir: str) -> Path:
     tmpdir = (os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()).rstrip("/")
     return Path(tmpdir) / subdir / _get_session_id()
+
+
+# ---------------------------------------------------------------------------
+# Claim sentinel (answer tier) — claim-gated at the Stop boundary.
+# Replaces the old PostToolUse ref-watch that fired on every Bash call. Reads
+# the turn's final assistant message from the transcript; only a real
+# done/passing/shipped claim with no verdict for HEAD produces a nudge.
+# ---------------------------------------------------------------------------
+
+def _extract_text(content) -> Optional[str]:
+    """Pull concatenated text from a transcript message's `content` — either a
+    raw string or a list of {type:'text', text:...} blocks."""
+    if isinstance(content, str):
+        return content or None
+    if isinstance(content, list):
+        parts = [b["text"] for b in content
+                 if isinstance(b, dict) and b.get("type") == "text" and b.get("text")]
+        return "\n".join(parts) if parts else None
+    return None
+
+
+def _read_final_assistant_text(transcript_path: str) -> Optional[str]:
+    """Return the text of the LAST assistant message in the transcript JSONL,
+    or None. Fail-open — any read/parse error yields None (no claim => no fire)."""
+    try:
+        p = Path(transcript_path)
+        if not p.is_file():
+            return None
+        last = None
+        for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except (json.JSONDecodeError, ValueError):
+                continue
+            if not isinstance(rec, dict):
+                continue
+            msg = rec.get("message") if isinstance(rec.get("message"), dict) else None
+            role = (msg or {}).get("role") or rec.get("role") or rec.get("type")
+            if role != "assistant":
+                continue
+            text = _extract_text((msg or {}).get("content", rec.get("content")))
+            if text:
+                last = text
+        return last
+    except Exception:
+        return None
+
+
+def _check_claim_sentinel(input_data: dict) -> list:
+    """If the turn's final assistant message asserts done/passing/shipped and
+    HEAD has no re-derived verdict, return a one-line nudge (debounced per sha
+    per session via SessionState). Fail-open — never breaks Stop."""
+    try:
+        transcript = input_data.get("transcript_path")
+        final_text = _read_final_assistant_text(transcript) if transcript else None
+        if not final_text:
+            return []
+        sys.path.insert(0, str(_PLUGIN_ROOT / "scripts" / "sentinel"))
+        from invariants import claim_tick, render  # type: ignore
+        from _session import SessionState
+        state = SessionState.load()
+        cwd = input_data.get("cwd")
+        violation = claim_tick(
+            lambda k: getattr(state, k, None),
+            lambda k, v: state.update(**{k: v}),
+            final_message=final_text,
+            cwd=Path(cwd) if cwd else None,
+        )
+        return [render(violation)] if violation else []
+    except Exception:
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -504,7 +579,11 @@ def main():
         reflection = ""
         # for this session (post-first-Stop) — only join with separator if both
         # halves have content.
-        prepend_messages = outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
+        # Answer-tier claim sentinel — claim-gated, computed here (after
+        # _persist_session_state) so its debounce write is the last state write
+        # of the turn (avoids clobbering session_ended).
+        sentinel_messages = _check_claim_sentinel(input_data)
+        prepend_messages = sentinel_messages + outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
         if prepend_messages and reflection:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         elif prepend_messages:

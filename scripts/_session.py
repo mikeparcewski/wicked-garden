@@ -208,12 +208,13 @@ class SessionState:
     # List of hint IDs like ["grep_search", "manual_review", "debugging"].
     hints_shown: list | None = None
 
-    # Claim sentinel (scripts/sentinel/invariants.py) — ref-watch state.
-    # sentinel_refs caches the last {ref: sha} snapshot of publish-shaped refs
-    # (origin default branch + newest tag); sentinel_last_check throttles the
-    # snapshot to at most once per few seconds so hot Bash loops stay cheap.
-    sentinel_refs: dict | None = None
-    sentinel_last_check: float = 0.0
+    # Claim sentinel (scripts/sentinel/invariants.py::claim_tick) — Stop-hook
+    # debounce. The answer tier nudges at most once per unproven HEAD sha per
+    # session when a done/passing claim is made without a re-derived verdict;
+    # this records the sha already nudged so the same unproven state never
+    # re-fires within a session. MUST be a declared field — update() drops
+    # unknown keys, so a transient attr would never persist across Stop calls.
+    sentinel_claim_sha: str = ""
 
     # OneDrive / spaces-in-paths resolution (Issue #321).
     # Stores the resolved canonical base path when cwd is under a OneDrive

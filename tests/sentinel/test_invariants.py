@@ -46,15 +46,6 @@ def _make_repo(base: Path, name: str = "work") -> Path:
     return repo
 
 
-def _add_origin(base: Path, repo: Path) -> Path:
-    bare = base / "origin.git"
-    subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True, timeout=10)
-    _git(repo, "remote", "add", "origin", str(bare))
-    _git(repo, "push", "-q", "origin", "main")
-    _git(repo, "fetch", "-q", "origin")
-    return bare
-
-
 class _TempHome(unittest.TestCase):
     """Redirect the ledger (under ~) into a temp HOME."""
 
@@ -95,59 +86,67 @@ class LedgerTests(_TempHome):
                           "only satisfied+re-derived stamps are a verdict")
 
 
-class RefWatchTests(_TempHome):
-    def test_detects_unverified_main_advance(self):
+class ClaimGateTests(_TempHome):
+    """Answer tier is claim-gated at Stop: it fires only when the turn's final
+    message asserts done/passing/shipped AND HEAD has no verdict. The old
+    ref-watch fired on git-ref state regardless of any claim (every Bash call
+    during planning tripped it); push/publish protection now lives only in
+    pre_push.py (block tier) + CI."""
+
+    def test_is_done_claim_detects_verification_assertions(self):
+        for msg in (
+            "All tests pass — 12/12 green.",
+            "Done. Shipped it and it's ready to merge.",
+            "The build is clean and all checks pass.",
+        ):
+            self.assertTrue(inv.is_done_claim(msg), msg)
+
+    def test_is_done_claim_ignores_planning_and_progress(self):
+        for msg in (
+            "Here's my plan: first I'll explore the codebase.",
+            "Let me investigate why the brain isn't starting.",
+            "I'll write the spec next so we can review it.",
+            "",
+            None,
+        ):
+            self.assertFalse(inv.is_done_claim(msg), repr(msg))
+
+    def test_claim_tick_silent_without_a_claim(self):
+        # Regression: an unproven HEAD must NOT fire during planning/progress.
         repo = _make_repo(self.base)
-        _add_origin(self.base, repo)
-        before = inv.snapshot_refs(repo)
-        self.assertIn("refs/remotes/origin/main", before)
-        (repo / "f.txt").write_text("two\n")
-        _git(repo, "commit", "-aqm", "c2")
-        _git(repo, "push", "-q", "origin", "main")
-        _git(repo, "fetch", "-q", "origin")
-        after = inv.snapshot_refs(repo)
-        violation = inv.check_done_claim(repo, before, after)
-        self.assertIsNotNone(violation, "unverified origin/main advance must fire")
-        self.assertEqual(violation["invariant"], "done-claim-verdict")
-        # the detection itself is recorded (the skip is evidence)
+        store: dict = {}
+        self.assertIsNone(inv.claim_tick(
+            store.get, store.__setitem__,
+            final_message="Here's the plan; nothing is done yet.", cwd=repo))
+
+    def test_claim_tick_fires_on_unverified_done_claim(self):
+        repo = _make_repo(self.base)
+        store: dict = {}
+        v = inv.claim_tick(store.get, store.__setitem__,
+                           final_message="All tests pass, shipped it.", cwd=repo)
+        self.assertIsNotNone(v)
+        self.assertEqual(v["invariant"], "done-claim-verdict")
         trail = inv._ledger_path(repo).with_suffix(".events.jsonl")
         self.assertTrue(trail.exists())
-        self.assertIn("unverified_publish", trail.read_text())
+        self.assertIn("unverified_claim", trail.read_text())
 
-    def test_verified_advance_stays_silent(self):
+    def test_claim_tick_suppressed_by_verdict(self):
         repo = _make_repo(self.base)
-        _add_origin(self.base, repo)
-        before = inv.snapshot_refs(repo)
-        (repo / "f.txt").write_text("two\n")
-        _git(repo, "commit", "-aqm", "c2")
         inv.stamp_verdict(repo, overall="PASS", satisfied=True, re_derived=True)
-        _git(repo, "push", "-q", "origin", "main")
-        _git(repo, "fetch", "-q", "origin")
-        after = inv.snapshot_refs(repo)
-        self.assertIsNone(inv.check_done_claim(repo, before, after))
-
-    def test_new_tag_is_publish_shaped(self):
-        repo = _make_repo(self.base)
-        before = inv.snapshot_refs(repo)
-        _git(repo, "tag", "v1.0.0")
-        after = inv.snapshot_refs(repo)
-        violation = inv.check_done_claim(repo, before, after)
-        self.assertIsNotNone(violation, "a new tag with no verdict must fire")
-
-    def test_refwatch_tick_baselines_then_detects_and_throttles(self):
-        repo = _make_repo(self.base)
-        _add_origin(self.base, repo)
         store: dict = {}
-        get, setv = store.get, store.__setitem__
-        with patch.object(inv, "_REFWATCH_THROTTLE_S", 0):
-            self.assertIsNone(inv.refwatch_tick(get, setv, cwd=repo))  # baseline
-            (repo / "f.txt").write_text("two\n")
-            _git(repo, "commit", "-aqm", "c2")
-            _git(repo, "push", "-q", "origin", "main")
-            _git(repo, "fetch", "-q", "origin")
-            self.assertIsNotNone(inv.refwatch_tick(get, setv, cwd=repo))
-        # throttle: immediate re-tick is suppressed
-        self.assertIsNone(inv.refwatch_tick(get, setv, cwd=repo))
+        self.assertIsNone(inv.claim_tick(
+            store.get, store.__setitem__,
+            final_message="All tests pass.", cwd=repo))
+
+    def test_claim_tick_debounces_per_sha(self):
+        repo = _make_repo(self.base)
+        store: dict = {}
+        first = inv.claim_tick(store.get, store.__setitem__,
+                               final_message="all green, done", cwd=repo)
+        self.assertIsNotNone(first)
+        second = inv.claim_tick(store.get, store.__setitem__,
+                                final_message="all green, done", cwd=repo)
+        self.assertIsNone(second, "same unproven HEAD must not re-fire in a session")
 
 
 class EvidenceFreshnessTests(_TempHome):
