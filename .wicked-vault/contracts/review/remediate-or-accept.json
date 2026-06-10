@@ -1,0 +1,21 @@
+{
+  "scope": "review",
+  "phase": "remediate-or-accept",
+  "required_evidence": [
+    {
+      "claim_id": "review-verdict",
+      "kind": "check",
+      "verifier": {
+        "kind": "exit_code_eq",
+        "params": {
+          "code": 0
+        }
+      },
+      "required": true,
+      "require_attestation": true
+    }
+  ],
+  "contract_version": "939ca8c85e737317",
+  "origin": "cli",
+  "declared_at": "2026-06-10T20:07:19.724Z"
+}

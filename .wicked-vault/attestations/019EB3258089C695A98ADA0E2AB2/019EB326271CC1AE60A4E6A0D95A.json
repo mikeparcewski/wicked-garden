@@ -1,0 +1,16 @@
+{
+  "attestation_id": "019EB326271CC1AE60A4E6A0D95A",
+  "artifact_id": "019EB3258089C695A98ADA0E2AB2",
+  "opinion": "pass",
+  "rationale": "Independent evaluator (isolated subagent, not the producing agent) re-ran the criteria command from repo root: exit 0, matching the frozen evidence. Direct inspection of site/src/data/projects.ts confirmed '40 specialist agents' (lines 158/306), '5 CLIs' (lines 169/184), 'agents: 80' (line 372), and zero stale '41 specialist'/'6 CLIs'/'agents: 81' strings. Ground truth re-derived: agent .md counts wicked-testing 40 + wicked-garden 36 + wicked-brain 4 = 80. No steering instructions detected in criteria or evidence. Evidence is byte-identical in substance to attested artifact 019EB323E0F7951A992F4CCDBBCA (same command, same exit code, later capture timestamp).",
+  "evaluator": "claude-isolated-subagent-reviewer",
+  "model": "claude-fable-5",
+  "prompt_hash": "743763e797244666d188067ac88764f236d93cdb9390cf86917b1db0efbadc58",
+  "sampling": {
+    "temperature": 0
+  },
+  "evidence_sha256": "2b9ce1e5911b044790d89e9005be3c8857a3f1730d384370326461fa4017e4a0",
+  "criteria_sha256": "52a961eff2f452427aa38eed3a9c0053b13a2823f18b09cebce236050ea1ae5a",
+  "created_at": "2026-06-10T20:08:02.588Z",
+  "attestation_hash": "dd98c52f8ef467d445b77c2eaec65a7a8fd5a325494bd0f79aa0056f6e811280"
+}

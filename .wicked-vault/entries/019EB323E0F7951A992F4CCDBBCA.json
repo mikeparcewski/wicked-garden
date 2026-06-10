@@ -1,0 +1,26 @@
+{
+  "id": "019EB323E0F7951A992F4CCDBBCA",
+  "scope": "review",
+  "phase": "remediate-or-accept",
+  "claim_id": "review-verdict",
+  "kind": "check",
+  "source": "bash -c \"grep -q '40 specialist agents' site/src/data/projects.ts && grep -q '5 CLIs' site/src/data/projects.ts && grep -q 'agents: 80' site/src/data/projects.ts && ! grep -q '41 specialist' site/src/data/projects.ts\"",
+  "verifier": {
+    "kind": "exit_code_eq",
+    "params": {
+      "code": 0
+    }
+  },
+  "criteria_sha256": "52a961eff2f452427aa38eed3a9c0053b13a2823f18b09cebce236050ea1ae5a",
+  "payload_sha256": "08389cd1799af51c82c0f82e66b0a74ed7afe3b760fc1496815b488ccb55589f",
+  "acceptance_criteria": "review-verdict: `bash -c \"grep -q '40 specialist agents' site/src/data/projects.ts && grep -q '5 CLIs' site/src/data/projects.ts && grep -q 'agents: 80' site/src/data/projects.ts && ! grep -q '41 specialist' site/src/data/projects.ts\"` satisfies exit_code_eq:0",
+  "criteria_authored_by": "record",
+  "payload_ref": "payloads/08389cd1799af51c82c0f82e66b0a74ed7afe3b760fc1496815b488ccb55589f",
+  "envelope_hash": "9a5d436f02405faf81222d249f021d24ed5fb5bbc31c79ef2f495a6f699da856",
+  "status_at_record": "pass",
+  "state": "active",
+  "supersedes": null,
+  "contract_version": "939ca8c85e737317",
+  "created_at": "2026-06-10T20:05:33.559Z",
+  "created_by": "michael.parcewski"
+}

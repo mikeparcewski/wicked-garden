@@ -155,7 +155,7 @@ export const PROJECTS: Project[] = [
     blurb:
       "A complete QE team for your AI CLI: a Writer → Executor → Reviewer pipeline with hard-enforced separation. The reviewer reads cold evidence and never sees the executor's context, so the agent can't grade its own homework.",
     points: [
-      "41 specialist agents · 5 Tier-1 skills (mutation, chaos, flake, a11y…)",
+      "40 specialist agents · 5 Tier-1 skills (mutation, chaos, flake, a11y…)",
       "Independent verdicts — reviewer never sees executor context",
       "SQLite ledger with a plain-English oracle",
     ],
@@ -166,7 +166,7 @@ export const PROJECTS: Project[] = [
     ],
     install: "npx wicked-testing install",
     repo: `${GH}/wicked-testing`,
-    badges: ["MIT", "npm", "6 CLIs"],
+    badges: ["MIT", "npm", "5 CLIs"],
     featured: true,
   },
   {
@@ -181,11 +181,13 @@ export const PROJECTS: Project[] = [
     points: [
       "Full-text search + agent reasoning, not cosine distance",
       "Chunks → synthesized wiki — every claim traces back to a file",
+      "Code graph of your repo — blast-radius, callers, lineage on demand",
       "Browser viewer included · works across 5 CLIs",
     ],
     uses: [
       "picking up tomorrow exactly where today ended",
       "onboarding an agent to a project's tribal knowledge",
+      "seeing what breaks before you change it",
       "memory you can open, diff, and git-commit",
     ],
     install: "npx wicked-brain",
@@ -303,7 +305,7 @@ export const TOUR: TourStop[] = [
     kicker: "stop 04 / 08 — the proving bed",
     headline: { pre: "green finally means", mark: "green" },
     body:
-      "A Writer → Executor → Reviewer pipeline with enforced separation — the reviewer reads cold evidence and never sees the executor's context. 41 specialist agents, one SQLite ledger, a plain-English oracle.",
+      "A Writer → Executor → Reviewer pipeline with enforced separation — the reviewer reads cold evidence and never sees the executor's context. 40 specialist agents, one SQLite ledger, a plain-English oracle.",
     unlock: "green means green",
     plant: "optin",
     tools: ["wicked-testing"],
@@ -313,7 +315,7 @@ export const TOUR: TourStop[] = [
     kicker: "stop 05 / 08 — the memory bed",
     headline: { pre: "your agent finally", mark: "remembers" },
     body:
-      "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte.",
+      "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. A code graph maps what words can't: blast-radius, callers, and lineage on demand.",
     unlock: "now it remembers",
     plant: "optin",
     tools: ["wicked-brain"],
@@ -369,7 +371,7 @@ export function colorVarOf(id: RoleId): string {
 export const STATS = {
   projects: PROJECTS.length,
   accounts: 0,
-  agents: 81,
+  agents: 80,
   archetypes: 9,
   harnesses: 7,
 };

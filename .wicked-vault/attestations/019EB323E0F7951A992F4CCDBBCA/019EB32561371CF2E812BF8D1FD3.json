@@ -1,0 +1,16 @@
+{
+  "attestation_id": "019EB32561371CF2E812BF8D1FD3",
+  "artifact_id": "019EB323E0F7951A992F4CCDBBCA",
+  "opinion": "pass",
+  "rationale": "Independently re-ran the criteria command from repo root (exit 0, matches frozen evidence). Direct inspection of site/src/data/projects.ts: '40 specialist agents' lines 158/306, '5 CLIs' lines 169/184, 'agents: 80' line 372; zero matches for stale '41 specialist'/'6 CLIs'/'agents: 81'. Ground truth re-derived: agent .md counts = wicked-testing 40 + wicked-garden 36 + wicked-brain 4 = 80, consistent with the hero stat. No steering instructions detected in criteria or evidence.",
+  "evaluator": "claude-isolated-subagent-reviewer",
+  "model": "claude-fable-5",
+  "prompt_hash": "743763e797244666d188067ac88764f236d93cdb9390cf86917b1db0efbadc58",
+  "sampling": {
+    "temperature": 0
+  },
+  "evidence_sha256": "08389cd1799af51c82c0f82e66b0a74ed7afe3b760fc1496815b488ccb55589f",
+  "criteria_sha256": "52a961eff2f452427aa38eed3a9c0053b13a2823f18b09cebce236050ea1ae5a",
+  "created_at": "2026-06-10T20:07:11.928Z",
+  "attestation_hash": "235402ac7fda18987473b28a24dfa1cd059e7876be2963f3bea7fdbc1aa1e75a"
+}

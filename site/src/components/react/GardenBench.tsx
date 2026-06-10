@@ -26,8 +26,8 @@ function buildScript(planted: Set<string>): string {
     lines.push("npx skills add mikeparcewski/wicked-understanding --all");
   if (planted.has("wicked-bus"))
     lines.push(
-      "claude plugins marketplace add mikeparcewski/wicked-bus",
-      "claude plugins install wicked-bus           # layer — audit trail",
+      "npm i wicked-bus                            # layer — audit trail",
+      "npx wicked-bus-install                      # bus skills for your CLI",
     );
   if (planted.has("wicked-interactive"))
     lines.push(

@@ -1,5 +1,22 @@
 # Changelog
 
+## [12.18.3] - 2026-06-10
+
+### Bug Fixes
+- fix(peers): `wicked_testing_version` pin `^0.3.0` → `^0.4.0` — the caret probe locks 0.x pins to the minor, so wicked-testing 0.4.0 (current) was rejected and crew commands were blocked. `wicked_brain_version` `^0.14.0` → `^0.15.0` to match the brain codegraph floor garden's ADR 0004 integration relies on (declarative only — no probe enforces it).
+- fix(site): refresh marketing-site content against repo reality — wicked-testing "41 specialist agents" → 40 and "6 CLIs" badge → 5 (0.4.0 roster trim + Copilot removal), family hero stat 81 → 80 agents; bench install script for wicked-bus corrected from a nonexistent Claude-plugin install to `npm i wicked-bus` + `npx wicked-bus-install`.
+
+### Features
+- feat(site): the brain card and memory-bed tour stop now cover the wicked-brain code graph (v0.15.0) — blast-radius, callers, and lineage on demand.
+
+### Chores
+- chore: remove dead wicked-testing tier-coupling (gate-policy path retired at v11); ci: bump GitHub Actions to Node 24-ready majors; docs: link the GitHub Pages site at the top of the README; chore(deps): bump astro (#926).
+
+## [12.18.2] - 2026-06-10
+
+### Bug Fixes
+- fix(brain): auto-start + port-resolution fix — no more false "server not running" notices. (Backfilled entry; released as the version-bump commit `36894f5`.)
+
 ## [12.18.1] - 2026-06-10
 
 ### Chores

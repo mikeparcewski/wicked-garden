@@ -23,12 +23,12 @@ Key words grow animated vines instead of highlighter swipes.
 
 ```bash
 npm install
-npm run dev        # http://localhost:4321/wicked-site/
+npm run dev        # http://localhost:4321/wicked-garden/
 npm run build      # static output → dist/
 npm run preview    # serve the production build locally
 ```
 
-> The dev/preview URL includes the `/wicked-site/` base path (see below).
+> The dev/preview URL includes the `/wicked-garden/` base path (see below).
 
 ## Editing content
 

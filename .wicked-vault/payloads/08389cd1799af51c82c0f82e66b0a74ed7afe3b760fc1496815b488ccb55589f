@@ -1,0 +1,1 @@
+{"captured_at":"2026-06-10T20:05:33.556Z","command":"bash -c \"grep -q '40 specialist agents' site/src/data/projects.ts && grep -q '5 CLIs' site/src/data/projects.ts && grep -q 'agents: 80' site/src/data/projects.ts && ! grep -q '41 specialist' site/src/data/projects.ts\"","exit_code":0,"stderr":"","stdout":""}
