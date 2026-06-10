@@ -1,0 +1,72 @@
+---
+// Render target for the 1200×630 social card. Screenshot this route to public/og.png.
+import "@fontsource-variable/archivo/wdth.css";
+import "@fontsource-variable/hanken-grotesk";
+import "@fontsource-variable/jetbrains-mono";
+import "../styles/global.css";
+import { ROLES, STATS } from "../data/projects";
+---
+
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body class="has-grain">
+    <div
+      style="width:1200px;height:630px;position:relative;overflow:hidden;background:var(--canvas);color:var(--ink);font-family:var(--font-sans);display:flex;flex-direction:column;justify-content:space-between;padding:72px;box-sizing:border-box;"
+    >
+      <div class="grid-floor" style="position:absolute;inset:0;opacity:0.7;" aria-hidden></div>
+      <div
+        aria-hidden
+        style="position:absolute;right:-120px;top:-160px;width:620px;height:620px;border-radius:50%;background:radial-gradient(closest-side,var(--mesh-1),transparent 70%);filter:blur(40px);"
+      >
+      </div>
+      <div
+        aria-hidden
+        style="position:absolute;left:-140px;bottom:-200px;width:560px;height:560px;border-radius:50%;background:radial-gradient(closest-side,var(--mesh-2),transparent 72%);filter:blur(46px);"
+      >
+      </div>
+
+      <div style="display:flex;justify-content:space-between;align-items:center;position:relative;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <span style="width:36px;height:36px;border-radius:11px;border:1px solid var(--hairline);display:grid;place-items:center;">
+            <span style="width:18px;height:18px;border-radius:50%;background:var(--accent);box-shadow:inset -5px 0 0 0 var(--canvas);"></span>
+          </span>
+          <span style="font-family:var(--font-display);font-weight:800;font-size:32px;letter-spacing:-0.02em;">wicked</span>
+        </div>
+        <span style="font-family:var(--font-mono);font-size:15px;letter-spacing:0.24em;text-transform:uppercase;color:var(--muted);">the garden for ai-native engineers</span>
+      </div>
+
+      <div style="position:relative;">
+        <p style="font-family:var(--font-mono);font-size:15px;letter-spacing:0.28em;text-transform:uppercase;color:var(--muted);margin:0 0 20px;">
+          {STATS.projects} open-source tools · one garden · MIT
+        </p>
+        <h1 style="font-family:var(--font-display);font-weight:800;font-size:108px;line-height:0.9;letter-spacing:-0.035em;margin:0;">
+          tools that are<br />wicked <span style="color:var(--accent);">good.</span>
+        </h1>
+        <p style="font-size:27px;line-height:1.4;color:var(--muted);max-width:780px;margin:28px 0 0;">
+          Kill the busywork — then give your agents the memory, evidence, and workflow to run
+          on their own.
+        </p>
+      </div>
+
+      <div style="display:flex;gap:14px;position:relative;">
+        {
+          ROLES.map((r) => (
+            <span style={`display:inline-flex;align-items:center;gap:9px;border:1px solid var(--hairline);border-radius:999px;padding:9px 18px;font-family:var(--font-mono);font-size:15px;color:var(--muted);`}>
+              <span style={`width:9px;height:9px;border-radius:50%;background:var(${r.colorVar});`} />
+              {r.label}
+            </span>
+          ))
+        }
+      </div>
+    </div>
+  </body>
+</html>

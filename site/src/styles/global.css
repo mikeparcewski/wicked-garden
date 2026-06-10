@@ -1,0 +1,273 @@
+@import "tailwindcss";
+
+/* Dark mode is class-driven: <html class="dark"> */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ----------------------------------------------------------------------------
+   Design tokens — "Wicked Good" (wickedagile brand)
+   Day    = harbor-blue ground, butter type, signal-yellow stamp
+   Night  = charcoal ground, butter type, the same yellow spark
+   Palette: harbor #356d8c (canvas deepened to #316685 for AA) · butter #eae5b6
+            signal yellow #ffda19 · mustard #c6a413 · charcoal #313132
+            wine #9d4f56 · sky #60acc6
+   Garden roles: gate (yellow) · floor (mustard) · layer (sky) · solo (wine)
+   Full brand palette: docs/BRAND.md
+---------------------------------------------------------------------------- */
+:root {
+  --canvas: #224a60;
+  --canvas-2: #1c4053;
+  --surface: #2a566e;
+  --surface-2: #315f7a;
+  --ink: #eae5b6;
+  --muted: #b9d2df;
+  --hairline: rgba(234, 229, 182, 0.18);
+  --hairline-strong: rgba(234, 229, 182, 0.34);
+  --shadow-rgb: 14, 38, 52;
+
+  --accent: #ffda19;          /* signal yellow — the wickedagile stamp */
+  --accent-bright: #ffe45c;
+  --on-accent: #313132;
+
+  --c-foundation: #c6a413;    /* mustard */
+  --c-workflow: #60acc6;      /* sky blue */
+  --c-creation: #d8868e;      /* wine, lifted for the blue ground */
+
+  /* Lighter text-only variants — AA contrast for small colored text on the
+     blue ground. The --c-* above stay for fills, dots, edges, and vines. */
+  --ct-foundation: #efdc8a;
+  --ct-workflow: #bfe4f4;
+  --ct-creation: #f2d4d7;
+
+  /* Garden-role tokens — content stamps on the brand ground. */
+  --c-gate: #ffda19;
+  --c-floor: #c6a413;
+  --c-layer: #60acc6;
+  --c-solo: #c97f87;
+  --ct-gate: #ffe45c;
+  --ct-floor: #efdc8a;
+  --ct-layer: #bfe4f4;
+  --ct-solo: #f2d4d7;
+
+  --mesh-1: rgba(96, 172, 198, 0.35);
+  --mesh-2: rgba(255, 218, 25, 0.14);
+  --mesh-3: rgba(157, 79, 86, 0.25);
+  --grain-opacity: 0.06;
+
+  color-scheme: dark;
+}
+
+.dark {
+  --canvas: #232324;
+  --canvas-2: #2a2a2b;
+  --surface: #313132;
+  --surface-2: #3a3a3b;
+  --ink: #eae5b6;
+  --muted: #b7b3a4;
+  --hairline: rgba(234, 229, 182, 0.12);
+  --hairline-strong: rgba(234, 229, 182, 0.24);
+  --shadow-rgb: 0, 0, 0;
+
+  --accent: #ffda19;
+  --accent-bright: #ffe45c;
+  --on-accent: #1e1e1f;
+
+  --c-foundation: #d8b82e;
+  --c-workflow: #60acc6;
+  --c-creation: #c67079;
+
+  /* On charcoal the lifted values already pass; text variant mirrors them. */
+  --ct-foundation: #d8b82e;
+  --ct-workflow: #60acc6;
+  --ct-creation: #c67079;
+
+  --c-gate: #ffda19;
+  --c-floor: #d8b82e;
+  --c-layer: #60acc6;
+  --c-solo: #c67079;
+  --ct-gate: #ffda19;
+  --ct-floor: #d8b82e;
+  --ct-layer: #60acc6;
+  --ct-solo: #c67079;
+
+  --mesh-1: rgba(255, 218, 25, 0.13);
+  --mesh-2: rgba(96, 172, 198, 0.18);
+  --mesh-3: rgba(157, 79, 86, 0.18);
+  --grain-opacity: 0.07;
+
+  color-scheme: dark;
+}
+
+/* Map tokens to Tailwind utilities. `inline` keeps them live so utilities
+   re-resolve when .dark flips the underlying custom properties. */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-canvas-2: var(--canvas-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--hairline);
+  --color-line-strong: var(--hairline-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-bright: var(--accent-bright);
+  --color-on-accent: var(--on-accent);
+
+  --color-foundation: var(--c-foundation);
+  --color-workflow: var(--c-workflow);
+  --color-creation: var(--c-creation);
+
+  --font-display: "Archivo Variable", ui-sans-serif, sans-serif;
+  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", monospace;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@layer base {
+  * {
+    border-color: var(--hairline);
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    background-color: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv01";
+    overflow-x: hidden;
+    transition: background-color 0.4s var(--ease-out-expo), color 0.4s var(--ease-out-expo);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 0.98;
+    text-wrap: balance;
+  }
+
+  /* Archivo's width axis — the expanded cut is the display voice. */
+  h1, h2, h3, h4, .font-display {
+    font-stretch: 122%;
+  }
+
+  ::selection {
+    background: var(--accent-bright);
+    color: var(--on-accent);
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* Custom scrollbar (dark-aware) */
+  ::-webkit-scrollbar { width: 11px; height: 11px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--hairline-strong);
+    border-radius: 999px;
+    border: 3px solid var(--canvas);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+}
+
+/* ----------------------------------------------------------------------------
+   Atmosphere — film grain + the eyebrow/kicker
+   (word-vines live in React: components/react/Marker.tsx)
+---------------------------------------------------------------------------- */
+@layer components {
+  /* Fixed grain overlay, applied to <body> via .has-grain */
+  .has-grain::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    pointer-events: none;
+    opacity: var(--grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: var(--grain-blend, soft-light);
+  }
+  .dark .has-grain::after { --grain-blend: overlay; }
+
+  /* Mono kicker / eyebrow */
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Recessed grid backdrop used behind sections */
+  .grid-floor {
+    background-image:
+      linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
+    background-size: 64px 64px;
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 30%, transparent 78%);
+            mask-image: radial-gradient(ellipse 80% 70% at 50% 0%, #000 30%, transparent 78%);
+  }
+
+  .card-surface {
+    background: color-mix(in oklab, var(--surface) 88%, transparent);
+    border: 1px solid var(--hairline);
+    backdrop-filter: blur(8px);
+  }
+}
+
+@utility text-stroke {
+  -webkit-text-stroke: 1.4px var(--ink);
+  color: transparent;
+}
+
+/* CSS-driven staggered entrance — paints without waiting for hydration,
+   so the LCP headline never sits invisible. Delays set inline per element. */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(1.5rem); }
+  to { opacity: 1; transform: none; }
+}
+.rise {
+  opacity: 0;
+  animation: rise-in 0.85s var(--ease-out-expo) both;
+}
+
+@keyframes scroll-bob {
+  0%, 100% { transform: translateY(0); opacity: 0.4; }
+  50% { transform: translateY(7px); opacity: 1; }
+}
+
+/* ----------------------------------------------------------------------------
+   Theme switch — circular reveal via the View Transitions API
+---------------------------------------------------------------------------- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2147483646; }
+
+/* Respect reduced motion everywhere */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

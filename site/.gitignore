@@ -1,0 +1,17 @@
+# build output
+dist/
+.astro/
+
+# dependencies
+node_modules/
+
+# local screenshots / scratch
+.playwright-mcp/
+*.local.png
+.superpowers/
+
+# os / editor
+.DS_Store
+*.log
+.vscode/
+.idea/

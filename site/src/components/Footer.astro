@@ -1,0 +1,78 @@
+---
+import { ROLES, PROJECTS } from "../data/projects";
+
+const year = new Date().getFullYear();
+const gh = "https://github.com/mikeparcewski";
+const npm = "https://www.npmjs.com/~mikeparcewski";
+---
+
+<footer class="relative overflow-hidden border-t border-line bg-canvas-2">
+  <div class="grid-floor pointer-events-none absolute inset-x-0 top-0 h-48 opacity-60" aria-hidden></div>
+
+  <div class="mx-auto max-w-[1240px] px-5 py-20 sm:px-8">
+    <div class="flex flex-col gap-12 lg:flex-row lg:justify-between">
+      <div class="max-w-sm">
+        <p class="kicker">est. on your machine · MIT</p>
+        <p class="mt-4 font-display text-6xl font-extrabold leading-[0.88] tracking-tight sm:text-7xl">
+          wicked<br /><span style="color: var(--accent)">good.</span>
+        </p>
+        <p class="mt-5 max-w-xs text-[0.97rem] leading-relaxed text-muted">
+          One garden of local-first tools that read like the truth. No cloud,
+          no black box, no checkmark you can't re-run.
+        </p>
+        <div class="mt-7 flex flex-wrap gap-2.5">
+          <a
+            href={gh}
+            target="_blank"
+            rel="noreferrer"
+            class="rounded-full border border-line px-4 py-2 font-mono text-[0.74rem] uppercase tracking-[0.14em] text-ink transition-colors hover:border-accent hover:text-accent"
+            >GitHub ↗</a
+          >
+          <a
+            href={npm}
+            target="_blank"
+            rel="noreferrer"
+            class="rounded-full border border-line px-4 py-2 font-mono text-[0.74rem] uppercase tracking-[0.14em] text-ink transition-colors hover:border-accent hover:text-accent"
+            >npm ↗</a
+          >
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-x-10 gap-y-9 sm:grid-cols-4">
+        {
+          ROLES.map((role) => (
+            <div>
+              <p
+                class="flex items-center gap-2 font-mono text-[0.72rem] uppercase tracking-[0.18em]"
+                style={`color: var(${role.colorVar.replace("--c-", "--ct-")})`}
+              >
+                <span class="inline-block h-1.5 w-1.5 rounded-full" style={`background: var(${role.colorVar})`} />
+                {role.label}
+              </p>
+              <ul class="mt-4 space-y-2.5">
+                {PROJECTS.filter((p) => p.role === role.id).map((p) => (
+                  <li>
+                    <a
+                      href={p.repo}
+                      target="_blank"
+                      rel="noreferrer"
+                      class="group inline-flex items-baseline gap-1.5 text-[0.95rem] text-muted transition-colors hover:text-ink"
+                    >
+                      <span class="font-mono text-[0.78rem] text-muted/60 group-hover:text-ink/60">wicked-</span>
+                      <span>{p.short}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="mt-16 flex flex-col gap-3 border-t border-line pt-7 font-mono text-[0.72rem] uppercase tracking-[0.14em] text-muted sm:flex-row sm:items-center sm:justify-between">
+      <span>© {year} · MIT licensed · built local-first</span>
+      <span>made with Astro · React · Tailwind · Motion</span>
+    </div>
+  </div>
+</footer>

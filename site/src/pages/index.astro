@@ -1,0 +1,29 @@
+---
+import Base from "../layouts/Base.astro";
+import Header from "../components/Header.astro";
+import Footer from "../components/Footer.astro";
+import Hero from "../components/react/Hero.tsx";
+import Manifesto from "../components/react/Manifesto.tsx";
+import GardenTour from "../components/react/GardenTour.tsx";
+import GardenBench from "../components/react/GardenBench.tsx";
+---
+
+<Base>
+  <Header />
+  <main>
+    <Hero client:load />
+
+    <section id="manifesto" class="border-t border-line">
+      <Manifesto client:visible />
+    </section>
+
+    <section id="tour" class="border-t border-line">
+      <GardenTour client:visible />
+    </section>
+
+    <section id="bench" class="border-t border-line">
+      <GardenBench client:visible />
+    </section>
+  </main>
+  <Footer />
+</Base>
