@@ -369,7 +369,7 @@ export function colorVarOf(id: RoleId): string {
 export const STATS = {
   projects: PROJECTS.length,
   accounts: 0,
-  agents: 41,
+  agents: 81,
   archetypes: 9,
   harnesses: 7,
 };

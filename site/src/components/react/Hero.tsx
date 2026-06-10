@@ -129,7 +129,7 @@ export default function Hero() {
         >
           <Stat n={STATS.projects} label="tools" />
           <Stat n={STATS.accounts} label="accounts" />
-          <Stat n={STATS.agents} label="QE agents" />
+          <Stat n={STATS.agents} label="agents" />
           <Stat n={STATS.archetypes} label="archetypes" />
           <Stat n={STATS.harnesses} label="harnesses" />
         </dl>
