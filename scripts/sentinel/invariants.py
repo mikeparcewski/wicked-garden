@@ -279,7 +279,7 @@ def check_evidence_freshness(repo: Path) -> Optional[Dict[str, Any]]:
         "invariant": "evidence-freshness",
         "evidence": (f"source files changed {age_min:.0f}m after the newest "
                      f".wicked-testing evidence — the recorded runs predate this work"),
-        "action": "Re-run the relevant scenario (/wicked-testing:run) or state why the evidence still holds.",
+        "action": "Re-run the relevant scenario (/wicked-testing:execution) or state why the evidence still holds.",
     }
 
 
