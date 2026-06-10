@@ -1,0 +1,1 @@
+{"captured_at":"2026-06-10T20:35:45.457Z","command":"bash -c 'python3 -m pytest tests/test_wicked_testing_probe.py -q && python3 scripts/ci/validate.py >/dev/null'","exit_code":0,"stderr":"","stdout":"................................                                         [100%]\n32 passed in 0.06s\n"}

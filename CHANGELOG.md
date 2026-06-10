@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.18.4] - 2026-06-10
+
+### Bug Fixes
+- fix(sentinel): `.githooks/pre-push` resolved its interpreter with `python3 … || python …`, so a deliberate sentinel rejection (non-zero exit) re-ran the script via bare `python` — on machines without one, the block reason was buried under `python: command not found`. The hook now resolves the interpreter once (`command -v python3 || command -v python`) and `exec`s it, preserving the sentinel's exit code; no python at all fails closed with a clear message. (#932)
+
 ## [12.18.3] - 2026-06-10
 
 ### Bug Fixes

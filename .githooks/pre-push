@@ -15,5 +15,11 @@
 
 PLUGIN_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-python3 "$PLUGIN_ROOT/scripts/sentinel/pre_push.py" "$@" \
-  || python "$PLUGIN_ROOT/scripts/sentinel/pre_push.py" "$@"
+# Resolve the interpreter once, then exec — a sentinel rejection must surface
+# as-is, never trigger an interpreter fallback (#932). Fail closed when no
+# python exists: this is a gate, and the garden requires python anyway.
+PY="$(command -v python3 || command -v python)" || {
+  echo "pre-push: python3/python not found — sentinel cannot run, push blocked." >&2
+  exit 1
+}
+exec "$PY" "$PLUGIN_ROOT/scripts/sentinel/pre_push.py" "$@"

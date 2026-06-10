@@ -1,0 +1,26 @@
+{
+  "id": "019EB33F86B3613AD9ADE98BC240",
+  "scope": "build",
+  "phase": "review",
+  "claim_id": "tests-pass",
+  "kind": "check",
+  "source": "bash -c 'python3 -m pytest tests/test_wicked_testing_probe.py -q && python3 scripts/ci/validate.py >/dev/null'",
+  "verifier": {
+    "kind": "exit_code_eq",
+    "params": {
+      "code": 0
+    }
+  },
+  "criteria_sha256": "fe343ecf71f24d005b8fa6a7450b2930c2878406979d64d804077b3a92e054dc",
+  "payload_sha256": "78f05b62d5151fca79305cd4e18266c0997a902ddd54c7e795aa26831106bc83",
+  "acceptance_criteria": "tests-pass: `bash -c 'python3 -m pytest tests/test_wicked_testing_probe.py -q && python3 scripts/ci/validate.py >/dev/null'` satisfies exit_code_eq:0",
+  "criteria_authored_by": "record",
+  "payload_ref": "payloads/78f05b62d5151fca79305cd4e18266c0997a902ddd54c7e795aa26831106bc83",
+  "envelope_hash": "9eab6174b08f93753130fd2cfd51b6776f9199876c8155440c604eb33b2fd11f",
+  "status_at_record": "pass",
+  "state": "active",
+  "supersedes": null,
+  "contract_version": "7348781e4b79adbc",
+  "created_at": "2026-06-10T20:35:45.459Z",
+  "created_by": "michael.parcewski"
+}
