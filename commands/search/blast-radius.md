@@ -19,7 +19,7 @@ graph as of ADR 0004. Garden no longer maintains its own graph; it consumes brai
 > For **data-flow tracing** (UI field → DB column or reverse), use `/wicked-garden:search:lineage`.
 
 ## Arguments
-- `symbol` (required): the symbol to analyze (a file like `scripts/foo.py`, or a symbol name).
+- `symbol` (required): the symbol to analyze (a file node like `src/app.py`, or a symbol name).
 - `--depth` (optional): traversal depth (brain default applies if omitted).
 
 ## Instructions
