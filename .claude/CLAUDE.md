@@ -209,6 +209,8 @@ All skills, hooks, agents, and shell commands must work on macOS/Linux and Windo
 - Data lineage → `/wicked-garden:search:lineage`
 - Fall back to Grep/Glob only when the index is unavailable.
 
+**Code-relationship graph lives in wicked-brain** (ADR 0004): blast-radius/lineage/callers are brain's `graph-*` actions + the `wicked-brain:graph` skill, backed by a codegraph static graph + injected edges (bus/dispatch/capability, and garden's archetype edges via the drop-in `.codegraph-extractors/archetype.mjs`). The `search:*` commands are thin wrappers over brain; garden's old in-repo `scripts/_codegraph.py` + `scripts/codegraph/*` are superseded. wicked-patch consumes the same `.codegraph/codegraph.db` brain builds.
+
 ## AskUserQuestion Fallback (Dangerous Mode)
 
 When the session briefing notes `[Question Mode] Dangerous mode is active`, `AskUserQuestion` is broken (auto-completes empty). Commands MUST fall back to plain-text questions and wait for the user to answer.
