@@ -955,16 +955,14 @@ _SEARCH_INVOCATION_RE = re.compile(
 
 
 def _handle_bash(tool_input: dict, tool_response) -> dict:
-    """Track bash activity + run the claim-sentinel ref-watch.
+    """Track bash activity.
 
-    The ref-watch is the tool-agnostic claim detector: it never parses the
-    command (gh / glab / raw git / an API curl all look different) — it diffs
-    the publish-shaped refs every command converges on. When origin's default
-    branch advances or a new tag appears with no re-derived verdict on the
-    sentinel ledger, it emits an answer-tier message (act, or the skip is
-    logged). Throttled + fail-open inside refwatch_tick.
+    The claim sentinel used to ref-watch here on every Bash call; it moved to
+    the Stop hook where it is claim-gated (fires only when the turn's final
+    message asserts done/passing/shipped). See scripts/sentinel/invariants.py
+    ::claim_tick and hooks/scripts/stop.py. Publish-time protection (an actual
+    push to main or a tag) remains the block tier in scripts/sentinel/pre_push.py.
     """
-    messages = []
     try:
         from _session import SessionState
         state = SessionState.load()
@@ -973,33 +971,7 @@ def _handle_bash(tool_input: dict, tool_response) -> dict:
         state.save()
     except Exception:
         pass
-
-    # --- Claim sentinel: ref-watch (state diff, never command matching) ---
-    try:
-        import sys as _sys
-        _sentinel_dir = str(_PLUGIN_ROOT / "scripts" / "sentinel")
-        if _sentinel_dir not in _sys.path:
-            _sys.path.insert(0, _sentinel_dir)
-        from invariants import refwatch_tick, render  # type: ignore
-        from _session import SessionState
-        state = SessionState.load()
-
-        def _get(key):
-            return getattr(state, key, None)
-
-        def _set(key, value):
-            state.update(**{key: value})
-
-        violation = refwatch_tick(_get, _set)
-        if violation:
-            messages.append(render(violation))
-    except Exception:
-        pass  # the sentinel must never break the hook
-
-    result = {"continue": True}
-    if messages:
-        result["systemMessage"] = "\n".join(messages)
-    return result
+    return {"continue": True}
 
 
 # ---------------------------------------------------------------------------

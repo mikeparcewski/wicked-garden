@@ -38,6 +38,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess  # noqa: S404 — argv lists only, shell=False
 import time
 from pathlib import Path
@@ -46,7 +47,6 @@ from typing import Any, Dict, List, Optional
 _GIT_TIMEOUT = 5
 _LEDGER_MAX_STAMPS = 200          # ledger read window (recent stamps only)
 _RECENT_HISTORY = 80              # a verdict covers a sha within this many ancestors
-_REFWATCH_THROTTLE_S = 5          # min seconds between ref snapshots (hot-loop guard)
 _PLAYBOOK_STALE_COMMITS = 30      # repo-playbooks "drifted" threshold
 
 
@@ -156,70 +156,78 @@ def log_sentinel_event(repo: Path, event: str, detail: Dict[str, Any]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Invariant 1 — ref-watch: a done-shaped ref advance must have a verdict.
-# Tool-agnostic by construction: gh/glab/raw git/API all converge on the refs.
+# Invariant 1 — claim-gate (answer tier): a done/passing CLAIM must have a
+# verdict. Fires at the Stop boundary, and only when the turn's final message
+# actually asserts done/passing/shipped — never as a side effect of a tool
+# call. Ship/publish protection (an actual push to main or a tag) is the BLOCK
+# tier (pre_push.py + CI); this is the harness backstop nudge.
+#
+# History: this replaced a PostToolUse ref-watch that keyed off git-ref state
+# (origin default branch + newest tag advancing) with no claim check, wired to
+# a blanket Bash matcher — so any Bash call (git log, cat, find) during pure
+# planning tripped "the claim sentinel that never checked for a claim".
 # ---------------------------------------------------------------------------
 
-def snapshot_refs(repo: Path) -> Dict[str, str]:
-    """{ref: sha} for the publish-shaped refs: remote default branch + newest tag."""
-    out: Dict[str, str] = {}
-    for ref in ("refs/remotes/origin/main", "refs/remotes/origin/master"):
-        sha = _git(repo, "rev-parse", "--verify", "--quiet", ref)
-        if sha:
-            out[ref] = sha
-            break
-    newest_tag = _git(repo, "for-each-ref", "refs/tags",
-                      "--sort=-creatordate", "--count=1", "--format=%(refname)|%(objectname)")
-    if newest_tag and "|" in newest_tag:
-        name, sha = newest_tag.split("|", 1)
-        out[name] = sha
-    return out
+# Verification-completion phrases. Deliberately conservative — the failure mode
+# being fixed is OVER-firing, so we match explicit verification/publish
+# assertions, not bare "done" (too common in progress chatter).
+_CLAIM_PATTERNS = (
+    r"\btests?\s+(?:all\s+)?(?:pass|passing|passes|passed)\b",
+    r"\ball\s+tests?\s+(?:are\s+)?(?:pass|passing|green)",
+    r"\ball\s+green\b",
+    r"\ball\s+checks?\s+(?:pass|passing|green)",
+    r"\bbuild\s+(?:is\s+)?clean\b",
+    r"\bready\s+to\s+(?:merge|ship)\b",
+    r"\bshipped\b",
+    r"\bship(?:ping)?\s+it\b",
+    r"\bit\s+works\b",
+    r"\bverified\b",
+)
+_CLAIM_RE = re.compile("|".join(_CLAIM_PATTERNS), re.IGNORECASE)
 
 
-def check_done_claim(repo: Path, before: Dict[str, str],
-                     after: Dict[str, str]) -> Optional[Dict[str, Any]]:
-    """Answer-tier. Fired when a publish-shaped ref moved (origin default branch
-    advanced, or a new tag appeared) and no re-derived verdict covers the new sha."""
-    moved: List[str] = []
-    for ref, sha in after.items():
-        if before.get(ref) != sha:
-            moved.append(ref)
-    if not moved:
-        return None
-    new_sha = after.get(moved[0], "")
-    stamp = verdict_for(repo, new_sha or None)
-    if stamp:
-        return None
-    violation = {
-        "tier": "answer",
-        "invariant": "done-claim-verdict",
-        "evidence": f"{', '.join(moved)} advanced to {new_sha[:9]} with no re-derived verdict on record",
-        "action": ("Run `/wicked-garden:prove` to re-derive the claim now, or state the override "
-                   "reason — this advance is logged either way."),
-    }
-    log_sentinel_event(repo, "unverified_publish",
-                       {"refs": moved, "sha": new_sha, "invariant": "done-claim-verdict"})
-    return violation
+def is_done_claim(text: Optional[str]) -> bool:
+    """True iff `text` asserts verified completion / shipping — a 'done' claim.
+    Conservative by design (matches explicit verification/publish phrases, not
+    bare 'done') so planning and progress chatter never trip the sentinel."""
+    if not text:
+        return False
+    return bool(_CLAIM_RE.search(text))
 
 
-def refwatch_tick(state_get, state_set, cwd: Optional[Path] = None) -> Optional[Dict[str, Any]]:
-    """The PostToolUse entry point. `state_get(key)`/`state_set(key, value)` wrap
-    SessionState so this module stays import-light. Throttled; fail-open."""
+def claim_tick(state_get, state_set, *, final_message: Optional[str],
+               cwd: Optional[Path] = None) -> Optional[Dict[str, Any]]:
+    """Stop-hook entry point. Fires ONLY when the turn's final assistant message
+    asserts done/passing/shipped (is_done_claim) AND the repo HEAD has no
+    re-derived verdict. Debounced once per unproven sha per session. Fail-open.
+
+    `state_get(key)`/`state_set(key, value)` wrap SessionState so this module
+    stays import-light."""
     try:
-        now = time.time()
-        last = state_get("sentinel_last_check") or 0
-        if now - float(last) < _REFWATCH_THROTTLE_S:
+        if not is_done_claim(final_message):
             return None
         repo = repo_toplevel(cwd)
         if repo is None:
             return None
-        before = state_get("sentinel_refs") or {}
-        after = snapshot_refs(repo)
-        state_set("sentinel_refs", after)
-        state_set("sentinel_last_check", now)
-        if not before:  # first snapshot of the session — baseline only
+        head = _git(repo, "rev-parse", "HEAD")
+        if not head:
             return None
-        return check_done_claim(repo, before, after)
+        if verdict_for(repo, head):  # a re-derived verdict covers HEAD — suppress
+            return None
+        if state_get("sentinel_claim_sha") == head:  # debounce: once per sha/session
+            return None
+        state_set("sentinel_claim_sha", head)
+        violation = {
+            "tier": "answer",
+            "invariant": "done-claim-verdict",
+            "evidence": (f"a done/passing claim was made but HEAD {head[:9]} has no "
+                         "re-derived verdict on record"),
+            "action": ("Run `/wicked-garden:prove` to re-derive the claim now, or state "
+                       "the override reason — the claim is logged either way."),
+        }
+        log_sentinel_event(repo, "unverified_claim",
+                           {"sha": head, "invariant": "done-claim-verdict"})
+        return violation
     except Exception:  # noqa: BLE001 — sentinel never breaks a hook
         return None
 
@@ -388,7 +396,7 @@ def render(violation: Dict[str, Any]) -> str:
 
 __all__ = [
     "repo_toplevel", "stamp_verdict", "verdict_for", "log_sentinel_event",
-    "snapshot_refs", "check_done_claim", "refwatch_tick",
+    "is_done_claim", "claim_tick",
     "check_evidence_freshness", "check_session_capture",
     "check_playbook_freshness", "session_end_lines", "render",
 ]
