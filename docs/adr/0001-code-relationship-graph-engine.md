@@ -1,6 +1,6 @@
 # ADR 0001 — Code-relationship graph: adopt codegraph as the engine, add injected-edge extractors
 
-- **Status:** Accepted (prototype validated)
+- **Status:** Superseded by [ADR 0004](0004-code-graph-moves-to-wicked-brain.md) (2026-06-10) — the engine choice (codegraph) + injected-edge concept stand, but the graph's **home moved to wicked-brain** (garden no longer hosts the shim/extractors). Originally: Accepted (prototype validated).
 - **Date:** 2026-06-09
 - **Context owners:** wicked-garden
 

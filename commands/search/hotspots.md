@@ -11,8 +11,8 @@ Rank symbols by incoming reference count to expose god-objects, coupling hotspot
 
 ## Instructions
 
-1. **Freshness check** — `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_codegraph.py" staleness` — surface the warning line if stale.
-2. **Primary path — codegraph** (when `.codegraph/codegraph.db` exists):
+1. **Freshness** — ensure the graph is current with `/wicked-garden:search:index` (brain's `graph-index` builds the codegraph graph + injected edges and reports a `staleness` stamp). The ranking below reads the graph DB it produces; if it's stale, re-run the index.
+2. **Primary path — read the graph DB** brain built (`.codegraph/codegraph.db`, when present):
    ```bash
    python3 - <<'PY'
    import sqlite3, pathlib
@@ -45,7 +45,7 @@ Rank symbols by incoming reference count to expose god-objects, coupling hotspot
    ```
    Tell the user codegraph gives a sharper, offline answer and suggest `/wicked-garden:search:index` to build it.
 
-3. **If neither is available**: say so and suggest `/wicked-garden:search:index`.
+4. **If neither is available**: say so and suggest `/wicked-garden:search:index`.
 
 ## Example
 
