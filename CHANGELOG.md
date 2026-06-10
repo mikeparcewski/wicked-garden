@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.18.1] - 2026-06-10
+
+### Chores
+- chore: remove the superseded in-garden code-relationship graph (now in wicked-brain, ADR 0004) — deletes `scripts/_codegraph.py`, `scripts/codegraph/*` (5 injected-edge extractors), and `tests/codegraph/`; zero live consumers remained. Rewires `search:hotspots` freshness onto `search:index`; marks ADR 0001 superseded. wicked-patch's `codegraph_db.py` adapter is unchanged. No behavior change.
+
 ## [12.18.0] - 2026-06-10
 
 ### Features
