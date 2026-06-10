@@ -1,5 +1,15 @@
 # Changelog
 
+## [12.18.0] - 2026-06-10
+
+### Features
+- feat(codegraph): move the code-relationship graph to wicked-brain (ADR 0004) — blast-radius/lineage/callers are now brain's `graph-*` actions + the `wicked-brain:graph` skill, backed by a codegraph static graph + injected edges (bus/dispatch/capability). `search:blast-radius`/`lineage`/`index` rewired to thin wrappers over brain.
+- feat(codegraph): garden ships its proprietary archetype→playbook edges via the drop-in extractor `.codegraph-extractors/archetype.mjs`, discovered + run by brain's extractor registry (real-repo verified on this repo).
+- docs: ADR 0004 records the inversion of ADR 0001; AGENTS.md is now a thin pointer to `.claude/CLAUDE.md`.
+
+### Bug Fixes
+- fix(sentinel): claim-gate the answer tier at the Stop boundary — it now fires only on a real done/passing/shipped claim with no verdict for HEAD (debounced per sha), instead of on any Bash call during planning. The buggy PostToolUse ref-watch is removed; the pre-push block tier is unchanged.
+
 ## [12.17.0] - 2026-06-09
 
 ### Features
