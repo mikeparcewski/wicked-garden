@@ -1,0 +1,6 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>mikeparcewski/wicked-ci#v1.1.0"
+  ]
+}
