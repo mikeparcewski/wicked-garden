@@ -26,12 +26,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # Resolve the deploy target. A committed site/public/CNAME means a CUSTOM DOMAIN rooted at
+      # "/" (assets must resolve from the domain root, not a repo subpath); without one we're a
+      # GitHub Pages PROJECT site under /<repo>. Deriving from the CNAME keeps this fork-friendly:
+      # forks with no CNAME build as a project site, forks with one build at their domain root.
+      - name: Resolve deploy target (custom domain vs project site)
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+        run: |
+          if [ -f site/public/CNAME ]; then
+            DOMAIN="$(tr -d '[:space:]' < site/public/CNAME)"
+            echo "SITE_URL=https://$DOMAIN" >> "$GITHUB_ENV"
+            echo "BASE_PATH=/" >> "$GITHUB_ENV"
+            echo "Custom domain → site=https://$DOMAIN base=/"
+          else
+            echo "SITE_URL=https://$OWNER.github.io" >> "$GITHUB_ENV"
+            echo "BASE_PATH=/$REPO" >> "$GITHUB_ENV"
+            echo "Project site → base=/$REPO"
+          fi
+
       - name: Build with Astro
         uses: withastro/action@v6
-        # Derive site + base from the repo so this works on any fork without edits.
-        env:
-          SITE_URL: https://${{ github.repository_owner }}.github.io
-          BASE_PATH: /${{ github.event.repository.name }}
+        # SITE_URL + BASE_PATH come from the resolve step above (ambient via $GITHUB_ENV).
         with:
           path: ./site
           node-version: 22
