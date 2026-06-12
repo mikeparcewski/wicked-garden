@@ -1,13 +1,14 @@
 ---
 name: smaht
 description: |
-  On-demand context assembly over wicked-brain + wicked-garden:search. v6 replaced
-  the v5 push-model orchestrator (deleted in #428) with a pull-model skill —
-  subagents call this skill directly when they need a context briefing rather
-  than having one pushed onto every prompt.
+  Context assembly / briefing builder (the name is a phonetic play on "smart").
+  Gathers a relevant on-demand context briefing over wicked-brain + wicked-garden:search
+  + domain state. Pull-model: subagents call it when they need background rather than
+  having context pushed onto every prompt (v6 replaced the v5 push orchestrator, #428).
 
-  Use when: gathering a context briefing before a task, resuming work after
-  a session break, or assembling background on an unfamiliar area.
+  Use when: gathering a context briefing before a task, "assemble context",
+  "give me a briefing", resuming work after a session break, or building background
+  on an unfamiliar area. Aliases: context-assembly, briefing, smart-context.
 user-invocable: true
 phase_relevance: ["*"]
 archetype_relevance: ["*"]

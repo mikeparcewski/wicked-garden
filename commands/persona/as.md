@@ -69,12 +69,14 @@ From PERSONA_JSON, extract:
 - `traits` (list — format as bullet list, e.g. `- direct\n- pragmatic`)
 - `personality` (object with style, temperament, humor)
 - `constraints` (list — format as numbered list)
+- `not_focus` (list — scope guard; concerns this persona does NOT own. Format as bullet list)
 - `memories` (list — format as bullet list)
 - `preferences` (object with communication, code_style, review_focus, decision_making)
 
 If traits is empty, use: "No specific traits defined — apply the focus broadly."
 If personality is empty, use: "Apply the focus in a direct and professional style."
 If constraints is empty, use: "No hard constraints — use your judgment."
+If not_focus is empty, omit the "NOT Your Focus" section entirely (do not invent boundaries).
 If memories is empty, use: "No specific experiences — draw on your focus."
 If preferences is empty, use: "No specific preferences — communicate clearly and directly."
 
@@ -106,6 +108,10 @@ Task(
 ## Your Constraints (MUST follow)
 
 {constraints_as_numbered_list}
+
+## NOT Your Focus (hand off, do not deep-dive)
+
+{not_focus_as_bullet_list}
 
 ## Your Experience
 

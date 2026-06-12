@@ -11,7 +11,9 @@ Full agentic-codebase review: framework detection → topology → architecture 
 safety + performance assessments → pattern scoring → unified remediation roadmap.
 
 Use `agentic:audit` for compliance-grade safety evidence; `agentic:design` for
-greenfield design.
+greenfield design. This reviews an **AI agent system**; for ordinary source code use
+`engineering:review`, and for a binding go/no-go verdict use `archetype:review`
+(see `docs/domains.md` → "review appears in three domains").
 
 ## Run it inline (no dispatch)
 

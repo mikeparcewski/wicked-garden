@@ -1,10 +1,14 @@
 ---
 name: wickedizer
 description: |
-  This skill should be used when writing, rewriting, or humanizing content. Removes AI tells while preserving meaning. Aligns output to team voice: direct, practical, action-oriented.
+  Writing humanizer / AI-tell remover (the team's house writing-cleanup skill).
+  Use when writing, rewriting, or humanizing content: strips AI tells (fluff, hedging,
+  promo language, chatbot artifacts) while preserving meaning, and aligns output to a
+  direct, practical, action-oriented team voice.
 
-  Use when: humanizing AI-sounding prose, drafting a PR description or commit
-  message, or aligning written output to team voice.
+  Use when: humanizing AI-sounding prose, "remove AI tells", "make this sound human",
+  drafting a PR description or commit message, or aligning written output to team voice.
+  Aliases: humanize, humanizer, dejargonize, writing-cleanup.
 portability: portable
 status: experimental
 phase_relevance: ["*"]
