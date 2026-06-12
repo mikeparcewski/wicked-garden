@@ -1,11 +1,12 @@
 ---
 name: ground
 description: |
-  Pull deeper context from brain + bus when uncertain. Use when: getting mixed signals
-  from the codebase, about to commit to a non-obvious decision, prior decisions might
-  exist for this exact problem, or you want to verify an assumption before action.
-  Returns relevant brain memories, recent bus events, and linked priors ranked by
-  relevance — not a wall of text.
+  Grounding / assumption-check: pull deeper context from brain + bus when uncertain,
+  before acting. Use when: getting mixed signals from the codebase, about to commit to a
+  non-obvious decision, prior decisions might exist for this exact problem, or you want to
+  verify an assumption before action ("am I sure about this?", "have we decided this
+  before?"). Returns relevant brain memories, recent bus events, and linked priors ranked
+  by relevance — not a wall of text. Aliases: grounding, sanity-check, verify-assumption.
 
   NOT for: routine "what does this code do" questions (use Read or Grep), broad
   codebase exploration (use Agent(Explore)), or fetching specific symbols (use

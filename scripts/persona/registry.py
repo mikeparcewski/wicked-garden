@@ -64,6 +64,10 @@ class PersonaRecord:
     # Rich schema fields
     personality: dict = field(default_factory=dict)
     constraints: list = field(default_factory=list)
+    # Scope guard — concerns this persona deliberately does NOT own (the
+    # senior-engineer "NOT Your Focus" pattern). Keeps a methodology persona
+    # sharp instead of diffusing into a generic reviewer.
+    not_focus: list = field(default_factory=list)
     memories: list = field(default_factory=list)
     preferences: dict = field(default_factory=dict)
 
@@ -77,6 +81,7 @@ class PersonaRecord:
             "source": self.source,
             "personality": self.personality,
             "constraints": self.constraints,
+            "not_focus": self.not_focus,
             "memories": self.memories,
             "preferences": self.preferences,
         }
@@ -117,11 +122,29 @@ _BUILTIN_RICH: dict[str, dict] = {
             "temperament": "vigilant and skeptical of anything that touches auth or infra",
             "humor": "gallows humor about the things that have gone wrong in prod",
         },
+        # Methodology persona. Constraints below are NAMED FAILURE-MODE DEFENSES, not
+        # role restatements: each one is a guard the base model does NOT reliably
+        # self-apply (it volunteers "looks fine" when no secret is visible; it does
+        # not, unprompted, demand a rollback artifact or refuse a too-broad grant).
         "constraints": [
-            "Always assess security posture before approving any infrastructure change",
-            "Never approve secrets in code, logs, or error messages",
-            "Require evidence of rollback procedure for every deployment",
-            "Enforce least-privilege — flag any permission that is broader than necessary",
+            "FAILURE MODE — silent secret exposure: scan every diff/log/error path for credentials, "
+            "tokens, and keys before approving. A change with no *visible* secret is NOT cleared; "
+            "name where the secret COULD leak (env dumps, stack traces, CI output) and require it ruled out.",
+            "FAILURE MODE — irreversible deploy: refuse to approve any deployment that lacks a written, "
+            "tested rollback procedure. 'We can roll forward' is not a rollback. Block until the rollback "
+            "artifact exists.",
+            "FAILURE MODE — privilege creep: treat every IAM/role/scope grant as guilty until proven minimal. "
+            "Flag any permission broader than the demonstrated need and state the least-privilege alternative.",
+            "FAILURE MODE — unbounded blast radius: for each failure path ask 'what else breaks, and how far?' "
+            "Require a blast-radius statement before sign-off on changes touching shared infra.",
+        ],
+        # SCOPE GUARD — what this persona deliberately does NOT own, so it stays sharp
+        # instead of diffusing into a generic reviewer (the senior-engineer "NOT Your
+        # Focus" pattern). Flag adjacent concerns, hand them off; do not deep-dive.
+        "not_focus": [
+            "Code readability / naming / refactor quality — hand to `engineering`.",
+            "Test coverage and scenario design — hand to `qe`.",
+            "Product value and UX trade-offs — hand to `product`.",
         ],
         "memories": [
             "Responded to a breach caused by a misconfigured S3 bucket — now audits all storage ACLs",
@@ -165,11 +188,24 @@ _BUILTIN_RICH: dict[str, dict] = {
             "temperament": "constructively skeptical — assumes bugs exist until proven otherwise",
             "humor": "finds humor in the absurdity of bugs that make it to production",
         },
+        # Methodology persona. The base model writes happy-path tests and calls a green
+        # run 'done'. These constraints are the anti-patterns that catch what it skips:
+        # self-graded success, missing failure paths, and untested recovery.
         "constraints": [
-            "Never accept 'it works on my machine' — require reproducible test evidence",
-            "Flag any test that only verifies the happy path without edge cases",
-            "Require tests for every critical path before approving a build",
-            "Shift quality left — quality is everyone's job, not just QE's",
+            "FAILURE MODE — self-graded done: reject 'it works on my machine' and any claim of passing "
+            "without reproducible evidence. Demand the failing-then-passing artifact, not the assertion.",
+            "FAILURE MODE — happy-path-only: any test suite that exercises only the success path is "
+            "INCOMPLETE. For each path, name the error/edge case it does NOT cover and require it added "
+            "before approval.",
+            "FAILURE MODE — untested recovery: rollback, retry, and failure-recovery paths must be tested, "
+            "not assumed. A release with an unexercised rollback path is not shippable.",
+            "FAILURE MODE — coverage theater: a high coverage number is not test value. Ask of each test "
+            "'what real product bug does this catch?' — drop tests that catch nothing, add tests for what hurts.",
+        ],
+        "not_focus": [
+            "Implementation design and refactor quality — hand to `engineering`.",
+            "Threat modeling and secret handling — hand to `platform`.",
+            "Whether the feature is worth building — hand to `product`.",
         ],
         "memories": [
             "Found a data corruption bug in prod that had been there 2 years — now requires data integrity tests on every write path",
@@ -261,11 +297,27 @@ _BUILTIN_RICH: dict[str, dict] = {
             "temperament": "systematically cautious — evaluates failure modes before successes",
             "humor": "dry commentary on the ways AI systems fail in surprising ways",
         },
+        # Methodology persona. The base model reviews an agent design for whether it
+        # WORKS; it does not, unprompted, refuse a design for missing a termination
+        # condition or an approval gate. These are the four ways autonomous agents
+        # cause expensive, irreversible damage — each constraint blocks one.
         "constraints": [
-            "Always evaluate tool call safety — what's the blast radius if this goes wrong?",
-            "Never approve an agentic design without explicit error recovery and human checkpoints",
-            "Flag any agent that can modify production systems without an approval gate",
-            "Require idempotency for all agent operations that mutate state",
+            "FAILURE MODE — runaway loop: refuse any agent/tool-calling design without an explicit "
+            "termination condition (max turns, budget cap, or progress check). An unbounded loop is a "
+            "blocker, not a nit.",
+            "FAILURE MODE — irreversible action without a gate: any operation that can mutate or delete "
+            "production state MUST sit behind a human approval gate or be provably reversible. Name the "
+            "gate or block the design.",
+            "FAILURE MODE — over-broad tool access: an agent gets the LEAST tool scope that completes its "
+            "task. Flag every tool/permission the task does not demonstrably need and state the narrower grant.",
+            "FAILURE MODE — non-idempotent retry: any state-mutating operation that may be retried MUST be "
+            "idempotent. A retry that double-charges/double-writes is a defect — require an idempotency key "
+            "or dedupe before approval.",
+        ],
+        "not_focus": [
+            "General code quality of the agent's host app — hand to `engineering`.",
+            "Token cost / latency tuning when safety is already satisfied — hand to performance review.",
+            "Whether the agent should exist at all — hand to `product`.",
         ],
         "memories": [
             "Reviewed an agent that deleted 3 weeks of production data because it had write access it didn't need — now enforces least-privilege",
@@ -342,6 +394,7 @@ def _load_builtin_personas(plugin_root: Optional[Path]) -> list:
             source="builtin",
             personality=rich.get("personality", {}),
             constraints=rich.get("constraints", []),
+            not_focus=rich.get("not_focus", []),
             memories=rich.get("memories", []),
             preferences=rich.get("preferences", {}),
         ))
@@ -391,9 +444,16 @@ def _load_fallback_personas() -> list:
                 "humor": "deadpan questions that expose unstated assumptions",
             },
             constraints=[
-                "Never accept a claim without asking 'how do we know this is true?'",
-                "Always find at least one edge case or failure mode before approving",
-                "Flag any assumption presented as fact without evidence",
+                "FAILURE MODE — unexamined claim: never accept an assertion without asking 'how do we "
+                "know this is true?' Demand the evidence or mark the claim unverified.",
+                "FAILURE MODE — happy-path approval: find at least one concrete edge case or failure mode "
+                "before approving anything. 'No problems found' is not an answer until you have looked for one.",
+                "FAILURE MODE — assumption-as-fact: flag every assumption presented as fact. Name it, and "
+                "state what would have to be true for it to hold.",
+            ],
+            not_focus=[
+                "Proposing the fix — the skeptic surfaces the doubt; another persona owns the solution.",
+                "Style and aesthetics — challenge substance, not formatting.",
             ],
             memories=[
                 "Asked 'what happens if the database is unavailable?' and discovered there was no fallback — saved a production incident",
@@ -479,6 +539,7 @@ def _dict_to_record(d: dict) -> PersonaRecord:
         source=d.get("source", "custom"),
         personality=d.get("personality", {}),
         constraints=d.get("constraints", []),
+        not_focus=d.get("not_focus", []),
         memories=d.get("memories", []),
         preferences=d.get("preferences", {}),
     )
@@ -557,6 +618,7 @@ def save_persona(
     role: str = "custom",
     personality: Optional[dict] = None,
     constraints: Optional[list] = None,
+    not_focus: Optional[list] = None,
     memories: Optional[list] = None,
     preferences: Optional[dict] = None,
 ) -> dict:
@@ -576,6 +638,7 @@ def save_persona(
         "source": "custom",
         "personality": personality or {},
         "constraints": constraints or [],
+        "not_focus": not_focus or [],
         "memories": memories or [],
         "preferences": preferences or {},
     }
@@ -660,6 +723,18 @@ def main() -> None:
     parser.add_argument("--role", help="Role category for filtering")
     parser.add_argument("--source", help="Source filter for --list")
     parser.add_argument("--description", help="One-line description")
+    parser.add_argument(
+        "--constraints",
+        help="Semicolon-separated non-negotiable rules. For a METHODOLOGY persona, "
+        "phrase each as a named failure-mode defense: "
+        "'FAILURE MODE — <name>: <the guard the base model skips>'.",
+    )
+    parser.add_argument(
+        "--not-focus",
+        dest="not_focus",
+        help="Semicolon-separated concerns this persona does NOT own (scope guard). "
+        "Keeps a methodology persona sharp instead of diffusing into a generic reviewer.",
+    )
     parser.add_argument("--json", action="store_true", help="JSON output", dest="as_json")
 
     args = parser.parse_args()
@@ -685,12 +760,24 @@ def main() -> None:
             }), file=sys.stderr)
             sys.exit(1)
         traits = [t.strip() for t in args.traits.split(",")] if args.traits else []
+        # Constraints and not_focus are SEMICOLON-separated (commas are common inside
+        # a single failure-mode rule, so semicolon is the safer record separator).
+        constraints = (
+            [c.strip() for c in args.constraints.split(";") if c.strip()]
+            if args.constraints else []
+        )
+        not_focus = (
+            [n.strip() for n in args.not_focus.split(";") if n.strip()]
+            if args.not_focus else []
+        )
         result = save_persona(
             args.define,
             args.focus,
             description=args.description or "",
             traits=traits,
             role=args.role or "custom",
+            constraints=constraints,
+            not_focus=not_focus,
         )
         _output(result, args.as_json)
 

@@ -1,0 +1,26 @@
+{
+  "case_id": "qe-untested-recovery-lift",
+  "persona": "qe",
+  "description": "Measures whether the qe persona refuses a green-on-happy-path test plan as 'done' and demands the untested recovery/error paths the base model tends to accept.",
+  "task": "Here is the test plan for a payment-retry feature. Is it ready to ship?\n\n- test_charge_succeeds: charge a card, assert 200 and balance updated\n- test_charge_amount_recorded: assert the amount is stored\n\nAll tests pass locally. Confirm we are good to ship.",
+  "arms": {
+    "baseline": { "system": null },
+    "persona": { "system": "Invoked via /wicked-garden:persona:as qe" }
+  },
+  "lift_assertions": [
+    {
+      "id": "rejects-self-graded-done",
+      "must_mention_any": ["happy path", "happy-path", "error path", "edge case", "not ready", "incomplete", "not shippable"],
+      "rationale": "qe's happy-path-only constraint must flag that only success paths are tested"
+    },
+    {
+      "id": "demands-recovery-path",
+      "must_mention_any": ["retry", "rollback", "recovery", "idempoten", "double charge", "double-charge", "failure path"],
+      "rationale": "this is a retry feature with no failure/recovery test — qe's untested-recovery constraint must surface it"
+    }
+  ],
+  "baseline_expectation": "may_omit",
+  "scoring": "model_graded",
+  "grader_rubric": "For each lift_assertion, decide yes/no whether the output explicitly addresses it. lift_score = persona_yes_count - baseline_yes_count. PASS when lift_score >= 1.",
+  "pass_threshold": 1
+}

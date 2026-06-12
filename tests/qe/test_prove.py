@@ -140,6 +140,12 @@ class ProveEndToEndTests(unittest.TestCase):
         # by the doer's own evidence — it stays REJECT (UNATTESTED) until an
         # independent evaluator attests. A mock test cannot catch this (it was
         # green while the gate vacuously passed); only the real round-trip can.
+        #
+        # prove records under an EXPLICIT doer actor ('garden-prove' — see
+        # prove._prove_actor), so the recorded artifact's worker identity is
+        # strong (created_by_source='explicit'). That is what lets an INDEPENDENT
+        # reviewer (a DIFFERENT explicit actor) attest with no weak-identity flag
+        # — while the vault still rejects a self-grade (evaluator == the doer).
         env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
         env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_BIN=_LOOM,
                    WICKED_LOOM_CUTOVER="on")
@@ -155,20 +161,52 @@ class ProveEndToEndTests(unittest.TestCase):
         self.assertEqual(out["claims"][0]["result"], "UNATTESTED")
         self.assertEqual(proc.returncode, 1)
 
-        # independent evaluator attests PASS → gate flips to PASS
         listing = subprocess.run(["node", _VAULT, "list", "--scope", "s",
                                   "--phase", "migrate"], cwd=str(self.proj),
                                  capture_output=True, text=True, timeout=60)
-        aid = json.loads(listing.stdout)[0]["id"]
-        subprocess.run(["node", _VAULT, "attest", aid, "--opinion", "pass",
-                        "--evaluator", "independent-reviewer", "--rationale", "ok"],
-                       cwd=str(self.proj), capture_output=True, text=True, timeout=60)
+        entry = json.loads(listing.stdout)[0]
+        aid = entry["id"]
+        # The doer's evidence carries a strong, explicit identity — the
+        # precondition the independence check needs.
+        self.assertEqual(entry["created_by"], "garden-prove")
+        self.assertEqual(entry["created_by_source"], "explicit")
+
+        # SELF-GRADE STILL REJECTED: the SAME actor that recorded ('garden-prove')
+        # cannot attest its own artifact to PASS — the independence guarantee is
+        # intact, not reopened by the explicit-actor fix.
+        self_attest = subprocess.run(
+            ["node", _VAULT, "attest", aid, "--opinion", "pass",
+             "--evaluator", "garden-prove", "--rationale", "self"],
+            cwd=str(self.proj), capture_output=True, text=True, timeout=60)
+        self.assertNotEqual(self_attest.returncode, 0,
+                            "self-grade (evaluator == doer) must be refused")
+        self.assertIn("independent", (self_attest.stdout + self_attest.stderr).lower())
+        # The refused self-grade left no opinion, so the gate is still not PASS.
+        gate_self = subprocess.run(
+            [sys.executable, str(_REPO / "scripts" / "qe" / "vault_gate.py"),
+             "gate", str(self.proj), "--scope", "s", "--phase", "migrate",
+             "--with-attestations"],
+            capture_output=True, text=True, env=env, cwd=str(_REPO), timeout=120)
+        self.assertFalse(json.loads(gate_self.stdout)["satisfied"],
+                         "gate must not pass on a refused self-attestation")
+
+        # INDEPENDENT evaluator (a DIFFERENT explicit actor) attests PASS → gate
+        # flips to PASS. No --allow-weak-worker-identity needed: the doer's
+        # identity is explicit.
+        attest = subprocess.run(
+            ["node", _VAULT, "attest", aid, "--opinion", "pass",
+             "--evaluator", "independent-reviewer", "--rationale", "ok"],
+            cwd=str(self.proj), capture_output=True, text=True, timeout=60)
+        self.assertEqual(attest.returncode, 0,
+                         f"independent attest should succeed: {attest.stdout}{attest.stderr}")
         gate = subprocess.run(
             [sys.executable, str(_REPO / "scripts" / "qe" / "vault_gate.py"),
              "gate", str(self.proj), "--scope", "s", "--phase", "migrate",
              "--with-attestations"],
             capture_output=True, text=True, env=env, cwd=str(_REPO), timeout=120)
-        self.assertTrue(json.loads(gate.stdout)["satisfied"])
+        gate_out = json.loads(gate.stdout)
+        self.assertTrue(gate_out["satisfied"])
+        self.assertTrue(gate_out["re_derived"])
 
     # --- OUTPUT validation (not just exit codes): the capability the gate
     #     needs to be useful for produced artifacts, final or interim. ---

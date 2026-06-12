@@ -76,6 +76,34 @@ Requirements, UX, customer voice, market/value strategy, accessibility, visual d
 
 **Agents**: `product-manager`, `requirements-analyst`, `ux-designer`, `user-researcher`, `market-strategist`, `value-strategist`, `a11y-expert`, `ui-reviewer` — the dispatch-only `ux-analyst`, `user-voice`, and `mockup-generator` were removed when their commands collapsed inline.
 
+### Requirements skills — which one? (router)
+
+The `product` domain ships four `requirements-*` skills (under `skills/product/`)
+that are **stages of one lifecycle**, not duplicates. Reach for them in this order:
+
+| Skill | Use it when | Hands off to |
+|-------|-------------|--------------|
+| `requirements-analysis` | Turning a vague idea/stakeholder ask into structured user stories + ACs. For complexity ≥ 3 or compliance work it defaults to **graph mode**. | `requirements-graph` (graph mode) |
+| `requirements-graph` | Laying out ACs as atomic markdown nodes with traceable frontmatter edges (filesystem-as-graph). | `requirements-navigate` |
+| `requirements-navigate` | Querying/maintaining an existing graph — coverage reports, gap-finding, `meta.md` refresh, lint. | — |
+| `requirements-migrate` | One-shot converting a monolithic requirements doc into the graph structure. | `requirements-navigate` |
+
+> Quick decision: **starting fresh →** `requirements-analysis`. **defining the graph directly →** `requirements-graph`. **already have a graph →** `requirements-navigate`. **have a legacy doc to convert →** `requirements-migrate`. For *testable* "definition of done" use `product:acceptance` (skill `acceptance-criteria`); for stakeholder *disagreement* use `product:align`.
+
+### "review" appears in three domains — which one? (router)
+
+`review` is intentionally split across three domains by *what is being reviewed*.
+They do not overlap; pick by target:
+
+| Command | Reviews | Output |
+|---------|---------|--------|
+| `engineering:review` | Source code — quality, patterns, maintainability, security/perf focus | findings list (advisory) |
+| `agentic:review` | An *agentic AI system* — framework detection, agent topology, safety/performance | remediation roadmap |
+| `archetype:review` | Any artifact/PR/commit as the v11 **review work-shape** | a HARD verdict (APPROVE / CONDITIONAL / REJECT) + remediation |
+| `product:ux-review` | UX/visual/accessibility quality of a UI | UX findings |
+
+> Quick decision: **code →** `engineering:review`. **an AI agent system →** `agentic:review`. **a UI →** `product:ux-review`. **need a binding go/no-go verdict on anything →** `archetype:review` (the only one that gates).
+
 ## data — Data Engineering
 
 Data analyst, data engineer, ML engineer, and a unified data architect for OLTP + OLAP design.

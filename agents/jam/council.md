@@ -269,6 +269,13 @@ Skill(skill="wicked-brain:memory", args="store \"Council: {topic} → {verdict_s
 4. **Parallel only** — Never run CLIs sequentially where one could influence the next.
 5. **Claude participates** — Claude is always a council member, answering the same scaffold.
 
-## Programmatic / Persistent Access
+## Persistent Access
 
-For programmatic access, persistent storage, or cross-session queries see `daemon/council.py` + `POST /council` endpoint (v8 PR-4, issue #594). The daemon alternative persists per-model raw responses in SQLite, exposes the vote matrix before synthesis, and stores historical council sessions queryable via `GET /council/<session_id>` and `GET /councils`.
+The inline path above is the supported way to run a council. To persist or query
+council outcomes across sessions, use the brain decision record written in step 8
+(`wicked-brain:memory` store mode), then recall it with `wicked-brain:query` /
+`wicked-brain:search` (e.g. tag `council`).
+
+> **Note (2026-06):** an earlier `daemon/council.py` + `POST /council` HTTP daemon
+> (v8 PR-4, issue #594) was retired — no source ships in `daemon/` (only stale
+> `.pyc` remained). Use the inline council path plus brain persistence instead.

@@ -42,18 +42,38 @@ is executed, not the tools available.
 
 ## Built-in Personas
 
-Loaded from `.claude-plugin/specialist.json` — 8 specialists available as personas:
+Loaded from `.claude-plugin/specialist.json`. A persona only earns its keep if it
+adds something the base model does NOT already supply: a named failure-mode
+defense, a hard constraint, or a scope guard. Built-ins split into two value
+tiers — prefer the methodology tier, and for real leverage define your OWN house
+persona (see "Custom Personas").
+
+### Methodology personas (carry a failure-mode defense — prefer these)
+
+Their registry records encode `FAILURE MODE — …` constraints + a `not_focus`
+scope guard the base model does not reliably self-apply.
+
+| Name | Role | Defends against |
+|------|------|-----------------|
+| platform | devsecops | Silent secret exposure, irreversible deploy, privilege creep, unbounded blast radius |
+| qe | quality-engineering | Self-graded "done", happy-path-only tests, untested recovery, coverage theater |
+| agentic | agentic-architecture | Runaway loops, ungated irreversible actions, over-broad tool access, non-idempotent retries |
+
+(`skeptic`, a fallback persona, is also methodology — it forces an edge case
+before any approval.)
+
+### Generic personas (role lens — secondary, on demand)
+
+Useful, but largely a role restatement the base model already plays:
 
 | Name | Role | Best for |
 |------|------|---------|
 | engineering | engineering | Code quality, architecture, implementation |
-| platform | devsecops | Security, CI/CD, infrastructure, compliance |
 | product | product | Requirements, UX, design review, business strategy |
-| qe | quality-engineering | Test strategy, acceptance criteria, quality gates |
 | data | data-engineering | Pipeline design, ML guidance, analytics |
 | delivery | project-management | Rollout, FinOps, milestone delivery |
 | jam | brainstorming | Ideation, exploration, multi-perspective analysis |
-| agentic | agentic-architecture | Agent safety, tool design, agentic patterns |
+| design | design | Visual design, UX flows, accessibility |
 
 ## Custom Personas
 

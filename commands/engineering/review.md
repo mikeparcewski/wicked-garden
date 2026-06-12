@@ -11,6 +11,9 @@ Senior-engineer code review on quality, patterns, maintainability. Use `--focus 
 patterns|tests` to deepen one area. Use `--persona <name>` to apply a registered persona's lens.
 Use `--scenarios` to emit wicked-scenarios regression blocks per Critical/High finding.
 Use `engineering:arch` for component/system-level architecture review.
+This reviews **source code**; for an AI agent system use `agentic:review`, for a UI use
+`product:ux-review`, and for a binding go/no-go verdict use `archetype:review`
+(see `docs/domains.md` → "review appears in three domains").
 
 ## Run it inline (no dispatch)
 
