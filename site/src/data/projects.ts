@@ -371,7 +371,9 @@ export function colorVarOf(id: RoleId): string {
 export const STATS = {
   projects: PROJECTS.length,
   accounts: 0,
-  agents: 80,
+  // Hand-maintained family-wide agent total = garden 23 + testing 40 + brain 4.
+  // Update on any agent add/cut (garden was 36, cut to 23 in the v12 lift-eval pass).
+  agents: 67,
   archetypes: 9,
   harnesses: 7,
 };
