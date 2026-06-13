@@ -42,16 +42,21 @@ is executed, not the tools available.
 
 ## Built-in Personas
 
-Loaded from `.claude-plugin/specialist.json`. A persona only earns its keep if it
-adds something the base model does NOT already supply: a named failure-mode
-defense, a hard constraint, or a scope guard. Built-ins split into two value
-tiers — prefer the methodology tier, and for real leverage define your OWN house
-persona (see "Custom Personas").
+Names come from `.claude-plugin/specialist.json`; their rich profiles live in
+`scripts/persona/registry.py::_BUILTIN_RICH`. The built-ins are **illustrative
+exemplars**, not the product. A blinded, independently-graded lift eval
+(`tests/persona/EVAL_RESULTS.md`, run 2026-06-12) found the built-in personas
+produce **lift=0** against a strong base model — it already flags the targeted
+failure modes unprompted. So the curated surface was **reduced**: only the three
+**methodology exemplars** keep rich profiles (they show the GOOD pattern); the
+generic role personas were demoted to thin role records. For real leverage,
+define your OWN house persona (see "Custom Personas") — that is the actual product.
 
-### Methodology personas (carry a failure-mode defense — prefer these)
+### Methodology personas (carry a failure-mode defense — the GOOD pattern)
 
 Their registry records encode `FAILURE MODE — …` constraints + a `not_focus`
-scope guard the base model does not reliably self-apply.
+scope guard the base model does not reliably self-apply. Kept as illustrative
+exemplars of what a worth-keeping persona looks like.
 
 | Name | Role | Defends against |
 |------|------|-----------------|
@@ -62,18 +67,22 @@ scope guard the base model does not reliably self-apply.
 (`skeptic`, a fallback persona, is also methodology — it forces an edge case
 before any approval.)
 
-### Generic personas (role lens — secondary, on demand)
+### Generic role names (thin lens — no curated profile)
 
-Useful, but largely a role restatement the base model already plays:
+These specialist names still resolve via `persona:as`, but carry **no curated
+constraints** — the eval showed the base model already plays these roles, so a
+rich profile added surface without lift. They apply the role as a plain lens.
+Any role name not in this list (e.g. an ad-hoc one) falls back gracefully —
+`persona:as` lists what's available rather than crashing. Want durable value
+from one of these lenses? `persona:define` your house version with a failure-mode
+constraint.
 
-| Name | Role | Best for |
+| Name | Role | Plain lens for |
 |------|------|---------|
 | engineering | engineering | Code quality, architecture, implementation |
 | product | product | Requirements, UX, design review, business strategy |
 | data | data-engineering | Pipeline design, ML guidance, analytics |
-| delivery | project-management | Rollout, FinOps, milestone delivery |
 | jam | brainstorming | Ideation, exploration, multi-perspective analysis |
-| design | design | Visual design, UX flows, accessibility |
 
 ## Custom Personas
 

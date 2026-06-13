@@ -50,8 +50,15 @@ defense. Start here:
 **Value tiers.** A persona is **Methodology** if its registry record carries a
 non-empty `constraints` list (it defends a named failure mode / hard constraint).
 Otherwise it is **Generic** (a role restatement the base model largely already
-supplies — useful on demand, but lower durable value). Compute this from the
-`constraints` field returned by the registry; do not hardcode the split.
+supplies). Compute this from the `constraints` field returned by the registry;
+do not hardcode the split.
+
+The curated built-in surface is intentionally **small**: only the three
+methodology exemplars below carry rich profiles. A blinded lift eval
+(`tests/persona/EVAL_RESULTS.md`, 2026-06-12) found the built-in personas
+produce **lift=0** vs the base model, so the generic role personas were demoted
+to **thin role records** — still invokable, but with no curated constraints (the
+base model already plays those roles). The real product is `persona:define`.
 
 ```markdown
 ### Methodology personas (carry a failure-mode defense — prefer these)
@@ -61,17 +68,20 @@ supplies — useful on demand, but lower durable value). Compute this from the
 | qe | Test value, recovery paths, anti-happy-path... | `/wicked-garden:persona:as qe <task>` |
 | agentic | Agent safety, termination, idempotency... | `/wicked-garden:persona:as agentic <task>` |
 
-### Generic personas (role lens — secondary, on demand)
-<details><summary>Show generic personas</summary>
+### Generic personas (thin role lens — base model already plays these)
+<details><summary>Show generic role names (no curated constraints — define your own for lift)</summary>
+
+These names still resolve (engineering, product, data, jam) but carry no curated
+profile — they apply the role as a plain lens. For durable value, define a HOUSE
+persona instead. Any unlisted role name falls back gracefully (`persona:as`
+lists what's available rather than crashing).
 
 | Name | Focus | Invoke |
 |------|-------|--------|
 | engineering | Code quality, architecture... | `/wicked-garden:persona:as engineering <task>` |
 | product | Requirements, UX, business value... | `/wicked-garden:persona:as product <task>` |
 | data | Pipelines, ML guidance, analytics... | `/wicked-garden:persona:as data <task>` |
-| delivery | Rollout, FinOps, milestones... | `/wicked-garden:persona:as delivery <task>` |
 | jam | Ideation, multi-perspective... | `/wicked-garden:persona:as jam <task>` |
-| design | Visual design, UX flows... | `/wicked-garden:persona:as design <task>` |
 </details>
 
 ### Custom Personas
