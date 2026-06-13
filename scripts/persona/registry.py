@@ -676,11 +676,27 @@ def save_to_cache(name: str, persona: dict) -> Path:
 
 
 def delete_persona(name: str) -> bool:
-    """Delete a custom persona from DomainStore."""
+    """Delete a custom persona from DomainStore.
+
+    Custom personas are stored under an auto-generated UUID ``id`` (the
+    DomainStore key); the human ``name`` lives in the record body. Deleting by
+    ``name`` therefore looked up ``{name}.json``, found nothing, and silently
+    returned False — the persona was never removed. Resolve ``name`` -> ``id``
+    first (case-insensitive, matching ``get_persona``) and delete by the real
+    key. Returns False when no custom persona matches the name.
+    """
     try:
         from _domain_store import DomainStore
         ds = DomainStore("persona")
-        return ds.delete("personas", name)
+        target = name.lower()
+        record_id = next(
+            (r.get("id") for r in ds.list("personas")
+             if str(r.get("name", "")).lower() == target and r.get("id")),
+            None,
+        )
+        if record_id is None:
+            return False
+        return ds.delete("personas", record_id)
     except Exception as e:
         print(f"registry: failed to delete persona: {e}", file=sys.stderr)
         return False

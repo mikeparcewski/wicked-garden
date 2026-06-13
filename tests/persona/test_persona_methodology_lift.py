@@ -260,6 +260,78 @@ def test_define_mechanism_roundtrips_failure_mode_constraint(tmp_path):
     assert any(FAILURE_MODE_SENTINEL in c for c in reloaded.get("constraints", []))
 
 
+def test_define_then_delete_roundtrips(tmp_path):
+    """`persona:define` must be reversible: a defined persona can be deleted.
+
+    Regression guard for the delete_persona bug — custom personas are stored
+    under an auto-generated UUID ``id`` (the DomainStore key), while the human
+    ``name`` lives in the record body. ``delete_persona(name)`` used to delete
+    BY NAME, so it looked up ``{name}.json``, found nothing, and silently
+    returned False, leaving the persona in place. The fix resolves name -> id
+    first. We assert the full define -> get -> delete -> get round-trip plus the
+    miss case (deleting an unknown name returns False, not a stray success).
+
+    Runs in a SUBPROCESS with HOME + CLAUDE_CWD pinned to a temp dir so the
+    DomainStore root is isolated and no module state leaks into the in-process
+    registry the other tests share (T3 isolation), mirroring the define
+    round-trip test above.
+    """
+    import json
+    import subprocess
+    import textwrap
+
+    env = dict(os.environ)
+    env["HOME"] = str(tmp_path)
+    env["CLAUDE_CWD"] = str(tmp_path)
+    env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
+
+    # Drive define -> delete through the registry API the persona:define surface
+    # uses. No --delete CLI verb exists, so call the functions directly in an
+    # isolated interpreter and emit a single JSON result line we assert on.
+    driver = textwrap.dedent(
+        """
+        import json, os, sys, importlib.util as ilu
+        sys.path.insert(0, os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "scripts"))
+        p = os.path.join(os.environ["CLAUDE_PLUGIN_ROOT"], "scripts", "persona", "registry.py")
+        spec = ilu.spec_from_file_location("_wg_del_rt", p)
+        rg = ilu.module_from_spec(spec); sys.modules["_wg_del_rt"] = rg
+        spec.loader.exec_module(rg)
+        name = "delete-roundtrip-persona"
+        defined = rg.save_persona(name, "reversible define", description="d", role="custom")
+        present_before = rg.get_persona(name) is not None
+        deleted = rg.delete_persona(name)
+        present_after = rg.get_persona(name) is not None
+        missing = rg.delete_persona("no-such-persona-xyz")
+        print(json.dumps({
+            "defined_id": defined.get("id"),
+            "present_before": present_before,
+            "deleted": deleted,
+            "present_after": present_after,
+            "missing_returns_false": missing,
+        }))
+        """
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", driver],
+        capture_output=True, text=True, env=env, cwd=str(tmp_path),
+    )
+    assert proc.returncode == 0, f"driver failed: {proc.stderr}"
+    result = json.loads(proc.stdout.strip().splitlines()[-1])
+
+    assert result["defined_id"], "define did not assign a UUID id"
+    assert result["present_before"] is True, "define did not persist the persona"
+    assert result["deleted"] is True, (
+        "delete_persona(name) returned False — the name->id resolution is "
+        "broken (the original bug: delete-by-name against a UUID-keyed store)"
+    )
+    assert result["present_after"] is False, (
+        "persona still resolvable after delete — delete did not remove it"
+    )
+    assert result["missing_returns_false"] is False, (
+        "deleting an unknown name must return False, not a stray success"
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Anti-regression: generic personas should NOT masquerade as methodology
 # --------------------------------------------------------------------------- #

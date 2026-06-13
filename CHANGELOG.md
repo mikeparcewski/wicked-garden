@@ -1,5 +1,32 @@
 # Changelog
 
+## [12.19.1] - 2026-06-12
+
+### Bug Fixes
+- fix(qe): the trust-spine `ProveEndToEndTests` now **RUN and GATE in CI** instead of skipping — they execute against any **resolvable** vault (PATH / `npm i -g` / `node_modules`, mirroring `vault_gate.resolve_vault`), CI installs the published peers, and `WICKED_REQUIRE_E2E=1` (set in `.github/workflows/test.yml`) makes a SKIP of these tests a hard build failure. The PASS / REJECT / independent-attestation path is now actually covered (no more GREEN-BUT-HOLLOW).
+- fix(persona): `delete_persona(name)` resolves name → UUID id before deleting — custom personas are keyed by an auto-generated id in the DomainStore, so delete-by-name silently failed and left the persona in place. Adds a define → delete round-trip test.
+
+### Chores
+- chore(qe): propagate the explicit `--actor "${WICKED_VAULT_ACTOR:-garden-prove}"` to every hard-gate record-then-attest playbook (`skills/archetype/refs/{review,incident,migrate,specify}.md`) so wicked-vault **>= 0.4.0** does not refuse an independent attestation for a weak/ambient worker identity; peer floor `wicked_vault_version` pinned `^0.4.0`. Documented in `.claude/CLAUDE.md`.
+- chore(persona): ran the persona-lift eval (blinded, independent grader) and recorded the result honestly in `tests/persona/EVAL_RESULTS.md` — **lift = 0 on all 3 cases** vs a strong base model. The built-in methodology personas are illustrative/redundant for these textbook cases; the `persona:define` mechanism (inject HOUSE methodology the base model cannot know) is the actual product. Recorded, not asserted.
+- chore: bump 12.19.0 → 12.19.1.
+
+## [12.19.0] - 2026-06-12
+
+### Features
+- feat(persona): triage methodology vs generic personas — sharpen the methodology personas, add a `not_focus` scope guard + GOOD-pattern template to `persona:define`, and demote the generic tail by presentation. Adds `tests/persona/` (deterministic lift suite + eval-case schema).
+- feat(help): regenerate `/help` from the live command tree (drop retired crew/delivery; add prove/archetype/persona/compile/intent/where-am-i) with a `tests/test_help_command_tree.py` lint that fails if help drifts from `commands/`.
+- feat(routers): add requirements/review sprawl routers and intent-revealing descriptions for smaht/wickedizer/ground.
+
+### Bug Fixes
+- fix(qe): `scripts/qe/prove.py` records evidence under an explicit `--actor` (`WICKED_VAULT_ACTOR` → default `garden-prove`) so the hardened **wicked-vault (>= 0.4.0)** trusts an independent attestation and `prove --with-attestations` can reach PASS — without weakening independence (a self-attest by the doer is still refused). `tests/qe/test_prove.py` updated in lockstep. (#945)
+- fix(qe): the trust-spine `ProveEndToEndTests` now RUN against any **resolvable** vault (PATH / `npm i -g` / `node_modules`), not only a sibling checkout or `WICKED_VAULT_BIN` — mirrors `vault_gate.resolve_vault`. CI sets `WICKED_REQUIRE_E2E=1` so a SKIP of these tests is a hard failure (no more GREEN-BUT-HOLLOW).
+- fix(qe): propagate the wicked-vault >= 0.4.0 explicit-`--actor` requirement to every record-then-attest path — the hard-gate playbooks (`skills/archetype/refs/{review,incident,migrate}.md`, plus `specify.md`) now record with `--actor "${WICKED_VAULT_ACTOR:-garden-prove}"` so an independent `attest` is not refused for weak/ambient worker identity. The compiler-emitted integrity gate (record + cross-check, no attest) is intentionally unchanged. Peer floor `wicked_vault_version` pinned `^0.3.0` → `^0.4.0`.
+- fix(persona): `delete_persona(name)` resolves name → UUID id before deleting — custom personas are keyed by an auto-generated id in the DomainStore, so delete-by-name silently failed and left the persona in place. Adds a define → delete round-trip test.
+
+### Chores
+- chore: remove dead `daemon/council.py` pointer; bump 12.18.4 → 12.19.0.
+
 ## [12.18.4] - 2026-06-10
 
 ### Bug Fixes

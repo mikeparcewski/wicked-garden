@@ -75,14 +75,19 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
    - Circuit break a downstream (when a dependency is the issue).
 2. **Confirm the bleeding stopped.** Watch the same dashboards that
    surfaced the incident. Don't declare mitigated based on logs alone.
-3. Record the mitigation as re-derivable evidence (vault present):
+3. Record the mitigation as re-derivable evidence (vault present;
+   **wicked-vault ≥ 0.4.0**):
    `wicked-vault record --scope <scope> --phase incident --claim mitigation
    --kind mitigation-check --source "<the symptom-check command>"
    --criteria "symptom check passes post-mitigation"
-   --verifier exit_code_eq:0 --run`. The `--run` captures the symptom
-   check's real exit code now and the gate re-runs it later — a mitigation
-   you can't re-derive is not evidence. No vault → fall back to
-   `evidence_tracker.py claim`.
+   --verifier exit_code_eq:0 --actor "${WICKED_VAULT_ACTOR:-garden-prove}"
+   --run`. The **`--actor`** is mandatory because `mitigate` is a hard
+   gate: vault ≥ 0.4.0 refuses an `attest` over evidence recorded under a
+   weak/ambient identity, so without an explicit actor the independent
+   attestation fails closed and the gate can never PASS. The `--run`
+   captures the symptom check's real exit code now and the gate re-runs it
+   later — a mitigation you can't re-derive is not evidence. No vault →
+   fall back to `evidence_tracker.py claim`.
 4. Update the incident channel: "MITIGATED via {action} at {time}".
 
 ### resolve
@@ -100,15 +105,19 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 2. Use `wicked-garden:incident-to-scenario-synthesizer` to convert the
    incident into a regression scenario that would catch the same break.
 3. Track action items in github. Don't bury them in a Slack thread.
-4. Record the docs evidence (vault present):
+4. Record the docs evidence (vault present; **wicked-vault ≥ 0.4.0**):
    `wicked-vault record --scope <scope> --phase incident --claim rca
    --kind doc --artifact docs/postmortems/INC-{N}.md
    --criteria "required RCA sections present"
-   --verifier "regex_match:## Root Cause"` and
+   --verifier "regex_match:## Root Cause"
+   --actor "${WICKED_VAULT_ACTOR:-garden-prove}"` and
    `wicked-vault record --scope <scope> --phase incident
    --claim followup-list --kind doc --artifact <followup-list>
    --criteria "followup list non-empty"
-   --verifier "regex_match:- \["`. No vault → `evidence_tracker.py claim`.
+   --verifier "regex_match:- \[" --actor "${WICKED_VAULT_ACTOR:-garden-prove}"`.
+   The **`--actor`** keeps this incident's evidence attestable by an
+   independent reviewer under vault ≥ 0.4.0. No vault →
+   `evidence_tracker.py claim`.
 
 ## When to stop
 

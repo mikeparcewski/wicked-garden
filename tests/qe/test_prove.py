@@ -23,14 +23,48 @@ for _p in (_REPO / "scripts", _REPO / "scripts" / "qe"):
         sys.path.insert(0, str(_p))
 
 import prove as pv  # noqa: E402
+import vault_gate  # noqa: E402  — reuse the gate's vault resolver
 
 _PROVE_CLI = _REPO / "scripts" / "qe" / "prove.py"
-_VAULT = os.environ.get("WICKED_VAULT_BIN")
-if not _VAULT:
+
+
+def _resolve_vault_argv():
+    """Resolve the vault the SAME way the gate does, so the E2E tests RUN
+    whenever the gate would have a backend — not only when a sibling checkout
+    exists or WICKED_VAULT_BIN is set.
+
+    Headline bug (GREEN-BUT-HOLLOW): the old detection only honoured
+    ``WICKED_VAULT_BIN`` or a sibling ``../wicked-vault`` checkout, so a vault
+    installed via ``npm i -g wicked-vault`` (exactly what CI does) made the
+    trust-spine ProveEndToEnd tests SKIP — CI was green without ever exercising
+    prove -> loom -> vault. We now mirror ``vault_gate.resolve_vault`` (env ->
+    config -> PATH -> node_modules) — the concrete-install probe (no npx) — so a
+    globally-installed vault satisfies the peer requirement and the tests run.
+
+    Returns ``(argv_list, bin_string)`` or ``(None, None)``. ``argv_list`` is the
+    full invocation prefix (e.g. ``["node", "...vault.mjs"]`` or
+    ``["/usr/local/bin/wicked-vault"]``); ``bin_string`` is the single target the
+    subprocess passes back via ``WICKED_VAULT_BIN`` (prove/the gate re-apply
+    ``_argv_for`` to it, so it must be the bare path/name, not the node prefix).
+    """
+    explicit = os.environ.get("WICKED_VAULT_BIN")
+    if explicit:
+        return vault_gate._argv_for(explicit), explicit
+    # Sibling dev checkout takes precedence when present (dev-loop ergonomics).
     sib = _REPO.parent / "wicked-vault" / "bin" / "wicked-vault.mjs"
-    _VAULT = str(sib) if sib.exists() else None
+    if sib.exists():
+        return ["node", str(sib)], str(sib)
+    # Installed/resolvable vault (PATH, config, node_modules) — the CI path.
+    argv = vault_gate.resolve_vault(allow_npx=False)
+    if argv:
+        # The bin string is the last element (argv is [bin] or ["node", script]).
+        return argv, argv[-1]
+    return None, None
+
+
+_VAULT_ARGV, _VAULT = _resolve_vault_argv()
 _LOOM = os.environ.get("WICKED_LOOM_BIN") or shutil.which("wicked-loom")
-_PEERS = shutil.which("node") and _VAULT and _LOOM
+_PEERS = bool(shutil.which("node") and _VAULT_ARGV and _LOOM)
 
 
 class VerifierParsingTests(unittest.TestCase):
@@ -96,7 +130,32 @@ class FailClosedTests(unittest.TestCase):
             self.assertEqual(proc.returncode, 3, "fail-closed must use exit 3")
 
 
-@unittest.skipIf(not _PEERS, "needs node + wicked-loom + wicked-vault")
+# CI guard against silent regression of the GREEN-BUT-HOLLOW bug: when
+# WICKED_REQUIRE_E2E is set (CI sets it once the peers are installed), these
+# trust-spine tests MUST run — a skip becomes a hard failure instead of a
+# silent green. Locally the flag is unset, so a dev with no peers still skips.
+_REQUIRE_E2E = os.environ.get("WICKED_REQUIRE_E2E", "").strip().lower() in (
+    "1", "true", "yes", "on")
+
+
+def _e2e_guard(cls):
+    if _PEERS:
+        return cls  # peers resolvable -> RUN (the CI-green path we want)
+    if _REQUIRE_E2E:
+        # Demanded but unresolvable -> fail loudly, never skip.
+        def _fail(self):
+            self.fail(
+                "WICKED_REQUIRE_E2E is set but the trust-spine peers are not "
+                f"resolvable (node={bool(shutil.which('node'))}, "
+                f"vault_argv={_VAULT_ARGV}, loom={_LOOM}). These ProveEndToEnd "
+                "tests MUST run in CI — a skip here is the GREEN-BUT-HOLLOW "
+                "regression. Install: npm i -g wicked-vault wicked-loom.")
+        return type(cls.__name__, (unittest.TestCase,),
+                    {"test_e2e_peers_required": _fail})
+    return unittest.skip("needs node + wicked-loom + wicked-vault")(cls)
+
+
+@_e2e_guard
 class ProveEndToEndTests(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -161,7 +220,7 @@ class ProveEndToEndTests(unittest.TestCase):
         self.assertEqual(out["claims"][0]["result"], "UNATTESTED")
         self.assertEqual(proc.returncode, 1)
 
-        listing = subprocess.run(["node", _VAULT, "list", "--scope", "s",
+        listing = subprocess.run([*_VAULT_ARGV, "list", "--scope", "s",
                                   "--phase", "migrate"], cwd=str(self.proj),
                                  capture_output=True, text=True, timeout=60)
         entry = json.loads(listing.stdout)[0]
@@ -175,7 +234,7 @@ class ProveEndToEndTests(unittest.TestCase):
         # cannot attest its own artifact to PASS — the independence guarantee is
         # intact, not reopened by the explicit-actor fix.
         self_attest = subprocess.run(
-            ["node", _VAULT, "attest", aid, "--opinion", "pass",
+            [*_VAULT_ARGV, "attest", aid, "--opinion", "pass",
              "--evaluator", "garden-prove", "--rationale", "self"],
             cwd=str(self.proj), capture_output=True, text=True, timeout=60)
         self.assertNotEqual(self_attest.returncode, 0,
@@ -194,7 +253,7 @@ class ProveEndToEndTests(unittest.TestCase):
         # flips to PASS. No --allow-weak-worker-identity needed: the doer's
         # identity is explicit.
         attest = subprocess.run(
-            ["node", _VAULT, "attest", aid, "--opinion", "pass",
+            [*_VAULT_ARGV, "attest", aid, "--opinion", "pass",
              "--evaluator", "independent-reviewer", "--rationale", "ok"],
             cwd=str(self.proj), capture_output=True, text=True, timeout=60)
         self.assertEqual(attest.returncode, 0,
