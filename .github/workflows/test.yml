@@ -30,14 +30,20 @@ jobs:
         # Stdlib-only project; only pytest is needed for the test suite.
         run: pip install pytest
 
-      - name: Install wicked peers for E2E (best-effort)
-        # The E2E gate/resilience tests skip cleanly when these are absent, so a
-        # registry hiccup must not fail the build — but when present, the gate is
-        # exercised through its REAL CLI surface (the path that hid two
-        # loom-cutover regressions module-level tests could not see).
-        run: npm i -g wicked-vault wicked-loom wicked-testing || echo "peer install failed — E2E gate tests will skip"
+      - name: Install wicked peers for E2E (required for the trust spine)
+        # The trust-spine tests (prove -> loom -> vault) MUST run in CI — a
+        # globally-installed vault now satisfies their peer requirement (the
+        # GREEN-BUT-HOLLOW fix). The install must succeed: if it fails, the
+        # trust spine cannot be exercised and the build is meaningless.
+        run: npm i -g wicked-vault wicked-loom wicked-testing
 
       - name: Run v11 test suite (incl. tests/e2e/ — real-surface gate + resilience)
+        # WICKED_REQUIRE_E2E=1 turns a SKIP of the trust-spine ProveEndToEnd
+        # tests into a hard FAILURE — so CI can never again be green without
+        # actually exercising prove -> loom -> vault (the GREEN-BUT-HOLLOW
+        # regression guard). Peers are installed above, so they must run.
+        env:
+          WICKED_REQUIRE_E2E: "1"
         run: python -m pytest tests/ -q
 
       - name: Run wicked-patch generator conformance tests

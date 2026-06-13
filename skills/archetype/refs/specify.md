@@ -61,14 +61,20 @@ proceed past validate without explicit user agreement on the AC set.
    stay under <threshold>`.
 4. Keep ACs minimal — 3–7 is the sweet spot. More than 10 means you're
    treating ACs as design.
-5. Record the AC artifact as re-derivable evidence (vault present):
+5. Record the AC artifact as re-derivable evidence (vault present;
+   **wicked-vault ≥ 0.4.0**):
    `wicked-vault record --scope <scope> --phase specify
    --claim smart-acceptance-criteria --kind spec-doc
    --artifact <path/to/requirements.md>
    --criteria "<the testability bar>"
-   --verifier regex_match:'(?im)^(AC|INV)-\d+:' --run`. The verifier
-   re-runs against the artifact later — a claim you can't re-derive is
-   not evidence. No vault → fall back to the claim-only path.
+   --verifier regex_match:'(?im)^(AC|INV)-\d+:'
+   --actor "${WICKED_VAULT_ACTOR:-garden-prove}" --run`. The **`--actor`**
+   records under an explicit identity so that if AC quality needs an
+   independent sign-off (the optional `--with-attestations` judgment tier
+   above), vault ≥ 0.4.0 will let that attestation through instead of
+   refusing it as a weak/ambient identity. The verifier re-runs against
+   the artifact later — a claim you can't re-derive is not evidence. No
+   vault → fall back to the claim-only path.
 
 ### validate
 

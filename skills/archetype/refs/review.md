@@ -93,14 +93,20 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
    condition descriptions before persisting.
 4. Append to the audit log with `scripts/qe/verdict_audit.py append`
    so the verdict is replayable.
-   Then record both produces as re-derivable evidence (vault present):
+   Then record both produces as re-derivable evidence (vault present;
+   **wicked-vault ≥ 0.4.0**):
    `wicked-vault record --scope <scope> --phase review --claim verdict
    --kind verdict --source "<verdict.json>" --criteria "<the bar>"
-   --verifier exit_code_eq:0 --run` where the run is
-   `scripts/qe/verdict_schema.py <verdict.json>`, and a second `record`
-   for `--claim remediation-list ... --verifier regex_match:<pattern>`.
-   The `--run` captures the validator's real exit code now and the gate
-   re-runs it later — a claim you can't re-derive is not evidence. No
+   --verifier exit_code_eq:0 --actor "${WICKED_VAULT_ACTOR:-garden-prove}"
+   --run` where the run is `scripts/qe/verdict_schema.py <verdict.json>`,
+   and a second `record` for `--claim remediation-list ... --verifier
+   regex_match:<pattern> --actor "${WICKED_VAULT_ACTOR:-garden-prove}"`.
+   The **`--actor`** is mandatory for a hard gate: vault ≥ 0.4.0 refuses an
+   `attest` over evidence recorded under a weak/ambient identity
+   (`created_by_source='env-user'`), so without an explicit actor the
+   independent sign-off below fails closed and the gate can never reach
+   PASS. The `--run` captures the validator's real exit code now and the
+   gate re-runs it later — a claim you can't re-derive is not evidence. No
    vault → fall back to `evidence_tracker.py claim`.
    Then have an **independent** evaluator sign off via the
    `wicked-vault:analyze-evidence` skill, which records an
