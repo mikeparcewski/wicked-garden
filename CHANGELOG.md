@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.20.0] - 2026-06-12
+
+### Changed
+- refactor(persona): Removed 6 proven-redundant generic built-in personas (lift=0 per tests/persona/EVAL_RESULTS.md); kept platform/qe/agentic as methodology exemplars; generic role names now fall back gracefully; persona:define is the product. Net surface reduction.
+
 ## [12.19.1] - 2026-06-12
 
 ### Bug Fixes

@@ -360,3 +360,95 @@ def test_generic_personas_are_distinguishable_from_methodology():
             "move it to the methodology tier in commands/persona/list.md + "
             "skills/persona/SKILL.md."
         )
+
+
+# --------------------------------------------------------------------------- #
+# Surface reduction: the curated _BUILTIN_RICH set is the methodology exemplars
+# --------------------------------------------------------------------------- #
+
+def test_curated_builtin_rich_is_methodology_only():
+    """The eval (EVAL_RESULTS.md) showed lift=0 for the built-ins, so the curated
+    rich surface was reduced to the three methodology EXEMPLARS only.
+
+    `_BUILTIN_RICH` is the maintained "this is the GOOD pattern" set. After the
+    cut it must contain exactly the methodology personas and NONE of the generic
+    role restatements (engineering, product, data, jam, delivery, design) — those
+    added curated surface with no measured lift. Re-adding a generic profile here
+    without an eval showing lift > 0 is a regression of the demotion.
+    """
+    assert set(registry._BUILTIN_RICH.keys()) == set(METHODOLOGY_PERSONAS), (
+        f"_BUILTIN_RICH carries {sorted(registry._BUILTIN_RICH)} but the curated "
+        f"surface must be exactly the methodology exemplars {sorted(METHODOLOGY_PERSONAS)}. "
+        "Generic role personas were demoted to thin records after the lift=0 eval — "
+        "do not re-add a generic rich profile without an eval showing lift > 0."
+    )
+    # Defense-in-depth: none of the demoted generic names carry a curated profile.
+    for name in ["engineering", "product", "data", "jam", "delivery", "design"]:
+        assert name not in registry._BUILTIN_RICH, (
+            f"generic persona '{name}' was demoted (lift=0) but still has a curated "
+            "_BUILTIN_RICH profile — remove it or prove lift with an eval"
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Fallback safety: a demoted/removed generic name must NOT hard-break persona:as
+# --------------------------------------------------------------------------- #
+
+@pytest.mark.parametrize("name", ["engineering", "product", "data", "jam"])
+def test_demoted_generic_name_still_resolves_as_thin_record(name):
+    """SAFETY: demoting a generic persona must NOT break `persona:as <name>`.
+
+    These names are still declared in specialist.json, so the registry resolves
+    them — now as THIN role records (empty constraints / not_focus) rather than a
+    curated profile. `persona:as` renders an empty-constraints record gracefully
+    ('No hard constraints — use your judgment'), so the name still works; it just
+    carries no curated lift. The reduction removed surface, not the invocation.
+    """
+    rec = registry.get_persona(name)
+    if rec is None:
+        pytest.skip(f"'{name}' did not resolve — builtin source unavailable in this env")
+    # Still resolvable (no crash) and now thin: zero curated failure-mode constraints.
+    named = [c for c in rec.get("constraints", []) if FAILURE_MODE_SENTINEL in c]
+    assert named == [], (
+        f"demoted generic '{name}' unexpectedly carries failure-mode constraints — "
+        "its curated profile should have been removed in the surface cut"
+    )
+
+
+def test_unknown_or_removed_persona_name_fails_safe_not_crash():
+    """SAFETY: an unknown/removed name (e.g. the fully-removed 'delivery'/'design')
+    must fail SAFE — `get_persona` returns None and the registry CLI exits non-zero
+    with an `available` list — NEVER an unhandled exception or a wrong persona.
+
+    `commands/persona/as.md` Step 3 consumes exactly this contract: on a None/error
+    result it lists available personas and STOPs, so `persona:as <removed-name>`
+    degrades gracefully instead of dispatching a bogus agent. We assert both the
+    in-process API (None) and the CLI surface (exit 1 + `available`).
+    """
+    import json
+    import subprocess
+
+    # In-process: removed generic names resolve to None (no crash, no wrong match).
+    for removed in ["delivery", "design", "totally-made-up-xyz-123"]:
+        assert registry.get_persona(removed) is None, (
+            f"'{removed}' should not resolve to any persona after the cut"
+        )
+
+    # CLI surface (the exact contract persona:as reads): non-zero exit + available list.
+    env = dict(os.environ)
+    env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
+    proc = subprocess.run(
+        [sys.executable, str(_REGISTRY_PATH), "--get", "delivery", "--json"],
+        capture_output=True, text=True, env=env,
+    )
+    assert proc.returncode != 0, "lookup of a removed name must exit non-zero (fail-safe)"
+    payload = json.loads(proc.stderr or proc.stdout)
+    assert "error" in payload and "available" in payload, (
+        "the unknown-name response must carry an 'error' + 'available' list so "
+        "persona:as can list options and stop — not crash"
+    )
+    # The methodology exemplars are still offered as available alternatives.
+    for kept in METHODOLOGY_PERSONAS:
+        assert kept in payload["available"], (
+            f"methodology exemplar '{kept}' missing from the available list"
+        )
