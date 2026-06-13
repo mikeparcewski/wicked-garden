@@ -4,26 +4,36 @@ import Header from "../components/Header.astro";
 import Footer from "../components/Footer.astro";
 import Hero from "../components/react/Hero.tsx";
 import Manifesto from "../components/react/Manifesto.tsx";
-import GardenTour from "../components/react/GardenTour.tsx";
+import SessionExplorer from "../components/react/SessionExplorer.tsx";
+import WICallout from "../components/react/WICallout.tsx";
 import GardenBench from "../components/react/GardenBench.tsx";
 ---
 
 <Base>
   <Header />
   <main>
+    <!-- Hero renders <section id="top"> — snap target -->
     <Hero client:load />
 
-    <section id="manifesto" class="border-t border-line">
+    <!-- Manifesto — sentinel-driven scroll-pin, border-t scopes the section -->
+    <div class="border-t border-line">
       <Manifesto client:visible />
-    </section>
+    </div>
 
-    <section id="tour" class="border-t border-line">
-      <GardenTour client:visible />
-    </section>
+    <!-- Session explorer — se-sentinel elements are the snap targets inside -->
+    <div class="border-t border-line">
+      <SessionExplorer client:visible />
+    </div>
 
+    <!-- WI callout renders <section id="wi-callout"> — snap target -->
+    <WICallout client:visible />
+
+    <!-- Garden bench — snap target -->
     <section id="bench" class="border-t border-line">
       <GardenBench client:visible />
     </section>
   </main>
-  <Footer />
+  <div id="footer-snap">
+    <Footer />
+  </div>
 </Base>

@@ -7,7 +7,6 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { ROLES, STATS } from "../../data/projects";
 import Marker from "./Marker";
 
 const WORDS = [
@@ -20,6 +19,18 @@ const WORDS = [
 ];
 
 const ease = [0.16, 1, 0.3, 1] as const;
+
+// Garden plot beds — laid out gate → floor → layers → solo
+const PLOT_BEDS = [
+  { id: "garden",      name: "wicked-garden", tagline: "gate · start here",    color: "var(--accent)",       span: 2 },
+  { id: "vault",       name: "vault",         tagline: "evidence",             color: "var(--c-foundation)", span: 1 },
+  { id: "loom",        name: "loom",          tagline: "orchestration",        color: "var(--c-foundation)", span: 1 },
+  { id: "testing",     name: "testing",       tagline: "QE layer",             color: "var(--c-creation)",   span: 1 },
+  { id: "brain",       name: "brain",         tagline: "memory",               color: "var(--c-workflow)",   span: 1 },
+  { id: "understanding", name: "understanding", tagline: "playbooks",          color: "var(--c-workflow)",   span: 1 },
+  { id: "bus",         name: "bus",           tagline: "event bus",            color: "var(--c-layer)",      span: 1 },
+  { id: "interactive", name: "interactive",   tagline: "solo · standalone",    color: "var(--c-solo)",       span: 2 },
+] as const;
 
 export default function Hero() {
   const reduce = useReducedMotion();
@@ -67,101 +78,114 @@ export default function Hero() {
       />
 
       <div className="mx-auto w-full max-w-[1240px]">
-        <p className="rise kicker" style={{ animationDelay: "0.05s" }}>
-          {STATS.projects} open-source tools · one garden · MIT
-        </p>
+        <div className="grid items-center gap-14 lg:grid-cols-2">
 
-        <h1 className="mt-6 font-display text-[clamp(2.6rem,7.3vw,6rem)] font-extrabold leading-[0.94] tracking-[-0.02em]">
-          <span className="rise block" style={{ animationDelay: "0.12s" }}>
-            tools that are
-          </span>
-          <span className="rise mt-1 block" style={{ animationDelay: "0.2s" }}>
-            wicked <AnimatedWord reduce={!!reduce} />
-          </span>
-        </h1>
+          {/* ── Left: hero copy ── */}
+          <div>
+            <p className="rise kicker" style={{ animationDelay: "0.05s" }}>
+              the garden · open-source · MIT
+            </p>
 
-        <p
-          className="rise mt-8 max-w-xl text-balance text-lg leading-relaxed text-muted sm:text-xl"
-          style={{ animationDelay: "0.32s" }}
-        >
-          The open-source toolkit for AI-native engineers — one garden, {STATS.projects} tools.
-          Your agent already plans and swarms; this is{" "}
-          <em className="font-medium not-italic text-ink">everything it can't do alone</em> —
-          memory, evidence, and verdicts you can trust.
-        </p>
+            <h1 className="mt-6 font-display text-[clamp(2rem,5vw,4rem)] font-extrabold leading-[0.94] tracking-[-0.02em]">
+              <span className="rise block" style={{ animationDelay: "0.12s" }}>
+                agents that are
+              </span>
+              <span className="rise mt-1 block" style={{ animationDelay: "0.2s" }}>
+                wicked <AnimatedWord reduce={!!reduce} />
+              </span>
+            </h1>
 
-        <div className="rise mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "0.42s" }}>
-          <a
-            href="#tour"
-            className="group inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 font-mono text-[0.8rem] font-semibold uppercase tracking-[0.12em] text-on-accent transition-transform duration-300 hover:-translate-y-0.5"
-            style={{ boxShadow: "0 12px 40px -12px var(--accent)" }}
-          >
-            Walk the garden
-            <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>
-          </a>
-          <a
-            href="https://github.com/mikeparcewski"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 rounded-full border border-line-strong px-6 py-3.5 font-mono text-[0.8rem] uppercase tracking-[0.12em] text-ink transition-colors hover:border-accent hover:text-accent"
-          >
-            View on GitHub ↗
-          </a>
-        </div>
+            <p
+              className="rise mt-8 max-w-xl text-balance text-lg leading-relaxed text-muted sm:text-xl"
+              style={{ animationDelay: "0.32s" }}
+            >
+              Your agent already plans, swarms, and ships. What it can't do alone — prove the result, remember the decision, know when it's actually done. The garden closes that gap.
+            </p>
 
-        <ul className="rise mt-10 flex flex-wrap gap-2.5" style={{ animationDelay: "0.52s" }} aria-label="Garden roles">
-          {ROLES.map((r) => (
-            <li key={r.id}>
+            <div className="rise mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "0.42s" }}>
               <a
-                href="#tour"
-                className="inline-flex items-center gap-2 rounded-full border border-line bg-surface/40 px-3.5 py-1.5 font-mono text-[0.72rem] lowercase tracking-[0.08em] text-muted transition-colors hover:text-ink"
+                href="https://github.com/mikeparcewski/wicked-garden"
+                target="_blank"
+                rel="noreferrer"
+                className="group inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 font-mono text-[0.8rem] font-semibold uppercase tracking-[0.12em] text-on-accent transition-transform duration-300 hover:-translate-y-0.5"
+                style={{ boxShadow: "0 12px 40px -12px var(--accent)" }}
               >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(${r.colorVar})` }} />
-                {r.label}
+                View on GitHub
+                <span className="transition-transform duration-300 group-hover:translate-x-1">↗</span>
               </a>
-            </li>
-          ))}
-        </ul>
+              <a
+                href="https://github.com/mikeparcewski"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-line-strong px-6 py-3.5 font-mono text-[0.8rem] uppercase tracking-[0.12em] text-ink transition-colors hover:border-accent hover:text-accent"
+              >
+                More projects ↗
+              </a>
+            </div>
 
-        <dl
-          className="rise mt-14 flex flex-wrap gap-x-10 gap-y-4 border-t border-line pt-7 font-mono"
-          style={{ animationDelay: "0.62s" }}
-        >
-          <Stat n={STATS.projects} label="tools" />
-          <Stat n={STATS.accounts} label="accounts" />
-          <Stat n={STATS.agents} label="agents" />
-          <Stat n={STATS.archetypes} label="archetypes" />
-          <Stat n={STATS.harnesses} label="harnesses" />
-        </dl>
+          </div>
+
+          {/* ── Right: garden plot (lg+ only) ── */}
+          <div className="hidden lg:block">
+            <GardenPlot />
+          </div>
+
+        </div>
       </div>
-
-      {/* scroll cue */}
-      <a
-        href="#manifesto"
-        className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-muted md:flex"
-        aria-label="Scroll to manifesto"
-      >
-        <span className="font-mono text-[0.64rem] uppercase tracking-[0.3em]">scroll</span>
-        <span
-          className="block h-7 w-px bg-current"
-          style={reduce ? undefined : { animation: "scroll-bob 1.8s ease-in-out infinite" }}
-        />
-      </a>
     </section>
   );
 }
 
-function Stat({ n, label }: { n: number; label: string }) {
+/* ── HTML garden plot ──────────────────────────────────────────────────────── */
+
+function GardenPlot() {
   return (
-    <div className="flex items-baseline gap-2">
-      <dt className="sr-only">{label}</dt>
-      <dd className="text-2xl font-semibold tabular-nums" style={{ color: "var(--accent)" }}>
-        {n}
-      </dd>
-      <span className="text-[0.78rem] uppercase tracking-[0.14em] text-muted">{label}</span>
+    <div
+      aria-label="wicked-garden ecosystem map"
+      className="grid grid-cols-2 gap-2.5 rounded-2xl p-4"
+      style={{ background: "var(--canvas-2)", border: "1px solid var(--hairline)" }}
+    >
+      {PLOT_BEDS.map((bed) => (
+        <div
+          key={bed.id}
+          style={{
+            gridColumn: bed.span === 2 ? "span 2" : "span 1",
+            borderColor: bed.color,
+            background: `color-mix(in oklab, ${bed.color} 9%, transparent)`,
+          }}
+          className="flex items-center gap-3 rounded-xl border px-3.5 py-3.5"
+        >
+          <SproutIcon color={bed.color} large={bed.span === 2} />
+          <div className="min-w-0">
+            <div
+              className="truncate font-mono text-[0.72rem] font-bold leading-none tracking-[0.03em]"
+              style={{ color: bed.color }}
+            >
+              {bed.name}
+            </div>
+            <div className="mt-1 truncate font-mono text-[0.57rem] uppercase tracking-[0.13em] text-muted">
+              {bed.tagline}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
+
+function SproutIcon({ color, large = false }: { color: string; large?: boolean }) {
+  const s = large ? 14 : 11;
+  const h = large ? 17 : 13;
+  return (
+    <svg width={s} height={h} viewBox="0 0 11 13" fill="none" aria-hidden className="shrink-0">
+      <path d="M 5.5 12.5 L 5.5 5.5" stroke={color} strokeWidth="1.6" strokeLinecap="round" />
+      <path d="M 5.5 6.5 C 5.5 4 3.5 2.5 1 2.5 C 1 5 3 6.5 5.5 6.5 Z" stroke={color} strokeWidth="1.3" strokeLinejoin="round" />
+      <path d="M 5.5 5.5 C 5.5 3 7.5 1.5 10 1.5 C 10 4 8 5.5 5.5 5.5 Z" stroke={color} strokeWidth="1.3" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ── Animated word ─────────────────────────────────────────────────────────── */
 
 function AnimatedWord({ reduce }: { reduce: boolean }) {
   const [i, setI] = useState(0);

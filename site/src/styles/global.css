@@ -135,6 +135,7 @@
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
+    scroll-snap-type: y mandatory;
   }
 
   body {
@@ -247,9 +248,189 @@
 }
 
 @keyframes scroll-bob {
-  0%, 100% { transform: translateY(0); opacity: 0.4; }
-  50% { transform: translateY(7px); opacity: 1; }
+  0%, 100% { transform: scaleX(1); opacity: 0.5; }
+  50% { transform: scaleX(0.6); opacity: 1; }
 }
+
+/* ── Conveyor header height token ────────────────────────────────────────── */
+:root { --topbar-h: 4rem; }
+
+/* ============================================================================
+   Conveyor — sticky-scroll station machine (inspired by wicked-interactive)
+   .conv-wrap  = n×100vh container
+   .conv-stage = sticky, pinned at top:0
+   .conv-sentinel = invisible 100vh blocks that drive IntersectionObserver
+   CSS transitions handle all state changes; JS only flips data-station.
+============================================================================ */
+
+.conv-wrap { position: relative; scroll-snap-align: start; }
+.conv-sentinels { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.conv-sentinel { height: 100vh; }
+
+.conv-stage {
+  position: sticky; top: 0;
+  height: 100svh; min-height: 640px;
+  display: flex; flex-direction: column;
+  padding-top: var(--topbar-h);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* Inner grid: 220px ledger + remaining content */
+.conv-inner {
+  flex: 1; display: grid;
+  grid-template-columns: 220px 1fr;
+  column-gap: 44px;
+  padding: 0 2rem;
+  max-width: 1240px; margin: 0 auto; width: 100%;
+  min-height: 0; align-items: center;
+}
+
+/* ── Left ledger rail ─────────────────────────────────────────────────────── */
+.conv-ledger {
+  grid-column: 1; position: relative;
+  border-right: 1px solid var(--hairline);
+  padding-right: 22px;
+  display: flex; flex-direction: column; justify-content: center;
+  height: 100%;
+}
+.conv-belt-label {
+  font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 26px;
+  flex-shrink: 0;
+}
+.conv-track { position: relative; padding-left: 26px; }
+.conv-track::before {
+  content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 2px;
+  background: var(--hairline); border-radius: 2px;
+}
+
+/* Station items */
+.conv-station { position: relative; z-index: 0; padding: 16px 0; }
+.conv-s-num {
+  font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.2em; color: var(--muted);
+}
+.conv-s-label {
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.88rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); margin-top: 3px;
+  transition: color 0.5s var(--ease-out-expo);
+}
+.conv-s-hint {
+  font-size: 0.78rem; color: var(--muted); margin-top: 4px; max-width: 22ch;
+  opacity: 0; transition: opacity 0.5s var(--ease-out-expo);
+}
+
+/* Static node per station */
+.conv-station::before {
+  content: ""; position: absolute; left: -26px; top: 22px;
+  width: 12px; height: 12px; border-radius: 999px;
+  background: var(--canvas); border: 2px solid var(--hairline-strong);
+  transition: border-color 0.5s var(--ease-out-expo), background 0.5s var(--ease-out-expo);
+}
+
+/* The ONE crawling yellow tick */
+.conv-tick {
+  position: absolute; left: -1px; width: 14px; height: 14px; border-radius: 999px;
+  background: var(--accent); border: 2px solid var(--canvas);
+  box-shadow:
+    0 0 0 4px color-mix(in oklab, var(--accent) 32%, transparent),
+    0 4px 14px rgba(var(--shadow-rgb), 0.4);
+  top: var(--y1); transition: top 0.85s var(--ease-out-expo);
+  z-index: 3;
+}
+
+/* ── Right content slot ───────────────────────────────────────────────────── */
+.conv-content {
+  grid-column: 2; display: flex; flex-direction: column;
+  align-items: stretch; height: 100%; min-height: 0; padding: 1.5rem 0;
+}
+
+/* ── Bottom progress strip ────────────────────────────────────────────────── */
+.conv-progress-row {
+  padding: 10px 2rem 14px;
+  max-width: 1240px; margin: 0 auto; width: 100%; flex-shrink: 0;
+}
+.conv-progress-bar {
+  height: 5px; background: var(--hairline); border-radius: 3px; overflow: hidden; margin-bottom: 6px;
+}
+.conv-progress-fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+  transition: width 0.7s var(--ease-out-expo);
+}
+.conv-chapters { display: flex; }
+.conv-ch {
+  flex: 1; font-family: var(--font-mono); font-size: 0.6rem;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted);
+  transition: color 0.3s;
+}
+.conv-ch.is-active { color: var(--ct-foundation); font-weight: 700; }
+.conv-ch.is-past { color: var(--muted); }
+
+/* ── Station state machine — class-based, scales to any station count ──────── */
+
+/* tick position — driven directly by --conv-tick-y JS var */
+.conv-tick { top: var(--conv-tick-y, 4%); }
+
+/* active station: ink label, hint visible, accent node */
+.conv-station.is-active .conv-s-label { color: var(--ink); }
+.conv-station.is-active .conv-s-hint  { opacity: 1; }
+.conv-station.is-active::before       { border-color: var(--accent); }
+
+/* visited stations: filled node */
+.conv-station.is-past::before {
+  border-color: var(--hairline-strong);
+  background: color-mix(in oklab, var(--accent) 24%, var(--canvas));
+}
+
+/* ── Reduced-motion / mobile: hide the conveyor entirely ─────────────────── */
+@media (prefers-reduced-motion: reduce), (max-width: 900px) {
+  .conv-wrap { height: auto !important; }
+  .conv-sentinels { display: none !important; }
+  .conv-stage { position: static !important; height: auto !important; min-height: 0 !important; display: none !important; }
+}
+
+/* ============================================================================
+   Tour stop panel — content shown in the conveyor's right column
+============================================================================ */
+
+.tour-stop-panel {
+  display: flex; flex-direction: column; gap: 1.1rem;
+  padding: 0.5rem 0;
+  /* overflow scroll if content taller than viewport on small screens */
+  overflow-y: auto; max-height: calc(100vh - var(--topbar-h) - 5rem);
+  scrollbar-width: none;
+}
+.tour-stop-panel::-webkit-scrollbar { display: none; }
+
+.tour-stop-kicker {
+  font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.tour-stop-headline {
+  font-weight: 900; font-stretch: 122%;
+  font-size: clamp(1.9rem, 4.4vw, 3.6rem); line-height: 1.0; letter-spacing: -0.02em; margin: 0;
+}
+
+.tour-stop-body {
+  font-size: clamp(0.95rem, 1.5vw, 1.05rem); color: var(--muted);
+  line-height: 1.62; max-width: 44ch;
+}
+
+.tour-stop-install { max-width: 500px; }
+
+.tour-stop-caps {
+  list-style: none; padding: 0; margin: 0;
+  display: flex; flex-direction: column; gap: 7px;
+}
+
+.tour-stop-cap {
+  display: flex; gap: 10px; align-items: baseline;
+  font-size: 0.9rem; color: var(--ink); line-height: 1.45;
+}
+
+.tour-stop-action { padding-top: 0.25rem; }
 
 /* ----------------------------------------------------------------------------
    Theme switch — circular reveal via the View Transitions API
@@ -261,6 +442,436 @@
 }
 ::view-transition-old(root) { z-index: 1; }
 ::view-transition-new(root) { z-index: 2147483646; }
+
+/* ============================================================================
+   Session Replay — terminal-style log panel
+============================================================================ */
+
+.session-panel {
+  margin-top: 2.5rem;
+  background: var(--canvas-2);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-family: var(--font-mono);
+}
+
+/* top chrome bar */
+.session-panel::before {
+  content: "● ● ●";
+  display: block;
+  font-size: 0.55rem;
+  letter-spacing: 0.3em;
+  color: var(--hairline-strong);
+  margin-bottom: 1rem;
+}
+
+.session-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 6px 8px;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.session-line:hover { background: color-mix(in oklab, var(--ink) 4%, transparent); }
+
+.session-pill {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: default;
+  white-space: nowrap;
+}
+
+.session-text {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* prompt line gets italic style */
+.session-line:first-child .session-text {
+  color: var(--ink);
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* loom GATE PASSED line gets bright treatment */
+.session-line.is-success .session-text {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* pill tooltip */
+.session-tooltip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.68rem;
+  color: var(--ink);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.session-pill:hover .session-tooltip { opacity: 1; }
+
+.session-caption {
+  margin-top: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ============================================================================
+   Session Explorer — scroll-pinned terminal log + tool detail
+============================================================================ */
+
+/* ── Page-level scroll snap targets — each fills one viewport ── */
+#top,
+#wi-callout,
+#bench {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  height: 100svh;
+  overflow: hidden;
+}
+
+/* ── Manifesto scroll-pin wrapper + sentinels ── */
+.m-wrap {
+  position: relative;
+}
+
+.m-sentinels {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.m-sentinel {
+  height: 100vh;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.m-stage {
+  position: sticky;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  overflow: hidden;
+}
+
+/* Footer is a natural-height snap target at the end */
+#footer-snap {
+  scroll-snap-align: start;
+}
+
+/* ── Scroll wrapper + sentinels ── */
+.se-wrap {
+  position: relative;
+}
+
+.se-sentinels {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.se-sentinel {
+  height: 100vh;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+/* ── Sticky stage ── */
+.se-stage {
+  position: sticky;
+  top: var(--topbar-h);
+  height: calc(100vh - var(--topbar-h));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.se-stage-header {
+  flex-shrink: 0;
+  padding: 1.5rem 2rem 0;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.se-stage-h2 {
+  margin-top: 0.35rem;
+  font-size: clamp(1.25rem, 2.4vw, 1.9rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+
+.se-inner {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 8fr) minmax(0, 12fr);
+  gap: 3rem;
+  align-items: center;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 1rem 2rem 0;
+  min-height: 0;
+}
+
+/* ── Terminal log panel ── */
+.se-log {
+  background: var(--canvas-2);
+  border: 1px solid var(--hairline);
+  border-radius: 16px;
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--font-mono);
+  overflow: hidden;
+}
+
+.se-chrome {
+  font-size: 0.5rem;
+  letter-spacing: 0.3em;
+  color: var(--hairline-strong);
+  margin-bottom: 0.5rem;
+  padding: 0 0.375rem;
+}
+
+.se-line {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 5px 6px;
+  border-radius: 6px;
+  transition: background 0.18s;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.se-line.is-active {
+  background: color-mix(in oklab, var(--accent) 9%, transparent);
+}
+
+.se-line:not(.is-result):hover {
+  background: color-mix(in oklab, var(--ink) 5%, transparent);
+}
+
+.se-pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.se-pill--prompt {
+  color: var(--muted);
+  background: color-mix(in oklab, var(--muted) 12%, transparent);
+}
+
+.se-text {
+  font-size: 0.69rem;
+  color: var(--muted);
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1;
+}
+
+.se-text--pass {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.se-text--prompt {
+  color: var(--ink);
+  opacity: 0.7;
+  font-style: italic;
+}
+
+/* ── Tool detail panel ── */
+.se-detail {
+  padding: 0 0.5rem;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.se-detail-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.se-detail-headline {
+  margin-top: 0.75rem;
+  font-size: clamp(1.7rem, 3.2vw, 2.6rem);
+  font-weight: 800;
+  line-height: 1.02;
+  letter-spacing: -0.025em;
+}
+
+.se-detail-body {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.se-detail-install {
+  margin-top: 1.25rem;
+  max-width: 500px;
+}
+
+.se-detail-caps {
+  margin-top: 1.25rem;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0;
+}
+
+.se-detail-cap {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.se-detail-cap span:first-child {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+}
+
+.se-detail-unlock {
+  margin-top: 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+}
+
+/* ── Progress dots ── */
+.se-progress-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 1rem 0;
+}
+
+.se-progress-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--hairline-strong);
+  transition: background 0.25s, transform 0.25s;
+}
+
+.se-progress-dot.is-active {
+  background: var(--accent);
+  transform: scale(1.4);
+}
+
+.se-progress-dot.is-past {
+  background: color-mix(in oklab, var(--accent) 40%, var(--hairline-strong));
+}
+
+/* ── WI callout screenshot ── */
+.wi-screenshot {
+  display: block;
+  width: 100%;
+  max-height: 52vh;
+  object-fit: cover;
+  object-position: top;
+}
+
+/* ── Mobile layout (< 768px) ── */
+@media (max-width: 767px) {
+  /* Proximity avoids iOS URL-bar / mandatory-snap deadlocks */
+  html { scroll-snap-type: y proximity; }
+
+  /* WICallout screenshot — shorter on mobile so text stays visible */
+  .wi-screenshot { max-height: 32vh; }
+
+  /* SessionExplorer — collapse to single column */
+  .se-stage-header { padding: 0.875rem 1.25rem 0; }
+
+  .se-inner {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 0.75rem 1.25rem 0;
+  }
+
+  .se-log {
+    max-height: 168px;
+    overflow-y: auto;
+  }
+
+  .se-detail-headline {
+    font-size: clamp(1.35rem, 5.5vw, 1.85rem);
+    margin-top: 0.5rem;
+  }
+
+  .se-detail-body {
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+  }
+
+  .se-detail-install { margin-top: 0.875rem; }
+
+  .se-detail-caps {
+    margin-top: 0.75rem;
+    gap: 0.35rem;
+  }
+
+  .se-detail-cap { font-size: 0.8rem; }
+
+  .se-detail-unlock {
+    margin-top: 0.75rem;
+    font-size: 0.62rem;
+  }
+}
 
 /* Respect reduced motion everywhere */
 @media (prefers-reduced-motion: reduce) {

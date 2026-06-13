@@ -1,73 +1,142 @@
 import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import Reveal from "./Reveal";
 import Marker from "./Marker";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-const LINES = [
-  { no: "cloud", clause: "Your machine is the backend. The few local servers auto-start and never phone home — nothing to deploy, no cloud bill.", color: "var(--c-foundation)" },
-  { no: "black box", clause: "Plain markdown and full-text search you can open, diff, grep, and audit.", color: "var(--c-workflow)" },
-  { no: "self-grading", clause: "Author ≠ executor ≠ reviewer. An independent judge reads cold evidence — work never grades its own “done.”", color: "var(--c-creation)" },
-  { no: "lock-in", clause: "MIT, cross-CLI, composable. Every tool stands alone, degrades gracefully — the gate even runs with nothing installed.", color: "var(--accent-bright)" },
+const REFUSALS = [
+  {
+    no: "cloud",
+    clause:
+      "Your machine is the backend. The few local servers auto-start and never phone home — nothing to deploy, no cloud bill.",
+    color: "var(--c-foundation)",
+  },
+  {
+    no: "black box",
+    clause:
+      "Plain markdown and full-text search you can open, diff, grep, and audit.",
+    color: "var(--c-workflow)",
+  },
+  {
+    no: "lock-in",
+    clause:
+      "MIT, cross-CLI, composable. Every tool stands alone, degrades gracefully — the gate even runs with nothing installed.",
+    color: "var(--accent-bright)",
+  },
 ];
 
+const SENTINEL_COUNT = REFUSALS.length + 1;
+
 export default function Manifesto() {
+  const [crossedIdx, setCrossedIdx] = useState(-1);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const sentinels = Array.from(wrap.querySelectorAll<HTMLElement>(".m-sentinel"));
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            setCrossedIdx(Number((e.target as HTMLElement).dataset.idx) - 1);
+          }
+        }
+      },
+      { threshold: 0.5 },
+    );
+    sentinels.forEach((s) => io.observe(s));
+    return () => io.disconnect();
+  }, []);
+
   return (
-    <div className="relative mx-auto max-w-[1240px] px-5 py-28 sm:px-8 sm:py-36">
-      <Reveal>
-        <p className="kicker">01 / the manifesto</p>
-        <h2 className="mt-5 font-display text-[clamp(1.9rem,4.4vw,3.4rem)] font-extrabold leading-[1.02] tracking-tight">
-          Most dev tools ask you to trust them.{" "}
-          <Marker color="var(--accent-bright)">Ours hand you the receipts.</Marker>
-        </h2>
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted">
-          Your agent already plans, swarms, and ships. What it can't do alone is prove the
-          result, remember the decision, or know your repo's “how.” The garden fills those
-          gaps — and the whole kit is built on four refusals.
-        </p>
-      </Reveal>
-
-      <ul className="mt-16 sm:mt-20">
-        {LINES.map((line, i) => (
-          <li key={line.no} className="border-t border-line py-8 sm:py-10">
-            <Reveal delay={i * 0.05}>
-              <div className="grid items-baseline gap-x-8 gap-y-3 md:grid-cols-12">
-                <p className="font-display text-[clamp(2.1rem,5.4vw,4.2rem)] font-extrabold leading-[0.95] tracking-[-0.02em] md:col-span-6">
-                  No <Strike color={line.color}>{line.no}</Strike>.
-                </p>
-                <p className="text-balance text-base leading-relaxed text-muted md:col-span-6 md:pt-2 md:text-lg">
-                  {line.clause}
-                </p>
-              </div>
-            </Reveal>
-          </li>
+    <div ref={wrapRef} className="m-wrap" style={{ height: `${SENTINEL_COUNT * 100}vh` }}>
+      <div className="m-sentinels" aria-hidden="true">
+        {Array.from({ length: SENTINEL_COUNT }, (_, i) => (
+          <div key={i} className="m-sentinel" data-idx={i} />
         ))}
-      </ul>
+      </div>
 
-      <Reveal delay={0.1}>
-        <p className="mt-16 max-w-3xl text-balance font-display text-[clamp(1.5rem,3.2vw,2.4rem)] font-bold leading-[1.08] tracking-tight">
-          Just files you can read, evidence you can re-run, and tools that{" "}
-          <Marker color="var(--c-creation)">don't lie to you.</Marker>
-        </p>
-      </Reveal>
+      <div className="m-stage">
+        <section
+          id="manifesto"
+          className="mx-auto max-w-[1240px] px-5 pb-4 sm:px-8"
+          style={{ paddingTop: "calc(var(--topbar-h) + 0.75rem)" }}
+        >
+          <p className="kicker">01 / the manifesto</p>
+
+          {/* Single two-column grid — intro row + refusal rows share the same columns */}
+          <div className="mt-3 grid gap-x-10 sm:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+
+            {/* Title — spans both columns */}
+            <div className="col-span-full pt-4 pb-8 sm:pt-5 sm:pb-10">
+              <h2 className="font-display text-[clamp(1.7rem,3.8vw,2.8rem)] font-extrabold leading-[1.04] tracking-tight">
+                Most dev tools ask you to trust them.{" "}
+                <Marker color="var(--accent-bright)">Ours hand you the receipts.</Marker>
+              </h2>
+            </div>
+
+            {/* Refusal rows — each is two siblings in the grid */}
+            {REFUSALS.map((r, i) => (
+              <RefusalRow key={r.no} refusal={r} crossed={i <= crossedIdx} isFirst={i === 0} />
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
 
-function Strike({ children, color }: { children: ReactNode; color: string }) {
+function RefusalRow({
+  refusal,
+  crossed,
+  isFirst,
+}: {
+  refusal: (typeof REFUSALS)[0];
+  crossed: boolean;
+  isFirst?: boolean;
+}) {
+  const border = isFirst ? "" : "border-t border-line";
+  return (
+    <>
+      <div className={`${border} py-4 sm:py-5`}>
+        <p className="font-display text-[clamp(2rem,4.8vw,3.8rem)] font-extrabold leading-[0.9] tracking-[-0.025em]">
+          No{" "}
+          <Strike color={refusal.color} crossed={crossed}>
+            {refusal.no}
+          </Strike>
+          .
+        </p>
+      </div>
+      <div className={`${border} py-4 sm:flex sm:items-center sm:py-5`}>
+        <p className="text-base leading-relaxed text-muted sm:text-lg">
+          {refusal.clause}
+        </p>
+      </div>
+    </>
+  );
+}
+
+function Strike({
+  children,
+  color,
+  crossed,
+}: {
+  children: ReactNode;
+  color: string;
+  crossed: boolean;
+}) {
   const reduce = useReducedMotion();
   return (
     <span className="relative inline-block" style={{ color }}>
       <span>{children}</span>
       <motion.span
         aria-hidden
-        className="absolute left-[-2%] right-[-2%] top-[52%] h-[0.085em] rounded-full"
+        className="absolute left-[-2%] right-[-2%] top-[52%] h-[0.1em] rounded-full"
         style={{ background: "currentColor", originX: 0 }}
-        initial={reduce ? { scaleX: 1 } : { scaleX: 0 }}
-        whileInView={{ scaleX: 1 }}
-        viewport={{ once: true, margin: "-18% 0px" }}
-        transition={{ duration: 0.5, delay: 0.18, ease }}
+        animate={{ scaleX: crossed ? 1 : 0 }}
+        transition={reduce ? { duration: 0 } : { duration: 0.55, ease }}
       />
     </span>
   );
