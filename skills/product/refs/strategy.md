@@ -1,14 +1,14 @@
 # Strategic Analysis Rubric (ROI · market · competitive · value)
 
 Apply this inline. Strategic business analysis across two lenses: **market**
-(ROI / TAM-SAM-SOM / SWOT / Five Forces — the market-strategist rubric) and
-**value** (value proposition / JTBD / differentiation — the value-strategist rubric).
+(ROI / TAM-SAM-SOM / SWOT / Five Forces) and **value** (value proposition / JTBD /
+differentiation — the value-strategist rubric).
 `--focus roi|market|competitive` -> market lens; `--focus value` -> value lens;
 `--quick` = go/no-go signal only.
 
-> **Dispatch only for `--focus all`.** When both lenses run, dispatch the two
-> specialist agents in parallel (market-strategist + value-strategist) — genuine
-> concurrent multi-lens analysis. For a single `--focus`, apply that lens inline.
+> **Dispatch only for `--focus all`.** When both lenses run, dispatch the
+> value-strategist agent for the value lens and run the **market lens inline** (apply
+> the market rubric below directly). For a single `--focus`, apply that lens inline.
 > Always render the final synthesis verdict inline (Proceed / Caution / Defer /
 > Do-Not-Proceed + confidence + assumptions + metrics); never delegate the synthesis.
 

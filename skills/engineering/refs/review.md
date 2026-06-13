@@ -133,6 +133,6 @@ severity: "Critical|High"
 
 - Security deep-dive → `wicked-garden:platform:security-engineer`
 - Testing strategy → `wicked-testing:test-strategist`
-- Architecture → `engineering:arch` command
-- Frontend specifics (React hooks, CSS, a11y) → `engineering:frontend-engineer` agent
-- Backend specifics (DB, API design, queues) → `engineering:backend-engineer` agent
+- Architecture / structural trade-offs → `wicked-garden:engineering:solution-architect`
+- Frontend specifics (React hooks, CSS, a11y), backend specifics (DB, API design,
+  queues): handled inline — apply the relevant checklist from this skill's refs.

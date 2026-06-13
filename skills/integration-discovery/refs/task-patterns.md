@@ -13,14 +13,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Need | Capability Type | Options |
 |------|-----------------|---------|
 | PR context | MCP | github, gitlab |
-| Code quality | Agent | wicked-garden:engineering:senior-engineer |
+| Code quality | Agent / inline | wicked-garden:crew:reviewer (or engineering review skill inline) |
 | Security check | Agent | wicked-garden:platform:security-engineer |
-| Test coverage | Agent | wicked-garden:engineering:senior-engineer |
+| Test coverage | Agent / inline | wicked-garden:crew:reviewer (or engineering review skill inline) |
 | Link to ticket | MCP | atlassian, linear |
 
 **Recommended flow**:
 1. Get PR diff via MCP
-2. Spawn senior-engineer for quality review
+2. Run the engineering review skill inline (or dispatch crew:reviewer) for quality
 3. Spawn security-engineer if auth/data handling involved
 4. Store findings in ticket via MCP
 
@@ -53,15 +53,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Need | Capability Type | Options |
 |------|-----------------|---------|
 | Solution design | Agent | wicked-garden:engineering:solution-architect |
-| Data modeling | Agent | wicked-garden:data:data-architect |
+| Data modeling | Agent / Skill | wicked-garden:data:data-engineer (or data skill inline) |
 | Store decisions | Skill | wicked-brain:memory |
-| Document design | Agent | wicked-garden:engineering:technical-writer |
+| Document design | Agent | wicked-garden:engineering:api-documentarian (or docs skill inline) |
 
 **Recommended flow**:
-1. Spawn solution-architect for high-level design
-2. Add data-architect if persistence involved
-3. Store decisions in wicked-brain:memory
-4. Document via technical-writer
+1. Spawn solution-architect for high-level design (it covers persistence/data shape too)
+2. Store decisions in wicked-brain:memory
+3. Document via api-documentarian or the engineering docs skill inline
 
 ---
 
@@ -71,15 +70,15 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Debugging | Agent | wicked-garden:engineering:debugger |
+| Debugging | Skill | engineering debugging skill (inline root-cause analysis) |
 | Error tracking | MCP | sentry, datadog, rollbar |
-| Logs/traces | Agent | wicked-garden:platform:incident-responder |
+| Logs/traces | Skill | platform errors skill (inline) |
 | Codebase exploration | Agent | Explore |
 | Track fix | MCP | atlassian, github issues |
 
 **Recommended flow**:
 1. Check error tracking MCP for context
-2. Spawn debugger for systematic investigation
+2. Run the engineering debugging skill inline for systematic investigation
 3. Use Explore agent to understand code paths
 4. Track fix in issue tracker
 
@@ -93,14 +92,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 |------|-----------------|---------|
 | Requirements clarity | Agent | wicked-garden:product:requirements-analyst |
 | Design guidance | Agent | wicked-garden:engineering:solution-architect |
-| Implementation | Agent | wicked-garden:engineering:senior-engineer |
-| Test strategy | Agent | wicked-garden:crew:gate-adjudicator |
+| Implementation | Agent | wicked-garden:crew:implementer |
+| Test strategy | Agent | wicked-testing:test-strategist |
 | Track progress | MCP/Native | atlassian, TaskCreate/TaskUpdate |
 
 **Recommended flow**:
 1. Clarify requirements with requirements-analyst if vague
 2. Get design guidance from solution-architect
-3. Plan tests with gate-adjudicator
+3. Implement with crew:implementer; plan tests with wicked-testing:test-strategist
 4. Track via native TaskCreate or issue tracker
 
 ---
@@ -111,14 +110,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Technical writing | Agent | wicked-garden:engineering:technical-writer |
+| Technical writing | Skill | engineering docs skill (inline narrative docs) |
 | API documentation | Agent | wicked-garden:engineering:api-documentarian |
 | Publish docs | MCP | confluence, notion |
 | Code understanding | Agent | Explore |
 
 **Recommended flow**:
 1. Use Explore to understand what needs documenting
-2. Spawn appropriate docs agent
+2. Dispatch api-documentarian for API/reference docs; run the docs skill inline for narrative docs
 3. Publish via documentation MCP if available
 
 ---
@@ -129,16 +128,16 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Data exploration | Agent | wicked-garden:data:data-analyst |
+| Data exploration | Agent / Skill | wicked-garden:data:data-engineer (or data skill inline) |
 | Query execution | MCP | snowflake, bigquery, databricks |
 | Local file analysis | Skill | data |
-| Visualization guidance | Agent | wicked-garden:data:data-analyst |
+| Visualization guidance | Skill | data analysis skill (inline) |
 
 **Recommended flow**:
 1. Check for data warehouse MCP
 2. If available, use for queries
-3. If not, use data for local files
-4. Spawn data-analyst for interpretation
+3. If not, use the data skill for local files
+4. Dispatch data-engineer (or run the data analysis skill inline) for interpretation
 
 ---
 
@@ -148,14 +147,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Incident triage | Agent | wicked-garden:platform:incident-responder |
+| Incident triage | Command/Skill | /wicked-garden:platform:incident (incident archetype, inline) |
 | Error context | MCP | sentry, datadog |
-| Log analysis | Agent | wicked-garden:platform:sre |
+| Log analysis | Skill | platform errors / observability skills (inline) |
 | Communication | MCP | slack, teams |
 | Post-mortem | Skill | wicked-brain:memory |
 
 **Recommended flow**:
-1. Spawn incident-responder immediately
+1. Run /wicked-garden:platform:incident (or the incident archetype) immediately
 2. Pull context from observability MCP
 3. Communicate status via chat MCP
 4. Store learnings in wicked-brain:memory
@@ -184,15 +183,15 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Task Type | Primary Agent | Supporting | MCP Needs |
 |-----------|---------------|------------|-----------|
-| Code review | senior-engineer | security-engineer | github/gitlab |
+| Code review | crew:reviewer | security-engineer | github/gitlab |
 | Security audit | security-engineer | compliance-officer | - |
-| Architecture | solution-architect | data-architect | - |
-| Bug fix | debugger | incident-responder | error tracking |
+| Architecture | solution-architect | data-engineer | - |
+| Bug fix | engineering debugging skill (inline) | platform errors skill | error tracking |
 | Feature | requirements-analyst | solution-architect | project mgmt |
-| Docs | technical-writer | api-documentarian | confluence |
-| Data | data-analyst | - | warehouse |
-| Incident | incident-responder | sre | observability |
-| Testing | test-strategist | tdd-coach | - |
+| Docs | api-documentarian | engineering docs skill (inline) | confluence |
+| Data | data-engineer | data skill (inline) | warehouse |
+| Incident | platform incident (inline) | observability skill | observability |
+| Testing | wicked-testing:test-strategist | - | - |
 
 ## When Capabilities Aren't Available
 

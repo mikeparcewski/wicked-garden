@@ -1,7 +1,8 @@
 # docs — documentation generation rubric
 
 Checklist, output templates, and quality standards for generating API docs, READMEs,
-guides, and inline comments. Covers both `api-documentarian` and `technical-writer` patterns.
+guides, and inline comments. API/reference docs route to the `api-documentarian` agent;
+narrative docs (READMEs, guides, comments) are generated inline with this rubric.
 
 ## Documentation type routing
 

@@ -4,10 +4,11 @@ Apply this inline. A broad design audit across four lenses: **flows · ui · a11
 research**. Each lens returns a score 1-5 + findings (severity + file:line + impact
 + fix). Scope with `--focus`; `--quick` = critical-only.
 
-> **Dispatch only for `--focus all`.** When all four lenses run, dispatch the four
-> specialist agents in parallel (ux-designer, ui-reviewer, a11y-expert,
-> user-researcher) — real concurrency on a large surface earns the hop. For a
-> single `--focus`, apply that lens's rubric inline; do not dispatch.
+> **Dispatch only for `--focus all`.** When all lenses run, dispatch the specialist
+> agents in parallel (ux-designer, ui-reviewer, a11y-expert) — real concurrency on a
+> large surface earns the hop. The research lens is folded into the ux-designer
+> dispatch (same artifact + reviewer skill). For a single `--focus`, apply that lens's
+> rubric inline; do not dispatch.
 
 Auto-detect focus when absent: `.tsx/.jsx/.vue` -> flows+ui+a11y; `.css/.scss` ->
 ui; requirements `.md` -> research; directory -> all.
@@ -40,7 +41,7 @@ Audit WCAG 2.1 AA via POUR: semantic HTML, ARIA, keyboard reachability + order,
 screen-reader announcements, contrast (4.5:1 / 3:1), visible focus. Report WCAG
 level + issues with criterion + fix. (Full rubric: `refs/a11y.md`.)
 
-## Lens: research (user-researcher)
+## Lens: research (folded into ux-designer)
 
 Assess personas (evidence-based, 3-5 distinct), user journeys (phases, pain points,
 opportunities), Jobs-to-be-Done (`When {situation}, I want {motivation}, so I can

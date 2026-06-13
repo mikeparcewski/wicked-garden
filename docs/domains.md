@@ -14,7 +14,7 @@ There are **9 domains**: engineering, platform, product, data, jam, search, agen
 
 ## engineering — Software Engineering
 
-Senior engineer, solution architect, backend/frontend specialists, debugger, technical writer, API documentarian, and migration engineer. The workhorse for `build` and `migrate` work. The wicked-patch family (`patch-plan`/`apply`/`rename`/`add-field`/`remove`) and `new-generator` are real refactor/scaffolding tools and stay as-is; `arch`/`debug`/`docs`/`plan`/`review` collapsed to inline skill-refs.
+Solution architect, API documentarian, and migration engineer. The workhorse for `build` and `migrate` work. The wicked-patch family (`patch-plan`/`apply`/`rename`/`add-field`/`remove`) and `new-generator` are real refactor/scaffolding tools and stay as-is; `arch`/`debug`/`docs`/`plan`/`review` collapsed to inline skill-refs. Code-quality, backend/frontend, debugging, and technical-writing work are handled inline by the engineering skill (the dedicated `senior-engineer`/`backend-engineer`/`frontend-engineer`/`debugger`/`technical-writer` agents were cut in the v12 lift eval — they produced zero measured lift over the base model; see `tests/agents/EVAL_RESULTS.md`).
 
 | Command | What It Does |
 |---------|-------------|
@@ -30,7 +30,7 @@ Senior engineer, solution architect, backend/frontend specialists, debugger, tec
 | `engineering:docs` | Generate or improve documentation |
 | `engineering:new-generator` | Create a language generator for wicked-patch |
 
-**Agents**: `senior-engineer`, `solution-architect`, `backend-engineer`, `frontend-engineer`, `debugger`, `technical-writer`, `api-documentarian`, `migration-engineer` — the dispatch-only `system-designer` and `devex-engineer` were removed when their commands collapsed inline.
+**Agents**: `solution-architect`, `api-documentarian`, `migration-engineer` — the dispatch-only `system-designer` and `devex-engineer` were removed when their commands collapsed inline; `senior-engineer`, `backend-engineer`, `frontend-engineer`, `debugger`, and `technical-writer` were cut in the v12 lift eval (zero measured lift) and now run inline via the engineering skill.
 
 ## platform — DevSecOps
 
@@ -51,7 +51,7 @@ SRE, security, compliance, incident response, and privacy engineering. Backs `sh
 | `platform:assert` | Contract assertions against subprocess outputs |
 | `platform:plugin-health` | Health probes against installed plugins |
 
-**Agents**: `security-engineer`, `sre`, `compliance-officer`, `incident-responder`, `privacy-expert` — the dispatch-only `infrastructure-engineer`, `devops-engineer`, `release-engineer`, `auditor`, `chaos-engineer`, and `observability-engineer` were removed when their commands collapsed inline.
+**Agents**: `security-engineer`, `compliance-officer`, `privacy-expert` — the dispatch-only `infrastructure-engineer`, `devops-engineer`, `release-engineer`, `auditor`, `chaos-engineer`, and `observability-engineer` were removed when their commands collapsed inline; `sre` and `incident-responder` were cut in the v12 lift eval (zero measured lift), with incident/log work now handled inline via the platform incident command + errors/observability skills.
 
 ## product — Product Management & Design
 
@@ -74,7 +74,7 @@ Requirements, UX, customer voice, market/value strategy, accessibility, visual d
 
 > **Collapsed to skill (cleanup ADR 0002).** Most product commands now load their rubric inline from `skills/product/refs/<name>.md` and apply it directly — no `Task` dispatch hop. Dispatch is kept only where multiple lenses run in parallel: `product:ux-review --focus all` (flows + ui + a11y + research) and `product:strategy --focus all` (market + value).
 
-**Agents**: `product-manager`, `requirements-analyst`, `ux-designer`, `user-researcher`, `market-strategist`, `value-strategist`, `a11y-expert`, `ui-reviewer` — the dispatch-only `ux-analyst`, `user-voice`, and `mockup-generator` were removed when their commands collapsed inline.
+**Agents**: `requirements-analyst`, `ux-designer`, `value-strategist`, `a11y-expert`, `ui-reviewer` — the dispatch-only `ux-analyst`, `user-voice`, and `mockup-generator` were removed when their commands collapsed inline; `product-manager`, `user-researcher`, and `market-strategist` were cut in the v12 lift eval (zero measured lift). The user-researcher lens is folded into `ux-designer`; the market-strategist lens runs inline in `product:strategy` (value lens kept via `value-strategist`).
 
 ### Requirements skills — which one? (router)
 
@@ -116,7 +116,7 @@ Data analyst, data engineer, ML engineer, and a unified data architect for OLTP 
 | `data:ml` | ML model review and training pipeline |
 | `data:ontology` | Dataset ontology recommendations |
 
-**Agents**: `data-analyst`, `data-engineer`, `data-architect`, `ml-engineer`
+**Agents**: `data-engineer` — `data-analyst`, `data-architect`, and `ml-engineer` were cut in the v12 lift eval (zero measured lift); their work routes to `data-engineer` or runs inline via the data analysis skill.
 
 ## jam — AI Brainstorming
 

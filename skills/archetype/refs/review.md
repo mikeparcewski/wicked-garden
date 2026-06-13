@@ -59,8 +59,9 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
 
 1. Apply the rubric. Take notes; don't write the findings yet.
 2. Use the right specialist subagent — `pr-review-toolkit:code-reviewer`,
-   `wicked-garden:engineering:senior-engineer`, `qe:semantic-reviewer`,
-   etc. Match the artifact to the specialist.
+   `wicked-garden:crew:reviewer`, `wicked-garden:qe:semantic-reviewer`,
+   `wicked-garden:engineering:solution-architect`, etc. Match the artifact
+   to the specialist.
 3. For high-stakes reviews, run a council via
    `wicked-garden:jam:council` — independent multi-model verdicts
    catch what a single reviewer misses.

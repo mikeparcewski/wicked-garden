@@ -23,17 +23,17 @@ Operational procedure for updating `tests/crew/benchmark_baseline.json` after a 
 
 Re-baseline **only** when a deliberate perf change lands on `main`. Examples:
 
-- Validator hardening (added / removed checks in `gate_result_schema.py`)
-- Cache eviction tuning (changes to memoization in `phase_manager.py::_load_gate_result`)
+- Validator hardening (added / removed gate-result schema checks)
+- Cache eviction tuning (changes to gate-result ingestion memoization)
 - Schema expansion (new required fields in `gate-result.json`)
-- Sanitizer pattern changes (`content_sanitizer.py`)
+- Sanitizer pattern changes (`scripts/qe/content_sanitizer.py`)
 
 **Do not re-baseline to silence a regression.** If the benchmark fails on a PR that didn't intend perf work, treat it as a real regression and find the cause.
 
 ## How the lane works
 
 - **Workflow**: `.github/workflows/benchmark.yml`
-- **Trigger**: PRs touching `scripts/crew/phase_manager.py`, `gate_result_schema.py`, `content_sanitizer.py`, `dispatch_log.py`, or the benchmark test/baseline themselves. Other PRs skip the lane to keep default CI cost flat.
+- **Trigger**: PRs touching `scripts/crew/phase_manager.py`, the gate-result schema/sanitizer (`scripts/qe/content_sanitizer.py`), or the benchmark test/baseline themselves. Other PRs skip the lane to keep default CI cost flat.
 - **Test**: `tests/crew/test_gate_result_benchmark.py::test_load_gate_result_p95_within_2x_baseline`
 - **Marker**: `benchmark` — opt-in. Local `uv run pytest` deselects it (see `pyproject.toml` `addopts = "-m 'not benchmark'"`).
 - **Explicit invocation**: `uv run pytest -m benchmark`
@@ -104,7 +104,5 @@ All flags auto-expire at `WG_GATE_RESULT_STRICT_AFTER`.
 - Test: `tests/crew/test_gate_result_benchmark.py`
 - Baseline: `tests/crew/benchmark_baseline.json`
 - Workflow: `.github/workflows/benchmark.yml`
-- Ingestion path: `scripts/crew/phase_manager.py::_load_gate_result`
-- Schema: `scripts/crew/gate_result_schema.py`
-- Sanitizer: `scripts/crew/content_sanitizer.py`
-- Dispatch log: `scripts/crew/dispatch_log.py`
+- Ingestion path: `scripts/crew/phase_manager.py` (gate-result load + memoization)
+- Sanitizer: `scripts/qe/content_sanitizer.py`

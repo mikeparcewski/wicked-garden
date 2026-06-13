@@ -192,10 +192,8 @@ Contrast ratio: 4.7:1 (Passes)
 Darken the text color to meet WCAG AA contrast requirements. Test with a contrast checker tool.
 
 **Tool to Verify:**
-```bash
-python3 scripts/contrast-check.py "#666666" "#ffffff"
-# Output: 4.7:1 - PASS (AA)
-```
+Compute the WCAG contrast ratio for `#666666` on `#ffffff` (or use a contrast
+checker such as axe / WebAIM): 4.7:1 — PASS (AA).
 
 **Priority**: P1 (Fix before public release)
 **Estimated Effort**: 2 hours (update theme + test all instances)

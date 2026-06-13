@@ -243,5 +243,5 @@ cp "${CLAUDE_PLUGIN_ROOT}/templates/requirements-full.md" \
 ## Resources
 
 - **User Story Guide**: `refs/user-story-guide.md`
-- **Acceptance Criteria**: See product-management skill
+- **Acceptance Criteria**: See the `acceptance-criteria` skill
 - **Example Projects**: Search wicked-brain for "requirements-example"
