@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.21.0] - 2026-06-12
+
+### Changed
+- Evidence-based agent-surface reduction: per-agent blinded lift eval (tests/agents/EVAL_RESULTS.md) found 13 generic 'be a senior X' agents + the product-management skill produce lift=0 vs the base model — removed them (36→23 agents); kept solution-architect/ux-designer/value-strategist (lift+1). References degraded to kept lenses/inline; resolver falls back for unknown roles. Also fixed 5 dead script pointers (doc rot).
+
 ## [12.20.0] - 2026-06-12
 
 ### Changed

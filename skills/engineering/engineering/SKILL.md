@@ -67,10 +67,11 @@ See [refs/templates.md](refs/templates.md) for output templates and focus areas.
 
 ## Integration with Specialists
 
-Dispatch specialist agents via `Task(subagent_type=...)`:
-- `wicked-garden:engineering:frontend-engineer` — React, CSS, browser-specific concerns
-- `wicked-garden:engineering:backend-engineer` — APIs, databases, server-side patterns
-- `wicked-garden:engineering:debugger` — Error investigation and root cause analysis
+Frontend (React/CSS/browser), backend (APIs/databases/server-side), and debugging
+(error investigation, root-cause analysis) are handled **inline** by this skill —
+apply the relevant checklist from `refs/`. For genuinely structural work (system
+boundaries, cross-cutting design trade-offs), dispatch the architecture specialist:
+- `wicked-garden:engineering:solution-architect` — system design, structural trade-offs
 
 ## Integration with wicked-crew
 

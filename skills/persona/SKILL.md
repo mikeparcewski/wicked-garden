@@ -124,7 +124,7 @@ Route any code review through a persona's lens:
 /wicked-garden:engineering:review --persona qe
 ```
 
-Falls back to default senior-engineer if persona not found.
+Falls back to the built-in `architect` persona if the named persona is not found.
 
 ## Fallback Personas
 

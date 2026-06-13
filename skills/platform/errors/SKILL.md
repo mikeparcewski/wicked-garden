@@ -124,7 +124,7 @@ Based on patterns:
 1. {specific action to take}
 2. {specific action to take}
 
-**Engage**: wicked-garden:engineering:debugger for code-level analysis
+**Engage**: the engineering skill's debugging workflow (`skills/engineering/debugging/`) for code-level root-cause analysis
 ```
 
 ## Common Error Patterns
@@ -158,7 +158,7 @@ Emit events:
 
 ## Integration with engineering
 
-When errors detected, engage debugger with context:
+When errors detected, run the engineering debugging workflow with context:
 - Error stack traces from discovered sources
 - Log context from logging integrations
 - Recent code changes from git

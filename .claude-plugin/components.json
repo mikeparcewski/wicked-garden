@@ -3,20 +3,20 @@
   "domains": ["agentic", "crew", "data", "engineering", "jam", "mem", "persona", "platform", "product", "qe", "search", "smaht"],
   "summary": {
     "commands": 77,
-    "agents": 36,
-    "skills": 67,
+    "agents": 23,
+    "skills": 66,
     "hooks": 13,
     "specialists": 7
   },
   "agents_by_domain": {
     "agentic": ["architect", "performance-analyst", "safety-reviewer"],
     "crew": ["implementer", "researcher", "reviewer"],
-    "data": ["data-analyst", "data-architect", "data-engineer", "ml-engineer"],
-    "engineering": ["api-documentarian", "backend-engineer", "debugger", "frontend-engineer", "migration-engineer", "senior-engineer", "solution-architect", "technical-writer"],
+    "data": ["data-engineer"],
+    "engineering": ["api-documentarian", "migration-engineer", "solution-architect"],
     "jam": ["brainstorm-facilitator", "council", "quick-facilitator"],
     "persona": ["persona-agent"],
-    "platform": ["compliance-officer", "incident-responder", "privacy-expert", "security-engineer", "sre"],
-    "product": ["a11y-expert", "market-strategist", "product-manager", "requirements-analyst", "ui-reviewer", "user-researcher", "ux-designer", "value-strategist"],
+    "platform": ["compliance-officer", "privacy-expert", "security-engineer"],
+    "product": ["a11y-expert", "requirements-analyst", "ui-reviewer", "ux-designer", "value-strategist"],
     "qe": ["semantic-reviewer"]
   },
   "skills_by_domain": {
@@ -32,7 +32,7 @@
     "multi-model": ["multi-model"],
     "persona": ["persona"],
     "platform": ["audit", "compliance", "errors", "gate-benchmark-rebaseline", "gh-cli", "github-actions", "gitlab-ci", "glab-cli", "health", "observability", "prereq-doctor"],
-    "product": ["acceptance-criteria", "accessibility", "analyze", "imagery", "listen", "mockup", "product-management", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-review", "visual-review"],
+    "product": ["acceptance-criteria", "accessibility", "analyze", "imagery", "listen", "mockup", "requirements-analysis", "requirements-graph", "requirements-migrate", "requirements-navigate", "screenshot", "strategy", "synthesize", "ux-review", "visual-review"],
     "runtime-exec": ["runtime-exec"],
     "search": ["codebase-narrator"],
     "smaht": ["discovery", "intent", "propose-skills", "smaht"],

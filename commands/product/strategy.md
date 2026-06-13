@@ -21,19 +21,18 @@ For one lens, `Read("${CLAUDE_PLUGIN_ROOT}/skills/product/refs/strategy.md")` an
 that lens's rubric directly — market lens for `roi|market|competitive`, value lens for
 `value`. No dispatch.
 
-## 3. `--focus all` -> dispatch both lenses in parallel
-
-Concurrent market + value analysis earns the hop.
+## 3. `--focus all` -> dispatch value lens; run market lens inline
 
 ```
-Task(subagent_type="wicked-garden:product:market-strategist",
-     prompt="""Target: {target_content}  Quick: {--quick}
-Run modes: {roi, market, competitive — whichever apply from --focus}.
-Return investment/returns/payback for roi, TAM/SAM/SOM/timing for market, SWOT/positioning for competitive.""")
 Task(subagent_type="wicked-garden:product:value-strategist",
      prompt="""Target: {target_content}  Quick: {--quick}
 Design value proposition: customer JTBD, pain relievers, gain creators, differentiation, value statement.""")
 ```
+
+The market lens (ROI / TAM-SAM-SOM / SWOT / Five Forces) runs **inline** in this
+command — `Read("${CLAUDE_PLUGIN_ROOT}/skills/product/refs/strategy.md")` and apply its
+market rubric directly to the target: investment/returns/payback for `roi`, TAM/SAM/SOM
++ timing for `market`, SWOT/positioning for `competitive`. No separate dispatch.
 
 ## 4. Synthesis (always inline)
 

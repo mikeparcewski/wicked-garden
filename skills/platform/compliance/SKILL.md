@@ -143,15 +143,6 @@ Skill(skill="wicked-brain:memory", args="recall \"compliance {framework}\"")
 {Recommended actions}
 ```
 
-## Automation Script
-
-Use compliance checker:
-```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/compliance_checker.py" \
-  --target {path} \
-  --framework {soc2|hipaa|gdpr|pci}
-```
-
 ## External Integration Discovery
 
 Compliance checking can leverage available integrations by capability:
@@ -162,7 +153,7 @@ Compliance checking can leverage available integrations by capability:
 | **Secrets** | `vault`, `secrets` | Credential management audit |
 | **SBOM** | `trivy`, `sbom`, `cyclonedx` | Supply chain compliance |
 
-Discover available integrations via capability detection. Fall back to local compliance_checker.py when none available.
+Discover available integrations via capability detection. When none are available, fall back to manual analysis against the control checklist above.
 
 ## Quality Standards
 

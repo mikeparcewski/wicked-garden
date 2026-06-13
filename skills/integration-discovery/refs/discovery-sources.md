@@ -106,12 +106,12 @@ Stake level: medium — informing user of choice.
 
 | Family | Purpose | Example Skills |
 |--------|---------|----------------|
-| **engineering** | Engineering & architecture | senior-engineer, debugger |
-| **qe** | Quality engineering | test-strategist, tdd-coach |
+| **engineering** | Engineering & architecture | solution-architect, api-documentarian |
+| **qe** | Quality engineering | semantic-reviewer, test-strategist |
 | **platform** | Security/compliance | security-engineer, privacy-expert |
-| **product** | Product management | requirements-analyst, product-manager |
-| **data** | Data engineering | data-engineer, ml-engineer |
-| **wicked-crew** | Workflow orchestration | orchestrator, facilitator |
+| **product** | Product management | requirements-analyst, ux-designer |
+| **data** | Data engineering | data-engineer |
+| **wicked-crew** | Workflow orchestration | implementer, researcher, reviewer |
 
 ### Skill Discovery Pattern
 
@@ -123,7 +123,7 @@ Task involves security review.
 Relevant skills:
 - platform (security-engineer, privacy-expert)
 - qe (test-strategist for security test scenarios)
-- engineering (senior-engineer for code quality)
+- engineering (review skill inline / crew:reviewer for code quality)
 
 Recommendation: Use wicked-garden:platform:security-engineer as primary reviewer.
 ```
@@ -152,7 +152,7 @@ Task: "Review PR for security issues"
 
 Relevant agents:
 - `wicked-garden:platform:security-engineer` - Security expertise
-- `wicked-garden:engineering:senior-engineer` - Code quality
+- `wicked-garden:crew:reviewer` - Code quality review
 - `Explore` - Understand codebase context
 
 Recommendation: Spawn security-engineer for focused review.

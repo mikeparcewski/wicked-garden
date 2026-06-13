@@ -32,8 +32,9 @@ wicked-brain:query "how does the facilitator rubric work"
 # Codebase symbol / docs search (FTS5 over indexed code, docs, wiki)
 wicked-brain:search "symbol or pattern"
 
-# Pull active crew project state
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/crew.py find-active --json
+# Pull v11 archetype-mode project state (the v6 crew.py find-active
+# auto-resolver was deleted with the universal pipeline — look up by name)
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
 ```
 
 ## Context Sources

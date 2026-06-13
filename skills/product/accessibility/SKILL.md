@@ -132,8 +132,8 @@ wicked-garden:search "aria-" --type html          # ARIA usage
 
 **Tools:**
 ```bash
-# Color contrast check
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/product/contrast-check.py" "#666" "#fff"
+# Color contrast: compute the WCAG ratio (#666 on #fff = 5.74:1, passes AA
+# body text); use axe / Lighthouse / WAVE / pa11y for automated scanning.
 
 # Track issues via native TaskCreate
 # TaskCreate(
@@ -162,7 +162,7 @@ Accessibility auditing can leverage available integrations by capability:
 | **Browser testing** | `playwright`, `puppeteer` | Screenshots, DOM snapshots |
 | **Performance** | `lighthouse` | Combined a11y + performance audit |
 
-Discover available integrations via capability detection. Fall back to local contrast-check.py when none available.
+Discover available integrations via capability detection. When none are available, fall back to computing the WCAG contrast ratio manually against the AA thresholds.
 
 ## Resources
 
