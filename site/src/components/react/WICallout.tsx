@@ -64,7 +64,7 @@ export default function WICallout() {
                 </span>
               </div>
               <img
-                src="/wicked-garden/wi-screenshot.png"
+                src={`${import.meta.env.BASE_URL}wi-screenshot.png`}
                 alt="wicked-interactive — in-browser HTML presentation builder"
                 className="wi-screenshot"
                 loading="lazy"
