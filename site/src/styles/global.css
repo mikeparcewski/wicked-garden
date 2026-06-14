@@ -751,8 +751,6 @@
 /* ── Tool detail panel ── */
 .se-detail {
   padding: 0 0.5rem;
-  overflow-y: auto;
-  max-height: 100%;
 }
 
 .se-detail-kicker {

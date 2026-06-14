@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { PROJECTS, ROLES, TOUR, type Project, type TourStop } from "../../data/projects";
 import CopyChip from "./CopyChip";
@@ -107,6 +107,28 @@ export default function SessionExplorer() {
   const reduce = useReducedMotion();
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const rightRef = useRef<HTMLDivElement>(null);
+
+  // Log content is fixed — measure once and lock height to content + 15%
+  useLayoutEffect(() => {
+    const el = logRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight * 1.15}px`;
+  }, []);
+
+  // Detail content changes per tool — re-measure after AnimatePresence transition
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const el = rightRef.current;
+      if (!el) return;
+      const detail = el.querySelector<HTMLElement>(".se-detail");
+      if (!detail) return;
+      el.style.height = `${detail.scrollHeight * 1.15}px`;
+    }, 350); // wait for 0.32s enter transition to finish
+    return () => clearTimeout(timer);
+  }, [activeIdx]);
 
   useEffect(() => {
     if (reduce) return;
@@ -168,7 +190,7 @@ export default function SessionExplorer() {
           </div>
 
           {/* ── Left col: terminal log ── */}
-          <div className="se-log">
+          <div ref={logRef} className="se-log">
             <div className="se-chrome" aria-hidden="true">● ● ●</div>
             {LOG.map((line, i) => {
               const isActive = line.toolId === activeId && !line.isResult;
@@ -212,7 +234,7 @@ export default function SessionExplorer() {
           </div>
 
           {/* ── Right col: tool detail ── */}
-          <div className="se-right">
+          <div ref={rightRef} className="se-right">
             <AnimatePresence mode="wait">
               {project && stop ? (
                 <motion.div
