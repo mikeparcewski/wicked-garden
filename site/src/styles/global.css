@@ -14,8 +14,8 @@
    Full brand palette: docs/BRAND.md
 ---------------------------------------------------------------------------- */
 :root {
-  --canvas: #224a60;
-  --canvas-2: #1c4053;
+  --canvas: #1c4053;
+  --canvas-2: #224a60;
   --surface: #2a566e;
   --surface-2: #315f7a;
   --ink: #eae5b6;
@@ -57,8 +57,8 @@
 }
 
 .dark {
-  --canvas: #232324;
-  --canvas-2: #2a2a2b;
+  --canvas: #2a2a2b;
+  --canvas-2: #232324;
   --surface: #313132;
   --surface-2: #3a3a3b;
   --ink: #eae5b6;
@@ -556,6 +556,13 @@
   overflow: hidden;
 }
 
+#bench {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding-top: var(--topbar-h);
+}
+
 /* ── Manifesto scroll-pin wrapper + sentinels ── */
 .m-wrap {
   position: relative;
@@ -580,6 +587,9 @@
   position: sticky;
   top: var(--topbar-h);
   height: calc(100vh - var(--topbar-h));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   overflow: hidden;
 }
 
@@ -615,35 +625,46 @@
   height: calc(100vh - var(--topbar-h));
   display: flex;
   flex-direction: column;
+  justify-content: center;
   overflow: hidden;
 }
 
-.se-stage-header {
-  flex-shrink: 0;
-  padding: 1.5rem 2rem 0;
+/* Single centered content block — grid with full-width header row + two content columns */
+.se-content {
   max-width: 1240px;
   width: 100%;
   margin: 0 auto;
+  padding: 1.5rem 2rem 2rem;
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+  column-gap: 3rem;
+  align-items: start;
+}
+
+/* Full-width header row: kicker + h2 + intro */
+.se-full {
+  grid-column: 1 / -1;
+  padding-bottom: 1.5rem;
 }
 
 .se-stage-h2 {
-  margin-top: 0.35rem;
-  font-size: clamp(1.25rem, 2.4vw, 1.9rem);
+  margin-top: 0.75rem;
+  font-size: clamp(2rem, 4.2vw, 3.4rem);
   font-weight: 800;
   line-height: 1.02;
   letter-spacing: -0.025em;
 }
 
-.se-inner {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 8fr) minmax(0, 12fr);
-  gap: 3rem;
-  align-items: center;
-  max-width: 1240px;
-  width: 100%;
-  margin: 0 auto;
-  padding: 1rem 2rem 0;
+.se-stage-intro {
+  margin-top: 0.75rem;
+  font-size: 1.1rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+.se-right {
+  display: flex;
+  align-items: start;
   min-height: 0;
 }
 
@@ -794,6 +815,10 @@
 
 /* ── Progress dots ── */
 .se-progress-row {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -835,13 +860,14 @@
   .wi-screenshot { max-height: 32vh; }
 
   /* SessionExplorer — collapse to single column */
-  .se-stage-header { padding: 0.875rem 1.25rem 0; }
-
-  .se-inner {
+  .se-content {
+    padding: 1rem 1.25rem 1rem;
     grid-template-columns: 1fr;
-    gap: 0.75rem;
-    padding: 0.75rem 1.25rem 0;
+    column-gap: 0;
+    row-gap: 0.75rem;
   }
+
+  .se-full { padding-bottom: 0.75rem; }
 
   .se-log {
     max-height: 168px;

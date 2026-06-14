@@ -154,17 +154,20 @@ export default function SessionExplorer() {
 
       {/* sticky stage — fills one viewport */}
       <div className="se-stage">
-        {/* section header lives inside the stage so it's always visible */}
-        <div className="se-stage-header">
-          <p className="kicker">02 / in practice</p>
-          <h2 className="se-stage-h2 font-display">
-            One prompt.{" "}
-            <Marker color="var(--accent-bright)">Seven tools firing.</Marker>
-          </h2>
-        </div>
+        <div className="se-content">
+          {/* ── Full-width header: kicker + h2 + intro ── */}
+          <div className="se-full">
+            <p className="kicker">02 / in practice</p>
+            <h2 className="se-stage-h2 font-display">
+              One prompt.{" "}
+              <Marker color="var(--accent-bright)">Seven tools firing.</Marker>
+            </h2>
+            <p className="se-stage-intro">
+              Scroll through a real refactor session — every garden tool doing its part, triggered by a single prompt. Click any log line to jump to that tool.
+            </p>
+          </div>
 
-        <div className="se-inner">
-          {/* ── Terminal log ── */}
+          {/* ── Left col: terminal log ── */}
           <div className="se-log">
             <div className="se-chrome" aria-hidden="true">● ● ●</div>
             {LOG.map((line, i) => {
@@ -208,42 +211,44 @@ export default function SessionExplorer() {
             })}
           </div>
 
-          {/* ── Tool detail ── */}
-          <AnimatePresence mode="wait">
-            {project && stop ? (
-              <motion.div
-                key={activeId}
-                className="se-detail"
-                initial={{ opacity: 0, y: 14 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.32, ease }}
-              >
-                <p className="se-detail-kicker" style={{ color: `var(${tvar})` }}>
-                  {stop.kicker}
-                </p>
-                <h3 className="se-detail-headline font-display">
-                  {stop.headline.pre}{" "}
-                  <span style={{ color: `var(${cvar})` }}>{stop.headline.mark}</span>
-                </h3>
-                <p className="se-detail-body">{stop.body}</p>
-                <div className="se-detail-install">
-                  <CopyChip text={project.install} />
-                </div>
-                <ul className="se-detail-caps">
-                  {project.points.slice(0, 3).map((pt) => (
-                    <li key={pt} className="se-detail-cap">
-                      <span aria-hidden style={{ color: `var(${cvar})` }}>❋</span>
-                      <span>{pt}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="se-detail-unlock" style={{ color: `var(${cvar})` }}>
-                  {stop.unlock}
-                </p>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+          {/* ── Right col: tool detail ── */}
+          <div className="se-right">
+            <AnimatePresence mode="wait">
+              {project && stop ? (
+                <motion.div
+                  key={activeId}
+                  className="se-detail"
+                  initial={{ opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.32, ease }}
+                >
+                  <p className="se-detail-kicker" style={{ color: `var(${tvar})` }}>
+                    {stop.kicker}
+                  </p>
+                  <h3 className="se-detail-headline font-display">
+                    {stop.headline.pre}{" "}
+                    <span style={{ color: `var(${cvar})` }}>{stop.headline.mark}</span>
+                  </h3>
+                  <p className="se-detail-body">{stop.body}</p>
+                  <div className="se-detail-install">
+                    <CopyChip text={project.install} />
+                  </div>
+                  <ul className="se-detail-caps">
+                    {project.points.slice(0, 3).map((pt) => (
+                      <li key={pt} className="se-detail-cap">
+                        <span aria-hidden style={{ color: `var(${cvar})` }}>❋</span>
+                        <span>{pt}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="se-detail-unlock" style={{ color: `var(${cvar})` }}>
+                    {stop.unlock}
+                  </p>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* scroll progress */}
