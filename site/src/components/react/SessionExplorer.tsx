@@ -109,26 +109,24 @@ export default function SessionExplorer() {
   const wrapRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
+  const hiddenRef = useRef<HTMLDivElement>(null);
 
-  // Log content is fixed — measure once and lock height to content + 15%
+  // Pre-measure all panel heights at mount so the layout never shifts on tool switches.
+  // Log content is static → measure once. Right column → pre-render all detail panels
+  // invisibly (position:absolute inside se-right), find the tallest, lock to that × 1.15.
   useLayoutEffect(() => {
-    const el = logRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight * 1.15}px`;
-  }, []);
+    const logEl = logRef.current;
+    if (logEl) logEl.style.height = `${logEl.scrollHeight * 1.15}px`;
 
-  // Detail content changes per tool — re-measure after AnimatePresence transition
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const el = rightRef.current;
-      if (!el) return;
-      const detail = el.querySelector<HTMLElement>(".se-detail");
-      if (!detail) return;
-      el.style.height = `${detail.scrollHeight * 1.15}px`;
-    }, 350); // wait for 0.32s enter transition to finish
-    return () => clearTimeout(timer);
-  }, [activeIdx]);
+    const hiddenEl = hiddenRef.current;
+    const rightEl = rightRef.current;
+    if (!hiddenEl || !rightEl) return;
+    let maxH = 0;
+    hiddenEl.querySelectorAll<HTMLElement>(".se-detail").forEach((el) => {
+      maxH = Math.max(maxH, el.scrollHeight);
+    });
+    if (maxH > 0) rightEl.style.height = `${maxH * 1.15}px`;
+  }, []);
 
   useEffect(() => {
     if (reduce) return;
@@ -235,6 +233,38 @@ export default function SessionExplorer() {
 
           {/* ── Right col: tool detail ── */}
           <div ref={rightRef} className="se-right">
+            {/* Hidden pre-render of all panels — measures max height at mount, then inert */}
+            <div ref={hiddenRef} className="se-hidden-measure" aria-hidden="true">
+              {TOOL_LINES.map((line) => {
+                if (!line.toolId) return null;
+                const proj = byId[line.toolId];
+                const stop = stopFor(line.toolId);
+                if (!proj || !stop) return null;
+                const cv = colorOf(proj);
+                const tv = cv.replace("--c-", "--ct-");
+                return (
+                  <div key={line.toolId} className="se-detail">
+                    <p className="se-detail-kicker" style={{ color: `var(${tv})` }}>{stop.kicker}</p>
+                    <h3 className="se-detail-headline font-display">
+                      {stop.headline.pre}{" "}
+                      <span style={{ color: `var(${cv})` }}>{stop.headline.mark}</span>
+                    </h3>
+                    <p className="se-detail-body">{stop.body}</p>
+                    <div className="se-detail-install"><CopyChip text={proj.install} /></div>
+                    <ul className="se-detail-caps">
+                      {proj.points.slice(0, 3).map((pt) => (
+                        <li key={pt} className="se-detail-cap">
+                          <span aria-hidden style={{ color: `var(${cv})` }}>❋</span>
+                          <span>{pt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="se-detail-unlock" style={{ color: `var(${cv})` }}>{stop.unlock}</p>
+                  </div>
+                );
+              })}
+            </div>
+
             <AnimatePresence mode="wait">
               {project && stop ? (
                 <motion.div

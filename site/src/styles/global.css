@@ -644,7 +644,7 @@
 /* Full-width header row: kicker + h2 + intro */
 .se-full {
   grid-column: 1 / -1;
-  padding-bottom: 1.5rem;
+  padding-bottom: 2.5rem;
 }
 
 .se-stage-h2 {
@@ -656,7 +656,7 @@
 }
 
 .se-stage-intro {
-  margin-top: 0.75rem;
+  margin-top: 1.5rem;
   font-size: 1.1rem;
   line-height: 1.65;
   color: var(--muted);
@@ -666,6 +666,23 @@
   display: flex;
   align-items: start;
   min-height: 0;
+  position: relative;
+}
+
+/* Absolutely-positioned pre-render container — invisible, inert after mount measurement */
+.se-hidden-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.se-hidden-measure .se-detail {
+  position: absolute;
+  width: 100%;
+  top: 0;
 }
 
 /* ── Terminal log panel ── */
