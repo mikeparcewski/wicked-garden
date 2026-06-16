@@ -62,7 +62,7 @@ export default function Manifesto() {
         <section
           id="manifesto"
           className="mx-auto max-w-[1240px] px-5 pb-4 sm:px-8"
-          style={{ paddingTop: "calc(var(--topbar-h) + 0.75rem)" }}
+          style={{ paddingTop: "1rem" }}
         >
           <p className="kicker">01 / the manifesto</p>
 

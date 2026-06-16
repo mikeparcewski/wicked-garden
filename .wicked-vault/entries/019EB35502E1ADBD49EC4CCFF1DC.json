@@ -1,0 +1,26 @@
+{
+  "id": "019EB35502E1ADBD49EC4CCFF1DC",
+  "scope": "build",
+  "phase": "review",
+  "claim_id": "tests-pass",
+  "kind": "check",
+  "source": "bash -c 'python3 -m pytest tests/sentinel/ -q && python3 scripts/ci/validate.py >/dev/null'",
+  "verifier": {
+    "kind": "exit_code_eq",
+    "params": {
+      "code": 0
+    }
+  },
+  "criteria_sha256": "1e06f751ad1b3c5d43eb9e9d7e1d804985bdccf8461842ab4e59a74ca1779e1b",
+  "payload_sha256": "a629232e255f3121555048dce1b8accccd0dcf2162555b16085a00d129830533",
+  "acceptance_criteria": "tests-pass: `bash -c 'python3 -m pytest tests/sentinel/ -q && python3 scripts/ci/validate.py >/dev/null'` satisfies exit_code_eq:0",
+  "criteria_authored_by": "record",
+  "payload_ref": "payloads/a629232e255f3121555048dce1b8accccd0dcf2162555b16085a00d129830533",
+  "envelope_hash": "6827988904fc0e8600c46c33a3b6378f9c2f6b2ef335de6d4afa17d2ba7b9c8d",
+  "status_at_record": "pass",
+  "state": "active",
+  "supersedes": null,
+  "contract_version": "7348781e4b79adbc",
+  "created_at": "2026-06-10T20:59:13.505Z",
+  "created_by": "michael.parcewski"
+}

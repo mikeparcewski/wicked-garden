@@ -1,0 +1,1 @@
+{"captured_at":"2026-06-10T20:59:13.503Z","command":"bash -c 'python3 -m pytest tests/sentinel/ -q && python3 scripts/ci/validate.py >/dev/null'","exit_code":0,"stderr":"","stdout":"..................                                                       [100%]\n18 passed in 5.17s\n"}

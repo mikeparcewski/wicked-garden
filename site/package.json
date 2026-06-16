@@ -19,7 +19,8 @@
     "astro": "^6.1.10",
     "motion": "^11.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "wicked-web": "github:mikeparcewski/wicked-web"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",

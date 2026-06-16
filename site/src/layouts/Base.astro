@@ -22,7 +22,7 @@ const ogAbsolute = Astro.site ? new URL(ogImage, Astro.site).href : ogImage;
 ---
 
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -46,15 +46,13 @@ const ogAbsolute = Astro.site ? new URL(ogImage, Astro.site).href : ogImage;
 
     <link rel="preconnect" href="https://github.com" />
 
-    {/* Set theme before paint to avoid a flash of the wrong mode. */}
+    {/* Set theme before paint. Shared with the wicked-web Topbar toggle via
+        data-theme + localStorage 'wa-theme' (garden defaults to its night mode). */}
     <script is:inline>
       (function () {
         try {
-          var stored = localStorage.getItem("theme");
-          var dark = stored
-            ? stored === "dark"
-            : window.matchMedia("(prefers-color-scheme: dark)").matches;
-          document.documentElement.classList.toggle("dark", dark);
+          var t = localStorage.getItem("wa-theme") || "dark";
+          document.documentElement.setAttribute("data-theme", t);
         } catch (e) {}
       })();
     </script>

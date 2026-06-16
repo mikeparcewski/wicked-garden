@@ -1,7 +1,7 @@
 ---
 import Base from "../layouts/Base.astro";
-import Header from "../components/Header.astro";
-import Footer from "../components/Footer.astro";
+import Topbar from "wicked-web/components/Topbar.astro";
+import Footer from "wicked-web/components/Footer.astro";
 import Hero from "../components/react/Hero.tsx";
 import Manifesto from "../components/react/Manifesto.tsx";
 import SessionExplorer from "../components/react/SessionExplorer.tsx";
@@ -10,7 +10,7 @@ import GardenBench from "../components/react/GardenBench.tsx";
 ---
 
 <Base>
-  <Header />
+  <Topbar />
   <main>
     <!-- Hero renders <section id="top"> — snap target -->
     <Hero client:load />
