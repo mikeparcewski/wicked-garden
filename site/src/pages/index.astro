@@ -1,15 +1,23 @@
 ---
-import Base from "../layouts/Base.astro";
+import Base from "wicked-web/layouts/Base.astro";
 import Topbar from "wicked-web/components/Topbar.astro";
 import Footer from "wicked-web/components/Footer.astro";
+import "../styles/global.css";
 import Hero from "../components/react/Hero.tsx";
 import Manifesto from "../components/react/Manifesto.tsx";
 import SessionExplorer from "../components/react/SessionExplorer.tsx";
 import WICallout from "../components/react/WICallout.tsx";
 import GardenBench from "../components/react/GardenBench.tsx";
+
+const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
 ---
 
-<Base>
+<Base
+  title="wickedagile / wicked-garden — the local-first, no-black-box kit for AI-native development"
+  description="The open-source, local-first toolkit for AI-native engineers. Memory, evidence, and an SDLC that re-derives “done” instead of trusting a green checkmark."
+  bodyClass="has-grain"
+  favicon={favicon}
+>
   <Topbar pkg="wicked-garden" repo="https://github.com/mikeparcewski/wicked-garden" />
   <main>
     <!-- Hero renders <section id="top"> — snap target -->

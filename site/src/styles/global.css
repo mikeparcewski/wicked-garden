@@ -14,32 +14,22 @@
    Garden roles: gate (yellow) · floor (mustard) · layer (sky) · solo (wine)
    Full brand palette: docs/BRAND.md
 ---------------------------------------------------------------------------- */
-:root {
-  --canvas: #1c4053;
-  --canvas-2: #224a60;
-  --surface: #2a566e;
-  --surface-2: #315f7a;
-  --ink: #eae5b6;
-  --muted: #b9d2df;
-  --hairline: rgba(234, 229, 182, 0.18);
-  --hairline-strong: rgba(234, 229, 182, 0.34);
-  --shadow-rgb: 14, 38, 52;
-
-  --accent: #ffda19;          /* signal yellow — the wickedagile stamp */
+/* Family tokens (canvas / canvas-2 / surface / ink / muted / hairline / accent
+   / link / --topbar-h, plus the day+night palettes) come from the shared
+   wicked-web tokens.css, loaded by the shared Base. Garden only layers its
+   own role/atmosphere tokens here, per theme — so it tracks the family. */
+[data-theme="light"] {
   --accent-bright: #ffe45c;
   --on-accent: #313132;
+  --shadow-rgb: 14, 38, 52;
 
   --c-foundation: #c6a413;    /* mustard */
   --c-workflow: #60acc6;      /* sky blue */
   --c-creation: #d8868e;      /* wine, lifted for the blue ground */
-
-  /* Lighter text-only variants — AA contrast for small colored text on the
-     blue ground. The --c-* above stay for fills, dots, edges, and vines. */
   --ct-foundation: #efdc8a;
   --ct-workflow: #bfe4f4;
   --ct-creation: #f2d4d7;
 
-  /* Garden-role tokens — content stamps on the brand ground. */
   --c-gate: #ffda19;
   --c-floor: #c6a413;
   --c-layer: #60acc6;
@@ -53,30 +43,16 @@
   --mesh-2: rgba(255, 218, 25, 0.14);
   --mesh-3: rgba(157, 79, 86, 0.25);
   --grain-opacity: 0.06;
-
-  color-scheme: dark;
 }
 
 [data-theme="dark"] {
-  --canvas: #2a2a2b;
-  --canvas-2: #232324;
-  --surface: #313132;
-  --surface-2: #3a3a3b;
-  --ink: #eae5b6;
-  --muted: #b7b3a4;
-  --hairline: rgba(234, 229, 182, 0.12);
-  --hairline-strong: rgba(234, 229, 182, 0.24);
-  --shadow-rgb: 0, 0, 0;
-
-  --accent: #ffda19;
   --accent-bright: #ffe45c;
   --on-accent: #1e1e1f;
+  --shadow-rgb: 0, 0, 0;
 
   --c-foundation: #d8b82e;
   --c-workflow: #60acc6;
   --c-creation: #c67079;
-
-  /* On charcoal the lifted values already pass; text variant mirrors them. */
   --ct-foundation: #d8b82e;
   --ct-workflow: #60acc6;
   --ct-creation: #c67079;
@@ -94,8 +70,6 @@
   --mesh-2: rgba(96, 172, 198, 0.18);
   --mesh-3: rgba(157, 79, 86, 0.18);
   --grain-opacity: 0.07;
-
-  color-scheme: dark;
 }
 
 /* Map tokens to Tailwind utilities. `inline` keeps them live so utilities
@@ -118,9 +92,9 @@
   --color-workflow: var(--c-workflow);
   --color-creation: var(--c-creation);
 
-  --font-display: "Archivo Variable", ui-sans-serif, sans-serif;
-  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, "SFMono-Regular", monospace;
+  --font-display: "Archivo", ui-sans-serif, sans-serif;
+  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -253,8 +227,6 @@
   50% { transform: scaleX(0.6); opacity: 1; }
 }
 
-/* ── Conveyor header height token ────────────────────────────────────────── */
-:root { --topbar-h: 4rem; }
 
 /* ============================================================================
    Conveyor — sticky-scroll station machine (inspired by wicked-interactive)
