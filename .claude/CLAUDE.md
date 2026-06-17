@@ -35,7 +35,7 @@ The `.claude/` directory contains **development tools** (prefixed `wg-`) for bui
 
 ## v11 Architecture: work-shape archetypes
 
-### The 9 archetypes
+### The archetypes
 
 | Archetype | Phases                                                  | Produces                       | HITL                  | Cost      |
 |-----------|---------------------------------------------------------|--------------------------------|-----------------------|-----------|
@@ -48,6 +48,7 @@ The `.claude/` directory contains **development tools** (prefixed `wg-`) for bui
 | incident  | triage → investigate → mitigate → resolve → followup    | mitigation / RCA / followup    | hard:mitigate         | variable  |
 | build     | plan → implement → test → review                        | shipped code / test report     | discrete:review       | high      |
 | migrate   | plan → expand → backfill → cutover → contract           | shape change / rollback proof  | hard:cutover          | high      |
+| modernize | discover → extract → blueprint → transform → parity → cutover | modernization blueprint / parity proof | hard:cutover | high |
 
 Source of truth: `.claude-plugin/archetypes.json`. Detector + steering engine: `scripts/crew/archetypes_v11.py`. Agent playbooks: `skills/archetype/refs/{archetype}.md`. Slash commands: `commands/archetype/{archetype}.md`.
 

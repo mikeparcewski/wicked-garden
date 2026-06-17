@@ -46,29 +46,43 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
+| `wicked.amendment.appended` | `crew.amendment` | Phase amendment appended to amendments.jsonl (Site W6 cutover) |
+| `wicked.archetype.advanced` | `crew.archetype` | v11 archetype phase approved + (when present) next phase named |
+| `wicked.archetype.classified` | `crew.classify` | v11 prompt classified into work-shape archetype set (LLM or regex tier) |
+| `wicked.archetype.completed` | `crew.archetype` | v11 archetype final phase approved (project is_complete) |
+| `wicked.archetype.created` | `crew.archetype` | v11 archetype-mode project created (carries v11_archetype + initial phase_plan) |
+| `wicked.archetype.hard_gate_passed` | `crew.archetype` | v11 archetype hard gate (cutover/mitigate/etc.) passed with confirmed_by + evidence |
+| `wicked.condition.marked_cleared` | `crew.condition` | Condition verification flipped to verified=True via mark_cleared() (Site 5 cutover) |
 | `wicked.consensus.evidence_recorded` | `crew.consensus` | Consensus rejection evidence written to consensus-evidence.json (audit trail) |
 | `wicked.consensus.gate_completed` | `crew.consensus` | Consensus gate verdict written to reviewer-report.md (append or create) |
 | `wicked.consensus.gate_pending` | `crew.consensus` | Pending consensus gate placeholder written to reviewer-report.md (evaluation failed) |
 | `wicked.consensus.report_created` | `crew.consensus` | Consensus gate report written to consensus-report.json |
+| `wicked.convergence.transition_recorded` | `crew.convergence` | Convergence-log transition recorded for an artifact (Site W8 cutover) |
+| `wicked.crew.inline_review_context_recorded` | `crew.solo_mode` | Inline-HITL gate review evidence recorded by solo_mode (Site W1 cutover) |
+| `wicked.crew.legacy_adopted` | `crew.migration` | Legacy beta.3 → v6.0 project migration applied via adopt_legacy.py (audit marker) |
+| `wicked.crew.qe_evaluator_migrated` | `crew.migration` | qe-evaluator → gate-adjudicator rename applied via migrate_qe_evaluator_name.py (audit marker) |
 | `wicked.crew.yolo_revoked` | `crew.yolo` | Yolo auto-approval revoked due to scope-increase mutation (audit + observability) |
 | `wicked.dispatch.log_entry_appended` | `crew.dispatch` | HMAC-signed dispatch-log.jsonl entry appended (orphan-check sentinel) |
 | `wicked.gate.blocked` | `crew.gate` | Gate returned REJECT — phase advancement blocked |
 | `wicked.gate.condition.resolved` | `crew.condition` | Mechanical CONDITIONAL finding resolved via crew:resolve skill (verdict unchanged) |
 | `wicked.gate.decided` | `crew.gate` | Gate returned APPROVE, CONDITIONAL, or REJECT |
+| `wicked.hitl.decision_recorded` | `crew.hitl` | HITL pause-decision evidence recorded by hitl_judge.write_hitl_decision_evidence (Site W5 cutover) |
+| `wicked.modernize.stack_gap` | `crew.modernize` | Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration |
 | `wicked.phase.auto_advanced` | `crew.phase` | Phase auto-advanced for low-complexity project (audit trail) |
 | `wicked.phase.transitioned` | `crew.phase` | Phase approved and advanced to next |
 | `wicked.project.completed` | `crew.project` | Crew project completed (final phase approved) |
 | `wicked.project.complexity_scored` | `crew.scoring` | Complexity score computed for a project |
 | `wicked.project.created` | `crew.project` | New crew project created with complexity scoring |
+| `wicked.reeval.addendum_appended` | `crew.reeval` | Re-eval addendum appended to per-phase + project-root JSONL logs (Site W7 cutover; dual-file projection) |
+| `wicked.review.semantic_gap_recorded` | `crew.review` | Semantic-gap report persisted at review phase (Site W10a cutover) |
 | `wicked.rework.triggered` | `crew.rework` | Rework initiated after gate REJECT or CONDITIONAL |
+| `wicked.subagent.engaged` | `crew.subagent` | Specialist subagent engagement recorded by subagent_lifecycle (Site W9b cutover) |
 
 ### Delivery
 
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
-| `wicked.experiment.concluded` | `delivery.experiment` | A/B experiment concluded with results |
 | `wicked.quality.drift_detected` | `delivery.telemetry` | Cross-session quality metric drifted past baseline threshold (special-cause or >=15% drop) |
-| `wicked.rollout.decided` | `delivery.rollout` | Rollout go/no-go decision made |
 
 ### Facts
 
@@ -99,6 +113,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | `wicked.compliance.failed` | `platform.compliance` | Compliance check failed for a framework |
 | `wicked.compliance.passed` | `platform.compliance` | Compliance check passed for a framework |
 | `wicked.guard.findings` | `platform.guard` | Autonomous session-close guard pipeline surfaced findings (Issue #448) |
+| `wicked.log.rotated` | `platform.log_retention` | Log file rotated by log_retention.rotate_if_needed (audit marker) |
 | `wicked.security.finding_raised` | `platform.security` | Security review raised a finding |
 
 ### Qe

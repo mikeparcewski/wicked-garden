@@ -29,6 +29,7 @@ grep can't see, and otherwise stays out of the harness's way.
 | `/wicked-garden:intent` | Set or inspect the active work intent for the session. |
 | `/wicked-garden:deliberate` | Critically analyze a request before doing the work — challenge assumptions, find root causes, propose better approaches. |
 | `/wicked-garden:where-am-i` | Orient: show current phase, archetype, and project state. |
+| `/wicked-garden:install` | First-run installer for the wicked-* peer tools (vault + loom floor, then optional layers). |
 | `/wicked-garden:setup` | First-run setup and dependency/peer checks. |
 | `/wicked-garden:reset` | Reset session/project state. |
 | `/wicked-garden:report-issue` | File a structured issue against wicked-garden. |

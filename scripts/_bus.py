@@ -76,6 +76,16 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.classify",
         "description": "v11 prompt classified into work-shape archetype set (LLM or regex tier)",
     },
+    # modernize archetype — stack_registry.py dispatch. Emitted when the
+    # `modernize` discover phase resolves a legacy stack class whose status
+    # is planned/none, OR an unknown stack. The reader NEVER fabricates a
+    # migration for these — it emits this gap event + returns a gap-task dict
+    # for the caller to hand to TaskCreate, then STOPS (fail-closed ETHOS).
+    "wicked.modernize.stack_gap": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.modernize",
+        "description": "Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration",
+    },
     "wicked.project.complexity_scored": {
         "domain": "wicked-garden",
         "subdomain": "crew.scoring",

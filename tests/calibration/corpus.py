@@ -1,7 +1,7 @@
 """tests/calibration/corpus.py — Calibration corpus for the v11 archetype
 detector.
 
-A representative set of ~60 prompts spanning the 9 archetypes plus
+A representative set of prompts spanning the work-shape archetypes plus
 paraphrase / multi-archetype / ambiguous edge cases. Each entry declares
 the expected primary archetype (the one the detector MUST find) and an
 optional set of acceptable secondary archetypes.
@@ -59,6 +59,21 @@ CORPUS = [
      "primary": "migrate", "may_also": []},
     {"prompt": "cutover the new pricing service after backfill",
      "primary": "migrate", "may_also": []},
+
+    # ===== modernize (legacy codebase -> new stack) =====
+    {"prompt": "modernize this COBOL batch system to Java",
+     "primary": "modernize", "may_also": [],
+     "signals": {"novelty_high": True, "state_complexity_high": True,
+                 "reversibility_low": True}},
+    {"prompt": "port this AngularJS app to a modern Angular stack",
+     "primary": "modernize", "may_also": [],
+     "signals": {"novelty_high": True}},
+    {"prompt": "rewrite the legacy .NET Framework service on .NET Core",
+     "primary": "modernize", "may_also": [],
+     "signals": {"novelty_high": True}},
+    {"prompt": "lift and shift the legacy codebase onto a new stack",
+     "primary": "modernize", "may_also": [],
+     "signals": {"novelty_high": True, "reversibility_low": True}},
 
     # ===== incident =====
     {"prompt": "checkout is down — 5xx error rate spiking",

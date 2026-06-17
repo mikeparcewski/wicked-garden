@@ -2,9 +2,9 @@
 name: wicked-garden:archetype
 description: |
   v11 work-shape archetype runner. When a prompt has been routed to one
-  of the 9 archetypes (triage, explore, specify, decide, ship, review,
-  incident, build, migrate), this skill is the entry point. It picks
-  the right per-archetype playbook from refs/ and executes the phase
+  of the archetypes (triage, explore, specify, decide, ship, review,
+  incident, build, migrate, modernize), this skill is the entry point. It
+  picks the right per-archetype playbook from refs/ and executes the phase
   shape declared in `.claude-plugin/archetypes.json`.
 
   Use when: a `<wg archetype="X">` or `<wg archetypes>` system-reminder
@@ -35,7 +35,7 @@ Do **not** use this skill for:
 - Simple-edit work (typos, single-line fixes, cosmetic changes). The v11
   hook already suppresses archetype tags on `simple-edit` intent.
 
-## The 9 archetypes
+## The archetypes
 
 | Archetype | Phases                                                    | Produces                        | HITL                  |
 |-----------|-----------------------------------------------------------|---------------------------------|-----------------------|
@@ -48,6 +48,7 @@ Do **not** use this skill for:
 | incident  | triage → investigate → mitigate → resolve → followup      | mitigation / RCA / followup     | hard:mitigate         |
 | build     | plan → implement → test → review                          | shipped code / test report      | discrete:review       |
 | migrate   | plan → expand → backfill → cutover → contract             | shape change / rollback proof   | hard:cutover          |
+| modernize | discover → extract → blueprint → transform → parity → cutover | modernization blueprint / parity proof | hard:cutover  |
 
 ## Procedure
 
@@ -87,7 +88,8 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
 - `refs/review.md` — independent assessment with verdict
 - `refs/incident.md` — live-fire response
 - `refs/build.md` — plan/implement/test/review (the common case)
-- `refs/migrate.md` — expand/backfill/cutover/contract
+- `refs/migrate.md` — expand/backfill/cutover/contract (in-place shape change)
+- `refs/modernize.md` — discover/extract/blueprint/transform/parity/cutover (legacy→new-stack port)
 
 ## What v11 archetypes are NOT
 

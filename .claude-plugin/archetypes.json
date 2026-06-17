@@ -132,6 +132,22 @@
       },
       "next_archetypes": ["ship", "review"],
       "min_complexity": 2
+    },
+    "modernize": {
+      "description": "Port a legacy codebase to a new stack: discover the estate, extract the business rules, blueprint the target, transform with leverage, prove parity, cut over. The factory phase shape, run as a GENERAL modernization steering shape that composes the general code-modernization skills — NOT in-place shape change (that is migrate).",
+      "phases": ["discover", "extract", "blueprint", "transform", "parity", "cutover"],
+      "produces": ["modernization-blueprint", "parity-proof"],
+      "hitl": "hard:cutover-gate",
+      "cost_band": "high",
+      "maturity": "research",
+      "signals": {
+        "phrases": ["modernize", "modernization", "port from", "port the", "rewrite the legacy", "legacy codebase", "lift and shift", "cobol", "angularjs", ".net framework", "rehost", "replatform", "new stack", "to a new stack"],
+        "novelty_high": true,
+        "state_complexity_high": true,
+        "reversibility_low": true
+      },
+      "next_archetypes": ["review", "ship"],
+      "min_complexity": 2
     }
   },
   "$detector_notes": [
