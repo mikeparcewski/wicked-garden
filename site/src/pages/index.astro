@@ -7,7 +7,6 @@ import "../styles/global.css";
 import Hero from "../components/react/Hero.tsx";
 import Manifesto from "../components/react/Manifesto.tsx";
 import SessionExplorer from "../components/react/SessionExplorer.tsx";
-import WICallout from "../components/react/WICallout.tsx";
 import GardenBench from "../components/react/GardenBench.tsx";
 
 const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
@@ -33,9 +32,6 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
     <div class="border-t border-line">
       <SessionExplorer client:visible />
     </div>
-
-    <!-- WI callout renders <section id="wi-callout"> — snap target -->
-    <WICallout client:visible />
 
     <!-- Garden bench — snap target -->
     <section id="bench" class="border-t border-line">
