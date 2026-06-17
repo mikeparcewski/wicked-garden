@@ -316,12 +316,15 @@ _HARD_GATE_PHASES: Dict[str, Tuple[str, ...]] = {
     # The (archetype, phase) pairs that genuinely need the user in the loop
     # AT RUNTIME — not just in playbook prose. These MUST mirror the archetypes
     # declared ``hard:<gate>`` in .claude-plugin/archetypes.json (the source of
-    # truth). Only migrate/incident/review are hard; specify (discrete:validate)
-    # and decide (discrete:select) are discrete gates that auto-pass when the
-    # produces contract re-derives — promoting them here over-reached the
-    # catalog and contradicted the "steering, not blocking" doctrine, so they
-    # were removed. test_hard_gate_map_matches_catalog locks this alignment.
+    # truth). migrate/modernize/incident/review are hard; specify
+    # (discrete:validate) and decide (discrete:select) are discrete gates that
+    # auto-pass when the produces contract re-derives — promoting them here
+    # over-reached the catalog and contradicted the "steering, not blocking"
+    # doctrine, so they were removed. modernize's cutover is the legacy→new-stack
+    # parity-proved switch — the same hard-gate discipline as migrate.cutover.
+    # test_hard_gate_map_matches_catalog locks this alignment.
     "migrate": ("cutover",),
+    "modernize": ("cutover",),
     "incident": ("mitigate",),
     "review": ("remediate-or-accept",),
 }
@@ -559,8 +562,8 @@ def main() -> None:
         "--confirmed-by", default=None,
         help="v11 hard-gate confirmation: name of the user/oncall/approver "
              "who confirmed the gate-specific check (required for "
-             "migrate:cutover, incident:mitigate, review:remediate-or-accept, "
-             "specify:validate, decide:record).",
+             "migrate:cutover, modernize:cutover, incident:mitigate, "
+             "review:remediate-or-accept).",
     )
     parser.add_argument(
         "--confirmation-evidence", default=None,
@@ -572,7 +575,7 @@ def main() -> None:
         "--archetype-mode",
         default=None,
         choices=["triage", "explore", "specify", "decide", "ship",
-                 "review", "incident", "build", "migrate"],
+                 "review", "incident", "build", "migrate", "modernize"],
         help="Hydrate phase_plan from .claude-plugin/archetypes.json on create.",
     )
     parser.add_argument("--json", action="store_true")

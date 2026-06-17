@@ -26,9 +26,10 @@ import prompt_submit as ps  # noqa: E402
 
 
 class TestCatalogShape(unittest.TestCase):
-    """Lock the v11 catalog contract — 9 archetypes, all carrying the
-    required fields. Adding a 10th is fine; dropping or renaming one is
-    a breaking change that should fail this test loudly."""
+    """Lock the v11 catalog contract — the work-shape archetypes, all
+    carrying the required fields. Adding a new shape is fine (update
+    EXPECTED_NAMES); dropping or renaming one is a breaking change that
+    should fail this test loudly."""
 
     REQUIRED_KEYS = {
         "description", "phases", "produces", "hitl", "cost_band",
@@ -36,10 +37,10 @@ class TestCatalogShape(unittest.TestCase):
     }
     EXPECTED_NAMES = {
         "triage", "explore", "specify", "decide", "ship", "review",
-        "incident", "build", "migrate",
+        "incident", "build", "migrate", "modernize",
     }
 
-    def test_all_nine_archetypes_present(self):
+    def test_all_archetypes_present(self):
         catalog = av.load_catalog()
         names = set(catalog.get("archetypes", {}).keys())
         self.assertEqual(self.EXPECTED_NAMES, names)

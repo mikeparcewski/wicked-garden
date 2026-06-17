@@ -26,6 +26,28 @@ class CompileFlowTests(unittest.TestCase):
         self.assertEqual(hard[0]["name"], "cutover")
         self.assertEqual(hard[0]["hitl"], "hard:cutover-gate")
 
+    def test_modernize_compiles_through_the_phase_spine(self):
+        # The modernize archetype is catalog-driven — the compiler picks it up
+        # with zero code change. Its cutover is the single hard gate.
+        # Load the repo catalog explicitly (the compiler honors CLAUDE_PLUGIN_ROOT
+        # which, under some harness runs, points at a plugin cache; the repo JSON
+        # is the source of truth this test asserts against).
+        import json
+        catalog = json.loads(
+            (_REPO_ROOT / ".claude-plugin" / "archetypes.json").read_text(encoding="utf-8")
+        )["archetypes"]
+        fd = fc.compile_flow("modernize", flow_id="mod-1", catalog=catalog)
+        self.assertEqual(
+            [p["name"] for p in fd["phases"]],
+            ["discover", "extract", "blueprint", "transform", "parity", "cutover"],
+        )
+        hard = [p for p in fd["phases"] if p["hitl"].startswith("hard:")]
+        self.assertEqual(len(hard), 1)
+        self.assertEqual(hard[0]["name"], "cutover")
+        self.assertEqual(hard[0]["hitl"], "hard:cutover-gate")
+        # The gate phase re-derives the first produces (modernization-blueprint).
+        self.assertEqual(hard[0]["gate"], "produces:modernization-blueprint")
+
     def test_triage_is_fully_gateless(self):
         fd = fc.compile_flow("triage", flow_id="t-1")
         self.assertTrue(all(p["gate"] is None for p in fd["phases"]))

@@ -1,0 +1,96 @@
+{
+  "$schema_version": "v1.0.0",
+  "$comment": "Legacy-stack-class -> {blueprint, transform, validate, status} dispatch truth, read by the `modernize` archetype's `discover` phase (scripts/crew/stack_registry.py). The `status` field is the load-bearing honesty contract: this registry NEVER fabricates a migration for `planned`/`none`/unknown stacks — the reader emits a capability-gap task and STOPS, matching garden's fail-closed ETHOS ('we do not silently degrade ... never invent a pass'). The `planned` rows double as the modernization roadmap (each is a backlog item, not a capability). `blueprint`/`transform`/`validate` name the GENERAL code-modernization assets/skills that handle the class; this registry is stack-agnostic content, not an engine. status: wired = transform+validate exist and run; planned = on the roadmap, gap-task emitted; none = out of scope, gap-task emitted.",
+  "$status_levels": {
+    "wired": "blueprint + transform + validate all resolvable and runnable now. Dispatch proceeds.",
+    "planned": "on the modernization roadmap but not yet runnable. Reader emits a capability-gap task and stops — never fabricates.",
+    "none": "explicitly out of scope. Reader emits a capability-gap task and stops."
+  },
+  "stacks": {
+    "generic-cross-stack": {
+      "id": "generic-cross-stack",
+      "label": "Generic legacy -> modern port (language/framework-agnostic)",
+      "detect": {
+        "legacyMarkers": [],
+        "manifests": []
+      },
+      "blueprint": "code-modernization:modernize-reimagine",
+      "fixes": ["code-modernization:modernize-harden"],
+      "transform": {
+        "skills": ["code-modernization:modernize-map", "code-modernization:modernize-transform"]
+      },
+      "validate": {
+        "gate": "produces:parity-proof"
+      },
+      "status": "wired"
+    },
+    "node-legacy-to-modern": {
+      "id": "node-legacy-to-modern",
+      "label": "Legacy Node/JS (callbacks, CommonJS, old framework) -> modern TS/ESM",
+      "detect": {
+        "legacyMarkers": ["require(", "module.exports", "var self = this"],
+        "manifests": ["package.json"]
+      },
+      "blueprint": "code-modernization:modernize-reimagine",
+      "fixes": ["code-modernization:modernize-harden"],
+      "transform": {
+        "skills": ["code-modernization:modernize-map", "code-modernization:modernize-transform"]
+      },
+      "validate": {
+        "gate": "produces:parity-proof"
+      },
+      "status": "wired"
+    },
+    "angularjs-to-angular": {
+      "id": "angularjs-to-angular",
+      "label": "AngularJS (1.x) -> modern Angular",
+      "detect": {
+        "legacyMarkers": ["angular.module", "ng-controller", "$scope"],
+        "manifests": ["bower.json", "package.json"]
+      },
+      "blueprint": "code-modernization:modernize-reimagine",
+      "fixes": [],
+      "transform": {
+        "planned": "AngularJS->Angular component/codemod wave not yet curated as a wired transform"
+      },
+      "validate": {
+        "planned": "differential-equivalence harness for the AngularJS->Angular boundary not yet wired"
+      },
+      "status": "planned"
+    },
+    "cobol-to-java": {
+      "id": "cobol-to-java",
+      "label": "COBOL batch/online -> Java",
+      "detect": {
+        "legacyMarkers": ["IDENTIFICATION DIVISION", "PROCEDURE DIVISION", "PIC X"],
+        "manifests": ["*.cbl", "*.cob"]
+      },
+      "blueprint": "code-modernization:modernize-reimagine",
+      "fixes": [],
+      "transform": {
+        "planned": "COBOL->Java rule-extraction + transform pipeline not yet wired as a runnable transform"
+      },
+      "validate": {
+        "planned": "record/replay parity harness for batch outputs not yet wired"
+      },
+      "status": "planned"
+    },
+    "dotnet-framework-to-core": {
+      "id": "dotnet-framework-to-core",
+      "label": ".NET Framework -> .NET (Core) cross-platform",
+      "detect": {
+        "legacyMarkers": ["System.Web", "<TargetFrameworkVersion>", "global.asax"],
+        "manifests": ["*.csproj", "packages.config", "web.config"]
+      },
+      "blueprint": "code-modernization:modernize-reimagine",
+      "fixes": [],
+      "transform": {
+        "planned": ".NET Framework->Core upgrade-assistant-class transform not yet wired"
+      },
+      "validate": {
+        "planned": "parity harness for the .NET boundary not yet wired"
+      },
+      "status": "planned"
+    }
+  }
+}

@@ -30,8 +30,8 @@ session benefits without re-running classification on every turn.
 
 ## What the catalog declares
 
-`.claude-plugin/archetypes.json` defines 9 archetypes. Read it once at the
-start of this skill. Summary table:
+`.claude-plugin/archetypes.json` defines the work-shape archetypes. Read it
+once at the start of this skill. Summary table:
 
 | Archetype | Phases                                        | Use when                                          |
 |-----------|-----------------------------------------------|---------------------------------------------------|
@@ -43,7 +43,8 @@ start of this skill. Summary table:
 | review    | scope → assess → findings → remediate-or-accept | independent assessment of an artifact            |
 | incident  | triage → investigate → mitigate → resolve → followup | live production failure                      |
 | build     | plan → implement → test → review              | implement a feature or fix (most common)          |
-| migrate   | plan → expand → backfill → cutover → contract | shape change with rollback proof                  |
+| migrate   | plan → expand → backfill → cutover → contract | in-place shape change with rollback proof         |
+| modernize | discover → extract → blueprint → transform → parity → cutover | port a legacy codebase to a new stack (NOT in-place) |
 
 ## Procedure
 

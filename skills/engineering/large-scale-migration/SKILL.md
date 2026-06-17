@@ -15,6 +15,20 @@ A change touching dozens-to-thousands of sites is NOT N problems. It is a small 
 
 The bulk goes through the transform. The transform **self-flags** what it can't handle (the exceptions). Humans/agents touch **only the residue** — never the bulk.
 
+## The TRANSFORM techniques menu (ranked: deterministic → AI)
+
+The TRANSFORM step is not one tool — it is a ranked ladder. **Prefer the lowest-numbered technique that fully covers the task.** Determinism is cheaper to trust than generation: a recipe or codemod preserves semantics by construction and is re-runnable; an AI wave must be eval-gated every time. Mixing rungs 80/20 across one migration is fine (most go through rung 1–2, the awkward residue through 4–5). **Never reach for rung 4/5 for what a rung-1 recipe already does** — that trades a proven transform for a hoped-for one. **Record which rung you chose** per wave, so "should I use AI here?" is a defensible, auditable decision, not an implicit one.
+
+| # | Technique | Use when |
+|---|-----------|----------|
+| 1 | **Recipe** (e.g. OpenRewrite, ts-morph preset, framework upgrade-assistant) | A well-known, parameterized transform already exists for this exact change (version bump, API rename, framework migration). Highest leverage, lowest risk — adopt it. |
+| 2 | **AST codemod** (jscodeshift, libcst, tree-sitter, Roslyn, ts-morph) | No off-the-shelf recipe, but the change is a structural rewrite expressible as a tree operation (rewrite the call *shape*, move a block intact, change a binding). Deterministic, semantics-preserving by construction. |
+| 3 | **Pattern-replace / codegen / regenerate** | The change is driven by a source-of-truth map — emit the derived artifacts from the map, or edit the single source + re-run a generator. (Structured replace only; **never** raw `sed`/regex on code — string blind spots break semantics silently.) |
+| 4 | **AI-assisted wave (eval-gated)** | The transform needs judgment a tree op can't encode (idiomatic re-expression, semantic translation across a paradigm gap) but is still bulk-shaped. Run it in waves, each **gated by the differential-equivalence check** — never ship an AI wave on a build-green alone. |
+| 5 | **Manual + AI pair** | Genuinely non-portable / one-off residue the transform self-flagged (cross-cutting joins, sync/async boundaries, non-portable platform features). Judgment-only, case-by-case — the *smallest* slice, never the bulk. |
+
+The GATE is the same regardless of rung: differential equivalence (or suite-green / lint-to-0) is what makes the change trustworthy. A higher rung does not lower the bar — it raises it (rungs 4–5 need *more* fixture coverage, not less).
+
 ## Before you transform: make the INSTRUMENT trustworthy
 You cannot drive a count to 0 if the count is a fiction. Fix the *measurement* FIRST:
 - Does the lint/audit/inventory actually see **all** the cases? Prove it: inject a known violation and confirm it's caught. (Real failure mode: a "complete" audit that masked single-quoted strings and silently under-counted by hundreds.)
