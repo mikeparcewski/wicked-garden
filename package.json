@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "wicked-web": "github:mikeparcewski/wicked-web"
+  }
+}
