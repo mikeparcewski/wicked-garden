@@ -2,8 +2,8 @@
 """stack_registry.py — legacy-stack-class -> dispatch reader for `modernize`.
 
 The §B11/G2 seam: `.claude-plugin/stack-registry.json` is the machine-readable
-dispatch truth (stack -> {blueprint, transform, validate, status}); this module
-is the thin reader the `modernize` archetype's `discover` phase consults.
+dispatch truth (stack -> {blueprint, fixes, transform, validate, status}); this
+module is the thin reader the `modernize` archetype's `discover` phase consults.
 
 The load-bearing honesty contract (garden ETHOS — "never invent a pass"):
 on an UNKNOWN stack, or a stack whose ``status`` is ``planned``/``none``, the
@@ -38,8 +38,10 @@ _THIS_DIR = Path(__file__).resolve().parent
 _PLUGIN_ROOT = _THIS_DIR.parents[1]
 _REGISTRY_PATH = _PLUGIN_ROOT / ".claude-plugin" / "stack-registry.json"
 
-# The two non-wired statuses that must NEVER fabricate a migration.
-_GAP_STATUSES = ("planned", "none")
+# The ONLY status that returns a runnable dispatch. Everything else —
+# `planned`, `none`, a typo, or any novel/unknown status — fails closed to a
+# capability-gap (the load-bearing honesty contract: dispatch is wired-only).
+_WIRED = "wired"
 
 
 def load_registry(path: Optional[Path] = None) -> Dict[str, Any]:
@@ -76,9 +78,15 @@ def resolve_dispatch(
 
     Returns a dict ``{stack, status, dispatch, gap_task}`` where exactly one of
     ``dispatch`` / ``gap_task`` is non-None:
-      - status == "wired"      -> dispatch = {blueprint, fixes, transform, validate}
-      - unknown / planned/none -> gap_task = {...}, dispatch = None, and a
+      - status == "wired"           -> dispatch = {blueprint, fixes, transform, validate}
+      - anything else (unknown /
+        planned / none / a typo /
+        any novel status)           -> gap_task = {...}, dispatch = None, and a
         ``wicked.modernize.stack_gap`` event is emitted (when ``emit``).
+
+    Dispatch is strictly **wired-only**: a stack whose status is anything other
+    than ``wired`` — including an unrecognised/misspelled status — fails closed
+    to a capability-gap rather than fabricating a migration.
     """
     reg = registry if registry is not None else load_registry()
     stacks = reg.get("stacks", {})
@@ -90,22 +98,26 @@ def resolve_dispatch(
         _emit_gap(gap, emit)
         return {"stack": stack_id, "status": "unknown", "dispatch": None, "gap_task": gap}
 
-    status = entry.get("status", "none")
-    if status in _GAP_STATUSES:
+    status = entry.get("status") or "none"
+    if status != _WIRED:
+        # Fail closed: planned/none AND any unknown/typo'd status land here.
         gap = _gap_task(stack_id, entry.get("label", stack_id), status,
-                        f"Stack '{stack_id}' is registered as status={status}.")
+                        f"Stack '{stack_id}' is registered as status={status} "
+                        f"(only status='{_WIRED}' returns a runnable dispatch).")
         _emit_gap(gap, emit)
         return {"stack": stack_id, "status": status, "dispatch": None, "gap_task": gap}
 
-    # status == "wired" (or any non-gap status): return the runnable dispatch.
+    # status == "wired": return the runnable dispatch. `or default` (not
+    # .get(k, default)) so an explicit JSON null coalesces to the empty
+    # container instead of crashing list(None) / passing None downstream.
     return {
         "stack": stack_id,
         "status": status,
         "dispatch": {
             "blueprint": entry.get("blueprint"),
-            "fixes": list(entry.get("fixes", [])),
-            "transform": entry.get("transform", {}),
-            "validate": entry.get("validate", {}),
+            "fixes": list(entry.get("fixes") or []),
+            "transform": entry.get("transform") or {},
+            "validate": entry.get("validate") or {},
         },
         "gap_task": None,
     }
@@ -117,7 +129,9 @@ def _emit_gap(gap_task: Dict[str, Any], emit: bool) -> None:
     if not emit:
         return
     try:
-        sys.path.insert(0, str(_THIS_DIR.parent))  # scripts/ for _bus
+        scripts_dir = str(_THIS_DIR.parent)  # scripts/ for _bus
+        if scripts_dir not in sys.path:      # guard: don't accumulate dups
+            sys.path.insert(0, scripts_dir)
         from _bus import emit_event  # type: ignore
         emit_event(
             "wicked.modernize.stack_gap",
