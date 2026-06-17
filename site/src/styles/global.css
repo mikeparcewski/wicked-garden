@@ -118,7 +118,7 @@
     color: var(--ink);
     font-family: var(--font-sans);
     font-feature-settings: "ss01", "cv01";
-    overflow-x: hidden;
+    overflow-x: clip; /* clip (not hidden) — hidden makes body a scroll container and breaks sticky scroll sections */
     transition: background-color 0.4s var(--ease-out-expo), color 0.4s var(--ease-out-expo);
   }
 
