@@ -24,7 +24,7 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
     <Hero client:load />
 
     <!-- Manifesto — sentinel-driven scroll-pin, border-t scopes the section -->
-    <div class="border-t border-line">
+    <div class="border-t border-line section-alt">
       <Manifesto client:visible />
     </div>
 
@@ -34,7 +34,7 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
     </div>
 
     <!-- Garden bench — snap target -->
-    <section id="bench" class="border-t border-line">
+    <section id="bench" class="border-t border-line section-alt">
       <GardenBench client:visible />
     </section>
   </main>

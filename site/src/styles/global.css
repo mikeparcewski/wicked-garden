@@ -896,3 +896,13 @@
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Alternating section bands (UNLAYERED, on purpose) ───────────────────────
+   Every other content section gets a clearly distinct surface tint so the
+   page reads as alternating bands in BOTH light and dark (canvas vs canvas-2
+   alone are nearly the same value). The section components paint no background
+   of their own, so tinting the wrapper shows through. Kept unlayered so it
+   beats any Tailwind utility background regardless of source order. */
+.section-alt {
+  background: color-mix(in oklab, var(--ink) 8%, var(--canvas));
+}
