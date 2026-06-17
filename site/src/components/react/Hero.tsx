@@ -54,8 +54,7 @@ export default function Hero() {
       onPointerMove={onMove}
       className="relative flex min-h-[100svh] items-center overflow-hidden px-5 pb-20 pt-28 sm:px-8"
     >
-      {/* atmosphere */}
-      <div className="grid-floor pointer-events-none absolute inset-0 -z-20 opacity-70" aria-hidden />
+      {/* atmosphere — grid-floor removed; the page-level trellis motif covers this */}
       <motion.div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 m-auto h-[62vmax] w-[62vmax] rounded-full"
