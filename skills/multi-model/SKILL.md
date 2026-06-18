@@ -3,8 +3,10 @@ name: multi-model
 description: |
   Multi-model AI collaboration: discover installed LLM CLIs and orchestrate
   council sessions, cross-model reviews, and diverse perspective gathering.
-  Detects codex, copilot, gemini, opencode, pi, aider, llm, aichat, and goose
-  CLIs at runtime via PATH discovery.
+  Detects 20+ agentic/chat/local CLIs at runtime from a machine-readable
+  registry (scripts/jam/agentic_cli_registry.py) and usability-probes them
+  (scripts/jam/detect_clis.py --probe) so auth-revoked / unconfigured /
+  daemon-down CLIs are excluded.
   Decisions stored in wicked-brain:memory. Transcripts persisted via jam scripts.
 
   Use when: running a council session across multiple LLM CLIs, getting a
@@ -21,12 +23,19 @@ Each council member is a different model provider for genuine perspective divers
 
 ## How It Works
 
-The multi-model system uses **external LLM CLIs** discovered at runtime:
+The multi-model system uses **external LLM CLIs** discovered + probed at runtime
+from the registry — never a hand-maintained `which` list:
 
-1. **CLI Discovery** — `which codex copilot gemini opencode pi aider llm aichat goose` detects installed CLIs
-2. **Quorum Check** — Council requires 2+ external CLIs; 0 = refuse, 1 = warn
+1. **Detect + Probe** — `detect_clis.py --probe` reads the registry, `shutil.which`-es
+   each binary, then runs each detected CLI's headless form (with registry trust
+   flags) on a trivial prompt to classify **usable** vs **installed-but-unusable**
+   (auth revoked / no provider / daemon down). Captures version strings to
+   disambiguate binary collisions (`grok`, `agent`, `forge`, `q`).
+2. **Quorum Check** — Council requires 2+ **usable external** CLIs; below that,
+   fill seats with `Task()` subagents so a real council always convenes.
 3. **Question Scaffold** — All models answer the same fixed 4-question set
-4. **Parallel Dispatch** — Each CLI receives the scaffold via stdin pipe, runs independently
+4. **Parallel Dispatch** — Each usable CLI is invoked per its registry `input_mode`,
+   isolated + sandboxed + timeboxed, runs independently
 5. **Synthesis** — Claude synthesizes all perspectives with model attribution
 
 ## Quick Start
@@ -44,19 +53,27 @@ The multi-model system uses **external LLM CLIs** discovered at runtime:
 
 ## Supported CLIs
 
-| CLI | Install | Model / Provider |
-|-----|---------|------------------|
-| `codex` | `brew install codex` | OpenAI Codex |
-| `copilot` | `brew install copilot-cli` | GitHub Copilot |
-| `gemini` | `npm i -g @google/gemini-cli` | Google Gemini |
-| `opencode` | `brew install opencode` | Configurable (OpenAI/Anthropic/local) |
-| `pi` | `npm i -g @mariozechner/pi-coding-agent` | Configurable (Google default, OpenAI/Anthropic/etc.) |
-| `aider` | `brew install aider` | Configurable — code-editor orientation |
-| `llm` | `brew install llm` | Multi-provider aggregator (OpenAI, Anthropic, Mistral, local via plugins) |
-| `aichat` | `brew install aichat` | Multi-provider aggregator |
-| `goose` | `brew install block-goose-cli` | Block Goose agent (configurable provider) |
+The supported-CLI list is **not maintained here** — it lives in the registry
+(`scripts/jam/agentic_cli_registry.py`), one record per CLI with its headless
+invocation, input mode, model-flag style, trust flags, auth hint, and install
+commands. Run `detect_clis.py --list` to dump it. This is the de-drift source
+of truth; do not re-list flags in prose.
 
-Claude always participates as a council member alongside the external CLIs.
+The registry currently covers **20+ CLIs** across three categories:
+
+- **agentic-coder** — `claude`, `codex`, `gemini`, `agy` (Antigravity), `pi`,
+  `opencode`, `aider`, `copilot`, `goose`, `cursor-agent`, `amp`, `droid`,
+  `qwen`, `crush`, `openhands`, `gptme`, `interpreter` (+ confirm-on-probe:
+  `grok`, `forge`, `continue`, `cline`).
+- **chat** — `llm`, `aichat`, `mods`, `sgpt`, `q` (Amazon Q / `kiro-cli`).
+- **local-runner** — `ollama` (needs a running daemon + a pulled model).
+
+Records flagged `confirm-on-probe` have an uncertain headless flag — the probe
+verifies them before the council relies on them. Deprecated / winding-down
+tools (`cody`, `plandex`) ship `enabled_for_council=False`.
+
+Claude always participates as a council member (in-process host) alongside the
+usable external CLIs.
 
 ## Architecture
 
@@ -67,20 +84,16 @@ Claude always participates as a council member alongside the external CLIs.
 │  - Dispatches to council agent                       │
 ├─────────────────────────────────────────────────────┤
 │  Council Agent (agents/jam/council.md)               │
-│  - Detects CLIs via `which`                          │
+│  - detect_clis.py --probe (registry-driven)          │
 │  - Builds question scaffold (4 fixed questions)      │
-│  - Pipes scaffold to each CLI in parallel            │
+│  - Renders each usable CLI per its input_mode        │
 │  - Claude answers the same scaffold independently    │
 ├─────────────────────────────────────────────────────┤
-│  External CLI Dispatch                               │
-│  - cat scaffold.md | codex exec "..."                │
-│  - cat scaffold.md | gemini "..."                    │
-│  - cat scaffold.md | opencode run "..."              │
-│  - pi -p "..." @scaffold.md                          │
-│  - aider --message-file scaffold --no-git --yes     │
-│  - cat scaffold.md | llm "..."                       │
-│  - cat scaffold.md | aichat "..."                    │
-│  - cat scaffold.md | goose run -i -                  │
+│  Detect + Probe (scripts/jam/detect_clis.py)         │
+│  - registry → shutil.which → headless usability probe│
+│  - usable vs installed-but-unusable (auth/provider/  │
+│    daemon); version strings for collision disambig   │
+│  - <2 usable external → Task() subagent fallback tier│
 ├─────────────────────────────────────────────────────┤
 │  Synthesis (3-stage)                                 │
 │  - Stage 1: Raw responses per model                  │
@@ -130,9 +143,14 @@ Skill(skill="wicked-brain:memory", args="store \"Auth: JWT with 15min/7day expir
 
 ## Fallback Behavior
 
-If no external CLIs are detected, council refuses and suggests
-`/jam:brainstorm` (single-model, multi-persona) as an alternative.
-With only 1 CLI, it runs as "brainstorm with external guest" with a warning.
+Quorum is counted over **usable external** CLIs (post-probe), not raw
+detections. When fewer than 2 are usable, council fills the empty seats with
+`Task()` subagents (distinct framing personas, isolated + parallel) so a real
+council always convenes — these in-harness seats are weaker diversity than
+external vendors and are labelled as such in the synthesis. With exactly 1
+usable external CLI it runs as "single external guest" (optionally topped up
+with subagent seats). Only if neither external CLIs nor subagents are available
+does it suggest `/jam:brainstorm` (single-model, multi-persona).
 
 ## References
 

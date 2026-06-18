@@ -7,7 +7,7 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:jam:council
 
-Structured evaluation tool that uses real external LLM CLIs (Codex, Gemini, OpenCode, Pi) to get genuinely independent model perspectives. Unlike brainstorm (free-form creative exploration), council is a **rigid evaluation tool** for when you have defined options and need a verdict.
+Structured evaluation tool that uses real external LLM CLIs — registry-driven (20+ CLIs: Codex, Gemini, Copilot, OpenCode, Pi, Aider, Goose, Amp, Droid, …; see `scripts/jam/agentic_cli_registry.py`) — to get genuinely independent model perspectives. Installed CLIs are detected AND usability-probed via `scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured / daemon-down CLIs are excluded). When fewer than 2 usable external CLIs are present, council seats are filled with `Task()` subagents so deliberation always happens. Unlike brainstorm (free-form creative exploration), council is a **rigid evaluation tool** for when you have defined options and need a verdict.
 
 **Key distinction**: `quick` = 60s ideation, `brainstorm` = full session (generation/explore), `council` = structured evaluation (decide).
 

@@ -7,6 +7,13 @@ archetype_relevance: ["*"]
 GitHub Copilot CLI for AI-assisted coding, code review, and multi-model collaboration.
 Copilot supports multiple backend models and excels at codebase-aware analysis.
 
+> **Registry is source of truth.** The council's headless invocation + trust
+> flags for copilot live in `scripts/jam/agentic_cli_registry.py`
+> (`copilot -p "{PROMPT}" --allow-all-tools`). For headless/council use,
+> `--allow-all-tools` is **required** — without it copilot blocks on tool
+> approval. Prefer the registry form over the older `--available-tools=""`
+> examples below.
+
 ## Installation and Setup
 
 ```bash
@@ -81,8 +88,8 @@ cat design.md | copilot -p "Critique this architecture" --output-format text > c
 # Security review
 git diff main | copilot -p "Flag security issues in these changes" --output-format text
 
-# Council dispatch (text-only, no tools, piped scaffold)
-cat "$SCAFFOLD_FILE" | copilot -p "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely." --output-format text --available-tools=""
+# Council dispatch — registry form (headless requires --allow-all-tools)
+copilot -p "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely. <scaffold>" --allow-all-tools
 ```
 
 ## Command Reference
