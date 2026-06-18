@@ -35,38 +35,88 @@ then come back with 2-4 specific options.
 Proceeding with open-ended evaluation...
 ```
 
-### 2. Detect Available CLIs
+### 2. Detect + Probe Available CLIs (registry-driven)
 
-Check which external LLM CLIs are available:
+Do NOT hand-maintain a `which` list. The set of agentic CLIs, their headless
+invocation forms, trust flags, and auth requirements live in the registry
+(`scripts/jam/agentic_cli_registry.py`, 20+ CLIs). Detection AND a usability
+**probe** are driven by `scripts/jam/detect_clis.py`:
 
 ```bash
-which codex 2>/dev/null && echo "codex:available" || echo "codex:missing"
-which copilot 2>/dev/null && echo "copilot:available" || echo "copilot:missing"
-which gemini 2>/dev/null && echo "gemini:available" || echo "gemini:missing"
-which opencode 2>/dev/null && echo "opencode:available" || echo "opencode:missing"
-which pi 2>/dev/null && echo "pi:available" || echo "pi:missing"
-which aider 2>/dev/null && echo "aider:available" || echo "aider:missing"
-which llm 2>/dev/null && echo "llm:available" || echo "llm:missing"
-which aichat 2>/dev/null && echo "aichat:available" || echo "aichat:missing"
-which goose 2>/dev/null && echo "goose:available" || echo "goose:missing"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/jam/detect_clis.py" --probe --json
 ```
 
-### 3. Quorum Check
+This returns:
+```json
+{
+  "detected":   [{"key","display_name","binary","resolved_path","version", ...}],
+  "usable":     ["gemini","copilot", ...],
+  "unusable":   [{"cli":"codex","reason":"auth: 401 ..."}, ...],
+  "collisions": [{"binary":"grok","keys":["grok","grok-cli"]}]
+}
+```
 
-| Available External CLIs | Behavior |
-|------------------------|----------|
-| 0 | Refuse council. Suggest `/wicked-garden:jam:brainstorm` instead. |
-| 1 | Run as "brainstorm with external guest" — warn this isn't a true council. |
+**Why probe, not just detect:** a binary on PATH is not a usable council seat.
+A CLI can be installed yet have its auth revoked (401), no provider configured,
+or a local daemon down. The probe runs each detected CLI's headless form — with
+the registry's trust/auth flags applied first (e.g. codex `--skip-git-repo-check`,
+gemini `--skip-trust`, copilot `--allow-all-tools`) — on a trivial prompt,
+**sandboxed** in a fresh tempdir, **stdin from devnull**, under a per-CLI
+**timeout**, and classifies each:
+
+- **usable** — sane reply came back.
+- **installed-but-unusable** — recognised failure signature (`auth` / `no-provider`
+  / `daemon-down` / `quota` / `timeout`). These do NOT count toward quorum.
+
+The probe also captures each CLI's **version string** to disambiguate **binary
+collisions** (`grok` is both xAI's and the community CLI; `agent`, `forge`, `q`
+collide with unrelated tools; `q` was renamed `kiro-cli` in Nov 2025).
+
+Only the `usable` external CLIs are convened. Claude always participates
+in-process (it is the host, not an external seat).
+
+### 3. Quorum Check (on USABLE external CLIs)
+
+Quorum is counted over **usable external** CLIs (from the probe's `usable`
+list), never raw detections.
+
+| Usable External CLIs | Behavior |
+|----------------------|----------|
+| 0 | No external seats. **Fall back to the subagent tier** (step 3.5) — never refuse outright. If even that is unavailable, suggest `/wicked-garden:jam:brainstorm`. |
+| 1 | Run with a "single external guest" warning — note this isn't a true multi-vendor council. Optionally top up with subagent seats (step 3.5). |
 | 2+ | Full council mode. |
 
-If below quorum:
+If zero usable external CLIs were found, state what was detected-but-unusable
+and why, so the user can fix auth/config:
 ```
-Council requires 2+ independent external LLM CLIs for meaningful multi-model deliberation.
-Found: {count} external CLI(s).
+Council found {detected} installed CLI(s) but {unusable} are unusable
+(e.g. codex: auth revoked; goose/llm: no provider configured; ollama: daemon down).
+Filling council seats with Task() subagents instead (see below).
+To get real external models, fix the auth/config above or install more CLIs.
+```
 
-Suggestion: Use /wicked-garden:jam:brainstorm for single-model exploration,
-or install additional CLIs (codex, copilot, gemini, opencode, pi, aider, llm, aichat, goose).
+### 3.5. Fallback: the alt-execution (subagent) tier
+
+**A council must always have a real, plural set of independent perspectives.**
+If fewer than 2 **usable external** CLIs are available, fill the empty seats
+with `Task()` subagents so deliberation still happens. These are *in-harness*
+seats (still Claude-family), so they are a weaker form of diversity than
+external vendors — label them as such in the synthesis. Each subagent:
+
+- gets the SAME question scaffold (step 4),
+- runs in isolation (no subagent sees another's output — dispatch in parallel),
+- is given a distinct framing persona so the perspectives differ
+  (e.g. "architect", "security reviewer", "operator/SRE", "skeptic").
+
 ```
+Task(subagent_type="wicked-garden:crew:reviewer",
+     prompt="You are the COUNCIL's {persona} seat. Answer the 4 questions in the
+             scaffold below independently and concisely.\n\n{scaffold}")
+```
+
+Aim to reach at least 2-3 total seats (external + subagent). Always disclose in
+the synthesis which seats were external CLIs vs subagent fallbacks.
 
 ### 4. Build Question Scaffold
 
@@ -88,68 +138,55 @@ Answer these 4 questions:
 4. DISQUALIFIER: Is any option fundamentally unviable? If so, which one and why? If all are viable, say "None."
 ```
 
-### 5. Dispatch to External CLIs (ISOLATION ENFORCED)
+### 5. Convene the Usable External CLIs (ISOLATION ENFORCED, registry-driven)
 
-**Non-negotiable**: Each model responds independently. No model sees another model's output. All calls run in parallel.
+**Non-negotiable**: Each model responds independently. No model sees another
+model's output. No CLI sees another CLI's output. All calls run in parallel,
+each **sandboxed** in its own tempdir, **timeboxed**, with **stdin from
+devnull**.
 
-For each available CLI, dispatch the question scaffold:
+Do NOT hardcode a per-CLI bash block. Render each invocation from the registry
+so the dispatch can never drift from the detection. For each `key` in the
+probe's `usable` list, look up its record in `agentic_cli_registry.py` and
+build the command from `headless_invocation` + `trust_flags`, feeding the
+scaffold per the record's `input_mode`:
 
-Write the question scaffold to a temp file first, then pipe to each CLI. This avoids shell quoting issues with apostrophes and special characters in the topic/options.
+| `input_mode` | How the scaffold is delivered |
+|--------------|-------------------------------|
+| `prompt-arg` | substitute the scaffold into `{PROMPT}` in the template |
+| `stdin`      | pipe the scaffold file into the command on stdin |
+| `at-file`    | attach the scaffold file (e.g. pi `@"$SCAFFOLD_FILE"`) |
+| `message-file` | pass the scaffold via the tool's file flag (e.g. aider `--message-file`) |
+| `model-arg`  | local runners — insert `{MODEL}` then the prompt (probe skips these unless a model is known) |
+
+Write the scaffold to a temp file once (avoids shell-quoting issues with
+apostrophes / special chars in the topic), then render+dispatch per CLI:
 
 ```bash
-# Write scaffold to temp file (done once)
-SCAFFOLD_FILE="${TMPDIR:-/tmp}/council-scaffold-$$.md"
+SCAFFOLD_FILE="$(python3 -c 'import tempfile,os;print(os.path.join(tempfile.gettempdir(),"council-scaffold.md"))')"
 cat > "$SCAFFOLD_FILE" <<'SCAFFOLD_EOF'
 {question_scaffold_content}
 SCAFFOLD_EOF
 ```
 
-**Codex:**
+The registry already encodes the trust/auth flags each CLI needs for headless
+use (codex `--skip-git-repo-check`, gemini `--skip-trust`, copilot
+`--allow-all-tools`, aider's inline `--yes-always --no-git --no-auto-commits
+--no-stream --no-analytics`, amp `--dangerously-allow-all`, etc.). Apply them;
+do not re-derive them by hand. Example renders for `prompt-arg` CLIs (gemini,
+copilot, opencode-run, codex-exec) — substitute the scaffold text for
+`{PROMPT}`:
+
 ```bash
-cat "$SCAFFOLD_FILE" | codex exec "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
+gemini -p "<scaffold>" --skip-trust
+copilot -p "<scaffold>" --allow-all-tools
+opencode run "<scaffold>"
+codex exec "<scaffold>" --skip-git-repo-check
 ```
 
-**Copilot:**
-```bash
-cat "$SCAFFOLD_FILE" | copilot -p "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely." --output-format text --available-tools=""
-```
-
-**Gemini:**
-```bash
-cat "$SCAFFOLD_FILE" | gemini "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
-```
-
-**OpenCode:**
-```bash
-cat "$SCAFFOLD_FILE" | opencode run "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
-```
-
-**Pi** (npm `@mariozechner/pi-coding-agent` — uses `@file` attach + `-p` for non-interactive):
-```bash
-pi -p "You are evaluating options for a technical decision. Answer the 4 questions in the attached file precisely and concisely." @"$SCAFFOLD_FILE"
-```
-
-**Aider** (code-editor orientation — use `--no-git --yes-always --no-auto-commits` to answer without touching files; needs a writable cwd):
-```bash
-aider --message-file "$SCAFFOLD_FILE" --no-git --yes-always --no-auto-commits --no-stream --no-analytics 2>&1
-```
-
-**llm** (Simon Willison's `llm` — pipe-native; picks up default model from `llm models default`):
-```bash
-cat "$SCAFFOLD_FILE" | llm "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
-```
-
-**aichat** (multi-provider aggregator — `-S` disables streaming so output is captured cleanly):
-```bash
-cat "$SCAFFOLD_FILE" | aichat -S "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
-```
-
-**Goose** (Block Goose agent — `run -i -` reads instructions from stdin):
-```bash
-cat "$SCAFFOLD_FILE" | goose run -i - --system "You are evaluating options for a technical decision. Answer the 4 questions below precisely and concisely."
-```
-
-Run ALL available CLIs in parallel using multiple Bash tool calls in a single message.
+For `message-file` (aider) and `at-file` (pi) CLIs, pass the scaffold file
+rather than inlining it. Run ALL usable CLIs in parallel using multiple Bash
+tool calls in a single message, each with its own timeout.
 
 ### 6. Claude's Own Evaluation
 
@@ -178,7 +215,10 @@ Each model's response becomes one entry:
 }
 ```
 
-- Use `persona_name` = model name (e.g., "Claude", "Codex", "Copilot", "Gemini", "OpenCode", "Pi", "Aider", "llm", "aichat", "Goose").
+- Use `persona_name` = the CLI's `display_name` from the registry (e.g.
+  "Claude", "Codex", "Gemini", "Copilot", "OpenCode", "Pi", "Antigravity", …).
+  For a subagent fallback seat (step 3.5), use the persona framing and mark it,
+  e.g. `persona_name: "Subagent: architect"`.
 - `persona_type` is always `council` for these entries.
 - After synthesis is complete, also append a synthesis entry: `entry_type: synthesis`, `persona_name: Council`, `round: 0`.
 

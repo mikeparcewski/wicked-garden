@@ -4,7 +4,7 @@
   "summary": {
     "commands": 77,
     "agents": 23,
-    "skills": 66,
+    "skills": 67,
     "hooks": 13,
     "specialists": 7
   },
@@ -36,6 +36,7 @@
     "runtime-exec": ["runtime-exec"],
     "search": ["codebase-narrator"],
     "smaht": ["discovery", "intent", "propose-skills", "smaht"],
+    "swarm": ["swarm"],
     "wickedizer": ["wickedizer"],
     "workflow": ["workflow"],
     "worktrees": ["worktrees"]

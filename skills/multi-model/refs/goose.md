@@ -4,7 +4,13 @@ archetype_relevance: ["*"]
 ---
 # Goose CLI — Usage Patterns
 
-Block's open-source AI agent. Goose is designed to *do things* — run tools, execute commands, read files — not just answer questions. In council mode it operates as a read-only responder via `goose run -i -`.
+Block's open-source AI agent. Goose is designed to *do things* — run tools, execute commands, read files — not just answer questions.
+
+> **Registry is source of truth.** The council's headless invocation for goose
+> lives in `scripts/jam/agentic_cli_registry.py` (`goose run -t "{PROMPT}"`,
+> `model_flag_style: config-only`, auth via `goose configure`). The stdin/`-i -`
+> and `--system` forms below are valid alternatives, but the registry `-t`
+> prompt-arg form is what the council renders.
 
 ## Installation and Setup
 

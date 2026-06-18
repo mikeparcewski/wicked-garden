@@ -181,45 +181,10 @@ TOOL_REGISTRY = {
         "category": "ai",
     },
     # --- Multi-Model CLIs ---
-    "codex": {
-        "name": "OpenAI Codex CLI",
-        "cli": "codex",
-        "test_cmd": ["codex", "--version"],
-        "install": {
-            "darwin": "brew install codex",
-            "linux": "npm install -g @openai/codex",
-            "generic": "npm install -g @openai/codex",
-        },
-        "docs": "https://github.com/openai/codex-cli",
-        "mcp_patterns": [],
-        "category": "ai",
-    },
-    "gemini": {
-        "name": "Google Gemini CLI",
-        "cli": "gemini",
-        "test_cmd": ["gemini", "--version"],
-        "install": {
-            "darwin": "npm install -g @google/gemini-cli",
-            "linux": "npm install -g @google/gemini-cli",
-            "generic": "npm install -g @google/gemini-cli",
-        },
-        "docs": "https://github.com/google-gemini/gemini-cli",
-        "mcp_patterns": [],
-        "category": "ai",
-    },
-    "opencode": {
-        "name": "OpenCode CLI",
-        "cli": "opencode",
-        "test_cmd": ["opencode", "--version"],
-        "install": {
-            "darwin": "brew install opencode",
-            "linux": "go install github.com/sst/opencode@latest",
-            "generic": "https://github.com/sst/opencode",
-        },
-        "docs": "https://github.com/sst/opencode",
-        "mcp_patterns": [],
-        "category": "ai",
-    },
+    # The agentic / chat / local-runner CLIs (category "ai") are DERIVED from
+    # scripts/jam/agentic_cli_registry.py and merged into TOOL_REGISTRY below
+    # (see _merge_agentic_cli_registry). This de-drifts what used to be three
+    # hardcoded entries (codex, gemini, opencode) from the council registry.
     # --- Scenario Testing Tools ---
     "hurl": {
         "name": "Hurl (HTTP testing)",
@@ -300,6 +265,71 @@ TOOL_REGISTRY = {
         "category": "testing",
     },
 }
+
+def _merge_agentic_cli_registry() -> None:
+    """Derive the agentic-CLI ("ai" category) entries from the council registry
+    (scripts/jam/agentic_cli_registry.py) and merge them into TOOL_REGISTRY.
+
+    This keeps prereq_doctor's multi-model list in lock-step with the council's
+    single source of truth instead of hardcoding a drifting subset. Maps the
+    AgenticCLI dataclass fields onto prereq_doctor's tool-entry schema.
+
+    Fail-OPEN: if the registry cannot be imported (e.g. a slim install without
+    scripts/jam/), TOOL_REGISTRY keeps whatever was hardcoded and nothing
+    breaks. Council-disabled / confirm-on-probe records are skipped so the
+    doctor only ever recommends installing tools we trust headlessly.
+    """
+    jam_dir = Path(__file__).resolve().parent.parent / "jam"
+    if not (jam_dir / "agentic_cli_registry.py").is_file():
+        return
+    added = str(jam_dir)
+    inserted = added not in sys.path
+    if inserted:
+        sys.path.insert(0, added)
+    try:
+        from agentic_cli_registry import AGENTIC_CLI_REGISTRY  # type: ignore
+    except Exception:
+        return
+    finally:
+        if inserted:
+            try:
+                sys.path.remove(added)
+            except ValueError:
+                pass
+
+    docs_by_key = {
+        "codex": "https://github.com/openai/codex",
+        "gemini": "https://github.com/google-gemini/gemini-cli",
+        "opencode": "https://github.com/sst/opencode",
+        "ollama": "https://ollama.com",
+        "claude": "https://docs.claude.com/claude-code",
+    }
+    for key, cli in AGENTIC_CLI_REGISTRY.items():
+        # Only surface tools the council trusts headlessly by default.
+        if not getattr(cli, "enabled_for_council", True):
+            continue
+        if getattr(cli, "confidence", "verified") != "verified":
+            continue
+        # Don't clobber an explicit hardcoded entry if one already exists.
+        if key in TOOL_REGISTRY:
+            continue
+        install = dict(getattr(cli, "install", {}) or {})
+        if "generic" not in install:
+            # Fall back to darwin/linux value so check_tool always has a hint.
+            install["generic"] = install.get("darwin") or install.get("linux") or "see vendor docs"
+        TOOL_REGISTRY[key] = {
+            "name": f"{cli.display_name} ({cli.vendor})",
+            "cli": cli.binary,
+            "test_cmd": list(cli.version_probe),
+            "install": install,
+            "docs": docs_by_key.get(key, "see vendor docs"),
+            "mcp_patterns": [],
+            "category": "ai",
+        }
+
+
+_merge_agentic_cli_registry()
+
 
 # Map selection names (from setup) to registry keys
 SELECTION_TO_CLI = {
