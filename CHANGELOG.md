@@ -1,5 +1,10 @@
 # Changelog
 
+## [12.25.1] - 2026-06-17
+
+### Bug Fixes
+- fix(peers): `wicked_testing_version` pin `^0.4.0` → `^0.6.0` — the caret probe locks 0.x pins to the minor, so the current wicked-testing **0.6.x** line was out-of-range against `^0.4.0` and crew commands were blocked. Widen the enforced peer floor (mirrors the earlier `^0.3.0` → `^0.4.0` fix). Sibling floors `wicked_vault ^0.4.0` / `wicked_bus ^2.0.0` still cover 0.4.3 / 2.2.3; the declarative `wicked_brain` / `wicked_loom` floors are unchanged.
+
 ## [12.21.0] - 2026-06-12
 
 ### Changed
