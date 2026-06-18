@@ -842,8 +842,36 @@
 
 /* ── Mobile layout (< 768px) ── */
 @media (max-width: 767px) {
-  /* Proximity avoids iOS URL-bar / mandatory-snap deadlocks */
-  html { scroll-snap-type: y proximity; }
+  /* Scroll-snap felt janky on phones (viewport yanking, URL-bar deadlocks) — disable it. */
+  html { scroll-snap-type: none; }
+
+  /* Hero: drop the forced 100svh fill (both height + min-height) so it's
+     content-height — no dead space before "01 / the manifesto". */
+  #top {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding-top: calc(var(--topbar-h) + 1.25rem);
+    padding-bottom: 2rem;
+  }
+
+  /* The manifesto headline's marker is a whole sentence — let it wrap on phones
+     instead of running off the right edge (it was nowrap → clipped). */
+  #manifesto h2 > span { white-space: normal; }
+
+  /* Potting bench: drop the forced 100svh + vertical-centering on phones.
+     Short content was being centered in a full viewport, leaving a big band
+     of whitespace between "in practice" and "From the toolbox". */
+  #bench {
+    display: block;            /* was flex-col centered: the flex item refused to
+                                  shrink below its min-content (the long install
+                                  command), ballooning the heading past the screen */
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+    padding-top: calc(var(--topbar-h) + 1rem);
+    padding-bottom: 1.5rem;
+  }
 
   /* WICallout screenshot — shorter on mobile so text stays visible */
   .wi-screenshot { max-height: 32vh; }

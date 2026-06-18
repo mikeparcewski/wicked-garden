@@ -31,7 +31,7 @@ export default function GardenBench() {
     <div className="relative mx-auto max-w-[1240px] px-5 pt-4 pb-6 sm:px-8">
       <Reveal>
         <p className="kicker">03 / the potting bench</p>
-        <h2 className="mt-7 font-display text-[clamp(2rem,4.6vw,3.6rem)] font-extrabold leading-[1.02] tracking-tight">
+        <h2 className="mt-7 font-display text-[clamp(1.5rem,6.2vw,3.6rem)] font-extrabold leading-[1.02] tracking-tight">
           three commands.{" "}
           <Marker color="var(--accent-bright)">your garden, planted.</Marker>
         </h2>
