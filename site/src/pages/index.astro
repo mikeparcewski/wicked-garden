@@ -28,9 +28,10 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
       <Manifesto client:visible />
     </div>
 
-    <!-- Session explorer — se-sentinel elements are the snap targets inside -->
+    <!-- Session explorer — hydrate on load (not :visible) so phones don't flash
+         the SSR scroll-jacked stage before the mobile list swaps in -->
     <div class="border-t border-line">
-      <SessionExplorer client:visible />
+      <SessionExplorer client:load />
     </div>
 
     <!-- Garden bench — snap target -->

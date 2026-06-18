@@ -7,6 +7,28 @@ import Reveal from "./Reveal";
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
+/* Site screenshots for the packages that have a deployed GitHub-Pages site.
+   Used in the mobile / reduced-motion list so a tool with a real site shows it. */
+const BASE = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "");
+const SITE_SHOTS: Record<string, { shot: string; url: string }> = {
+  "wicked-garden": { shot: `${BASE}/screenshots/wicked-garden.png`, url: "wg.wickedagile.com" },
+  "wicked-interactive": { shot: `${BASE}/screenshots/wicked-interactive.png`, url: "wi.wickedagile.com" },
+  "wicked-estate": { shot: `${BASE}/screenshots/wicked-estate.png`, url: "we.wickedagile.com" },
+};
+
+/* On phones the scroll-jacked 700vh stage is collapsed to the clean list. */
+function useIsNarrow(query = "(max-width: 767px)") {
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const update = () => setNarrow(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, [query]);
+  return narrow;
+}
+
 /* ── Session log definition ─────────────────────────────────────────────── */
 
 interface LogLine {
@@ -105,6 +127,7 @@ function stopFor(toolId: string): TourStop | undefined {
 
 export default function SessionExplorer() {
   const reduce = useReducedMotion();
+  const isNarrow = useIsNarrow();
   const [activeIdx, setActiveIdx] = useState(0);
   const wrapRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
@@ -155,7 +178,7 @@ export default function SessionExplorer() {
   const cvar = project ? colorOf(project) : "--accent";
   const tvar = cvar.replace("--c-", "--ct-");
 
-  if (reduce) {
+  if (reduce || isNarrow) {
     return <FallbackList />;
   }
 
@@ -321,7 +344,7 @@ export default function SessionExplorer() {
 
 function FallbackList() {
   return (
-    <div id="session" className="mx-auto max-w-[1240px] px-5 py-20 sm:px-8">
+    <div id="session" className="mx-auto max-w-[1240px] px-5 py-12 sm:px-8 sm:py-20">
       <p className="kicker">02 / in practice</p>
       <h2 className="mt-4 font-display text-[clamp(2rem,4.6vw,3.6rem)] font-extrabold leading-[1.02] tracking-tight">
         One prompt. Seven tools firing.
@@ -333,6 +356,7 @@ function FallbackList() {
           if (!project || !stop) return null;
           const cvar = colorOf(project);
           const tvar = cvar.replace("--c-", "--ct-");
+          const site = SITE_SHOTS[project.id];
           return (
             <div key={line.id} className="border-t border-line pt-10 first:border-t-0 first:pt-0">
               <p
@@ -349,6 +373,23 @@ function FallbackList() {
               <div className="mt-5 max-w-md">
                 <CopyChip text={project.install} />
               </div>
+              {site && (
+                <a
+                  href={`https://${site.url}`}
+                  className="mt-6 block max-w-xl overflow-hidden rounded-xl border border-line"
+                >
+                  <img
+                    src={site.shot}
+                    alt={`${project.id} — live site`}
+                    loading="lazy"
+                    className="block w-full"
+                    style={{ aspectRatio: "16 / 10", objectFit: "cover", objectPosition: "top center" }}
+                  />
+                  <span className="block px-3 py-2 font-mono text-[0.62rem] tracking-wide text-muted">
+                    {site.url} ↗
+                  </span>
+                </a>
+              )}
             </div>
           );
         })}
