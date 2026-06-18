@@ -869,7 +869,9 @@
     height: auto;
     min-height: 0;
     overflow: visible;
-    padding-top: calc(var(--topbar-h) + 1rem);
+    /* normal section padding — the topbar-clearance was for when #bench was a
+       100svh snap target; mid-page it just left a big gap after "in practice". */
+    padding-top: 1.25rem;
     padding-bottom: 1.5rem;
   }
 
