@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       # Resolve the deploy target. A committed site/public/CNAME means a CUSTOM DOMAIN rooted at
       # "/" (assets must resolve from the domain root, not a repo subpath); without one we're a
