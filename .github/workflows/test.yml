@@ -24,7 +24,7 @@ jobs:
         # wicked-loom / wicked-vault peers and RUN rather than skip.
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: "20"
+          node-version: "24"
 
       - name: Install pytest
         # Stdlib-only project; only pytest is needed for the test suite.
