@@ -1,5 +1,19 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- **`POST /hooks`** — register a bus event hook (`event_pattern`, `command`). Returns 201 with id and timestamps. Hooks are persisted in the SQLite store.
+- **`GET /hooks`** — list all registered hooks.
+- **`DELETE /hooks/{id}`** — deregister a hook by id; returns 404 if not found.
+- **`POST /council/vote`** — cast a vote on an active council session (`session_id`, `voter_id`, `vote`); appends to the votes JSON array; returns 404 if session not found.
+- **Idempotency key on `wicked.garden.council.voted`** — key format: `garden:wicked.garden.council.voted:{session_id}:{sha256(session_id)[0:16]}:0` per DEC-00010.
+
+### Fixed
+- **Consumer self-consumption** — daemon no longer re-consumes its own `wicked.garden.council.voted` events (belt-and-suspenders: prefix filter + explicit early-return guard).
+- **Thread-safe DB writes** — `_store_event()` and `_save_cursor()` in consumer.py now wrap all writes in `get_write_lock()` (threading.Lock).
+- **Nested HTTP error format** — all `server.py` error responses now return `{"error": {"code": "...", "message": "..."}}` via `_err()` helper (18 endpoints updated).
+
 ## [12.25.1] - 2026-06-17
 
 ### Bug Fixes
