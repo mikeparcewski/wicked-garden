@@ -41,6 +41,52 @@ _KEY_EVENT_COUNT = "daemon.event_count"
 _KEY_LAST_EVENT = "daemon.last_event"
 _KEY_LAST_EVENT_AT = "daemon.last_event_at"
 
+# ---------------------------------------------------------------------------
+# Handler registry — module-level so _validate_registry.py can parse the keys.
+# Values are method names resolved via getattr(self, name) in _dispatch.
+# Every non-audit BUS_EVENT_MAP event must appear here; events not yet given
+# a dedicated handler map to "_on_generic" (inherits base event_count tracking).
+# ---------------------------------------------------------------------------
+
+_HANDLERS: dict[str, str] = {
+    # Garden lifecycle
+    "wicked.garden.skill.installed":               "_on_skill_installed",
+    "wicked.garden.skill.removed":                 "_on_skill_removed",
+    # Session / council (audit markers by design — kept for session-state tracking)
+    "wicked.session.started":                      "_on_session_started",
+    "wicked.session.synthesized":                  "_on_session_completed",
+    "wicked.council.voted":                        "_on_session_completed",
+    # Modernize / project lifecycle
+    "wicked.project.created":                      "_on_generic",
+    "wicked.project.completed":                    "_on_generic",
+    "wicked.archetype.created":                    "_on_generic",
+    "wicked.archetype.advanced":                   "_on_generic",
+    "wicked.archetype.completed":                  "_on_generic",
+    "wicked.archetype.hard_gate_passed":           "_on_generic",
+    "wicked.archetype.classified":                 "_on_generic",
+    "wicked.modernize.stack_gap":                  "_on_generic",
+    "wicked.project.complexity_scored":            "_on_generic",
+    "wicked.phase.transitioned":                   "_on_generic",
+    "wicked.phase.auto_advanced":                  "_on_generic",
+    "wicked.gate.decided":                         "_on_generic",
+    "wicked.gate.blocked":                         "_on_generic",
+    "wicked.rework.triggered":                     "_on_generic",
+    "wicked.condition.marked_cleared":             "_on_generic",
+    "wicked.crew.inline_review_context_recorded":  "_on_generic",
+    "wicked.crew.yolo_revoked":                    "_on_generic",
+    "wicked.amendment.appended":                   "_on_generic",
+    "wicked.reeval.addendum_appended":             "_on_generic",
+    "wicked.convergence.transition_recorded":      "_on_generic",
+    "wicked.review.semantic_gap_recorded":         "_on_generic",
+    "wicked.hitl.decision_recorded":               "_on_generic",
+    "wicked.subagent.engaged":                     "_on_generic",
+    "wicked.dispatch.log_entry_appended":          "_on_generic",
+    "wicked.consensus.report_created":             "_on_generic",
+    "wicked.consensus.evidence_recorded":          "_on_generic",
+    "wicked.consensus.gate_completed":             "_on_generic",
+    "wicked.consensus.gate_pending":               "_on_generic",
+}
+
 
 class Projector:
     """Applies events to a persistent key-value state.
@@ -179,14 +225,10 @@ class Projector:
 
     def _dispatch(self, event_type: str, payload: dict[str, Any]) -> None:
         """Dispatch to a typed handler if one matches."""
-        handlers = {
-            "wicked.garden.skill.installed": self._on_skill_installed,
-            "wicked.garden.skill.removed": self._on_skill_removed,
-            "wicked.session.started": self._on_session_started,
-            "wicked.session.synthesized": self._on_session_completed,
-            "wicked.council.voted": self._on_session_completed,
-        }
-        handler = handlers.get(event_type)
+        method_name = _HANDLERS.get(event_type)
+        if not method_name:
+            return
+        handler = getattr(self, method_name, None)
         if handler:
             try:
                 handler(payload)
@@ -228,3 +270,6 @@ class Projector:
         if session_id in sessions:
             sessions.remove(session_id)
             self._set(_KEY_ACTIVE_SESSIONS, sessions)
+
+    def _on_generic(self, payload: dict[str, Any]) -> None:  # noqa: ARG002
+        """No-op handler — base update() already tracks event_count and last_event."""
