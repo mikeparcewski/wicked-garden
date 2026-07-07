@@ -51,7 +51,7 @@ Parse the JSON. Only `core` tools are required during setup. For each `core` too
 
 After core tools, if `uv` is available, sync Python deps: `{uv_path} sync --quiet`. If sync fails, warn that search indexing will be unavailable but continue.
 
-> **Two required, three opt-in.** The evidence gate needs **wicked-vault** + **wicked-loom** (§2.6, §2.7b) — setup blocks without them, because a gate that can't re-derive evidence is the one thing the toolkit refuses to fake. The other three (**wicked-testing**, **wicked-brain**, **wicked-bus**) are **opt-in toolkit layers** — install them for the acceptance-testing, memory, and audit-trail capabilities; skip any and the rest of the toolkit still works.
+> **One required, three opt-in.** The evidence gate needs **wicked-vault** (§2.6) — it ships via wicked-testing and the internal loom engine is built into wicked-garden itself, so no separate loom install is needed. The other three (**wicked-testing**, **wicked-brain**, **wicked-bus**) are **opt-in toolkit layers** — install them for the acceptance-testing, memory, and audit-trail capabilities; skip any and the rest of the toolkit still works.
 
 ### 2.5 Verify wicked-testing (Recommended — acceptance-testing layer)
 
@@ -163,14 +163,26 @@ PY
 - `MISSING` → **recommended, not blocking.** wicked-bus is the audit-trail layer; event emission is already fire-and-forget / fail-open, so the toolkit runs fine without it (events just aren't recorded). Show "wicked-bus isn't installed — the cross-session audit trail will be empty until you add it." **INTERACTIVE mode**: AskUserQuestion header "wicked-bus (optional layer)", options "Install now" = "Run: /plugin install wicked-bus" / "Skip" = "Continue without the audit trail". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: instruct the user to run `/plugin install wicked-bus` (a Claude Code slash command), then re-run the presence check and confirm `READY`. If skipped: continue setup.
 - `READY` → show "wicked-bus — ready (plugin installed)."
 
-### 2.7b Verify wicked-loom (Required — the gate engine)
+### 2.7b Verify loom peer-resolution engine (internal — no external install needed)
+
+After Phase B of the ecosystem rationalization, the loom peer-resolution engine is absorbed
+directly into wicked-garden as `scripts/loom/`. No external `wicked-loom` npm package is
+required. Check that the internal module is importable:
 
 ```bash
-npx wicked-loom doctor 2>/dev/null && npx wicked-loom resolve vault 2>/dev/null || echo "MISSING"
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys, os
+sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts'))
+try:
+    from loom import resolve, compose, gate, manifest
+    print('READY')
+except ImportError as e:
+    print('MISSING: ' + str(e))
+"
 ```
 
-- `MISSING` → blocking. wicked-loom is the orchestration runtime garden drives — peer resolution, evidence gating, and flow execution. Show "wicked-loom is not installed. wicked-garden requires it as a peer (sibling to wicked-testing / wicked-vault / wicked-brain / wicked-bus)." **INTERACTIVE mode**: AskUserQuestion header "wicked-loom Required", options "Install now (Required)" = "Run: npm i -g wicked-loom (or use via npx)" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-loom` (or confirm `npx wicked-loom doctor` resolves), then re-probe. On failure, show stderr and exit with manual instructions. If exit: "Install wicked-loom then restart with `/wicked-garden:setup`."
-- A JSON line from `doctor` → check the version satisfies `^0.2.0` (the pin from `plugin.json`; 0.2.0 ships the gate + flow surfaces this garden shells to). Then verify the garden can resolve it: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys; sys.path.insert(0,'scripts'); import _loom; print(_loom.resolve_loom())"` should print a non-null argv. Note: `WICKED_LOOM_CUTOVER=off` disables the loom path (the garden runs its in-process fallback) — used for rollback during the cutover transition.
+- `READY` → show "Loom peer-resolution — ready (internal module available). Peer resolution, vault gating, and peer-health checks are fully operational."
+- `MISSING: ...` → this indicates a wicked-garden installation problem. Show "The loom internal module could not be imported from `scripts/loom/`. This is a garden install error — reinstall wicked-garden via the marketplace." This is blocking; do not proceed until resolved. **Note**: `WICKED_LOOM_BIN` overrides to an external loom binary (debugging escape hatch); `WICKED_LOOM_CUTOVER=off` is an emergency kill-switch that disables the gate entirely and causes it to FAIL CLOSED — there is no fallback/graceful-degradation path when the kill-switch is active. It is not a rollback mode; it is an emergency stop. Do NOT set it except under explicit incident direction.
 
 ### 2.8 v6→v11 Project State Migration (optional)
 
@@ -333,7 +345,7 @@ wicked-brain:    {"ready (plugin installed)" or "MISSING — install required"}
 wicked-bus:      {"ready (plugin installed)" or "MISSING — install required"}
 wicked-testing:  {version e.g. "0.1.2 — ready" or "MISSING — install required"}
 wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
-wicked-loom:     {"ready (gate/resolve engine)" or "MISSING — install required"}
+loom engine:     {"ready (internal — scripts/loom/)" or "MISSING — garden installation problem"}
 Onboarding:      {Full | Quick scout | Skipped}
 Directories:     {paths onboarded}
 Project type:    {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected")

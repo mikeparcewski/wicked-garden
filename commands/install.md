@@ -8,7 +8,7 @@ archetype_relevance: ["*"]
 
 # /wicked-garden:install
 
-First-run installer for the wicked-* ecosystem. Ensures wicked-garden is current, installs the required evidence floor (vault + loom automatically — no question asked), then prompts for optional layers and solo beds via a multi-select picker.
+First-run installer for the wicked-* ecosystem. Ensures wicked-garden is current, installs the required evidence floor (wicked-vault automatically — no question asked), then prompts for optional layers and solo beds via a multi-select picker. The loom peer-resolution engine is absorbed into wicked-garden itself (scripts/loom/) — no separate wicked-loom install is needed.
 
 ## Instructions
 
@@ -32,17 +32,15 @@ If UNKNOWN: note it and continue.
 
 ### 2. Install the required evidence floor
 
-No prompt — vault and loom are mandatory for every evidence gate. Run in order, show a progress line for each.
+No prompt — wicked-vault is the mandatory evidence backend for every gate. The loom
+peer-resolution engine is built into wicked-garden (scripts/loom/) — nothing to install
+for loom. Run vault install and show a progress line:
 
 ```bash
 npx wicked-vault-install
 ```
 
-```bash
-npm i -g wicked-loom
-```
-
-On any failure: display the raw error and note "you can install this manually and re-run `/wicked-garden:install` to retry." Continue to step 3 regardless — `wicked-loom doctor` (step 5) will surface what's still missing.
+On failure: display the raw error and note "you can install wicked-vault manually via `npx wicked-testing install` and re-run `/wicked-garden:install` to retry." Continue to step 3 regardless — step 5 will surface what's still missing.
 
 ### 3. Pick optional layers and solo beds
 
@@ -96,13 +94,21 @@ Run in the order listed. Show a ✓ or ✗ line per tool as each completes.
 
 For any tool where the user must run a slash command, clearly display the command, pause, and wait for confirmation before marking it done.
 
-### 5. Verify with loom doctor
+### 5. Verify peer health
+
+Run the internal loom doctor (no external wicked-loom needed):
 
 ```bash
-npx wicked-loom doctor
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+import sys, os, json
+sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts'))
+from loom import compose
+rows = compose.check_all()
+print(json.dumps(rows, indent=2))
+"
 ```
 
-Parse JSON output. Show a summary table — tool name, version/status, and a next-step hint for anything MISSING.
+Parse JSON output. Show a summary table — peer name, version/status (`ok`/`drift`/`present`/`missing`/`error`), and a next-step hint for anything `missing` or `drift`. A `present` row (peer responds but version unreadable) is a warning, not blocking.
 
 ### 6. Done
 

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""flow_compiler.py — compile a garden archetype into a loom flow definition.
+"""flow_compiler.py — compile a garden archetype into a flow definition.
 
-The §3.1 seam: garden owns the archetype catalog; loom is archetype-agnostic
-and runs a generic flow definition. This module is the thin handoff contract —
+The §3.1 seam: garden owns the archetype catalog and emits a flow-definition
+JSON that wicked-crew consumes.  This module is the thin handoff contract —
 it reads .claude-plugin/archetypes.json (phases, produces, hitl) plus the
-hard-gate phase map and emits the flow-definition JSON `loom flow run` consumes.
+hard-gate phase map and produces the flow-definition dict.
+
+NOTE: `loom flow run` is RETIRED (ECOSYSTEM-RATIONALIZATION.md §5a Phase B).
+Flow execution is now handled by wicked-crew.  The flow-definition schema is
+preserved so wicked-crew can consume it directly without a format migration.
 
 Pure + deterministic: catalog in, dict out. The only I/O is reading the catalog.
 
-Flow-definition shape (consumed verbatim by wicked-loom `flow run`):
+Flow-definition shape (consumed by wicked-crew):
   {
     "flow_id": str,
     "phases": [{ "name", "gate": "produces:<id>"|null, "hitl": str, "produces": [...] }],

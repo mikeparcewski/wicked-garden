@@ -30,11 +30,16 @@ class ResolveLoomAuthoritative(unittest.TestCase):
             os.environ.pop(v, None)
 
     def test_loom_resolve_is_authoritative(self):
+        # Verify the external-subprocess contract: when internal is absent,
+        # loom resolve vault is the sole resolution path. Patch _HAVE_INTERNAL
+        # False to exercise this path (in a garden install internal is always
+        # present, but the contract must hold as the backward-compat fallback).
         def fake_run(prefix, args, timeout, cwd=None):
             return {"exit_code": 0,
                     "stdout": '{"peer":"vault","command":["npx","--yes","wicked-vault"]}',
                     "stderr": "", "error": None}
-        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
              patch.object(_loom, "_default_run", fake_run):
             self.assertEqual(vg.resolve_vault(), ["npx", "--yes", "wicked-vault"])
 
@@ -43,25 +48,30 @@ class ResolveLoomAuthoritative(unittest.TestCase):
         def fake_run(prefix, args, timeout, cwd=None):
             return {"exit_code": 1, "stdout": '{"peer":"vault","command":null}',
                     "stderr": "", "error": None}
-        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
              patch.object(_loom, "_default_run", fake_run):
             self.assertIsNone(vg.resolve_vault())
 
     def test_loom_unresolvable_returns_none_no_in_process_npx(self):
         # auto + loom unresolvable. There is NO in-process npx ladder on the
         # allow_npx=True path now -> resolve_vault returns None (fail-closed).
+        # Patch _HAVE_INTERNAL False to force the external-subprocess code path.
         os.environ["WICKED_LOOM_CUTOVER"] = "auto"
-        with patch.object(_loom, "resolve_loom", return_value=None), \
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=None), \
              patch.object(shutil, "which",
                           side_effect=lambda b: "/usr/bin/npx" if b == "npx" else None):
             self.assertIsNone(vg.resolve_vault())
 
     def test_loom_error_returns_none_no_in_process_npx(self):
         # loom resolves but the subprocess errors -> None (no fallback).
+        # Patch _HAVE_INTERNAL False to force the external-subprocess code path.
         def boom(prefix, args, timeout, cwd=None):
             return {"exit_code": None, "stdout": "", "stderr": "",
                     "error": "loom call exceeded 120s"}
-        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
              patch.object(_loom, "_default_run", boom), \
              patch.object(shutil, "which",
                           side_effect=lambda b: "/usr/bin/npx" if b == "npx" else None):

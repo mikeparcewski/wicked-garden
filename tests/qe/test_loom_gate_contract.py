@@ -41,7 +41,12 @@ class GateLoomAuthoritative(unittest.TestCase):
         return fake_run
 
     def test_loom_pass_is_the_only_path(self):
-        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+        # Patch _HAVE_INTERNAL False to exercise the external-subprocess path.
+        # In a garden install, _HAVE_INTERNAL is True (internal modules absorbed),
+        # but these tests verify the external-subprocess contract holds when the
+        # internal package is absent (backward-compat + regression guard).
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
              patch.object(_loom, "_default_run", self._loom_gate_runner("PASS")):
             cc = vg.cross_check("build-1", "test", project_dir=_PROJECT)
         self.assertTrue(cc["available"])
@@ -49,7 +54,8 @@ class GateLoomAuthoritative(unittest.TestCase):
         self.assertEqual(cc["claims"], [{"id": "tests-pass"}])
 
     def test_loom_reject_surfaced(self):
-        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
              patch.object(_loom, "_default_run", self._loom_gate_runner("REJECT")):
             cc = vg.cross_check("build-1", "test", project_dir=_PROJECT)
         self.assertTrue(cc["available"])
@@ -115,7 +121,10 @@ class GateLoomAuthoritative(unittest.TestCase):
             seen["args"] = args
             return {"exit_code": 0, "stdout": json.dumps(
                 {"gate": {"satisfied": True, "overall": "PASS"}}), "stderr": "", "error": None}
-        with patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
+        # Patch _HAVE_INTERNAL False to exercise the external subprocess path
+        # so _default_run is actually called and seen["args"] is populated.
+        with patch.object(_loom, "_HAVE_INTERNAL", False), \
+             patch.object(_loom, "resolve_loom", return_value=["wicked-loom"]), \
              patch.object(_loom, "_default_run", fake_run):
             vg.cross_check("build-1", "review", project_dir=_PROJECT, with_attestations=True)
         self.assertIn("--with-attestations", seen["args"])

@@ -710,28 +710,35 @@ def _check_vault_dependency():
 
 
 def _check_loom_dependency():
-    """Return a briefing note if wicked-loom is not resolvable, else None.
+    """Return a briefing note if loom peer-resolution is unavailable, else None.
 
-    wicked-loom is a required peer (the 5th, sibling to wicked-testing /
-    wicked-vault / wicked-brain / wicked-bus): garden shells to it for peer
-    resolution, evidence gating, and flow execution. The in-process runtime
-    fallback was removed in the contract phase — gating + peer resolution now
-    route through loom, and without it the produces-gate fails closed. This
-    probe is a one-line install pointer, never a block (it still fails open at
-    session start; the fail-closed behavior is at the gate, not here).
+    After the Phase B absorption (ECOSYSTEM-RATIONALIZATION.md §5a), the
+    wicked-loom peer-resolution surface (resolve/doctor/compose/gate) is
+    internal to wicked-garden — absorbed into scripts/loom/. External
+    installation of the standalone wicked-loom npm package is no longer
+    required.
 
-    Fast + stdlib-only (no subprocess to npx): checks PATH and loose skill
-    installs only. Always fails open — never blocks the session.
+    This function returns None (no warning) when the absorbed internal module
+    is present, which is always the case in a properly installed wicked-garden.
+    The legacy external-binary checks are retained as a fallback for
+    environments that may be running a partial or development install.
+
+    Always fails open — never blocks the session start.
     """
     try:
-        import shutil
+        # Primary check: internal absorbed module (scripts/loom/).
+        # In a properly installed wicked-garden this always resolves.
+        _scripts_dir = Path(__file__).resolve().parents[2] / "scripts"
+        if (_scripts_dir / "loom" / "__init__.py").exists():
+            return None  # Absorbed internally — no external install needed.
 
-        # WICKED_LOOM_BIN explicitly set (even empty kill-switch) or the cutover
-        # flag turned off → operator is driving deliberately; don't nag.
+        # Kill-switch / operator override: don't nag when deliberately managed.
         if "WICKED_LOOM_BIN" in os.environ:
             return None
         if os.environ.get("WICKED_LOOM_CUTOVER", "").strip().lower() == "off":
             return None
+
+        # Legacy external-binary check (development / partial installs only).
         if shutil.which("wicked-loom"):
             return None
 
@@ -748,13 +755,12 @@ def _check_loom_dependency():
             except OSError:
                 continue  # fail open
 
+        # No loom surface found — surface a note (never a block).
         return (
-            "[wicked-loom] REQUIRED but not installed.\n"
-            "Install now: npm i -g wicked-loom  (or run via: npx wicked-loom)\n"
-            "wicked-loom is the orchestration runtime garden drives for peer "
-            "resolution, evidence gating, and flow execution. (Gating + peer "
-            "resolution route through loom; without it the produces-gate fails "
-            "closed.)"
+            "[loom] Peer-resolution runtime not found.\n"
+            "wicked-loom is now absorbed into wicked-garden — reinstall "
+            "wicked-garden to restore the peer-resolution surface.\n"
+            "Without it the produces-gate fails closed."
         )
     except Exception:
         return None  # Fail open — never block session start
