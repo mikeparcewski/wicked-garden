@@ -167,6 +167,9 @@ def main():
     } | {
         p.stem for p in root.glob("hooks/scripts/**/*.py")
         if p.stem != "__init__"
+    } | {
+        # Package directories (scripts/ subdirs with __init__.py are valid import targets)
+        p.parent.name for p in root.glob("scripts/**/__init__.py")
     }
     for md_file in sorted(
         list(root.glob("commands/**/*.md"))
