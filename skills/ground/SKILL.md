@@ -1,5 +1,6 @@
 ---
-name: ground
+name: wicked-garden:ground
+context: fork
 description: |
   Grounding / assumption-check: pull deeper context from brain + bus when uncertain,
   before acting. Use when: getting mixed signals from the codebase, about to commit to a

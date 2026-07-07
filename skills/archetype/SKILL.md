@@ -1,5 +1,6 @@
 ---
 name: wicked-garden:archetype
+context: fork
 description: |
   v11 work-shape archetype runner. When a prompt has been routed to one
   of the archetypes (triage, explore, specify, decide, ship, review,

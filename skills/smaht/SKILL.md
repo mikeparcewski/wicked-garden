@@ -1,5 +1,6 @@
 ---
-name: smaht
+name: wicked-garden:smaht
+context: fork
 description: |
   Context assembly / briefing builder (the name is a phonetic play on "smart").
   Gathers a relevant on-demand context briefing over wicked-brain + wicked-garden:search

@@ -1,5 +1,6 @@
 ---
-name: data-engineer
+name: wicked-garden:data:data-engineer
+context: fork
 subagent_type: wicked-garden:data:data-engineer
 description: "ETL pipeline design, data quality assessment, schema validation, and... Use when: ETL pipelines, data quality,..."
 model: sonnet

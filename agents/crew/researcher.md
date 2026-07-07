@@ -1,5 +1,6 @@
 ---
-name: researcher
+name: wicked-garden:crew:researcher
+context: fork
 subagent_type: wicked-garden:crew:researcher
 description: "Explore codebase and gather context before design or implementation choices. Use when: codebase exploration, pattern..."
 model: sonnet

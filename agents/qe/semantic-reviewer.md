@@ -1,5 +1,6 @@
 ---
-name: semantic-reviewer
+name: wicked-garden:qe:semantic-reviewer
+context: fork
 subagent_type: wicked-garden:qe:semantic-reviewer
 description: "Render an INDEPENDENT semantic verdict on whether code implements what each acceptance criterion MEANS — not whether the AC id is referenced. Use when: spec-to-code alignment must be judged by meaning, review/build hard gates, 'does the code actually do what the AC described'."
 model: opus

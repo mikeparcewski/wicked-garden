@@ -1,5 +1,6 @@
 ---
-name: persona
+name: wicked-garden:persona
+context: fork
 description: |
   On-demand persona invocation system for applying named perspectives to any task.
   Use when: invoking a named persona via persona:as, defining or listing

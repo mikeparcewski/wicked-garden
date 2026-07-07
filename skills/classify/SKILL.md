@@ -1,5 +1,6 @@
 ---
 name: wicked-garden:classify
+context: fork
 description: |
   v11 LLM-based work-shape classifier. Replaces the regex archetype detector
   with the model's own reasoning. Reads the user's prompt, picks the right

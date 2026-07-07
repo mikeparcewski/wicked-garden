@@ -1,5 +1,6 @@
 ---
-name: implementer
+name: wicked-garden:crew:implementer
+context: fork
 subagent_type: wicked-garden:crew:implementer
 description: "Execute implementation tasks according to approved designs and test strategies. Use when: building features,..."
 model: sonnet

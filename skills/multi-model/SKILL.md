@@ -1,5 +1,6 @@
 ---
-name: multi-model
+name: wicked-garden:multi-model
+context: fork
 description: |
   Multi-model AI collaboration: discover installed LLM CLIs and orchestrate
   council sessions, cross-model reviews, and diverse perspective gathering.

@@ -1,5 +1,6 @@
 ---
-name: quick-facilitator
+name: wicked-garden:jam:quick-facilitator
+context: fork
 subagent_type: wicked-garden:jam:quick-facilitator
 description: "Lightweight single-pass brainstorming facilitator for quick exploration... Use when: rapid gut-check, quick..."
 model: sonnet

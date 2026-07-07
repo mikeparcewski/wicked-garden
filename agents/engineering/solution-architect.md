@@ -1,5 +1,6 @@
 ---
-name: solution-architect
+name: wicked-garden:engineering:solution-architect
+context: fork
 subagent_type: wicked-garden:engineering:solution-architect
 description: "Design end-to-end solutions with appropriate patterns, technology choices, and... Use when: system design,..."
 model: opus

@@ -1,5 +1,6 @@
 ---
-name: performance-analyst
+name: wicked-garden:agentic:performance-analyst
+context: fork
 subagent_type: wicked-garden:agentic:performance-analyst
 description: "Token optimization, latency budgets, cost analysis, parallelization... Use when: performance optimization, cost..."
 model: sonnet

@@ -1,5 +1,6 @@
 ---
-name: runtime-exec
+name: wicked-garden:runtime-exec
+context: fork
 description: |
   Smart runtime execution for Python and Node scripts with automatic package manager detection.
   Invoked by other skills and agents when scripts need execution with correct runtime resolution.

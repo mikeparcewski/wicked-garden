@@ -1,5 +1,6 @@
 ---
-name: migration-engineer
+name: wicked-garden:engineering:migration-engineer
+context: fork
 subagent_type: wicked-garden:engineering:migration-engineer
 description: "Schema migrations, data backfills, deprecation paths, rollback plans, and... Use when: schema migration, data..."
 model: sonnet

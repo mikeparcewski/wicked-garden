@@ -1,5 +1,6 @@
 ---
-name: a11y-expert
+name: wicked-garden:product:a11y-expert
+context: fork
 subagent_type: wicked-garden:product:a11y-expert
 description: "Audit accessibility compliance - WCAG guidelines, keyboard navigation, screen... Use when: accessibility, WCAG,..."
 model: sonnet

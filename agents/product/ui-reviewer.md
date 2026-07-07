@@ -1,5 +1,6 @@
 ---
-name: ui-reviewer
+name: wicked-garden:product:ui-reviewer
+context: fork
 subagent_type: wicked-garden:product:ui-reviewer
 description: "Visual and UI design review. Use when: visual design review, UI consistency audit, design-system compliance,..."
 model: sonnet

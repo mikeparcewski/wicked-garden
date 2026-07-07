@@ -1,5 +1,6 @@
 ---
-name: worktrees
+name: wicked-garden:worktrees
+context: fork
 description: |
   Git worktree hygiene — when to create, how to clean up, and what fails silently.
   Captures three classes of bug that recur with worktree-based agent isolation:

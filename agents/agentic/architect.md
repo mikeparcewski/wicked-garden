@@ -1,5 +1,6 @@
 ---
-name: architect
+name: wicked-garden:agentic:architect
+context: fork
 subagent_type: wicked-garden:agentic:architect
 description: "Five-layer architecture validation, agent topology analysis, orchestration... Use when: architecture review, agent..."
 model: sonnet

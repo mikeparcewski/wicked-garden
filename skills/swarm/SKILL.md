@@ -1,5 +1,6 @@
 ---
-name: swarm
+name: wicked-garden:swarm
+context: fork
 description: |
   Parallel verification-swarm orchestration playbook: fan out N scoped
   subagents over N units of work (repos / modules / files), then run a

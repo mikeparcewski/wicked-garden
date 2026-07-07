@@ -1,5 +1,6 @@
 ---
-name: integration-discovery
+name: wicked-garden:integration-discovery
+context: fork
 description: |
   Capability router that decides which tools, skills, and agents to use for a task.
   Discovers CLI tools in PATH alongside MCP servers, skills, and agents.

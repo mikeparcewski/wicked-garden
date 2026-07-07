@@ -1,5 +1,6 @@
 ---
-name: deliberate
+name: wicked-garden:deliberate
+context: fork
 description: |
   Critical thinking framework applied before doing work. Challenges assumptions,
   reframes problems, identifies hidden opportunities, and validates whether the stated

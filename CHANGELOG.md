@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.26.0] — 2026-07-07
+
 ### Added
 - **`POST /hooks`** — register a bus event hook (`event_pattern`, `command`). Returns 201 with id and timestamps. Hooks are persisted in the SQLite store.
 - **`GET /hooks`** — list all registered hooks.
@@ -13,6 +15,11 @@
 - **Consumer self-consumption** — daemon no longer re-consumes its own `wicked.garden.council.voted` events (belt-and-suspenders: prefix filter + explicit early-return guard).
 - **Thread-safe DB writes** — `_store_event()` and `_save_cursor()` in consumer.py now wrap all writes in `get_write_lock()` (threading.Lock).
 - **Nested HTTP error format** — all `server.py` error responses now return `{"error": {"code": "...", "message": "..."}}` via `_err()` helper (18 endpoints updated).
+- **`wicked_testing_version` pin** — bumped `^0.6.0` → `^0.7.0`; caret probe locks 0.x pins to minor, so wicked-testing 0.7.x was out-of-range and crew commands were blocked.
+
+### Changed
+- **`context: fork` on all 23 agents** — added to every `.md` in `agents/` with fully-qualified `wicked-garden:{domain}:{name}` names, enabling cross-CLI skill discovery.
+- **`context: fork` on 12 skills** — archetype, classify, deliberate, ground, integration-discovery, multi-model, persona, runtime-exec, smaht, swarm, wickedizer, worktrees; name prefix fixed to `wicked-garden:` on the 10 that had bare names.
 
 ## [12.25.1] - 2026-06-17
 

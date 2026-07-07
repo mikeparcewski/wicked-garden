@@ -1,5 +1,6 @@
 ---
-name: security-engineer
+name: wicked-garden:platform:security-engineer
+context: fork
 subagent_type: wicked-garden:platform:security-engineer
 description: "Security scanning and vulnerability assessment from DevSecOps perspective. Use when: security review,..."
 model: sonnet
