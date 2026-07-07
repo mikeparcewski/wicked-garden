@@ -1,0 +1,57 @@
+# Dev-only script directories — not needed at runtime
+scripts/ci/
+scripts/wg/
+
+# Python cache and compiled bytecode
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+
+# Test infrastructure
+tests/
+scenarios/
+phases/
+
+# Build/packaging artifacts
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Site (not part of the plugin)
+site/
+node_modules/
+
+# Per-machine state — never ship
+.brain.db
+.brain.db-shm
+.brain.db-wal
+_meta/
+.something-wicked/
+.wicked-testing/
+.wicked-vault/
+.codegraph/
+
+# IDE / OS noise
+.DS_Store
+.idea/
+.vscode/
+
+# Daemon (separate runtime, not needed for plugin install)
+daemon/
+
+# Dev tooling
+.claude/
+.github/
+.benchmarks/
+.hypothesis/
+.pytest_cache/
+.cross-pollination/
+.githooks/
+.aider*
+memory/
+.codegraph-extractors/
+renovate.json
+uv.lock
+package-lock.json

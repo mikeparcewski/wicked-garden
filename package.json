@@ -1,5 +1,41 @@
 {
-  "dependencies": {
-    "wicked-web": "github:mikeparcewski/wicked-web"
+  "name": "wicked-garden",
+  "version": "12.27.0",
+  "type": "module",
+  "description": "Curated toolkit for what AI coding agents can't do alone: evidence-gated work, codegraph relationships, deterministic multi-file refactor, multi-model second opinions, and cross-session memory. Installs as a Claude Code plugin.",
+  "keywords": [
+    "ai",
+    "coding-agent",
+    "claude-code",
+    "evidence-gate",
+    "code-graph",
+    "code-intelligence",
+    "refactoring",
+    "testing",
+    "memory",
+    "multi-model",
+    "agentic",
+    "wicked-testing",
+    "wicked-bus"
+  ],
+  "author": {
+    "name": "Mike Parcewski"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikeparcewski/wicked-garden.git"
+  },
+  "homepage": "https://github.com/mikeparcewski/wicked-garden",
+  "bugs": "https://github.com/mikeparcewski/wicked-garden/issues",
+  "bin": {
+    "wicked-garden": "install.mjs"
+  },
+  "main": "install.mjs",
+  "scripts": {
+    "prepublishOnly": "node install.mjs --version"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   }
 }

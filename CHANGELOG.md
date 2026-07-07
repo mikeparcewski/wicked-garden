@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [12.27.0] — 2026-07-07
+
+### Added
+- **npm package**: wicked-garden is now published to npm. `npx wicked-garden install` copies the plugin to `~/.claude/plugins/wicked-garden/` — no git required. `npx wicked-garden status` shows the installed version.
+- **`install.mjs`**: standalone installer with `install`, `update`, `status`, `--version` subcommands. Runs `uv sync` for Python deps if `uv` is available; otherwise defers to `/wicked-garden:setup`.
+- **wicked-loom absorbed**: peer-resolution engine (`manifest`, `resolve`, `compose`, `gate`) now ships in `scripts/loom/` — no separate `wicked-loom` package needed. `_loom.py` dispatches internally; `WICKED_LOOM_BIN` env override still wins.
+- **`/wicked-garden:platform:peer-health`** command: user-facing replacement for `npx wicked-loom doctor` (`--peer`, `--strict`, `--json` flags).
+
+### Changed
+- `plugin.json`: removed `wicked_loom_version` peer requirement.
+- `commands/setup.md`: §2.7b uses internal Python import check; corrected `WICKED_LOOM_CUTOVER=off` doc (FAIL CLOSED, no fallback).
+- `commands/install.md`: removed external `npm i -g wicked-loom` step.
+
 ## [12.26.0] — 2026-07-07
 
 ### Added
