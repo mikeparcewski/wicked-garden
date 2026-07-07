@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:platform:compliance-officer
+name: wicked-garden-platform-compliance-officer
 context: fork
 subagent_type: wicked-garden:platform:compliance-officer
 description: "Regulatory compliance expert. Use when: SOC2, HIPAA, GDPR, PCI, regulatory compliance <example> Context: Healthcare..."

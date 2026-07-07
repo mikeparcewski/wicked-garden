@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:jam:brainstorm-facilitator
+name: wicked-garden-jam-brainstorm-facilitator
 context: fork
 subagent_type: wicked-garden:jam:brainstorm-facilitator
 description: "Role-plays as focus group personas and synthesizes brainstorming discussions. Use when: brainstorming, ideation,..."

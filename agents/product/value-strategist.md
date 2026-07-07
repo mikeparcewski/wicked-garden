@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:product:value-strategist
+name: wicked-garden-product-value-strategist
 context: fork
 subagent_type: wicked-garden:product:value-strategist
 description: "Value-proposition design AND stakeholder alignment in one agent. Use when: value proposition, differentiation,..."

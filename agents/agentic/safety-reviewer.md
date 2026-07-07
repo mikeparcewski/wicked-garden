@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:agentic:safety-reviewer
+name: wicked-garden-agentic-safety-reviewer
 context: fork
 subagent_type: wicked-garden:agentic:safety-reviewer
 description: "Guardrails, prompt injection defense, PII protection, human-in-the-loop gates,... Use when: safety review,..."

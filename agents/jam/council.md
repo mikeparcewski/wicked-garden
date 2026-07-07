@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:jam:council
+name: wicked-garden-jam-council
 context: fork
 subagent_type: wicked-garden:jam:council
 description: "Runs structured multi-model council evaluations using external LLM CLIs. Use when: multi-model evaluation, council..."

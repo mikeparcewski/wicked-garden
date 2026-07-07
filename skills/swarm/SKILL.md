@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:swarm
+name: wicked-garden-swarm
 context: fork
 description: |
   Parallel verification-swarm orchestration playbook: fan out N scoped

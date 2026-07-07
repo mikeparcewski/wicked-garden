@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:product:ux-designer
+name: wicked-garden-product-ux-designer
 context: fork
 subagent_type: wicked-garden:product:ux-designer
 description: "Design and evaluate user flows, interaction patterns, and information... Use when: user flow design, IA mapping,..."

@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:engineering:api-documentarian
+name: wicked-garden-engineering-api-documentarian
 context: fork
 subagent_type: wicked-garden:engineering:api-documentarian
 description: "Specialize in API documentation - OpenAPI specs, endpoint documentation,... Use when: API docs, OpenAPI specs,..."

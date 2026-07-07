@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:smaht
+name: wicked-garden-smaht
 context: fork
 description: |
   Context assembly / briefing builder (the name is a phonetic play on "smart").

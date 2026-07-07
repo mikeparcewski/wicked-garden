@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:platform:privacy-expert
+name: wicked-garden-platform-privacy-expert
 context: fork
 subagent_type: wicked-garden:platform:privacy-expert
 description: "Privacy and data protection specialist. Use when: PII, PHI, data protection, privacy by design, GDPR <example>..."

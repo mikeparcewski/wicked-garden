@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:persona
+name: wicked-garden-persona
 context: fork
 description: |
   On-demand persona invocation system for applying named perspectives to any task.

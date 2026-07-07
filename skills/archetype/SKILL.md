@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:archetype
+name: wicked-garden-archetype
 context: fork
 description: |
   v11 work-shape archetype runner. When a prompt has been routed to one

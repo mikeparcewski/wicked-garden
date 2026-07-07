@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:product:requirements-analyst
+name: wicked-garden-product-requirements-analyst
 context: fork
 subagent_type: wicked-garden:product:requirements-analyst
 description: "Elicit and document requirements with precision. Use when: user stories, requirements, acceptance criteria,..."

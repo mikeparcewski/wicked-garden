@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:deliberate
+name: wicked-garden-deliberate
 context: fork
 description: |
   Critical thinking framework applied before doing work. Challenges assumptions,

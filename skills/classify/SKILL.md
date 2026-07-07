@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:classify
+name: wicked-garden-classify
 context: fork
 description: |
   v11 LLM-based work-shape classifier. Replaces the regex archetype detector

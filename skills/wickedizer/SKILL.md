@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:wickedizer
+name: wicked-garden-wickedizer
 context: fork
 description: |
   Writing humanizer / AI-tell remover (the team's house writing-cleanup skill).

@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:persona:persona-agent
+name: wicked-garden-persona-persona-agent
 context: fork
 subagent_type: wicked-garden:persona:persona-agent
 description: "Executes tasks under a named persona's behavioral profile. Use when: any task needs a specific perspective — review,..."

@@ -1,5 +1,5 @@
 ---
-name: wicked-garden:ground
+name: wicked-garden-ground
 context: fork
 description: |
   Grounding / assumption-check: pull deeper context from brain + bus when uncertain,
