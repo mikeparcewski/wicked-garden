@@ -1,8 +1,9 @@
 # wicked-site
 
-The marketing brochure for **wickedagile / wicked garden** — the curated,
-open-source toolkit for AI-native engineers, with wicked-garden as the umbrella
-and the wicked-\* tools as its beds and layers.
+The marketing brochure for **wicked-garden** — the curated, open-source toolkit
+for what AI coding agents can't do alone. wicked-garden is the gate and curated
+toolkit (not the ecosystem umbrella — that's wickedagile); the site presents the
+wicked-\* tools it composes as its beds and layers.
 
 A fast, interactive, light/dark single-page site: kinetic hero, an animated
 manifesto, **the Garden Tour** (a scrollytelling walk — one stop per tool, with
@@ -37,7 +38,7 @@ All copy lives in **one file**: [`src/data/projects.ts`](src/data/projects.ts).
 - `ROLES` — the four garden roles (The gate / The floor / The layers / Solo beds)
 - `PROJECTS` — each tool's `role`, `kicker`, `tagline`, **`outcome`** (the headline
   result), `blurb`, `points`, `install`, `repo`, `badges`
-- `TOUR` — the eight Garden Tour stops (one per tool): kicker, marker-swiped
+- `TOUR` — the seven Garden Tour stops (one per tool): kicker, marker-swiped
   headline, narrative, unlock caption, and whether the stop is pre-planted
   (`locked`) or `optin`
 
@@ -47,12 +48,14 @@ under `wicked-kit`.
 
 ## Deploy (GitHub Pages)
 
-A workflow at [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) builds and
-publishes on every push to `main`.
+Deploy is **human-gated**. The workflow at
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml) is dormant by design:
+`workflow_dispatch` only — it does **not** auto-run on push or merge. Go-live is
+triggered by hand when the site is ready.
 
 1. Push this repo to GitHub.
 2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-3. Push to `main` (or run the workflow manually).
+3. Trigger the **Deploy site to GitHub Pages** workflow manually (Actions → Run workflow).
 
 The workflow derives `site` and `base` from the repo automatically, so it works on a
 fork named anything. The defaults assume a **project page** served at

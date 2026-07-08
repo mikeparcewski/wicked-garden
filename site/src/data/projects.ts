@@ -82,6 +82,7 @@ export const PROJECTS: Project[] = [
     points: [
       "10 work-shape archetypes route the right amount of rigor",
       "Evidence-gated phases fail closed — never a vacuous green",
+      "Injected-edge search — blast-radius, lineage, hotspots grep can't see",
       "The gate compiles into any repo and runs with nothing installed",
     ],
     uses: [
@@ -132,7 +133,7 @@ export const PROJECTS: Project[] = [
     blurb:
       "A complete QE team for your AI CLI: a Writer → Executor → Reviewer pipeline with hard-enforced separation. The reviewer reads cold evidence and never sees the executor's context, so the agent can't grade its own homework.",
     points: [
-      "40 specialist agents · 5 Tier-1 skills (mutation, chaos, flake, a11y…)",
+      "40 specialist agents · 5 Tier-1 skills (plan, authoring, execution, review, insight)",
       "Independent verdicts — reviewer never sees executor context",
       "SQLite ledger with a plain-English oracle",
     ],
@@ -158,13 +159,13 @@ export const PROJECTS: Project[] = [
     points: [
       "Full-text search + agent reasoning, not cosine distance",
       "Chunks → synthesized wiki — every claim traces back to a file",
-      "Code graph of your repo — blast-radius, callers, lineage on demand",
+      "Reads PDF, DOCX, PPTX, XLSX natively — the LLM parses, no libraries",
       "Browser viewer included · works across 5 CLIs",
     ],
     uses: [
       "picking up tomorrow exactly where today ended",
       "onboarding an agent to a project's tribal knowledge",
-      "seeing what breaks before you change it",
+      "recalling the decisions and gotchas behind the code",
       "memory you can open, diff, and git-commit",
     ],
     install: "npx wicked-brain",
@@ -282,7 +283,7 @@ export const TOUR: TourStop[] = [
     kicker: "stop 04 / 07 — the memory bed",
     headline: { pre: "your agent finally", mark: "remembers" },
     body:
-      "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. A code graph maps what words can't: blast-radius, callers, and lineage on demand.",
+      "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. Every claim traces back to a file you can open, diff, and git-commit.",
     unlock: "now it remembers",
     plant: "optin",
     tools: ["wicked-brain"],
