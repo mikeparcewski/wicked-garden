@@ -7,9 +7,9 @@
                                        |___/                             
 ```
 
-# Wicked Garden
+# wicked-garden
 
-**Your coding agent already plans and swarms. Wicked Garden is the curated toolkit for what it can't do alone.**
+**Your coding agent already plans and swarms. wicked-garden is the curated toolkit for what it can't do alone.**
 
 > 📖 Docs → [mikeparcewski.github.io/wicked-garden](https://mikeparcewski.github.io/wicked-garden/). Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
 
@@ -21,11 +21,11 @@ Coding agents grew up. Claude Code, Codex, Cursor, Antigravity, Aider, OpenCode,
 
 Most plugins try to boss them around — re-implement planning, impose a workflow, make the agent dance. You end up fighting your own tools.
 
-**Wicked Garden refuses to wrestle the harness.** It assumes your agent is good at the things it's good at, and fills the gaps it *can't* fill on its own.
+**wicked-garden refuses to wrestle the harness.** It assumes your agent is good at the things it's good at, and fills the gaps it *can't* fill on its own.
 
 ## The gaps it fills
 
-| Your harness… | Wicked Garden… |
+| Your harness… | wicked-garden… |
 |---|---|
 | says *"tests pass"* (sometimes it's lying) | re-runs the proof. False "done" → **rejected.** Missing backend → **fails closed.** Never a vacuous green. |
 | greps and reads — blind to string-wired links | sees the **injected edges** (event→consumer, command→agent, agent→capability) grep never will → `blast-radius`, `lineage` |
@@ -40,13 +40,13 @@ The throughline: **done is re-derived, not asserted.** Verdicts you can trust on
 
 ## What it's *not*
 
-- **Not a workflow it forces on you.** Your harness still drives. Wicked Garden reads the *shape* of the work, applies the right amount of rigor, and steps back.
+- **Not a workflow it forces on you.** Your harness still drives. wicked-garden reads the *shape* of the work, applies the right amount of rigor, and steps back.
 - **Not a reinvention** of the planning and swarm your agent already nails.
 - **Not Claude-only under the hood.** Ships as a Claude Code plugin, but the engine is CLI/npm peers — and the gate **compiles into any repo and runs with no wicked-garden installed** (`/wicked-garden:compile`). Stand on the harness, fill its gaps, hand off. Never absorb.
 
 <details><summary><b>How it stays out of the way: work-shape, not pipeline</b></summary>
 
-No universal pipeline to obey. A hook reads each prompt's *shape* and that decides one thing: **how much rigor this work earns.** A typo (`triage`) gets none; a migration cutover (`migrate`) gets a hard, independently-attested gate with a rollback proof. Nine shapes — `triage · explore · specify · decide · build · review · ship · incident · migrate` — steering, not blocking. Why shapes and not one pipeline → [`docs/v11/archetypes.md`](docs/v11/archetypes.md).
+No universal pipeline to obey. A hook reads each prompt's *shape* and that decides one thing: **how much rigor this work earns.** A typo (`triage`) gets none; a migration cutover (`migrate`) gets a hard, independently-attested gate with a rollback proof. Ten shapes — `triage · explore · specify · decide · build · review · ship · incident · migrate · modernize` — steering, not blocking. Why shapes and not one pipeline → [`docs/archetypes.md`](docs/archetypes.md).
 </details>
 
 ---
@@ -55,15 +55,16 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 
 ```bash
 /plugin install wicked-garden      # in Claude Code
-/wicked-garden:setup               # verifies peers; blocks only on the two the gate needs
+/wicked-garden:setup               # verifies peers; blocks only on the one the gate needs
 ```
 
-**Two required, three opt-in.** The evidence gate is the floor we won't fake, so it needs two peers — setup blocks without them:
+**One required peer, the rest opt-in.** The evidence gate is the floor we won't fake, so it needs one external peer — setup blocks without it:
 
 ```bash
-npx wicked-vault-install       # the honest-evidence backend the gate re-derives against (≥ 0.3)
-npm i -g wicked-loom           # the gate engine that re-runs the verifier (or via npx)
+npx wicked-vault-install       # the honest-evidence backend the gate re-derives against (≥ 0.4.0)
 ```
+
+> The gate/resolve engine (formerly the separate `wicked-loom` package) is now **absorbed in-package** as of v12.27.0 (`scripts/loom/`) — nothing extra to install. The gate re-hashes recorded evidence and re-runs its verifier through that engine; a false "tests pass" is **rejected**, a missing backend **fails closed**.
 
 The rest of the kit is **opt-in layers** — add what you want, skip the rest and the toolkit still works:
 
@@ -108,7 +109,7 @@ Optional, lights up the code graph: `npx @colbymchenry/codegraph` (Node ≥ 22.5
 
 ## Requirements
 
-A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's two required peers (`wicked-vault` + `wicked-loom`) plus opt-in layers (`wicked-testing` · `wicked-brain` · `wicked-bus`).
+A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.4.0) plus opt-in layers (`wicked-testing` · `wicked-brain` · `wicked-bus`).
 
 ## License
 

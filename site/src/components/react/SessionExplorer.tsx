@@ -70,11 +70,11 @@ const LOG: LogLine[] = [
     text: "playbook loaded · auth pattern · 2 gotchas flagged",
   },
   {
-    id: "loom",
-    toolId: "wicked-loom",
-    label: "loom",
-    color: "var(--c-foundation)",
-    text: "gate open · evidence required before phase 2 unlocks",
+    id: "gate",
+    toolId: null,
+    label: "gate",
+    color: "var(--accent)",
+    text: "in-package gate open · evidence required before phase 2 unlocks",
   },
   {
     id: "vault",
@@ -100,7 +100,7 @@ const LOG: LogLine[] = [
   {
     id: "gate-passed",
     toolId: null,
-    label: "loom",
+    label: "gate",
     color: "var(--accent)",
     text: "GATE PASSED · proven, not self-reported ✓",
     isResult: true,
@@ -203,7 +203,7 @@ export default function SessionExplorer() {
             <p className="kicker">02 / in practice</p>
             <h2 className="se-stage-h2 font-display">
               One prompt.{" "}
-              <Marker color="var(--accent-bright)">Seven tools firing.</Marker>
+              <Marker color="var(--accent-bright)">Six tools firing.</Marker>
             </h2>
             <p className="se-stage-intro">
               Scroll through a real refactor session — every garden tool doing its part, triggered by a single prompt. Click any log line to jump to that tool.
@@ -347,7 +347,7 @@ function FallbackList() {
     <div id="session" className="mx-auto max-w-[1240px] px-5 py-12 sm:px-8 sm:py-20">
       <p className="kicker">02 / in practice</p>
       <h2 className="mt-4 font-display text-[clamp(2rem,4.6vw,3.6rem)] font-extrabold leading-[1.02] tracking-tight">
-        One prompt. Seven tools firing.
+        One prompt. Six tools firing.
       </h2>
       <div className="mt-12 space-y-10">
         {TOOL_LINES.map((line) => {

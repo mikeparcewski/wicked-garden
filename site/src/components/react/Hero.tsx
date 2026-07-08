@@ -23,8 +23,7 @@ const ease = [0.16, 1, 0.3, 1] as const;
 // Garden plot beds — laid out gate → floor → layers → solo
 const PLOT_BEDS = [
   { id: "garden",      name: "wicked-garden", tagline: "gate · start here",    color: "var(--accent)",       span: 2 },
-  { id: "vault",       name: "vault",         tagline: "evidence",             color: "var(--c-foundation)", span: 1 },
-  { id: "loom",        name: "loom",          tagline: "orchestration",        color: "var(--c-foundation)", span: 1 },
+  { id: "vault",       name: "vault",         tagline: "evidence · required peer", color: "var(--c-foundation)", span: 2 },
   { id: "testing",     name: "testing",       tagline: "QE layer",             color: "var(--c-creation)",   span: 1 },
   { id: "brain",       name: "brain",         tagline: "memory",               color: "var(--c-workflow)",   span: 1 },
   { id: "understanding", name: "understanding", tagline: "playbooks",          color: "var(--c-workflow)",   span: 1 },
