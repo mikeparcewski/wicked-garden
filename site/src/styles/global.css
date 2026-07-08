@@ -110,7 +110,7 @@
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
-    scroll-snap-type: y mandatory;
+    scroll-snap-type: y proximity;
     background-color: var(--canvas);
   }
 

@@ -53,7 +53,7 @@ const LOG: LogLine[] = [
     toolId: "wicked-garden",
     label: "garden",
     color: "var(--accent)",
-    text: "BUILD archetype · 4 phases · evidence-gated",
+    text: "toolkit engaged · prove · search · patch · council",
   },
   {
     id: "brain",
@@ -70,11 +70,11 @@ const LOG: LogLine[] = [
     text: "playbook loaded · auth pattern · 2 gotchas flagged",
   },
   {
-    id: "gate",
+    id: "search",
     toolId: null,
-    label: "gate",
-    color: "var(--accent)",
-    text: "in-package gate open · evidence required before phase 2 unlocks",
+    label: "search",
+    color: "var(--c-layer)",
+    text: "blast-radius · 6 callers grep missed · 1 injected bus edge",
   },
   {
     id: "vault",
@@ -95,14 +95,14 @@ const LOG: LogLine[] = [
     toolId: "wicked-bus",
     label: "bus",
     color: "var(--c-layer)",
-    text: "7 events published · phase.start · evidence.record · gate.check",
+    text: "7 events published · evidence.record · council.verdict · patch.applied",
   },
   {
-    id: "gate-passed",
+    id: "proven",
     toolId: null,
-    label: "gate",
+    label: "prove",
     color: "var(--accent)",
-    text: "GATE PASSED · proven, not self-reported ✓",
+    text: "done re-derived from evidence — not self-reported ✓",
     isResult: true,
   },
 ];

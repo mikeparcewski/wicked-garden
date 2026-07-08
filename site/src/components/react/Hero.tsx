@@ -20,15 +20,14 @@ const WORDS = [
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
-// Garden plot beds — laid out gate → floor → layers → solo
+// The toolkit — the concrete capabilities garden hands an AI engineer
 const PLOT_BEDS = [
-  { id: "garden",      name: "wicked-garden", tagline: "gate · start here",    color: "var(--accent)",       span: 2 },
-  { id: "vault",       name: "vault",         tagline: "evidence · required peer", color: "var(--c-foundation)", span: 2 },
-  { id: "testing",     name: "testing",       tagline: "QE layer",             color: "var(--c-creation)",   span: 1 },
-  { id: "brain",       name: "brain",         tagline: "memory",               color: "var(--c-workflow)",   span: 1 },
-  { id: "understanding", name: "understanding", tagline: "playbooks",          color: "var(--c-workflow)",   span: 1 },
-  { id: "bus",         name: "bus",           tagline: "event bus",            color: "var(--c-layer)",      span: 1 },
-  { id: "interactive", name: "interactive",   tagline: "solo · standalone",    color: "var(--c-solo)",       span: 2 },
+  { id: "prove",     name: "prove",     tagline: "re-derive done",       color: "var(--accent)",       span: 2 },
+  { id: "search",    name: "search",    tagline: "edges grep can't see", color: "var(--c-layer)",      span: 2 },
+  { id: "patch",     name: "patch",     tagline: "refactor as a graph",  color: "var(--c-workflow)",   span: 1 },
+  { id: "council",   name: "council",   tagline: "a real 2nd opinion",   color: "var(--c-solo)",       span: 1 },
+  { id: "playbooks", name: "playbooks", tagline: "the repo's how-to",    color: "var(--c-foundation)", span: 1 },
+  { id: "compile",   name: "compile",   tagline: "gate any repo",        color: "var(--c-creation)",   span: 1 },
 ] as const;
 
 export default function Hero() {
@@ -97,7 +96,7 @@ export default function Hero() {
               className="rise mt-8 max-w-xl text-balance text-lg leading-relaxed text-muted sm:text-xl"
               style={{ animationDelay: "0.32s" }}
             >
-              Your agent already plans, swarms, and ships. What it can't do alone — prove the result, remember the decision, know when it's actually done. The garden closes that gap.
+              Your agent already plans, swarms, and ships. wicked-garden hands it the tools it can't build alone — re-derive “done” from evidence, see the edges grep can't, refactor across files as one graph operation, and pull a real second opinion.
             </p>
 
             <div className="rise mt-9 flex flex-wrap items-center gap-3" style={{ animationDelay: "0.42s" }}>
@@ -139,7 +138,7 @@ export default function Hero() {
 function GardenPlot() {
   return (
     <div
-      aria-label="wicked-garden ecosystem map"
+      aria-label="wicked-garden capability toolkit"
       className="grid grid-cols-2 gap-2.5 rounded-2xl p-4"
       style={{ background: "var(--canvas-2)", border: "1px solid var(--hairline)" }}
     >
