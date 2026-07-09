@@ -4,37 +4,37 @@ import Topbar from "wicked-web/components/Topbar.astro";
 import Footer from "wicked-web/components/Footer.astro";
 import SameGarden from "wicked-web/components/SameGarden.astro";
 import "../styles/global.css";
-import Hero from "../components/react/Hero.tsx";
-import Manifesto from "../components/react/Manifesto.tsx";
-import SessionExplorer from "../components/react/SessionExplorer.tsx";
+import "../styles/wall.css";
+import ToolWallHero from "../components/react/ToolWallHero.tsx";
+import ToolWall from "../components/react/ToolWall.tsx";
+import ProveBench from "../components/react/ProveBench.tsx";
 import GardenBench from "../components/react/GardenBench.tsx";
 
 const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
 ---
 
 <Base
-  title="wicked-garden — the curated toolkit for what coding agents can't do alone"
-  description="Your coding-agent harness already plans, swarms, and ships. wicked-garden fills only the gaps a planner-executor can't: re-derive “done” from evidence (never asserted), see injected edges grep can't, rename across files as a graph operation, remember decisions across sessions, load the repo's own playbooks, and convene a real multi-model panel. Installs as one Claude Code plugin; the evidence gate compiles into any repo and runs with no wicked-garden present. Local-first, MIT, v12.27.0."
+  title="wicked-garden — the wall of tools your coding agent can't build alone"
+  description="Your coding-agent harness already plans, swarms, and ships. wicked-garden is not a workflow — it's an inventory you load out from. Six of garden's own bench tools (prove · injected-edge search · patch · council · playbooks · compile-the-gate) plus six bundled wicked-* peers (vault · testing · brain · understanding · bus · interactive). Its one differentiator: done is re-derived from evidence, never asserted — the gate re-runs the verifier and fails closed rather than trust a claim. One command installs the set. Local-first, MIT, v12.27.0."
   bodyClass="has-grain"
   favicon={favicon}
 >
   <Topbar pkg="wicked-garden" repo="https://github.com/mikeparcewski/wicked-garden" />
   <main>
-    <!-- Hero renders <section id="top"> — snap target -->
-    <Hero client:load />
+    <!-- Hero — the wall, not a workflow (snap target via #top) -->
+    <ToolWallHero client:load />
 
-    <!-- Manifesto — sentinel-driven scroll-pin, border-t scopes the section -->
-    <div class="border-t border-line section-alt">
-      <Manifesto client:visible />
-    </div>
+    <!-- The Tool Wall — the full loadout on pegs, grabbable -->
+    <section id="wall" class="border-t border-line section-alt">
+      <ToolWall client:visible />
+    </section>
 
-    <!-- Session explorer — hydrate on load (not :visible) so phones don't flash
-         the SSR scroll-jacked stage before the mobile list swaps in -->
-    <div class="border-t border-line">
-      <SessionExplorer client:load />
-    </div>
+    <!-- The Prove Bench — the signature interactive evidence gate -->
+    <section id="prove" class="border-t border-line">
+      <ProveBench client:load />
+    </section>
 
-    <!-- Garden bench — snap target -->
+    <!-- The Bench — install (snap target via #bench) -->
     <section id="bench" class="border-t border-line section-alt">
       <GardenBench client:visible />
     </section>

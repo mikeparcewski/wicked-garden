@@ -1,6 +1,5 @@
 import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
-import Marker from "./Marker";
 
 /* Primary path — the whole-family installer (npx wicked-installer, npm v0.2.0).
    Interactive: picks products across CLIs and ships the `wicked` CLI. */
@@ -28,10 +27,9 @@ export default function GardenBench() {
   return (
     <div className="relative mx-auto max-w-[1240px] px-5 pt-4 pb-6 sm:px-8">
       <Reveal>
-        <p className="kicker">03 / the potting bench</p>
+        <p className="kicker">03 / the bench</p>
         <h2 className="mt-7 font-display text-[clamp(1.5rem,6.2vw,3.6rem)] font-extrabold leading-[1.02] tracking-tight">
-          one command.{" "}
-          <Marker color="var(--accent-bright)">your garden, planted.</Marker>
+          one command. the whole loadout.
         </h2>
         <p className="mt-8 max-w-xl text-lg leading-relaxed text-muted">
           The family installer is the fastest way in — one interactive command that
