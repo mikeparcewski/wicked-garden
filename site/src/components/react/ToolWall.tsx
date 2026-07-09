@@ -233,10 +233,10 @@ export default function ToolWall() {
     <div className="relative mx-auto w-full max-w-[1240px] px-5 sm:px-8">
       <Reveal>
         <p className="kicker">01 / the tool wall</p>
-        <h2 className="mt-6 max-w-[20ch] font-display text-[clamp(1.9rem,5vw,3.4rem)] font-extrabold leading-[1.0] tracking-[-0.02em]">
+        <h2 className="mt-4 max-w-[24ch] font-display text-[clamp(1.7rem,3.6vw,2.6rem)] font-extrabold leading-[1.02] tracking-[-0.02em]">
           Not a workflow. A wall you load out from.
         </h2>
-        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
+        <p className="mt-4 max-w-3xl text-[0.98rem] leading-relaxed text-ink">
           Every capability hangs in its own silhouette. Grab any tool to read the
           one-line spec and the exact command. You leave knowing the set you get —
           garden’s own bench tools, and the peers it hands you off the shelf.
@@ -244,7 +244,7 @@ export default function ToolWall() {
       </Reveal>
 
       <Reveal delay={0.06}>
-        <div className="mt-10 flex flex-col gap-12">
+        <div className="mt-7 flex flex-col gap-7">
           <ToolGroup
             eyebrow="own"
             title="garden’s own bench tools"

@@ -2,7 +2,6 @@
 import Base from "wicked-web/layouts/Base.astro";
 import Topbar from "wicked-web/components/Topbar.astro";
 import Footer from "wicked-web/components/Footer.astro";
-import SameGarden from "wicked-web/components/SameGarden.astro";
 import "../styles/global.css";
 import "../styles/wall.css";
 import ToolWallHero from "../components/react/ToolWallHero.tsx";
@@ -39,7 +38,6 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
       <GardenBench client:visible />
     </section>
   </main>
-  <SameGarden current="wicked-garden" />
   <div id="footer-snap">
     <Footer repo="https://github.com/mikeparcewski/wicked-garden" />
   </div>

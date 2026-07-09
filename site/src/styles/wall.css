@@ -13,7 +13,7 @@
   scroll-snap-align: start;
   position: relative;
 }
-#wall  { padding-top: calc(var(--topbar-h) + 2.5rem); padding-bottom: 4rem; }
+#wall  { padding-top: calc(var(--topbar-h) + 1.5rem); padding-bottom: 2.5rem; }
 #prove { min-height: 100svh; display: flex; flex-direction: column; justify-content: center;
          padding: calc(var(--topbar-h) + 2rem) 0 3.5rem; }
 
@@ -44,7 +44,7 @@
 
 /* solid bench surface anchoring the bottom of the wall */
 .bench-lip {
-  height: 20px;
+  height: 16px;
   border-radius: 0 0 20px 20px;
   margin-top: -12px;
   background:
@@ -61,7 +61,7 @@
   display: flex;
   align-items: baseline;
   gap: 12px;
-  margin: 0 0 14px;
+  margin: 0 0 9px;
   flex-wrap: wrap;
 }
 .tw-group-name {
@@ -82,10 +82,10 @@
 /* ── Tool grid ─────────────────────────────────────────────────────────────*/
 .tw-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 11px;
   align-items: start;
-  padding: 26px 20px 30px;
+  padding: 16px 16px 20px;
 }
 
 /* ── A single hung tool ────────────────────────────────────────────────────*/
@@ -116,7 +116,7 @@
 }
 /* the hook line from peg down to the tool body */
 .tw-hook {
-  width: 2px; height: 14px;
+  width: 2px; height: 10px;
   background: color-mix(in oklab, var(--ink) 32%, transparent);
   border-radius: 2px;
 }
@@ -128,7 +128,7 @@
   place-items: center;
   width: 100%;
   aspect-ratio: 1 / 1;
-  max-width: 96px;
+  max-width: 78px;
   border-radius: 14px;
   color: var(--tool-c);
   background: color-mix(in oklab, var(--tool-c) 9%, var(--surface));
@@ -153,7 +153,7 @@
 /* hand-lettered tool-tag hanging under the plaque */
 .tw-tag {
   position: relative;
-  margin-top: 12px;
+  margin-top: 9px;
   padding: 4px 11px 4px;
   font-family: var(--font-mono);
   font-size: 0.72rem;
@@ -185,7 +185,7 @@
 
 /* the plus/grab affordance */
 .tw-grab {
-  margin-top: 7px;
+  margin-top: 5px;
   font-family: var(--font-mono);
   font-size: 0.54rem;
   letter-spacing: 0.18em;
@@ -237,6 +237,9 @@
 /* ============================================================================
    The Prove Bench — the signature interactive evidence gate.
 ============================================================================ */
+/* the title fills the container width — no balance shrink */
+.pb-title { max-width: none; text-wrap: pretty; }
+
 .pb-shell {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
@@ -244,10 +247,25 @@
   align-items: stretch;
 }
 
-/* left — the claim handed to the visitor */
+/* left column — the intro sitting alongside the bench + the claim card */
+.pb-left {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-self: start;
+  min-width: 0;
+}
+.pb-intro {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--ink);
+  max-width: 48ch;
+}
+
+/* the claim handed to the visitor */
 .pb-claim-card {
   position: relative;
-  align-self: start;
+  align-self: stretch;
   border-radius: 14px;
   border: 1px solid var(--hairline-strong);
   background: color-mix(in oklab, var(--surface) 88%, transparent);
@@ -275,7 +293,7 @@
 .pb-claim-text b { color: var(--c-floor); font-weight: 700; }
 .pb-claim-note {
   margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline);
-  font-size: 0.86rem; line-height: 1.55; color: var(--muted);
+  font-size: 0.86rem; line-height: 1.55; color: var(--ink);
 }
 
 /* right — the machine */
@@ -326,14 +344,15 @@
 }
 .pb-switch[aria-checked="true"] .pb-toggle::after { transform: translateX(20px); }
 
-.pb-switch-body { min-width: 0; }
+.pb-switch-body { min-width: 0; display: flex; flex-direction: column; }
 .pb-switch-label {
   font-family: var(--font-mono);
   font-size: 0.82rem; font-weight: 600; color: var(--ink); line-height: 1.3;
 }
 .pb-switch-cond {
   font-family: var(--font-mono);
-  font-size: 0.62rem; letter-spacing: 0.03em; color: var(--muted); margin-top: 2px;
+  font-size: 0.66rem; letter-spacing: 0.03em;
+  color: color-mix(in oklab, var(--ink) 82%, transparent); margin-top: 2px;
 }
 .pb-switch[aria-checked="false"] .pb-switch-label { color: var(--c-solo); }
 
@@ -391,12 +410,12 @@
   border-radius: 12px;
   border: 1px dashed var(--hairline-strong);
   background: color-mix(in oklab, var(--surface) 40%, transparent);
-  min-height: 132px;
+  min-height: 112px;
   overflow: hidden;
 }
 .pb-stamp-idle {
   font-family: var(--font-mono);
-  font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);
+  font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
   text-align: center; padding: 0 14px;
 }
 
@@ -413,10 +432,10 @@
 .pb-mark-word {
   font-family: var(--font-display);
   font-weight: 900; font-stretch: 125%;
-  font-size: clamp(1.8rem, 5vw, 2.9rem);
+  font-size: clamp(1.55rem, 4vw, 2.35rem);
   letter-spacing: 0.02em;
   line-height: 0.9;
-  padding: 4px 16px;
+  padding: 3px 14px;
   border: 4px solid currentColor;
   border-radius: 8px;
 }
@@ -430,7 +449,8 @@
 .pb-mark-tag {
   margin-top: 6px;
   font-family: var(--font-mono);
-  font-size: 0.62rem; letter-spacing: 0.04em; color: var(--muted);
+  font-size: 0.64rem; letter-spacing: 0.04em;
+  color: color-mix(in oklab, var(--ink) 68%, transparent);
   font-style: italic;
 }
 

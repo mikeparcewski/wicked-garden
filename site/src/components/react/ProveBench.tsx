@@ -99,20 +99,23 @@ export default function ProveBench() {
     <div className="relative mx-auto w-full max-w-[1240px] px-5 sm:px-8">
       <Reveal>
         <p className="kicker">02 / the prove bench</p>
-        <h2 className="mt-6 max-w-[22ch] font-display text-[clamp(1.9rem,5vw,3.4rem)] font-extrabold leading-[1.0] tracking-[-0.02em]">
+        <h2 className="pb-title mt-4 w-full font-display text-[clamp(2.1rem,6vw,4rem)] font-extrabold leading-[1.0] tracking-[-0.02em]">
           Play the lying agent. Watch the gate refuse.
         </h2>
-        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted">
-          Here is the one differentiator, made drivable. Flip the evidence, pull the
-          lever — the gate re-derives the claim instead of taking your word.
-        </p>
       </Reveal>
 
       <Reveal delay={0.06}>
-        <div className="pb-shell mt-10">
+        <div className="pb-shell mt-8">
 
-          {/* ── the claim handed to the visitor ── */}
-          <div className="pb-claim-card">
+          {/* ── left column: the intro + the claim handed to the visitor ── */}
+          <div className="pb-left">
+            <p className="pb-intro">
+              Here is the one differentiator, made drivable. Flip the evidence, pull the
+              lever — the gate re-derives the claim instead of taking your word.
+            </p>
+
+            {/* ── the claim handed to the visitor ── */}
+            <div className="pb-claim-card">
             <span className="pb-claim-tape" aria-hidden />
             <div className="pb-claim-kind">claim card · archetype: build</div>
             <div className="pb-claim-text">
@@ -123,6 +126,7 @@ export default function ProveBench() {
               re-runs the verifier, re-hashes the recording, and checks the vault is
               even there. Break any condition below and prove it can’t be fooled.
             </p>
+            </div>
           </div>
 
           {/* ── the machine ── */}
