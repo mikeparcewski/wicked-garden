@@ -120,14 +120,110 @@ export const TOOLS: Tool[] = [
     cmdLabel: "slash command",
   },
   {
-    id: "compile",
-    name: "compile",
-    kind: "portable gate",
-    hue: "floor",
-    gap: "leaves no proof behind when it exits",
-    fill: "Stamps a self-contained evidence gate into any repo — stdlib-only, runs with no wicked-garden installed.",
-    cmd: "/wicked-garden:compile <repo>",
+    id: "deliberate",
+    name: "deliberate",
+    kind: "challenge the ask",
+    hue: "creation",
+    gap: "rushes to build exactly what you typed",
+    fill: "Runs the ask through five lenses before a line is written — challenges assumptions, hunts the root cause, and reframes the request when the stated ask isn’t the real one.",
+    cmd: "/wicked-garden:deliberate",
     cmdLabel: "slash command",
+  },
+];
+
+/* ── The wider surface — the domains the toolbox samples from ────────────────
+   Every command below is a real slash command in the repo (commands/<domain>/).
+   This is the breadth the six signature tools only hint at. Counts are honest:
+   81 commands across these domains, 10 work-shapes, 23 garden agents. */
+export interface Domain {
+  id: string;
+  name: string;
+  hue: Hue;
+  blurb: string;
+  count: number;      // real command count in commands/<id>/
+  cmds: string[];     // representative commands (not exhaustive)
+}
+
+export const DOMAINS: Domain[] = [
+  {
+    id: "archetype",
+    name: "work-shapes",
+    hue: "creation",
+    blurb: "Ten shapes the hook reads off each prompt — steering how much rigor the work earns, from a typo to a migration cutover.",
+    count: 10,
+    cmds: ["triage", "explore", "specify", "decide", "build", "review", "ship", "incident", "migrate", "modernize"],
+  },
+  {
+    id: "search",
+    name: "code intelligence",
+    hue: "layer",
+    blurb: "Impact and lineage over the real graph — including the injected edges (bus, dispatch, capability) grep and a static call-graph can’t see.",
+    count: 5,
+    cmds: ["blast-radius", "lineage", "hotspots", "service-map", "index"],
+  },
+  {
+    id: "engineering",
+    name: "engineering",
+    hue: "workflow",
+    blurb: "Deterministic, graph-driven change: rename and move symbols across files, plan a patch, debug from a stack trace, generate scaffolding.",
+    count: 11,
+    cmds: ["rename", "debug", "plan", "arch", "patch-plan", "add-field", "remove", "docs", "new-generator"],
+  },
+  {
+    id: "jam",
+    name: "multi-model",
+    hue: "solo",
+    blurb: "A real second opinion that isn’t the model grading itself — convene an independent panel of external CLIs, or brainstorm across personas.",
+    count: 4,
+    cmds: ["council", "brainstorm", "quick", "revisit"],
+  },
+  {
+    id: "product",
+    name: "product & UX",
+    hue: "creation",
+    blurb: "Turn a vague ask into SMART criteria, review UX and accessibility, draft mockups and visual direction, synthesize user signal.",
+    count: 13,
+    cmds: ["elicit", "acceptance", "ux", "ux-review", "a11y", "mockup", "strategy", "visual-direction"],
+  },
+  {
+    id: "platform",
+    name: "platform & ops",
+    hue: "floor",
+    blurb: "The rubric loaded on demand — security, compliance, incident response, infra and toolchain audits, GitHub Actions, distributed traces.",
+    count: 13,
+    cmds: ["security", "compliance", "audit", "incident", "infra", "traces", "actions", "health"],
+  },
+  {
+    id: "data",
+    name: "data & ML",
+    hue: "layer",
+    blurb: "Design ETL pipelines, assess data quality, map an ontology, and reason about ML workflows with the same evidence discipline.",
+    count: 5,
+    cmds: ["pipeline", "data", "ml", "ontology", "analyze"],
+  },
+  {
+    id: "smaht",
+    name: "context & memory",
+    hue: "solo",
+    blurb: "Pull-model context assembly — a briefing of what happened since last session, live crew state, and imported events, gathered on demand.",
+    count: 3,
+    cmds: ["briefing", "state", "events-import"],
+  },
+  {
+    id: "agentic",
+    name: "agentic review",
+    hue: "workflow",
+    blurb: "Review an agentic codebase itself — detect frameworks, map agent topology and orchestration, and produce a remediation roadmap.",
+    count: 4,
+    cmds: ["review", "audit", "design", "frameworks"],
+  },
+  {
+    id: "persona",
+    name: "personas",
+    hue: "creation",
+    blurb: "Run any task under a named behavioral profile — define a persona, act as it, and keep a reusable cast for reviews and brainstorms.",
+    count: 3,
+    cmds: ["as", "define", "list"],
   },
 ];
 
@@ -221,5 +317,8 @@ export const G = {
   version: "v12.27.0",
   ownTools: TOOLS.length,
   peers: PEERS.length,
+  domains: DOMAINS.length,
+  commands: 81,          // real .md count under commands/**
+  agents: 23,            // real .md count under agents/**
   workShapes: 10,
 };

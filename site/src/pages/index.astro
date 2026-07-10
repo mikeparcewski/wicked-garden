@@ -8,7 +8,7 @@ import CopyChip from "../components/react/CopyChip.tsx";
 import HeroStamp from "../components/react/HeroStamp.tsx";
 import Toolbox from "../components/react/Toolbox.tsx";
 import ProveGate from "../components/react/ProveGate.tsx";
-import Shelf from "../components/react/Shelf.tsx";
+import CapabilityGrid from "../components/react/CapabilityGrid.tsx";
 import InstallBench from "../components/react/InstallBench.tsx";
 
 const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
@@ -16,7 +16,7 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
 
 <Base
   title="wicked-garden — the toolkit for what your coding agent can't do alone"
-  description="Your harness already plans, swarms, and ships. wicked-garden fills only the gaps a planner-executor can't fill alone — and re-derives 'done' from evidence instead of trusting the claim. Six own tools (prove · search · patch · council · archetypes · compile) plus the wider wicked-* family on the shelf. Its one non-negotiable: done is re-derived, never asserted — a false 'tests pass' is REJECTED, a missing backend FAILS CLOSED. Local-first, MIT, v12.27.0."
+  description="Your harness already plans, swarms, and ships. wicked-garden fills only the gaps a planner-executor can't fill alone — and re-derives 'done' from evidence instead of trusting the claim. Signature tools (prove · search · patch · council · archetypes · deliberate) sample a full surface of 81 slash commands across ten domains and 23 specialist agents, plus the wider wicked-* family. Its one non-negotiable: done is re-derived, never asserted — a false 'tests pass' is REJECTED, a missing backend FAILS CLOSED. Local-first, MIT, v12.27.0."
   bodyClass="has-grain"
   favicon={favicon}
 >
@@ -46,9 +46,9 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
               <p class="gd-hero-install-note">interactive · picks your products across CLIs · direct install below</p>
             </div>
             <ul class="rise gd-hero-stats" style="animation-delay:.5s">
-              <li><b>6</b> own tools</li>
-              <li><b>6</b> bundled peers</li>
+              <li><b>81</b> commands</li>
               <li><b>10</b> work-shapes</li>
+              <li><b>23</b> agents</li>
               <li><b>MIT</b> · local-first</li>
             </ul>
           </div>
@@ -69,9 +69,9 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
       <ProveGate client:load />
     </section>
 
-    <!-- ── THE SHELF (bundled family) ───────────────────────────────────── -->
-    <section id="shelf" class="gd-section gd-band">
-      <Shelf client:load />
+    <!-- ── THE GRID (full capability surface + bundled family) ──────────── -->
+    <section id="toolkit" class="gd-section gd-band">
+      <CapabilityGrid client:load />
     </section>
 
     <!-- ── THE BENCH (install) ──────────────────────────────────────────── -->

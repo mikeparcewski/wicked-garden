@@ -16,6 +16,7 @@ const VERDICT_CLASS: Record<string, string> = {
 export default function HeroStamp() {
   const [i, setI] = useState(0);
   const [phase, setPhase] = useState<"asserting" | "stamped">("asserting");
+  const [pinned, setPinned] = useState(false);
   const paused = useRef(false);
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export default function HeroStamp() {
       setPhase("asserting");
       t1 = window.setTimeout(() => setPhase("stamped"), reduce ? 200 : 1100);
       t2 = window.setTimeout(() => {
-        if (!paused.current) setI((n) => (n + 1) % CLAIMS.length);
+        if (!paused.current && !pinned) setI((n) => (n + 1) % CLAIMS.length);
       }, reduce ? 3200 : 3400);
     };
     run();
@@ -33,7 +34,13 @@ export default function HeroStamp() {
       window.clearTimeout(t1);
       window.clearTimeout(t2);
     };
-  }, [i]);
+  }, [i, pinned]);
+
+  function pick(n: number) {
+    setPinned(true);
+    setI(n);
+    setPhase("asserting");
+  }
 
   const c = CLAIMS[i];
 
@@ -71,10 +78,21 @@ export default function HeroStamp() {
         )}
       </div>
 
-      <div className="hs-dots" aria-hidden>
-        {CLAIMS.map((_, n) => (
-          <span key={n} className={`hs-pip${n === i ? " is-on" : ""}`} />
+      <div className="hs-dots" role="tablist" aria-label="pick a claim">
+        {CLAIMS.map((claim, n) => (
+          <button
+            key={n}
+            type="button"
+            role="tab"
+            aria-selected={n === i}
+            aria-label={`claim ${n + 1}: ${claim.claim}`}
+            className={`hs-pip${n === i ? " is-on" : ""}`}
+            onClick={() => pick(n)}
+          />
         ))}
+      </div>
+      <div className="hs-afford">
+        {pinned ? "pinned — you’re driving" : "auto-playing · hover to hold · tap a dot to pin"}
       </div>
 
       <div className="hs-foot">

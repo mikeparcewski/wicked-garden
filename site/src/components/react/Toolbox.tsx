@@ -97,15 +97,19 @@ function ArchetypesDemo() {
   );
 }
 
-function CompileDemo() {
+function DeliberateDemo() {
   return (
-    <div className="dm dm-compile">
-      <div className="dm-compile-repo">
-        <span className="dm-compile-repo-h">any-repo/ <em>no wicked-garden</em></span>
-        <span className="dm-compile-file">.wicked/gate.py</span>
-        <span className="dm-compile-file dm-compile-file-2">.wicked/contract.json</span>
+    <div className="dm dm-delib">
+      <div className="dm-delib-ask">“add a retry to the flaky API call”</div>
+      <div className="dm-delib-lenses">
+        {["assumptions", "root cause", "alternatives", "risk", "reframe"].map((l, n) => (
+          <span key={l} className="dm-delib-lens" style={{ ["--d" as string]: `${0.4 + n * 0.14}s` }}>{l}</span>
+        ))}
       </div>
-      <div className="dm-compile-badge">stdlib-only · runs standalone</div>
+      <div className="dm-delib-out">
+        <span className="dm-delib-out-tag">reframed</span>
+        it isn’t flaky — the timeout is 500ms. Fix the timeout, not the symptom.
+      </div>
     </div>
   );
 }
@@ -116,27 +120,38 @@ const DEMOS: Record<string, () => JSX.Element> = {
   patch: PatchDemo,
   council: CouncilDemo,
   archetypes: ArchetypesDemo,
-  compile: CompileDemo,
+  deliberate: DeliberateDemo,
 };
+
+const ADVANCE_MS = 4200;
 
 export default function Toolbox() {
   const [active, setActive] = useState(0);
   const [nonce, setNonce] = useState(0);
-  const paused = useRef(false);
+  const [pinned, setPinned] = useState(false);
+  const [hovering, setHovering] = useState(false);
+
+  // Auto-play unless the visitor has taken control (pinned) or is hovering to read.
+  const playing = !pinned && !hovering;
 
   useEffect(() => {
+    if (!playing) return;
     const id = window.setInterval(() => {
-      if (!paused.current) {
-        setActive((n) => (n + 1) % TOOLS.length);
-        setNonce((n) => n + 1);
-      }
-    }, 4200);
+      setActive((n) => (n + 1) % TOOLS.length);
+      setNonce((n) => n + 1);
+    }, ADVANCE_MS);
     return () => window.clearInterval(id);
-  }, []);
+  }, [playing]);
 
   function pick(n: number) {
-    paused.current = true;
+    setPinned(true);          // clicking a tool takes control + stops auto-advance
     setActive(n);
+    setNonce((x) => x + 1);
+  }
+
+  function resume() {
+    setPinned(false);
+    setHovering(false);
     setNonce((x) => x + 1);
   }
 
@@ -151,12 +166,40 @@ export default function Toolbox() {
         <h2 className="tb-h2">Six gaps your agent can’t close alone.</h2>
         <p className="tb-intro">
           Your harness plans, swarms, and ships. These are the six things a
-          planner-executor genuinely can’t do on its own. Pick one — watch it work.
+          planner-executor genuinely can’t do on its own — and they’re a sample:{" "}
+          the full kit runs to 80+ commands. It plays itself; click any tool to pin it.
         </p>
       </Reveal>
 
+      {/* persistent affordance — always visible, tells the visitor it's live + clickable */}
+      <div className="tb-afford" data-pinned={pinned}>
+        {pinned ? (
+          <>
+            <span className="tb-afford-state" aria-hidden>❚❚</span>
+            <span className="tb-afford-text">
+              pinned <b>{tool.name}</b> — you’re driving
+            </span>
+            <button type="button" className="tb-afford-btn" onClick={resume}>
+              ▶ resume auto-play
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="tb-afford-state tb-afford-live" aria-hidden>▶</span>
+            <span className="tb-afford-text">
+              auto-playing the demos — <b>click any tool to pin it</b> and take control
+            </span>
+          </>
+        )}
+      </div>
+
       <Reveal delay={0.06}>
-        <div className="tb-shell" style={{ ["--hue" as string]: hue }}>
+        <div
+          className="tb-shell"
+          style={{ ["--hue" as string]: hue }}
+          onMouseEnter={() => setHovering(true)}
+          onMouseLeave={() => setHovering(false)}
+        >
           {/* left rail — the tools */}
           <div className="tb-rail" role="tablist" aria-label="garden tools">
             {TOOLS.map((t, n) => (
@@ -164,10 +207,10 @@ export default function Toolbox() {
                 key={t.id}
                 role="tab"
                 aria-selected={n === active}
-                className={`tb-rail-item${n === active ? " is-on" : ""}`}
+                className={`tb-rail-item${n === active ? " is-on" : ""}${n === active && pinned ? " is-pinned" : ""}`}
                 style={{ ["--hue" as string]: `var(${HUE_VAR[t.hue]})` }}
                 onClick={() => pick(n)}
-                onMouseEnter={() => (paused.current = true)}
+                title="Click to pin this tool"
               >
                 <span className="tb-rail-num">{String(n + 1).padStart(2, "0")}</span>
                 <span className="tb-rail-body">
@@ -175,16 +218,19 @@ export default function Toolbox() {
                   <span className="tb-rail-kind">{t.kind}</span>
                 </span>
                 <span className="tb-rail-gap">it {t.gap}</span>
+                <span className="tb-rail-pin" aria-hidden>{n === active && pinned ? "pinned" : "pin"}</span>
+                {/* auto-advance progress — visible proof it's playing + will move on */}
+                {n === active && playing && (
+                  <span className="tb-rail-bar" key={`bar-${nonce}`} aria-hidden>
+                    <span className="tb-rail-bar-fill" style={{ animationDuration: `${ADVANCE_MS}ms` }} />
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
           {/* stage — the live proof + spec */}
-          <div
-            className="tb-stage"
-            onMouseEnter={() => (paused.current = true)}
-            onMouseLeave={() => (paused.current = false)}
-          >
+          <div className="tb-stage">
             <div className="tb-stage-demo" key={`${tool.id}-${nonce}`}>
               <Demo />
             </div>
