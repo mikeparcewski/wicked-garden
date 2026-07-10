@@ -7,7 +7,8 @@
   "wicked_brain_version": "^0.15.0",
   "wicked_bus_version": "^2.0.0",
   "author": {
-    "name": "Mike Parcewski"
+    "name": "Mike Parcewski",
+    "email": "mike.parcewski@gmail.com"
   },
   "repository": "https://github.com/mikeparcewski/wicked-garden",
   "license": "MIT",

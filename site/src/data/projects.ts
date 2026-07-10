@@ -46,8 +46,8 @@ export const ROLES: Role[] = [
   {
     id: "floor",
     label: "The floor",
-    tag: "required peers",
-    blurb: "The two peers the evidence gate stands on. Garden blocks without them — this floor is the point.",
+    tag: "required peer",
+    blurb: "The one external peer the evidence gate stands on. Garden blocks without it — this floor is the point. (The gate/resolve engine now ships in-package.)",
     colorVar: "--c-floor",
   },
   {
@@ -75,14 +75,15 @@ export const PROJECTS: Project[] = [
     short: "garden",
     role: "gate",
     kicker: "the curated toolkit",
-    tagline: "Your agent plans and swarms. This is the rest.",
-    outcome: "your agent's gaps, filled — with exactly the right rigor",
+    tagline: "Your agent plans and swarms. These are the tools.",
+    outcome: "the tools your agent can't build alone, in one plugin",
     blurb:
-      "Your coding agent already plans and swarms. Garden fills what it can't do alone: it re-runs the proof behind every “done,” reads the shape of each task — triage, build, migrate, incident — and applies that much rigor. No more, no less.",
+      "Your coding agent already plans and swarms. wicked-garden hands it the tools it can't build alone — re-derive “done” from evidence, see the injected edges grep misses, refactor across files as one graph operation, and convene a real multi-model panel.",
     points: [
-      "9 work-shape archetypes route the right amount of rigor",
-      "Evidence-gated phases fail closed — never a vacuous green",
-      "The gate compiles into any repo and runs with nothing installed",
+      "prove — re-derives “done” from evidence, fails closed on a missing backend",
+      "search — blast-radius, lineage, hotspots see injected edges grep can't",
+      "patch — deterministic multi-file refactor as one graph operation",
+      "council — a real multi-model second opinion, not self-review",
     ],
     uses: [
       "autonomous work that needs governing, not babysitting",
@@ -117,31 +118,8 @@ export const PROJECTS: Project[] = [
     ],
     install: "npx wicked-vault-install",
     repo: `${GH}/wicked-vault`,
-    badges: ["MIT", "npm", "7 harnesses"],
+    badges: ["MIT", "npm", "≥ 0.4.0"],
     featured: true,
-  },
-  {
-    id: "wicked-loom",
-    short: "loom",
-    role: "floor",
-    kicker: "orchestration runtime",
-    tagline: "The kit, wired right and gated on proof.",
-    outcome: "the whole kit verified wired-right — and gated on re-derived proof",
-    blurb:
-      "Local-first orchestration for the wicked-* set. Compose resolves, version-checks, and installs every peer through an env → PATH → npx ladder; the conduct gate re-runs verifiers through the vault and fails closed.",
-    points: [
-      "doctor — every peer's health in a single call",
-      "Resolution ladder respects where you installed each peer",
-      "Fail-closed gate verdicts, with attestations",
-    ],
-    uses: [
-      "one doctor call before a demo or a release",
-      "installing and version-pinning the whole set at once",
-      "re-running gate verifiers from CI",
-    ],
-    install: "npm i -g wicked-loom",
-    repo: `${GH}/wicked-loom`,
-    badges: ["MIT", "npm", "no server"],
   },
 
   // ── The layers ─────────────────────────────────────────────────
@@ -155,7 +133,7 @@ export const PROJECTS: Project[] = [
     blurb:
       "A complete QE team for your AI CLI: a Writer → Executor → Reviewer pipeline with hard-enforced separation. The reviewer reads cold evidence and never sees the executor's context, so the agent can't grade its own homework.",
     points: [
-      "40 specialist agents · 5 Tier-1 skills (mutation, chaos, flake, a11y…)",
+      "40 specialist agents · 5 Tier-1 skills (plan, authoring, execution, review, insight)",
       "Independent verdicts — reviewer never sees executor context",
       "SQLite ledger with a plain-English oracle",
     ],
@@ -181,13 +159,13 @@ export const PROJECTS: Project[] = [
     points: [
       "Full-text search + agent reasoning, not cosine distance",
       "Chunks → synthesized wiki — every claim traces back to a file",
-      "Code graph of your repo — blast-radius, callers, lineage on demand",
+      "Reads PDF, DOCX, PPTX, XLSX natively — the LLM parses, no libraries",
       "Browser viewer included · works across 5 CLIs",
     ],
     uses: [
       "picking up tomorrow exactly where today ended",
       "onboarding an agent to a project's tribal knowledge",
-      "seeing what breaks before you change it",
+      "recalling the decisions and gotchas behind the code",
       "memory you can open, diff, and git-commit",
     ],
     install: "npx wicked-brain",
@@ -272,37 +250,27 @@ export const PROJECTS: Project[] = [
 export const TOUR: TourStop[] = [
   {
     stop: 1,
-    kicker: "stop 01 / 08 — the garden gate",
-    headline: { pre: "every garden starts at the", mark: "gate" },
+    kicker: "stop 01 / 07 — the toolkit",
+    headline: { pre: "the tools your agent", mark: "can't build alone" },
     body:
-      "wicked-garden reads the shape of each task — a typo fix, a schema migration, a 2am incident — and applies exactly that much rigor, gating each phase on re-derived evidence. Install it once; it curates everything that follows.",
+      "wicked-garden hands your agent five tools it can't build alone — prove (re-derive “done” from evidence), injected-edge search, multi-file refactor as a graph operation, a real multi-model council, and the repo's own playbooks. Its gate/resolve engine ships in-package (scripts/loom/) — nothing extra to install. Install it once; it curates everything that follows.",
     unlock: "the garden itself",
     plant: "locked",
     tools: ["wicked-garden"],
   },
   {
     stop: 2,
-    kicker: "stop 02 / 08 — the evidence bed",
+    kicker: "stop 02 / 07 — the evidence bed",
     headline: { pre: "a floor that can't", mark: "lie" },
     body:
-      "Every claim is recorded with the criteria it must clear, then re-derived instead of trusted — integrity checked deterministically, judgment rendered by an independent evaluator that isn't the agent who did the work. Garden blocks without it.",
+      "Every claim is recorded with the criteria it must clear, then re-derived instead of trusted — integrity checked deterministically, judgment rendered by an independent evaluator that isn't the agent who did the work. wicked-vault (≥ 0.4.0) is the one external peer the gate requires; garden blocks without it.",
     unlock: "the evidence floor — in place",
     plant: "locked",
     tools: ["wicked-vault"],
   },
   {
     stop: 3,
-    kicker: "stop 03 / 08 — the trellis",
-    headline: { pre: "every bed, wired", mark: "right" },
-    body:
-      "The orchestration runtime the set stands on: compose resolves, version-checks, and installs every peer, and the conduct gate re-runs verifiers through the vault — failing closed, never rubber-stamping. One doctor call tells you what's missing.",
-    unlock: "the kit, wired right",
-    plant: "locked",
-    tools: ["wicked-loom"],
-  },
-  {
-    stop: 4,
-    kicker: "stop 04 / 08 — the proving bed",
+    kicker: "stop 03 / 07 — the proving bed",
     headline: { pre: "green finally means", mark: "green" },
     body:
       "A Writer → Executor → Reviewer pipeline with enforced separation — the reviewer reads cold evidence and never sees the executor's context. 40 specialist agents, one SQLite ledger, a plain-English oracle.",
@@ -311,18 +279,18 @@ export const TOUR: TourStop[] = [
     tools: ["wicked-testing"],
   },
   {
-    stop: 5,
-    kicker: "stop 05 / 08 — the memory bed",
+    stop: 4,
+    kicker: "stop 04 / 07 — the memory bed",
     headline: { pre: "your agent finally", mark: "remembers" },
     body:
-      "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. A code graph maps what words can't: blast-radius, callers, and lineage on demand.",
+      "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. Every claim traces back to a file you can open, diff, and git-commit.",
     unlock: "now it remembers",
     plant: "optin",
     tools: ["wicked-brain"],
   },
   {
-    stop: 6,
-    kicker: "stop 06 / 08 — the playbook bed",
+    stop: 5,
+    kicker: "stop 05 / 07 — the playbook bed",
     headline: { pre: "it knows how, not just", mark: "what" },
     body:
       "Repo-specific playbooks generated from HEAD — fix-bug, add-feature, verify — with the exact files, the wiring step, and the gotcha that bites. Your agent stops re-deriving the method every session.",
@@ -331,8 +299,8 @@ export const TOUR: TourStop[] = [
     tools: ["wicked-understanding"],
   },
   {
-    stop: 7,
-    kicker: "stop 07 / 08 — the irrigation",
+    stop: 6,
+    kicker: "stop 06 / 07 — the irrigation",
     headline: { pre: "your tools finally", mark: "talk" },
     body:
       "A local-first event bus over one SQLite file — producers fire and forget, subscribers catch up at their own pace. No broker, no daemon, no ports; the whole garden coordinates without glue.",
@@ -341,8 +309,8 @@ export const TOUR: TourStop[] = [
     tools: ["wicked-bus"],
   },
   {
-    stop: 8,
-    kicker: "stop 08 / 08 — the greenhouse",
+    stop: 7,
+    kicker: "stop 07 / 07 — the greenhouse",
     headline: { pre: "the 11pm deck,", mark: "handled" },
     body:
       "A solo bed — no garden required. Describe the deck, page, or demo out loud and watch it build live in your browser; point at what's wrong and say what to fix. Every version saved.",
@@ -374,6 +342,6 @@ export const STATS = {
   // Hand-maintained family-wide agent total = garden 23 + testing 40 + brain 4.
   // Update on any agent add/cut (garden was 36, cut to 23 in the v12 lift-eval pass).
   agents: 67,
-  archetypes: 9,
+  archetypes: 10,
   harnesses: 7,
 };

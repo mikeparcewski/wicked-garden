@@ -1,0 +1,489 @@
+/* ============================================================================
+   The Tool Wall — a workshop pegboard.  Distinct LAYOUT/INTERACTION for garden;
+   same family palette/type as the rest of the wicked-* sites (tokens.css vars).
+   Signal-yellow (--accent) is reserved EXCLUSIVELY for the PROVE stamp.
+   Tool-category tags use mustard (--c-floor) / sky (--c-layer) / wine (--c-solo).
+============================================================================ */
+
+/* ── Section snap targets ──────────────────────────────────────────────────
+   #top and #bench inherit the shared 100svh rule from global.css. The two new
+   sections size to content with a comfortable floor so nothing collapses. */
+#wall,
+#prove {
+  scroll-snap-align: start;
+  position: relative;
+}
+#wall  { padding-top: calc(var(--topbar-h) + 1.5rem); padding-bottom: 2.5rem; }
+#prove { min-height: 100svh; display: flex; flex-direction: column; justify-content: center;
+         padding: calc(var(--topbar-h) + 2rem) 0 3.5rem; }
+
+/* ── Pegboard surface ──────────────────────────────────────────────────────
+   Harbor-blue board rendered as a warm dot-grid of peg holes, recessed with an
+   inner shadow so the tools read as physically hung in front of it. */
+.pegboard {
+  position: relative;
+  border-radius: 20px;
+  background-color: color-mix(in oklab, var(--surface) 82%, var(--canvas));
+  background-image:
+    radial-gradient(circle at center,
+      color-mix(in oklab, var(--canvas) 70%, #000) 1.6px,
+      transparent 2.4px);
+  background-size: 27px 27px;
+  background-position: 14px 16px;
+  border: 1px solid var(--hairline-strong);
+  box-shadow:
+    inset 0 2px 20px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+[data-theme="light"] .pegboard {
+  background-image:
+    radial-gradient(circle at center,
+      color-mix(in oklab, var(--canvas) 60%, #000) 1.5px,
+      transparent 2.3px);
+}
+
+/* solid bench surface anchoring the bottom of the wall */
+.bench-lip {
+  height: 16px;
+  border-radius: 0 0 20px 20px;
+  margin-top: -12px;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--c-floor) 22%, var(--surface)),
+      color-mix(in oklab, var(--c-floor) 10%, var(--canvas)));
+  border: 1px solid var(--hairline-strong);
+  border-top: none;
+  box-shadow: 0 14px 30px -18px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Group header (OWN vs BUNDLED) ─────────────────────────────────────────*/
+.tw-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 9px;
+  flex-wrap: wrap;
+}
+.tw-group-name {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-stretch: 118%;
+  font-size: clamp(1.05rem, 2.2vw, 1.35rem);
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.tw-group-sub {
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* ── Tool grid ─────────────────────────────────────────────────────────────*/
+.tw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 11px;
+  align-items: start;
+  padding: 16px 16px 20px;
+}
+
+/* ── A single hung tool ────────────────────────────────────────────────────*/
+.tw-tool {
+  --tool-c: var(--c-floor);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 4px 10px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+  color: inherit;
+  border-radius: 12px;
+  transition: transform 0.32s var(--ease-out-expo);
+}
+.tw-tool:focus-visible { outline: 2px solid var(--tool-c); outline-offset: 4px; }
+
+/* the peg the tool hangs from */
+.tw-peg {
+  width: 10px; height: 10px; border-radius: 999px;
+  background: color-mix(in oklab, var(--ink) 26%, transparent);
+  box-shadow: inset 0 -1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.05);
+  margin-bottom: 2px;
+}
+/* the hook line from peg down to the tool body */
+.tw-hook {
+  width: 2px; height: 10px;
+  background: color-mix(in oklab, var(--ink) 32%, transparent);
+  border-radius: 2px;
+}
+
+/* the tool body — a clean silhouette plaque, lifts + tilts when grabbed */
+.tw-body {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 78px;
+  border-radius: 14px;
+  color: var(--tool-c);
+  background: color-mix(in oklab, var(--tool-c) 9%, var(--surface));
+  border: 1px solid color-mix(in oklab, var(--tool-c) 40%, var(--hairline-strong));
+  box-shadow: 0 8px 20px -14px rgba(0, 0, 0, 0.7);
+  transition: transform 0.34s var(--ease-out-expo), box-shadow 0.34s var(--ease-out-expo),
+              border-color 0.34s var(--ease-out-expo), background 0.34s var(--ease-out-expo);
+  transform-origin: top center;
+}
+.tw-tool:hover .tw-body {
+  transform: translateY(-3px) rotate(-2.2deg);
+  box-shadow: 0 18px 34px -18px rgba(0, 0, 0, 0.75);
+}
+.tw-tool.is-open .tw-body {
+  transform: translateY(-5px) rotate(-3deg);
+  background: color-mix(in oklab, var(--tool-c) 16%, var(--surface));
+  border-color: var(--tool-c);
+  box-shadow: 0 22px 40px -18px rgba(0, 0, 0, 0.8);
+}
+.tw-body svg { width: 46%; height: 46%; }
+
+/* hand-lettered tool-tag hanging under the plaque */
+.tw-tag {
+  position: relative;
+  margin-top: 9px;
+  padding: 4px 11px 4px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: color-mix(in oklab, var(--c-floor) 14%, var(--surface-2));
+  border: 1px solid var(--hairline-strong);
+  border-radius: 4px;
+  transform: rotate(-1.4deg);
+  transition: transform 0.3s var(--ease-out-expo), color 0.3s;
+}
+/* punch-hole + string on the tag */
+.tw-tag::before {
+  content: "";
+  position: absolute;
+  top: -7px; left: 50%;
+  width: 5px; height: 5px; border-radius: 999px;
+  background: var(--canvas);
+  border: 1px solid var(--hairline-strong);
+  transform: translateX(-50%);
+}
+.tw-tool:hover .tw-tag { transform: rotate(0.6deg); }
+.tw-tool.is-open .tw-tag {
+  color: var(--tool-c);
+  border-color: var(--tool-c);
+  transform: rotate(0deg);
+}
+
+/* the plus/grab affordance */
+.tw-grab {
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tw-tool.is-open .tw-grab { color: var(--tool-c); }
+
+/* ── Revealed spec panel (the flipped tag) ─────────────────────────────────
+   When a tool is grabbed its spec + exact command drop down beneath it. This
+   is the concrete exposure: what the tool does + how you invoke it. */
+.tw-spec {
+  grid-column: 1 / -1;
+  overflow: hidden;
+  border-radius: 14px;
+  border: 1px solid var(--tool-c, var(--hairline-strong));
+  background: color-mix(in oklab, var(--tool-c) 8%, var(--canvas-2));
+  padding: 16px 18px;
+  animation: tw-drop 0.4s var(--ease-out-expo) both;
+}
+@keyframes tw-drop {
+  from { opacity: 0; transform: translateY(-10px); }
+  to   { opacity: 1; transform: none; }
+}
+.tw-spec-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.tw-spec-name {
+  font-family: var(--font-display);
+  font-weight: 900; font-stretch: 116%;
+  font-size: 1.15rem; letter-spacing: -0.01em;
+  color: var(--tool-c);
+}
+.tw-spec-kind {
+  font-family: var(--font-mono);
+  font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px; padding: 2px 8px;
+}
+.tw-spec-desc {
+  font-size: 0.92rem; line-height: 1.55; color: var(--ink);
+  max-width: 62ch; margin-bottom: 12px;
+}
+.tw-spec-cmdlabel {
+  font-family: var(--font-mono);
+  font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 5px;
+}
+
+/* ============================================================================
+   The Prove Bench — the signature interactive evidence gate.
+============================================================================ */
+/* the title fills the container width — no balance shrink */
+.pb-title { max-width: none; text-wrap: pretty; }
+
+.pb-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(20px, 4vw, 52px);
+  align-items: stretch;
+}
+
+/* left column — the intro sitting alongside the bench + the claim card */
+.pb-left {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  align-self: start;
+  min-width: 0;
+}
+.pb-intro {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--ink);
+  max-width: 48ch;
+}
+
+/* the claim handed to the visitor */
+.pb-claim-card {
+  position: relative;
+  align-self: stretch;
+  border-radius: 14px;
+  border: 1px solid var(--hairline-strong);
+  background: color-mix(in oklab, var(--surface) 88%, transparent);
+  padding: 20px 20px 22px;
+  transform: rotate(-1.1deg);
+  box-shadow: 0 20px 44px -26px rgba(0, 0, 0, 0.7);
+}
+.pb-claim-tape {
+  position: absolute; top: -11px; left: 50%; transform: translateX(-50%) rotate(2deg);
+  width: 92px; height: 20px;
+  background: color-mix(in oklab, var(--c-floor) 30%, var(--surface));
+  border: 1px dashed var(--hairline-strong);
+  opacity: 0.7;
+}
+.pb-claim-kind {
+  font-family: var(--font-mono);
+  font-size: 0.58rem; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--muted);
+}
+.pb-claim-text {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 1.05rem; line-height: 1.4; color: var(--ink);
+}
+.pb-claim-text b { color: var(--c-floor); font-weight: 700; }
+.pb-claim-note {
+  margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hairline);
+  font-size: 0.86rem; line-height: 1.55; color: var(--ink);
+}
+
+/* right — the machine */
+.pb-machine {
+  border-radius: 16px;
+  border: 1px solid var(--hairline-strong);
+  background: color-mix(in oklab, var(--canvas-2) 92%, transparent);
+  padding: 20px clamp(16px, 3vw, 26px) 24px;
+  display: flex; flex-direction: column; gap: 16px;
+}
+.pb-machine-head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+}
+
+/* evidence switch bank */
+.pb-switches { display: flex; flex-direction: column; gap: 8px; }
+.pb-switch {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  border: 1px solid var(--hairline);
+  background: color-mix(in oklab, var(--surface) 60%, transparent);
+  cursor: pointer; text-align: left;
+  transition: border-color 0.22s, background 0.22s;
+}
+.pb-switch:hover { border-color: var(--hairline-strong); }
+.pb-switch:focus-visible { outline: 2px solid var(--c-layer); outline-offset: 2px; }
+
+/* the physical toggle */
+.pb-toggle {
+  position: relative; flex-shrink: 0;
+  width: 46px; height: 26px; border-radius: 999px;
+  background: color-mix(in oklab, var(--c-solo) 30%, var(--surface-2));
+  border: 1px solid var(--hairline-strong);
+  transition: background 0.24s var(--ease-out-expo);
+}
+.pb-toggle::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 20px; height: 20px; border-radius: 999px;
+  background: var(--ink);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+  transition: transform 0.24s var(--ease-out-expo);
+}
+.pb-switch[aria-checked="true"] .pb-toggle {
+  background: color-mix(in oklab, var(--c-layer) 68%, var(--surface));
+}
+.pb-switch[aria-checked="true"] .pb-toggle::after { transform: translateX(20px); }
+
+.pb-switch-body { min-width: 0; display: flex; flex-direction: column; }
+.pb-switch-label {
+  font-family: var(--font-mono);
+  font-size: 0.82rem; font-weight: 600; color: var(--ink); line-height: 1.3;
+}
+.pb-switch-cond {
+  font-family: var(--font-mono);
+  font-size: 0.66rem; letter-spacing: 0.03em;
+  color: color-mix(in oklab, var(--ink) 82%, transparent); margin-top: 2px;
+}
+.pb-switch[aria-checked="false"] .pb-switch-label { color: var(--c-solo); }
+
+/* the lever + stamp row */
+.pb-action {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 18px;
+  align-items: stretch;
+  margin-top: 2px;
+}
+
+/* PROVE lever */
+.pb-lever {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  width: 96px;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--surface-2) 90%, transparent);
+  padding: 12px 0 14px;
+  cursor: pointer;
+  overflow: hidden;
+}
+.pb-lever:disabled { cursor: default; opacity: 0.6; }
+.pb-lever:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pb-lever-slot {
+  width: 8px; height: 54px; border-radius: 6px;
+  background: color-mix(in oklab, #000 40%, var(--canvas));
+  box-shadow: inset 0 0 4px rgba(0,0,0,0.6);
+  position: relative;
+}
+.pb-lever-knob {
+  position: absolute; left: 50%; top: 4px;
+  width: 26px; height: 26px; border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%,
+    color-mix(in oklab, var(--c-floor) 60%, #fff), var(--c-floor));
+  border: 1px solid rgba(0,0,0,0.35);
+  transform: translateX(-50%);
+  transition: top 0.5s var(--ease-out-expo);
+  box-shadow: 0 3px 8px rgba(0,0,0,0.5);
+}
+.pb-lever[data-pulled="true"] .pb-lever-knob { top: 30px; }
+.pb-lever-word {
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink);
+}
+
+/* the stamp slot where the verdict slams down */
+.pb-stamp {
+  position: relative;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  border: 1px dashed var(--hairline-strong);
+  background: color-mix(in oklab, var(--surface) 40%, transparent);
+  min-height: 112px;
+  overflow: hidden;
+}
+.pb-stamp-idle {
+  font-family: var(--font-mono);
+  font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted);
+  text-align: center; padding: 0 14px;
+}
+
+.pb-mark {
+  display: grid; place-items: center; text-align: center;
+  padding: 12px 16px;
+  animation: pb-slam 0.42s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+@keyframes pb-slam {
+  0%   { opacity: 0; transform: scale(2.4) rotate(-11deg); }
+  60%  { opacity: 1; transform: scale(0.92) rotate(-7deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-7deg); }
+}
+.pb-mark-word {
+  font-family: var(--font-display);
+  font-weight: 900; font-stretch: 125%;
+  font-size: clamp(1.55rem, 4vw, 2.35rem);
+  letter-spacing: 0.02em;
+  line-height: 0.9;
+  padding: 3px 14px;
+  border: 4px solid currentColor;
+  border-radius: 8px;
+}
+.pb-mark-sub {
+  margin-top: 12px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem; line-height: 1.45; letter-spacing: 0.02em;
+  max-width: 40ch;
+  color: var(--ink);
+}
+.pb-mark-tag {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.64rem; letter-spacing: 0.04em;
+  color: color-mix(in oklab, var(--ink) 68%, transparent);
+  font-style: italic;
+}
+
+/* verdict colors — signal-yellow ONLY for PROVED */
+.pb-mark.is-proved  { color: var(--accent); }
+.pb-mark.is-proved  .pb-mark-word { text-shadow: 0 0 26px color-mix(in oklab, var(--accent) 55%, transparent); }
+.pb-mark.is-rejected { color: var(--c-solo); }
+.pb-mark.is-unavail  { color: var(--muted); }
+.pb-mark.is-unavail  .pb-mark-word { border-style: dashed; }
+
+.pb-reset {
+  align-self: flex-start;
+  font-family: var(--font-mono);
+  font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted);
+  background: none; border: 0; cursor: pointer; padding: 2px 0;
+  border-bottom: 1px solid var(--hairline-strong);
+}
+.pb-reset:hover { color: var(--ink); }
+
+/* ── responsive ────────────────────────────────────────────────────────────*/
+@media (max-width: 860px) {
+  .pb-shell { grid-template-columns: 1fr; }
+  .pb-claim-card { transform: none; }
+}
+@media (max-width: 767px) {
+  #wall  { padding-top: calc(var(--topbar-h) + 1.25rem); padding-bottom: 2rem; }
+  #prove { min-height: 0; padding: 1.5rem 0 2rem; display: block; }
+  .tw-grid { padding: 20px 14px 24px; gap: 12px; }
+  .pb-action { grid-template-columns: 1fr; }
+  .pb-lever { width: 100%; flex-direction: row; gap: 14px; justify-content: center; padding: 10px; }
+  .pb-lever-slot { width: 44px; height: 10px; }
+  .pb-lever-knob { top: 50%; left: 4px; transform: translateY(-50%); }
+  .pb-lever[data-pulled="true"] .pb-lever-knob { top: 50%; left: 22px; }
+  .pb-lever-word { margin-top: 0; }
+}

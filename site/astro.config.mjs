@@ -18,8 +18,8 @@ const wickedWebAlias = existsSync(localUI) ? { 'wicked-web': localUI } : {};
  *      SITE_URL=https://wicked.dev BASE_PATH=/ npm run build
  * The deploy workflow sets these from repository metadata.
  */
-const SITE = process.env.SITE_URL ?? 'https://mikeparcewski.github.io';
-const BASE = process.env.BASE_PATH ?? '/wicked-garden';
+const SITE = process.env.SITE_URL ?? 'https://wg.wickedagile.com';
+const BASE = process.env.BASE_PATH ?? '/';
 
 export default defineConfig({
   site: SITE,
