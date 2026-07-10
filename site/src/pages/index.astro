@@ -3,42 +3,82 @@ import Base from "wicked-web/layouts/Base.astro";
 import Topbar from "wicked-web/components/Topbar.astro";
 import Footer from "wicked-web/components/Footer.astro";
 import "../styles/global.css";
-import "../styles/wall.css";
-import ToolWallHero from "../components/react/ToolWallHero.tsx";
-import ToolWall from "../components/react/ToolWall.tsx";
-import ProveBench from "../components/react/ProveBench.tsx";
-import GardenBench from "../components/react/GardenBench.tsx";
+import "../styles/site.css";
+import CopyChip from "../components/react/CopyChip.tsx";
+import HeroStamp from "../components/react/HeroStamp.tsx";
+import Toolbox from "../components/react/Toolbox.tsx";
+import ProveGate from "../components/react/ProveGate.tsx";
+import Shelf from "../components/react/Shelf.tsx";
+import InstallBench from "../components/react/InstallBench.tsx";
 
 const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
 ---
 
 <Base
-  title="wicked-garden — the wall of tools your coding agent can't build alone"
-  description="Your coding-agent harness already plans, swarms, and ships. wicked-garden is not a workflow — it's an inventory you load out from. Six of garden's own bench tools (prove · injected-edge search · patch · council · playbooks · compile-the-gate) plus six bundled wicked-* peers (vault · testing · brain · understanding · bus · interactive). Its one differentiator: done is re-derived from evidence, never asserted — the gate re-runs the verifier and fails closed rather than trust a claim. One command installs the set. Local-first, MIT, v12.27.0."
+  title="wicked-garden — the toolkit for what your coding agent can't do alone"
+  description="Your harness already plans, swarms, and ships. wicked-garden fills only the gaps a planner-executor can't fill alone — and re-derives 'done' from evidence instead of trusting the claim. Six own tools (prove · search · patch · council · archetypes · compile) plus the wider wicked-* family on the shelf. Its one non-negotiable: done is re-derived, never asserted — a false 'tests pass' is REJECTED, a missing backend FAILS CLOSED. Local-first, MIT, v12.27.0."
   bodyClass="has-grain"
   favicon={favicon}
 >
   <Topbar pkg="wicked-garden" repo="https://github.com/mikeparcewski/wicked-garden" />
   <main>
-    <!-- Hero — the wall, not a workflow (snap target via #top) -->
-    <ToolWallHero client:load />
 
-    <!-- The Tool Wall — the full loadout on pegs, grabbable -->
-    <section id="wall" class="border-t border-line section-alt">
-      <ToolWall client:visible />
+    <!-- ── HERO ─────────────────────────────────────────────────────────── -->
+    <section id="hero" class="gd-section gd-hero">
+      <div class="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
+        <div class="gd-hero-grid">
+          <div class="gd-hero-pitch">
+            <p class="rise kicker" style="animation-delay:.05s">
+              the toolkit · open-source · MIT · v12.27.0
+            </p>
+            <h1 class="gd-hero-h1">
+              <span class="rise block" style="animation-delay:.12s">The tools your coding agent</span>
+              <span class="rise block gd-hero-h1-2" style="animation-delay:.2s">can’t build alone.</span>
+            </h1>
+            <p class="rise gd-hero-sub" style="animation-delay:.3s">
+              Your harness already plans, swarms, and ships. wicked-garden refuses to wrestle it
+              and fills only the gaps a planner-executor can’t fill alone — starting with the one
+              that matters most: <span class="gd-hero-em">done is re-derived from evidence, never asserted.</span>
+            </p>
+            <div class="rise gd-hero-install" style="animation-delay:.42s">
+              <p class="gd-hero-install-label">load out the whole family — one command</p>
+              <CopyChip client:load text="npx wicked-installer" label="copy" />
+              <p class="gd-hero-install-note">interactive · picks your products across CLIs · direct install below</p>
+            </div>
+            <ul class="rise gd-hero-stats" style="animation-delay:.5s">
+              <li><b>6</b> own tools</li>
+              <li><b>6</b> bundled peers</li>
+              <li><b>10</b> work-shapes</li>
+              <li><b>MIT</b> · local-first</li>
+            </ul>
+          </div>
+          <div class="gd-hero-demo">
+            <HeroStamp client:load />
+          </div>
+        </div>
+      </div>
     </section>
 
-    <!-- The Prove Bench — the signature interactive evidence gate -->
-    <section id="prove" class="border-t border-line">
-      <ProveBench client:load />
+    <!-- ── THE TOOLBOX (own tools) ──────────────────────────────────────── -->
+    <section id="toolbox" class="gd-section gd-band">
+      <Toolbox client:load />
     </section>
 
-    <!-- The Bench — install (snap target via #bench) -->
-    <section id="bench" class="border-t border-line section-alt">
-      <GardenBench client:visible />
+    <!-- ── THE GATE (the differentiator, drivable) ──────────────────────── -->
+    <section id="gate" class="gd-section">
+      <ProveGate client:load />
     </section>
+
+    <!-- ── THE SHELF (bundled family) ───────────────────────────────────── -->
+    <section id="shelf" class="gd-section gd-band">
+      <Shelf client:load />
+    </section>
+
+    <!-- ── THE BENCH (install) ──────────────────────────────────────────── -->
+    <section id="install" class="gd-section">
+      <InstallBench client:load />
+    </section>
+
   </main>
-  <div id="footer-snap">
-    <Footer repo="https://github.com/mikeparcewski/wicked-garden" />
-  </div>
+  <Footer repo="https://github.com/mikeparcewski/wicked-garden" />
 </Base>
