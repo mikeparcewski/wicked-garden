@@ -12,7 +12,7 @@
    (e.g. the 81-command toolkit grid) is never a trap; `safe center` aligns such
    a section to the top instead of clipping it. scroll-padding offsets the
    fixed topbar. Mobile falls back to natural scroll. */
-html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
+html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .gd-section {
   min-height: 100vh;
   scroll-snap-align: start;
