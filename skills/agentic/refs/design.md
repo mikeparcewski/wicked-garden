@@ -1,6 +1,6 @@
 # agentic:design — Interactive Agentic Architecture Design Rubric
 
-Full rubric sourced from `agents/agentic/architect.md` and
+Full rubric sourced from the `wicked-garden-agentic-architect` fork skill (former `agents/agentic/architect.md`) and
 `skills/agentic/agentic-patterns/`. Use for greenfield agentic system design.
 
 ## Phase 1: Requirements Gathering

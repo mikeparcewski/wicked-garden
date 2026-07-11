@@ -159,15 +159,18 @@ def _load_specialist_domains() -> set:
 def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):
     """Parse domain and agent name from a subagent identifier (Issue #573).
 
-    Two accepted forms:
+    Three accepted forms (skills-only cutover):
 
-    * Fully-qualified: ``wicked-garden:{domain}:{agent-name}`` — parsed in
-      place, no resolver needed. The domain must be a known specialist
-      domain (``specialist_domains`` from ``specialist.json``) for the
-      engagement tracker to accept it.
-    * Bare role: ``requirements-analyst`` — expanded to the full form by
-      :mod:`crew.specialist_resolver`, which walks ``agents/**/*.md``
-      frontmatter. This is the path the facilitator emits by default.
+    * Legacy colon form: ``wicked-garden:{domain}:{agent-name}`` — parsed
+      in place, no resolver needed (old payloads / fork skills that kept
+      the legacy ``subagent_type`` frontmatter). The domain must be a
+      known specialist domain (``specialist_domains`` from
+      ``specialist.json``) for the engagement tracker to accept it.
+    * Fork-skill name: ``wicked-garden-{domain}-{role}`` — resolved by
+      :mod:`crew.specialist_resolver`, which walks ``skills/**/SKILL.md``
+      (context: fork) frontmatter.
+    * Bare role: ``requirements-analyst`` — resolved the same way. This
+      is the path the facilitator emits by default.
 
     Returns ``(domain, agent_name)`` on success, ``(None, None)`` when
     the name cannot be resolved. The hook remains fail-open on any
@@ -190,22 +193,24 @@ def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):
 
         return domain, agent_name
 
-    # Bare-role path (Issue #573): resolve via agents/**/*.md frontmatter.
-    # Fail-closed to the old behavior on any resolver error — engagement
-    # tracking is best-effort and the hook must never block the agent.
+    # Fork-skill-name or bare-role path (Issue #573): resolve via
+    # skills/**/SKILL.md (context: fork) frontmatter. Fail-closed to the
+    # old behavior on any resolver error — engagement tracking is
+    # best-effort and the hook must never block the agent.
     try:
         from crew.specialist_resolver import build_resolver, resolve_role
 
         resolver = build_resolver(_PLUGIN_ROOT)
-        domain, subagent_type = resolve_role(agent_type, resolver)
-        if domain is None or subagent_type is None:
+        domain, skill_name = resolve_role(agent_type, resolver)
+        if domain is None or skill_name is None:
             return None, None
         if domain not in specialist_domains:
             return None, None
-        # The tracker stores bare role as the agent_name — callers feed
-        # it straight into the engagement ledger, matching the existing
-        # wicked-garden:{domain}:{role} parsing shape.
-        return domain, agent_type
+        # The tracker stores the bare role as the agent_name — callers
+        # feed it straight into the engagement ledger, matching the
+        # legacy wicked-garden:{domain}:{role} parsing shape.
+        role = resolver.get("skill_to_role", {}).get(skill_name, agent_type)
+        return domain, role
     except Exception:
         return None, None
 

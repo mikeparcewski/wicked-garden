@@ -32,8 +32,8 @@ logger = logging.getLogger("wicked-jam.bus-consumers")
 _SYNTHESIS_TIMEOUT_SECONDS = 120.0
 
 # Default expected persona count when the session object lacks one. 4 matches the
-# /wicked-garden:jam:quick default; full brainstorms typically override via the
-# session record.
+# wicked-garden-jam skill's quick-facilitation default; full brainstorms typically
+# override via the session record.
 _DEFAULT_EXPECTED_PERSONAS = 4
 
 # Ledger file tracking per-session contribution state. Separate from the global

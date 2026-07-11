@@ -1,12 +1,16 @@
 ---
-name: audit
+name: wicked-garden-platform-audit
 description: |
   Audit evidence collection and trail verification. Gathers artifacts,
   validates controls, generates audit reports, and maintains compliance
   documentation.
 
   Use when: "audit trail", "collect evidence", "audit report",
-  "control testing", "compliance documentation"
+  "control testing", "compliance documentation", "gather audit evidence for
+  SOC2/HIPAA/GDPR/PCI", or any former /wicked-garden:platform:audit
+  invocation. NOT for defining compliance policies (use the compliance
+  sub-skill) or ad hoc security checks (use the platform domain skill's
+  security action).
 phase_relevance: ["build", "review", "operate"]
 archetype_relevance: ["*"]
 ---
@@ -23,11 +27,22 @@ Collect evidence and verify audit trails for compliance.
 - Generating audit reports
 - User says "audit", "evidence", "audit trail", "control testing"
 
-## Commands
+## Run it inline (no dispatch)
 
-```bash
-/wicked-garden:platform:audit [--controls] [--trail] [--report]
-```
+Invoked as `<framework> [control_id|all]`:
+
+1. Parse args: `<framework> [control_id]` (framework = `soc2|hipaa|gdpr|pci`;
+   control_id or `all`).
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/audit/refs/audit.md")` — full
+   collection rubric, control-testing checklist, SOC2/HIPAA control matrix,
+   gap analysis, bus emit, and output format.
+3. For framework-specific checklists:
+   `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/audit/refs/checklists-soc2-hipaa.md")`
+   or `refs/checklists-gdpr-pci-evidence.md`. For evidence scripts and
+   organization: `refs/checklists-evidence-operations.md`.
+4. Apply the rubric directly: collect evidence via code search, verify each
+   control, document Pass/Partial/Fail with file:line refs, then emit the bus
+   event and produce the audit report.
 
 ## Audit Process
 

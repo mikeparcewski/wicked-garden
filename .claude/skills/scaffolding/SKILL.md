@@ -1,22 +1,27 @@
 ---
 name: scaffold
 description: |
-  Component scaffolding toolkit for creating skills, agents, commands, and hooks within the unified wicked-garden plugin.
+  Component scaffolding toolkit for creating skills, context:fork worker skills, and hooks within the unified wicked-garden plugin.
   Generates complete, valid structures that pass validation out-of-the-box.
   Use when creating new domain components, setting up boilerplate, or ensuring proper structure from the start.
 ---
 
 # Scaffold Tool
 
-Quick-start generator for wicked-garden domain components.
+Quick-start generator for wicked-garden components. The plugin is **skills-only**:
+the former `commands/` and `agents/` trees were absorbed into `skills/`, so this
+tool scaffolds skills, workers, and hooks — never a `commands/` or `agents/` file.
 
 ## Purpose
 
 Generates production-ready component structures within the unified plugin:
-- **Skills** - SKILL.md with proper YAML frontmatter and refs/ directory
-- **Agents** - Agent .md files with tools and frontmatter
-- **Commands** - Slash commands with YAML frontmatter
-- **Hooks** - hooks.json entries with Python scripts
+- **Skills** — a sub-skill `skills/{domain}/{name}/SKILL.md` (Tier-2 navigation + refs/)
+- **Worker skills** — a standalone `context: fork` worker `skills/{domain}-{role}/SKILL.md` (the former "agent"), dispatched via `Skill(skill="wicked-garden-{domain}-{role}")`
+- **Hooks** — hooks.json entries with Python scripts
+
+Former **commands** are now **actions** of the consolidated per-domain router
+skill (`skills/{domain}/SKILL.md`); the `command` subcommand is retired and only
+prints guidance for adding an action.
 
 All scaffolded components pass validation immediately.
 
@@ -28,37 +33,39 @@ All scaffolded components pass validation immediately.
 python .claude/skills/scaffolding/scripts/scaffold.py
 
 # Interactive prompts:
-# > Component type? (skill/agent/command/hook)
+# > Component type? (1 skill / 2 worker / 3 action-guidance / 4 hook)
 # > Domain? (crew, engineering, platform, ...)
 # > Name? (kebab-case)
 # > Description?
 
-# Result:
+# Result (skill):
 # Skill created: skills/crew/my-skill/
-# Namespace: wicked-garden:crew:my-skill
+# Skill id: my-skill (routed by the crew domain skill)
 ```
 
 ### Command Line Mode
 
 ```bash
-# Skill
+# Skill (a sub-skill under a domain)
 python .claude/skills/scaffolding/scripts/scaffold.py skill \
   --name my-skill \
   --domain crew \
-  --description "What this skill does"
+  --description "What this skill does" \
+  --use-when "trigger conditions"
 
-# Agent
-python .claude/skills/scaffolding/scripts/scaffold.py agent \
-  --name my-agent \
+# Worker skill (context:fork — the former agent). `agent` is a back-compat alias.
+python .claude/skills/scaffolding/scripts/scaffold.py worker \
+  --name my-worker \
   --domain platform \
-  --description "What this agent does" \
+  --description "What this worker does" \
   --tools "Read,Write,Bash"
 
-# Command
+# Action (former command) — RETIRED. Prints guidance to add the action to the
+# domain router skill; writes no file.
 python .claude/skills/scaffolding/scripts/scaffold.py command \
-  --name my-command \
+  --name my-action \
   --domain engineering \
-  --description "What this command does"
+  --description "What this action does"
 
 # Hook
 python .claude/skills/scaffolding/scripts/scaffold.py hook \
@@ -69,31 +76,36 @@ python .claude/skills/scaffolding/scripts/scaffold.py hook \
 
 ## Generated Paths
 
-Components are placed in domain-specific subdirectories:
+Components are placed in the skills-only layout at the repo root:
 
 ```
-wicked-garden/                    # Plugin root
-├── skills/{domain}/{name}/       # Skills
+wicked-garden/                     # Plugin root
+├── skills/{domain}/{name}/        # Sub-skills
 │   └── SKILL.md
-├── agents/{domain}/{name}.md     # Agents
-├── commands/{domain}/{name}.md   # Commands
-├── hooks/scripts/{name}.py       # Hook scripts
-└── hooks/hooks.json              # Hook bindings (updated)
+├── skills/{domain}-{role}/        # Worker skills (context:fork — former agents)
+│   └── SKILL.md
+├── hooks/scripts/{name}.py        # Hook scripts
+└── hooks/hooks.json               # Hook bindings (updated)
 ```
+
+There is no `commands/` or `agents/` tree.
 
 ### Naming Conventions
 
-- Commands: `wicked-garden:{domain}:{command}` (colon-separated)
-- Agents: `wicked-garden:{domain}/{agent}` (slash for agent path)
-- Skills: `wicked-garden:{domain}:{skill}` (colon-separated)
+- Sub-skill id: the leaf directory name, routed by its domain skill
+- Worker skill name: `wicked-garden-{domain}-{role}` (dash-separated), declared
+  in frontmatter `name:` and dispatched via `Skill(skill="…")`
+- Domain router skill name: `wicked-garden-{domain}`
 
-#### Command Template Selection
+#### Action stub (former command-with-agent)
 
-When scaffolding a command, the tool checks if `agents/{domain}/*.md` exists:
-- **If agents exist**: Uses `command-with-agent.md` template with `Task(subagent_type=...)` dispatch
-- **If no agents**: Uses inline `command.md` template
+A former "command that dispatched to an agent" is now an **action of the domain
+router skill** that dispatches to a worker skill. Copy the stub in
+`templates/plugin/command-with-agent.md` into the router body and wire it with:
 
-This ensures new commands follow the delegation standard from the start.
+```
+Skill(skill="wicked-garden-{domain}-{role}", args="… | target: <target>")
+```
 
 ### Skill Template
 
@@ -110,67 +122,47 @@ description: |
 Brief introduction to the skill's purpose.
 
 ## Purpose
-
 What problem this skill solves.
 
 ## Usage
-
-### Example 1
-
-\`\`\`python
-# Code example
-\`\`\`
-
-## Patterns
-
-Common patterns this skill enables:
-- Pattern 1
-- Pattern 2
+Examples.
 
 ## References
-
-- Related docs
-- Source files
+- Related docs / source files
 ```
 
-### Agent Template
+### Worker Skill Template (context:fork)
 
 ```markdown
 ---
-description: What this agent specializes in
-tools: ["Read", "Write", "Bash"]
+name: wicked-garden-{domain}-{role}
+description: What this worker specializes in
+context: fork
+allowed-tools: ["Read", "Write", "Bash"]
+model: sonnet
+color: blue
 ---
 
-# {Agent Name}
+# {Worker Title}
 
-You are {agent-name}, specialized in {domain}.
+You are the {Worker Title} worker, specialized in {domain}. You run in an
+isolated context:fork subagent, dispatched via Skill(skill="…").
 
 ## Expertise
-
-Your core capabilities:
-- Capability 1
-- Capability 2
-- Capability 3
+- Capability 1 / 2 / 3
 
 ## Working Style
-
-How you approach tasks:
-1. Step 1
-2. Step 2
-3. Step 3
+1. Step 1 / 2 / 3
 
 ## Quality Standards
-
-What defines success:
-- Standard 1
-- Standard 2
+- Standard 1 / 2
 
 ## Constraints
-
-What you avoid:
-- Constraint 1
-- Constraint 2
+- Constraint 1 / 2
 ```
+
+`context: fork` worker skills are exempt from the ≤200-line Tier-2 cap — they
+load into an isolated subagent context, not the parent.
 
 ### Hook Template
 
@@ -204,27 +196,21 @@ Exit codes:
 
 import sys
 import json
-import os
 
 def main():
-    # Read hook data from stdin
     try:
         data = json.loads(sys.stdin.read())
     except json.JSONDecodeError:
         print("Error: Invalid JSON input", file=sys.stderr)
         sys.exit(1)
 
-    # Hook logic here
-    # Access: data['tool'], data['arguments'], data['context']
-
-    # Example validation
+    # Hook logic here. Access: data['tool'], data['arguments'], data['context']
     if data.get('tool') == 'Bash':
         command = data.get('arguments', {}).get('command', '')
         if 'rm -rf /' in command:
             print("Blocked dangerous command: rm -rf /")
             sys.exit(2)  # Block execution
 
-    # Allow execution
     sys.exit(0)
 
 if __name__ == "__main__":
@@ -233,117 +219,95 @@ if __name__ == "__main__":
 
 ## Valid Domains
 
-The 16 domains in wicked-garden:
+Domains are discovered dynamically from `.claude-plugin/components.json`
+("domains"), falling back to the top-level directories under `skills/`
+(excluding the `{domain}-{role}` worker dirs). New domains are valid as soon as
+they appear in the manifest / skills tree.
 
-**Workflow & Intelligence**: crew, smaht, mem, search, jam, kanban
-**Specialist Disciplines**: engineering, product, platform, qe, data, delivery, agentic, persona
-
-Domains are discovered dynamically from `commands/` — new domains are valid immediately.
+Current domains: agentic, crew, data, engineering, jam, mem, persona, platform,
+product, qe, search, smaht.
 
 ### Template Variables
 
-Available in all `.tpl` files:
-
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `{name}` | Component name (kebab-case) | `risk-assessor` |
-| `{Name}` | Component name (Title Case) | `Risk Assessor` |
-| `{NAME}` | Component name (UPPER_CASE) | `RISK_ASSESSOR` |
-| `{description}` | Brief description | `Assess project risks` |
-| `{domain}` | Domain name | `qe` |
+| `{{name}}` | Component name (kebab-case) | `risk-assessor` |
+| `{{title}}` | Component name (Title Case) | `Risk Assessor` |
+| `{{skill_name}}` | Worker skill dash name | `wicked-garden-qe-risk-assessor` |
+| `{{description}}` | Brief description | `Assess project risks` |
+| `{{domain}}` | Area of expertise / domain | `qe` |
+| `{{tools}}` | Allowed-tools list (rendered) | `"Read", "Write"` |
 
 ## Best Practices
 
 ### Naming
 
-- Use kebab-case for all names
-- Max 64 characters
+- Use kebab-case for all names, max 64 characters
 - No reserved prefixes (`claude-code-`, `anthropic-`, `official-`)
-- Plugin names should start with `wicked-` for marketplace consistency
+- Worker skills carry the dash-qualified `wicked-garden-{domain}-{role}` name
 
 ### Structure
 
 - Put reusable logic in `scripts/`
-- Use `commands/` for user-facing operations
-- Use `skills/` for Claude expertise
-- Use `agents/` for specialized subagents
+- Use `skills/{domain}/` for the domain router + its actions (former commands)
+- Use `skills/{domain}-{role}/` for context:fork worker skills (former agents)
+- Use `hooks/` for deterministic event automation
 
 ### Documentation
 
-- Write clear, concise descriptions
-- Include usage examples
-- Document dependencies
-- Explain configuration options
+- Write clear, concise descriptions and include usage examples
+- Document dependencies and configuration options
 
 ### Security
 
 - All scripts should use `${CLAUDE_PLUGIN_ROOT}` for paths
 - Quote shell variables: `"$VAR"`
-- Validate input before processing
-- No hardcoded secrets
+- Validate input before processing; no hardcoded secrets
 
 ## Examples
 
-### Full Plugin
+### Sub-skill only
 
 ```bash
-python scripts/scaffold.py plugin \
-  --name wicked-perf-analyzer \
-  --description "Performance analysis and optimization" \
-  --with-commands analyze,optimize \
-  --with-skills analysis,optimization \
-  --with-agents optimizer \
-  --author "Your Name"
+python .claude/skills/scaffolding/scripts/scaffold.py skill \
+  --name validation-patterns \
+  --domain engineering \
+  --description "Input validation patterns" \
+  --use-when "reviewing input handling"
 
 # Result:
-# plugins/wicked-perf-analyzer/
-# ├── .claude-plugin/plugin.json
-# ├── commands/
-# │   ├── analyze.md
-# │   └── optimize.md
-# ├── agents/
-# │   └── optimizer.md
-# ├── skills/
-# │   ├── analysis/SKILL.md
-# │   └── optimization/SKILL.md
-# ├── scripts/
-# │   └── setup.sh
-# └── README.md
+# skills/engineering/validation-patterns/SKILL.md
 ```
 
-### Skill Only
+### Worker skill (context:fork)
 
 ```bash
-python scripts/scaffold.py skill \
-  --name validation-patterns \
-  --plugin wicked-memory \
-  --description "Input validation patterns for cache keys"
+python .claude/skills/scaffolding/scripts/scaffold.py worker \
+  --name risk-assessor \
+  --domain qe \
+  --description "Assesses release risk" \
+  --tools "Read,Bash"
 
 # Result:
-# plugins/wicked-memory/skills/validation-patterns/
-# └── SKILL.md
+# skills/qe-risk-assessor/SKILL.md   (name: wicked-garden-qe-risk-assessor, context: fork)
+# Dispatch via: Skill(skill="wicked-garden-qe-risk-assessor")
 ```
 
 ### Hook with Script
 
 ```bash
-python scripts/scaffold.py hook \
-  --name PreToolUse \
-  --plugin wicked-crew \
-  --description "Validate tool use before execution" \
-  --script validate-tool-use.py
+python .claude/skills/scaffolding/scripts/scaffold.py hook \
+  --event PreToolUse \
+  --script validate-tool-use \
+  --description "Validate tool use before execution"
 
 # Result:
-# plugins/wicked-crew/hooks/
-# ├── hooks.json (updated)
-# └── scripts/
-#     └── validate-tool-use.py
+# hooks/hooks.json (updated)
+# hooks/scripts/validate-tool-use.py
 ```
 
 ## References
 
-- Requirements: `.something-wicked/wicked-feature-dev/specs/something-wicked-v2/requirements.md` (FR-005)
-- Design: `.something-wicked/wicked-feature-dev/specs/something-wicked-v2/design.md` (tools/ section)
-- Naming conventions: `CLAUDE.md` (Naming Conventions section)
-- Component patterns: `CLAUDE.md` (Component Patterns section)
+- Naming conventions: `.claude/CLAUDE.md` (Naming Conventions section)
+- Component manifest: `.claude-plugin/components.json` (domains + skills)
 - Cross-tool context: Plugins that read project descriptor files should load `AGENTS.md` before `CLAUDE.md` (general → specific). `AGENTS.md` is read-only.

@@ -83,10 +83,63 @@ Emit P1/P2/P3 findings with code fixes.
 **Confidence**: {HIGH|MEDIUM|LOW}
 ```
 
+## Pattern selection
+
+### Batch ETL
+**Use when**: regular scheduled loads, historical processing.
+**Pattern**: Extract → Transform → Validate → Load.
+**Tools**: Airflow, Dagster, Prefect.
+
+### Streaming pipeline
+**Use when**: real-time processing, event-driven.
+**Pattern**: Consume → Transform → Sink.
+**Tools**: Kafka, Flink, Spark Streaming.
+
+### Incremental processing
+**Use when**: large datasets, only processing changes.
+**Pattern**: watermark tracking + merge/upsert.
+
+## Common issues
+
+| Issue | Symptoms | Solution |
+|-------|----------|----------|
+| Fails halfway | Partial data, inconsistent state | Staging + commit pattern |
+| Duplicates | Same data loaded multiple times | Watermarks + idempotency |
+| Slow processing | Misses SLA | Profile and optimize bottlenecks |
+
+## External integration discovery
+
+Pipeline engineering can leverage available integrations by capability:
+
+| Capability | Discovery Patterns | Provides |
+|------------|-------------------|----------|
+| **Warehouses** | `snowflake`, `databricks`, `bigquery` | Query execution, schema access |
+| **ETL** | `airbyte`, `fivetran`, `dbt` | Pipeline status, model metadata |
+| **Observability** | `monte-carlo`, `datadog` | Data quality metrics |
+
+Discover available integrations via capability detection. Fall back to the
+`analyze` sub-action of the wicked-garden-data skill for local file analysis
+via DuckDB.
+
+## Integration
+
+- **wicked-brain:search**: find pipeline code with `wicked-brain:search "dag|pipeline"` (FTS5 over indexed code).
+- **Native tasks**: track pipeline issues via TaskCreate with `metadata.event_type="task"`.
+- **wicked-brain:memory**: recall pipeline patterns.
+
 ## Engineering standards (apply to both)
 
 - **Schema-first**: always define schemas before processing.
 - **Fail fast**: validate early, fail loudly.
 - **Idempotent**: pipelines rerunnable.
 - **Observable**: emit metrics + logs at every stage.
-- **Tested**: data quality tests are non-negotiable.
+- **Tested**: data quality tests are non-negotiable — unit test transforms,
+  integration test the full pipeline, test error scenarios.
+- **Documented**: clear lineage, versioned schemas, operations runbook.
+
+## Detailed templates
+
+See [pipeline-templates.md](pipeline-templates.md) for the full design
+document (ASCII architecture diagram, error-handling matrix, monitoring
+thresholds, backfill/recovery procedures, dependencies, deployment) and the
+scored pipeline review report.

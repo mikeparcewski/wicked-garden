@@ -1,5 +1,5 @@
 ---
-name: errors
+name: wicked-garden-platform-errors
 description: |
   Use when investigating a production error spike or pattern across services — aggregates errors from
   discovered tracking sources, correlates with deployments, and assesses user impact.

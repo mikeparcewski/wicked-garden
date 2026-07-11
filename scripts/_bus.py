@@ -650,9 +650,9 @@ def emit_event(
 def bus_emit_stats() -> Dict[str, Any]:
     """Return current emit health counters as a plain dict.
 
-    Pure reader — no logging, no side effects. Callers (e.g.
-    wicked-garden:platform:plugin-health) are responsible for alerting
-    when ratio falls below the threshold defined in gate-policy.json
+    Pure reader — no logging, no side effects. Callers (e.g. the
+    wicked-garden-platform skill's plugin-health action) are responsible for
+    alerting when ratio falls below the threshold defined in gate-policy.json
     bus_health.emit_success_threshold.
 
     Returns:
@@ -716,7 +716,7 @@ def _resolve_bus_db_path() -> Optional[str]:
 def tail_events(limit: int = 10) -> List[Dict[str, Any]]:
     """Return the most recent ``limit`` bus events, newest first. Read-only.
 
-    This is a *display* helper (e.g. ``/wicked-garden:smaht:state``). It does
+    This is a *display* helper (e.g. the wicked-garden-smaht skill's state action). It does
     NOT register a subscriber, advance a cursor, or mutate the bus in any way:
     the wicked-bus ``replay`` command resets a cursor rather than returning
     rows, and ``list`` returns subscribers, so neither yields event rows

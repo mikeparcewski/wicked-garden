@@ -1,5 +1,5 @@
 ---
-name: gitlab-ci
+name: wicked-garden-platform-gitlab-ci
 description: |
   Write secure, optimized GitLab CI/CD pipelines.
 

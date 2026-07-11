@@ -9,7 +9,8 @@ mirrors the dataclass + stdlib-only pattern of ``scripts/_capability_registry.py
 no third-party imports, ``from __future__ import annotations``, ``@dataclass``,
 detection via ``shutil.which``.
 
-The council orchestration (``agents/jam/council.md``) is driven by this
+The council orchestration (the ``wicked-garden-jam-council`` fork skill at
+``skills/jam-council/SKILL.md``) is driven by this
 registry: it detects installed CLIs, probes their headless usability, and
 renders the per-CLI invocation from these records rather than hardcoding a
 drifting bash block per tool.

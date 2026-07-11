@@ -1,5 +1,5 @@
 ---
-name: prereq-doctor
+name: wicked-garden-platform-prereq-doctor
 description: |
   Diagnose missing tools and dependencies, offer to install them.
 

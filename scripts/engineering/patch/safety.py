@@ -183,7 +183,7 @@ class FreshnessChecker:
                 return SafetyCheckResult(
                     passed=False,
                     message=f"Symbol graph is stale ({age_hours:.1f}h old). "
-                            f"Run /wicked-garden:search:index or use --force",
+                            f"Invoke the wicked-garden-search skill's index action or use --force",
                     details={
                         "index_time": index_time.isoformat(),
                         "age_hours": age_hours,

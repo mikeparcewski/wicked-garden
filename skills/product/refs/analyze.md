@@ -10,7 +10,7 @@ signal-analysis rubric (also referenced by `listen`/`synthesize`).
 PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
 ls "${PRODUCT_ROOT}/voice/feedback/"
 ```
-If no data, tell the user to run `/wicked-garden:product:listen` first and stop.
+If no data, tell the user to run `/wicked-garden-product listen` first and stop.
 
 ## Sentiment
 
@@ -73,5 +73,5 @@ Key drivers: … · Recommendation: …
 ### Recommendations — {priority}: {action} (evidence, impact)
 
 ### Next Steps
-Run `/wicked-garden:product:synthesize` to generate prioritized recommendations.
+Run `/wicked-garden-product synthesize` to generate prioritized recommendations.
 ```

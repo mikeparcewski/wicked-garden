@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""Skill-as-agent conflation heuristic for wg-check (#664).
+"""Router-vs-worker conflation heuristic for wg-check (#664).
 
-For each skill (skills/**/SKILL.md), look for sibling agents in agents/{domain}/
-and grep both files for shared content classes. If 3+ classes overlap in BOTH
-files, warn that the skill and the agent likely duplicate rubric / persona /
-mechanics content -- the Pattern A migration smell from #652.
+Skills-only cutover: the former "skill vs sibling agent" conflation smell
+(#652 Pattern A) becomes "domain ROUTER skill vs sibling context:fork WORKER
+skill". The former agents/{domain}/ tree is gone — workers are now standalone
+skills at skills/{domain}-{role}/SKILL.md declaring ``context: fork``.
+
+For each domain router (skills/{domain}/SKILL.md — a depth-2, non-fork skill),
+grep it and its sibling fork worker skills (skills/{domain}-*/SKILL.md) for
+shared content classes. If 3+ classes overlap in BOTH files, warn that the
+router likely duplicates rubric / persona / mechanics content that belongs in
+the worker -- keep the router slim (navigation + entry-points, ~50-100 lines)
+and let the fork worker own the orchestration prose.
 
 The heuristic is intentionally cheap (no LLM, no diff): four regex probes per
 file, domain-scoped pairing only. Acceptable false-positive rate; the warning
@@ -12,10 +19,9 @@ is informational, not blocking.
 
 Background: PRs #666 (jam slim) and #670 (propose-process slim) showed the
 pattern -- a SKILL.md owning rubric steps + persona pools + convergence
-mechanics + transcript/bus emit instructions while a sibling agent in the same
-domain encodes the same content. The fix is the Pattern A migration: keep
-orchestration prose in the agent, slim the skill to navigation + entry-points
-(~50-100 lines).
+mechanics + transcript/bus emit instructions while a sibling worker encodes
+the same content. The fix is the Pattern A migration: keep orchestration prose
+in the worker, slim the router to navigation + entry-points.
 """
 
 from __future__ import annotations
@@ -26,7 +32,7 @@ from pathlib import Path
 
 # Conflation content classes -- each is a regex probe. A class "matches" a file
 # if the file contains the pattern at least once. If 3+ classes match BOTH the
-# SKILL.md and a sibling agent in the same domain, warn (#664 / #652 Pattern A).
+# router SKILL.md and a sibling fork worker skill, warn (#664 / #652 Pattern A).
 PROBES = {
     "persona-archetype-list": re.compile(
         r"(persona[\s-]?archetype|archetype[\s-]?pool|persona pool|focus group personas?)",
@@ -47,40 +53,36 @@ PROBES = {
     ),
 }
 
-THRESHOLD = 3  # classes shared between skill and agent before warning
+THRESHOLD = 3  # classes shared between router and worker before warning
+
+# Frontmatter fork marker — a worker skill declares ``context: fork``.
+_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 
 
 def probe(text: str) -> set[str]:
     return {name for name, rx in PROBES.items() if rx.search(text)}
 
 
-def candidate_agents(agents_root: Path, domain: str, skill_name: str) -> list[Path]:
-    """Find agents in the same domain that look like siblings of this skill."""
-    domain_dir = agents_root / domain
-    if not domain_dir.is_dir():
-        return []
+def candidate_workers(skills_root: Path, domain: str) -> list[Path]:
+    """Sibling context:fork worker skills for a domain router.
+
+    Workers live at skills/{domain}-{role}/SKILL.md (top-level siblings of the
+    router directory skills/{domain}/). Only files declaring ``context: fork``
+    are returned.
+    """
     out: list[Path] = []
-    sk = skill_name.lower().replace("_", "-")
-    for md in sorted(domain_dir.glob("*.md")):
-        stem = md.stem.lower()
-        if stem == sk or sk in stem or stem in sk:
-            out.append(md)
+    for md in sorted(skills_root.glob(f"{domain}-*/SKILL.md")):
+        try:
+            if _FORK_RE.search(md.read_text(errors="replace")):
+                out.append(md)
+        except OSError:
             continue
-        if sk in ("skill", domain) and stem.endswith(
-            ("-facilitator", "-orchestrator", "-coordinator")
-        ):
-            out.append(md)
-    # Single-skill domains (no name match): fall back to ALL agents in the domain.
-    if not out:
-        for md in sorted(domain_dir.glob("*.md")):
-            out.append(md)
     return out
 
 
 def main(repo_root: Path = Path(".")) -> int:
     skills_root = repo_root / "skills"
-    agents_root = repo_root / "agents"
-    if not skills_root.is_dir() or not agents_root.is_dir():
+    if not skills_root.is_dir():
         return 0
 
     flagged = 0
@@ -89,40 +91,41 @@ def main(repo_root: Path = Path(".")) -> int:
             parts = skill_md.relative_to(skills_root).parts
         except ValueError:
             continue
-        if not parts:
+        # Only DOMAIN ROUTER skills: skills/{domain}/SKILL.md (depth 2).
+        if len(parts) != 2:
             continue
         domain = parts[0]
-        # multi-skill: skills/{domain}/{skill}/SKILL.md
-        # single-skill: skills/{domain}/SKILL.md
-        skill_name = parts[1] if len(parts) >= 3 else domain
         try:
-            skill_text = skill_md.read_text(errors="replace")
+            router_text = skill_md.read_text(errors="replace")
         except OSError:
             continue
-        skill_classes = probe(skill_text)
-        if len(skill_classes) < THRESHOLD:
-            # SKILL.md doesn't have enough rubric/persona content to bother --
+        # A fork worker is not a router — skip.
+        if _FORK_RE.search(router_text):
+            continue
+        router_classes = probe(router_text)
+        if len(router_classes) < THRESHOLD:
+            # Router doesn't have enough rubric/persona content to bother --
             # it's already slim or scoped to one concern.
             continue
-        for agent_md in candidate_agents(agents_root, domain, skill_name):
+        for worker_md in candidate_workers(skills_root, domain):
             try:
-                agent_text = agent_md.read_text(errors="replace")
+                worker_text = worker_md.read_text(errors="replace")
             except OSError:
                 continue
-            agent_classes = probe(agent_text)
-            shared = skill_classes & agent_classes
+            worker_classes = probe(worker_text)
+            shared = router_classes & worker_classes
             if len(shared) >= THRESHOLD:
                 flagged += 1
-                rel_skill = skill_md.relative_to(repo_root)
-                rel_agent = agent_md.relative_to(repo_root)
+                rel_router = skill_md.relative_to(repo_root)
+                rel_worker = worker_md.relative_to(repo_root)
                 print(
-                    f"WARNING: skill-as-agent conflation detected -- {rel_skill} "
-                    f"and {rel_agent} share {len(shared)} content classes "
+                    f"WARNING: router-vs-worker conflation detected -- {rel_router} "
+                    f"and {rel_worker} share {len(shared)} content classes "
                     f"({sorted(shared)}). See #652 Pattern A migration."
                 )
 
     if flagged == 0:
-        print("OK: no skill-as-agent conflation patterns detected (#664)")
+        print("OK: no router-vs-worker conflation patterns detected (#664)")
     return 0
 
 

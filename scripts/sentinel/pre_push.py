@@ -56,7 +56,7 @@ def main() -> int:
             print(
                 f"[Sentinel:done-claim-verdict] pushing {remote_ref} @ {sha[:9]} "
                 "with no re-derived verdict on record.\n"
-                "→ Run `/wicked-garden:prove` (stamps the ledger via the gate), "
+                "→ Invoke the `wicked-garden-prove` skill (stamps the ledger via the gate), "
                 "or override deliberately with `git push --no-verify` — the server "
                 "gate still applies.",
                 file=sys.stderr,

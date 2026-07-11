@@ -1,5 +1,5 @@
 ---
-name: system-design
+name: wicked-garden-engineering-system-design
 description: |
   Use when decomposing a system into components with clear boundaries, module organization, and interface
   contracts — the "how do we slice this?" question at design time.

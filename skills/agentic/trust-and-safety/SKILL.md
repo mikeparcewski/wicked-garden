@@ -1,5 +1,5 @@
 ---
-name: trust-and-safety
+name: wicked-garden-agentic-trust-and-safety
 description: |
   Trust, safety, and control patterns for production agentic systems with human-in-the-loop gates and guardrails.
 

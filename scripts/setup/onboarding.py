@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""onboarding.py — onboarding-gate state mutations for /wicked-garden:setup.
+"""onboarding.py — onboarding-gate state mutations for the wicked-garden-core setup action.
 
-Section 6 of the setup command flips a handful of SessionState fields
+Section 6 of the setup action flips a handful of SessionState fields
 once onboarding finishes (or is skipped). The mutation was inlined in
 markdown; this module wraps it so the command body stays slim and the
 fields stay in one place.

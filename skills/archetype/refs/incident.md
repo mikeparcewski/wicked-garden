@@ -26,7 +26,7 @@ investigate before mitigating unless investigation IS the mitigation.
 The mitigate gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the evidence is re-hashed and its verifier
 re-run, never trusting a cached "mitigated". The honesty move here is the
 mitigation pin — a claimed mitigation that doesn't actually make the
-symptom check pass must REJECT. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+symptom check pass must REJECT. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. `--no-require` opts a throwaway/low-rigor run back
 to the doctrine-light claim-only path.
 
@@ -132,7 +132,7 @@ recorded via `wicked-vault:analyze-evidence`. It fails closed on a
 self-grade. A REJECT means the symptom check still fails or the
 attestation is missing/negative — fix the work, not the claim. An
 `unavailable` verdict means the required vault isn't installed — run
-`/wicked-garden:setup`.
+`/wicked-garden-core setup`.
 
 Incident is done when the gate is satisfied and the followup list is
 owned and tracked. Hand off to `build` (forward-fix work), `migrate`

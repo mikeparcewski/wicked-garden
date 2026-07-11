@@ -1,6 +1,8 @@
-# jam:quick — Single-Pass Brainstorm Rubric
+# jam quick — Single-Pass Brainstorm Rubric
 
-Full rubric sourced from `agents/jam/quick-facilitator.md`.
+Full rubric extracted from the retired quick-facilitator agent — this ref is
+now the sole source; the `wicked-garden-jam` skill's `quick` sub-action applies
+it inline.
 This is a forced-fast session: exactly 4 personas, exactly 1 round, then synthesize.
 Do NOT run additional rounds regardless of complexity. Do NOT store anything.
 
@@ -60,5 +62,5 @@ Write exactly these three sections:
 ## Rules
 
 - No padding: if the answer is obvious after 2 personas, the remaining 2 still speak — but synthesis stays concise.
-- No convergence check (that's brainstorm-facilitator only).
-- Ephemeral by design. Callers wanting storage or multi-round depth → `jam:brainstorm`.
+- No convergence check (that's the brainstorm facilitator only).
+- Ephemeral by design. Callers wanting storage or multi-round depth → the `brainstorm` sub-action (`wicked-garden-jam-brainstorm-facilitator`).

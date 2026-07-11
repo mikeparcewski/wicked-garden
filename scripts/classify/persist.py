@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """persist.py — Write LLM classification result to SessionState.
 
-The wicked-garden:classify skill asks the model to reason through the
+The wicked-garden-classify skill asks the model to reason through the
 prompt and emit a JSON classification. The model invokes this script
 with the JSON on stdin (or as --data), and we persist to SessionState
 so prompt_submit.py reads it on subsequent turns.

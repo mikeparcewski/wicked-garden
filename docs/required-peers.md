@@ -19,8 +19,9 @@ works.
 | **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npx wicked-vault-install` (npm; pinned `^0.3.0`). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
 | **wicked-loom** | The gate engine garden drives: peer resolution (`loom resolve`), synchronous fail-closed evidence gating (`loom gate`), and the flow runtime (`loom flow run/status/resume`). It is the *sole* re-derivation engine — without it the produces-gate fails closed. | `npx wicked-loom` (npm; pinned `^0.2.0`). Resolved via `WICKED_LOOM_BIN` → config → `PATH` → `node_modules` → `npx wicked-loom`; `WICKED_LOOM_BIN=""` is the kill-switch. |
 
-`/wicked-garden:setup` **blocks** without these two — a toolkit whose headline is
-"done is re-derived, not asserted" cannot ship the gate as optional.
+The core skill's `setup` action (`/wicked-garden-core setup`) **blocks** without
+these two — a toolkit whose headline is "done is re-derived, not asserted"
+cannot ship the gate as optional.
 
 ## Opt-in layers (setup recommends; never blocks)
 

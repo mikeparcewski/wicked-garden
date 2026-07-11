@@ -2,34 +2,62 @@
 """
 Component scaffolding tool for the wicked-garden unified plugin.
 
-Generates skills, agents, commands, and hooks within domain directories.
+Skills-only layout: the plugin ships skills and hooks. The former commands/
+and agents/ trees were absorbed into skills/ —
+
+  * a former COMMAND is now an ACTION of a consolidated per-domain router
+    skill at skills/{domain}/SKILL.md (there is no commands/ tree);
+  * a former AGENT is now a standalone context:fork WORKER skill at
+    skills/{domain}-{role}/SKILL.md, dispatched via Skill(skill="…").
+
+So this tool scaffolds: skills (sub-skills / standalone), workers (context:fork),
+and hooks. The `agent` and `command` subcommands are kept as thin
+back-compat aliases that route to the skills-only equivalents.
 """
 
 import argparse
 import json
-import os
 import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
 
-# Path to this script's directory
+# Path to this script's directory.
+# This file lives at <repo>/.claude/skills/scaffolding/scripts/scaffold.py, so
+# the repo root (where skills/ and hooks/ live) is four parents up. Components
+# are scaffolded into the repo root, not into .claude/.
 SCRIPT_DIR = Path(__file__).parent
 TEMPLATES_DIR = SCRIPT_DIR.parent / "templates"
-PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent
+PROJECT_ROOT = SCRIPT_DIR.parent.parent.parent.parent
+
 
 def _discover_domains() -> list[str]:
-    """Discover valid domains from commands/ directory structure."""
-    commands_dir = PROJECT_ROOT / "commands"
-    if commands_dir.is_dir():
+    """Discover valid domains for the skills-only layout.
+
+    Canonical source is ``.claude-plugin/components.json`` "domains". Falls
+    back to the top-level directories under skills/ (excluding the
+    ``{domain}-{role}`` fork-worker dirs) if the manifest is unavailable.
+    """
+    components = PROJECT_ROOT / ".claude-plugin" / "components.json"
+    try:
+        data = json.loads(components.read_text(encoding="utf-8"))
+        domains = data.get("domains")
+        if isinstance(domains, list) and domains:
+            return sorted(str(d) for d in domains)
+    except (OSError, json.JSONDecodeError):
+        pass
+    # Fallback: skills/ top-level dirs that are NOT fork-worker dirs.
+    skills_dir = PROJECT_ROOT / "skills"
+    if skills_dir.is_dir():
         return sorted(
-            d.name for d in commands_dir.iterdir()
-            if d.is_dir() and not d.name.startswith("_")
+            d.name for d in skills_dir.iterdir()
+            if d.is_dir() and not d.name.startswith("_") and "-" not in d.name
         )
     return []
 
-# Valid domains — discovered from commands/ directory at import time
+
+# Valid domains — discovered from the manifest / skills tree at import time
 VALID_DOMAINS = _discover_domains()
 
 
@@ -39,16 +67,7 @@ RESERVED_PREFIXES = ['claude-code-', 'anthropic-', 'official-', 'agent-skills']
 
 
 def validate_name(name: str, component_type: str = "component") -> tuple[bool, Optional[str]]:
-    """
-    Validate a component name.
-
-    Args:
-        name: Component name to validate
-        component_type: Type of component (for error messages)
-
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
+    """Validate a component name (kebab-case, <=64 chars, no reserved prefix)."""
     if not name:
         return False, f"{component_type} name cannot be empty"
 
@@ -85,40 +104,18 @@ def upper_case(name: str) -> str:
 
 
 def render_template(template_path: Path, variables: Dict[str, str]) -> str:
-    """
-    Render a template file with variables.
-
-    Args:
-        template_path: Path to template file
-        variables: Dictionary of variable names to values
-
-    Returns:
-        Rendered template content
-    """
+    """Render a template file, replacing every ``{{variable}}`` occurrence."""
     if not template_path.exists():
         raise FileNotFoundError(f"Template not found: {template_path}")
 
     content = template_path.read_text()
-
-    # Replace all {{variable}} patterns
     for key, value in variables.items():
         content = content.replace(f"{{{{{key}}}}}", str(value))
-
     return content
 
 
 def prompt_user(message: str, default: Optional[str] = None, required: bool = True) -> str:
-    """
-    Prompt user for input.
-
-    Args:
-        message: Prompt message
-        default: Default value if user presses enter
-        required: Whether input is required
-
-    Returns:
-        User's input or default value
-    """
+    """Prompt user for input, honouring an optional default."""
     suffix = f" [{default}]" if default else ""
     prompt = f"{message}{suffix}: "
 
@@ -141,19 +138,7 @@ def scaffold_skill(
     description: str,
     use_when: str
 ) -> Path:
-    """
-    Scaffold a new skill in a domain.
-
-    Args:
-        name: Skill name (kebab-case)
-        domain: Domain name (e.g., crew, qe, engineering)
-        description: Brief description
-        use_when: Usage trigger description
-
-    Returns:
-        Path to created skill directory
-    """
-    # Validate names
+    """Scaffold a new sub-skill under a domain: skills/{domain}/{name}/SKILL.md."""
     valid, error = validate_name(name, "Skill")
     if not valid:
         raise ValueError(error)
@@ -162,7 +147,6 @@ def scaffold_skill(
     if not valid:
         raise ValueError(error)
 
-    # Create skill directory
     skill_dir = PROJECT_ROOT / "skills" / domain / name
     if skill_dir.exists():
         raise FileExistsError(f"Skill already exists: {skill_dir}")
@@ -171,47 +155,37 @@ def scaffold_skill(
 
     skill_dir.mkdir(parents=True)
 
-    # Template variables
     variables = {
         "name": name,
         "title": title_case(name),
         "description": description,
-        "use_when": use_when
+        "use_when": use_when,
     }
 
-    # Create SKILL.md
     skill_template = TEMPLATES_DIR / "skill" / "SKILL.md"
     skill_content = render_template(skill_template, variables)
     (skill_dir / "SKILL.md").write_text(skill_content)
 
     print(f"  Created SKILL.md")
     print(f"\nSkill created: {skill_dir}")
-    print(f"Namespace: wicked-garden:{domain}:{name}")
+    print(f"Skill id: {name} (routed by the {domain} domain skill)")
     return skill_dir
 
 
-def scaffold_agent(
+def scaffold_worker(
     name: str,
     domain: str,
     description: str,
     expertise: str,
     tools: List[str]
 ) -> Path:
-    """
-    Scaffold a new agent in a domain.
+    """Scaffold a context:fork WORKER skill (the former "agent").
 
-    Args:
-        name: Agent name (kebab-case)
-        domain: Domain name (e.g., crew, platform, engineering)
-        description: Brief description
-        expertise: Domain of expertise
-        tools: List of tool names
-
-    Returns:
-        Path to created agent file
+    Writes skills/{domain}-{name}/SKILL.md with ``context: fork`` frontmatter
+    and the dash-qualified skill name ``wicked-garden-{domain}-{name}``, which
+    is the identifier callers dispatch via Skill(skill="…").
     """
-    # Validate names
-    valid, error = validate_name(name, "Agent")
+    valid, error = validate_name(name, "Worker")
     if not valid:
         raise ValueError(error)
 
@@ -219,24 +193,26 @@ def scaffold_agent(
     if not valid:
         raise ValueError(error)
 
-    # Create agents/domain directory if needed
-    agents_dir = PROJECT_ROOT / "agents" / domain
-    agents_dir.mkdir(parents=True, exist_ok=True)
+    # Fork workers are top-level skills named skills/{domain}-{role}/
+    worker_dir = PROJECT_ROOT / "skills" / f"{domain}-{name}"
+    if worker_dir.exists():
+        raise FileExistsError(f"Worker skill already exists: {worker_dir}")
 
-    # Create agent file
-    agent_file = agents_dir / f"{name}.md"
-    if agent_file.exists():
-        raise FileExistsError(f"Agent already exists: {agent_file}")
+    print(f"Creating fork worker skill: {name} in domain {domain}")
+    worker_dir.mkdir(parents=True)
 
-    print(f"Creating agent: {name} in domain {domain}")
-
-    # Template variables
+    skill_name = f"wicked-garden-{domain}-{name}"
     tools_str = ', '.join(f'"{tool}"' for tool in tools)
     variables = {
+        "skill_name": skill_name,
         "name": name,
+        "title": title_case(name),
         "description": description,
         "domain": expertise,
         "tools": tools_str,
+        "color": "blue",
+        "namespace": f"wicked-garden:{domain}",
+        "entity": name,
         "capability_1": "Analyze requirements and context",
         "capability_2": "Design solutions following best practices",
         "capability_3": "Implement with quality and precision",
@@ -250,98 +226,54 @@ def scaffold_agent(
         "constraint_2": "No over-engineering - keep it simple",
         "constraint_3": "No assumptions - ask when unclear",
         "communication_1": "Clear and concise explanations",
-        "communication_2": "Transparent about limitations and blockers"
+        "communication_2": "Transparent about limitations and blockers",
     }
 
-    # Create agent.md
-    agent_template = TEMPLATES_DIR / "agent" / "agent.md"
-    agent_content = render_template(agent_template, variables)
-    agent_file.write_text(agent_content)
+    worker_template = TEMPLATES_DIR / "agent" / "agent.md"
+    worker_content = render_template(worker_template, variables)
+    (worker_dir / "SKILL.md").write_text(worker_content)
 
-    print(f"  Created {name}.md")
-    print(f"\nAgent created: {agent_file}")
-    print(f"Subagent type: wicked-garden:{domain}/{name}")
-    return agent_file
+    print(f"  Created SKILL.md")
+    print(f"\nWorker skill created: {worker_dir / 'SKILL.md'}")
+    print(f"Dispatch via: Skill(skill=\"{skill_name}\")")
+    return worker_dir
 
 
 def scaffold_command(
     name: str,
     domain: str,
     description: str,
-) -> Path:
-    """
-    Scaffold a new command in a domain.
+) -> Path | None:
+    """The command component type is RETIRED (skills-only layout).
 
-    Args:
-        name: Command name (kebab-case)
-        domain: Domain name (e.g., crew, qe, engineering)
-        description: Brief description
-
-    Returns:
-        Path to created command file
+    Former commands are now ACTIONS of the consolidated per-domain router
+    skill at skills/{domain}/SKILL.md. This helper does not create a
+    commands/ file; it prints guidance for adding the action instead.
     """
-    # Validate names
-    valid, error = validate_name(name, "Command")
+    valid, error = validate_name(name, "Action")
     if not valid:
         raise ValueError(error)
-
     valid, error = validate_domain(domain)
     if not valid:
         raise ValueError(error)
 
-    # Create commands/domain directory if needed
-    commands_dir = PROJECT_ROOT / "commands" / domain
-    commands_dir.mkdir(parents=True, exist_ok=True)
-
-    # Create command file
-    command_file = commands_dir / f"{name}.md"
-    if command_file.exists():
-        raise FileExistsError(f"Command already exists: {command_file}")
-
-    print(f"Creating command: {name} in domain {domain}")
-
-    # Check for matching agents to decide template
-    agents_dir = PROJECT_ROOT / "agents" / domain
-    has_agents = agents_dir.exists() and any(agents_dir.glob("*.md"))
-
-    if has_agents:
-        template_path = TEMPLATES_DIR / "plugin" / "command-with-agent.md"
-    else:
-        template_path = TEMPLATES_DIR / "plugin" / "command.md"
-
-    variables = {
-        "name": name,
-        "command_name": name,
-        "plugin_name": f"wicked-garden:{domain}",
-        "description": description,
-        "Name": title_case(name),
-    }
-
-    if template_path.exists():
-        content = render_template(template_path, variables)
-    else:
-        content = f"""---
-description: {description}
----
-
-# /wicked-garden:{domain}:{name}
-
-{description}
-
-## Process
-
-1. Parse arguments from $ARGUMENTS
-2. Execute the command logic
-3. Return results
-
-"""
-
-    command_file.write_text(content)
-
-    print(f"  Created {name}.md")
-    print(f"\nCommand created: {command_file}")
-    print(f"Namespace: wicked-garden:{domain}:{name}")
-    return command_file
+    router = PROJECT_ROOT / "skills" / domain / "SKILL.md"
+    print(f"Commands are retired in the skills-only layout.")
+    print(
+        f"Add '{name}' as an ACTION of the {domain} domain skill instead:\n"
+        f"  - Router skill: skills/{domain}/SKILL.md\n"
+        f"    (add a row to its Action router table + an inline section or a\n"
+        f"     refs/{name}.md playbook, and — if it dispatches to a worker —\n"
+        f"     Skill(skill=\"wicked-garden-{domain}-<worker>\"))."
+    )
+    if not router.exists():
+        print(
+            f"\nThe {domain} router skill does not exist yet. Scaffold it first:\n"
+            f"  scaffold.py skill --name {domain} --domain {domain} "
+            f"--description \"{domain} domain router\" --use-when \"{domain} work\""
+        )
+    # See templates/plugin/command-with-agent.md for a copy-paste action stub.
+    return None
 
 
 def scaffold_hook(
@@ -350,19 +282,7 @@ def scaffold_hook(
     description: str,
     matcher: str = "*"
 ) -> Path:
-    """
-    Scaffold a new hook in the unified plugin.
-
-    Args:
-        event: Hook event (PreToolUse, PostToolUse, etc.)
-        script_name: Script file name (without .py)
-        description: Brief description
-        matcher: Tool matcher pattern
-
-    Returns:
-        Path to created hooks directory
-    """
-    # Valid events
+    """Scaffold a new hook in the unified plugin."""
     valid_events = [
         "PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop",
         "SubagentStop", "SessionStart", "SessionEnd", "PreCompact", "Notification"
@@ -370,14 +290,12 @@ def scaffold_hook(
     if event not in valid_events:
         raise ValueError(f"Invalid event: {event}. Must be one of: {', '.join(valid_events)}")
 
-    # Create hooks directory if needed
     hooks_dir = PROJECT_ROOT / "hooks"
     scripts_dir = hooks_dir / "scripts"
     scripts_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Creating hook: {event}")
 
-    # Template variables
     variables = {
         "description": description,
         "event": event,
@@ -386,15 +304,12 @@ def scaffold_hook(
         "plugin_name": "wicked-garden"
     }
 
-    # Create or update hooks.json
     hooks_json_path = hooks_dir / "hooks.json"
     if hooks_json_path.exists():
-        # Update existing hooks.json
         hooks_data = json.loads(hooks_json_path.read_text())
         if event not in hooks_data.get("hooks", {}):
             hooks_data["hooks"][event] = []
 
-        # Add new hook entry
         new_hook = {
             "matcher": matcher,
             "hooks": [
@@ -410,13 +325,11 @@ def scaffold_hook(
         hooks_json_path.write_text(json.dumps(hooks_data, indent=2))
         print(f"  Updated hooks/hooks.json")
     else:
-        # Create new hooks.json
         hooks_template = TEMPLATES_DIR / "hook" / "hooks.json"
         hooks_content = render_template(hooks_template, variables)
         hooks_json_path.write_text(hooks_content)
         print(f"  Created hooks/hooks.json")
 
-    # Create hook script
     script_template = TEMPLATES_DIR / "hook" / "script.py"
     script_content = render_template(script_template, variables)
     script_path = scripts_dir / f"{script_name}.py"
@@ -451,9 +364,9 @@ def interactive_skill():
     scaffold_skill(name, domain, description, use_when)
 
 
-def interactive_agent():
-    """Interactive agent creation."""
-    print("\n=== Agent Scaffold ===\n")
+def interactive_worker():
+    """Interactive fork-worker (context:fork) skill creation."""
+    print("\n=== Worker Skill Scaffold (context:fork) ===\n")
 
     print(f"Valid domains: {', '.join(VALID_DOMAINS)}")
     domain = prompt_user("Domain")
@@ -462,8 +375,8 @@ def interactive_agent():
         print(f"Error: {error}")
         sys.exit(1)
 
-    name = prompt_user("Agent name (kebab-case)")
-    valid, error = validate_name(name, "Agent")
+    name = prompt_user("Worker name (kebab-case, the role)")
+    valid, error = validate_name(name, "Worker")
     if not valid:
         print(f"Error: {error}")
         sys.exit(1)
@@ -473,12 +386,12 @@ def interactive_agent():
     tools_str = prompt_user("Tools (comma-separated)", default="Read,Write,Bash")
     tools = [tool.strip() for tool in tools_str.split(',')]
 
-    scaffold_agent(name, domain, description, expertise, tools)
+    scaffold_worker(name, domain, description, expertise, tools)
 
 
 def interactive_command():
-    """Interactive command creation."""
-    print("\n=== Command Scaffold ===\n")
+    """Interactive command — retired; prints skills-only guidance."""
+    print("\n=== Action Scaffold (commands are retired) ===\n")
 
     print(f"Valid domains: {', '.join(VALID_DOMAINS)}")
     domain = prompt_user("Domain")
@@ -487,8 +400,8 @@ def interactive_command():
         print(f"Error: {error}")
         sys.exit(1)
 
-    name = prompt_user("Command name (kebab-case)")
-    valid, error = validate_name(name, "Command")
+    name = prompt_user("Action name (kebab-case)")
+    valid, error = validate_name(name, "Action")
     if not valid:
         print(f"Error: {error}")
         sys.exit(1)
@@ -522,30 +435,36 @@ def interactive_hook():
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="Scaffold domain components for the wicked-garden plugin",
+        description="Scaffold components for the wicked-garden plugin (skills-only)",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
 
     subparsers = parser.add_subparsers(dest='command', help='Component type')
 
     # Skill subcommand
-    skill_parser = subparsers.add_parser('skill', help='Scaffold a skill')
+    skill_parser = subparsers.add_parser('skill', help='Scaffold a (sub-)skill')
     skill_parser.add_argument('--name', required=False, help='Skill name')
     skill_parser.add_argument('--domain', required=False, help='Domain name')
     skill_parser.add_argument('--description', required=False, help='Description')
     skill_parser.add_argument('--use-when', required=False, help='Usage trigger')
 
-    # Agent subcommand
-    agent_parser = subparsers.add_parser('agent', help='Scaffold an agent')
-    agent_parser.add_argument('--name', required=False, help='Agent name')
-    agent_parser.add_argument('--domain', required=False, help='Domain name')
-    agent_parser.add_argument('--description', required=False, help='Description')
-    agent_parser.add_argument('--expertise', required=False, help='Area of expertise')
-    agent_parser.add_argument('--tools', default='Read,Write,Bash', help='Comma-separated tool list')
+    # Worker subcommand (context:fork) — `agent` kept as a back-compat alias
+    for verb in ('worker', 'agent'):
+        wp = subparsers.add_parser(
+            verb,
+            help='Scaffold a context:fork worker skill (former agent)'
+        )
+        wp.add_argument('--name', required=False, help='Worker name (role)')
+        wp.add_argument('--domain', required=False, help='Domain name')
+        wp.add_argument('--description', required=False, help='Description')
+        wp.add_argument('--expertise', required=False, help='Area of expertise')
+        wp.add_argument('--tools', default='Read,Write,Bash', help='Comma-separated tool list')
 
-    # Command subcommand
-    command_parser = subparsers.add_parser('command', help='Scaffold a command')
-    command_parser.add_argument('--name', required=False, help='Command name')
+    # Command subcommand — retired; prints skills-only guidance
+    command_parser = subparsers.add_parser(
+        'command', help='RETIRED — former commands are now domain-skill actions'
+    )
+    command_parser.add_argument('--name', required=False, help='Action name')
     command_parser.add_argument('--domain', required=False, help='Domain name')
     command_parser.add_argument('--description', required=False, help='Description')
 
@@ -565,12 +484,12 @@ def main():
             else:
                 scaffold_skill(args.name, args.domain, args.description, args.use_when)
 
-        elif args.command == 'agent':
+        elif args.command in ('worker', 'agent'):
             if not args.name or not args.domain:
-                interactive_agent()
+                interactive_worker()
             else:
                 tools = [tool.strip() for tool in args.tools.split(',')]
-                scaffold_agent(args.name, args.domain, args.description, args.expertise or args.domain, tools)
+                scaffold_worker(args.name, args.domain, args.description, args.expertise or args.domain, tools)
 
         elif args.command == 'command':
             if not args.name or not args.domain:
@@ -586,11 +505,11 @@ def main():
 
         else:
             # Interactive mode - choose component type
-            print("\n=== Component Scaffold (wicked-garden) ===\n")
+            print("\n=== Component Scaffold (wicked-garden, skills-only) ===\n")
             print("Component types:")
-            print("  1. Skill")
-            print("  2. Agent")
-            print("  3. Command")
+            print("  1. Skill (sub-skill / standalone)")
+            print("  2. Worker skill (context:fork — former agent)")
+            print("  3. Action (former command — folded into the domain skill)")
             print("  4. Hook")
 
             choice = prompt_user("\nSelect type (1-4)")
@@ -598,7 +517,7 @@ def main():
             if choice == '1':
                 interactive_skill()
             elif choice == '2':
-                interactive_agent()
+                interactive_worker()
             elif choice == '3':
                 interactive_command()
             elif choice == '4':

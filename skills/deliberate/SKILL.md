@@ -1,13 +1,17 @@
 ---
 name: wicked-garden-deliberate
-context: fork
+user-invocable: true
 description: |
   Critical thinking framework applied before doing work. Challenges assumptions,
   reframes problems, identifies hidden opportunities, and validates whether the stated
   ask is the right ask. A way of approaching work, not a specialist discipline.
 
   Use when: challenging assumptions before implementation, reframing a stated
-  problem, or asking whether the right thing is being asked at all.
+  problem, asking whether the right thing is being asked at all, "deliberate
+  on this", "deliberate #42" (a GitHub issue number), "critically analyze
+  this request before implementing", `--deep` (blast-radius analysis),
+  `--batch` (multiple issues, shared root causes), or any former
+  /wicked-garden:deliberate invocation.
 phase_relevance: ["clarify", "design"]
 archetype_relevance: ["*"]
 ---
@@ -104,6 +108,7 @@ Before committing to the obvious solution, explore alternatives.
 
 The five lenses are universal. The refs provide depth for specific contexts:
 
+- [refs/run-workflow.md](refs/run-workflow.md) — **Operational runbook** for user-invoked deliberations: GH issue parsing, context gathering, Explore-agent dispatch, brief presentation, memory storage, crew integration, batch mode
 - [refs/opportunity-patterns.md](refs/opportunity-patterns.md) — Structural patterns that signal cleanup opportunities
 - [refs/rethink-framework.md](refs/rethink-framework.md) — When and how to propose a redesign
 - [refs/code-lens.md](refs/code-lens.md) — Code-specific patterns (error handling, abstractions, tech debt)
@@ -121,5 +126,5 @@ The five lenses are universal. The refs provide depth for specific contexts:
 ## Integration
 
 - **Crew workflow**: Auto-invoked during clarify and design phases
-- **Standalone**: `/wicked-garden:deliberate {description or GH#}`
-- **Batch**: Process multiple issues together to find shared root causes
+- **Standalone**: invoke this skill with `{description or GH#} [--deep] [--batch]` — then follow [refs/run-workflow.md](refs/run-workflow.md)
+- **Batch**: `--batch "280,281"` — process multiple issues together to find shared root causes (see the runbook)

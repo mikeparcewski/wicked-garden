@@ -1,4 +1,4 @@
-export type RoleId = "gate" | "floor" | "layer" | "solo";
+export type RoleId = "gate" | "layer" | "solo";
 
 export interface Role {
   id: RoleId;
@@ -27,7 +27,7 @@ export interface Project {
 /** One stop on the garden tour. `tools` are project ids presented at the stop. */
 export interface TourStop {
   stop: number; // 1-based
-  kicker: string; // e.g. "stop 03 / 07 — the proving bed"
+  kicker: string; // e.g. "stop 03 / 05 — the proving bed"
   headline: { pre: string; mark: string }; // display headline; `mark` gets the marker swipe
   body: string; // stop-level narrative
   unlock: string; // capability caption once planted, e.g. "now it remembers"
@@ -42,13 +42,6 @@ export const ROLES: Role[] = [
     tag: "start here",
     blurb: "One install that curates the rest — reads the shape of your work and applies exactly that much rigor.",
     colorVar: "--c-gate",
-  },
-  {
-    id: "floor",
-    label: "The floor",
-    tag: "required peer",
-    blurb: "The one external peer the evidence gate stands on. Garden blocks without it — this floor is the point. (The gate/resolve engine now ships in-package.)",
-    colorVar: "--c-floor",
   },
   {
     id: "layer",
@@ -96,32 +89,6 @@ export const PROJECTS: Project[] = [
     featured: true,
   },
 
-  // ── The floor ──────────────────────────────────────────────────
-  {
-    id: "wicked-vault",
-    short: "vault",
-    role: "floor",
-    kicker: "evidence primitive",
-    tagline: "Don't trust “done.” Re-derive it.",
-    outcome: "you ship on evidence, not on an agent's word",
-    blurb:
-      "Records the evidence behind a claim with the criteria it must clear, then checks it on two tiers: integrity — deterministic, re-derivable, model-free — and judgment, from an independent evaluator that isn't the agent who did the work.",
-    points: [
-      "Integrity tier — recompute the hashes, re-run the verifier, CI-safe",
-      "Judgment tier — independent judge ≠ worker, fail-closed",
-      "Append-only, tamper-evident attestations — criteria frozen to evidence",
-    ],
-    uses: [
-      "CI gates that re-verify instead of trusting a green badge",
-      "audit-ready evidence trails behind every claim",
-      "stopping agents from grading their own homework",
-    ],
-    install: "npx wicked-vault-install",
-    repo: `${GH}/wicked-vault`,
-    badges: ["MIT", "npm", "≥ 0.4.0"],
-    featured: true,
-  },
-
   // ── The layers ─────────────────────────────────────────────────
   {
     id: "wicked-testing",
@@ -133,7 +100,7 @@ export const PROJECTS: Project[] = [
     blurb:
       "A complete QE team for your AI CLI: a Writer → Executor → Reviewer pipeline with hard-enforced separation. The reviewer reads cold evidence and never sees the executor's context, so the agent can't grade its own homework.",
     points: [
-      "40 specialist agents · 5 Tier-1 skills (plan, authoring, execution, review, insight)",
+      "40 specialist skills · 8 Tier-1 workflow skills (5 orchestrator surfaces: plan, authoring, execution, review, insight)",
       "Independent verdicts — reviewer never sees executor context",
       "SQLite ledger with a plain-English oracle",
     ],
@@ -172,29 +139,6 @@ export const PROJECTS: Project[] = [
     repo: `${GH}/wicked-brain`,
     badges: ["MIT", "npm", "local-first"],
     featured: true,
-  },
-  {
-    id: "wicked-understanding",
-    short: "understanding",
-    role: "layer",
-    kicker: "repo playbooks",
-    tagline: "Give your agent the repo's “how.”",
-    outcome: "your agent fixes the bug instead of re-learning the repo",
-    blurb:
-      "Memory tells your agent what your repo is. This hands it how to change it — repo-specific playbooks (fix-bug, add-feature, verify) generated from HEAD, with the exact files, the wiring step, and the gotcha that bites.",
-    points: [
-      "Playbooks read HEAD, so they track your code instead of rotting",
-      "Diff-aware refresh — only what moved re-runs",
-      "Cross-CLI via the skills standard",
-    ],
-    uses: [
-      "fixing the bug without re-learning the repo",
-      "playbooks that onboard agents — and new engineers",
-      "keeping the “how” fresh as the code moves",
-    ],
-    install: "npx skills add mikeparcewski/wicked-understanding --all",
-    repo: `${GH}/wicked-understanding`,
-    badges: ["MIT", "cross-CLI"],
   },
   {
     id: "wicked-bus",
@@ -250,7 +194,7 @@ export const PROJECTS: Project[] = [
 export const TOUR: TourStop[] = [
   {
     stop: 1,
-    kicker: "stop 01 / 07 — the toolkit",
+    kicker: "stop 01 / 05 — the toolkit",
     headline: { pre: "the tools your agent", mark: "can't build alone" },
     body:
       "wicked-garden hands your agent five tools it can't build alone — prove (re-derive “done” from evidence), injected-edge search, multi-file refactor as a graph operation, a real multi-model council, and the repo's own playbooks. Its gate/resolve engine ships in-package (scripts/loom/) — nothing extra to install. Install it once; it curates everything that follows.",
@@ -260,27 +204,17 @@ export const TOUR: TourStop[] = [
   },
   {
     stop: 2,
-    kicker: "stop 02 / 07 — the evidence bed",
-    headline: { pre: "a floor that can't", mark: "lie" },
-    body:
-      "Every claim is recorded with the criteria it must clear, then re-derived instead of trusted — integrity checked deterministically, judgment rendered by an independent evaluator that isn't the agent who did the work. wicked-vault (≥ 0.4.0) is the one external peer the gate requires; garden blocks without it.",
-    unlock: "the evidence floor — in place",
-    plant: "locked",
-    tools: ["wicked-vault"],
-  },
-  {
-    stop: 3,
-    kicker: "stop 03 / 07 — the proving bed",
+    kicker: "stop 02 / 05 — the proving bed",
     headline: { pre: "green finally means", mark: "green" },
     body:
-      "A Writer → Executor → Reviewer pipeline with enforced separation — the reviewer reads cold evidence and never sees the executor's context. 40 specialist agents, one SQLite ledger, a plain-English oracle.",
+      "A Writer → Executor → Reviewer pipeline with enforced separation — the reviewer reads cold evidence and never sees the executor's context, re-deriving each verdict from evidence instead of trusting it. 40 specialist skills, one SQLite ledger, a plain-English oracle.",
     unlock: "green means green",
     plant: "optin",
     tools: ["wicked-testing"],
   },
   {
-    stop: 4,
-    kicker: "stop 04 / 07 — the memory bed",
+    stop: 3,
+    kicker: "stop 03 / 05 — the memory bed",
     headline: { pre: "your agent finally", mark: "remembers" },
     body:
       "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. Every claim traces back to a file you can open, diff, and git-commit.",
@@ -289,18 +223,8 @@ export const TOUR: TourStop[] = [
     tools: ["wicked-brain"],
   },
   {
-    stop: 5,
-    kicker: "stop 05 / 07 — the playbook bed",
-    headline: { pre: "it knows how, not just", mark: "what" },
-    body:
-      "Repo-specific playbooks generated from HEAD — fix-bug, add-feature, verify — with the exact files, the wiring step, and the gotcha that bites. Your agent stops re-deriving the method every session.",
-    unlock: "now it knows your repo",
-    plant: "optin",
-    tools: ["wicked-understanding"],
-  },
-  {
-    stop: 6,
-    kicker: "stop 06 / 07 — the irrigation",
+    stop: 4,
+    kicker: "stop 04 / 05 — the irrigation",
     headline: { pre: "your tools finally", mark: "talk" },
     body:
       "A local-first event bus over one SQLite file — producers fire and forget, subscribers catch up at their own pace. No broker, no daemon, no ports; the whole garden coordinates without glue.",
@@ -309,8 +233,8 @@ export const TOUR: TourStop[] = [
     tools: ["wicked-bus"],
   },
   {
-    stop: 7,
-    kicker: "stop 07 / 07 — the greenhouse",
+    stop: 5,
+    kicker: "stop 05 / 05 — the greenhouse",
     headline: { pre: "the 11pm deck,", mark: "handled" },
     body:
       "A solo bed — no garden required. Describe the deck, page, or demo out loud and watch it build live in your browser; point at what's wrong and say what to fix. Every version saved.",
@@ -320,7 +244,7 @@ export const TOUR: TourStop[] = [
   },
 ];
 
-/** Tool ids that are always in the kit (the gate + the floor). */
+/** Tool ids that are always in the kit (the gate). */
 export const LOCKED_TOOLS: string[] = TOUR.filter((s) => s.plant === "locked").flatMap((s) => s.tools);
 
 /** Canonical tray / script order. */
@@ -339,9 +263,6 @@ export function colorVarOf(id: RoleId): string {
 export const STATS = {
   projects: PROJECTS.length,
   accounts: 0,
-  // Hand-maintained family-wide agent total = garden 23 + testing 40 + brain 4.
-  // Update on any agent add/cut (garden was 36, cut to 23 in the v12 lift-eval pass).
-  agents: 67,
   archetypes: 10,
   harnesses: 7,
 };

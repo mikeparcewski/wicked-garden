@@ -1,5 +1,5 @@
 ---
-name: screenshot
+name: wicked-garden-product-screenshot
 description: |
   Screenshot-based UI review using Claude's multimodal capabilities.
   Analyzes visual design from image files — layout, spacing, color, typography,

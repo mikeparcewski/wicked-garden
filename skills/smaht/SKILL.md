@@ -6,10 +6,16 @@ description: |
   Gathers a relevant on-demand context briefing over wicked-brain + wicked-garden:search
   + domain state. Pull-model: subagents call it when they need background rather than
   having context pushed onto every prompt (v6 replaced the v5 push orchestrator, #428).
+  Routes three sub-actions backed by refs/: briefing (what happened since the last
+  session — NOT live state), state (live SessionState/adapter/directive inspection —
+  NOT since-last-session), events-import (DomainStore records → unified event log).
 
   Use when: gathering a context briefing before a task, "assemble context",
-  "give me a briefing", resuming work after a session break, or building background
-  on an unfamiliar area. Aliases: context-assembly, briefing, smart-context.
+  "give me a briefing", "what happened since my last session", resuming work after
+  a session break, building background on an unfamiliar area, "show session state",
+  "inspect live session state", "import domain records into the event log", or any
+  former /wicked-garden:smaht:{briefing|state|events-import} invocation.
+  Aliases: context-assembly, briefing, smart-context.
 user-invocable: true
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
@@ -20,6 +26,22 @@ archetype_relevance: ["*"]
 Gather relevant context from wicked-brain + wicked-garden:search + domain state when
 a subagent or command asks for it. There is no per-prompt push — the user prompt
 submit hook no longer runs an orchestrator.
+
+## Sub-action router
+
+| Sub-action | Use for | Args | Ref |
+|------------|---------|------|-----|
+| `briefing` | What happened **since the last session** — recent events, active crew projects, memory updates, post-compaction WIP recovery. NOT live session-state inspection (use `state`). | `[--days N] [--project name]` | `refs/briefing.md` |
+| `state` | **Live** SessionState, adapter outputs, smaht directive settings, recent bus events. NOT what-happened-since-last-session (use `briefing`). | `[--state] [--events N] [--project <name>] [--json]` | `refs/state.md` |
+| `events-import` | Import existing DomainStore JSON records into the unified event log as historical `{source}.migrated` events (idempotent). | `[--domain D] [--dry-run]` | `refs/events-import.md` |
+
+Run a sub-action inline (no dispatch):
+
+1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/smaht/refs/<sub-action>.md")` — the full rubric.
+2. Apply the rubric directly using the parsed args.
+
+No sub-action named? The caller wants general context assembly — use the quick
+reference below (and `briefing` when resuming after a session break).
 
 ## Quick Reference
 
@@ -60,7 +82,13 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 
 ## Sub-Skills
 
-- [discovery/SKILL.md](discovery/SKILL.md) — Integration discovery and adapter configuration
+- [discovery/SKILL.md](discovery/SKILL.md) — Contextual discovery: suggest ONE
+  related follow-up based on what was just used (feeds the `briefing` sub-action's
+  step 5)
+- [intent/SKILL.md](intent/SKILL.md) — Show or set the sticky session intent
+  variable (simple-edit / feature / research / rigor)
+- [propose-skills/SKILL.md](propose-skills/SKILL.md) — Mine session transcripts
+  for repetitive patterns worth turning into skills (read-only report)
 
 ## v5 → v6 Notes
 

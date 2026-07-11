@@ -6,8 +6,8 @@ Self-graded "done" is rejected. This is the vault / `prove` ethos applied to a
 swarm: a claim is only true if it can be recomputed from frozen evidence.
 
 > **Independence is structural, not polite.** Use a *different* agent type than
-> the one that did the work. `agents/qe/semantic-reviewer.md` is independent by
-> construction and **refuses to attest code it authored**; `wicked-vault attest`
+> the one that did the work. The `wicked-garden-qe-semantic-reviewer` fork skill is
+> independent by construction and **refuses to attest code it authored**; `wicked-vault attest`
 > fails closed when `evaluator == creator` (G10). If you let the implementer
 > verify itself, you have a self-grade — the one thing this skill forbids.
 
@@ -15,10 +15,10 @@ swarm: a claim is only true if it can be recomputed from frozen evidence.
 
 | Verdict needed | Agent |
 |----------------|-------|
-| Does the code do what the spec/AC MEANS? | `agents/qe/semantic-reviewer.md` (opus, independent-by-construction) |
-| General correctness when no specialist fits | `agents/crew/reviewer.md` (has reviewer-separation + external-review baked in) |
+| Does the code do what the spec/AC MEANS? | `wicked-garden-qe-semantic-reviewer` fork skill (opus, independent-by-construction) |
+| General correctness when no specialist fits | `wicked-garden-crew-reviewer` fork skill (has reviewer-separation + external-review baked in) |
 | High-stakes verdict needing multiple opinions | `wicked-garden:jam:council` (independent multi-model) inside the wave |
-| The raw "did the suite actually pass" receipt | `/wicked-garden:prove` (run + gate) — see `refs/receipts-and-evidence.md` |
+| The raw "did the suite actually pass" receipt | `/wicked-garden-prove` (run + gate) — see `refs/receipts-and-evidence.md` |
 
 Run M verifiers in parallel — one message, multiple `Task` calls — one per unit.
 
@@ -72,7 +72,7 @@ implementers wave  →  (disk artifacts)  →  verifiers wave  →  (receipts)  
   the verifier starts from the implementer's outputs but re-derives the result
   independently.
 - A unit is only "done" when its `receipt.md` says PASS **and** the claim is
-  re-derived through `/wicked-garden:prove` (next ref). A FAIL or PARTIAL goes
+  re-derived through `/wicked-garden-prove` (next ref). A FAIL or PARTIAL goes
   back to a fresh implementer slice — the original implementer does not get to
   argue its way to PASS.
 
@@ -80,7 +80,7 @@ implementers wave  →  (disk artifacts)  →  verifiers wave  →  (receipts)  
 
 A traceability/claim heuristic reports an untagged-but-correct change as
 "missing" and a tagged-but-wrong one as "done" — both wrong (this is exactly
-why `semantic_review.py` is only a pre-filter and `agents/qe/semantic-reviewer.md`
-does the real read). The verifier closes that gap: it judges by re-running and
+why `semantic_review.py` is only a pre-filter and the `wicked-garden-qe-semantic-reviewer`
+fork skill does the real read). The verifier closes that gap: it judges by re-running and
 reading, not by trusting a label or a summary. The verdict that **names the gap**
 is the value; never inflate to PASS to be helpful.

@@ -4,7 +4,7 @@ Dispatch **N independent subagents in parallel**, one per unit of work
 (repo / module / file / service). One message, multiple `Task` calls — that
 is what makes it a swarm and not a loop.
 
-Use `agents/crew/implementer.md` as the agent. It already encodes the rules
+Use the `wicked-garden-crew-implementer` fork skill as the agent. It already encodes the rules
 that matter here: parallel-when-independent dispatch, structured evidence in
 every `TaskUpdate`, and the guardrails (never auto-proceed on deploys / deletes /
 schema migrations). This ref adds the **per-unit brief** that scopes each one.
@@ -41,7 +41,7 @@ SCRATCH DIR: <scratch>/<unit-name>/   (create it; write all detail here)
 
 2. IMPACT ANALYSIS (blast radius) BEFORE you change anything.
    What does this change touch? What depends on it? Use
-   /wicked-garden:search:blast-radius (or grep the call sites) and the
+   /wicked-garden-search blast-radius (or grep the call sites) and the
    deliberate lens ("map the blast radius: what else shares this root cause").
    Write blast-radius.md to your scratch dir. The blast radius SETS YOUR
    TEST BAR (step 4) — a wide radius demands more verification.

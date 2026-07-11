@@ -1,5 +1,5 @@
 ---
-name: accessibility
+name: wicked-garden-product-accessibility
 description: |
   Use when auditing code for WCAG 2.1 AA compliance — keyboard navigation, ARIA patterns, color contrast,
   and semantic HTML. Produces prioritized remediation with code-level fixes.

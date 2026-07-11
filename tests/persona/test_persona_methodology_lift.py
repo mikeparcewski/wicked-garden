@@ -11,10 +11,12 @@ preconditions for lift to exist:
 
   1. Methodology personas carry NAMED failure-mode constraints (`FAILURE MODE — …`)
      and a scope guard (`not_focus`) — the things a base prompt lacks.
-  2. The persona:as dispatch template SURFACES those fields, so the lift reaches
-     the model (a constraint the prompt drops is a constraint that does nothing).
-  3. The persona:define MECHANISM round-trips a failure-mode constraint + scope
-     guard end-to-end, so an enterprise can author its own house defense.
+  2. The persona `as` dispatch template (skills/persona/refs/as.md — the
+     skills-only home of the former commands/persona/as.md) SURFACES those
+     fields, so the lift reaches the model (a constraint the prompt drops is a
+     constraint that does nothing).
+  3. The persona `define` MECHANISM round-trips a failure-mode constraint +
+     scope guard end-to-end, so an enterprise can author its own house defense.
 
 The behavioural half — proving the persona actually changes model OUTPUT vs the
 base model on a task — lives in `eval_cases/*.json` and requires real Claude API
@@ -66,7 +68,7 @@ METHODOLOGY_PERSONAS = ["platform", "qe", "agentic"]
 # the specific failure it guards (not a generic role restatement).
 FAILURE_MODE_SENTINEL = "FAILURE MODE"
 
-AS_COMMAND = _REPO_ROOT / "commands" / "persona" / "as.md"
+AS_DISPATCH_REF = _REPO_ROOT / "skills" / "persona" / "refs" / "as.md"
 
 
 @pytest.fixture(autouse=True)
@@ -179,23 +181,23 @@ def test_methodology_persona_has_scope_guard(name):
 # --------------------------------------------------------------------------- #
 
 def test_dispatch_template_surfaces_constraints_and_scope_guard():
-    """A constraint the persona:as prompt drops is a constraint that does nothing.
+    """A constraint the persona `as` prompt drops is a constraint that does nothing.
 
-    The dispatch template in commands/persona/as.md must render both the
-    constraints and the not_focus scope guard, otherwise the lift never reaches
-    the model.
+    The dispatch template in skills/persona/refs/as.md (the `as` action of the
+    consolidated wicked-garden-persona skill) must render both the constraints
+    and the not_focus scope guard, otherwise the lift never reaches the model.
     """
-    text = AS_COMMAND.read_text(encoding="utf-8")
+    text = AS_DISPATCH_REF.read_text(encoding="utf-8")
     assert "{constraints_as_numbered_list}" in text, (
-        "persona:as dispatch prompt no longer renders constraints — "
+        "the persona `as` dispatch prompt no longer renders constraints — "
         "methodology lift would be silently dropped"
     )
     assert "{not_focus_as_bullet_list}" in text, (
-        "persona:as dispatch prompt no longer renders the not_focus scope guard"
+        "the persona `as` dispatch prompt no longer renders the not_focus scope guard"
     )
     assert "NOT Your Focus" in text, (
-        "persona:as dispatch prompt is missing the 'NOT Your Focus' scope-guard "
-        "section header"
+        "the persona `as` dispatch prompt is missing the 'NOT Your Focus' "
+        "scope-guard section header"
     )
 
 
@@ -209,7 +211,7 @@ def test_define_mechanism_roundtrips_failure_mode_constraint(tmp_path):
     Runs the registry CLI in a SUBPROCESS with HOME + CLAUDE_CWD pointed at a temp
     dir, so the DomainStore storage root is fully isolated and no module state
     leaks back into the in-process registry the other tests use (T3 isolation).
-    This is also exactly the path persona:define uses, so the test exercises the
+    This is also exactly the path the persona `define` action uses, so the test exercises the
     real mechanism. We assert the named failure-mode constraint and the scope
     guard survive the define → get round-trip.
     """
@@ -261,7 +263,7 @@ def test_define_mechanism_roundtrips_failure_mode_constraint(tmp_path):
 
 
 def test_define_then_delete_roundtrips(tmp_path):
-    """`persona:define` must be reversible: a defined persona can be deleted.
+    """The persona `define` action must be reversible: a defined persona can be deleted.
 
     Regression guard for the delete_persona bug — custom personas are stored
     under an auto-generated UUID ``id`` (the DomainStore key), while the human
@@ -285,7 +287,7 @@ def test_define_then_delete_roundtrips(tmp_path):
     env["CLAUDE_CWD"] = str(tmp_path)
     env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
 
-    # Drive define -> delete through the registry API the persona:define surface
+    # Drive define -> delete through the registry API the persona `define` surface
     # uses. No --delete CLI verb exists, so call the functions directly in an
     # isolated interpreter and emit a single JSON result line we assert on.
     driver = textwrap.dedent(
@@ -357,7 +359,7 @@ def test_generic_personas_are_distinguishable_from_methodology():
         assert not is_methodology_shaped, (
             f"'{name}' is documented as GENERIC but now carries a methodology-"
             "shaped record (named failure modes + scope guard). Re-triage it and "
-            "move it to the methodology tier in commands/persona/list.md + "
+            "move it to the methodology tier in skills/persona/refs/list.md + "
             "skills/persona/SKILL.md."
         )
 
@@ -391,16 +393,16 @@ def test_curated_builtin_rich_is_methodology_only():
 
 
 # --------------------------------------------------------------------------- #
-# Fallback safety: a demoted/removed generic name must NOT hard-break persona:as
+# Fallback safety: a demoted/removed generic name must NOT hard-break `persona as`
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.parametrize("name", ["engineering", "product", "data", "jam"])
 def test_demoted_generic_name_still_resolves_as_thin_record(name):
-    """SAFETY: demoting a generic persona must NOT break `persona:as <name>`.
+    """SAFETY: demoting a generic persona must NOT break `/wicked-garden-persona as <name>`.
 
     These names are still declared in specialist.json, so the registry resolves
     them — now as THIN role records (empty constraints / not_focus) rather than a
-    curated profile. `persona:as` renders an empty-constraints record gracefully
+    curated profile. The `as` action renders an empty-constraints record gracefully
     ('No hard constraints — use your judgment'), so the name still works; it just
     carries no curated lift. The reduction removed surface, not the invocation.
     """
@@ -420,8 +422,8 @@ def test_unknown_or_removed_persona_name_fails_safe_not_crash():
     must fail SAFE — `get_persona` returns None and the registry CLI exits non-zero
     with an `available` list — NEVER an unhandled exception or a wrong persona.
 
-    `commands/persona/as.md` Step 3 consumes exactly this contract: on a None/error
-    result it lists available personas and STOPs, so `persona:as <removed-name>`
+    `skills/persona/refs/as.md` Step 3 consumes exactly this contract: on a None/error
+    result it lists available personas and STOPs, so `persona as <removed-name>`
     degrades gracefully instead of dispatching a bogus agent. We assert both the
     in-process API (None) and the CLI surface (exit 1 + `available`).
     """
@@ -434,7 +436,7 @@ def test_unknown_or_removed_persona_name_fails_safe_not_crash():
             f"'{removed}' should not resolve to any persona after the cut"
         )
 
-    # CLI surface (the exact contract persona:as reads): non-zero exit + available list.
+    # CLI surface (the exact contract the `as` action reads): non-zero exit + available list.
     env = dict(os.environ)
     env["CLAUDE_PLUGIN_ROOT"] = str(_REPO_ROOT)
     proc = subprocess.run(
@@ -445,7 +447,7 @@ def test_unknown_or_removed_persona_name_fails_safe_not_crash():
     payload = json.loads(proc.stderr or proc.stdout)
     assert "error" in payload and "available" in payload, (
         "the unknown-name response must carry an 'error' + 'available' list so "
-        "persona:as can list options and stop — not crash"
+        "the persona `as` action can list options and stop — not crash"
     )
     # The methodology exemplars are still offered as available alternatives.
     for kept in METHODOLOGY_PERSONAS:

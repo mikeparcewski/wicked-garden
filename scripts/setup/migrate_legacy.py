@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""migrate_legacy.py — legacy reference scans for /wicked-garden:setup.
+"""migrate_legacy.py — legacy reference scans for the wicked-garden-core setup action.
 
-Section 2.6 of the setup command needs to scan crew project directories
+Section 2.6 of the setup action needs to scan crew project directories
 for legacy ``qe-evaluator`` strings in reeval and amendment logs. The
 scan was inlined in markdown; this module exposes it as a callable +
 CLI so the command body can stay slim.

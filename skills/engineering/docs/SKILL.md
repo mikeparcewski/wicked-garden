@@ -1,5 +1,5 @@
 ---
-name: docs
+name: wicked-garden-engineering-docs
 description: |
   Use when generating documentation from code, auditing documentation coverage for gaps, or detecting
   code-doc drift after a refactor. Covers generate (API docs, READMEs), audit (coverage metrics,
@@ -17,24 +17,25 @@ Generate, audit, and sync documentation across the codebase.
 
 ### Generate docs from code
 
-```bash
-/wicked-garden:engineering:docs <file-or-component> --type api|readme|guide|inline
+```
+wicked-garden-engineering docs <file-or-component> --type api|readme|guide|inline
 ```
 
-Extracts types, signatures, and comments to produce API docs, READMEs, or inline comments.
+Extracts types, signatures, and comments to produce API docs, READMEs, or inline
+comments (the `docs` action of the engineering domain skill routes here).
 
 ### Audit documentation coverage
 
-```bash
-/wicked-garden:engineering:docs <path> --audit
+```
+wicked-garden-engineering docs <path> --audit
 ```
 
 Reports coverage (documented vs total exports), quality score, and prioritized gaps.
 
 ### Detect stale docs after code changes
 
-```bash
-/wicked-garden:engineering:docs <path> --sync
+```
+wicked-garden-engineering docs <path> --sync
 ```
 
 Identifies documentation that has drifted from implementation after a refactor or rename.

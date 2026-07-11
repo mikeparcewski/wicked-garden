@@ -2,8 +2,8 @@
 
 Apply this inline. Design (`create`) or evaluate (`analyze`) user flows, interaction
 patterns, and information architecture — in-chat, no design tool. For research
-synthesis / journey maps grounded in study data, see the `ux-flow` skill
-(`skills/product/ux-flow/`).
+synthesis / journey maps grounded in study data, see the `ux-review` skill
+(`skills/product/ux-review/`).
 
 ## Mode
 

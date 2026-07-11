@@ -1,8 +1,9 @@
 ---
-# Search domain convention: search is primarily command-driven. Skill logic is embedded in
-# the domain scripts (scripts/search/). Skills here cover cross-cutting codebase-level
-# patterns only. For interactive search, use /wicked-garden:search:{code|docs|blast-radius|lineage}.
-name: codebase-narrator
+# Search domain convention: the consolidated wicked-garden-search skill (../SKILL.md)
+# routes all interactive search actions (index | blast-radius | lineage | hotspots |
+# service-map) and routes narration/orientation requests here. This nested skill covers
+# cross-cutting codebase-level narration only.
+name: wicked-garden-search-codebase-narrator
 description: |
   Narrate codebase structure and architecture for orientation — directory layout,
   key modules, data flows, technical decisions, and code health. A query +
@@ -127,5 +128,5 @@ Good codebase narratives:
 ## See Also
 
 - [refs/output-template.md](refs/output-template.md) — full output format
-- `/wicked-garden:search:blast-radius` — for impact analysis of specific symbols
-- `/wicked-garden:search:index` — build or refresh the index before diving in
+- [../SKILL.md](../SKILL.md) `blast-radius` action — for impact analysis of specific symbols
+- [../SKILL.md](../SKILL.md) `index` action — build or refresh the index before diving in

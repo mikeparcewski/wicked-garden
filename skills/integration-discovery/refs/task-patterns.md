@@ -147,14 +147,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Need | Capability Type | Options |
 |------|-----------------|---------|
-| Incident triage | Command/Skill | /wicked-garden:platform:incident (incident archetype, inline) |
+| Incident triage | Command/Skill | /wicked-garden-platform incident (incident archetype, inline) |
 | Error context | MCP | sentry, datadog |
 | Log analysis | Skill | platform errors / observability skills (inline) |
 | Communication | MCP | slack, teams |
 | Post-mortem | Skill | wicked-brain:memory |
 
 **Recommended flow**:
-1. Run /wicked-garden:platform:incident (or the incident archetype) immediately
+1. Run /wicked-garden-platform incident (or the incident archetype) immediately
 2. Pull context from observability MCP
 3. Communicate status via chat MCP
 4. Store learnings in wicked-brain:memory

@@ -3,7 +3,7 @@
 Rapid triage → investigate → mitigate → resolve → follow-up for production incidents.
 
 > Scope: rapid active triage — root cause, blast radius, remediation steps.
-> To log an incident against a crew project with traceability, use `/wicked-garden:crew:incident`.
+> To log an incident against a crew project with traceability, use the crew incident flow (`crew:incident`).
 
 ## Phase 1: Triage (First 5 Minutes)
 

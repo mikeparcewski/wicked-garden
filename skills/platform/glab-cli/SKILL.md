@@ -1,5 +1,5 @@
 ---
-name: glab-cli
+name: wicked-garden-platform-glab-cli
 description: |
   Use when you need glab CLI patterns for GitLab — pipeline debugging, MR management, or release
   automation. Provides composable glab invocations for power users.

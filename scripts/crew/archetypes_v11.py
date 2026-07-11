@@ -229,7 +229,7 @@ def steering_directives(
           "hitl": "discrete:review-gate",
           "cost_band": "high",
           "maturity": "research",
-          "next_action": "Run `wicked-garden:engineering:implement` ...",
+          "next_action": "Invoke the `wicked-garden-engineering` skill's implement action ...",
           "strength": "recommend"  # suggest | recommend | require
         }
 

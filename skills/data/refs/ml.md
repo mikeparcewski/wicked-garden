@@ -109,6 +109,70 @@ evaluation:
 - **Documented**: model cards for transparency.
 ```
 
+## ML development workflow (7 steps)
+
+### 1. Problem definition
+- [ ] Problem type clear (classification/regression/ranking)
+- [ ] Success metric defined
+- [ ] Baseline established
+- [ ] Data availability confirmed
+- [ ] Inference requirements understood (latency/throughput)
+
+### 2. Data assessment
+- [ ] Sufficient volume (>1000x features)
+- [ ] Labels accurate and consistent
+- [ ] Features available at inference time
+- [ ] No data leakage from target
+- [ ] Class balance acceptable
+
+### 3. Feature engineering
+**Good features are**: predictive, available at inference, clean (no leakage),
+interpretable.
+
+**Common transformations**:
+- Numeric: scaling, log transform
+- Categorical: one-hot, target encoding
+- Time: extract components, cyclical encoding
+- Aggregations: rolling windows, user stats
+
+### 4. Model selection
+| Data Size | Structured | Recommendation |
+|-----------|------------|----------------|
+| <10K rows | Yes | Linear/Simple tree |
+| 10K-1M | Yes | GradientBoosting (XGBoost/LightGBM) |
+| >1M | Yes | Deep learning possible |
+| Any | Images/Text | Deep learning |
+
+### 5. Training & evaluation
+**Split strategy**: random (if i.i.d.), time-based (if time series),
+cross-validation (robust).
+
+**Key metrics**:
+- **Classification**: Accuracy, Precision, Recall, F1, AUC
+- **Regression**: RMSE, MAE, R²
+
+### 6. Hyperparameter tuning
+- **Grid search**: exhaustive, slow.
+- **Random search**: more efficient.
+- **Bayesian optimization**: most efficient.
+
+### 7. Deployment
+**Patterns**: batch scoring, REST API, streaming. Apply the Deployment
+Readiness checklist from the review rubric above.
+
+## ML monitoring
+
+- **Model performance**: prediction accuracy, distribution shifts, error rate by segment.
+- **Data quality**: feature distributions, missing rates, cardinality changes.
+- **System health**: latency (p50, p95, p99), throughput, memory.
+
+## Best practices
+
+- **Always baseline**: start simple, measure improvement, justify complexity.
+- **Avoid leakage**: use only past data, split before processing.
+- **Monitor production**: track predictions, detect drift, plan retraining.
+- **Document everything**: architecture, features, training data, results.
+
 ## Common pitfalls
 
 - Training on future data (leakage).
@@ -116,3 +180,8 @@ evaluation:
 - Ignoring class imbalance.
 - Not testing inference performance.
 - Deploying without monitoring.
+
+## Detailed templates
+
+See [ml-templates.md](ml-templates.md) for the scored 5-section model review
+report, model card, and experiment log templates.

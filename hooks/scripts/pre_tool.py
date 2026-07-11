@@ -167,7 +167,7 @@ def _handle_task_create(tool_input: dict) -> str:
         state = SessionState.load()
         if not state.task_suggest_shown:
             state.update(task_suggest_shown=True)
-            suggest = "Creating tasks? Consider `/wicked-garden:crew:start` for quality gates."
+            suggest = "Creating tasks? Consider the `wicked-garden-archetype` skill's `build` playbook for phased execution with quality gates."
             return _allow(
                 system_message=(system_message + "\n" + suggest) if system_message else suggest
             )
@@ -210,10 +210,10 @@ def _handle_task_update(tool_input: dict) -> str:
 # ---------------------------------------------------------------------------
 
 def _handle_enter_plan_mode(tool_input: dict) -> str:
-    """Block native plan mode — redirect to crew workflow instead.
+    """Block native plan mode — redirect to the garden's phased workflows instead.
 
-    wicked-garden uses crew projects for planning, not Claude's built-in
-    plan mode. Always deny and point to /wicked-garden:crew:start.
+    wicked-garden uses crew projects / archetype playbooks for planning, not
+    Claude's built-in plan mode. Always deny and point at the archetype skill.
     """
     try:
         data, project_name, _ = _find_active_crew_project()
@@ -221,16 +221,17 @@ def _handle_enter_plan_mode(tool_input: dict) -> str:
             current_phase = data.get("current_phase", "")
             return _deny(
                 f"Do not use native plan mode. A crew project '{project_name}' is already active "
-                f"(phase: {current_phase}). Continue working within the crew workflow. "
-                f"Use `/wicked-garden:crew:execute` to proceed or `/wicked-garden:crew:status` to check progress."
+                f"(phase: {current_phase}). Continue working within the crew workflow — "
+                f"check the project's phase state (scripts/crew/phase_manager.py) and proceed "
+                f"with the current phase instead of starting a native plan."
             )
     except Exception:
         pass
 
     return _deny(
-        "Do not use native plan mode. This project uses wicked-garden crew workflows for planning. "
-        "Use `/wicked-garden:crew:start` to create a new crew project with outcome clarification, "
-        "phased execution, and quality gates."
+        "Do not use native plan mode. This project uses wicked-garden phased workflows for planning. "
+        "Invoke the `wicked-garden-archetype` skill (e.g. the `build` playbook: plan → implement → "
+        "test → review) for outcome clarification, phased execution, and quality gates."
     )
 
 
@@ -411,10 +412,10 @@ def _check_challenge_gate(file_path: str) -> str:
         return (
             f"[wicked-garden] Challenge gate is unresolved for crew project "
             f"'{project_name}' (complexity={complexity}). {reason} "
-            f"Invoke the contrarian specialist to produce and clear "
+            f"Invoke a contrarian reviewer to produce and clear "
             f"phases/design/challenge-artifacts.md before continuing build. "
-            f"Run `wicked-garden:crew:contrarian` or dispatch Task("
-            f"subagent_type='wicked-garden:crew:contrarian'). "
+            f"Dispatch the reviewer fork skill: Skill("
+            f"skill='wicked-garden-crew-reviewer') with a contrarian challenge brief. "
             f"To bypass temporarily, set WG_CHALLENGE_GATE=off."
         )
     except Exception:
@@ -842,8 +843,8 @@ def _check_skipped_phases(phase_dir_base: Path, phase_plan: list, current_phase:
             return (
                 f"phase '{prev}' has no execution directory — it appears to have been "
                 f"silently skipped without a recorded skip reason. "
-                f"Use /wicked-garden:crew:approve on '{prev}' first, or record a valid "
-                f"skip reason via phase_manager.py {prev} skip."
+                f"Approve '{prev}' first via phase_manager.py {prev} approve, or record "
+                f"a valid skip reason via phase_manager.py {prev} skip."
             )
     return ""
 
@@ -1055,8 +1056,8 @@ def _warn_reviewer_report(phase_dir: Path, phase_name: str, complexity: int) -> 
         return (
             f"[wicked-garden] Warning: phases/{phase_name}/reviewer-report.md is missing "
             f"for a complexity-{complexity} project. The async reviewer (Tier 2) should "
-            f"have written this. Proceeding with approve, but consider running "
-            f"/wicked-garden:crew:gate to generate a reviewer report."
+            f"have written this. Proceeding with approve, but consider dispatching "
+            f"Skill(skill='wicked-garden-crew-reviewer') to generate a reviewer report."
         )
     return ""
 

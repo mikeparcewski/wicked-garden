@@ -1,5 +1,5 @@
 ---
-name: review-methodology
+name: wicked-garden-agentic-review-methodology
 description: |
   Use when reviewing an agentic codebase for issues, risks, and maturity gaps — covers the four-phase review
   process (Detect → Analyze → Prioritize → Report) and the five-level maturity model (Prototype → Functional →

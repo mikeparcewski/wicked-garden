@@ -2,9 +2,9 @@
 """scripts/wg/_relevance_bulkadd.py — Issue #725 bulk-pass tooling.
 
 One-shot script that adds `phase_relevance` and `archetype_relevance`
-frontmatter fields to every command/skill that lacks them. Directory-derived
+frontmatter fields to every skill that lacks them. Directory-derived
 defaults — every file gets a value that reflects its purpose rather than a
-blanket `["*"]`.
+blanket `["*"]`. Skills-only cutover: the former commands/ leg is gone.
 
 This file lives under `scripts/wg/` (the dev-tools tree). After the bulk pass
 ships and `WG_RELEVANCE_LINT` flips to `deny`, this script becomes legacy —
@@ -27,21 +27,8 @@ from pathlib import Path
 # Per-domain phase defaults. Archetype is "*" everywhere — narrowing per
 # directory adds no signal at the bulk-pass stage.
 DEFAULTS_BY_DOMAIN: dict[tuple[str, str], list[str]] = {
-    # commands/
-    ("commands", "<top>"): ["*"],
-    ("commands", "crew"): ["*"],
-    ("commands", "platform"): ["build", "review", "operate"],
-    ("commands", "product"): ["clarify", "design", "review"],
-    ("commands", "engineering"): ["design", "build"],
-    ("commands", "search"): ["*"],
-    ("commands", "jam"): ["clarify", "design"],
-    ("commands", "delivery"): ["build", "review", "operate"],
-    ("commands", "data"): ["design", "build"],
-    ("commands", "agentic"): ["design", "review"],
-    ("commands", "smaht"): ["*"],
-    ("commands", "persona"): ["*"],
-    ("commands", "mem"): ["*"],
-    # skills/
+    # skills/  (skills-only cutover: the former commands/ leg was absorbed
+    # into the per-domain skills, so only skills/ keys remain)
     ("skills", "engineering"): ["design", "build"],
     ("skills", "product"): ["clarify", "design", "review"],
     ("skills", "platform"): ["build", "review", "operate"],
@@ -71,8 +58,8 @@ _FRONTMATTER_BLOCK = re.compile(r"^---\s*\n(.*?)\n---", re.DOTALL)
 
 
 def _domain_key(path: Path) -> tuple[str, str]:
-    """Return (root, domain) for a command/skill path. Top-level files
-    under commands/ get domain "<top>"."""
+    """Return (root, domain) for a skill path. A bare top-level file
+    directly under skills/ gets domain "<top>"."""
     parts = path.parts
     if len(parts) >= 3:
         return (parts[0], parts[1])
@@ -126,10 +113,9 @@ def _insert_fields(text: str, phase_values: list[str]) -> str:
 
 def _iter_targets(repo_root: Path) -> list[Path]:
     out: list[Path] = []
-    for sub in ("commands", "skills"):
-        root = repo_root / sub
-        if root.is_dir():
-            out.extend(sorted(root.rglob("*.md")))
+    root = repo_root / "skills"
+    if root.is_dir():
+        out.extend(sorted(root.rglob("*.md")))
     return out
 
 

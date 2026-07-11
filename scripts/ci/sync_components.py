@@ -2,26 +2,27 @@
 """sync_components.py — rebuild the derived blocks of .claude-plugin/components.json
 from the actual filesystem, so the manifest can never silently drift again.
 
-components.json documents the plugin's surface (Issue #328). Four of its blocks are
-*derived* from the tree and were drifting badly (summary said 147 cmds / 69 agents /
-88 skills when the real counts were ~92 / 53 / 71; ``agents_by_domain`` and the
-``hooks`` list were stale too). Nothing gates on this file, so the drift went unseen.
+components.json documents the plugin's surface (Issue #328). The plugin is
+skills-only: the former commands/ and agents/ trees were absorbed into skills/
+(consolidated per-domain router skills + context:fork worker skills), so the
+derived blocks enumerate skills exclusively.
 
-This tool re-derives the four mechanical blocks and leaves the authored ones alone:
+This tool re-derives the mechanical blocks and leaves the authored ones alone:
 
   derived (rebuilt from the tree)        authored (preserved verbatim)
   ----------------------------------     -----------------------------
-  summary{commands,agents,skills,        _comment
+  summary{skills,fork_skills,            _comment
           hooks,specialists}             domains
-  agents_by_domain                       specialists
-  skills_by_domain
+  skills_by_domain                       specialists
+  fork_skills
   hooks  (event names, from hooks.json)
 
 Conventions it reproduces:
-  - agents live at  agents/<domain>/<name>.md          -> agents_by_domain[domain] += name
   - skills live at  skills/<domain>/[<skill>/...]SKILL.md
-        depth 3  skills/<x>/SKILL.md            -> skills_by_domain[x] += x
-        depth 4+ skills/<x>/<y>/.../SKILL.md    -> skills_by_domain[x] += y   (deduped)
+        depth 2  skills/<x>/SKILL.md            -> skills_by_domain[x] += x
+        depth 3+ skills/<x>/<y>/.../SKILL.md    -> skills_by_domain[x] += y   (deduped)
+  - fork_skills: frontmatter ``name:`` of every SKILL.md declaring ``context: fork``
+    (the former agents/, now standalone worker skills), sorted.
   - hooks: the event-name keys of hooks/hooks.json, in lifecycle (insertion) order.
 
 Usage:
@@ -43,15 +44,39 @@ _REPO = Path(__file__).resolve().parents[2]
 _COMPONENTS = _REPO / ".claude-plugin" / "components.json"
 _HOOKS = _REPO / "hooks" / "hooks.json"
 # top-level key order to emit (authored + derived, in the file's existing order)
-_KEY_ORDER = ("_comment", "domains", "summary", "agents_by_domain",
-              "skills_by_domain", "hooks", "specialists")
+_KEY_ORDER = ("_comment", "domains", "summary", "skills_by_domain",
+              "fork_skills", "hooks", "specialists")
 
 
-def _agents_by_domain() -> Dict[str, List[str]]:
-    out: Dict[str, List[str]] = {}
-    for md in sorted((_REPO / "agents").glob("*/*.md")):
-        out.setdefault(md.parent.name, []).append(md.stem)
-    return {d: sorted(set(v)) for d, v in sorted(out.items())}
+def _skill_frontmatter(path: Path) -> Dict[str, str]:
+    """Minimal line-scan of top-level YAML frontmatter scalar keys."""
+    out: Dict[str, str] = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return out
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return out
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        if ":" in line and not line.startswith((" ", "\t", "-")):
+            key, _, val = line.partition(":")
+            val = val.strip()
+            if val:
+                out.setdefault(key.strip(), val)
+    return out
+
+
+def _fork_skills() -> List[str]:
+    """Frontmatter names of every context:fork SKILL.md (former agents/)."""
+    names: List[str] = []
+    for sk in sorted((_REPO / "skills").rglob("SKILL.md")):
+        fm = _skill_frontmatter(sk)
+        if fm.get("context") == "fork":
+            names.append(fm.get("name", sk.parent.name))
+    return sorted(set(names))
 
 
 def _skills_by_domain() -> Dict[str, List[str]]:
@@ -75,25 +100,27 @@ def _hook_events() -> List[str]:
     return list(hooks.keys()) if isinstance(hooks, dict) else []
 
 
-def _counts(authored_specialists: list) -> Dict[str, int]:
+def _counts(authored_specialists: list, fork_skills: List[str]) -> Dict[str, int]:
     return {
-        "commands": len(list((_REPO / "commands").rglob("*.md"))),
-        "agents": len(list((_REPO / "agents").rglob("*.md"))),
         "skills": len(list((_REPO / "skills").rglob("SKILL.md"))),
+        "fork_skills": len(fork_skills),
         "hooks": len(_hook_events()),
         "specialists": len(authored_specialists),
     }
 
 
 def build(current: dict) -> dict:
-    """Return components.json with the four derived blocks rebuilt from the tree;
+    """Return components.json with the derived blocks rebuilt from the tree;
     authored blocks copied through unchanged."""
     specialists = current.get("specialists", [])
     rebuilt = dict(current)  # preserve every authored key
-    rebuilt["agents_by_domain"] = _agents_by_domain()
+    # skills-only layout: the agents_by_domain block no longer exists
+    rebuilt.pop("agents_by_domain", None)
+    fork = _fork_skills()
     rebuilt["skills_by_domain"] = _skills_by_domain()
+    rebuilt["fork_skills"] = fork
     rebuilt["hooks"] = _hook_events()
-    rebuilt["summary"] = _counts(specialists)
+    rebuilt["summary"] = _counts(specialists, fork)
     return rebuilt
 
 
@@ -108,14 +135,14 @@ def _emit(d: dict) -> str:
     for ki, key in enumerate(keys):
         tail = "," if ki < len(keys) - 1 else ""
         val = d[key]
-        if key in ("agents_by_domain", "skills_by_domain") and isinstance(val, dict):
+        if key == "skills_by_domain" and isinstance(val, dict):
             lines.append(f'  {json.dumps(key)}: {{')
             subkeys = list(val.keys())
             for si, sk in enumerate(subkeys):
                 stail = "," if si < len(subkeys) - 1 else ""
                 lines.append(f'    {json.dumps(sk)}: {leaf_array(val[sk])}{stail}')
             lines.append(f'  }}{tail}')
-        elif key in ("domains", "hooks") and isinstance(val, list):
+        elif key in ("domains", "hooks", "fork_skills") and isinstance(val, list):
             lines.append(f'  {json.dumps(key)}: {leaf_array(val)}{tail}')
         else:
             block = json.dumps(val, indent=2, ensure_ascii=False)

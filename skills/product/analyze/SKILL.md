@@ -1,5 +1,5 @@
 ---
-name: analyze
+name: wicked-garden-product-analyze
 description: |
   Sentiment analysis, theme extraction, and trend detection from customer feedback.
 
@@ -13,9 +13,14 @@ archetype_relevance: ["*"]
 
 Extract themes, sentiment, and trends from aggregated customer feedback.
 
+> Tier-3 knowledge module behind the **`analyze`** action of the
+> `wicked-garden-product` domain skill (`skills/product/SKILL.md`). Canonical
+> invocation: `/wicked-garden-product analyze [args]` or plain natural language —
+> the examples below use that form.
+
 ## When to Use
 
-- After running `/wicked-garden:product:listen`
+- After running `/wicked-garden-product listen`
 - User asks "what are customers saying about X"
 - Need to understand sentiment trends
 - Preparing customer insights for product decisions
@@ -24,19 +29,19 @@ Extract themes, sentiment, and trends from aggregated customer feedback.
 
 ```bash
 # Analyze all recent feedback
-/wicked-garden:product:analyze
+/wicked-garden-product analyze
 
 # Analyze specific theme
-/wicked-garden:product:analyze --theme "mobile experience"
+/wicked-garden-product analyze --theme "mobile experience"
 
 # Analyze sentiment only
-/wicked-garden:product:analyze --sentiment negative
+/wicked-garden-product analyze --sentiment negative
 
 # Trend analysis
-/wicked-garden:product:analyze --trend "last-quarter"
+/wicked-garden-product analyze --trend "last-quarter"
 
 # Segment analysis
-/wicked-garden:product:analyze --segment enterprise
+/wicked-garden-product analyze --segment enterprise
 ```
 
 ## Analysis Types

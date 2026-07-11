@@ -1,5 +1,5 @@
 ---
-name: context-engineering
+name: wicked-garden-agentic-context-engineering
 description: |
   Context window management, token optimization, and memory patterns for efficient multi-agent systems.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""detect_state.py — environment + config detection for /wicked-garden:setup.
+"""detect_state.py — environment + config detection for the wicked-garden-core setup action.
 
-Pure-function probes that the slash command would otherwise inline as
+Pure-function probes that the setup action would otherwise inline as
 ad-hoc Python. Each subcommand prints a single JSON object so the
 markdown body can `jq` or read raw.
 

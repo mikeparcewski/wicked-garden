@@ -18,7 +18,7 @@ No API keys, no external services, no cloud — everything runs locally.
 
 ### Required peer plugins
 
-Five companion plugins are **required** — `/wicked-garden:setup` verifies all five and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
+Five companion plugins are **required** — `/wicked-garden-core setup` verifies all five and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
 
 ```bash
 npx wicked-testing install    # wicked-testing — evidence-gated testing
@@ -51,7 +51,7 @@ fail-soft (degrades to `🌱 wg │ idle`), and never blocks a render.
 
 ## Your First Session
 
-There is no fixed pipeline. Work is organized around **9 work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, and `migrate`. Each archetype owns its own phase shape, what it produces, and how much human-in-the-loop discipline it demands. After installing, you can use any command immediately. Here are five ways to start:
+There is no fixed pipeline. Work is organized around **9 work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, and `migrate`. Each archetype owns its own phase shape, what it produces, and how much human-in-the-loop discipline it demands. After installing, you can invoke any skill immediately. Here are five ways to start:
 
 ### 1. Just Describe What You Want
 
@@ -65,31 +65,31 @@ A schema-changing feature classifies as `build + migrate`; a risky deploy as `sh
 
 ### 2. Invoke an Archetype Directly
 
-When you already know the shape of the work, skip auto-routing and call the archetype yourself:
+When you already know the shape of the work, skip auto-routing and call the archetype yourself — each work-shape is an action of the `wicked-garden-archetype` skill:
 
 ```bash
-/wicked-garden:archetype:build "Add user authentication with OAuth2"
-/wicked-garden:archetype:incident "checkout 500s spiking in prod"
-/wicked-garden:archetype:migrate "split orders table into orders + line_items"
-/wicked-garden:archetype:decide "Redis vs Postgres for session storage"
+/wicked-garden-archetype build "Add user authentication with OAuth2"
+/wicked-garden-archetype incident "checkout 500s spiking in prod"
+/wicked-garden-archetype migrate "split orders table into orders + line_items"
+/wicked-garden-archetype decide "Redis vs Postgres for session storage"
 ```
 
 All nine are available: `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, `migrate`. Gates re-derive "done" through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable; sign-off is evidence-backed, never self-asserted.
 
 ### 3. Use a Domain Skill Directly
 
-Archetypes invoke the domain skill/agent families (engineering, platform, product, data, jam, search, agentic, persona, delivery, smaht) under the hood, but you can call them directly when you want a single focused pass:
+Archetypes invoke the domain skills (engineering, platform, product, data, jam, search, agentic, persona, smaht) under the hood, but you can call them directly when you want a single focused pass. Each domain is one skill with routed actions:
 
 ```bash
-/wicked-garden:engineering:review                          # senior-perspective code review
-/wicked-garden:jam:quick "Redis vs Postgres for sessions?" # multi-persona debate, ~60s
-/wicked-garden:data:analyze sales.csv "top 10 by revenue"  # plain English → SQL via DuckDB
+/wicked-garden-engineering review                          # senior-perspective code review
+/wicked-garden-jam quick "Redis vs Postgres for sessions?" # multi-persona debate, ~60s
+/wicked-garden-data analyze sales.csv "top 10 by revenue"  # plain English → SQL via DuckDB
 ```
 
 ### 4. Compile a Standalone Build Gate
 
 ```bash
-/wicked-garden:compile ./my-service --trigger hook,ci  # emit a vault-backed gate into ./my-service/.wicked/
+/wicked-garden-prove compile ./my-service --trigger hook,ci  # emit a vault-backed gate into ./my-service/.wicked/
 ```
 
 Detects the repo's test/lint/build commands and emits a self-contained `gate.py` that re-derives the build's claims through wicked-vault — runs with **no wicked-garden runtime present** (resolves the vault via npx). The `--trigger` flag installs a git pre-push hook and/or GitHub Actions workflow.
@@ -111,60 +111,60 @@ Search the same brain instead of grep — `wicked-brain:search "handleAuth"` giv
 ### "I have a bug to fix"
 
 ```bash
-/wicked-garden:engineering:debug                   # systematic root cause analysis
-/wicked-garden:search:blast-radius buggyFunction   # what depends on it?
+/wicked-garden-engineering debug                   # systematic root cause analysis
+/wicked-garden-search blast-radius buggyFunction   # what depends on it?
 ```
 
 ### "Something is on fire in prod"
 
 ```bash
-/wicked-garden:archetype:incident "checkout 500s spiking"  # triage → investigate → mitigate → resolve → followup
+/wicked-garden-archetype incident "checkout 500s spiking"  # triage → investigate → mitigate → resolve → followup
 ```
 
 ### "I need to understand this codebase"
 
 ```bash
-/wicked-garden:search:service-map         # detect service architecture
-/wicked-garden:search:hotspots            # most-referenced symbols
+/wicked-garden-search service-map         # detect service architecture
+/wicked-garden-search hotspots            # most-referenced symbols
 wicked-brain:search "auth flow"           # structural search across the brain
 ```
 
 ### "I need to plan and build a feature"
 
 ```bash
-/wicked-garden:archetype:build "Add real-time notifications"  # plan → implement → test → review
+/wicked-garden-archetype build "Add real-time notifications"  # plan → implement → test → review
 # OR break it down by hand:
-/wicked-garden:archetype:specify "real-time notifications"    # elicit → structure → validate (SMART criteria)
-/wicked-garden:archetype:explore "notification architecture"  # frame → diverge → converge
-/wicked-garden:engineering:arch                               # architecture analysis
+/wicked-garden-archetype specify "real-time notifications"    # elicit → structure → validate (SMART criteria)
+/wicked-garden-archetype explore "notification architecture"  # frame → diverge → converge
+/wicked-garden-engineering arch                               # architecture analysis
 ```
 
 ### "I need to make a decision"
 
 ```bash
-/wicked-garden:archetype:decide "monolith vs microservices"  # brief → options → score → record (produces an ADR)
-/wicked-garden:jam:council "should we adopt event sourcing?"  # independent multi-model perspectives
+/wicked-garden-archetype decide "monolith vs microservices"  # brief → options → score → record (produces an ADR)
+/wicked-garden-jam council "should we adopt event sourcing?"  # independent multi-model perspectives
 ```
 
 ### "I need to ship and review a change"
 
 ```bash
-/wicked-garden:archetype:ship "v2 rollout"     # canary → ramp → full → soak
-/wicked-garden:archetype:review                # scope → assess → findings → remediate-or-accept
+/wicked-garden-archetype ship "v2 rollout"     # canary → ramp → full → soak
+/wicked-garden-archetype review                # scope → assess → findings → remediate-or-accept
 ```
 
 ### "I need to migrate a schema"
 
 ```bash
-/wicked-garden:archetype:migrate "split orders into orders + line_items"  # plan → expand → backfill → cutover → contract
+/wicked-garden-archetype migrate "split orders into orders + line_items"  # plan → expand → backfill → cutover → contract
 ```
 
 ### "I need to check security/compliance"
 
 ```bash
-/wicked-garden:platform:security          # OWASP vulnerability scan
-/wicked-garden:platform:compliance        # SOC2/HIPAA/GDPR/PCI checks
-/wicked-garden:platform:audit             # collect audit evidence
+/wicked-garden-platform security          # OWASP vulnerability scan
+/wicked-garden-platform compliance        # SOC2/HIPAA/GDPR/PCI checks
+/wicked-garden-platform audit             # collect audit evidence
 ```
 
 ### "I need to write and run tests"
@@ -174,20 +174,20 @@ wicked-brain:search "auth flow"           # structural search across the brain
 /wicked-testing:execution                  # evidence-gated acceptance testing
 ```
 
-## How Commands Work
+## How Skills Work
 
-Archetype commands follow `/wicked-garden:archetype:{name}`; domain commands follow `/wicked-garden:{domain}:{command}`:
+Every archetype is an action of the `wicked-garden-archetype` skill (`/wicked-garden-archetype {name}`); every other domain is a single skill that routes its own actions (`/wicked-garden-{domain} {action}`):
 
 ```bash
-/wicked-garden:archetype:build   # archetype namespace, build work-shape
-/wicked-garden:search:lineage    # search domain, lineage command
-/wicked-garden:platform:security # platform domain, security command
+/wicked-garden-archetype build   # archetype skill, build work-shape
+/wicked-garden-search lineage    # search skill, lineage action
+/wicked-garden-platform security # platform skill, security action
 ```
 
 To list everything:
 
 ```bash
-/wicked-garden:help              # list every command
+/wicked-garden-core help         # list every skill
 ```
 
 ## What Happens Behind the Scenes
@@ -205,4 +205,4 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 - [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
 - [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
-- [Domains](domains.md) — browse the domain skill/agent families and their commands
+- [Domains](domains.md) — browse the domain skills and their actions

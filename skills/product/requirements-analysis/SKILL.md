@@ -1,5 +1,5 @@
 ---
-name: requirements-analysis
+name: wicked-garden-product-requirements-analysis
 description: |
   Use when turning a vague idea or stakeholder ask into structured user stories with acceptance criteria
   and a requirements graph. For complexity >= 3 or compliance projects, defaults to graph mode.

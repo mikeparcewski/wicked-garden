@@ -1,5 +1,5 @@
 ---
-name: visual-review
+name: wicked-garden-product-visual-review
 description: |
   Use when auditing visual design for consistency — design system adherence, spacing tokens, typography
   scale, color palette, component patterns, and responsive polish. Structured checklist + scoring.

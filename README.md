@@ -32,7 +32,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
 | forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → wicked-brain |
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
-| asks *itself* for a second opinion | convenes a **real multi-model panel** (Gemini / Codex / …) → `jam:council` |
+| asks *itself* for a second opinion | convenes a **real multi-model panel** (Gemini / Codex / …) → the jam skill's `council` action |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
 | grades its own homework | author ≠ executor ≠ reviewer → evidence-gated testing |
 
@@ -42,11 +42,11 @@ The throughline: **done is re-derived, not asserted.** Verdicts you can trust on
 
 - **Not a workflow it forces on you.** Your harness still drives. wicked-garden reads the *shape* of the work, applies the right amount of rigor, and steps back.
 - **Not a reinvention** of the planning and swarm your agent already nails.
-- **Not Claude-only under the hood.** Ships as a Claude Code plugin, but the engine is CLI/npm peers — and the gate **compiles into any repo and runs with no wicked-garden installed** (`/wicked-garden:compile`). Stand on the harness, fill its gaps, hand off. Never absorb.
+- **Not Claude-only under the hood.** Ships as a Claude Code plugin, but the engine is CLI/npm peers — and the gate **compiles into any repo and runs with no wicked-garden installed** (`/wicked-garden-prove compile`). Stand on the harness, fill its gaps, hand off. Never absorb.
 
 <details><summary><b>How it stays out of the way: work-shape, not pipeline</b></summary>
 
-No universal pipeline to obey. A hook reads each prompt's *shape* and that decides one thing: **how much rigor this work earns.** A typo (`triage`) gets none; a migration cutover (`migrate`) gets a hard, independently-attested gate with a rollback proof. Ten shapes — `triage · explore · specify · decide · build · review · ship · incident · migrate · modernize` — steering, not blocking. Why shapes and not one pipeline → [`docs/archetypes.md`](docs/archetypes.md).
+No universal pipeline to obey. A hook reads each prompt's *shape* and that decides one thing: **how much rigor this work earns.** A typo (`triage`) gets none; a migration cutover (`migrate`) gets a hard, independently-attested gate with a rollback proof. Ten shapes — `triage · explore · specify · decide · build · review · ship · incident · migrate · modernize` — steering, not blocking. Why shapes and not one pipeline → [`docs/v11/archetypes.md`](docs/v11/archetypes.md).
 </details>
 
 ---
@@ -55,7 +55,7 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 
 ```bash
 /plugin install wicked-garden      # in Claude Code
-/wicked-garden:setup               # verifies peers; blocks only on the one the gate needs
+/wicked-garden-core setup          # verifies peers; blocks only on the one the gate needs
 ```
 
 **One required peer, the rest opt-in.** The evidence gate is the floor we won't fake, so it needs one external peer — setup blocks without it:
@@ -83,14 +83,14 @@ Optional, lights up the code graph: `npx @colbymchenry/codegraph` (Node ≥ 22.5
 # Just work — the hook applies the right rigor underneath, quietly
 "implement caching for the dashboard"
 
-# Or reach for a gap-filler on purpose
-/wicked-garden:prove                              # re-derive "done" from evidence (fail-closed)
-/wicked-garden:search:blast-radius emit_event     # impact, incl. edges grep can't see
-/wicked-garden:engineering:rename oldField newField   # deterministic, graph-driven
-/wicked-garden:jam:council "redis or memcached?"  # a panel that isn't just you
+# Or reach for a gap-filler on purpose — everything is a skill now
+/wicked-garden-prove                              # re-derive "done" from evidence (fail-closed)
+/wicked-garden-search blast-radius emit_event     # impact, incl. edges grep can't see
+/wicked-garden-engineering-patch rename oldField newField  # deterministic, graph-driven
+/wicked-garden-jam council "redis or memcached?"  # a panel that isn't just you
 
 # Stamp the evidence gate into ANY repo (runs with no wicked-garden installed)
-/wicked-garden:compile ~/path/to/repo --trigger ci
+/wicked-garden-prove compile ~/path/to/repo --trigger ci
 ```
 
 ---

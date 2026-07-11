@@ -21,18 +21,18 @@ Stdlib-only, cross-platform. Two consumers:
 
 Allowlists covered (when the source-of-truth file exists):
 
-- Phase IDs in ``.claude-plugin/phases.json`` ↔ phase agents in ``agents/``
-  (each phase that declares ``fallback_agent`` should have a matching agent
-  file or specialist alias).
-- Reviewer ``subagent_type`` strings in ``.claude-plugin/gate-policy.json``
-  ↔ agent files in ``agents/**/*.md`` (frontmatter ``subagent_type``).
-  External plugin reviewers (``wicked-testing:*``) are recognised via a
-  configurable allow-prefix list and reported as ``external`` (advisory),
-  not ``missing``.
+- Phase IDs in ``.claude-plugin/phases.json`` ↔ fork-worker skills in
+  ``skills/`` (each phase that declares ``fallback_agent`` should have a
+  matching context:fork SKILL.md or specialist alias).
+- Reviewer identifiers in ``.claude-plugin/gate-policy.json``
+  ↔ fork-worker skills in ``skills/**/SKILL.md`` (frontmatter ``name`` /
+  legacy ``subagent_type``). External plugin reviewers (``wicked-testing:*``)
+  are recognised via a configurable allow-prefix list and reported as
+  ``external`` (advisory), not ``missing``.
 - Bus event types in ``scripts/_bus.py::BUS_EVENT_MAP`` ↔ projector handlers
   in ``daemon/projector.py::_HANDLERS``. Audit-marker events are explicitly
   excluded from the handler check via ``_AUDIT_MARKER_EVENTS``.
-- Skills referenced from agent frontmatter ``skills:`` lists ↔ ``SKILL.md``
+- Skills referenced from SKILL.md frontmatter ``skills:`` lists ↔ ``SKILL.md``
   files present on disk under ``skills/``.
 
 Categories:
@@ -123,7 +123,7 @@ _NON_AGENT_REVIEWERS: Tuple[str, ...] = (
 )
 
 # Frontmatter regex — minimal YAML reader for ``subagent_type:`` and ``name:``.
-# Stdlib-only constraint precludes a real YAML dependency, and the agent
+# Stdlib-only constraint precludes a real YAML dependency, and the skill
 # frontmatter is mechanically generated so a regex is sufficient.
 _FRONTMATTER_RE = re.compile(r"^---\s*$(.*?)^---\s*$", re.DOTALL | re.MULTILINE)
 _KEY_LINE_RE = re.compile(r"^\s*([A-Za-z_][\w-]*)\s*:\s*(.*?)\s*$")
@@ -172,51 +172,76 @@ def _parse_agent_frontmatter(path: Path) -> Tuple[Dict[str, str], Optional[str]]
     return out, None
 
 
+# Known plugin domains (mirrors .claude-plugin/components.json "domains").
+# Used to derive bare roles from ``wicked-garden-{domain}-{role}`` names.
+_KNOWN_DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem",
+                  "persona", "platform", "product", "qe", "search", "smaht")
+
+# Canonical dash prefix of fork-skill names.
+_SKILL_NAME_PREFIX = "wicked-garden-"
+
+
 def _scan_agents(plugin_root: Path) -> Tuple[Dict[str, Path], List[Dict[str, Any]]]:
-    """Walk agents/**/*.md and return (subagent_type → path map, malformed findings)."""
+    """Walk skills/**/SKILL.md (context: fork) and return
+    (identifier → path map, malformed findings).
+
+    The plugin is skills-only: workers are context:fork skills. Each fork
+    skill is indexed under every identifier form a manifest might use:
+
+    * frontmatter ``name`` (``wicked-garden-{domain}-{role}``)
+    * legacy colon ``subagent_type`` where the skill kept that key
+    * bare role (name minus the ``wicked-garden-{domain}-`` prefix)
+    """
     findings: List[Dict[str, Any]] = []
     by_subagent: Dict[str, Path] = {}
     by_name: Dict[str, Path] = {}
 
-    agents_dir = plugin_root / "agents"
-    if not agents_dir.is_dir():
+    skills_dir = plugin_root / "skills"
+    if not skills_dir.is_dir():
         return {}, [
             {
                 "category": CAT_SKIPPED,
-                "check": "agents.scan",
-                "target": str(agents_dir),
-                "detail": "agents/ directory not found — slim install?",
+                "check": "fork-skills.scan",
+                "target": str(skills_dir),
+                "detail": "skills/ directory not found — slim install?",
             }
         ]
 
-    for md_path in agents_dir.rglob("*.md"):
-        if md_path.name.upper() == "README.MD":
-            continue
+    for md_path in skills_dir.rglob("SKILL.md"):
         fm, err = _parse_agent_frontmatter(md_path)
         if err:
             findings.append(
                 {
                     "category": CAT_MALFORMED,
-                    "check": "agents.frontmatter",
+                    "check": "fork-skills.frontmatter",
                     "target": str(md_path.relative_to(plugin_root)),
                     "detail": err,
                 }
             )
             continue
+        if fm.get("context", "").strip() != "fork":
+            continue  # only fork-context skills are dispatchable workers
         sub = fm.get("subagent_type", "").strip()
         name = fm.get("name", "").strip()
         if name:
             by_name.setdefault(name, md_path)
+            # Bare-role alias: wicked-garden-{domain}-{role} -> {role}
+            if name.startswith(_SKILL_NAME_PREFIX):
+                tail = name[len(_SKILL_NAME_PREFIX):]
+                for dom in _KNOWN_DOMAINS:
+                    if tail.startswith(dom + "-"):
+                        by_name.setdefault(tail[len(dom) + 1:], md_path)
+                        break
         if not sub:
-            # Not every agent is required to declare subagent_type
-            # (e.g. README-style agents). Skip silently.
+            # Legacy subagent_type is optional on fork skills — most
+            # dropped it in the skills-only cutover. Skip silently.
             continue
         if ":" in sub and not sub.startswith("wicked-garden:"):
             # Mis-namespaced (e.g. typo'd colon) — flag as invalid_id.
             findings.append(
                 {
                     "category": CAT_INVALID_ID,
-                    "check": "agents.frontmatter",
+                    "check": "fork-skills.frontmatter",
                     "target": str(md_path.relative_to(plugin_root)),
                     "detail": f"subagent_type does not start with 'wicked-garden:': {sub!r}",
                 }
@@ -226,7 +251,7 @@ def _scan_agents(plugin_root: Path) -> Tuple[Dict[str, Path], List[Dict[str, Any
             findings.append(
                 {
                     "category": CAT_INVALID_ID,
-                    "check": "agents.duplicate",
+                    "check": "fork-skills.duplicate",
                     "target": sub,
                     "detail": f"duplicate subagent_type in {md_path.relative_to(plugin_root)} (also {by_subagent[sub].relative_to(plugin_root)})",
                 }
@@ -236,7 +261,8 @@ def _scan_agents(plugin_root: Path) -> Tuple[Dict[str, Path], List[Dict[str, Any
 
     # Expose name-keyed entries under bare-name keys so gate-policy
     # references like "senior-engineer" resolve. We register under the
-    # name AND under the colon-namespaced subagent_type so both forms work.
+    # skill name, the bare role, AND any legacy colon subagent_type so
+    # every form works.
     for nm, p in by_name.items():
         # Only register if no colon-form already claims that bare name.
         # The gate-policy "fallback" / shorthand reviewers use bare names.
@@ -286,12 +312,12 @@ def check_phases(plugin_root: Path) -> List[Dict[str, Any]]:
     agents_index, agent_findings = _scan_agents(plugin_root)
     findings.extend(agent_findings)
 
-    # Slim-install short-circuit: if agents/ was missing, _scan_agents
+    # Slim-install short-circuit: if skills/ was missing, _scan_agents
     # already emitted a single `skipped` finding. Don't cascade into N
     # `missing` findings for every fallback_agent — one slim-install
     # signal is enough.
     if not agents_index and any(
-        f.get("category") == CAT_SKIPPED and f.get("check") == "agents.scan"
+        f.get("category") == CAT_SKIPPED and f.get("check") == "fork-skills.scan"
         for f in agent_findings
     ):
         return findings
@@ -340,7 +366,7 @@ def check_phases(plugin_root: Path) -> List[Dict[str, Any]]:
                 "category": CAT_MISSING,
                 "check": "phases.fallback_agent",
                 "target": f"{phase_id} → {fb}",
-                "detail": f"phase '{phase_id}' references fallback_agent '{fb}' but no agent .md file declares it",
+                "detail": f"phase '{phase_id}' references fallback_agent '{fb}' but no context:fork SKILL.md declares it",
             }
         )
 
@@ -388,11 +414,11 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
     agents_index, agent_findings = _scan_agents(plugin_root)
     findings.extend(agent_findings)
 
-    # Slim-install short-circuit (mirrors check_phases): if agents/ was
+    # Slim-install short-circuit (mirrors check_phases): if skills/ was
     # missing, return after surfacing the single `skipped` finding rather
     # than cascading into per-reviewer `missing` findings.
     if not agents_index and any(
-        f.get("category") == CAT_SKIPPED and f.get("check") == "agents.scan"
+        f.get("category") == CAT_SKIPPED and f.get("check") == "fork-skills.scan"
         for f in agent_findings
     ):
         return findings
@@ -476,7 +502,7 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
                         "detail": (
                             "external plugin reviewer (advisory only)"
                             if outcome == CAT_EXTERNAL
-                            else f"reviewer '{rv}' has no matching agent .md file"
+                            else f"reviewer '{rv}' has no matching context:fork SKILL.md"
                             if outcome == CAT_MISSING
                             else f"reviewer is not a non-empty string: {rv!r}"
                         ),
@@ -494,7 +520,7 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
                         "detail": (
                             "external plugin fallback (advisory only)"
                             if outcome == CAT_EXTERNAL
-                            else f"fallback '{fallback}' has no matching agent .md file"
+                            else f"fallback '{fallback}' has no matching context:fork SKILL.md"
                             if outcome == CAT_MISSING
                             else f"fallback is not a non-empty string: {fallback!r}"
                         ),
@@ -759,8 +785,11 @@ def check_bus_handlers(plugin_root: Path) -> List[Dict[str, Any]]:
 
 
 def check_skill_refs(plugin_root: Path) -> List[Dict[str, Any]]:
-    """Validate that any agent frontmatter ``skills:`` reference resolves
+    """Validate that any SKILL.md frontmatter ``skills:`` reference resolves
     to a SKILL.md on disk under ``skills/``.
+
+    (Pre-cutover this walked agents/**/*.md; workers are now context:fork
+    skills, so the referencing side is the skills tree itself.)
 
     Frontmatter shape varies:
 
@@ -774,15 +803,14 @@ def check_skill_refs(plugin_root: Path) -> List[Dict[str, Any]]:
     on commas / newlines.
     """
     findings: List[Dict[str, Any]] = []
-    agents_dir = plugin_root / "agents"
     skills_dir = plugin_root / "skills"
-    if not agents_dir.is_dir() or not skills_dir.is_dir():
+    if not skills_dir.is_dir():
         findings.append(
             {
                 "category": CAT_SKIPPED,
                 "check": "skills.refs",
-                "target": str(agents_dir if not agents_dir.is_dir() else skills_dir),
-                "detail": "agents/ or skills/ directory missing — skill-ref check skipped",
+                "target": str(skills_dir),
+                "detail": "skills/ directory missing — skill-ref check skipped",
             }
         )
         return findings
@@ -791,7 +819,8 @@ def check_skill_refs(plugin_root: Path) -> List[Dict[str, Any]]:
     # A skill is any directory containing SKILL.md, OR a domain dir with
     # SKILL.md at its root (single-skill domains). We index by:
     #   - bare name (last path segment of the dir holding SKILL.md)
-    #   - "wicked-garden:{domain}:{skill-name}" colon-form
+    #   - the frontmatter ``name`` (e.g. "wicked-garden-{domain}-{role}")
+    #   - "wicked-garden:{domain}:{skill-name}" legacy colon-form
     available: Set[str] = set()
     for skill_md in skills_dir.rglob("SKILL.md"):
         try:
@@ -803,16 +832,19 @@ def check_skill_refs(plugin_root: Path) -> List[Dict[str, Any]]:
             continue
         # Bare leaf-name form
         available.add(parts[-1])
-        # Colon-namespaced form for multi-skill domains
+        # Declared frontmatter name (canonical dash form)
+        fm, _err = _parse_agent_frontmatter(skill_md)
+        declared = fm.get("name", "").strip()
+        if declared:
+            available.add(declared)
+        # Legacy colon-namespaced form for multi-skill domains
         if len(parts) == 1:
             available.add(f"wicked-garden:{parts[0]}")
         elif len(parts) >= 2:
             available.add(f"wicked-garden:{parts[0]}:{parts[-1]}")
 
-    # Walk agents
-    for md_path in agents_dir.rglob("*.md"):
-        if md_path.name.upper() == "README.MD":
-            continue
+    # Walk skills (the referencing side — formerly agents/)
+    for md_path in skills_dir.rglob("SKILL.md"):
         try:
             text = md_path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -852,7 +884,7 @@ def check_skill_refs(plugin_root: Path) -> List[Dict[str, Any]]:
                     "check": "skills.refs",
                     "target": f"{md_path.relative_to(plugin_root)} → {tok}",
                     "detail": (
-                        f"agent declares skills include '{tok}' but no "
+                        f"skill declares skills include '{tok}' but no "
                         "SKILL.md under skills/ matches that id"
                     ),
                 }

@@ -56,7 +56,11 @@ export const CLAIMS: Claim[] = [
   },
 ];
 
-/* ── garden's OWN tools — the gap-fillers a planner-executor can't do alone ── */
+/* ── garden's OWN tools — the gap-fillers a planner-executor can't do alone ──
+   The plugin is skills-only: `cmd` is the real dash-separated skill name
+   (skills/<dir>/SKILL.md `name:`), invoked by name — no colon namespace, no
+   slash commands. `cmdLabel` names the garden skill (and its representative
+   action) the signature tool maps to. */
 export interface Tool {
   id: string;
   name: string;
@@ -76,8 +80,8 @@ export const TOOLS: Tool[] = [
     hue: "floor",
     gap: "says “done” — sometimes it’s lying",
     fill: "Re-runs the proof behind the claim. A false pass is REJECTED; a missing backend FAILS CLOSED. Never a vacuous green.",
-    cmd: "/wicked-garden:prove",
-    cmdLabel: "slash command",
+    cmd: "wicked-garden-prove",
+    cmdLabel: "garden skill",
   },
   {
     id: "search",
@@ -86,8 +90,8 @@ export const TOOLS: Tool[] = [
     hue: "layer",
     gap: "greps — blind to string-wired links",
     fill: "Sees the injected edges grep can’t — event→consumer, command→agent, agent→capability — so impact analysis is real, not a text match.",
-    cmd: "/wicked-garden:search:blast-radius",
-    cmdLabel: "slash command",
+    cmd: "wicked-garden-search",
+    cmdLabel: "garden skill · blast-radius",
   },
   {
     id: "patch",
@@ -96,8 +100,8 @@ export const TOOLS: Tool[] = [
     hue: "workflow",
     gap: "refactors on a hope and a prayer",
     fill: "Renames and moves symbols across every file as one graph operation — not find-and-replace roulette.",
-    cmd: "/wicked-garden:engineering:rename",
-    cmdLabel: "slash command",
+    cmd: "wicked-garden-engineering",
+    cmdLabel: "garden skill · patch / rename",
   },
   {
     id: "council",
@@ -106,8 +110,8 @@ export const TOOLS: Tool[] = [
     hue: "solo",
     gap: "asks itself for a second opinion",
     fill: "Convenes a real panel of independent external models (Gemini · Codex · …) — a second opinion that isn’t the model grading itself.",
-    cmd: "/wicked-garden:jam:council",
-    cmdLabel: "slash command",
+    cmd: "wicked-garden-jam",
+    cmdLabel: "garden skill · council",
   },
   {
     id: "archetypes",
@@ -116,8 +120,8 @@ export const TOOLS: Tool[] = [
     hue: "creation",
     gap: "gives a typo and a migration the same ceremony",
     fill: "Reads the shape of the prompt and applies exactly that much rigor — ten work-shapes, steering not a fixed pipeline.",
-    cmd: "/wicked-garden:archetype",
-    cmdLabel: "slash command",
+    cmd: "wicked-garden-archetype",
+    cmdLabel: "garden skill",
   },
   {
     id: "deliberate",
@@ -126,104 +130,121 @@ export const TOOLS: Tool[] = [
     hue: "creation",
     gap: "rushes to build exactly what you typed",
     fill: "Runs the ask through five lenses before a line is written — challenges assumptions, hunts the root cause, and reframes the request when the stated ask isn’t the real one.",
-    cmd: "/wicked-garden:deliberate",
-    cmdLabel: "slash command",
+    cmd: "wicked-garden-deliberate",
+    cmdLabel: "garden skill",
   },
 ];
 
-/* ── The wider surface — the domains the toolbox samples from ────────────────
-   Every command below is a real slash command in the repo (commands/<domain>/).
+/* ── The wider surface — the 12 domains the toolbox samples from ─────────────
+   Every chip below is a real skill or routed action in the repo (skills/<dir>/).
    This is the breadth the six signature tools only hint at. Counts are honest:
-   81 commands across these domains, 10 work-shapes, 23 garden agents. */
+   94 skills folded into these 12 domains (per-domain routers + fork workers),
+   10 work-shapes, 34 fork/worker skills — verified against skills/**. */
 export interface Domain {
   id: string;
   name: string;
   hue: Hue;
   blurb: string;
-  count: number;      // real command count in commands/<id>/
-  cmds: string[];     // representative commands (not exhaustive)
+  count: number;      // real SKILL.md count under skills/** for this domain (routers + fork workers folded in)
+  cmds: string[];     // representative skills / routed actions (not exhaustive)
 }
 
 export const DOMAINS: Domain[] = [
   {
-    id: "archetype",
-    name: "work-shapes",
-    hue: "creation",
-    blurb: "Ten shapes the hook reads off each prompt — steering how much rigor the work earns, from a typo to a migration cutover.",
-    count: 10,
-    cmds: ["triage", "explore", "specify", "decide", "build", "review", "ship", "incident", "migrate", "modernize"],
-  },
-  {
-    id: "search",
-    name: "code intelligence",
-    hue: "layer",
-    blurb: "Impact and lineage over the real graph — including the injected edges (bus, dispatch, capability) grep and a static call-graph can’t see.",
-    count: 5,
-    cmds: ["blast-radius", "lineage", "hotspots", "service-map", "index"],
-  },
-  {
-    id: "engineering",
-    name: "engineering",
-    hue: "workflow",
-    blurb: "Deterministic, graph-driven change: rename and move symbols across files, plan a patch, debug from a stack trace, generate scaffolding.",
-    count: 11,
-    cmds: ["rename", "debug", "plan", "arch", "patch-plan", "add-field", "remove", "docs", "new-generator"],
-  },
-  {
-    id: "jam",
-    name: "multi-model",
-    hue: "solo",
-    blurb: "A real second opinion that isn’t the model grading itself — convene an independent panel of external CLIs, or brainstorm across personas.",
-    count: 4,
-    cmds: ["council", "brainstorm", "quick", "revisit"],
-  },
-  {
     id: "product",
     name: "product & UX",
     hue: "creation",
-    blurb: "Turn a vague ask into SMART criteria, review UX and accessibility, draft mockups and visual direction, synthesize user signal.",
-    count: 13,
-    cmds: ["elicit", "acceptance", "ux", "ux-review", "a11y", "mockup", "strategy", "visual-direction"],
+    blurb: "Vague ask → SMART criteria, UX & a11y review, mockups, visual direction, user-signal synthesis.",
+    count: 25,
+    cmds: ["requirements-analysis", "acceptance-criteria", "ux-review", "accessibility", "mockup", "strategy"],
   },
   {
     id: "platform",
     name: "platform & ops",
     hue: "floor",
-    blurb: "The rubric loaded on demand — security, compliance, incident response, infra and toolchain audits, GitHub Actions, distributed traces.",
-    count: 13,
-    cmds: ["security", "compliance", "audit", "incident", "infra", "traces", "actions", "health"],
+    blurb: "The rubric on demand — security, compliance, incident, infra, distributed traces, CI.",
+    count: 16,
+    cmds: ["audit", "compliance", "incident", "infra", "observability", "github-actions"],
   },
   {
-    id: "data",
-    name: "data & ML",
-    hue: "layer",
-    blurb: "Design ETL pipelines, assess data quality, map an ontology, and reason about ML workflows with the same evidence discipline.",
-    count: 5,
-    cmds: ["pipeline", "data", "ml", "ontology", "analyze"],
-  },
-  {
-    id: "smaht",
-    name: "context & memory",
-    hue: "solo",
-    blurb: "Pull-model context assembly — a briefing of what happened since last session, live crew state, and imported events, gathered on demand.",
-    count: 3,
-    cmds: ["briefing", "state", "events-import"],
+    id: "engineering",
+    name: "engineering",
+    hue: "workflow",
+    blurb: "Graph-driven change — rename & patch across files, debug from a trace, architecture, docs.",
+    count: 14,
+    cmds: ["architecture", "debugging", "patch", "system-design", "integration", "large-scale-migration"],
   },
   {
     id: "agentic",
     name: "agentic review",
     hue: "workflow",
-    blurb: "Review an agentic codebase itself — detect frameworks, map agent topology and orchestration, and produce a remediation roadmap.",
+    blurb: "Review the agentic codebase itself — topology, framework detection, trust & safety.",
+    count: 9,
+    cmds: ["agentic-patterns", "context-engineering", "frameworks", "review-methodology", "trust-and-safety"],
+  },
+  {
+    id: "crew",
+    name: "orchestration",
+    hue: "layer",
+    blurb: "Orchestration workers — implement, research, review; swarm, worktrees, workflow runners.",
+    count: 9,
+    cmds: ["crew-implementer", "crew-researcher", "crew-reviewer", "swarm", "worktrees", "workflow"],
+  },
+  {
+    id: "smaht",
+    name: "context",
+    hue: "solo",
+    blurb: "Pull-model context — briefing, intent, propose-skills, classify a request, ground it in the repo.",
+    count: 7,
+    cmds: ["discovery", "intent", "propose-skills", "classify", "ground"],
+  },
+  {
+    id: "jam",
+    name: "multi-model",
+    hue: "solo",
+    blurb: "A second opinion that isn’t self-grading — an independent external-model panel and facilitator.",
     count: 4,
-    cmds: ["review", "audit", "design", "frameworks"],
+    cmds: ["council", "brainstorm", "multi-model"],
+  },
+  {
+    id: "qe",
+    name: "evidence",
+    hue: "floor",
+    blurb: "Evidence, re-derived — prove re-runs the proof; a semantic reviewer checks intent, not just diffs.",
+    count: 2,
+    cmds: ["prove", "qe-semantic-reviewer"],
+  },
+  {
+    id: "data",
+    name: "data & ML",
+    hue: "layer",
+    blurb: "ETL, data-quality, ontology, and ML workflows under the same evidence discipline.",
+    count: 2,
+    cmds: ["data", "data-engineer"],
   },
   {
     id: "persona",
     name: "personas",
     hue: "creation",
-    blurb: "Run any task under a named behavioral profile — define a persona, act as it, and keep a reusable cast for reviews and brainstorms.",
-    count: 3,
-    cmds: ["as", "define", "list"],
+    blurb: "Run any task under a named behavioral profile — a reusable review cast on demand.",
+    count: 2,
+    cmds: ["persona", "persona-agent"],
+  },
+  {
+    id: "search",
+    name: "code intelligence",
+    hue: "layer",
+    blurb: "Impact & lineage over the real graph — the injected edges grep and a static call-graph can’t see.",
+    count: 2,
+    cmds: ["blast-radius", "lineage", "codebase-narrator"],
+  },
+  {
+    id: "work-shapes",
+    name: "work-shapes",
+    hue: "creation",
+    blurb: "Ten shapes read off each prompt — a typo to a cutover; deliberate challenges the ask first.",
+    count: 2,
+    cmds: ["triage", "build", "migrate", "review", "deliberate"],
   },
 ];
 
@@ -243,9 +264,10 @@ export const CONDITIONS: Condition[] = [
 ];
 
 /* ── The shelf: the wider wicked-* family one install puts within reach ─────
-   HONEST: vault is the ONE required external peer (>= 0.4.0). The rest are
-   opt-in layers. The gate/resolve engine (loom) is ABSORBED in-package as of
-   v12.27.0 — it is NOT a peer you install. */
+   HONEST: every peer here is an opt-in layer — the kit works without any of
+   them. The evidence backend the gate re-derives against (wicked-vault) rides
+   inside wicked-testing; it is NOT a separate install. The gate/resolve engine
+   (loom) is ABSORBED in-package as of v12.27.0 — also NOT a peer you install. */
 export interface Peer {
   id: string;
   name: string;
@@ -258,20 +280,11 @@ export interface Peer {
 
 export const PEERS: Peer[] = [
   {
-    id: "vault",
-    name: "wicked-vault",
-    tier: "required",
-    hue: "floor",
-    gives: "The evidence backend the gate re-derives against — re-hashes, re-runs, and fails closed on a weak worker identity so “evaluator ≠ author” actually means something.",
-    cmd: "npx wicked-vault-install",
-    cmdLabel: "required peer · ≥ 0.4.0",
-  },
-  {
     id: "testing",
     name: "wicked-testing",
     tier: "opt-in",
     hue: "layer",
-    gives: "A full QE team for coding agents — runs the tests and records the evidence, with the runner kept separate from the judge.",
+    gives: "A full QE team for coding agents — runs the tests and records the evidence the gate re-derives against, with the runner kept separate from the judge so a verdict is re-derived, not trusted.",
     cmd: "npx wicked-testing install",
     cmdLabel: "opt-in layer",
   },
@@ -282,15 +295,6 @@ export const PEERS: Peer[] = [
     hue: "solo",
     gives: "Cross-session memory plus the codegraph that blast-radius and lineage read from — context that survives between sessions.",
     cmd: "npx wicked-brain",
-    cmdLabel: "opt-in layer",
-  },
-  {
-    id: "understanding",
-    name: "wicked-understanding",
-    tier: "opt-in",
-    hue: "floor",
-    gives: "The repo’s own how-to playbooks, loaded from HEAD as on-demand skills — the wiring step and the gotcha that bites.",
-    cmd: "npx skills add mikeparcewski/wicked-understanding --all",
     cmdLabel: "opt-in layer",
   },
   {
@@ -317,8 +321,8 @@ export const G = {
   version: "v12.27.0",
   ownTools: TOOLS.length,
   peers: PEERS.length,
-  domains: DOMAINS.length,
-  commands: 81,          // real .md count under commands/**
-  agents: 23,            // real .md count under agents/**
+  domains: DOMAINS.length,   // 12
+  skills: 94,                // real SKILL.md count under skills/**
+  forkSkills: 34,            // context:fork worker skills (skills/<domain>-<role>/)
   workShapes: 10,
 };

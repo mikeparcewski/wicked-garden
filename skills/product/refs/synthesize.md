@@ -2,7 +2,7 @@
 
 Apply this inline. Translate feedback analysis into prioritized, evidence-backed
 action items. Pipeline: listen -> analyze -> **synthesize**. Run after
-`/wicked-garden:product:analyze` has produced themes/sentiment/trends.
+`/wicked-garden-product analyze` has produced themes/sentiment/trends.
 (Shared customer-voice rubric: `refs/analyze.md`.)
 
 ## 1. Locate analysis input
@@ -11,7 +11,7 @@ action items. Pipeline: listen -> analyze -> **synthesize**. Run after
 PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
 ls "${PRODUCT_ROOT}/voice/analysis/"
 ```
-If empty, tell the user to run `/wicked-garden:product:analyze` first and stop.
+If empty, tell the user to run `/wicked-garden-product analyze` first and stop.
 
 ## Prioritization model
 

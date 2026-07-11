@@ -1,5 +1,5 @@
 ---
-name: frameworks
+name: wicked-garden-agentic-frameworks
 description: |
   Use when selecting or comparing agentic frameworks (LangChain, LangGraph, CrewAI, AutoGen, etc.) —
   curated comparison by use case, language, and maturity. Gets latest context via Context7 when available.

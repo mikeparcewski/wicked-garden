@@ -1,5 +1,5 @@
 ---
-name: intent
+name: wicked-garden-smaht-intent
 description: |
   Show or set the session intent variable. Intent gates how loud the
   framework is — simple-edit (silent), feature/research (synthesis
@@ -13,9 +13,9 @@ phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---
 
-# /wicked-garden:intent
+# Session Intent
 
-Session intent is the keystone of v10's steer-not-block model. It's auto-detected from the first turn's prompt and made sticky for the rest of the session. This skill lets you (or a command on your behalf) override that auto-detection without using flags or fighting validators.
+Session intent is the keystone of v10's steer-not-block model. It's auto-detected from the first turn's prompt and made sticky for the rest of the session. This skill lets you (or another skill on your behalf) override that auto-detection without using flags or fighting validators.
 
 ## Vocabulary
 
@@ -30,17 +30,23 @@ Four values, locked. To change the vocabulary, run a brainstorm — don't add ad
 
 ## Usage
 
-```
-/wicked-garden:intent              # show effective current value
-/wicked-garden:intent rigor        # set explicit override
-/wicked-garden:intent simple-edit  # quiet the framework
-```
+Invoke this skill (naturally — "set intent", "force rigor", "make the framework
+quiet", "what's my intent") with an optional value:
+
+| Value passed | Effect |
+|---|---|
+| _(none)_ | Show the effective current intent |
+| `rigor` | Set an explicit override to full-crew rigor |
+| `simple-edit` | Quiet the framework |
+
+The value must be one of the four locked vocabulary terms above; anything else
+is rejected.
 
 ## Behavior
 
 - Sets `state.intent` and `state.intent_explicit=True` in session state via `scripts/_session.py::SessionState.update`.
 - Sticky for the rest of the session; reset by SessionEnd hook.
-- Explicit override echoes a bare `<wg intent="X" t=N />` label in the next system-reminder so the model knows the user (or a command) steered the framework.
+- Explicit override echoes a bare `<wg intent="X" t=N />` label in the next system-reminder so the model knows the user (or another skill) steered the framework.
 - Auto-detected intent stays invisible to the model — prevents confirmation bias.
 
 ## Implementation (≤30 lines, slim-skill shape per v10 Phase 2)
@@ -85,5 +91,5 @@ PY
 ## Notes
 
 - **Auto-detection runs once** on the first 1-2 turns and is sticky thereafter. If auto-detect picks the wrong value, override with this skill once and it sticks for the session.
-- **Commands may self-declare** by calling this skill internally as their first action — e.g. a future `crew:start` could call `/wicked-garden:intent rigor` to ensure the rigor directive fires from turn 1, even if the user's first prompt was short.
+- **Skills may self-declare** by invoking this skill internally as their first action — e.g. a future `crew:start` skill could invoke this skill with `rigor` to ensure the rigor directive fires from turn 1, even if the user's first prompt was short.
 - **Issue #813** for the design rationale + brainstorm record.

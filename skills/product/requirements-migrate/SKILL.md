@@ -1,5 +1,5 @@
 ---
-name: requirements-migrate
+name: wicked-garden-product-requirements-migrate
 description: |
   Convert monolithic requirements documents into graph-structured
   requirements directories. Parses user stories and acceptance criteria

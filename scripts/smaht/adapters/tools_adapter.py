@@ -13,13 +13,14 @@ def _check_cli(name):
         return False
 
 
-# Known third-party CLIs that wicked-garden skills orchestrate
+# Known third-party AI CLIs that the wicked-garden council (a context:fork skill)
+# convenes for a multi-model second opinion. ``skill`` is the dash-named fork
+# skill invoked via Skill(...).
 KNOWN_CLIS = {
-    "codex": {"skill": "wicked-garden:jam:council", "desc": "OpenAI Codex for code review and generation"},
-    "gemini": {"skill": "wicked-garden:jam:council", "desc": "Google Gemini for multi-modal AI tasks"},
-    "copilot": {"skill": "wicked-garden:jam:council", "desc": "GitHub Copilot CLI for AI-assisted coding"},
-    "opencode": {"skill": "wicked-garden:jam:council", "desc": "OpenCode for AI-assisted coding"},
-    "agent-browser": {"skill": "wicked-garden:agent-browser", "desc": "Browser automation and scraping"},
+    "codex": {"skill": "wicked-garden-jam-council", "desc": "OpenAI Codex for code review and generation"},
+    "gemini": {"skill": "wicked-garden-jam-council", "desc": "Google Gemini for multi-modal AI tasks"},
+    "copilot": {"skill": "wicked-garden-jam-council", "desc": "GitHub Copilot CLI for AI-assisted coding"},
+    "opencode": {"skill": "wicked-garden-jam-council", "desc": "OpenCode for AI-assisted coding"},
 }
 
 
@@ -42,7 +43,7 @@ async def query(prompt: str, **kwargs) -> list:
                 ContextItem(
                     source="tools",
                     title=f"{cli_name} available",
-                    summary=f"{info['desc']} — Use /{info['skill']}"
+                    summary=f"{info['desc']} — convene via the {info['skill']} skill"
                 )
             )
 

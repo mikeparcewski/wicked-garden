@@ -48,7 +48,7 @@ Apply parameters: time window (`--days` / `--since`), filters (`--tags`,
 > "{excerpt}"
 
 ### Next Steps
-Run `/wicked-garden:product:analyze` to extract themes and trends.
+Run `/wicked-garden-product analyze` to extract themes and trends.
 ```
 
 ## Storage

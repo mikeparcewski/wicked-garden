@@ -1,6 +1,6 @@
 # agentic:frameworks — Framework Selection / Comparison Rubric
 
-Full rubric sourced from `agents/agentic/framework-researcher.md` and
+Full rubric consolidated from the former `agents/agentic/framework-researcher.md` (removed in the skills-only cutover; its rubric now lives inline) and
 `skills/agentic/frameworks/SKILL.md`. Use for framework selection, comparison,
 or the interactive wizard. Always use WebSearch for latest 2026 ecosystem state.
 
@@ -83,7 +83,7 @@ For each framework in `--compare`:
 End every output with a pointer to the next step:
 
 ```
-→ Next: `/wicked-garden:agentic:design` to turn this framework choice into a five-layer architecture.
+→ Next: run the `design` action of this skill (wicked-garden-agentic) to turn this framework choice into a five-layer architecture.
 ```
 
 For comparison mode, render the Decision Matrix:

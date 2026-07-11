@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-_agents.py — Dynamic agent loader.
+_agents.py — Dynamic fork-skill (worker) loader.
 
-Loads agent definitions from disk:
-    - Disk agents: agents/{domain}/*.md files shipped with the plugin.
-      Always available.
+The plugin is skills-only: the former agents/{domain}/*.md worker definitions
+now live as standalone skills at skills/<domain>-<role>/SKILL.md with
+``context: fork`` frontmatter. This loader scans skills/**/SKILL.md and loads
+every fork-context skill as an AgentProfile (name/domain/system_prompt/
+capabilities), preserving the profile shape downstream consumers expect.
 
 Usage:
     from _agents import AgentLoader
 
-    loader = AgentLoader(agents_dir=Path("agents/"))
-    loader.load_disk_agents(agents_dir)
-    profile = loader.get("senior-engineer")
+    loader = AgentLoader()
+    loader.load_fork_skills(skills_dir)          # skills/ root
+    profile = loader.get("wicked-garden-crew-implementer")
 """
 
 import json
@@ -62,12 +64,12 @@ class AgentProfile:
 
 
 class AgentLoader:
-    """Load and retrieve agent profiles from disk.
+    """Load and retrieve worker (fork-skill) profiles from disk.
 
     Lifecycle (called once in bootstrap.py):
         loader = AgentLoader()
-        loader.load_disk_agents(agents_dir)
-        profile = loader.get("senior-engineer")
+        loader.load_fork_skills(skills_dir)
+        profile = loader.get("wicked-garden-crew-implementer")
     """
 
     def __init__(self) -> None:
@@ -77,31 +79,42 @@ class AgentLoader:
     # Loading
     # ------------------------------------------------------------------
 
-    def load_disk_agents(self, agents_dir: Path) -> dict[str, AgentProfile]:
-        """Scan agents_dir recursively for *.md agent files and load them.
+    def load_fork_skills(self, skills_dir: Path) -> dict[str, AgentProfile]:
+        """Scan skills_dir recursively for SKILL.md files declaring
+        ``context: fork`` and load each as an AgentProfile.
 
-        Each markdown file must have YAML frontmatter with at least a `name`
+        Each SKILL.md must have YAML frontmatter with at least a `name`
         field. Additional recognized frontmatter keys: domain, description,
-        capabilities (list), traits (list), model, color.
+        capabilities (list), traits (list), model, color, effort, max-turns,
+        allowed-tools, tool-capabilities.
 
-        The body of the markdown file (after frontmatter) becomes system_prompt.
+        The body of the SKILL.md (after frontmatter) becomes system_prompt.
 
         Args:
-            agents_dir: Path to the agents/ directory (may contain subdirs).
+            skills_dir: Path to the skills/ directory (may contain subdirs).
 
         Returns:
-            Dict mapping agent name -> AgentProfile. Also stored internally.
+            Dict mapping skill name -> AgentProfile. Also stored internally.
         """
-        if not agents_dir.exists():
+        if not skills_dir.exists():
             return {}
 
-        for md_file in sorted(agents_dir.rglob("*.md")):
-            profile = _parse_agent_md(md_file)
+        for md_file in sorted(skills_dir.rglob("SKILL.md")):
+            profile = _parse_agent_md(md_file, fork_only=True)
             if profile is None:
                 continue
             self._agents[profile.name] = profile
 
         return dict(self._agents)
+
+    def load_disk_agents(self, agents_dir: Path) -> dict[str, AgentProfile]:
+        """Deprecated compatibility alias for :meth:`load_fork_skills`.
+
+        The agents/ directory no longer exists; workers are context:fork
+        skills. Callers passing the old agents/ path get an empty dict
+        (the dir is gone); callers passing skills/ get fork-skill profiles.
+        """
+        return self.load_fork_skills(agents_dir)
 
     # ------------------------------------------------------------------
     # Retrieval
@@ -156,14 +169,15 @@ _FRONTMATTER_START = "---"
 _FRONTMATTER_END = "---"
 
 
-def _parse_agent_md(path: Path) -> AgentProfile | None:
-    """Parse a Claude Code agent markdown file into an AgentProfile.
+def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
+    """Parse a worker SKILL.md (context: fork) into an AgentProfile.
 
     Format:
         ---
-        name: agent-name
+        name: wicked-garden-crew-implementer
         description: |
           Optional description
+        context: fork                # required when fork_only=True
         domain: engineering          # optional
         capabilities:                # optional list
           - code-review
@@ -173,12 +187,13 @@ def _parse_agent_md(path: Path) -> AgentProfile | None:
         color: blue                  # stored in metadata
         ---
 
-        # Agent Title
+        # Skill Title
 
         System prompt body...
 
     Returns:
-        AgentProfile, or None if the file lacks a valid name field.
+        AgentProfile, or None if the file lacks a valid name field or
+        (when fork_only) does not declare ``context: fork``.
     """
     try:
         raw = path.read_text(encoding="utf-8")
@@ -187,6 +202,9 @@ def _parse_agent_md(path: Path) -> AgentProfile | None:
 
     frontmatter, body = _split_frontmatter(raw)
     if frontmatter is None:
+        if fork_only:
+            # A worker must declare context: fork in frontmatter
+            return None
         # No frontmatter — use filename as name, whole file as system_prompt
         name = path.stem
         domain = _infer_domain(path)
@@ -198,14 +216,17 @@ def _parse_agent_md(path: Path) -> AgentProfile | None:
         )
 
     parsed = _parse_simple_yaml(frontmatter)
-    name = parsed.get("name") or path.stem
+    if fork_only and parsed.get("context") != "fork":
+        return None
+    name = parsed.get("name") or (path.parent.name if path.name == "SKILL.md" else path.stem)
     if not name:
         return None
 
     domain = parsed.get("domain") or _infer_domain(path)
 
     # Build metadata from remaining frontmatter keys
-    metadata_keys = {"model", "color", "version", "author", "allowed-tools"}
+    metadata_keys = {"model", "color", "version", "author", "allowed-tools",
+                     "context", "subagent_type", "effort", "max-turns"}
     extra_meta = {k: v for k, v in parsed.items() if k in metadata_keys}
     extra_meta["source"] = "disk"
     extra_meta["file"] = str(path)
@@ -333,13 +354,26 @@ def _parse_simple_yaml(text: str) -> dict[str, Any]:
     return result
 
 
+# Known plugin domains (mirrors .claude-plugin/components.json "domains")
+_DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem", "persona",
+            "platform", "product", "qe", "search", "smaht")
+
+
 def _infer_domain(path: Path) -> str:
-    """Infer domain from path: agents/{domain}/agent.md -> domain."""
+    """Infer domain from a skills path.
+
+    skills/<domain>/.../SKILL.md            -> <domain>
+    skills/<domain>-<role>/SKILL.md         -> <domain>   (fork workers)
+    Anything else                           -> the top-level skills/ segment.
+    """
     parts = path.parts
-    # Look for the 'agents' segment and take the next part as domain
     for idx, part in enumerate(parts):
-        if part == "agents" and idx + 2 < len(parts):
-            return parts[idx + 1]
+        if part == "skills" and idx + 2 < len(parts):
+            seg = parts[idx + 1]
+            for d in _DOMAINS:
+                if seg == d or seg.startswith(d + "-"):
+                    return d
+            return seg
     return ""
 
 

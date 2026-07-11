@@ -222,7 +222,7 @@ def claim_tick(state_get, state_set, *, final_message: Optional[str],
             "invariant": "done-claim-verdict",
             "evidence": (f"a done/passing claim was made but HEAD {head[:9]} has no "
                          "re-derived verdict on record"),
-            "action": ("Run `/wicked-garden:prove` to re-derive the claim now, or state "
+            "action": ("Invoke the `wicked-garden-prove` skill to re-derive the claim now, or state "
                        "the override reason — the claim is logged either way."),
         }
         log_sentinel_event(repo, "unverified_claim",

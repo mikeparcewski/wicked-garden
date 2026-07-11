@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """scripts/wg/check_relevance_frontmatter.py — phase + archetype frontmatter lint.
 
-Scans ``commands/**/*.md`` and ``skills/**/*.md`` for the
-``phase_relevance`` and ``archetype_relevance`` fields introduced by the
-Issue #725 reframe (context-aware ``crew:guide``).
+Scans ``skills/**/*.md`` for the ``phase_relevance`` and
+``archetype_relevance`` fields introduced by the Issue #725 reframe
+(context-aware ``crew:guide``). Skills-only cutover: the former
+``commands/**/*.md`` leg was absorbed into the per-domain skills, so only
+the skills tree is scanned now.
 
 Modes (env: ``WG_RELEVANCE_LINT``)
   - ``deny`` (default since v9.2.9): same scan, but exit non-zero so CI fails.
@@ -86,12 +88,11 @@ def _scan_one(path: Path) -> set[str]:
 
 
 def _iter_targets(repo_root: Path) -> list[Path]:
-    """Yield every ``commands/**/*.md`` and ``skills/**/*.md`` path."""
+    """Yield every ``skills/**/*.md`` path (skills-only cutover)."""
     out: list[Path] = []
-    for sub in ("commands", "skills"):
-        root = repo_root / sub
-        if root.is_dir():
-            out.extend(sorted(root.rglob("*.md")))
+    root = repo_root / "skills"
+    if root.is_dir():
+        out.extend(sorted(root.rglob("*.md")))
     return out
 
 
@@ -121,7 +122,7 @@ def main(argv: list[str]) -> int:
 
     if not offenders:
         sys.stdout.write(
-            "OK: every command/skill declares phase_relevance + archetype_relevance\n"
+            "OK: every skill declares phase_relevance + archetype_relevance\n"
         )
         return 0
 

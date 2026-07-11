@@ -10,22 +10,37 @@ from typing import List
 from . import ContextItem
 
 
-# Domain-to-specialist mapping for delegation hints
+# Domain-to-specialist mapping for delegation hints. The plugin is skills-only:
+# each worker is a context:fork skill dispatched by name via Skill(...). Values
+# are (target, description). A ``wicked-garden-*`` target is invoked with the
+# Skill tool; a ``wicked-testing:*`` target is an external-plugin subagent
+# dispatched via Task(subagent_type=...) (QE lives in wicked-testing).
 DOMAIN_HINTS = {
-    "security": ("wicked-garden:platform", "security-engineer", "Security review"),
-    "architecture": ("wicked-garden:engineering", "solution-architect", "Architecture analysis"),
-    "test": ("wicked-garden:qe", "test-strategist", "Test strategy"),
-    "data": ("wicked-garden:data", "data-engineer", "Data analysis"),
-    "brainstorm": ("wicked-garden:jam", "facilitator", "Brainstorming session"),
-    "requirements": ("wicked-garden:product", "requirements-analyst", "Requirements elicitation"),
-    "agent": ("wicked-garden:agentic", "architect", "Agentic system review"),
+    "security": ("wicked-garden-platform-security-engineer", "Security review"),
+    "architecture": ("wicked-garden-engineering-solution-architect", "Architecture analysis"),
+    "test": ("wicked-testing:test-strategist", "Test strategy"),
+    "data": ("wicked-garden-data-engineer", "Data analysis"),
+    "brainstorm": ("wicked-garden-jam-brainstorm-facilitator", "Brainstorming session"),
+    "requirements": ("wicked-garden-product-requirements-analyst", "Requirements elicitation"),
+    "agent": ("wicked-garden-agentic-architect", "Agentic system review"),
 
-    "review": ("wicked-garden:crew", "reviewer", "Code review"),
-    "debug": ("wicked-garden:engineering", "solution-architect", "Debugging / root-cause analysis"),
-    "performance": ("wicked-garden:platform", "performance-engineer", "Performance analysis"),
-    "ux": ("wicked-garden:product", "ux-researcher", "UX research"),
-    "compliance": ("wicked-garden:platform", "compliance-auditor", "Compliance review"),
+    "review": ("wicked-garden-crew-reviewer", "Code review"),
+    "debug": ("wicked-garden-engineering-solution-architect", "Debugging / root-cause analysis"),
+    "performance": ("wicked-garden-agentic-performance-analyst", "Performance analysis"),
+    "ux": ("wicked-garden-product-ux-designer", "UX research"),
+    "compliance": ("wicked-garden-platform-compliance-officer", "Compliance review"),
 }
+
+
+def _dispatch_hint(target: str) -> str:
+    """Render the invocation string for a delegation target.
+
+    Fork skills (``wicked-garden-*``) are invoked with the Skill tool;
+    external-plugin subagents (``wicked-testing:*``) keep Task/subagent_type.
+    """
+    if target.startswith("wicked-garden-"):
+        return f'Skill(skill="{target}", args="...")'
+    return f'Task(subagent_type="{target}", prompt="...")'
 
 # Keywords that suggest delegatable work
 DOMAIN_KEYWORDS = {
@@ -57,24 +72,23 @@ async def query(prompt: str, **kwargs) -> List[ContextItem]:
 
     # Create delegation hints for each detected domain
     for domain in detected_domains:
-        plugin, agent, desc = DOMAIN_HINTS[domain]
+        target, desc = DOMAIN_HINTS[domain]
         hint_text = (
             f"{desc} detected — consider delegating to specialist:\n"
-            f"Task(subagent_type=\"{plugin}:{agent}\", prompt=\"...\")"
+            f"{_dispatch_hint(target)}"
         )
 
         items.append(ContextItem(
             id=f"delegation-{domain}",
             source="delegation",
             title=f"Delegation: {desc}",
-            summary=f"Consider: {plugin}:{agent}",
+            summary=f"Consider: {target}",
             excerpt=hint_text,
             relevance=0.7,  # High relevance for actionable delegation advice
             age_days=0,
             metadata={
                 "domain": domain,
-                "plugin": plugin,
-                "agent": agent,
+                "target": target,
                 "type": "delegation_hint",
             }
         ))

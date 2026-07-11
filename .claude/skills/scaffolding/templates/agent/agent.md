@@ -1,14 +1,18 @@
 ---
-name: {{name}}
+name: {{skill_name}}
 description: {{description}}
-tools: [{{tools}}]
+context: fork
+allowed-tools: [{{tools}}]
 model: sonnet
 color: {{color}}
 ---
 
-# {{name}}
+# {{title}}
 
-You are {{name}}, specialized in {{domain}}.
+You are the {{title}} worker, specialized in {{domain}}. You run in an
+isolated `context: fork` subagent — dispatched via
+`Skill(skill="{{skill_name}}")` from a domain router skill or another worker.
+Nothing you load bloats the parent context.
 
 ## Expertise
 
@@ -53,10 +57,10 @@ Include:
 
 ## Integration
 
-Reference other wicked-* plugins when helpful:
+Reference other wicked-* surfaces when helpful:
 - Native TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent}`: track tasks and findings (see `scripts/_event_schema.py`)
-- wicked-mem: Store decisions and patterns
-- wicked-search: Find code patterns
+- wicked-brain: store decisions and patterns
+- the wicked-garden-search skill: find code patterns
 
 ## Communication
 

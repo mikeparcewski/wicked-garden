@@ -41,10 +41,10 @@ the garden — reference these, do not duplicate them:
 
 | Need | Use (existing garden piece) |
 |------|------------------------------|
-| Per-unit implementer subagent | `agents/crew/implementer.md` (already does parallel-when-independent + evidence) |
-| Per-unit recon subagent | `agents/crew/researcher.md` (read-only context gathering) |
-| Independent semantic verdict | `agents/qe/semantic-reviewer.md` (independent-by-construction; refuses to attest its own work) |
-| Fallback reviewer | `agents/crew/reviewer.md` (reviewer-separation + external-review rules baked in) |
+| Per-unit implementer subagent | `wicked-garden-crew-implementer` fork skill (`skills/crew-implementer/`) — already does parallel-when-independent + evidence |
+| Per-unit recon subagent | `wicked-garden-crew-researcher` fork skill (`skills/crew-researcher/`) — read-only context gathering |
+| Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` fork skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
+| Fallback reviewer | `wicked-garden-crew-reviewer` fork skill (`skills/crew-reviewer/`) — reviewer-separation + external-review rules baked in |
 | Re-derive a claim (the receipt) | `/wicked-garden:prove` (run + freeze evidence + gate; fail-closed) |
 | Hard-gate independent sign-off | `/wicked-garden:prove --with-attestations` → `wicked-vault attest` (evaluator ≠ creator, G10) |
 | Blast-radius / scope lens | `wicked-garden:deliberate` (lens 2 + 3) and `/wicked-garden:search:blast-radius` |
@@ -78,12 +78,12 @@ auditable.
   subagent dump raw output into your context.
 - **One message, many Task calls** for each wave — that is what makes it
   parallel. A serial run with no documented `serial_reason` is a protocol miss
-  (same rule `agents/crew/implementer.md` enforces).
+  (same rule the `wicked-garden-crew-implementer` fork skill enforces).
 - **Background long/external work** and synthesize on completion rather than
   blocking the wave.
 - **The verifier is a different agent than the implementer.** If the same agent
-  type did the work, the verdict is a self-grade — `agents/qe/semantic-reviewer.md`
-  and the vault `attest` both refuse `evaluator == creator`.
+  type did the work, the verdict is a self-grade — the `wicked-garden-qe-semantic-reviewer`
+  fork skill and the vault `attest` both refuse `evaluator == creator`.
 
 ## The two reusable briefs
 

@@ -96,7 +96,7 @@ export default function HeroStamp() {
       </div>
 
       <div className="hs-foot">
-        <CopyChip text="/wicked-garden:prove" label="try prove" />
+        <CopyChip text="wicked-garden-prove" label="try prove" />
       </div>
     </div>
   );
