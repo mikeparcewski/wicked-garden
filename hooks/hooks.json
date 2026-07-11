@@ -15,7 +15,7 @@
 
   "_TODO_341_http_hooks": "Issue #341: HTTP hook type (type: 'http') is not supported. When supported, add HTTP hooks for external service integration: POST crew phase transitions to a webhook URL, send gate results to a quality dashboard, notify Slack/Teams on crew project completion. Currently all hooks are type: 'command' (subprocess).",
 
-  "_TODO_344_isolation_worktree": "Issue #344: Agent frontmatter field 'isolation: worktree' is not supported. When supported, add isolation: worktree to the crew implementer, researcher, and reviewer agents so they operate in separate git worktrees. This would prevent destructive operations (branch switching, file modifications) in one agent from affecting others running in parallel.",
+  "_TODO_344_isolation_worktree": "Issue #344: Skill frontmatter field 'isolation: worktree' is not supported. When supported, add isolation: worktree to the crew fork-worker skills (skills/crew-implementer, skills/crew-researcher, skills/crew-reviewer) so they operate in separate git worktrees. This would prevent destructive operations (branch switching, file modifications) in one worker from affecting others running in parallel.",
 
   "_TODO_345_once_flag": "Issue #345: The 'once' flag is not documented as a supported hook property. When supported, add \"once\": true to the SessionStart bootstrap hook so it only fires on the first session start, not on reconnects. Currently bootstrap.py handles this by checking session state for staleness.",
 

@@ -1,5 +1,5 @@
 ---
-name: integration
+name: wicked-garden-engineering-integration
 description: |
   Design API contracts, service boundaries, and integration patterns.
   Define how components and services communicate and interoperate.

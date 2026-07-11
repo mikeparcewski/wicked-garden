@@ -21,7 +21,7 @@ REJECT, with a remediation list when not APPROVE.
 
 The final-verdict gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the verdict JSON is re-validated and the
 remediation-list structure re-checked, never trusting a self-asserted
-"done". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
+"done". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
 on a claim alone. Because final-verdict is a **hard** gate, the contract
 also demands an **independent attestation** — the verdict must be signed
 off by an evaluator that is NOT the worker who did the reviewed work
@@ -37,6 +37,12 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
 ## How to run
 
 ### scope
+
+Confirm this is the right review first: this archetype is the only
+review that produces a **binding verdict**. For a code-quality pass use
+`engineering:review`; for an AI agent system use `agentic:review`; for
+a UI use `product:ux-review` (see `docs/domains.md` → "review appears
+in three domains").
 
 1. Name what's in scope: this PR, this commit, this design doc.
 2. Name what's out of scope: don't drift into adjacent code that wasn't
@@ -58,9 +64,10 @@ banned (banned-reviewer enforcement applies — `auto-approve-*`,
 ### assess
 
 1. Apply the rubric. Take notes; don't write the findings yet.
-2. Use the right specialist subagent — `pr-review-toolkit:code-reviewer`,
-   `wicked-garden:crew:reviewer`, `wicked-garden:qe:semantic-reviewer`,
-   `wicked-garden:engineering:solution-architect`, etc. Match the artifact
+2. Use the right specialist — `pr-review-toolkit:code-reviewer` (external
+   subagent), or a garden fork skill via `Skill(skill="…")`:
+   `wicked-garden-crew-reviewer`, `wicked-garden-qe-semantic-reviewer`,
+   `wicked-garden-engineering-solution-architect`, etc. Match the artifact
    to the specialist.
 3. For high-stakes reviews, run a council via
    `wicked-garden:jam:council` — independent multi-model verdicts
@@ -132,7 +139,7 @@ independent `opinion_attestation` recorded via the
 that did the reviewed work — it fails closed on a self-grade. A REJECT
 means the recorded evidence does not clear its contract — fix the work,
 not the claim. An `unavailable` verdict means the required vault isn't
-installed — run `/wicked-garden:setup`. Then hand off to `build` (when
+installed — run `/wicked-garden-core setup`. Then hand off to `build` (when
 fixes are needed before ship) or `ship` (when APPROVE).
 
 ## Anti-patterns

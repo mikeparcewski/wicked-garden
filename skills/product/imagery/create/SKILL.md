@@ -1,5 +1,5 @@
 ---
-name: create
+name: wicked-garden-product-imagery-create
 description: |
   AI-powered image generation from text prompts using multiple providers.
   Supports 5 providers: cstudio, vertex-curl, OpenAI, Stability AI, Replicate.

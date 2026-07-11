@@ -130,7 +130,7 @@ def _no_file_message(session_id: str | None) -> str:
         "No log file found for this session.",
         "To enable operational logging, the plugin logs automatically to:",
         "  $TMPDIR/wicked-ops-{session_id}.jsonl",
-        "Run /wicked-garden:platform:debug to check the current log level.",
+        "Invoke the wicked-garden-platform skill's debug action to check the current log level.",
     ]
     return "\n".join(lines)
 

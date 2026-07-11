@@ -1,5 +1,5 @@
 ---
-name: frontend
+name: wicked-garden-engineering-frontend
 description: |
   Frontend engineering specialist for React, CSS, browser APIs, component
   design, accessibility, and performance. This skill should be used when the

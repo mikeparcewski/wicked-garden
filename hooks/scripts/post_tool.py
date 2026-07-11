@@ -139,7 +139,7 @@ def _handle_write_edit(tool_input: dict) -> dict:
     #    evidence-freshness invariant (scripts/sentinel/invariants.py).
 
     # v9.2.2: dropped the [Scenarios] staleness nudge entirely. The heuristic
-    # (any edit under commands/{domain}/ or skills/{domain}/ → "scenarios in
+    # (any edit under skills/{domain}/ — or the since-retired commands/{domain}/ — → "scenarios in
     # scenarios/{domain}/ may need updating") fired multiple times per
     # session with low signal. Users rarely acted on it because most edits
     # don't actually invalidate scenarios. /wg-test stays available on demand.
@@ -1021,7 +1021,7 @@ def _detect_missing_tool(error_text: str) -> str | None:
             return (
                 f"[Prereq Doctor] Missing Python module '{diag.get('module')}'. "
                 f"Fix: run `uv sync` from the plugin root. "
-                f"Or use: Skill(skill=\"wicked-garden:platform:prereq-doctor\", args=\"check uv\")"
+                f"Or use: Skill(skill=\"wicked-garden-platform\", args=\"prereq-doctor check uv\")"
             )
         if diag.get("status") == "missing":
             install_cmd = diag.get("install_cmd", "")
@@ -1029,7 +1029,7 @@ def _detect_missing_tool(error_text: str) -> str | None:
                 f"[Prereq Doctor] CLI '{diag.get('cli', diag.get('tool'))}' not installed. "
                 f"Install with: `{install_cmd}` — "
                 f"Ask the user before installing. "
-                f"Or use: Skill(skill=\"wicked-garden:platform:prereq-doctor\", args=\"check {diag.get('tool')}\")"
+                f"Or use: Skill(skill=\"wicked-garden-platform\", args=\"prereq-doctor check {diag.get('tool')}\")"
             )
         return None
     except Exception:

@@ -1,8 +1,9 @@
 # The Compiler
 
-`/wicked-garden:compile` takes any repo and emits a **self-contained,
-vault-backed build gate** into `<repo>/.wicked/` — a gate that proves the
-build's claims and runs with **no wicked-garden runtime present**.
+The prove skill's `compile` action (`/wicked-garden-prove compile`) takes any
+repo and emits a **self-contained, vault-backed build gate** into
+`<repo>/.wicked/` — a gate that proves the build's claims and runs with **no
+wicked-garden runtime present**.
 
 The compiler is in `scripts/compiler/compile.py`. The detection pass is
 `scripts/compiler/phase0/detect.py`.
@@ -77,11 +78,11 @@ Pass `--trigger hook,ci` (or `all`) to install them.
 
 ```bash
 # Detect + emit the harness into the repo's .wicked/
-/wicked-garden:compile ~/path/to/repo
+/wicked-garden-prove compile ~/path/to/repo
 
 # Also install the triggers that fire the gate
-/wicked-garden:compile ~/path/to/repo --trigger hook,ci
-/wicked-garden:compile ~/path/to/repo --trigger all
+/wicked-garden-prove compile ~/path/to/repo --trigger hook,ci
+/wicked-garden-prove compile ~/path/to/repo --trigger all
 
 # Run the emitted gate (exit 0 = PASS)
 python3 .wicked/gate.py

@@ -1,5 +1,5 @@
 ---
-name: review
+name: wicked-garden-product-imagery-review
 description: |
   Multi-dimensional visual analysis and quality review of images.
   No external provider required — reads image files directly.

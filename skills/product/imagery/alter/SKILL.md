@@ -1,5 +1,5 @@
 ---
-name: alter
+name: wicked-garden-product-imagery-alter
 description: |
   AI-powered image modification: img2img editing and mask-based inpainting.
   Requires a provider that supports editing operations.

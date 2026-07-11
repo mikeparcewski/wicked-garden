@@ -1,8 +1,9 @@
-# persona:define — Create / Update Persona Rubric
+# persona define — Create / Update Persona Rubric
 
-Full rubric sourced from `commands/persona/define.md`.
-Stores a custom persona in the project-scoped DomainStore. This is the
-**mechanism** that lets an enterprise inject its house personas.
+Full rubric for the `define` sub-action (formerly `commands/persona/define.md`).
+Stores a custom persona in the project-scoped DomainStore by default. This is the
+**mechanism** that lets an enterprise inject ITS house personas. Use `--save` to
+also promote to the plugin-level cache for cross-project reuse.
 
 ## What makes a persona worth defining
 
@@ -28,7 +29,7 @@ in `tests/persona/eval_cases/`).
 Author a house persona that defends a real failure mode, not a role restatement:
 
 ```bash
-/wicked-garden:persona:define payments-reviewer \
+/wicked-garden-persona define payments-reviewer \
   --focus "money movement is irreversible — verify before it ships" \
   --traits "exacting,paranoid,evidence-driven" \
   --role finance \
@@ -49,12 +50,12 @@ A WEAK definition to avoid:
 
 ```bash
 # Low durable value — restates a role the base model already plays.
-/wicked-garden:persona:define senior-dev --focus "write good clean code"
+/wicked-garden-persona define senior-dev --focus "write good clean code"
 ```
 
 ## Step 1: Parse and Validate
 
-Extract from `$ARGUMENTS`:
+Extract from the args passed to the `define` sub-action:
 
 - `name` (required): first non-flag token — kebab-case
 - `--focus` (required): the perspective this persona applies
@@ -68,12 +69,12 @@ Extract from `$ARGUMENTS`:
 - `--save` (optional flag): also promote to plugin cache for cross-project reuse
 
 If `name` is missing:
-> "name is required. Usage: /wicked-garden:persona:define <name> --focus \"<focus>\""
+> "name is required. Usage: /wicked-garden-persona define <name> --focus \"<focus>\""
 > STOP.
 
 If `--focus` is absent:
 > "focus is required — describe the perspective this persona applies."
-> "Example: /wicked-garden:persona:define pragmatic-tech-lead --focus \"delivery over perfection\""
+> "Example: /wicked-garden-persona define pragmatic-tech-lead --focus \"delivery over perfection\""
 > STOP.
 
 If `--constraints` and `--not-focus` are both absent, gently nudge (do NOT block):
@@ -117,7 +118,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
 Check whether `_updated: true` (existing persona overwritten) or `_updated: false` (new).
 
 If new persona:
-> "Created persona '{name}'. Invoke with: `/wicked-garden:persona:as {name} <task>`"
+> "Created persona '{name}'. Invoke with: `/wicked-garden-persona as {name} <task>`"
 
 If existing updated:
 > "Updated persona '{name}'."

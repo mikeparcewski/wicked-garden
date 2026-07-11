@@ -1,6 +1,6 @@
 # agentic:audit — 8-Layer Trust & Safety Audit Rubric
 
-Full rubric sourced from `agents/agentic/safety-reviewer.md` and
+Full rubric sourced from the `wicked-garden-agentic-safety-reviewer` fork skill (former `agents/agentic/safety-reviewer.md`) and
 `skills/agentic/trust-and-safety/`. Apply every layer to the target codebase.
 
 ## Layer 1: Tool Risk Classification

@@ -292,7 +292,7 @@ def main():
                             "invariant": "done-claim-verdict",
                             "evidence": (f'task "{subject}" completed with no re-derived '
                                          "verdict covering HEAD"),
-                            "action": ("Run `/wicked-garden:prove` to re-derive the claim, "
+                            "action": ("Invoke the `wicked-garden-prove` skill to re-derive the claim, "
                                        "or state the override reason — this completion is "
                                        "logged either way."),
                         }

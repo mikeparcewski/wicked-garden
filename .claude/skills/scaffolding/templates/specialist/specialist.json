@@ -9,13 +9,13 @@
       "name": "{{persona_1_name}}",
       "focus": "{{persona_1_focus}}",
       "expertise": ["{{persona_1_expertise_1}}", "{{persona_1_expertise_2}}"],
-      "agent": "agents/{{persona_1_agent}}.md"
+      "skill": "wicked-garden-{{persona_1_agent}}"
     },
     {
       "name": "{{persona_2_name}}",
       "focus": "{{persona_2_focus}}",
       "expertise": ["{{persona_2_expertise_1}}", "{{persona_2_expertise_2}}"],
-      "agent": "agents/{{persona_2_agent}}.md"
+      "skill": "wicked-garden-{{persona_2_agent}}"
     }
   ],
   "enhances": [

@@ -1,9 +1,10 @@
 ---
-name: discovery
+name: wicked-garden-smaht-discovery
 description: |
-  Contextual command discovery — suggests related commands based on what was just used.
-  Discovers relationships dynamically from command/skill content, not a static map.
-  Invoked by the Stop hook and smaht:briefing to surface one relevant suggestion.
+  Contextual discovery — suggests a related skill or action based on what was
+  just used. Discovers relationships dynamically from skill content, not a
+  static map. Invoked by the Stop hook and the smaht `briefing` sub-action
+  (skills/smaht/refs/briefing.md, step 5) to surface one relevant suggestion.
 user-invocable: false
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
@@ -11,31 +12,33 @@ archetype_relevance: ["*"]
 
 # Contextual Discovery
 
-After a command or skill runs, suggest ONE related command the user hasn't tried.
+After a skill or action runs, suggest ONE related skill or action the user hasn't tried.
 
 ## How It Works
 
 Relationships are discovered dynamically, not hardcoded:
 
-### 1. Parse the just-used command/skill
+### 1. Parse the just-used skill/action
 
-Read the command's `.md` file from `commands/{domain}/{command}.md`. Look for:
-- **Explicit references** to other commands (e.g., `/wicked-garden:search:blast-radius`)
-- **"See also"** or **"Integration"** sections listing related commands
-- **Agent dispatches** (`subagent_type="wicked-garden:{domain}:{agent}"`) — the dispatched agent's domain has related commands
-- **Skill references** (`Skill(skill="wicked-garden:{domain}:{skill}")`) — related domain commands
+Read the skill's `SKILL.md` from `skills/{domain}/SKILL.md` (the consolidated
+per-domain router skill; for a sub-action, that same file documents the action).
+Look for:
+- **Explicit references** to other skills/actions (e.g., the `wicked-garden-search` skill's `blast-radius` action)
+- **"See also"** or **"Integration"** sections listing related skills
+- **Fork-worker dispatches** (`Skill(skill="wicked-garden-{domain}-{role}")`, or the legacy `subagent_type="wicked-garden:{domain}:{role}"` compat form) — the dispatched worker's domain has related skills
+- **Skill references** (`Skill(skill="wicked-garden-{domain}")`) — related domain skills
 
 ### 2. Check what the user has already used this session
 
-Query session state for commands invoked in this session. Only suggest commands NOT already used.
+Query session state for skills/actions invoked in this session. Only suggest ones NOT already used.
 
 ### 3. Rank candidates
 
 Priority:
-1. Commands explicitly referenced in the just-used command's `.md` file
-2. Commands in the same domain (sibling commands)
-3. Commands in domains listed in the "Integration" section
-4. Cross-domain commands that share the same specialist role
+1. Skills/actions explicitly referenced in the just-used skill's `SKILL.md`
+2. Sibling actions in the same domain skill
+3. Skills in domains listed in the "Integration" section
+4. Cross-domain skills that share the same specialist role
 
 ### 4. Select ONE suggestion
 
@@ -46,15 +49,15 @@ Pick the highest-ranked candidate the user hasn't used. Frame contextually:
 ## Selection Rules
 
 1. Pick ONE suggestion (never more)
-2. Only suggest commands the user has NOT used in this session
-3. Match based on the most recent command, not full session history
+2. Only suggest skills/actions the user has NOT used in this session
+3. Match based on the most recent skill/action, not full session history
 4. If no good match, suggest nothing — silence is better than noise
 5. Frame as a question: "You might find X useful" not "Run X"
 6. Include specific arguments from context when possible (symbol name, file path)
 
 ## Common Patterns
 
-These natural workflows emerge from command cross-references:
+These natural workflows emerge from skill cross-references:
 
 - **Review → Impact**: After reviewing code, check what depends on it
 - **Search → Plan**: After finding a symbol, plan the change

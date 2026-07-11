@@ -1,5 +1,5 @@
 ---
-name: propose-skills
+name: wicked-garden-smaht-propose-skills
 description: |
   Mine recent Claude Code session transcripts to propose skills that would
   automate repetitive patterns the user actually does. Read-only MVP — outputs a

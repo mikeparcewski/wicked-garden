@@ -1,9 +1,13 @@
 ---
-name: compliance
+name: wicked-garden-platform-compliance
 description: |
   Use when checking code or architecture against a regulatory framework (SOC2, HIPAA, GDPR, PCI) or
   translating a policy document into actionable controls — detects violations and provides
   prioritized remediation guidance. NOT for gathering audit evidence artifacts (use platform/audit).
+
+  Use when: "is this compliant", "compliance check", "regulatory requirements",
+  "check against SOC2/HIPAA/GDPR/PCI", or any former
+  /wicked-garden:platform:compliance invocation.
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
 #   paths: ["**/compliance/**", "**/audit/**", "**/policy/**", "**/.hipaa*", "**/.gdpr*"]
@@ -33,11 +37,20 @@ Analyze code and systems for regulatory compliance.
 
 See [refs/frameworks.md](refs/frameworks.md) for detailed framework requirements.
 
-## Commands
+## Run it inline (no dispatch)
 
-```bash
-/wicked-garden:platform:compliance [--framework soc2|hipaa|gdpr|pci] [--quick]
-```
+Invoked as `<framework> [path]`:
+
+1. Parse args: `<framework> [path]` (framework = `soc2|hipaa|gdpr|pci`).
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/compliance/refs/compliance.md")` —
+   data-classification scan commands, per-framework control matrix
+   (SOC2/HIPAA/GDPR/PCI), gap checklist, bus emit, output format.
+3. For detailed per-framework checklists:
+   `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/compliance/refs/checklists.md")`.
+   For framework-specific patterns: `refs/frameworks.md`.
+4. Apply the rubric directly: scan for sensitive data, verify each control,
+   classify gaps P0/P1/P2, emit the bus event, and produce the compliance
+   assessment report.
 
 ## Analysis Process
 
@@ -110,10 +123,9 @@ TaskUpdate(
 Skill(skill="wicked-brain:memory", args="recall \"compliance {framework}\"")
 ```
 
-### With product
-```bash
-/wicked-garden:platform:security {target}
-```
+### With the platform domain skill
+For an ad hoc vulnerability scan of the same target, run the `security`
+action of `skills/platform/SKILL.md` (real scanners + triage).
 
 ## Output Format
 

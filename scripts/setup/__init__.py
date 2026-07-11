@@ -1,1 +1,1 @@
-"""Setup helpers for /wicked-garden:setup. Stdlib-only."""
+"""Setup helpers for the wicked-garden-core skill's setup action. Stdlib-only."""

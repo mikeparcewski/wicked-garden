@@ -171,11 +171,11 @@ TaskCreate(
 
 ## Council Sessions
 
-Pi is particularly valuable in `/wicked-garden:jam:council` sessions. Pi's voice represents
+Pi is particularly valuable in `/wicked-garden-jam council` sessions. Pi's voice represents
 user empathy and human-centered design in a panel of technical perspectives:
 
 ```bash
-/wicked-garden:jam:council "Should we use biometric auth or PIN codes for mobile login?"
+/wicked-garden-jam council "Should we use biometric auth or PIN codes for mobile login?"
 # Pi's persona argues for user comfort, accessibility, and emotional safety
 # Technical personas argue implementation and security trade-offs
 ```

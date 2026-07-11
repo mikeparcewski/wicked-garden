@@ -1,8 +1,6 @@
 # agentic:review — Full Agentic Codebase Review Rubric
 
-Full rubric sourced from `agents/agentic/architect.md`,
-`agents/agentic/safety-reviewer.md`, `agents/agentic/performance-analyst.md`,
-and `skills/agentic/review-methodology/`. Apply to the target path.
+Full rubric sourced from the `wicked-garden-agentic-architect`, `wicked-garden-agentic-safety-reviewer`, and `wicked-garden-agentic-performance-analyst` fork skills (former `agents/agentic/*.md`), and `skills/agentic/review-methodology/`. Apply to the target path.
 
 ## Step 1: Framework + Topology Detection
 

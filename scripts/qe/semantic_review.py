@@ -18,7 +18,8 @@ pre-filter — "is each AC referenced?" — that complements
 ``verification_protocol.py`` check #6.
 
 The genuinely *semantic* question — "does the code correctly implement what the
-AC described?" — is answered by the ``agents/qe/semantic-reviewer`` agent (LLM):
+AC described?" — is answered by the ``wicked-garden-qe-semantic-reviewer`` fork
+skill (``skills/qe-semantic-reviewer/SKILL.md``, LLM):
 it reads the code, judges each AC by **meaning** (behavior, not id occurrence),
 and records its verdict as an independent vault **attestation**. A gate declared
 with ``require_attestation`` then enforces it (UNATTESTED/REJECT until the
@@ -53,7 +54,7 @@ Design notes
 - **Divergent** — everything else where the AC is referenced but signals
   don't line up. Confidence score reports how sure we are.
 
-The agent consuming this output (``agents/qe/semantic-reviewer.md``) can
+The fork skill consuming this output (``skills/qe-semantic-reviewer/SKILL.md``) can
 promote MISSING/DIVERGENT findings to gate conditions when complexity >= 3.
 """
 from __future__ import annotations

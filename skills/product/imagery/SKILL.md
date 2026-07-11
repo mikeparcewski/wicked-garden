@@ -1,5 +1,5 @@
 ---
-name: imagery
+name: wicked-garden-product-imagery
 description: |
   Visual asset lifecycle management — analysis, generation, modification, and review.
   Three sub-skills cover the full creative pipeline with provider abstraction.

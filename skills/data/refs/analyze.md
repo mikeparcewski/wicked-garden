@@ -45,6 +45,62 @@ pre-profiled (columns / types / nulls / sample rows) by the caller.
 - **Action**: What to do (recommendation).
 - **Confidence**: HIGH | MEDIUM | LOW (state sample size + caveats).
 
+**Bad** (just observations): "Average order value is $45", "60% of customers
+are in the US".
+
+**Good** (insight with action):
+```
+### Insight: Weekend Shopping Behavior
+**Observation**: Sales peak on Friday (+40% vs weekday avg)
+**Insight**: Customers shop for weekend needs on Friday.
+**Action**: Launch "Friday Flash Sale" campaign (+15% expected)
+**Confidence**: HIGH (consistent over 6 months)
+```
+
+## Segmentation methods
+
+- **RFM**: Recency, Frequency, Monetary value.
+- **Cohorts**: group by signup / first-purchase month.
+- **Geographic**: by region, country, city.
+- **Behavioral**: by usage patterns.
+
+## Anomaly detection methods
+
+- Statistical outliers (>3 standard deviations).
+- Unusual patterns (volume spikes/drops).
+- Temporal anomalies (day-of-week deviations).
+
+## Visualization guidance
+
+| Data Type | Comparison | Best Chart |
+|-----------|------------|------------|
+| Time series | Trend over time | Line chart |
+| Categorical | Compare values | Bar chart |
+| Distribution | Show spread | Histogram, Box plot |
+| Relationship | Correlation | Scatter plot |
+| Composition | Part of whole | Stacked bar, Pie |
+| Geographic | Location data | Map (choropleth) |
+
+## Best practices
+
+- **Start simple**: begin with basic aggregations before complex models.
+- **Validate assumptions**: check data quality, verify calculations.
+- **Tell a story**: lead with the "so what?" and make it actionable.
+- **Be honest about uncertainty**: note limitations, quantify confidence.
+
+## Common pitfalls
+
+- **Correlation ≠ Causation**: ice cream and drownings both increase in summer.
+- **Simpson's Paradox**: aggregate trend may reverse when segmented.
+- **Survivorship Bias**: include failed cases for balanced view.
+- **Cherry-picking**: report all patterns, not just favorable ones.
+
+## Detailed templates
+
+See [analysis-templates.md](analysis-templates.md) for full report templates:
+exploratory analysis report, insight report, segment analysis, A/B test
+results, and anomaly report.
+
 ## --focus quality (data-quality mode)
 
 | Dimension | Check |

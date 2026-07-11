@@ -1,51 +1,45 @@
----
-description: {{description}}
-argument-hint: <target> [--option value]
----
+# Action stub: {{command_name}} (dispatches to a fork worker)
 
-# /{{plugin_name}}:{{command_name}}
+Skills-only layout: a former "command that dispatches to an agent" is now an
+ACTION of a consolidated per-domain router skill (skills/{domain}/SKILL.md)
+that dispatches to a context:fork WORKER skill. Copy this section into the
+router's body (and add a row to its Action router table); there is no
+commands/ file.
+
+## Action: {{command_name}}
 
 {{description}}.
 
-## Instructions
+### 1. Parse arguments
 
-### 1. Parse Arguments
+Extract from the invocation args:
+- `target` (required): the target to analyze
+- `--option` (optional): additional options
 
-Extract from arguments:
-- `target` (required): The target to analyze
-- `--option` (optional): Additional options
-
-### 2. Dispatch to {{agent_name}}
+### 2. Dispatch to the {{agent_name}} fork worker
 
 ```
-Task(
-  subagent_type="{{plugin_name}}:{{agent_name}}",
-  prompt="""
-  {{agent_task_description}}.
-
-  Target: {target}
-
-  Focus areas:
-  1. {checklist item 1}
-  2. {checklist item 2}
-  3. {checklist item 3}
-
-  Return findings as structured markdown with file:line references.
-  """
+Skill(
+  skill="{{plugin_name}}-{{agent_name}}",
+  args="{{agent_task_description}} | target: <target> | focus: <checklist>"
 )
 ```
 
-### 3. Present Results
+`{{plugin_name}}-{{agent_name}}` is the dash-qualified worker skill name
+(e.g. `wicked-garden-engineering-solution-architect`). The worker returns
+findings as structured markdown with file:line references.
+
+### 3. Present results
 
 ```markdown
-## {{command_name}}: {target}
+## {{command_name}}: <target>
 
 ### Summary
-{agent findings summary}
+<worker findings summary>
 
 ### Details
-{structured findings}
+<structured findings>
 
 ### Recommendations
-1. {action item}
+1. <action item>
 ```

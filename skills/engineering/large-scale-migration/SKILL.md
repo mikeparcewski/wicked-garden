@@ -1,6 +1,15 @@
 ---
-name: large-scale-migration
-description: How to execute a LARGE MECHANICAL change across any codebase with LEVERAGE instead of an agent-grind or hand-edits — a cross-cutting migration, refactor, rename, dialect/framework/DB port, library adoption, or bulk transform. The map→transform→gate pattern: a deterministic transform driven by a source-of-truth map, proven by a differential-equivalence gate. Use when the work is "migrate all X to Y", "rename Z everywhere", "port to a new DB/dialect/framework", "adopt a library across N files", "refactor this pattern in M places", or any change touching dozens-to-thousands of sites. Language/DB/framework-agnostic — the thinking, not a specific tool.
+name: wicked-garden-engineering-large-scale-migration
+description: |
+  How to execute a LARGE MECHANICAL change across any codebase with LEVERAGE
+  instead of an agent-grind or hand-edits — a cross-cutting migration, refactor,
+  rename, dialect/framework/DB port, library adoption, or bulk transform. The
+  map→transform→gate pattern: a deterministic transform driven by a
+  source-of-truth map, proven by a differential-equivalence gate. Use when the
+  work is "migrate all X to Y", "rename Z everywhere", "port to a new
+  DB/dialect/framework", "adopt a library across N files", "refactor this
+  pattern in M places", or any change touching dozens-to-thousands of sites.
+  Language/DB/framework-agnostic — the thinking, not a specific tool.
 ---
 
 # Large-scale mechanical change — leverage, not grind

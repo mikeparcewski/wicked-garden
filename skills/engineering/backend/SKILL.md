@@ -1,5 +1,5 @@
 ---
-name: backend
+name: wicked-garden-engineering-backend
 description: |
   Backend engineering specialist for APIs, databases, server-side patterns,
   data modeling, scalability, and integrations.

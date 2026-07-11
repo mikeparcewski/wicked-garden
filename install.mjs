@@ -18,7 +18,7 @@ import { execSync } from "node:child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
 
-const PLUGIN_DIRS  = [".claude-plugin", "agents", "commands", "hooks", "scripts", "skills"];
+const PLUGIN_DIRS  = [".claude-plugin", "hooks", "scripts", "skills"];
 const PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BUS_EVENTS.md", "pyproject.toml"];
 const SKIP         = [/__pycache__/, /\.pyc$/, /\.pyo$/, /\.DS_Store$/];
 // Dev-only subdirs within scripts/ — not needed at runtime
@@ -76,12 +76,12 @@ async function cmdInstall() {
       execSync(`"${uv}" sync --quiet`, { cwd: dest, stdio: "pipe" });
       console.log("done");
     } catch {
-      console.log("skipped — /wicked-garden:setup will retry");
+      console.log("skipped — the wicked-garden-core setup action will retry");
     }
   }
 
   console.log(`\nwicked-garden v${pkg.version} ${isUpdate ? "updated" : "installed"}.`);
-  console.log("Next: run /wicked-garden:setup in Claude Code to complete configuration.");
+  console.log('Next: in Claude Code, ask for "wicked-garden setup" (the wicked-garden-core skill) to complete configuration.');
 }
 
 function cmdStatus() {

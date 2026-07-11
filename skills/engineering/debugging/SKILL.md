@@ -1,5 +1,5 @@
 ---
-name: debugging
+name: wicked-garden-engineering-debugging
 description: |
   Systematic debugging and root cause analysis for investigating errors,
   diagnosing complex issues, and performance profiling.

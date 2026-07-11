@@ -1,6 +1,7 @@
 ---
 name: wicked-garden-archetype
 context: fork
+user-invocable: true
 description: |
   v11 work-shape archetype runner. When a prompt has been routed to one
   of the archetypes (triage, explore, specify, decide, ship, review,
@@ -9,12 +10,17 @@ description: |
   shape declared in `.claude-plugin/archetypes.json`.
 
   Use when: a `<wg archetype="X">` or `<wg archetypes>` system-reminder
-  tag appears, an explicit "let's run the X archetype" request, or
-  when one of the per-archetype slash commands resolves to this skill.
+  tag appears, an explicit "let's run the X archetype" request, or a
+  direct per-archetype ask — "triage this prompt", "review this PR /
+  artifact", "build this feature", "decide between these options",
+  "explore this problem", "handle this incident", "run this migration",
+  "modernize / port this legacy app", "ship this release", "write
+  acceptance criteria" (invoke with archetype=<name> plus the user's
+  args — see the Direct invocation table).
 allowed-tools: ["*"]
 ---
 
-# /wicked-garden:archetype
+# wicked-garden-archetype
 
 v11 entry point for **work-shape archetypes**. Each archetype is a complete
 unit with its own phase shape, produces, HITL discipline, and cost band.
@@ -50,6 +56,26 @@ Do **not** use this skill for:
 | build     | plan → implement → test → review                          | shipped code / test report      | discrete:review       |
 | migrate   | plan → expand → backfill → cutover → contract             | shape change / rollback proof   | hard:cutover          |
 | modernize | discover → extract → blueprint → transform → parity → cutover | modernization blueprint / parity proof | hard:cutover  |
+
+## Direct invocation
+
+This skill is also the user-facing entry point for each archetype
+(replacing the former `/wicked-garden:archetype:{name}` slash commands).
+Invoke it with `archetype=<name>` plus the user's arguments; the skill
+loads `refs/{name}.md` and runs that playbook.
+
+| archetype | argument hint | description |
+|-----------|---------------|-------------|
+| triage    | `[prompt]` | Classify a prompt into a work-shape archetype and route to its playbook. When the prompt is empty, run the detector against the conversation context. |
+| explore   | `[problem statement]` | Explore an open problem space — diverge then converge. Produces an option set or hypothesis, NOT a decision. |
+| specify   | `[ask]` | Turn an ask into SMART acceptance criteria. |
+| decide    | `[decision context]` | Pick between options with an ADR-shaped decision artifact. |
+| ship      | `[release / change ref]` | Roll out an already-built change with widening blast radius. |
+| review    | `[artifact / PR / commit]` | Independent assessment with hard verdict (APPROVE/CONDITIONAL/REJECT) — the only review producing a binding verdict (scope notes in `refs/review.md`). |
+| incident  | `[INC-id or symptom]` | Live-fire production incident response — mitigate first, RCA second. |
+| build     | `[work description]` | Implement and ship a feature or fix — test rigor scales with signals. |
+| migrate   | `[migration description]` | Schema/API/data shape change with expand-contract pattern. |
+| modernize | `[modernization target, e.g. "port this AngularJS app to Angular"]` | Port a legacy codebase to a new stack — legacy→new-stack porting, NOT in-place shape change (that is `migrate`). |
 
 ## Procedure
 

@@ -59,8 +59,8 @@ PLUGIN_SKILL_MAP = {
     ],
     "search": [
         "wicked-brain:search — find code symbols (functions, classes, methods)",
-        "/wicked-garden:search:refs — find where a symbol is referenced",
-        "/wicked-garden:search:blast-radius — analyze what changing a symbol affects",
+        "wicked-garden-search (refs action) — find where a symbol is referenced",
+        "wicked-garden-search (blast-radius action) — analyze what changing a symbol affects",
         "wicked-brain:search — search documents (PDF, markdown, Office)",
     ],
     "tasks": [
@@ -71,10 +71,10 @@ PLUGIN_SKILL_MAP = {
         "/wicked-testing:plan — generate comprehensive test plan",
     ],
     "engineering": [
-        "/wicked-garden:engineering:review — code review with senior engineering perspective",
+        "wicked-garden-engineering (review action) — code review with senior engineering perspective",
     ],
     "platform": [
-        "/wicked-garden:platform:security — security review and vulnerability assessment",
+        "wicked-garden-platform (security action) — security review and vulnerability assessment",
     ],
     "wicked-garden": [
         "context7 MCP tools — query up-to-date library documentation",
@@ -213,7 +213,7 @@ async def build_package(task: str, project: str = None, files: list = None,
     """Build a structured context package for a subagent.
 
     This is the core function — assembles task-scoped context from
-    wicked-brain (decisions, constraints) and wicked-garden:search (code context),
+    wicked-brain (decisions, constraints) and the wicked-garden-search skill (code context),
     plus session state from the history condenser.
 
     Args:

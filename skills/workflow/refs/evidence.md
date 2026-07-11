@@ -53,6 +53,6 @@ Agents can explicitly record evidence via:
 
 ## Accessing Evidence
 
-Use `/wicked-garden:crew:evidence` to view evidence collected for the
+Use the crew evidence flow (`crew:evidence`) to view evidence collected for the
 current project or a specific task. Evidence is stored alongside the
 crew project data and persists via DomainStore.

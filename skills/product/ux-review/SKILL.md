@@ -1,5 +1,5 @@
 ---
-name: ux-review
+name: wicked-garden-product-ux-review
 description: |
   Use when evaluating UX quality — user flows, information architecture, user research synthesis,
   personas, and usability assessment. Also covers generative UX flow design from requirements.
@@ -11,6 +11,11 @@ archetype_relevance: ["*"]
 # UX Review Skill
 
 UX and design quality thinking embedded throughout delivery.
+
+> Tier-3 knowledge module behind the **`ux-review`** action of the
+> `wicked-garden-product` domain skill (`skills/product/SKILL.md`). Canonical
+> invocation: `/wicked-garden-product ux-review [args]` or plain natural
+> language — the examples below use that form.
 
 ## Core Concept
 
@@ -29,30 +34,30 @@ Good UX is how we build trust. Don't wait for polish phase—design with users i
 
 | Command | Purpose |
 |---------|---------|
-| `/wicked-garden:product:ux-review` | Run UX review (auto-detect focus) |
-| `/wicked-garden:product:ux-review --focus flows` | User flow analysis |
-| `/wicked-garden:product:ux-review --focus ui` | Visual design review |
-| `/wicked-garden:product:ux-review --focus a11y` | Accessibility audit |
-| `/wicked-garden:product:ux-review --focus research` | User research |
-| `/wicked-garden:product:ux-review --focus all` | Comprehensive review |
+| `/wicked-garden-product ux-review` | Run UX review (auto-detect focus) |
+| `/wicked-garden-product ux-review --focus flows` | User flow analysis |
+| `/wicked-garden-product ux-review --focus ui` | Visual design review |
+| `/wicked-garden-product ux-review --focus a11y` | Accessibility audit |
+| `/wicked-garden-product ux-review --focus research` | User research |
+| `/wicked-garden-product ux-review --focus all` | Comprehensive review |
 
 ## Usage
 
 ```bash
 # Auto-detect what to review
-/wicked-garden:product:ux-review src/components/Dashboard
+/wicked-garden-product ux-review src/components/Dashboard
 
 # Focus on accessibility
-/wicked-garden:product:ux-review src/components/Form --focus a11y
+/wicked-garden-product ux-review src/components/Form --focus a11y
 
 # User research on requirements
-/wicked-garden:product:ux-review outcome.md --focus research
+/wicked-garden-product ux-review outcome.md --focus research
 
 # Comprehensive review
-/wicked-garden:product:ux-review src/app --focus all
+/wicked-garden-product ux-review src/app --focus all
 
 # Quick triage
-/wicked-garden:product:ux-review src/components --quick
+/wicked-garden-product ux-review src/components --quick
 ```
 
 ## Output
@@ -119,13 +124,13 @@ For fast feedback:
 
 ```bash
 # Quick a11y scan
-/wicked-garden:product:ux-review {file} --focus a11y --quick
+/wicked-garden-product ux-review {file} --focus a11y --quick
 
 # Quick UI consistency
-/wicked-garden:product:ux-review {file} --focus ui --quick
+/wicked-garden-product ux-review {file} --focus ui --quick
 
 # Quick flow check
-/wicked-garden:product:ux-review {file} --focus flows --quick
+/wicked-garden-product ux-review {file} --focus flows --quick
 ```
 
 ## Common Findings
@@ -154,11 +159,11 @@ For fast feedback:
 
 ```bash
 # Comprehensive quick review
-/wicked-garden:product:ux-review src/ --focus all --quick
+/wicked-garden-product ux-review src/ --focus all --quick
 
 # Accessibility deep dive
-/wicked-garden:product:ux-review src/components --focus a11y
+/wicked-garden-product ux-review src/components --focus a11y
 
 # User research
-/wicked-garden:product:ux-review outcome.md --focus research
+/wicked-garden-product ux-review outcome.md --focus research
 ```

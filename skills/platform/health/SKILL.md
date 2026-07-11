@@ -1,12 +1,16 @@
 ---
-name: health
+name: wicked-garden-platform-health
 description: |
   System health overview from discovered observability sources. Aggregates errors,
   performance metrics, and SLO status across services. Correlates with deployments
   and code changes. Use for proactive health monitoring and post-deployment validation.
 
   Use when: checking aggregated system health, validating a post-deployment
-  state, or correlating production status with recent changes.
+  state, correlating production status with recent changes, "how is
+  production", "check system health", or any former
+  /wicked-garden:platform:health invocation. NOT for plugin-level diagnostics
+  (use the observability sub-skill) or distributed tracing (use the platform
+  domain skill's traces action).
 portability: portable
 phase_relevance: ["build", "review", "operate"]
 archetype_relevance: ["*"]
@@ -24,6 +28,23 @@ Aggregate system health from discovered observability sources with deployment co
 - Capacity assessment
 - Proactive issue detection
 - User asks "health", "status", "how is production"
+
+NOT for plugin-level diagnostics (use the `observability` sub-skill) or
+distributed tracing (use the `traces` action of the platform domain skill).
+
+## Run it inline (no dispatch)
+
+Invoked as `[service name or 'all']`:
+
+1. Parse args: service name, or `all` for full assessment.
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/health/refs/health.md")` —
+   discovery checklist, per-source assessment steps, fallback code-analysis
+   approach, common patterns, and output format. See `refs/sources.md` for
+   detailed capability discovery patterns.
+3. Apply the rubric directly: discover observability sources via
+   `ListMcpResourcesTool`, query each, correlate with recent deployments, and
+   produce the health report with severity classification
+   (HEALTHY / DEGRADED / CRITICAL) and prioritized recommendations.
 
 ## Health Assessment Approach
 

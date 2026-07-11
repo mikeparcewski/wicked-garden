@@ -1,5 +1,5 @@
 ---
-name: requirements-navigate
+name: wicked-garden-product-requirements-navigate
 description: |
   Navigate, query, and maintain requirements graphs. Regenerates meta.md
   on demand, checks coverage, finds gaps, and lints the graph structure.

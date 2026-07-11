@@ -1,5 +1,5 @@
 ---
-name: visual-direction
+name: wicked-garden-product-visual-direction
 description: |
   Figure out what a section of content *should be* visually before reaching for any
   implementation pattern. Answers five structured questions — content structure,

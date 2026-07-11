@@ -4,7 +4,7 @@ health_probe.py — CI-runnable health checker for wicked-garden plugins.
 Validates all installed plugins against structural contracts:
   1. Hook event names (valid set; TaskCompleted flagged as WARNING)
   2. Script paths referenced in hooks.json commands (must exist)
-  3. Cross-plugin subagent_type refs in commands/*.md and agents/*.md
+  3. Cross-plugin subagent_type refs in skills/**/*.md (and legacy commands/*.md, agents/*.md)
   4. Ghost specialist checks (role, personas, enhances fields)
   5. plugin.json required fields (name, version, description)
   6. Bus consumer budget (scripts/_bus_consumers.json vs max_consumers)
@@ -229,6 +229,36 @@ def check_script_paths(
 # Check 3: Cross-plugin subagent_type references
 # ---------------------------------------------------------------------------
 
+def _ref_worker_exists(ref_plugin_dir: Path, ref_agent_name: str) -> bool:
+    """True if ``ref_agent_name`` resolves in ``ref_plugin_dir``.
+
+    Accepts either shape:
+      * legacy ``agents/<name>.md`` (plugins that still ship an agents/ tree)
+      * a skills-only worker: a ``skills/**/SKILL.md`` that declares
+        ``context: fork`` and whose declaring directory name equals
+        ``<name>`` or ends with ``-<name>`` (e.g. ``crew-reviewer`` for
+        ``reviewer``), OR whose frontmatter ``name`` ends with ``-<name>``.
+    """
+    if (ref_plugin_dir / "agents" / f"{ref_agent_name}.md").exists():
+        return True
+    skills_dir = ref_plugin_dir / "skills"
+    if not skills_dir.is_dir():
+        return False
+    suffix = f"-{ref_agent_name}"
+    for skill_md in skills_dir.rglob("SKILL.md"):
+        dir_name = skill_md.parent.name
+        if dir_name == ref_agent_name or dir_name.endswith(suffix):
+            return True
+        try:
+            head = skill_md.read_text(encoding="utf-8", errors="replace")[:600]
+        except OSError:
+            continue
+        m = re.search(r"^name:\s*(.+?)\s*$", head, re.MULTILINE)
+        if m and (m.group(1).strip() == ref_agent_name or m.group(1).strip().endswith(suffix)):
+            return True
+    return False
+
+
 def check_cross_plugin_refs(
     plugin_name: str,
     plugin_root: Path,
@@ -237,10 +267,17 @@ def check_cross_plugin_refs(
     violations: list[dict[str, Any]] = []
 
     md_files: list[Path] = []
+    # Skills-only cutover: a plugin's subagent_type refs may live in its
+    # skills/ tree now (former commands/ + agents/). Scan all three roots so
+    # the probe still sees cross-plugin refs. Legacy plugins that still ship
+    # commands/ or agents/ are covered by the first two.
     for subdir in ("commands", "agents"):
         target = plugin_root / subdir
         if target.is_dir():
             md_files.extend(target.glob("*.md"))
+    skills_dir = plugin_root / "skills"
+    if skills_dir.is_dir():
+        md_files.extend(skills_dir.rglob("*.md"))
 
     for md_file in md_files:
         try:
@@ -268,9 +305,10 @@ def check_cross_plugin_refs(
                 )
                 continue
 
-            # Plugin exists — check the agent file
-            agent_file = ref_plugin_dir / "agents" / f"{ref_agent_name}.md"
-            if not agent_file.exists():
+            # Plugin exists — check that the referenced worker resolves,
+            # either as a legacy agents/<name>.md file OR (skills-only
+            # cutover) as a context:fork worker skill in the target plugin.
+            if not _ref_worker_exists(ref_plugin_dir, ref_agent_name):
                 violations.append(
                     make_violation(
                         plugin=plugin_name,
@@ -278,7 +316,8 @@ def check_cross_plugin_refs(
                         severity="error",
                         message=(
                             f"References subagent_type=\"{ref_plugin_name}:{ref_agent_name}\" "
-                            f"but agent file 'agents/{ref_agent_name}.md' not found in {ref_plugin_name}."
+                            f"but no matching agents/{ref_agent_name}.md file or "
+                            f"context:fork worker skill was found in {ref_plugin_name}."
                         ),
                         file=_rel_from(md_file, plugin_root.parent.parent),
                     )

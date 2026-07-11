@@ -1,5 +1,5 @@
 ---
-name: listen
+name: wicked-garden-product-listen
 description: |
   Aggregate customer feedback from discovered sources across support, surveys,
   social, and direct channels. This skill should be used when the user needs to
@@ -14,6 +14,11 @@ archetype_relevance: ["*"]
 # Listen Skill
 
 Aggregate customer feedback from multiple channels with automatic source discovery.
+
+> Tier-3 knowledge module behind the **`listen`** action of the
+> `wicked-garden-product` domain skill (`skills/product/SKILL.md`). Canonical
+> invocation: `/wicked-garden-product listen [args]` or plain natural language —
+> the examples below use that form.
 
 ## When to Use
 
@@ -38,20 +43,20 @@ The skill automatically discovers available feedback capabilities and routes to 
 
 ```bash
 # Listen to all available capabilities (auto-discovers sources)
-/wicked-garden:product:listen
+/wicked-garden-product listen
 
 # Specific capability type
-/wicked-garden:product:listen --capability support-tickets
+/wicked-garden-product listen --capability support-tickets
 
 # Time window
-/wicked-garden:product:listen --days 30
-/wicked-garden:product:listen --since "2026-01-01"
+/wicked-garden-product listen --days 30
+/wicked-garden-product listen --since "2026-01-01"
 
 # Filter by tags
-/wicked-garden:product:listen --tags bug,feature-request
+/wicked-garden-product listen --tags bug,feature-request
 
 # Limit results
-/wicked-garden:product:listen --limit 50
+/wicked-garden-product listen --limit 50
 ```
 
 ## Aggregation Strategy
@@ -133,7 +138,7 @@ Concise summary of aggregated feedback:
 {Top 5-10 items}
 
 ### Next Steps
-Run /wicked-garden:product:analyze to extract themes and trends.
+Run /wicked-garden-product analyze to extract themes and trends.
 ```
 
 See [channels.md](refs/channels.md) for detailed capability integration patterns.

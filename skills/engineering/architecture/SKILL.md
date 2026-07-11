@@ -1,5 +1,5 @@
 ---
-name: architecture
+name: wicked-garden-engineering-architecture
 description: |
   Complete solution architecture design with patterns, decisions, and diagrams.
   Define overall system structure, technology choices, and architectural trade-offs.
@@ -14,6 +14,10 @@ archetype_relevance: ["*"]
 # Architecture Skill
 
 Design end-to-end solutions with clear patterns, decisions, and visual documentation.
+
+For genuinely structural greenfield design (system boundaries, cross-cutting
+design trade-offs, full ADR sets), dispatch the
+`wicked-garden-engineering-solution-architect` fork skill.
 
 ## Purpose
 

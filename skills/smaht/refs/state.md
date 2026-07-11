@@ -1,7 +1,13 @@
-# smaht:state — Session State + Recent Events Rubric
+# smaht state — Session State + Recent Events Rubric
 
-Full rubric sourced from `commands/smaht/state.md`.
-Snapshot and report current session state and recent events.
+Full rubric for the `state` sub-action of `skills/smaht/SKILL.md`
+(formerly `commands/smaht/state.md`, retired in the skills-only consolidation).
+Snapshot and report current session state and recent events — live
+SessionState / adapter / directive inspection. NOT for
+what-happened-since-last-session (use the `briefing` sub-action,
+`refs/briefing.md`).
+
+Args: `[--state] [--events N] [--project <name>] [--json]`
 
 ## Step 1: Load SessionState
 

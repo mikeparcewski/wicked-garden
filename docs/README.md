@@ -10,23 +10,23 @@ Work in wicked-garden is organized around **9 work-shape archetypes** — not a 
 |-------|-------------|
 | [Getting Started](getting-started.md) | Installation, required peers, first session, common workflows |
 | [Archetypes](v11/archetypes.md) | The 9 work-shape archetypes — why the universal pipeline went away |
-| [Domains](domains.md) | The 10 domain skill/agent families archetypes invoke for expertise |
+| [Domains](domains.md) | The 10 domain skills archetypes invoke for expertise |
 | [Required Peers](required-peers.md) | The five required peer plugins and the install/runtime stance |
-| [The Compiler](compiler.md) | `/wicked-garden:compile` — emit a self-contained vault-backed gate into any repo |
+| [The Compiler](compiler.md) | `/wicked-garden-prove compile` — emit a self-contained vault-backed gate into any repo |
 | [Brain Chunk Format](brain-chunk-format.md) | How wicked-garden content is chunked for the brain index |
 
 ## Quick Links
 
 - **New to wicked-garden?** Start with [Getting Started](getting-started.md).
 - **Want to understand how work is shaped?** Read [Archetypes](v11/archetypes.md).
-- **Setting up?** The [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom — are verified by `/wicked-garden:setup`.
-- **Looking for domain expertise or a specific command?** Browse [Domains](domains.md).
+- **Setting up?** The [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom — are verified by `/wicked-garden-core setup`.
+- **Looking for domain expertise or a specific action?** Browse [Domains](domains.md).
 - **Want a build gate that runs without wicked-garden present?** See [The Compiler](compiler.md).
 
 ## Need Help?
 
 ```bash
-/wicked-garden:setup                   # verify required peers + onboard
-/wicked-garden:help                    # list all commands
-/wicked-garden:where-am-i              # show current session state
+/wicked-garden-core setup              # verify required peers + onboard
+/wicked-garden-core help               # list all skills
+/wicked-garden-core where-am-i         # show current session state
 ```

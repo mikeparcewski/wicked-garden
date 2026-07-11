@@ -20,7 +20,7 @@ to checkpoint. The proper checkpoint is the wicked-brain-session-teardown
 agent at session end, not a 10-turn timer.
 
 Subagents pull context on demand via wicked-brain:search/query and
-wicked-garden:search rather than having a briefing pushed every turn.
+the wicked-garden-search skill rather than having a briefing pushed every turn.
 The hook is stdlib-only.
 
 Always fails open — any unhandled exception returns {"continue": true}.
@@ -252,7 +252,7 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
 
     1. **Persisted (LLM)**: when SessionState carries a recent
        `classified_at` + `archetypes_v11`, prefer that — the model
-       already classified through the wicked-garden:classify skill.
+       already classified through the wicked-garden-classify skill.
     2. **Fallback (regex)**: when no persisted classification exists,
        run archetypes_v11.detect_archetypes() against the prompt
        directly. If the prompt is non-trivial (intent != simple-edit)
@@ -314,12 +314,12 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
     if not real:
         # Regex couldn't classify cleanly — ask the model to do it instead.
         # This is the LLM-classifier opt-in path: the model invokes the
-        # wicked-garden:classify skill, persists the result, and on the
+        # wicked-garden-classify skill, persists the result, and on the
         # next turn the persisted-tier branch above takes over.
         return (
             "<wg classify-due />\n"
             "Regex classifier could not route this prompt to a v11 archetype. "
-            "Invoke the `wicked-garden:classify` skill to classify with model "
+            "Invoke the `wicked-garden-classify` skill to classify with model "
             "reasoning, then run the chosen archetype's playbook."
         )
 
@@ -363,8 +363,8 @@ def _suggest_jam(prompt: str, state) -> str | None:
         pass
     return (
         "[Suggestion] This prompt involves exploring options or tradeoffs. "
-        "Consider /wicked-garden:jam:quick for fast structured thinking, "
-        "or /wicked-garden:jam:brainstorm for a full multi-perspective session."
+        "Consider the `wicked-garden-jam` skill's `quick` action for fast structured thinking, "
+        "or its `brainstorm` action for a full multi-perspective session."
     )
 
 
@@ -509,6 +509,12 @@ def _has_imperative_technical_verb(prompt_lower: str) -> bool:
 # ---------------------------------------------------------------------------
 
 _GUARD_PASS_PREFIXES = (
+    # Skills-only surface: setup/help live on the wicked-garden-core skill.
+    "wicked-garden-core",
+    "wicked-garden setup",
+    "wicked-garden help",
+    # Legacy slash forms (retired commands) — still exempt so a user who
+    # types the old invocation isn't hard-blocked by the setup gate.
     "/wicked-garden:setup",
     "/wicked-garden:help",
     "/setup",
@@ -574,7 +580,7 @@ def _check_setup_gate(prompt: str) -> str | None:
     if not config_ok:
         print(
             "wicked-garden requires setup before first use.\n"
-            "Run: /wicked-garden:setup",
+            "Invoke the wicked-garden-core skill's setup action (say: \"wicked-garden setup\").",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -668,8 +674,8 @@ def _check_onboarding_gate(prompt: str) -> str | None:
             project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
             return (
                 f"[Action Required] Project '{project}' has not been onboarded.\n"
-                "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-                "to launch the interactive onboarding wizard.\n"
+                "You MUST immediately invoke the Skill tool with skill='wicked-garden-core' "
+                "and args='setup' to launch the interactive onboarding wizard.\n"
                 "Do NOT ask the user for confirmation — invoke the skill now.\n"
                 "Do NOT respond with text first — invoke the skill as your first action."
             )
@@ -685,16 +691,19 @@ def _check_onboarding_gate(prompt: str) -> str | None:
 # ---------------------------------------------------------------------------
 # The intent variable names what five overlapping classifiers were collectively
 # detecting. Auto-detected on turn 1-2 from existing complexity/risk signals,
-# sticky for the session, overridable via /wicked-garden:intent. Hooks gate
-# directive emission on intent. Design: brainstorms/v10-session-01-intent-and-hook-gating.md.
+# sticky for the session, overridable via the wicked-garden-smaht-intent skill.
+# Hooks gate directive emission on intent. Design: brainstorms/v10-session-01-intent-and-hook-gating.md.
 
 _INTENT_VALUES = ("simple-edit", "feature", "rigor", "research")
 _AUTO_DETECT_TURN_LIMIT = 2  # auto-detect runs only on turns ≤ this; sticky after
 
-# Crew/rigor command prefixes — invocations that warrant rigor regardless of
-# prompt complexity (answer to brainstorm Q3: rely on auto-detection signals
-# rather than per-command self-declare ceremony).
+# Crew/rigor invocation prefixes — invocations that warrant rigor regardless
+# of prompt complexity (answer to brainstorm Q3: rely on auto-detection signals
+# rather than per-invocation self-declare ceremony). Crew work now dispatches
+# through the wicked-garden-crew-* fork skills; the legacy slash prefix is
+# kept so old muscle-memory invocations still classify as rigor.
 _RIGOR_COMMAND_PREFIXES = (
+    "wicked-garden-crew",
     "/wicked-garden:crew:",
     "/wg-issue",
     "/wg-test",
@@ -712,14 +721,15 @@ def _detect_intent(prompt: str, complexity: float, is_risky: bool, state) -> str
     """Auto-detect session intent from prompt + complexity/risk signals.
 
     Called once per session on turn 1-2. Result is sticky — subsequent turns
-    read state.intent directly. User overrides via /wicked-garden:intent skill
-    set state.intent_explicit=True.
+    read state.intent directly. User overrides via the wicked-garden-smaht-intent
+    skill, which sets state.intent_explicit=True.
 
     Detection priority:
-      1. Rigor commands (/wicked-garden:crew:*, etc.) → rigor
+      1. Rigor invocations (wicked-garden-crew* skills, /wg-issue, /wg-test) → rigor
       2. Research signals (explain how, why does, walk me through) → research
       3. Risk OR complexity ≥ threshold OR technical verb → feature
-      4. Default → simple-edit (conservative; user can /wicked-garden:intent up)
+      4. Default → simple-edit (conservative; user can raise it via the
+         wicked-garden-smaht-intent skill)
     """
     if not prompt or not prompt.strip():
         return "simple-edit"
@@ -806,7 +816,7 @@ def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=
     ]
     if intent == "rigor":
         directive_lines.append(
-            "3. If results cite a wicked-garden:crew project, check its phase and "
+            "3. If results cite a wicked-crew project, check its phase and "
             "active_chain_id before committing to an approach."
         )
     directive_lines.append("Only after grounding is complete, answer the original prompt.")

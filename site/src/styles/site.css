@@ -7,20 +7,23 @@
 ============================================================================ */
 
 /* ── Scroll-lock to section + per-section viewport sizing ──────────────────
-   Each major section fills the viewport and the document snaps section-to-
-   section. `proximity` (not mandatory) so a section taller than the viewport
-   (e.g. the 81-command toolkit grid) is never a trap; `safe center` aligns such
-   a section to the top instead of clipping it. scroll-padding offsets the
-   fixed topbar. Mobile falls back to natural scroll. */
+   DESKTOP (≥1024px): mandatory y-snap — one section per screen. Each section
+   is 100svh with `scroll-snap-align:start`; `justify-content:safe center`
+   top-aligns any section taller than the viewport instead of clipping it, and
+   `scroll-padding-top:var(--topbar-h)` offsets the fixed topbar so anchored
+   sections aren't hidden under it. MOBILE/tablet (≤1023px): snap is dropped
+   and min-height released, so overflowing content flows naturally, top-aligned,
+   and is never trapped. Reduced-motion is honored globally in global.css — no
+   smooth-scroll is added here. */
 html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .gd-section {
-  min-height: 100vh;
+  min-height: 100svh;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   justify-content: safe center;
 }
-@media (max-width: 760px) {
+@media (max-width: 1023px) {
   html { scroll-snap-type: none; }
   .gd-section { min-height: 0; }
 }
@@ -577,13 +580,13 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
    THE GRID (full capability surface + bundled family)
 ============================================================================ */
 .cg-em { color: var(--ink); font-weight: 600; }
-/* Dense 5-across grid — 10 domain cards land in two tight rows. Cards stay
-   compact (name + count + clamped blurb); the command chips reveal on hover
+/* Dense 6-across grid — 12 domain cards land in two rows of six. Cards stay
+   compact (name + count + clamped blurb); the skill chips reveal on hover
    as an absolutely-positioned tray, so the resting grid never reflows. */
 .cg-grid {
   margin-top: 1rem;
-  display: grid; gap: 9px;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  display: grid; gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-items: stretch;
 }
 .cg-card {
@@ -601,7 +604,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .cg-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; }
 .cg-card-name {
   font-family: var(--font-display); font-weight: 900; font-stretch: 114%;
-  font-size: 0.92rem; letter-spacing: -0.01em; color: var(--hue); line-height: 1.05;
+  font-size: 0.86rem; letter-spacing: -0.01em; color: var(--hue); line-height: 1.05;
 }
 .cg-card-count {
   flex-shrink: 0; font-family: var(--font-mono); font-size: 0.5rem; letter-spacing: 0.08em;
@@ -610,7 +613,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 }
 .cg-card-blurb {
   font-size: 0.72rem; line-height: 1.4; color: var(--ink);
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
 }
 /* hover-reveal command tray — overlaid, so the grid keeps its resting height */
 .cg-card-cmds {
@@ -679,6 +682,12 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 /* ============================================================================
    RESPONSIVE
 ============================================================================ */
+/* Grid ladder aligned with the snap-drop boundary: 6-across on desktop (≥1024,
+   snap on, two rows fit one viewport) → 4-across once snap is dropped (≤1023,
+   overflow allowed, top-aligned) → 2 → 1. The ≤1000 rule below wins over this. */
+@media (max-width: 1023px) {
+  .cg-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 @media (max-width: 1000px) {
   .gd-hero-grid { grid-template-columns: 1fr; }
   .gd-hero-demo { max-width: 460px; }

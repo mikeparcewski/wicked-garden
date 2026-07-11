@@ -291,11 +291,11 @@ def _suggest_auth_fix(probe_result):
 
 
 def _load_agents():
-    """Load dynamic agents from disk. Returns (agent_count, agents_dict)."""
+    """Load dynamic workers (context:fork skills). Returns (agent_count, agents_dict)."""
     try:
         from _agents import AgentLoader
         loader = AgentLoader()
-        agents = loader.load_disk_agents(_PLUGIN_ROOT / "agents")
+        agents = loader.load_fork_skills(_PLUGIN_ROOT / "skills")
         return len(agents), agents
     except Exception as e:
         print(f"[wicked-garden] agent load error: {e}", file=sys.stderr)
@@ -481,8 +481,8 @@ def _check_onboarding_status():
         # Neither index nor memories → first-time setup required
         directive = (
             f"[Action Required] Project '{project}' has not been onboarded.\n"
-            "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-            "to launch the interactive onboarding wizard.\n"
+            "You MUST immediately invoke the Skill tool with skill='wicked-garden-core' "
+            "and args='setup' to launch the interactive onboarding wizard.\n"
             "Do NOT ask the user for confirmation — invoke the skill now.\n"
             "Do NOT respond with text first — invoke the skill as your first action."
         )
@@ -490,7 +490,7 @@ def _check_onboarding_status():
         # Memories exist but brain index is gone → rebuild only
         directive = (
             f"[Onboarding] IMPORTANT: Project '{project}' has memories but no search index. "
-            "You MUST run /wicked-garden:search:index now to build the search index."
+            "You MUST invoke the wicked-garden-search skill's `index` action now to build the search index."
         )
 
     return has_index, has_memories, directive
@@ -510,7 +510,7 @@ def _read_config():
 # v9.2.11 deleted _MEMORY_INSTRUCTIONS. v9.2.10 stopped APPENDING it to the
 # briefing (CLAUDE.md "Memory Management" section already overrides the
 # system-level auto-memory instructions); v9.2.11 confirmed zero imports
-# across hooks/, scripts/, tests/, commands/ and removed the dead constant.
+# across hooks/, scripts/, tests/ (and the since-retired commands/ tree) and removed the dead constant.
 # Same cleanup pattern as the v9.2.10 yolo test deletion — a constant kept
 # alive only by a test that asserts it exists is a tautology.
 
@@ -1055,17 +1055,17 @@ def _suggest_commands_for_project() -> str | None:
 
         # Always useful
         suggestions.append("`wicked-brain:search` — semantic code search")
-        suggestions.append("`/wicked-garden:engineering:review` — structured code review")
+        suggestions.append("`wicked-garden-engineering` skill, `review` action — structured code review")
 
         # Project-type-specific
         if has_tests:
             suggestions.append("`/wicked-testing:plan` — generate test plan and scenarios")
         if has_dockerfile or has_terraform:
-            suggestions.append("`/wicked-garden:platform:security` — security review")
+            suggestions.append("`wicked-garden-platform` skill, `security` action — security review")
         if has_csv_data:
-            suggestions.append("`/wicked-garden:data:analyze` — interactive data analysis with DuckDB")
+            suggestions.append("`wicked-garden-data` skill, `analyze` action — interactive data analysis with DuckDB")
         if has_ci:
-            suggestions.append("`/wicked-garden:platform:actions` — GitHub Actions optimization")
+            suggestions.append("`wicked-garden-platform` skill, `actions` action — GitHub Actions optimization")
 
         # Cap at 3 suggestions
         suggestions = suggestions[:3]
@@ -1424,8 +1424,8 @@ def main():
                     "hookEventName": "SessionStart",
                     "additionalContext": (
                         "[Action Required] wicked-garden is not configured for this project.\n"
-                        "You MUST immediately invoke the Skill tool with skill='wicked-garden:setup' "
-                        "to launch the interactive setup wizard.\n"
+                        "You MUST immediately invoke the Skill tool with skill='wicked-garden-core' "
+                        "and args='setup' to launch the interactive setup wizard.\n"
                         "Do NOT ask the user for confirmation — invoke the skill now.\n"
                         "Do NOT respond with text first — invoke the skill as your first action."
                     ),
@@ -1569,7 +1569,7 @@ def main():
             mode_notes.append(
                 f"[Plugins] {len(unready_plugins)} plugin(s) installed but not ready:\n"
                 + "\n".join(plugin_lines)
-                + "\n  After authenticating, run `/wicked-garden:platform:health` to re-probe."
+                + "\n  After authenticating, invoke the `wicked-garden-platform` skill's `health` action to re-probe."
             )
 
         # 7c. Detect dangerous mode (AskUserQuestion broken)
@@ -1751,7 +1751,7 @@ def main():
         if not onboarding_directive:
             if not _notice_already_shown(_NOTICE_SETUP):
                 briefing_parts.append(
-                    "[Setup] Run `/wicked-garden:setup --reconfigure` to change connection or re-onboard."
+                    "[Setup] Invoke the `wicked-garden-core` skill with `setup --reconfigure` to change connection or re-onboard."
                 )
                 _record_notice_shown(_NOTICE_SETUP)
 

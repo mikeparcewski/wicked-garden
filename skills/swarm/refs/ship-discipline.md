@@ -19,7 +19,7 @@ ship, review, and roll back independently:
 - One branch per unit (e.g. `swarm/<unit-name>/<change>`).
 - **Conventional commits** (`feat:` / `fix:` / `refactor:` / `chore:`) with the
   body referencing the unit and the receipt. This keeps the provenance check in
-  `agents/crew/reviewer.md` happy (commit messages should reference traceability
+  the `wicked-garden-crew-reviewer` fork skill happy (commit messages should reference traceability
   anchors).
 - **Trust-but-verify every reported commit SHA** (`wicked-garden:worktrees` §1):
   a subagent's reported SHA can be a dangling commit. Run the ancestry check
@@ -30,11 +30,11 @@ ship, review, and roll back independently:
 
 A unit does not merge on a green local run alone — the claim is re-derived:
 
-- `/wicked-garden:prove tests-pass --by "<unit test cmd>"` (and `build-clean`,
+- `/wicked-garden-prove tests-pass --by "<unit test cmd>"` (and `build-clean`,
   `lint-clean`) must return `satisfied: true, re_derived: true`.
 - For hard-gate units, `--with-attestations` + an independent
   `wicked-vault attest --opinion pass` (evaluator ≠ implementer).
-- If the unit's repo has a compiled gate (`/wicked-garden:compile`), let
+- If the unit's repo has a compiled gate (`/wicked-garden-prove compile`), let
   `.wicked/gate.py` run in CI — it re-derives through wicked-vault with no
   garden runtime present.
 
@@ -44,7 +44,7 @@ cause; never narrate around a failing gate.
 ## Independent code review + RESOLVE comments
 
 - Each unit's PR gets an **independent** review — a different agent/human than
-  the implementer (reviewer-separation; `agents/crew/reviewer.md` and the vault
+  the implementer (reviewer-separation; the `wicked-garden-crew-reviewer` fork skill and the vault
   both enforce evaluator ≠ creator). For high-stakes units run a
   `wicked-garden:jam:council` for multi-model perspective.
 - **Resolve every bot/review comment** before merge — address it or reply why
@@ -81,7 +81,7 @@ cause; never narrate around a failing gate.
 
 ```
 [ ] on its own branch, conventional commits, SHA verified by ancestry
-[ ] /wicked-garden:prove → satisfied + re_derived for tests/build/lint
+[ ] /wicked-garden-prove → satisfied + re_derived for tests/build/lint
 [ ] hard-gate units: independent wicked-vault attest --opinion pass
 [ ] independent review done; all review/bot comments resolved
 [ ] rebased onto current main; clean tree

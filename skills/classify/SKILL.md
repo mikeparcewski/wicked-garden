@@ -29,6 +29,25 @@ than regex.** This skill is the path to use the model's full reasoning
 on the classification step, then persist the result so the rest of the
 session benefits without re-running classification on every turn.
 
+## Routing model (council-is-the-router)
+
+This skill **is the session router**. The former wicked-signals product (a
+separate text-in / intent-out classifier) was archived because intent /
+work-shape classification is a native model capability — the router is just a
+model reading the prompt with full tool access (`allowed-tools: ["*"]`), which
+is exactly this skill. Read it as one council member making the routing call on
+the fast path.
+
+When a routing or decision call is genuinely hard, ambiguous, or high-stakes,
+**escalate to the multi-model council** (`wicked-garden-jam` → `council`, worker
+`wicked-garden-jam-council`): multiple independent models deliberate, still with
+garden tools for additional processing. The council is the *escalation*, not a
+per-prompt router — convening 20 CLIs on every prompt would be absurd cost.
+
+- **Fast path (always on)** — the `prompt_submit` hook emits `<wg classify-due />`,
+  you classify + persist here, the parent turn steers on the persisted archetype.
+- **Escalation (on demand)** — `wicked-garden-jam council <question> --options "…"`.
+
 ## What the catalog declares
 
 `.claude-plugin/archetypes.json` defines the work-shape archetypes. Read it
@@ -131,11 +150,15 @@ echo '{
 The script normalises and writes to SessionState. Confirm the response
 shows `"ok": true`, then return control.
 
-### 6. Hand off
+### 6. Persist and return
 
-After persisting, look at the top archetype's playbook
-(`skills/archetype/refs/{name}.md`) and start running it. Do not re-run
-classification mid-session unless the user explicitly changes scope.
+You are `context: fork` — your job is to classify, persist, and return, not to
+run the work. Do **not** start executing the playbook inside this fork; the
+persisted archetype is what the parent turn resumes on (the `prompt_submit`
+hook's Tier-1 path re-emits the steered `<wg archetype=… />` on the next turn
+from what you wrote to SessionState). The top archetype's playbook is
+`skills/archetype/refs/{name}.md`. Do not re-run classification mid-session
+unless the user explicitly changes scope.
 
 ## When to skip this skill
 

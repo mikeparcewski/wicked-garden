@@ -1,5 +1,5 @@
 ---
-name: gate-benchmark-rebaseline
+name: wicked-garden-platform-gate-benchmark-rebaseline
 description: |
   Re-baseline procedure for the AC-11 gate-result benchmark lane
   (`tests/crew/test_gate_result_benchmark.py`). The benchmark enforces a

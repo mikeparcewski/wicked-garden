@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Pattern A migration validation gate for wg-check (#665).
 
-When a PR shrinks a skills/**/SKILL.md substantially AND adds a new
-agents/**/*.md in the same diff, that's the Pattern A migration shape from
-PR #666 (jam slim) and PR #670 (propose-process slim). The gate enforces:
-**every Pattern A migration must ship with a passing acceptance scenario** so
-reviewers can verify the new agent is wired correctly and the slimmed skill
-still delegates to the right place.
+When a PR shrinks a router skills/**/SKILL.md substantially AND adds a new
+context:fork WORKER skill in the same diff, that's the Pattern A migration
+shape from PR #666 (jam slim) and PR #670 (propose-process slim). The gate
+enforces: **every Pattern A migration must ship with a passing acceptance
+scenario** so reviewers can verify the new worker is wired correctly and the
+slimmed router still delegates to the right place.
+
+Skills-only cutover: the former ``agents/`` tree is gone — a "new worker" is
+now a newly-added ``skills/**/SKILL.md`` that declares ``context: fork``
+(the standalone worker skills that replaced agents/).
 
 Signal: a SKILL.md shrunk by >= 40% (lines-removed / lines-before) AND a new
-agents/**/*.md file added in the same `git diff <base>...HEAD`.
+context:fork worker SKILL.md added in the same `git diff <base>...HEAD`.
 
 Requirement: the same diff must add a scenario file matching:
     scenarios/**/*-pattern-a.md
@@ -133,7 +137,7 @@ def main() -> int:
         return 0
 
     slimmed_skills: list[tuple[str, int, float]] = []
-    new_agents: list[str] = []
+    new_fork_skills: list[str] = []
     new_scenarios: list[str] = []
 
     for line in name_status.splitlines():
@@ -156,8 +160,12 @@ def main() -> int:
             new_path = parts[-1].strip()
         path = new_path
 
-        if status.startswith("A") and path.startswith("agents/") and path.endswith(".md"):
-            new_agents.append(path)
+        if status.startswith("A") and path.startswith("skills/") and path.endswith("SKILL.md"):
+            # A "new worker" in skills-only is an added SKILL.md declaring
+            # context: fork (the standalone worker skills that replaced agents/).
+            added_blob = run(["git", "show", f"HEAD:{path}"])
+            if added_blob and re.search(r"^context:\s*fork\s*$", added_blob, re.MULTILINE):
+                new_fork_skills.append(path)
         if status.startswith("A") and path.startswith("scenarios/") and path.endswith(".md"):
             new_scenarios.append(path)
 
@@ -199,12 +207,12 @@ def main() -> int:
             if shrink >= SHRINK_RATIO:
                 slimmed_skills.append((path, base_lines, shrink))
 
-    if not slimmed_skills or not new_agents:
+    if not slimmed_skills or not new_fork_skills:
         if slimmed_skills:
             for p, bl, sr in slimmed_skills:
                 print(
                     f"INFO: {p} shrunk by {sr * 100:.0f}% (was {bl} lines) -- "
-                    f"no new agent in this PR, not a Pattern A migration"
+                    f"no new fork-worker skill in this PR, not a Pattern A migration"
                 )
         print("OK: no Pattern A migration signal in this PR (#665)")
         return 0
@@ -213,9 +221,9 @@ def main() -> int:
 
     print("Pattern A migration detected:")
     for p, bl, sr in slimmed_skills:
-        print(f"  slimmed skill: {p} (was {bl} lines, shrunk {sr * 100:.0f}%)")
-    for a in new_agents:
-        print(f"  new agent:     {a}")
+        print(f"  slimmed skill:    {p} (was {bl} lines, shrunk {sr * 100:.0f}%)")
+    for a in new_fork_skills:
+        print(f"  new fork skill:   {a}")
 
     if matching:
         for s in matching:

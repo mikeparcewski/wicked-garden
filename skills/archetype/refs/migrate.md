@@ -25,7 +25,7 @@ The cutover gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.
 shape-change post-condition re-checked, never trusting a self-asserted
 "rolled back fine". This is the original evidence-vault use case — for a
 migration the load-bearing honesty move is **no cutover without a
-re-derivable rollback proof**. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden:setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+re-derivable rollback proof**. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. Because `cutover` is a HARD gate, the gate also
 demands an **independent attestation**: an evaluator who is **not** the
 migrator confirms the rollback proof and shape change are adequate
@@ -130,7 +130,7 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    `wicked-vault:analyze-evidence`). A REJECT means the rollback proof or
    shape change doesn't clear its contract — fix the work, not the claim.
    An `unavailable` verdict means the required vault isn't installed — run
-   `/wicked-garden:setup`. **No cutover on a fail-closed verdict.**
+   `/wicked-garden-core setup`. **No cutover on a fail-closed verdict.**
 3. **Cutover staged**: switch readers first, watch for 1h, then switch
    writers. Don't switch both at once.
 4. The cutover gate is HARD — explicit user "go" before each switch.

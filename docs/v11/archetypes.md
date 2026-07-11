@@ -194,8 +194,10 @@ Adding a 10th archetype:
    produces, HITL, signals, etc.
 2. Write `skills/archetype/refs/{name}.md` — the playbook for the
    archetype, ~70-100 lines, following the template of the existing 9.
-3. Add `commands/archetype/{name}.md` — a 12-line slash command that
-   dispatches the archetype skill.
+3. Register the new work-shape in `skills/archetype/SKILL.md` — add it to the
+   dispatch table so `/wicked-garden-archetype {name}` loads its playbook. (The
+   plugin is skills-only: there is no per-archetype command file; the archetype
+   skill is the single dispatch surface.)
 4. Add detection signals to the catalog. Test with
    `scripts/crew/archetypes_v11.py detect --prompt "..."`.
 5. Update the README + this design note tables.

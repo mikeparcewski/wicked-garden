@@ -1,9 +1,14 @@
 ---
-name: gh-cli
+name: wicked-garden-platform-gh-cli
 description: |
   Use when you need gh CLI patterns beyond the basics — debugging failed workflow runs, bulk PR operations,
   release automation, or repo health checks. Provides composable gh invocations for power users.
   NOT for simple git commands (use Bash) or GitLab (use the glab-cli skill).
+
+  Use when: "debug the failed workflow run", "bulk PR management", "release
+  automation with gh", "gh operations", or any former
+  /wicked-garden:platform:gh invocation (operations: workflows | prs |
+  releases | repo).
 phase_relevance: ["build", "review", "operate"]
 archetype_relevance: ["*"]
 ---
@@ -25,6 +30,23 @@ Intelligent wrappers and patterns for GitHub CLI that go beyond basic commands.
 ```bash
 brew install gh && gh auth login  # macOS
 ```
+
+## Operations rubric
+
+Invoked as `<operation> [args]` (operation = `workflows | prs | releases | repo`):
+
+1. Parse the operation and its args.
+2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/refs/operations.md")` —
+   the command reference for each operation category, multi-step patterns,
+   and output format.
+3. Execute the gh commands directly and deliver:
+   - **workflows**: for workflow failures — root cause + fix + re-run command.
+   - **prs**: status summary + recommended action.
+   - **releases**: release URL when created.
+   - **repo**: findings summary + actionable next steps.
+
+For multi-step workflow generation from scratch, also load the github-actions
+skill's rubric: `${CLAUDE_PLUGIN_ROOT}/skills/platform/github-actions/refs/actions-rubric.md`.
 
 ## Core Capabilities
 

@@ -1,5 +1,5 @@
 ---
-name: synthesize
+name: wicked-garden-product-synthesize
 description: |
   Generate actionable recommendations from customer voice insights. This skill
   should be used when the user needs to translate analyzed feedback into product
@@ -15,6 +15,11 @@ archetype_relevance: ["*"]
 
 Transform customer voice analysis into actionable product recommendations.
 
+> Tier-3 knowledge module behind the **`synthesize`** action of the
+> `wicked-garden-product` domain skill (`skills/product/SKILL.md`). Canonical
+> invocation: `/wicked-garden-product synthesize [args]` or plain natural
+> language — the examples below use that form.
+
 ## When to Use
 
 - After analyzing customer feedback
@@ -26,16 +31,16 @@ Transform customer voice analysis into actionable product recommendations.
 
 ```bash
 # Synthesize all recent insights
-/wicked-garden:product:synthesize
+/wicked-garden-product synthesize
 
 # Prioritize by impact level
-/wicked-garden:product:synthesize --priority high
+/wicked-garden-product synthesize --priority high
 
 # Feature-specific synthesis
-/wicked-garden:product:synthesize --feature "mobile-app"
+/wicked-garden-product synthesize --feature "mobile-app"
 
 # Brief format (for quick decisions)
-/wicked-garden:product:synthesize --format brief
+/wicked-garden-product synthesize --format brief
 ```
 
 ## Synthesis Framework

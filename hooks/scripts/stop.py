@@ -177,7 +177,7 @@ def _check_session_outcome() -> list:
             if count and count > last_count:
                 messages.append(
                     f"[Issue Reporter] {count} issue(s) queued this session. "
-                    "Review with /wicked-garden:report-issue --list-unfiled."
+                    "Review via the wicked-garden-core skill's report-issue action (--list-unfiled)."
                 )
                 if session_state is not None:
                     session_state.update(last_outcome_pending_count=count)

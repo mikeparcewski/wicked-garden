@@ -1,11 +1,13 @@
 ---
-name: github-actions
+name: wicked-garden-platform-github-actions
 description: |
   Write secure, optimized GitHub Actions workflows. Security-first approach
   with performance optimization.
 
   Use when: "GitHub Actions", "CI/CD pipeline", "workflow YAML", "deploy pipeline",
-  "automate deployment", "debug workflow", "Actions security"
+  "automate deployment", "debug workflow", "Actions security", "generate a
+  workflow", "optimize this workflow", "troubleshoot the failing workflow",
+  or any former /wicked-garden:platform:actions invocation.
 portability: portable
 # TODO #339: When Claude Code supports 'paths' in skill frontmatter for
 # file-context auto-activation, add:
@@ -25,6 +27,21 @@ Write production-ready GitHub Actions workflows with security and performance bu
 - Adding deployment pipelines
 - Security scanning and compliance
 - Debugging workflow issues
+
+## Run modes
+
+Invoked as `<generate|optimize|troubleshoot> [workflow file]`. For the full
+rubric per mode, `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/github-actions/refs/actions-rubric.md")`
+— security/performance checklists, stack detection, and output format. Then
+apply it directly:
+
+- **generate**: detect the project stack first
+  (`ls package.json pyproject.toml Cargo.toml go.mod pom.xml 2>/dev/null`),
+  then produce complete workflow YAML.
+- **optimize**: read the target workflow file, apply the optimization
+  checklist, return annotated diff.
+- **troubleshoot**: run `gh run list --status failure --limit 1`, fetch logs
+  (`gh run view {id} --log-failed`), diagnose root cause inline.
 
 ## Security-First Principles
 
@@ -154,6 +171,7 @@ When generating workflows, follow this checklist:
 
 ## References
 
+- `refs/actions-rubric.md` - Generate/optimize/troubleshoot rubric with checklists
 - `refs/security.md` - Detailed security practices
 - `refs/templates.md` - Copy-paste templates
 - `refs/troubleshooting.md` - Common errors and fixes

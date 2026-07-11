@@ -42,9 +42,9 @@ export default function GardenTour() {
             <Marker color="var(--accent-bright)">Meet every bed.</Marker>
           </h2>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted">
-            Eight stops, eight tools. The first three are the foundation — the
-            gate and the floor the whole garden stands on; the rest you take or
-            leave. Every install is one line, right where you need it.
+            Five stops, five tools. The first is the gate that curates the rest —
+            install it once; the other four you take or leave. Every install is one
+            line, right where you need it.
           </p>
         </Reveal>
       </div>

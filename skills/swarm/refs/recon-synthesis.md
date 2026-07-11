@@ -8,7 +8,7 @@ radius" lenses, applied across many units at once.
 
 ## The recon wave
 
-Dispatch parallel `agents/crew/researcher.md` subagents — read-only, one per
+Dispatch parallel `wicked-garden-crew-researcher` fork-skill subagents — read-only, one per
 unit (or one per concept you're trying to map). Each researcher:
 
 - profiles its unit: stack, conventions, test command, risk surfaces, owners,

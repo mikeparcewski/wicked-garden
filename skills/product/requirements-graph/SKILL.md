@@ -1,5 +1,5 @@
 ---
-name: requirements-graph
+name: wicked-garden-product-requirements-graph
 description: |
   Graph-based requirements as atomic markdown files with rich frontmatter.
   Filesystem-as-graph: each AC is a node, directories are groupings,

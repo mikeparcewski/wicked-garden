@@ -86,6 +86,51 @@ Five-dimension quality assessment: Completeness, Uniqueness, Validity, Consisten
 **Confidence**: {HIGH|MEDIUM|LOW}
 ```
 
+## Quality thresholds
+
+| Dimension | Metric | Threshold |
+|-----------|--------|-----------|
+| Completeness | Null rate | <5% |
+| Uniqueness | Duplicate rate | <1% |
+| Validity | Type conformance | 100% |
+| Consistency | Cross-field rules | 100% |
+
+## Scripted paths (optional)
+
+Profile a dataset with `data_profiler.py`:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/data_profiler.py" \
+  --input data.csv --output profile.json
+```
+
+Output includes: row and column counts, inferred column types, null rates per
+column, cardinality (distinct values), sample values, and statistical
+summaries for numeric columns.
+
+Validate against a schema with `schema_validator.py`:
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/schema_validator.py" \
+  --schema schemas/expected.json \
+  --data data/actual.csv
+```
+
+Schema columns define: **name**, **type** (integer, string, decimal, datetime,
+date), **nullable** (true/false), **constraints** (unique, min, max, pattern,
+enum). See [data-examples.md](data-examples.md) for the schema format, profile
+output, quality-report example, common workflows, and SQL quality queries.
+
+## Large files (>1GB)
+
+Route to the `analyze` sub-action of the wicked-garden-data skill for
+efficient SQL-based profiling via DuckDB.
+
+## Integration
+
+- Native tasks: document quality issues via TaskCreate with `metadata.event_type="task"`.
+- wicked-brain:memory: store quality patterns across sessions.
+
 ## General engineering checklist
 
 - [ ] Schema-first: define schemas before processing.

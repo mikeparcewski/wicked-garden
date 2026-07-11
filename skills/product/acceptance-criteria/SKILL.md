@@ -1,5 +1,5 @@
 ---
-name: acceptance-criteria
+name: wicked-garden-product-acceptance-criteria
 description: |
   Define testable acceptance criteria from requirements and design.
   Bridge product requirements with QE test scenarios.

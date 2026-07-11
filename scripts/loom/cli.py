@@ -151,7 +151,7 @@ def main(argv: "list[str] | None" = None) -> int:
                     "loom flow run/status/resume was part of the loom conduct "
                     "surface, replaced by wicked-crew + wicked-orchestration "
                     "(ECOSYSTEM-RATIONALIZATION.md §5a Phase B). "
-                    "See /wicked-garden:archetype:migrate for the migration path."
+                    "See the wicked-garden-archetype skill's migrate action for the migration path."
                 ),
             })
             return 2

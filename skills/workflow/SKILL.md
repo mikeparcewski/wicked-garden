@@ -1,19 +1,19 @@
 ---
-name: workflow
+name: wicked-garden-workflow
 description: |
   Reference for how the wicked-crew workflow engine operates — phase catalog, gate enforcement,
   rigor tiers, and facilitator rubric. Use when understanding or troubleshooting crew phase
   mechanics (gate config, CONDITIONAL resolution, phase dependencies).
   NOT for starting a project (use crew:start) or proposing a process plan (use propose-process).
 context: fork
-
-**Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
-gates are hard enforcement; two interaction modes (normal / yolo).
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---
 
 # Workflow Skill (v6)
+
+**Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
+gates are hard enforcement; two interaction modes (normal / yolo).
 
 Facilitator-rubric orchestration with hard quality gates.
 
@@ -25,7 +25,7 @@ User project description
         ▼
 propose-process facilitator
   ├── Score 9 risk factors (0-3 each)
-  ├── Read agents/**/*.md frontmatter → pick specialists
+  ├── Read skills/**/SKILL.md (context:fork) frontmatter → pick specialists
   ├── Pick phases from phases.json catalog
   ├── Set rigor_tier (minimal / standard / full)
   └── Emit process-plan.md + full task chain
@@ -93,9 +93,11 @@ legacy beta.3 projects: the `adopt-legacy` migration guide was removed in v9 —
 
 ## Specialist Discovery
 
-Crew discovers specialists by reading `agents/**/*.md` frontmatter directly at
-runtime. No static `enhances` map. Fallback agents (facilitator, researcher,
-implementer, reviewer) handle phases when no specialist matches.
+Crew discovers specialists by reading `skills/**/SKILL.md` frontmatter directly
+at runtime — only skills declaring `context: fork` are dispatchable workers
+(resolved by `scripts/crew/specialist_resolver.py`). No static `enhances` map.
+Fallback fork skills (facilitator, researcher, implementer, reviewer) handle
+phases when no specialist matches.
 
 ## Convergence Tracking (build/test phases)
 

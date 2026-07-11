@@ -106,4 +106,4 @@ Ask:
 > Ready to proceed with implementation, or would you like to adjust the approach?
 
 If approved, execute using `engineering:apply` or the build archetype
-(`/wicked-garden:archetype:build`).
+(`/wicked-garden-archetype build`).

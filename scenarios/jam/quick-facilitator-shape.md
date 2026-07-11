@@ -1,19 +1,26 @@
 ---
 name: quick-facilitator-shape
-title: jam:quick dispatches quick-facilitator and produces correct synthesis shape
-description: Verify jam:quick dispatches the lightweight quick-facilitator (not brainstorm-facilitator) and emits the canonical 3-section synthesis shape (Key Insights / Action Items / Open Questions) shared with brainstorm-facilitator.
+title: jam quick runs inline (no dispatch) and produces correct synthesis shape
+description: Verify jam quick runs INLINE via skills/jam/refs/quick.md — dispatching no facilitator subagent (neither the retired quick-facilitator nor brainstorm-facilitator) — and still emits the canonical 3-section synthesis shape (Key Insights / Action Items / Open Questions) shared with brainstorm-facilitator.
 type: workflow
 difficulty: basic
 estimated_minutes: 3
-tags: [jam, quick, synthesis-shape, context-budget]
+tags: [jam, quick, synthesis-shape, context-budget, inline]
 complexity: 2
 execution: manual
 ---
 
-# Scenario: jam:quick Facilitator Shape
+# Scenario: jam quick Inline Shape
 
-Verify that `jam:quick` dispatches `wicked-garden:jam:quick-facilitator` (not `brainstorm-facilitator`)
-and that the output synthesis block has the required fields at lower token cost.
+Verify that `jam quick` runs **inline** — applying `skills/jam/refs/quick.md`
+directly in the parent context with **no facilitator dispatch** — and that the
+output synthesis block has the required fields at lower token cost.
+
+> **Conversion note.** In the skills-only model the `quick-facilitator` agent was
+> retired; `skills/jam/SKILL.md` routes the `quick` sub-action inline via
+> `refs/quick.md` (the sole, up-to-date rubric). This scenario guards that the
+> quick path stays inline and does NOT regress into dispatching a facilitator
+> (the retired `quick-facilitator`, or `brainstorm-facilitator`).
 
 ## Setup
 
@@ -21,18 +28,24 @@ No special setup required. This scenario runs against the live plugin.
 
 ## Steps
 
-### Step 1 — Dispatch jam:quick
+### Step 1 — Invoke jam quick
 
 Run:
 ```
-/wicked-garden:jam:quick "Should we use SQLite or a flat JSON file for local plugin state?"
+jam quick "Should we use SQLite or a flat JSON file for local plugin state?"
 ```
 
-### Step 2 — Assert: correct agent dispatched
+(This routes to the `quick` sub-action of the `wicked-garden-jam` skill.)
 
-The Task tool call must use `subagent_type="wicked-garden:jam:quick-facilitator"`.
+### Step 2 — Assert: runs inline, no facilitator dispatched
 
-**FAIL** if `brainstorm-facilitator` appears in the dispatch.
+`jam quick` must produce its synthesis **inline** — by reading
+`skills/jam/refs/quick.md` and applying the rubric directly. There must be **no**
+`Task(...)` or `Skill(skill=...)` dispatch to any facilitator worker.
+
+**FAIL** if a dispatch to `quick-facilitator` appears (that agent was retired).
+**FAIL** if a dispatch to `brainstorm-facilitator` appears (the quick path must
+not escalate to the full brainstorm worker).
 
 ### Step 3 — Assert: synthesis block present
 
@@ -50,17 +63,19 @@ All three headings must be present. **FAIL** if any heading is missing.
 
 ### Step 4 — Assert: field shape matches brainstorm-facilitator
 
-The synthesis block must include the same three section headings that
-`brainstorm-facilitator` produces — the heading vocabulary is the contract:
+The inline synthesis block must include the same three section headings that
+`brainstorm-facilitator` produces — the heading vocabulary is the contract, and
+`refs/quick.md` is authored to preserve it:
 
-| Field | quick-facilitator | brainstorm-facilitator |
-|-------|-------------------|------------------------|
+| Field | jam quick (inline) | brainstorm-facilitator |
+|-------|--------------------|------------------------|
 | Key Insights | required | required |
 | Action Items | required | required |
 | Open Questions | required | required |
 
-Heading parity (#669 fix): callers consuming either agent read the same field
-names without branching. **FAIL** if any section heading is absent or renamed.
+Heading parity (#669 fix): callers consuming either the inline quick output or
+the brainstorm-facilitator output read the same field names without branching.
+**FAIL** if any section heading is absent or renamed.
 
 ### Step 5 — Assert: exactly 4 personas
 
@@ -88,8 +103,8 @@ The output must NOT contain:
 
 ### Step 8 — Assert: wall time < 60s
 
-Record start time before dispatch. Synthesis must arrive within 60 seconds —
-the documented "60-second flow" budget for `jam:quick` (#669 fix; the prior
+Record start time before invocation. Synthesis must arrive within 60 seconds —
+the documented "60-second flow" budget for `jam quick` (#669 fix; the prior
 30-second threshold was a self-inflicted false-FAIL risk because real-world
 single-pass model latency can spike past 30s without indicating a regression).
 
@@ -97,10 +112,11 @@ single-pass model latency can spike past 30s without indicating a regression).
 
 ### Step 9 — Token cost comparison (rough check)
 
-Run the same topic through `brainstorm-facilitator` with 1 forced round as a baseline.
-Compare total output character count (proxy for token cost):
+Run the same topic through `jam brainstorm` with 1 forced round as a baseline
+(brainstorm still dispatches the `wicked-garden-jam-brainstorm-facilitator` fork
+skill). Compare total output character count (proxy for token cost):
 
-- quick-facilitator output chars: `N_quick`
+- inline quick output chars: `N_quick`
 - brainstorm-facilitator output chars: `N_full`
 
 **PASS** if `N_quick < N_full * 0.5` (quick costs less than 50% of brainstorm).
@@ -110,7 +126,7 @@ Compare total output character count (proxy for token cost):
 ## Expected Outcome
 
 ```
-PASS: correct agent dispatched
+PASS: runs inline, no facilitator dispatch
 PASS: synthesis block present with all 3 headings
 PASS: field shape matches brainstorm-facilitator contract
 PASS: exactly 4 personas
@@ -124,8 +140,8 @@ PASS: token cost < 50% of brainstorm-facilitator
 
 | Failure | Diagnosis |
 |---------|-----------|
-| Wrong agent dispatched | commands/jam/quick.md still references brainstorm-facilitator |
-| Missing synthesis heading | quick-facilitator output format diverged from spec |
-| Round 2 present | Agent ignored the single-round constraint |
-| Storage calls present | Agent carried over brainstorm-facilitator behavior |
-| Token cost > 50% | Agent loaded too much context or added rounds |
+| A facilitator was dispatched | `skills/jam/SKILL.md` quick routing regressed — quick must run inline via `refs/quick.md`, not dispatch |
+| Missing synthesis heading | `skills/jam/refs/quick.md` output format diverged from the shared 3-heading contract |
+| Round 2 present | Inline rubric ignored the single-round constraint |
+| Storage calls present | Inline rubric carried over brainstorm-facilitator persistence behavior |
+| Token cost > 50% | Inline rubric loaded too much context or added rounds |

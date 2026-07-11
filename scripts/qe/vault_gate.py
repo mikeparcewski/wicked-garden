@@ -253,7 +253,7 @@ def gate_satisfied(
     require: bool = True,
 ) -> Dict[str, Any]:
     """The produces-gate. The vault is a **required** evidence backend
-    (installed by ``/wicked-garden:setup``), so the default is to re-derive
+    (installed by the wicked-garden-core skill's setup action), so the default is to re-derive
     or **fail closed** — never to self-assert a PASS.
 
     Returns ``{satisfied, re_derived, gate, ...}``. ``re_derived`` is the
@@ -300,7 +300,7 @@ def gate_satisfied(
             "reason": (
                 "wicked-vault is a required evidence backend but is not "
                 "resolvable. Install it (`npm i -g wicked-vault` or "
-                "`npx wicked-vault-install`) and re-run /wicked-garden:setup. "
+                "`npx wicked-vault-install`) and re-run the wicked-garden-core skill's setup action. "
                 "Gate fails closed — 'done' cannot be self-asserted."
             ),
         }

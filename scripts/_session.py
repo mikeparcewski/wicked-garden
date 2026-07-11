@@ -101,7 +101,7 @@ class SessionState:
     # Set by bootstrap.py when onboarding is incomplete; checked by prompt_submit gate
     needs_onboarding: bool = False
 
-    # Set by prompt_submit gate when /wicked-garden:setup passes through;
+    # Set by prompt_submit gate when the wicked-garden-core setup action passes through;
     # allows subsequent user answers (AskUserQuestion responses) through the gate
     setup_in_progress: bool = False
 
@@ -157,7 +157,7 @@ class SessionState:
     # Operational log verbosity level for this session.
     # "" means "not set" — the logger defaults to "normal".
     # Valid values: "normal", "verbose", "debug"
-    # Written by /wicked-garden:platform:debug; read by _logger._resolve_level().
+    # Written by the wicked-garden-platform skill's debug action; read by _logger._resolve_level().
     log_level: str = ""
 
     # Cached integration-discovery results for this session.
@@ -240,8 +240,8 @@ class SessionState:
     #   - None     : not yet detected (turn 1 before _detect_intent runs)
     #   - <value>  : auto-detected on turn 1-2 OR explicitly set by skill
     #
-    # `intent_explicit` is True only when /wicked-garden:intent set the
-    # value (or a command self-declared via that skill). Used to decide
+    # `intent_explicit` is True only when the wicked-garden-smaht-intent skill set
+    # the value (or a caller self-declared via that skill). Used to decide
     # whether to echo the bare `<wg intent="X" t=N />` label in the
     # system-reminder — auto-detected values stay invisible to prevent
     # confirmation-bias drift.
@@ -252,7 +252,7 @@ class SessionState:
     intent_explicit: bool = False
 
     # v11: LLM-classified work-shape archetype + signals.
-    # Populated by the wicked-garden:classify skill. When set, the
+    # Populated by the wicked-garden-classify skill. When set, the
     # prompt_submit hook prefers this over the regex detector.
     # archetypes_v11: list of {name, score, evidence} dicts (top-3).
     # signals_v11: dict of boolean signal flags (blast_radius_high, etc.).

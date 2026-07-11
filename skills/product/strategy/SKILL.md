@@ -1,5 +1,5 @@
 ---
-name: strategy
+name: wicked-garden-product-strategy
 description: |
   Strategic business analysis for technical investments. Evaluates ROI, value proposition,
   competitive positioning, and market alignment. Provides decision support with business justification.

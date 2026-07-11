@@ -1,5 +1,5 @@
 ---
-name: unit-test-quality
+name: wicked-garden-engineering-unit-test-quality
 description: |
   Language- and framework-neutral guard against useless unit tests — the kind
   that pass forever, never catch regressions, and inflate coverage without

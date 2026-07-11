@@ -40,12 +40,6 @@ const I = {
       <path d="M8.5 9.5l2.2 2.2-2.2 2.2M12.5 14.5h3.5" />
     </svg>
   ),
-  vault: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <rect x="4" y="4.5" width="16" height="15" rx="2" /><circle cx="12" cy="12" r="3.4" />
-      <path d="M12 12v3.4M12 8.6v.8" /><path d="M8.4 20v1.4M15.6 20v1.4" />
-    </svg>
-  ),
   testing: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <path d="M9.5 3.5v6L5 18a1.6 1.6 0 0 0 1.5 2.3h11A1.6 1.6 0 0 0 19 18l-4.5-8.5v-6" />
@@ -57,12 +51,6 @@ const I = {
       <path d="M9 5a3 3 0 0 0-3 3 3 3 0 0 0-1 5.5A2.8 2.8 0 0 0 9 19V5z" />
       <path d="M15 5a3 3 0 0 1 3 3 3 3 0 0 1 1 5.5A2.8 2.8 0 0 1 15 19V5z" />
       <path d="M9 5a3 3 0 0 1 6 0" />
-    </svg>
-  ),
-  understanding: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M9.5 17a4 4 0 1 1 5 0v1.5h-5V17z" /><path d="M10 20.5h4" />
-      <path d="M12 3.5v1.4M5.8 6l1 1M18.2 6l-1 1M4 12h1.4M18.6 12H20" />
     </svg>
   ),
   bus: (
@@ -130,24 +118,14 @@ const OWN: Tool[] = [
 /* BUNDLED peers off the shelf — capabilities garden hands you from wicked-* */
 const BUNDLED: Tool[] = [
   {
-    id: "vault", name: "vault", kind: "peer · wicked-vault", color: "var(--c-floor)",
-    desc: "The evidence backend the gate re-derives against — re-hashes and re-runs, and fails closed on a weak worker identity so “evaluator ≠ author” actually means something.",
-    cmd: "installed automatically via wicked-testing", cmdLabel: "bundled dependency",
-  },
-  {
     id: "testing", name: "testing", kind: "peer · wicked-testing", color: "var(--c-layer)",
-    desc: "A full QE team for coding agents — runs the tests and records the evidence, with the runner kept separate from the judge.",
+    desc: "A full QE team for coding agents — runs the tests and records the evidence the gate re-derives against, with the runner kept separate from the judge.",
     cmd: "claude plugins install wicked-testing", cmdLabel: "opt-in layer",
   },
   {
     id: "brain", name: "brain", kind: "peer · wicked-brain", color: "var(--c-solo)",
     desc: "Cross-session memory plus the codegraph that blast-radius and lineage read from — context that survives between sessions.",
     cmd: "claude plugins install wicked-brain", cmdLabel: "opt-in layer",
-  },
-  {
-    id: "understanding", name: "understanding", kind: "peer · wicked-understanding", color: "var(--c-floor)",
-    desc: "The repo’s own how-to playbooks, loaded from HEAD as on-demand skill-refs — portable expertise the agent didn’t have.",
-    cmd: "claude plugins install wicked-understanding", cmdLabel: "opt-in layer",
   },
   {
     id: "bus", name: "bus", kind: "peer · wicked-bus", color: "var(--c-layer)",

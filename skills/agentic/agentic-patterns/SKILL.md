@@ -1,5 +1,5 @@
 ---
-name: agentic-patterns
+name: wicked-garden-agentic-agentic-patterns
 description: |
   Use when designing or analyzing multi-agent architectures — covers core patterns (sequential, hierarchical,
   parallel, event-driven), anti-patterns, and the five-layer model (Cognition → Context → Interaction →

@@ -25,7 +25,7 @@
     "agentic"
   ],
   "_future_userConfig": {
-    "_comment": "Issue #335, #346: userConfig is not yet supported in plugin.json schema. When Claude Code adds userConfig support, move these fields out of _future_userConfig and into a top-level userConfig block. This would replace the manual /wicked-garden:setup flow.",
+    "_comment": "Issue #335, #346: userConfig is not yet supported in plugin.json schema. When Claude Code adds userConfig support, move these fields out of _future_userConfig and into a top-level userConfig block. This would replace the manual setup flow (the wicked-garden-core skill's setup action).",
     "storage_mode": {
       "type": "string",
       "default": "local",

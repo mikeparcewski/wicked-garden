@@ -1,12 +1,17 @@
 ---
-name: patch
+name: wicked-garden-engineering-patch
 description: |
   Language-agnostic code generation and change propagation. Use this skill when
   adding fields to entities, renaming symbols across files, or propagating changes
-  that affect multiple files. Use when: "add field", "rename everywhere",
-  "propagate change", "generate migration", "update all references".
+  that affect multiple files. Use when: "add field", "add a field to this entity",
+  "rename everywhere", "rename this field across the codebase", "remove this
+  field and all its usages", "propagate change", "generate migration",
+  "update all references", "apply saved patches", "show what a change would
+  affect" (patch-plan propagation preview), "create a new language generator
+  for wicked-patch". Replaces the former /wicked-garden:engineering:
+  {add-field,rename,remove,apply,patch-plan,new-generator} commands.
 
-  This is the CODE MUTATION counterpart to wicked-garden:search (which is read-only).
+  This is the CODE MUTATION counterpart to wicked-garden-search (which is read-only).
 phase_relevance: ["design", "build"]
 archetype_relevance: ["*"]
 ---
@@ -15,157 +20,149 @@ archetype_relevance: ["*"]
 
 Generate and propagate code changes across your entire codebase using the symbol graph.
 
-## Quick Start
+All sub-actions run the patch CLI. The full invocation is:
 
 ```bash
-# 1. Index your codebase (if not already done)
-/wicked-garden:search:index /path/to/project
-
-# 2. Add a field to an entity
-/wicked-garden:engineering:add-field "Entity.java::User" --name email --type String
-
-# 3. Rename a field everywhere
-/wicked-garden:engineering:rename "Entity.java::User" --old status --new state
-
-# 4. See propagation plan
-/wicked-garden:engineering:plan "Entity.java::User" --change add_field
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" <sub-action> [args]
 ```
 
-## Commands
+Examples below abbreviate this to `patch.py <sub-action> …` — always run the full form.
 
-| Command | Purpose |
-|---------|---------|
-| `/wicked-garden:engineering:plan` | Show what would be affected |
-| `/wicked-garden:engineering:add-field` | Add field with propagation |
-| `/wicked-garden:engineering:rename` | Rename across all usages |
-| `/wicked-garden:engineering:remove` | Remove field everywhere |
-| `/wicked-garden:engineering:apply` | Apply saved patches |
+The propagation diagram, quick-start recipes, per-action examples, the sample
+`PROPAGATION PLAN` / `GENERATED PATCHES` output, the patches-file JSON schema,
+and the language/type/SQL-dialect reference tables live in
+[refs/output-samples.md](refs/output-samples.md).
 
-## Supported Languages
+## Sub-actions
 
-| Extension | Features |
-|-----------|----------|
-| `.java` | JPA @Column, getters/setters, validation |
-| `.py` | SQLAlchemy, Pydantic, dataclass |
-| `.ts`, `.js` | TypeORM, interfaces, types |
-| `.jsp` | Spring form tags, EL expressions |
-| `.sql` | ALTER TABLE (PostgreSQL, Oracle, MySQL, SQL Server) |
+| Sub-action | Purpose |
+|------------|---------|
+| `patch-plan` | Show what would be affected — propagation preview, no patches |
+| `add-field` | Add field with propagation |
+| `rename` | Rename across all usages |
+| `remove` | Remove field everywhere (DELETES code — see warning) |
+| `apply` | Apply saved patches from a JSON file |
+| `new-generator` | Author a new language generator ([refs/new-generator.md](refs/new-generator.md)) |
 
-## How It Works
+## patch-plan — propagation preview
 
-```
-ChangeSpec (add field "email" to User)
-           │
-           ▼
-   ┌───────────────────┐
-   │ Propagation Engine │  ← Uses wicked-garden:search lineage graph
-   └───────────────────┘
-           │
-    ┌──────┼──────┬──────────┐
-    ▼      ▼      ▼          ▼
-  Java   Python   SQL      JSP
-   │       │       │         │
-   ▼       ▼       ▼         ▼
-Patches  Patches Patches  Patches
-```
+Show what would be affected by a change without generating patches. **Distinct
+from the engineering domain skill's `plan` action** (a human implementation plan
+with risks and tests) — `patch-plan` is the impact preview for mechanical patches.
+The CLI subcommand is `plan`.
 
-## Examples
-
-### Add Field to JPA Entity
+**Arguments**: `symbol_id` (required — symbol to analyze); `--change`
+(`add_field` | `rename_field` | `remove_field` | `modify_field`); `--depth`
+(max traversal depth, default 5); `--json` (output as JSON).
 
 ```bash
-/wicked-garden:engineering:add-field "User.java::User" \
-  --name email \
-  --type String \
-  --column USER_EMAIL \
-  --required
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" plan "<symbol_id>" --change "<change_type>" [--json]
 ```
 
-**Generates:**
+See [refs/output-samples.md](refs/output-samples.md) for examples and the sample `PROPAGATION PLAN` output.
 
-```java
-// User.java
-@Column(name = "USER_EMAIL")
-@NotNull
-private String email;
+## add-field — add a field and propagate
 
-public String getEmail() { return this.email; }
-public void setEmail(String email) { this.email = email; }
-```
+Add a field to an entity/class and propagate to all affected files.
 
-```sql
--- migration.sql
-ALTER TABLE USERS ADD COLUMN USER_EMAIL VARCHAR(255) NOT NULL;
-```
-
-### Rename Field Everywhere
+**Arguments**: `symbol_id` (required — e.g. `path/Entity.java::EntityName`);
+`--name` (required — field name); `--type` (required — String, Integer, Boolean,
+Date, etc.); `--column` (database column name, defaults to SNAKE_CASE of name);
+`--label` (UI label for form fields); `--required` (mark field non-nullable);
+`--output`/`-o` (save patches to JSON file); `--apply` (apply patches
+immediately); `--verbose`/`-v` (show full diffs).
 
 ```bash
-/wicked-garden:engineering:rename "Order.java::Order" --old status --new orderStatus
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" add-field "<symbol_id>" \
+  --name "<name>" \
+  --type "<type>" \
+  [--column "<column>"] \
+  [--required] \
+  [--verbose]
 ```
 
-**Updates:**
-- Entity field declaration
-- Getters/setters
-- JSP form bindings (`${order.status}` → `${order.orderStatus}`)
-- Service layer references
-- Test files (with warning)
+See [refs/output-samples.md](refs/output-samples.md) for examples, a JPA entity walkthrough (generated Java/SQL), and the `GENERATED PATCHES` output.
 
-### Save and Review Patches
+## rename — rename a field/symbol across all usages
+
+**Arguments**: `symbol_id` (required); `--old` (required — current field name);
+`--new` (required — new field name); `--output`/`-o` (save patches to file);
+`--apply` (apply patches immediately); `--verbose`/`-v` (show full diffs).
 
 ```bash
-# Generate patches without applying
-/wicked-garden:engineering:add-field SYMBOL --name foo --type String --output patches.json
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" rename "<symbol_id>" --old "<old_name>" --new "<new_name>" [--verbose]
+```
 
-# Review the patches file
+What gets updated:
+
+- Field declarations
+- Getter/setter method names
+- Property references (`this.oldName` → `this.newName`)
+- JSP EL expressions (`${entity.oldName}` → `${entity.newName}`)
+- Form bindings (`path="oldName"` → `path="newName"`)
+- TypeScript interfaces and type aliases
+- SQL column names (generates ALTER TABLE RENAME COLUMN)
+- Service layer references, and test files (with warning)
+
+## remove — remove a field and all its usages
+
+**Arguments**: `symbol_id` (required); `--field` (required — field name to
+remove); `--output`/`-o` (save patches to file); `--apply` (apply patches
+immediately); `--verbose`/`-v` (show full diffs).
+
+```bash
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" remove "<symbol_id>" --field "<field_name>" [--verbose]
+```
+
+### Warning
+
+This operation DELETES code. Always review patches before applying:
+
+```bash
+# Generate and save patches
+patch.py remove SYMBOL --field foo -o patches.json
+
+# Review
 cat patches.json
 
-# Apply when ready
-/wicked-garden:engineering:apply patches.json
+# Apply when confident
+patch.py apply patches.json
 ```
 
-## Type Mappings
+## apply — apply patches from a saved JSON file
 
-Generic types are automatically mapped per language:
-
-| Generic | Java | Python | TypeScript | SQL |
-|---------|------|--------|------------|-----|
-| `string` | String | str | string | VARCHAR(255) |
-| `integer` | Integer | int | number | INTEGER |
-| `boolean` | boolean | bool | boolean | BOOLEAN |
-| `date` | LocalDate | date | Date | DATE |
-| `datetime` | LocalDateTime | datetime | Date | TIMESTAMP |
-| `decimal` | BigDecimal | Decimal | number | DECIMAL(18,2) |
-
-## SQL Dialect Support
-
-Auto-detected or specify via `--dialect`:
-
-```sql
--- PostgreSQL (default)
-ALTER TABLE users ADD COLUMN email VARCHAR(255);
-
--- Oracle
-ALTER TABLE users ADD (email VARCHAR2(255));
-
--- MySQL
-ALTER TABLE users ADD COLUMN email VARCHAR(255);
-
--- SQL Server
-ALTER TABLE users ADD email NVARCHAR(255);
-```
-
-## Integration with wicked-garden:search
-
-wicked-patch reads from the wicked-garden:search symbol database:
+**Arguments**: `patches_file` (required — path to patches JSON file);
+`--dry-run` (show what would be done without applying).
 
 ```bash
-# 1. wicked-garden:search creates the graph
-/wicked-garden:search:index /project --derive-all
-
-# 2. wicked-patch uses it for propagation
-/wicked-garden:engineering:add-field SYMBOL --name foo --type String
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" apply "<patches_file>" [--dry-run]
 ```
+
+See [refs/output-samples.md](refs/output-samples.md) for the save→review→dry-run→apply workflow and the patches-file JSON schema.
+
+## new-generator — create a new language generator
+
+Create a new language generator for wicked-patch with scaffolding, golden test
+fixtures, and conformance validation. Arguments: `language` (required, e.g.
+"scala", "swift", "elixir"); `framework` (optional ORM/framework, e.g. "Slick",
+"CoreData", "Ecto"); `extensions` (optional file extensions, defaults to
+lowercase language). Follow the full 7-step authoring workflow (generator
+template with TYPE_MAP, `__init__.py` registration, golden fixture JSON,
+`test_conformance.py` additions, run tests, report) in
+[refs/new-generator.md](refs/new-generator.md).
+
+## Language & type reference
+
+Supported languages (`.java`, `.py`, `.ts`/`.js`, `.jsp`, `.sql`), the generic→
+per-language type mappings, and SQL dialect support (PostgreSQL / Oracle / MySQL /
+SQL Server, auto-detected or via `--dialect`) are tabulated in
+[refs/output-samples.md](refs/output-samples.md#language--type-reference).
+
+## Integration with wicked-garden-search
+
+wicked-patch reads from the symbol database that the `wicked-garden-search`
+skill builds: run its `index` action first (with `--derive-all`), then patch
+sub-actions use the graph for propagation.
 
 ## Safety Features
 
@@ -178,7 +175,6 @@ wicked-patch reads from the wicked-garden:search symbol database:
 ## CLI Reference
 
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}/scripts"
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/patch.py" --help
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/patch.py" generators  # List supported languages
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" --help
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" generators  # List supported languages
 ```

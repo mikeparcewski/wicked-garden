@@ -20,9 +20,9 @@
 
 **Knowledge compounds across sessions or it isn't knowledge.** If a decision, gotcha, or pattern lives only in the current chat, it dies with the chat. Every memorable thing belongs in a tier-appropriate memory store with confidence and decay rules. wicked-brain is the difference between learning once and learning every time.
 
-**Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, hooks, and slash commands are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; an agent with a frontmatter description is more discoverable than a registry call.
+**Native primitives over bespoke abstractions.** Claude Code's `TaskCreate`, `Skill`, `Agent`, and hooks are the surface. We extend them — we don't replace them. A task with metadata is more durable than a custom kanban; a skill with a frontmatter description is more discoverable than a registry call. The plugin is **skills-only**: user entry points are consolidated per-domain skills, and the former agents are fork-context worker skills — one surface, not three.
 
-**The gate is required; the rest is a toolkit.** wicked-garden's one non-negotiable is the evidence gate, so it stands on two required peers: **wicked-vault** (the backend that makes "done" re-derivable) and **wicked-loom** (the engine that re-runs the verifier). `/wicked-garden:setup` blocks without them — a gate you can fake is worse than no gate. The other siblings are **opt-in layers**, not prerequisites: **wicked-testing** (acceptance testing), **wicked-brain** (cross-session memory — the *what*), **wicked-understanding** (repo playbooks — the *how*), **wicked-bus** (the audit trail). Install the ones you'll use; the toolkit works without the others — breadth you adopt incrementally, not a five-thing prerequisite wall. And required-at-install is not brittle-at-runtime: a transient outage degrades gracefully and never bricks a session — but a gate never pretends missing evidence is a pass; that path **fails closed**. We depend on the gate; we don't crash with the layers.
+**The gate is required; the rest is a toolkit.** wicked-garden's one non-negotiable is the evidence gate, so it stands on two required peers: **wicked-vault** (the backend that makes "done" re-derivable) and **wicked-loom** (the engine that re-runs the verifier). The core skill's `setup` action (`/wicked-garden-core setup`) blocks without them — a gate you can fake is worse than no gate. The other siblings are **opt-in layers**, not prerequisites: **wicked-testing** (acceptance testing), **wicked-brain** (cross-session memory — the *what*), **wicked-understanding** (repo playbooks — the *how*), **wicked-bus** (the audit trail). Install the ones you'll use; the toolkit works without the others — breadth you adopt incrementally, not a five-thing prerequisite wall. And required-at-install is not brittle-at-runtime: a transient outage degrades gracefully and never bricks a session — but a gate never pretends missing evidence is a pass; that path **fails closed**. We depend on the gate; we don't crash with the layers.
 
 **Cross-platform is non-negotiable.** macOS, Linux, Windows (Git Bash, WSL, native). Bare `python3` doesn't exist on Windows; bare `/tmp` doesn't exist on Windows; the shim and `${TMPDIR:-/tmp}` exist for a reason. If a contributor adds shell that breaks on Windows, the contribution is incomplete.
 
@@ -50,7 +50,7 @@
 
 **Archetype-shaped rigor.** The detector classifies *work shape*, and rigor follows the shape — not a global dial that defaults to maximum. A `triage` is negligible; a `migrate` cutover is a hard gate with a rollback proof. The output is rigor that fits the work, applied where it matters.
 
-**Enforcement that travels.** `/wicked-garden:compile` emits a self-contained, vault-backed gate into any repo — one that re-derives the build's claims with **no wicked-garden runtime present**. We compile the *trigger* and the *enforcement*; we never compile the *tool*. The guarantee outlives the session that created it.
+**Enforcement that travels.** The prove skill's `compile` action (`/wicked-garden-prove compile`) emits a self-contained, vault-backed gate into any repo — one that re-derives the build's claims with **no wicked-garden runtime present**. We compile the *trigger* and the *enforcement*; we never compile the *tool*. The guarantee outlives the session that created it.
 
 **Append-only audit trails that survive context resets.** Decisions, gate verdicts, and evidence all land on disk in append-only form. A new session resumes work without losing the chain of reasoning. State that lives only in chat history is state that doesn't exist.
 
@@ -60,7 +60,7 @@
 
 ## What this is not
 
-**Not a prompt library.** Skills, agents, and commands are executable surfaces with frontmatter contracts and runtime enforcement — not text snippets to copy.
+**Not a prompt library.** Skills — the routing domain skills and the fork-context workers alike — are executable surfaces with frontmatter contracts and runtime enforcement, not text snippets to copy.
 
 **Not a fixed-sequence pipeline.** No two prompts run the same phase chain. Work shape is detected per prompt, not configured once per repo.
 
