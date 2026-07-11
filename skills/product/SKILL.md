@@ -21,8 +21,7 @@ archetype_relevance: ["*"]
 
 # Product Domain
 
-One entry point for the product domain. Pick the action, parse its args, load its
-ref, apply it inline. Only `strategy --focus all` and `ux-review --focus all` dispatch.
+One entry point for the product domain. Pick the action, parse its args, load its ref, apply it inline. Only `strategy --focus all` and `ux-review --focus all` dispatch.
 
 ## Action router
 
