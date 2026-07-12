@@ -20,10 +20,33 @@ The v9.2.11 audit + v9.2.15 quick brainstorm settled on Option C (hybrid):
     failure mode (CLI killed, network drop, user walks away — SessionEnd
     never fires).
 
+v9.2.16 dogfood fix (#842): live telemetry showed SessionEnd fires for only
+~40% of human and ~1% of agent sessions — SessionEnd is simply NOT emitted on
+most exit paths (non-interactive `claude -p` runs, agent kills, crashes, abrupt
+closes). The 60-min-only Stop gate meant short sessions (<60 min) that never
+emit SessionEnd got NO heavy teardown at all — 78% of runs fell through to the
+"fallback" path, i.e. the fallback WAS the primary path and it still missed the
+short-session case. Verdict: UNHEALTHY (Pi/OpenCode's predicted failure mode).
+
+The deterministic fix: stop no longer *hopes* SessionEnd fires. The Stop hook —
+which fires reliably every turn — now carries the SAME heavy-cadence teardown,
+guarded so it runs at most ONCE per session:
+  - De-dupe by session_id: the sidecar records which session_id last ran heavy
+    cadence. `should_run_fallback()` returns False when that session_id matches
+    the current one, so (a) SessionEnd + Stop never double-run for one session,
+    and (b) Stop never re-runs the heavy work on every subsequent turn.
+  - Turn-count OR time gate: a *new* session that has not yet run heavy cadence
+    fires when it has accrued FALLBACK_TURN_THRESHOLD turns OR the 60-min
+    catch-up interval has elapsed — whichever comes first. The turn arm catches
+    short-wall-clock agent/`-p` sessions that never emit SessionEnd; the time
+    arm catches long, low-turn idle sessions.
+SessionEnd still runs first when it *does* fire (best end-of-session snapshot);
+it de-dupes against the sidecar so it no-ops if Stop already ran this session.
+
 A sidecar file at <local store>/wicked-garden/heavy-cadence/last_run.json
-records `last_heavy_run_ts` + `trigger` so the Stop fallback is deterministic.
-SessionState is per-session (resets on new session), so it can't gate cross-
-session fallback — sidecar is the right persistence boundary.
+records `last_heavy_run_ts` + `trigger` + `session_id` so the guard is
+deterministic. SessionState is per-session (resets on new session), so it can't
+gate cross-session fallback — sidecar is the right persistence boundary.
 
 Brain calls themselves are unchanged. Only WHEN they fire changed.
 
@@ -58,6 +81,14 @@ from typing import List, Optional
 #  - Same magnitude as wicked-brain's own stale-content thresholds so brain
 #    decay decisions remain timely even under fallback.
 FALLBACK_INTERVAL_SECS: int = 60 * 60
+
+# Turn-count arm of the Stop gate (v9.2.16, #842). A session that has taken
+# this many turns without heavy cadence having run yet is "worth a teardown"
+# even if <60 min of wall-clock has passed since the last run. Catches busy
+# short-wall-clock sessions (a lot happened fast) whose SessionEnd never fired.
+# 30 mirrors the "typical 30-turn session" figure the per-turn cadence audit
+# used. De-dupe by session_id still bounds this to one run per session.
+FALLBACK_TURN_THRESHOLD: int = 30
 
 SIDECAR_DIR_NAME: str = "heavy-cadence"
 SIDECAR_FILENAME: str = "last_run.json"
@@ -138,27 +169,72 @@ def _write_sidecar(trigger: str, session_id: Optional[str] = None) -> None:
             pass
 
 
-def should_run_fallback(now_ts: Optional[float] = None) -> bool:
-    """Return True if Stop should run the heavy cadence as a fallback.
+def already_ran_this_session(session_id: Optional[str]) -> bool:
+    """Return True if heavy cadence already ran for `session_id` this session.
 
-    Triggers True when:
-      - sidecar file missing (first run ever for this project)
-      - sidecar exists but `last_heavy_run_ts` is unparseable
-      - last run was more than FALLBACK_INTERVAL_SECS ago
+    The de-dupe guard (v9.2.16, #842). The sidecar records the session_id of
+    the last heavy run; if it matches the current session, the work is done —
+    whether SessionEnd or an earlier Stop did it. Both terminal hooks consult
+    this so SessionEnd + Stop never double-run for one session.
 
-    Defaults False when the sidecar is fresh — most Stop calls are per-turn
-    and should NOT trigger heavy work.
+    Fail-open to False (i.e. "not yet run") when session_id is unknown/empty or
+    the sidecar has no recorded run — an unknown session cannot be matched, so
+    the caller falls back to the time/turn gate rather than silently skipping.
     """
+    if not session_id:
+        return False
+    data = _read_sidecar()
+    return bool(data.get("last_heavy_run_ts")) and data.get("session_id") == str(session_id)
+
+
+def should_run_fallback(
+    session_id: Optional[str] = None,
+    turn_count: int = 0,
+    now_ts: Optional[float] = None,
+) -> bool:
+    """Return True if the Stop hook should run the heavy cadence teardown.
+
+    v9.2.16 (#842): Stop is now a reliable co-primary carrier of the teardown,
+    not a rare 60-min fallback. SessionEnd fires on <40% of exits, so relying on
+    it dropped short sessions entirely. Stop fires every turn and IS reliable —
+    this gate makes it run the heavy work at most ONCE per session:
+
+      1. De-dupe guard — if heavy cadence already ran for THIS `session_id`
+         (SessionEnd, or an earlier Stop this session), return False. This is
+         what makes carrying the teardown on every Stop safe: it fires once,
+         then no-ops for the rest of the session, and never double-runs against
+         a SessionEnd that also fires.
+      2. Never run for any session yet, or an unparseable timestamp → True
+         (seed / self-heal).
+      3. Otherwise a NEW session that has not run heavy cadence: fire when it
+         has accrued `FALLBACK_TURN_THRESHOLD` turns OR the 60-min catch-up
+         interval has elapsed since the last run — whichever comes first.
+
+    `session_id`/`turn_count` are optional so the pre-v9.2.16 call shape
+    (`should_run_fallback()` / `should_run_fallback(now_ts=...)`) still resolves
+    to the pure time gate.
+    """
+    # 1. De-dupe: this session already got its teardown.
+    if already_ran_this_session(session_id):
+        return False
+
     data = _read_sidecar()
     raw_ts = data.get("last_heavy_run_ts")
+
+    # 2. Never run, or corrupt timestamp → fire to seed / self-heal.
     if not raw_ts:
-        return True  # never run — fire fallback to seed the sidecar
+        return True
     try:
         last_dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
     except (ValueError, AttributeError):
-        return True  # corrupt timestamp — treat as never-run
+        return True
+
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc) if now_ts else datetime.now(timezone.utc)
     elapsed = (now_dt - last_dt).total_seconds()
+
+    # 3. New session, not yet torn down: turn arm OR time arm, whichever first.
+    if turn_count >= FALLBACK_TURN_THRESHOLD:
+        return True
     return elapsed >= FALLBACK_INTERVAL_SECS
 
 

@@ -48,10 +48,21 @@ def main() -> None:
     )
 
     try:
-        from _heavy_cadence import run_heavy_cadence, TRIGGER_SESSION_END  # type: ignore
-        messages = run_heavy_cadence(
-            TRIGGER_SESSION_END, session_id=session_id, plugin_root=_PLUGIN_ROOT
+        from _heavy_cadence import (  # type: ignore
+            run_heavy_cadence, already_ran_this_session, TRIGGER_SESSION_END,
         )
+        # De-dupe guard (v9.2.16, #842): the Stop hook now also carries the
+        # heavy-cadence teardown (SessionEnd is unreliable — fires on <40% of
+        # exits). If a Stop already ran the heavy work for this session, skip —
+        # the work is done and the sidecar already records it. Otherwise run it
+        # here; SessionEnd is the best end-of-session snapshot when it fires.
+        if already_ran_this_session(session_id):
+            _log("session", "debug", "session_end.dedupe_skip")
+            messages = []
+        else:
+            messages = run_heavy_cadence(
+                TRIGGER_SESSION_END, session_id=session_id, plugin_root=_PLUGIN_ROOT
+            )
     except Exception as e:
         # Fail open — SessionEnd must never block the user closing their CLI.
         print(f"[wicked-garden] session_end error: {e}", file=sys.stderr)
