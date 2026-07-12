@@ -284,8 +284,10 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "facts",
         "description": "Structured fact extracted from conversation (consumed by wicked-brain auto-memorize)",
     },
-    # wicked-testing integration — verdict events (#549, AC-25)
-    "wicked.verdict.recorded": {
+    # wicked-testing integration — test-lifecycle verdict event (#549, AC-25).
+    # Renamed to the wicked-bus SPEC form wicked.test.<noun>.<past-verb>
+    # (was wicked.verdict.recorded) in lockstep with the wicked-testing producer.
+    "wicked.test.verdict.created": {
         "domain": "wicked-testing",
         "subdomain": "gate.verdict",
         "description": "wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP)",

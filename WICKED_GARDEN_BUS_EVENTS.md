@@ -94,7 +94,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
-| `wicked.verdict.recorded` | `gate.verdict` | wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP) |
+| `wicked.test.verdict.created` | `gate.verdict` | wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP) |
 
 ### Jam
 

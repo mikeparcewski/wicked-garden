@@ -107,7 +107,7 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     "wicked.rollout.decided",
     "wicked.experiment.concluded",
     "wicked.fact.extracted",
-    "wicked.verdict.recorded",
+    "wicked.test.verdict.created",
     "wicked.quality.drift_detected",
     # crew condition resolution — observability only, verdict not mutated.
     "wicked.gate.condition.resolved",
