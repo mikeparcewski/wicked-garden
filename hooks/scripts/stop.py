@@ -535,12 +535,16 @@ def main():
         # 5. Event store retention purge
         _purge_old_events()
 
-        # 6. Heavy cadence (v9.2.15) — formerly per-turn, now per-session-end
-        # primary via the SessionEnd hook (hooks/scripts/session_end.py).
-        # Stop only runs the heavy work as a 60-min FALLBACK for the partial-
-        # session failure mode (CLI killed, network drop, user walked away —
-        # SessionEnd never fires). Sidecar at <local store>/wicked-garden/
-        # heavy-cadence/last_run.json gates the fallback deterministically.
+        # 6. Heavy cadence — Stop is a reliable co-primary carrier of the
+        # teardown (v9.2.16, #842). SessionEnd fires on <40% of exits (~1% for
+        # agents), so it can't be the sole primary. Stop fires every turn and IS
+        # reliable, so it now runs the SAME heavy work, guarded by
+        # should_run_fallback() to fire at most ONCE per session: a de-dupe on
+        # session_id (so SessionEnd + Stop never double-run and per-turn Stops
+        # don't repeat) plus a turn-count-OR-60-min gate that catches short
+        # sessions SessionEnd would have dropped. Sidecar at <local store>/
+        # wicked-garden/heavy-cadence/last_run.json makes the guard
+        # deterministic and records which trigger actually ran the work.
         consolidation_messages: list = []
         decay_messages: list = []
         telemetry_messages: list = []
@@ -550,7 +554,7 @@ def main():
             from _heavy_cadence import (  # type: ignore
                 run_heavy_cadence, should_run_fallback, TRIGGER_STOP_FALLBACK,
             )
-            if should_run_fallback():
+            if should_run_fallback(session_id=session_id, turn_count=turn_count):
                 fallback_messages = run_heavy_cadence(
                     TRIGGER_STOP_FALLBACK, session_id=session_id, plugin_root=_PLUGIN_ROOT,
                 )
