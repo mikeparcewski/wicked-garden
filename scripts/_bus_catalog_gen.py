@@ -78,7 +78,7 @@ def generate():
     lines.append("`wicked.garden.session.synthesized`, `wicked.garden.rework.triggered`")
     lines.append("")
     lines.append("```bash")
-    lines.append("npx wicked-bus subscribe --plugin my-slack-bot --filter 'wicked.gate.*' --filter 'wicked.phase.*'")
+    lines.append("npx wicked-bus subscribe --plugin my-slack-bot --filter 'wicked.garden.gate.*' --filter 'wicked.crew.phase.*'")
     lines.append("```")
     lines.append("")
     lines.append("### Dashboard (all events)")

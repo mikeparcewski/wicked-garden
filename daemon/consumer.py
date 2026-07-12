@@ -43,6 +43,12 @@ logger = logging.getLogger("wicked-garden.daemon.consumer")
 # council feedback loop.
 _WATCH_PREFIXES = (
     "wicked.garden.",
+    # wicked-core emits the shared phase lifecycle under the `crew` domain
+    # (e.g. wicked.crew.phase.transitioned); the projector routes it, so the
+    # daemon must ingest it. Without this prefix those transitions are never
+    # consumed and the projector state goes stale. (Brain events are polled
+    # separately by scripts/smaht/_bus_consumers.py on the wicked.brain. prefix.)
+    "wicked.crew.",
 )
 
 # Maximum events to fetch per poll call.
