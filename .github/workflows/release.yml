@@ -1,3 +1,18 @@
+# Tag-driven release, aligned with the rest of the wicked ecosystem
+# (testing/brain/interactive/crew). A `vX.Y.Z` tag push is the only trigger:
+# the shared reusable workflow sets the version from the tag
+# (`npm version <X.Y.Z> --no-git-tag-version --allow-same-version`), which runs
+# this repo's `version` hook (.github/scripts/sync-plugin-version.mjs) to sync
+# plugin.json + marketplace.json, then publishes to npm via OIDC trusted
+# publishing (+ provenance). No manual manifest pre-bump needed.
+#
+# Garden specifics:
+# - setup_python + test_cmd run garden's structural gates (validate.py,
+#   _validate_registry.py) as the pre-publish check; they are python/stdlib and
+#   unix-oriented, so os_matrix is narrowed to ubuntu.
+# - Publishing stays on OIDC trusted publishing (use_npm_token defaults false);
+#   the wicked-garden package's Trusted Publisher must name repo
+#   `mikeparcewski/wicked-garden` + workflow `release.yml`.
 name: Release
 
 on:
@@ -7,50 +22,18 @@ on:
 
 permissions:
   contents: write
+  packages: write
   id-token: write
+  pull-requests: write
 
 jobs:
   release:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
-
-      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
-        with:
-          node-version: 'lts/*'
-          registry-url: 'https://registry.npmjs.org'
-
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.14'
-
-      - name: Validate
-        run: |
-          python scripts/ci/validate.py
-          python scripts/_validate_registry.py
-
-      - name: Extract changelog entry
-        id: changelog
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          NOTES=$(python3 - <<'EOF'
-          import re, sys
-          text = open("CHANGELOG.md").read()
-          version = "$VERSION"
-          pattern = rf"## \[{re.escape(version)}\][^\n]*\n(.*?)(?=\n## \[|\Z)"
-          m = re.search(pattern, text, re.DOTALL)
-          print(m.group(1).strip() if m else "See CHANGELOG.md for details.")
-          EOF
-          )
-          echo "notes<<EOF" >> $GITHUB_OUTPUT
-          echo "$NOTES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
-        with:
-          body: ${{ steps.changelog.outputs.notes }}
-          generate_release_notes: false
-
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+    uses: mikeparcewski/wicked-ci/.github/workflows/node-release.yml@d8c9b0a14fb91c2d13f5da0468eeeff983c27e5a # v1.1.2
+    with:
+      package_name: wicked-garden
+      setup_python: true
+      python_version: '3.14'
+      os_matrix: '["ubuntu-latest"]'
+      test_cmd: 'python scripts/ci/validate.py && python scripts/_validate_registry.py'
+      enable_sync_pr: true
+    secrets: inherit
