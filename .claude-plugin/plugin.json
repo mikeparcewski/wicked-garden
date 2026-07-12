@@ -1,6 +1,6 @@
 {
   "name": "wicked-garden",
-  "version": "12.28.0",
+  "version": "12.28.1",
   "description": "Your coding agent's harness already plans and swarms; Wicked Garden is the curated toolkit for what it can't do alone. Proof, not claims \u2014 gates re-derive 'done' through the internal loom engine (fail-closed, independently attested via wicked-vault), so a self-asserted pass can't lie its way green. Relationships grep can't see \u2014 codegraph + injected bus/dispatch/capability edges power blast-radius & lineage. Plus deterministic multi-file refactor (wicked-patch), cross-session memory (wicked-brain), real multi-model second opinions (jam:council), portable expertise as on-demand skill-refs, and evidence-gated testing (wicked-testing). It reads the shape of your work to apply the right rigor \u2014 steering, not a pipeline \u2014 then gets out of the way. The compiler stamps a self-contained evidence gate into any repo that runs with no wicked-garden installed. Don't fight the harness; fill its gaps. The evidence gate requires wicked-vault (installed automatically via wicked-testing); wicked-testing, wicked-brain, and wicked-bus are opt-in layers \u2014 install what you'll use, the toolkit works without the rest.",
   "wicked_testing_version": "^0.8.0",
   "wicked_vault_version": "^0.4.0",

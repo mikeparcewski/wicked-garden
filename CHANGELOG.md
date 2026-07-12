@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.28.1] — 2026-07-12
+
+### Fixed
+- **Peer version floors unblocked (P0).** `wicked_testing_version` `^0.7.0`→`^0.8.0` and `wicked_brain_version` `^0.15.0`→`^0.18.0`. The testing floor is *enforced fail-closed* and its caret excluded the published wicked-testing 0.8.0, hard-blocking garden's produces-gate for anyone on testing 0.8.0.
+- Dropped the dead `npx wicked-vault-install` command from user docs (vault installs automatically via wicked-testing) and stale standalone references to absorbed/archived products (wicked-loom is now internal to garden; wicked-understanding is archived) from the plugin description + docs.
+
 ## [12.28.0] — 2026-07-12
 
 ### Changed
