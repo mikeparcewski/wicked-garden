@@ -168,7 +168,7 @@ Storage paths: `~/.something-wicked/wicked-garden/projects/{slug}/{domain}/{subp
 - Domain router skills (user-invocable): `wicked-garden-{domain}` (e.g. `wicked-garden-jam`)
 - Fork worker skills (former agents): `wicked-garden-{domain}-{role}` with `context: fork` in frontmatter (e.g. `wicked-garden-engineering-migration-engineer`)
 - Legacy dispatch compat: a fork skill MAY carry `subagent_type: wicked-garden:{domain}:{role}` in frontmatter so pre-v12.25 colon-form `Task(subagent_type=…)` callers still resolve (via `scripts/crew/specialist_resolver.py`)
-- Events: `{domain}:{action}:{outcome}`
+- Events: 4-segment `wicked.<domain>.<noun>.<past-tense-verb>` (see `WICKED_GARDEN_BUS_EVENTS.md`)
 
 ## Cross-Platform Requirement
 

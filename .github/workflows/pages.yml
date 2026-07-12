@@ -1,8 +1,9 @@
 name: Deploy site to GitHub Pages
 
-# Dormant by design: manual dispatch only. Go-live is human-gated — this must
-# NOT auto-run on push/merge. Enable Pages + trigger this run by hand when ready.
+# Auto-deploys the site on every push to main; also runnable by hand.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # Allow GITHUB_TOKEN to deploy to Pages and verify the deployment origin.

@@ -11,7 +11,7 @@
 
 **Your coding agent already plans and swarms. wicked-garden is the curated toolkit for what it can't do alone.**
 
-> 📖 Docs → [mikeparcewski.github.io/wicked-garden](https://mikeparcewski.github.io/wicked-garden/). Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
+> 📖 Docs → [wg.wickedagile.com](https://wg.wickedagile.com). Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
 
 ---
 
