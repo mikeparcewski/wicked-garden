@@ -98,6 +98,39 @@ SIDECAR_FILENAME: str = "last_run.json"
 TRIGGER_SESSION_END: str = "session_end"
 TRIGGER_STOP_FALLBACK: str = "stop_fallback"
 
+# Fallback/sentinel session ids used when neither stdin nor $CLAUDE_SESSION_ID
+# supplies a real id (both stop.py and session_end.py default to "default").
+# These are NON-dedupable: an id-less session cannot be uniquely identified, so
+# recording one as a dedup key would suppress heavy-cadence teardown PERMANENTLY
+# for every subsequent id-less session (#842 dedup wedge). Treating them as
+# non-dedupable makes id-less sessions always fall through to the time/turn gate
+# while real session ids still de-dupe exactly once per session.
+_NON_DEDUP_SESSION_IDS = frozenset({"", "default", "unknown"})
+
+
+def _is_dedupable_session_id(session_id: Optional[str]) -> bool:
+    """True only for a real session id that may be used as a de-dupe key.
+
+    False for None/empty and the ``default``/``unknown`` fallback sentinels —
+    those must never short-circuit the run (see _NON_DEDUP_SESSION_IDS).
+    """
+    return bool(session_id) and str(session_id) not in _NON_DEDUP_SESSION_IDS
+
+
+def _parse_iso_ts(raw_ts) -> Optional[datetime]:
+    """Parse a sidecar ``last_heavy_run_ts`` defensively.
+
+    Returns a tz-aware datetime, or None when the value is missing, not a
+    string, or unparseable (corrupt/partial/migrated sidecar). Callers treat
+    None as "no trustworthy run recorded" rather than trusting a bad value.
+    """
+    if not raw_ts or not isinstance(raw_ts, str):
+        return None
+    try:
+        return datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
+        return None
+
 
 def _utc_iso_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -180,11 +213,19 @@ def already_ran_this_session(session_id: Optional[str]) -> bool:
     Fail-open to False (i.e. "not yet run") when session_id is unknown/empty or
     the sidecar has no recorded run — an unknown session cannot be matched, so
     the caller falls back to the time/turn gate rather than silently skipping.
+
+    The ``default``/``unknown`` fallback sentinels are treated as NON-dedupable
+    (#842): once a run recorded under ``default``, a bare equality check would
+    make every subsequent id-less session dedupe against it and never run heavy
+    cadence again. A recorded timestamp that is present but UNPARSEABLE
+    (corrupt/partial/migrated) is likewise NOT trusted as "already ran".
     """
-    if not session_id:
+    if not _is_dedupable_session_id(session_id):
         return False
     data = _read_sidecar()
-    return bool(data.get("last_heavy_run_ts")) and data.get("session_id") == str(session_id)
+    if _parse_iso_ts(data.get("last_heavy_run_ts")) is None:
+        return False
+    return data.get("session_id") == str(session_id)
 
 
 def should_run_fallback(
@@ -219,14 +260,10 @@ def should_run_fallback(
         return False
 
     data = _read_sidecar()
-    raw_ts = data.get("last_heavy_run_ts")
 
-    # 2. Never run, or corrupt timestamp → fire to seed / self-heal.
-    if not raw_ts:
-        return True
-    try:
-        last_dt = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
-    except (ValueError, AttributeError):
+    # 2. Never run, or corrupt/unparseable timestamp → fire to seed / self-heal.
+    last_dt = _parse_iso_ts(data.get("last_heavy_run_ts"))
+    if last_dt is None:
         return True
 
     now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc) if now_ts else datetime.now(timezone.utc)

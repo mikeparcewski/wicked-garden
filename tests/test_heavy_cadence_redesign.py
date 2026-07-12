@@ -35,8 +35,15 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
-sys.path.insert(0, str(REPO_ROOT / "hooks" / "scripts"))
+
+# conftest.py owns the suite-wide sys.path contract: it guarantees scripts/ at
+# sys.path[0] (so `_heavy_cadence` and package imports resolve). Do NOT prepend
+# here — inserting hooks/scripts at position 0 would shadow scripts/ and break
+# that contract. Append hooks/scripts at the END purely for the direct
+# `import session_end` / stop.py reads below; scripts/ stays at position 0.
+_HOOKS_SCRIPTS = str(REPO_ROOT / "hooks" / "scripts")
+if _HOOKS_SCRIPTS not in sys.path:
+    sys.path.append(_HOOKS_SCRIPTS)
 
 
 @pytest.fixture
@@ -155,6 +162,46 @@ def test_already_ran_false_when_session_differs(tmp_sidecar):
     import _heavy_cadence
     _write_sidecar_file(tmp_sidecar, minutes_ago=1, session_id="sess-A")
     assert _heavy_cadence.already_ran_this_session("sess-B") is False
+
+
+def test_default_session_id_is_not_dedupable(tmp_sidecar):
+    """#842 dedup wedge: the fallback session id 'default' (used when neither
+    stdin nor $CLAUDE_SESSION_ID supplies an id) must NEVER be treated as a
+    de-dupe key. Otherwise, once a run records session_id='default', every
+    later id-less session would dedupe against it and heavy cadence would be
+    permanently suppressed. A sidecar recorded under 'default' must still report
+    already_ran=False for a subsequent 'default' session, and should_run_fallback
+    must fall through to the time/turn gate (fire when the sidecar is fresh-seed
+    or the gate opens) rather than short-circuiting to False."""
+    import _heavy_cadence
+    # A prior id-less run recorded under the 'default' sentinel.
+    _write_sidecar_file(tmp_sidecar, minutes_ago=1, session_id="default")
+    # Never treated as "already ran" for any of the fallback sentinels.
+    assert _heavy_cadence.already_ran_this_session("default") is False
+    assert _heavy_cadence.already_ran_this_session("unknown") is False
+    # And the de-dupe short-circuit in should_run_fallback is skipped: the turn
+    # arm still fires for a busy 'default' session instead of being suppressed.
+    assert _heavy_cadence.should_run_fallback(
+        session_id="default", turn_count=_heavy_cadence.FALLBACK_TURN_THRESHOLD
+    ) is True
+    # A real session id recorded a run still de-dupes exactly once.
+    _write_sidecar_file(tmp_sidecar, minutes_ago=1, session_id="real-sess")
+    assert _heavy_cadence.already_ran_this_session("real-sess") is True
+
+
+def test_already_ran_false_on_corrupt_timestamp(tmp_sidecar):
+    """A present-but-unparseable last_heavy_run_ts (corrupt/partial/migrated
+    sidecar) must NOT be trusted as proof a run happened — even when the
+    session_id matches. Treat it as not-run so the caller re-derives via the
+    time/turn gate instead of silently suppressing teardown forever."""
+    import _heavy_cadence
+    tmp_sidecar.parent.mkdir(parents=True, exist_ok=True)
+    tmp_sidecar.write_text(json.dumps({
+        "last_heavy_run_ts": "not-an-iso-timestamp",
+        "trigger": "session_end",
+        "session_id": "sess-A",
+    }))
+    assert _heavy_cadence.already_ran_this_session("sess-A") is False
 
 
 def test_fallback_deduped_when_session_already_ran(tmp_sidecar):
