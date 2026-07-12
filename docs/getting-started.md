@@ -18,17 +18,15 @@ No API keys, no external services, no cloud — everything runs locally.
 
 ### Required peer plugins
 
-Five companion plugins are **required** — `/wicked-garden-core setup` verifies all five and blocks until they are present. They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
+Companion peers are set up alongside the toolkit — `/wicked-garden-core setup` verifies them and **blocks only on the one the evidence gate needs** (the wicked-vault backend, installed via wicked-testing). They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
 
 ```bash
-npx wicked-testing install    # wicked-testing — evidence-gated testing
-npx wicked-vault-install      # wicked-vault — vault-backed evidence (loom re-runs the verifier against it)
-npx wicked-loom               # wicked-loom — the gate engine (re-derives "done" via the vault)
+npx wicked-testing install    # wicked-testing — evidence-gated testing; bundles the wicked-vault evidence backend the gate re-derives against
 /plugin install wicked-brain  # wicked-brain — cross-session memory + search
 /plugin install wicked-bus    # wicked-bus — event bridge
 ```
 
-`wicked-testing`, `wicked-vault`, and `wicked-loom` install locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable; a claim is never self-asserted.
+The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-testing` (which bundles `wicked-vault`) installs locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
 
 ### Show the active mode (status line)
 
@@ -203,6 +201,6 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 ## Next Steps
 
 - [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
-- [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom
+- [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
 - [Domains](domains.md) — browse the domain skills and their actions

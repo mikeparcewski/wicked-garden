@@ -34,7 +34,7 @@ peer-resolution engine is built into wicked-garden (scripts/loom/) — nothing t
 for loom. Run vault install and show a progress line:
 
 ```bash
-npx wicked-vault-install
+npx wicked-testing install
 ```
 
 On failure: display the raw error and note "you can install wicked-vault manually via `npx wicked-testing install` and re-run the wicked-garden-core skill's `install` action to retry." Continue to step 3 regardless — step 5 will surface what's still missing.

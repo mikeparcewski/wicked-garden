@@ -61,7 +61,7 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 **One required peer, the rest opt-in.** The evidence gate is the floor we won't fake, so it needs one external peer — setup blocks without it:
 
 ```bash
-npx wicked-vault-install       # the honest-evidence backend the gate re-derives against (≥ 0.4.0)
+npx wicked-testing install     # installs wicked-vault (≥ 0.4.0), the honest-evidence backend the gate re-derives against
 ```
 
 > The gate/resolve engine (formerly the separate `wicked-loom` package) is now **absorbed in-package** as of v12.27.0 (`scripts/loom/`) — nothing extra to install. The gate re-hashes recorded evidence and re-runs its verifier through that engine; a false "tests pass" is **rejected**, a missing backend **fails closed**.
@@ -71,7 +71,6 @@ The rest of the kit is **opt-in layers** — add what you want, skip the rest an
 ```bash
 npx wicked-testing install     # the acceptance-testing layer (author ≠ executor ≠ reviewer)
 /plugin install wicked-brain   # the memory layer — cross-session recall + cited search (the "what")
-npx skills add mikeparcewski/wicked-understanding --all   # the repo-playbooks layer — "how to work in THIS repo" (the "how"; pairs with brain)
 /plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 
