@@ -263,7 +263,7 @@ export const CONDITIONS: Condition[] = [
   { id: "attest", label: "independent attestation", on: "evaluator ≠ author", off: "evaluator = author — self-grading" },
 ];
 
-/* ── The shelf: the wider wicked-* family one install puts within reach ─────
+/* ── The shelf: the opt-in wicked-* peers garden integrates with ───────────
    HONEST: every peer here is an opt-in layer — the kit works without any of
    them. The evidence backend the gate re-derives against (wicked-vault) rides
    inside wicked-testing; it is NOT a separate install. The gate/resolve engine
