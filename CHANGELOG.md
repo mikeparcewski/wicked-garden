@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.28.0] — 2026-07-12
+
+### Changed
+- **Skills-only plugin.** The former `agents/` and `commands/` are now skills — 94 skills across 12 domains (34 `context: fork` workers). Former commands became actions of consolidated domain router skills; former agents became `context: fork` worker skills (with `subagent_type` back-compat aliases). The `agents/` directory is removed from the distributed plugin.
+- **jam-council `allowed-tools: ["*"]`** — council members get full garden-tool access for additional processing (the multi-model council is the router; `classify` remains the one-member-deep fast path).
+
 ## [12.27.0] — 2026-07-07
 
 ### Added
