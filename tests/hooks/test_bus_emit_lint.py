@@ -195,25 +195,25 @@ class TestRecentEmitQuery(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            _seed_event(db, event_id=1, event_type="wicked.gate.decided",
+            _seed_event(db, event_id=1, event_type="wicked.garden.gate.decided",
                         chain_id="proj-x.build", ingested_at=int(time.time()))
             with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
                 self.assertTrue(pre_tool._has_recent_bus_emit("proj-x", 60))
 
     def test_unrelated_event_type_does_not_count_as_pairing(self):
-        """A wicked.project.created at session start MUST NOT pair an orphan
+        """A wicked.garden.project.created at session start MUST NOT pair an orphan
         gate-result.json write 30s later. Without an event_type filter the
         query would falsely return True; with the filter it stays False.
         """
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            _seed_event(db, event_id=1, event_type="wicked.project.created",
+            _seed_event(db, event_id=1, event_type="wicked.garden.project.created",
                         chain_id="proj-x.root", ingested_at=int(time.time()))
             with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
                 self.assertFalse(
                     pre_tool._has_recent_bus_emit("proj-x", 60),
-                    "wicked.project.created must NOT count as pairing for "
+                    "wicked.garden.project.created must NOT count as pairing for "
                     "gate/dispatch/conditions/reviewer-report writes",
                 )
 
@@ -222,8 +222,8 @@ class TestRecentEmitQuery(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            for ev_type in ("wicked.gate.decided", "wicked.gate.blocked",
-                            "wicked.rework.triggered"):
+            for ev_type in ("wicked.garden.gate.decided", "wicked.garden.gate.blocked",
+                            "wicked.garden.rework.triggered"):
                 _seed_event(db, event_id=hash(ev_type) & 0xFFFFFF,
                             event_type=ev_type,
                             chain_id="proj-x.build",
@@ -236,7 +236,7 @@ class TestRecentEmitQuery(unittest.TestCase):
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
             # Emit was 1 hour ago.
-            _seed_event(db, event_id=1, event_type="wicked.gate.decided",
+            _seed_event(db, event_id=1, event_type="wicked.garden.gate.decided",
                         chain_id="proj-x.build",
                         ingested_at=int(time.time()) - 3600)
             with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
@@ -246,7 +246,7 @@ class TestRecentEmitQuery(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            _seed_event(db, event_id=1, event_type="wicked.gate.decided",
+            _seed_event(db, event_id=1, event_type="wicked.garden.gate.decided",
                         chain_id="other-proj.build", ingested_at=int(time.time()))
             with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
                 self.assertFalse(pre_tool._has_recent_bus_emit("proj-x", 60))
@@ -260,7 +260,7 @@ class TestRecentEmitQuery(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            _seed_event(db, event_id=1, event_type="wicked.gate.decided",
+            _seed_event(db, event_id=1, event_type="wicked.garden.gate.decided",
                         chain_id="projXx.build", ingested_at=int(time.time()))
             with patch.dict(os.environ, {"WG_DAEMON_DB": str(db)}):
                 self.assertFalse(pre_tool._has_recent_bus_emit("proj_x", 60))
@@ -326,7 +326,7 @@ class TestCheckBusEmitLint(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             db = Path(tmp) / "projections.db"
             _init_event_log_only(db)
-            _seed_event(db, event_id=1, event_type="wicked.gate.decided",
+            _seed_event(db, event_id=1, event_type="wicked.garden.gate.decided",
                         chain_id="proj-x.build", ingested_at=int(time.time()))
             with patch.dict(os.environ, {
                 "WG_BUS_EMIT_LINT": "strict",

@@ -24,7 +24,7 @@
 | `scripts/smaht/v2/adapter_registry.py` | 139 | Adapter registration + `timed_query` shim |
 | `scripts/smaht/v2/budget_enforcer.py` | 165 | Source-priority cap + budget math |
 | `scripts/smaht/v2/context_pressure.py` | 153 | `PressureTracker` — cumulative context KB accounting |
-| `scripts/smaht/v2/fact_extractor.py` | 236 | Session-fact extraction used by stop.py → wicked.fact.extracted emits |
+| `scripts/smaht/v2/fact_extractor.py` | 236 | Session-fact extraction used by stop.py → wicked.garden.fact.extracted emits |
 | `scripts/smaht/v2/fast_path.py` | 304 | FAST-path adapter fan-out by intent |
 | `scripts/smaht/v2/history_condenser.py` | 660 | Session state + turn log + ticket rail |
 | `scripts/smaht/v2/lane_tracker.py` | 296 | Multi-lane topic tracker |
@@ -185,7 +185,7 @@ For Phase 2 execution, each caller falls into one of:
 
 ## 5. Risk callouts
 
-1. **stop.py fact emission**: `_run_memory_promotion` currently pulls from the smaht turn log via FactExtractor. If we retire the whole pipeline, the `wicked.fact.extracted` → brain auto-memorize path goes dark. Either (a) reimplement a stdlib fact extractor over the native tasks/*.jsonl turn transcript, or (b) accept that session-fact emission dies with smaht and document it.
+1. **stop.py fact emission**: `_run_memory_promotion` currently pulls from the smaht turn log via FactExtractor. If we retire the whole pipeline, the `wicked.garden.fact.extracted` → brain auto-memorize path goes dark. Either (a) reimplement a stdlib fact extractor over the native tasks/*.jsonl turn transcript, or (b) accept that session-fact emission dies with smaht and document it.
 2. **pre_compact session preservation**: the ticket-rail that survives compaction lives in HistoryCondenser. Without it, post-compaction context is reconstructed from scratch by the facilitator. Acceptable for v6 but worth flagging.
 3. **smaht domain retirement vs shim**: three commands/skills under `commands/smaht/` + `skills/smaht/` are user-facing. Phase 2 must decide: retire entirely (add redirects to brain/search), or rebuild as thin shims. Not a deletion blocker but must be resolved before merge.
 4. **specialist.json enhances[]**: currently references phase names. The facilitator reads agent frontmatter directly (per SKILL.md §4), so `enhances[]` becomes vestigial. Either strip it in Phase 2 or leave as harmless metadata.

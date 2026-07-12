@@ -266,7 +266,7 @@ def create_project(
     # gets its own event so dashboards can distinguish.
     if archetype_mode:
         _bus_emit_safe(
-            "wicked.archetype.created",
+            "wicked.garden.archetype.created",
             {
                 "project_id": name,
                 "archetype": archetype_mode,
@@ -278,7 +278,7 @@ def create_project(
         )
     else:
         _bus_emit_safe(
-            "wicked.project.created",
+            "wicked.garden.project.created",
             {"project_id": name},
             chain_id=f"{name}.root",
         )
@@ -358,7 +358,7 @@ def resolve_hard_gate(state: ProjectState, phase: str) -> bool:
         for migrate.cutover cannot disarm the cutover gate.
 
     A divergence (loom != in_process, with loom present) is surfaced as a
-    ``wicked.loom.parity_mismatch`` signal — retained from the parity mirror —
+    ``wicked.garden.loom.parity_mismatch`` signal — retained from the parity mirror —
     so operators see drift even though the resolved decision is the safe OR.
     """
     in_process = _is_hard_gate(state, phase)
@@ -375,7 +375,7 @@ def resolve_hard_gate(state: ProjectState, phase: str) -> bool:
               f"archetype={archetype} phase={phase} "
               f"loom={loom_says} in_process={in_process}", file=sys.stderr)
         _bus_emit_safe(
-            "wicked.loom.parity_mismatch",
+            "wicked.garden.loom.parity_mismatch",
             {"project_id": state.name, "archetype": archetype,
              "phase": phase, "loom": loom_says, "in_process": in_process,
              "resolved": loom_says or in_process},
@@ -472,7 +472,7 @@ def approve_phase(
     archetype = (state.extras or {}).get("v11_archetype")
     if archetype and confirmed_by:
         _bus_emit_safe(
-            "wicked.archetype.hard_gate_passed",
+            "wicked.garden.archetype.hard_gate_passed",
             {
                 "project_id": state.name,
                 "archetype": archetype,
@@ -486,7 +486,7 @@ def approve_phase(
     # v11.1.1: emit advance event for any archetype-mode approval
     if archetype:
         _bus_emit_safe(
-            "wicked.archetype.advanced",
+            "wicked.garden.archetype.advanced",
             {
                 "project_id": state.name,
                 "archetype": archetype,
@@ -499,7 +499,7 @@ def approve_phase(
     # v11.1.1: emit completed event when project is_complete after this approval
     if archetype and is_complete(state):
         _bus_emit_safe(
-            "wicked.archetype.completed",
+            "wicked.garden.archetype.completed",
             {
                 "project_id": state.name,
                 "archetype": archetype,

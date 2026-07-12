@@ -3,7 +3,7 @@
 jam/_bus_consumers.py — Bus event consumers for the jam domain.
 
 Synthesis-trigger consumer: tracks per-session Round 1 persona contributions
-and emits `wicked.session.synthesis_ready` when either:
+and emits `wicked.garden.session.synthesis_ready` when either:
   - contribution count for a session reaches its `expected_persona_count`, OR
   - 120 seconds have elapsed since the last contribution for that session.
 
@@ -100,11 +100,11 @@ def _emit_synthesis_ready(
     reason: str,
     chain_id: Optional[str],
 ) -> None:
-    """Emit wicked.session.synthesis_ready. Fails open."""
+    """Emit wicked.garden.session.synthesis_ready. Fails open."""
     try:
         from _bus import emit_event
         emit_event(
-            "wicked.session.synthesis_ready",
+            "wicked.garden.session.synthesis_ready",
             {
                 "session_id": session_id,
                 "received_count": received,
@@ -118,8 +118,8 @@ def _emit_synthesis_ready(
 
 
 def process_pending_events(now: Optional[float] = None) -> List[str]:
-    """Poll wicked.persona.contributed events, track per-session counts, and emit
-    wicked.session.synthesis_ready once a session reaches expected count or times out.
+    """Poll wicked.garden.persona.contributed events, track per-session counts, and emit
+    wicked.garden.session.synthesis_ready once a session reaches expected count or times out.
 
     Returns list of action strings (for logging / tests).
     `now` override enables deterministic testing; real calls pass None.
@@ -134,7 +134,7 @@ def process_pending_events(now: Optional[float] = None) -> List[str]:
         return actions
 
     try:
-        events = poll_pending(event_type_prefix="wicked.persona.") or []
+        events = poll_pending(event_type_prefix="wicked.garden.persona.") or []
 
         tracker = _load_tracker()
         max_event_id = 0
@@ -145,7 +145,7 @@ def process_pending_events(now: Optional[float] = None) -> List[str]:
             if isinstance(event_id, int) and event_id > max_event_id:
                 max_event_id = event_id
 
-            if event.get("event_type") != "wicked.persona.contributed":
+            if event.get("event_type") != "wicked.garden.persona.contributed":
                 continue
 
             payload = event.get("payload") or {}

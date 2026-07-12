@@ -6,8 +6,8 @@ Usage:
     python3 scripts/_bus_emit.py <event_type> <payload_json> [--chain-id <id>]
 
 Examples:
-    python3 scripts/_bus_emit.py wicked.session.started '{"session_id":"abc","topic":"test"}'
-    python3 scripts/_bus_emit.py wicked.phase.transitioned '{"project_id":"x"}' --chain-id x.root
+    python3 scripts/_bus_emit.py wicked.garden.session.started '{"session_id":"abc","topic":"test"}'
+    python3 scripts/_bus_emit.py wicked.crew.phase.transitioned '{"project_id":"x"}' --chain-id x.root
 """
 
 import json

@@ -36,13 +36,19 @@ from daemon.db import get_write_lock
 logger = logging.getLogger("wicked-garden.daemon.consumer")
 
 # Event type prefixes the daemon cares about.
-# NOTE: "wicked.council." is intentionally absent — council events are emitted
-# under "wicked.garden.council.*" (Fix 2). Keeping "wicked.council." here
-# would cause the daemon to re-consume its own council-voted events.
+# Post 4-seg migration every garden-owned event (including the former
+# wicked.hitl.* and wicked.session.* families, and council) is namespaced
+# under "wicked.garden.*", so a single prefix covers them all. Self-emitted
+# "wicked.garden.council.voted" is filtered out in _store_event to avoid a
+# council feedback loop.
 _WATCH_PREFIXES = (
     "wicked.garden.",
-    "wicked.hitl.",
-    "wicked.session.",
+    # wicked-core emits the shared phase lifecycle under the `crew` domain
+    # (e.g. wicked.crew.phase.transitioned); the projector routes it, so the
+    # daemon must ingest it. Without this prefix those transitions are never
+    # consumed and the projector state goes stale. (Brain events are polled
+    # separately by scripts/smaht/_bus_consumers.py on the wicked.brain. prefix.)
+    "wicked.crew.",
 )
 
 # Maximum events to fetch per poll call.

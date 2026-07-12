@@ -9,12 +9,12 @@ Usage:
     from _bus import emit_event, poll_pending, BUS_EVENT_MAP
 
     # Emit (fire-and-forget, returns immediately)
-    emit_event("wicked.phase.transitioned", {
+    emit_event("wicked.crew.phase.transitioned", {
         "project_id": "abc", "phase_from": "clarify", "phase_to": "design",
     }, chain_id="abc123.root")
 
     # Poll (returns list of events, acks after processing)
-    events = poll_pending(event_type_prefix="wicked.gate.")
+    events = poll_pending(event_type_prefix="wicked.garden.gate.")
 """
 
 import json
@@ -35,12 +35,12 @@ logger = logging.getLogger("wicked-garden.bus")
 
 BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # Crew domain — phase_manager.py + propose-process facilitator skill
-    "wicked.project.created": {
+    "wicked.garden.project.created": {
         "domain": "wicked-garden",
         "subdomain": "crew.project",
         "description": "New crew project created with complexity scoring",
     },
-    "wicked.project.completed": {
+    "wicked.garden.project.completed": {
         "domain": "wicked-garden",
         "subdomain": "crew.project",
         "description": "Crew project completed (final phase approved)",
@@ -51,27 +51,27 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # These four events let v11 archetype-mode projects flow through the
     # bus exactly the way v6 universal-pipeline projects did, without
     # the v6 gate ceremony.
-    "wicked.archetype.created": {
+    "wicked.garden.archetype.created": {
         "domain": "wicked-garden",
         "subdomain": "crew.archetype",
         "description": "v11 archetype-mode project created (carries v11_archetype + initial phase_plan)",
     },
-    "wicked.archetype.advanced": {
+    "wicked.garden.archetype.advanced": {
         "domain": "wicked-garden",
         "subdomain": "crew.archetype",
         "description": "v11 archetype phase approved + (when present) next phase named",
     },
-    "wicked.archetype.completed": {
+    "wicked.garden.archetype.completed": {
         "domain": "wicked-garden",
         "subdomain": "crew.archetype",
         "description": "v11 archetype final phase approved (project is_complete)",
     },
-    "wicked.archetype.hard_gate_passed": {
+    "wicked.garden.archetype.hard_gate_passed": {
         "domain": "wicked-garden",
         "subdomain": "crew.archetype",
         "description": "v11 archetype hard gate (cutover/mitigate/etc.) passed with confirmed_by + evidence",
     },
-    "wicked.archetype.classified": {
+    "wicked.garden.archetype.classified": {
         "domain": "wicked-garden",
         "subdomain": "crew.classify",
         "description": "v11 prompt classified into work-shape archetype set (LLM or regex tier)",
@@ -81,32 +81,32 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # is planned/none, OR an unknown stack. The reader NEVER fabricates a
     # migration for these — it emits this gap event + returns a gap-task dict
     # for the caller to hand to TaskCreate, then STOPS (fail-closed ETHOS).
-    "wicked.modernize.stack_gap": {
+    "wicked.garden.modernize.stack_gap": {
         "domain": "wicked-garden",
         "subdomain": "crew.modernize",
         "description": "Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration",
     },
-    "wicked.project.complexity_scored": {
+    "wicked.garden.project.complexity_scored": {
         "domain": "wicked-garden",
         "subdomain": "crew.scoring",
         "description": "Complexity score computed for a project",
     },
-    "wicked.phase.transitioned": {
+    "wicked.crew.phase.transitioned": {
         "domain": "wicked-garden",
         "subdomain": "crew.phase",
         "description": "Phase approved and advanced to next",
     },
-    "wicked.gate.decided": {
+    "wicked.garden.gate.decided": {
         "domain": "wicked-garden",
         "subdomain": "crew.gate",
         "description": "Gate returned APPROVE, CONDITIONAL, or REJECT",
     },
-    "wicked.gate.blocked": {
+    "wicked.garden.gate.blocked": {
         "domain": "wicked-garden",
         "subdomain": "crew.gate",
         "description": "Gate returned REJECT — phase advancement blocked",
     },
-    "wicked.rework.triggered": {
+    "wicked.garden.rework.triggered": {
         "domain": "wicked-garden",
         "subdomain": "crew.rework",
         "description": "Rework initiated after gate REJECT or CONDITIONAL",
@@ -117,7 +117,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # surfaced as a first-class bus event so downstream consumers can audit
     # who accepted what without crawling sidecar files. Pairs with the
     # "bus-as-truth" decision from #732.
-    "wicked.gate.condition.resolved": {
+    "wicked.garden.condition.resolved": {
         "domain": "wicked-garden",
         "subdomain": "crew.condition",
         "description": "Mechanical CONDITIONAL finding resolved via crew:resolve skill (verdict unchanged)",
@@ -129,7 +129,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # atomic two-step write order: sidecar first, then manifest flip.
     # chain_id MUST include condition_id for per-condition idempotency
     # (see ``memory/bus-chain-id-must-include-uniqueness-segment-gotcha.md``).
-    "wicked.condition.marked_cleared": {
+    "wicked.garden.condition.marked_cleared": {
         "domain": "wicked-garden",
         "subdomain": "crew.condition",
         "description": "Condition verification flipped to verified=True via mark_cleared() (Site 5 cutover)",
@@ -137,12 +137,12 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # Site W1 of bus-cutover wave-2 (#787): solo_mode inline-HITL
     # evidence record.  Emitted from solo_mode.dispatch_human_inline()
     # BEFORE the disk write at phases/{phase}/inline-review-context.md.
-    # Solo-mode also fires wicked.gate.decided for the same gate which
+    # Solo-mode also fires wicked.garden.gate.decided for the same gate which
     # carries the verdict + conditions; this event is for the markdown
     # evidence file specifically (separate artifact, separate event).
     # chain_id format: {project}.{phase}.gate (one inline-review-context
     # per gate per phase, no per-condition split).
-    "wicked.crew.inline_review_context_recorded": {
+    "wicked.garden.crew.inline_review_context_recorded": {
         "domain": "wicked-garden",
         "subdomain": "crew.solo_mode",
         "description": "Inline-HITL gate review evidence recorded by solo_mode (Site W1 cutover)",
@@ -157,17 +157,17 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # forensics can identify projects that went through legacy adoption
     # / qe-evaluator rename / log rotation.  No projector handlers; no
     # entries in _PROJECTION_RESOLVERS.
-    "wicked.crew.legacy_adopted": {
+    "wicked.garden.crew.legacy_adopted": {
         "domain": "wicked-garden",
         "subdomain": "crew.migration",
         "description": "Legacy beta.3 → v6.0 project migration applied via adopt_legacy.py (audit marker)",
     },
-    "wicked.crew.qe_evaluator_migrated": {
+    "wicked.garden.crew.qe_evaluator_migrated": {
         "domain": "wicked-garden",
         "subdomain": "crew.migration",
         "description": "qe-evaluator → gate-adjudicator rename applied via migrate_qe_evaluator_name.py (audit marker)",
     },
-    "wicked.log.rotated": {
+    "wicked.garden.log.rotated": {
         "domain": "wicked-garden",
         "subdomain": "platform.log_retention",
         "description": "Log file rotated by log_retention.rotate_if_needed (audit marker)",
@@ -176,110 +176,110 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # Each event mirrors a JSONL append into a per-phase log file; the
     # projector handler replays the append from raw_payload.  Same shape
     # as wave-1 Site 1 (dispatch-log) but for four additional logs.
-    "wicked.amendment.appended": {
+    "wicked.garden.amendment.appended": {
         "domain": "wicked-garden",
         "subdomain": "crew.amendment",
         "description": "Phase amendment appended to amendments.jsonl (Site W6 cutover)",
     },
-    "wicked.reeval.addendum_appended": {
+    "wicked.garden.reeval.addendum_appended": {
         "domain": "wicked-garden",
         "subdomain": "crew.reeval",
         "description": "Re-eval addendum appended to per-phase + project-root JSONL logs (Site W7 cutover; dual-file projection)",
     },
-    "wicked.convergence.transition_recorded": {
+    "wicked.garden.convergence.transition_recorded": {
         "domain": "wicked-garden",
         "subdomain": "crew.convergence",
         "description": "Convergence-log transition recorded for an artifact (Site W8 cutover)",
     },
-    "wicked.review.semantic_gap_recorded": {
+    "wicked.garden.review.semantic_gap_recorded": {
         "domain": "wicked-garden",
         "subdomain": "crew.review",
         "description": "Semantic-gap report persisted at review phase (Site W10a cutover)",
     },
     # Wave-2 Tranche C (#746):
-    "wicked.hitl.decision_recorded": {
+    "wicked.garden.hitl.decision_recorded": {
         "domain": "wicked-garden",
         "subdomain": "crew.hitl",
         "description": "HITL pause-decision evidence recorded by hitl_judge.write_hitl_decision_evidence (Site W5 cutover)",
     },
-    "wicked.subagent.engaged": {
+    "wicked.garden.subagent.engaged": {
         "domain": "wicked-garden",
         "subdomain": "crew.subagent",
         "description": "Specialist subagent engagement recorded by subagent_lifecycle (Site W9b cutover)",
     },
     # Jam domain — jam.py
-    "wicked.session.started": {
+    "wicked.garden.session.started": {
         "domain": "wicked-garden",
         "subdomain": "jam.session",
         "description": "Brainstorm or council session started",
     },
-    "wicked.session.synthesized": {
+    "wicked.garden.session.synthesized": {
         "domain": "wicked-garden",
         "subdomain": "jam.session",
         "description": "Session synthesis completed",
     },
-    "wicked.session.synthesis_ready": {
+    "wicked.garden.session.synthesis_ready": {
         "domain": "wicked-garden",
         "subdomain": "jam.session",
         "description": "All expected Round 1 personas contributed or timeout elapsed — facilitator may synthesize",
     },
-    "wicked.council.voted": {
+    "wicked.garden.council.voted": {
         "domain": "wicked-garden",
         "subdomain": "jam.council",
         "description": "Council evaluation completed with model votes",
     },
-    "wicked.persona.contributed": {
+    "wicked.garden.persona.contributed": {
         "domain": "wicked-garden",
         "subdomain": "jam.persona",
         "description": "Persona contributed a perspective in a brainstorm round",
     },
     # QE domain
-    "wicked.scenario.run": {
+    "wicked.garden.scenario.run": {
         "domain": "wicked-garden",
         "subdomain": "qe.scenario",
         "description": "Test scenario executed with pass/fail result",
     },
-    "wicked.coverage.changed": {
+    "wicked.garden.coverage.changed": {
         "domain": "wicked-garden",
         "subdomain": "qe.coverage",
         "description": "Test coverage metrics changed",
     },
     # Platform domain
-    "wicked.security.finding_raised": {
+    "wicked.garden.security.finding_raised": {
         "domain": "wicked-garden",
         "subdomain": "platform.security",
         "description": "Security review raised a finding",
     },
-    "wicked.guard.findings": {
+    "wicked.garden.guard.findings": {
         "domain": "wicked-garden",
         "subdomain": "platform.guard",
         "description": "Autonomous session-close guard pipeline surfaced findings (Issue #448)",
     },
-    "wicked.compliance.passed": {
+    "wicked.garden.compliance.passed": {
         "domain": "wicked-garden",
         "subdomain": "platform.compliance",
         "description": "Compliance check passed for a framework",
     },
-    "wicked.compliance.failed": {
+    "wicked.garden.compliance.failed": {
         "domain": "wicked-garden",
         "subdomain": "platform.compliance",
         "description": "Compliance check failed for a framework",
     },
     # Auto-advance audit event
-    "wicked.phase.auto_advanced": {
+    "wicked.garden.phase.auto_advanced": {
         "domain": "wicked-garden",
         "subdomain": "crew.phase",
         "description": "Phase auto-advanced for low-complexity project (audit trail)",
     },
     # Yolo scope-increase revoke — emitted by _apply_scope_increase_revoke when
     # an augment/re-tier-up mutation flips yolo_approved_by_user to False.
-    "wicked.crew.yolo_revoked": {
+    "wicked.garden.crew.yolo_revoked": {
         "domain": "wicked-garden",
         "subdomain": "crew.yolo",
         "description": "Yolo auto-approval revoked due to scope-increase mutation (audit + observability)",
     },
     # Smaht domain — fact_extractor.py → brain auto-memorize subscriber
-    "wicked.fact.extracted": {
+    "wicked.garden.fact.extracted": {
         "domain": "smaht",
         "subdomain": "facts",
         "description": "Structured fact extracted from conversation (consumed by wicked-brain auto-memorize)",
@@ -293,7 +293,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "description": "wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP)",
     },
     # Delivery domain — telemetry.py + drift.py (Issue #443)
-    "wicked.quality.drift_detected": {
+    "wicked.garden.quality.drift_detected": {
         "domain": "wicked-garden",
         "subdomain": "delivery.telemetry",
         "description": "Cross-session quality metric drifted past baseline threshold (special-cause or >=15% drop)",
@@ -301,17 +301,17 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # Crew domain — Part C of #734 (bus-as-truth emit additions paired with
     # the load-bearing artifact writes the resume projector + bus-emit lint
     # need to track. See PR #735 audit for the silent-write inventory.)
-    "wicked.dispatch.log_entry_appended": {
+    "wicked.garden.dispatch.log_entry_appended": {
         "domain": "wicked-garden",
         "subdomain": "crew.dispatch",
         "description": "HMAC-signed dispatch-log.jsonl entry appended (orphan-check sentinel)",
     },
-    "wicked.consensus.report_created": {
+    "wicked.garden.consensus.report_created": {
         "domain": "wicked-garden",
         "subdomain": "crew.consensus",
         "description": "Consensus gate report written to consensus-report.json",
     },
-    "wicked.consensus.evidence_recorded": {
+    "wicked.garden.consensus.evidence_recorded": {
         "domain": "wicked-garden",
         "subdomain": "crew.consensus",
         "description": "Consensus rejection evidence written to consensus-evidence.json (audit trail)",
@@ -323,12 +323,12 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     #                    (both the append-to-existing and create-new branches)
     #   gate_pending   — emitted after _write_pending_reviewer_report
     #                    (failure path: no consensus_result available)
-    "wicked.consensus.gate_completed": {
+    "wicked.garden.consensus.gate_completed": {
         "domain": "wicked-garden",
         "subdomain": "crew.consensus",
         "description": "Consensus gate verdict written to reviewer-report.md (append or create)",
     },
-    "wicked.consensus.gate_pending": {
+    "wicked.garden.consensus.gate_pending": {
         "domain": "wicked-garden",
         "subdomain": "crew.consensus",
         "description": "Pending consensus gate placeholder written to reviewer-report.md (evaluation failed)",
@@ -348,45 +348,45 @@ _PAYLOAD_DENY_LIST = frozenset({
 # named fields passed through the deny-list unchanged. Keep this list short and
 # justified: every entry is a deliberate carve-out auditable at review time.
 #
-# wicked.fact.extracted — content is the whole point of the event. The brain
+# wicked.garden.fact.extracted — content is the whole point of the event. The brain
 # auto-memorize subscriber requires payload.content to produce a memory.
-# wicked.dispatch.log_entry_appended — `raw_payload` is the canonical JSONL
+# wicked.garden.dispatch.log_entry_appended — `raw_payload` is the canonical JSONL
 # bytes the projector replays into the `dispatch_log_entries` table under
 # Site 1 of the bus-cutover (#746).  Without it the projector cannot
 # reproduce the on-disk line.  Audit note in the PR body: this carve-out
 # only ships an already-on-disk dispatch record (HMAC-signed), so payload
 # inspection here is bounded by what the orphan check already trusts.
 _PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
-    "wicked.fact.extracted": frozenset({"content"}),
-    "wicked.dispatch.log_entry_appended": frozenset({"raw_payload"}),
+    "wicked.garden.fact.extracted": frozenset({"content"}),
+    "wicked.garden.dispatch.log_entry_appended": frozenset({"raw_payload"}),
     # Site 2 of bus-cutover (#746): the consensus report and evidence emits
     # carry the canonical on-disk JSON bytes via `raw_payload` so the
     # projector can reproduce the file byte-for-byte.  Without the carve-out
     # the deny-list strips it as if it were generic file content.  Council
     # Condition C10 — `raw_payload` is REQUIRED for both emits.
-    "wicked.consensus.report_created": frozenset({"raw_payload"}),
-    "wicked.consensus.evidence_recorded": frozenset({"raw_payload"}),
+    "wicked.garden.consensus.report_created": frozenset({"raw_payload"}),
+    "wicked.garden.consensus.evidence_recorded": frozenset({"raw_payload"}),
     # Site 3 of bus-cutover (#746): reviewer-report.md emits also ship
     # raw_payload so the projector can reproduce the file byte-for-byte.
-    "wicked.consensus.gate_completed": frozenset({"raw_payload"}),
-    "wicked.consensus.gate_pending": frozenset({"raw_payload"}),
+    "wicked.garden.consensus.gate_completed": frozenset({"raw_payload"}),
+    "wicked.garden.consensus.gate_pending": frozenset({"raw_payload"}),
     # Wave-2 Tranche B (#746): JSONL append-stream cutovers carry the
     # canonical JSONL line via `raw_payload` so the projector can replay
     # the append byte-for-byte.  Same pattern as Site 1 dispatch-log.
     # Each per-event audit note: the line bytes describe an append-only
     # log entry (already validated by the source module's _validate_*
     # call), so payload inspection is bounded by the schema check upstream.
-    "wicked.amendment.appended": frozenset({"raw_payload"}),
-    "wicked.reeval.addendum_appended": frozenset({"raw_payload"}),
-    "wicked.convergence.transition_recorded": frozenset({"raw_payload"}),
-    "wicked.review.semantic_gap_recorded": frozenset({"raw_payload"}),
+    "wicked.garden.amendment.appended": frozenset({"raw_payload"}),
+    "wicked.garden.reeval.addendum_appended": frozenset({"raw_payload"}),
+    "wicked.garden.convergence.transition_recorded": frozenset({"raw_payload"}),
+    "wicked.garden.review.semantic_gap_recorded": frozenset({"raw_payload"}),
     # Wave-2 Tranche C (#746): hitl + subagent_engagement carry the
     # canonical bytes via raw_payload so the projector can reproduce
     # the file byte-for-byte.  hitl additionally carries `filename`
     # (caller-supplied evidence file name) — the projector validates it
     # against a whitelist before writing to phases/{phase}/{filename}.
-    "wicked.hitl.decision_recorded": frozenset({"raw_payload", "filename"}),
-    "wicked.subagent.engaged": frozenset({"raw_payload"}),
+    "wicked.garden.hitl.decision_recorded": frozenset({"raw_payload", "filename"}),
+    "wicked.garden.subagent.engaged": frozenset({"raw_payload"}),
 }
 
 # ---------------------------------------------------------------------------
@@ -575,7 +575,7 @@ def _sanitize_payload(payload: Dict[str, Any], event_type: str = "") -> Dict[str
 
     Per-event allow overrides (see _PAYLOAD_ALLOW_OVERRIDES) let specific event
     types pass named denied fields through — these are explicit, audited carve-outs
-    for events whose contract requires a denied key (e.g. wicked.fact.extracted
+    for events whose contract requires a denied key (e.g. wicked.garden.fact.extracted
     must ship content to the brain auto-memorize subscriber).
     """
     allow = _PAYLOAD_ALLOW_OVERRIDES.get(event_type, frozenset())
@@ -866,7 +866,7 @@ def poll_pending(
     if bus is unavailable or no events pending.
 
     Args:
-        event_type_prefix: Filter events by type prefix (e.g., "wicked.gate.").
+        event_type_prefix: Filter events by type prefix (e.g., "wicked.garden.gate.").
         limit: Max events to return per poll.
     """
     if not _check_available():

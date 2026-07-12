@@ -43,17 +43,17 @@ def process_brain_events() -> List[str]:
             if is_processed(event_type, chain_id):
                 continue
 
-            if event_type == "wicked.brain.consolidated":
+            if event_type == "wicked.brain.index.consolidated":
                 _invalidate_brain_adapter_cache()
                 mark_processed(event_type, chain_id)
                 actions.append("Invalidated smaht brain adapter cache (brain consolidated)")
 
-            elif event_type == "wicked.config.updated":
+            elif event_type == "wicked.brain.config.updated":
                 _clear_brain_port_cache()
                 mark_processed(event_type, chain_id)
                 actions.append("Cleared brain port cache (config updated)")
 
-            elif event_type == "wicked.brain.initialized":
+            elif event_type == "wicked.brain.index.initialized":
                 _auto_configure_brain_adapter()
                 mark_processed(event_type, chain_id)
                 actions.append("Auto-configured smaht brain adapter (brain initialized)")

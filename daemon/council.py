@@ -72,7 +72,7 @@ def run_council(
     """Run a council session synchronously.
 
     Creates a council_sessions row, calls the Anthropic API for a synthesis
-    verdict, updates the row, emits a ``wicked.council.voted`` bus event, and
+    verdict, updates the row, emits a ``wicked.garden.council.voted`` bus event, and
     returns a CouncilResult.
 
     Args:

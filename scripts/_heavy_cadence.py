@@ -403,7 +403,7 @@ def _run_guard_pipeline(plugin_root: Path) -> List[str]:
     """Run the autonomous session-close guard pipeline.
 
     Writes findings.json (consumed by next-session bootstrap briefing) and
-    emits wicked.guard.findings on the bus. Per-session-end cadence avoids
+    emits wicked.garden.guard.findings on the bus. Per-session-end cadence avoids
     overwriting mid-session findings before bootstrap can read them.
     """
     try:

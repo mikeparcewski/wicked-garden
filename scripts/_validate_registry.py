@@ -87,30 +87,30 @@ _EXTERNAL_REVIEWER_PREFIXES: Tuple[str, ...] = (
 # handler. Source: scripts/_bus.py inline comments around the migration events.
 # Keep this in sync with daemon/projector.py.ARCHITECTURE.md if it changes.
 _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
-    "wicked.crew.legacy_adopted",
-    "wicked.crew.qe_evaluator_migrated",
-    "wicked.log.rotated",
+    "wicked.garden.crew.legacy_adopted",
+    "wicked.garden.crew.qe_evaluator_migrated",
+    "wicked.garden.log.rotated",
     # jam events do not project to wicked-garden's projector — their
     # consumers live in jam scripts and the brain auto-memorize subscriber.
-    "wicked.session.started",
-    "wicked.session.synthesized",
-    "wicked.session.synthesis_ready",
-    "wicked.council.voted",
-    "wicked.persona.contributed",
+    "wicked.garden.session.started",
+    "wicked.garden.session.synthesized",
+    "wicked.garden.session.synthesis_ready",
+    "wicked.garden.council.voted",
+    "wicked.garden.persona.contributed",
     # qe / platform / delivery events are observability-only — no projector.
-    "wicked.scenario.run",
-    "wicked.coverage.changed",
-    "wicked.security.finding_raised",
-    "wicked.guard.findings",
-    "wicked.compliance.passed",
-    "wicked.compliance.failed",
-    "wicked.rollout.decided",
-    "wicked.experiment.concluded",
-    "wicked.fact.extracted",
+    "wicked.garden.scenario.run",
+    "wicked.garden.coverage.changed",
+    "wicked.garden.security.finding_raised",
+    "wicked.garden.guard.findings",
+    "wicked.garden.compliance.passed",
+    "wicked.garden.compliance.failed",
+    "wicked.garden.rollout.decided",
+    "wicked.garden.experiment.concluded",
+    "wicked.garden.fact.extracted",
     "wicked.test.verdict.created",
-    "wicked.quality.drift_detected",
+    "wicked.garden.quality.drift_detected",
     # crew condition resolution — observability only, verdict not mutated.
-    "wicked.gate.condition.resolved",
+    "wicked.garden.condition.resolved",
 )
 
 # Reviewer values in gate-policy.json that are NOT subagent identifiers — they
