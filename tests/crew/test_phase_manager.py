@@ -381,15 +381,15 @@ class TestBusEmits(unittest.TestCase):
              patch.object(pm, "_bus_emit_safe") as mock_emit:
             pm.create_project("emit-proj", archetype_mode="build")
         events = [c.args[0] for c in mock_emit.call_args_list]
-        self.assertIn("wicked.archetype.created", events)
+        self.assertIn("wicked.garden.archetype.created", events)
 
     def test_create_legacy_emits_project_created(self):
         with patch.object(pm, "save_project_state"), \
              patch.object(pm, "_bus_emit_safe") as mock_emit:
             pm.create_project("emit-proj-legacy")
         events = [c.args[0] for c in mock_emit.call_args_list]
-        self.assertIn("wicked.project.created", events)
-        self.assertNotIn("wicked.archetype.created", events)
+        self.assertIn("wicked.garden.project.created", events)
+        self.assertNotIn("wicked.garden.archetype.created", events)
 
     def test_approve_emits_archetype_advanced(self):
         state = self._state(archetype="build")
@@ -397,11 +397,11 @@ class TestBusEmits(unittest.TestCase):
              patch.object(pm, "_bus_emit_safe") as mock_emit:
             pm.approve_phase(state, "plan")
         events = [c.args[0] for c in mock_emit.call_args_list]
-        self.assertIn("wicked.archetype.advanced", events)
+        self.assertIn("wicked.garden.archetype.advanced", events)
         # Payload contains archetype + phase + next_phase
         advance_call = next(
             c for c in mock_emit.call_args_list
-            if c.args[0] == "wicked.archetype.advanced"
+            if c.args[0] == "wicked.garden.archetype.advanced"
         )
         self.assertEqual(advance_call.args[1]["archetype"], "build")
         self.assertEqual(advance_call.args[1]["phase"], "plan")
@@ -416,7 +416,7 @@ class TestBusEmits(unittest.TestCase):
         events = [c.args[0] for c in mock_emit.call_args_list]
         for ev in events:
             self.assertFalse(
-                ev.startswith("wicked.archetype."),
+                ev.startswith("wicked.garden.archetype."),
                 f"legacy approve emitted archetype event: {ev}",
             )
 
@@ -435,12 +435,12 @@ class TestBusEmits(unittest.TestCase):
                 confirmation_evidence="rollback-drill:staging",
             )
         events = [c.args[0] for c in mock_emit.call_args_list]
-        self.assertIn("wicked.archetype.hard_gate_passed", events)
-        self.assertIn("wicked.archetype.advanced", events)
+        self.assertIn("wicked.garden.archetype.hard_gate_passed", events)
+        self.assertIn("wicked.garden.archetype.advanced", events)
         # hard_gate_passed payload carries confirmed_by + evidence
         hg_call = next(
             c for c in mock_emit.call_args_list
-            if c.args[0] == "wicked.archetype.hard_gate_passed"
+            if c.args[0] == "wicked.garden.archetype.hard_gate_passed"
         )
         self.assertEqual(hg_call.args[1]["confirmed_by"], "oncall-mike")
         self.assertEqual(hg_call.args[1]["confirmation_evidence"],
@@ -464,7 +464,7 @@ class TestBusEmits(unittest.TestCase):
              patch.object(pm, "_bus_emit_safe") as mock_emit:
             pm.approve_phase(state, "review")
         events = [c.args[0] for c in mock_emit.call_args_list]
-        self.assertIn("wicked.archetype.completed", events)
+        self.assertIn("wicked.garden.archetype.completed", events)
 
 
 class TestEndToEndArchetypeFlow(unittest.TestCase):

@@ -26,7 +26,7 @@ is an *invariant between two observable states* — never a command match:
   playbooks current         repo-* skill dirs       commits since their mtime
 
 Tiers: info (one line, ignorable) → **answer** (the agent must act or the skip
-is logged to the bus as `wicked.sentinel.*` — the skip becomes evidence) →
+is logged to the bus as `wicked.garden.sentinel.*` — the skip becomes evidence) →
 block (git pre-push / CI, outside this module). Everything here fails OPEN on
 error (a broken sentinel must never break a session) but never invents an OK.
 
@@ -135,7 +135,7 @@ def verdict_for(repo: Path, sha: Optional[str] = None) -> Optional[Dict[str, Any
 # ---------------------------------------------------------------------------
 
 def log_sentinel_event(repo: Path, event: str, detail: Dict[str, Any]) -> None:
-    """Emit wicked.sentinel.<event> to the bus if available; always append to a
+    """Emit wicked.garden.sentinel.<event> to the bus if available; always append to a
     local trail so the record exists even without the bus layer."""
     payload = {"repo": str(repo), "ts": time.time(), **detail}
     try:
@@ -150,7 +150,7 @@ def log_sentinel_event(repo: Path, event: str, detail: Dict[str, Any]) -> None:
         if str(plugin_scripts) not in sys.path:
             sys.path.insert(0, str(plugin_scripts))
         from _bus import emit_event  # type: ignore
-        emit_event(f"wicked.sentinel.{event}", payload)
+        emit_event(f"wicked.garden.sentinel.{event}", payload)
     except Exception:  # noqa: BLE001 — bus is an opt-in layer; fail open
         pass
 

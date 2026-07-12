@@ -126,7 +126,7 @@ def persist(payload: dict) -> dict:
         archetypes = normalized.get("archetypes") or []
         primary = archetypes[0]["name"] if archetypes else "triage"
         emit_event(
-            "wicked.archetype.classified",
+            "wicked.garden.archetype.classified",
             {
                 "intent": normalized.get("intent"),
                 "primary_archetype": primary,

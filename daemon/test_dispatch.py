@@ -90,11 +90,11 @@ def test_dispatch_matches_hook_by_event_type(db_conn, hooks_dir):
 
 def test_dispatch_matches_py_hook(db_conn, hooks_dir):
     """A .py hook is executed with the Python interpreter."""
-    hook = hooks_dir / "on-wicked-council-voted.py"
+    hook = hooks_dir / "on-wicked-garden-council-voted.py"
     hook.write_text("import sys\nsys.exit(0)\n")
 
     dispatcher = HookDispatcher(db_conn, hooks_dir)
-    dispatched = dispatcher.dispatch("wicked.council.voted", {"session_id": "abc"})
+    dispatched = dispatcher.dispatch("wicked.garden.council.voted", {"session_id": "abc"})
 
     assert hook.name in dispatched
 

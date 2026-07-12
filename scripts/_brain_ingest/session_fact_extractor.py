@@ -13,7 +13,7 @@ Source of truth shift:
 - v5: wicked-smaht session directory turn log (user/assistant messages)
 - v6: native task records (subject + description, filtered to completed)
 
-The emission shape on wicked-bus stays the same — `wicked.fact.extracted`
+The emission shape on wicked-bus stays the same — `wicked.garden.fact.extracted`
 events with {type, content, entities, source, session_id} — so the brain
 auto-memorize subscriber is unaffected.
 

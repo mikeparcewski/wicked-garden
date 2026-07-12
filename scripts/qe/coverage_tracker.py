@@ -4,7 +4,7 @@ qe/coverage_tracker.py — Emit-side coverage delta tracker.
 
 Reads standard coverage reports (Cobertura XML, coverage.py JSON),
 persists the last-measured line rate per project in DomainStore, and
-emits `wicked.coverage.changed` on the bus when the delta is non-zero.
+emits `wicked.garden.coverage.changed` on the bus when the delta is non-zero.
 
 Design constraints:
   * stdlib-only — no `coverage`, `pytest-cov`, third-party parsers.
@@ -69,7 +69,7 @@ _STORE_DOMAIN = "wicked-qe"
 _STORE_SOURCE = "coverage"
 
 # Emitted event name — present in BUS_EVENT_MAP under subdomain qe.coverage.
-_EVENT_TYPE = "wicked.coverage.changed"
+_EVENT_TYPE = "wicked.garden.coverage.changed"
 
 # Delta threshold — anything within this tolerance is treated as zero so
 # rounding noise in XML/JSON parsers does not produce spurious emits.
@@ -372,7 +372,7 @@ def _emit_coverage_changed(
     delta: float,
     chain_id: str,
 ) -> None:
-    """Fire ``wicked.coverage.changed`` — fail-open."""
+    """Fire ``wicked.garden.coverage.changed`` — fail-open."""
     try:
         from _bus import emit_event
 
@@ -454,7 +454,7 @@ def _utcnow_iso() -> str:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Track test-coverage delta and emit wicked.coverage.changed.",
+        description="Track test-coverage delta and emit wicked.garden.coverage.changed.",
     )
     parser.add_argument(
         "--project-id",

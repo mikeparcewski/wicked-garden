@@ -171,16 +171,16 @@ TaskUpdate(
 
 ## Bus Events
 
-**After the pass/fail decision is made** (when you set `Status` in the Output Format), emit ONE of the two events below for cross-domain visibility. Emit `wicked.compliance.passed` when Status is `COMPLIANT`; emit `wicked.compliance.failed` when Status is `NEEDS ATTENTION` or `NON-COMPLIANT`.
+**After the pass/fail decision is made** (when you set `Status` in the Output Format), emit ONE of the two events below for cross-domain visibility. Emit `wicked.garden.compliance.passed` when Status is `COMPLIANT`; emit `wicked.garden.compliance.failed` when Status is `NEEDS ATTENTION` or `NON-COMPLIANT`.
 
 **On pass** (no P0/P1 gaps, all controls verified):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.compliance.passed '{"framework":"{soc2|hipaa|gdpr|pci}","checks_passed_count":{N},"chain_id":"{chain_id}"}' 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.compliance.passed '{"framework":"{soc2|hipaa|gdpr|pci}","checks_passed_count":{N},"chain_id":"{chain_id}"}' 2>/dev/null || true
 ```
 
 **On fail** (any gap found):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.compliance.failed '{"framework":"{soc2|hipaa|gdpr|pci}","gap_count":{N},"severity_max":"{critical|high|medium|low}","chain_id":"{chain_id}"}' 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.compliance.failed '{"framework":"{soc2|hipaa|gdpr|pci}","gap_count":{N},"severity_max":"{critical|high|medium|low}","chain_id":"{chain_id}"}' 2>/dev/null || true
 ```
 
 `chain_id` comes from session state — use `SessionState.active_chain_id` if available, else empty string. Substitute at emit time.

@@ -9,7 +9,7 @@ convention::
 
 Examples:
     - ``on-wicked-garden-skill-installed.sh``
-    - ``on-wicked-council-voted.py``
+    - ``on-wicked-garden-council-voted.py``
 
 Execution:
     - ``.py`` hooks are invoked with the active Python interpreter.

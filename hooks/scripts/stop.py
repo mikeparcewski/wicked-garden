@@ -222,7 +222,7 @@ def _check_session_outcome() -> list:
 # (${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json) by
 # scripts/mem/session_fact_extractor.py. This replaces the v5 smaht
 # FactExtractor/HistoryCondenser pipeline deleted in Gate 4 Phase 2 (#428).
-# Emission shape is unchanged: wicked.fact.extracted events on wicked-bus,
+# Emission shape is unchanged: wicked.garden.fact.extracted events on wicked-bus,
 # picked up by wicked-brain's auto-memorize subscriber, which re-applies its
 # own type/length/dedup policy.
 
@@ -233,7 +233,7 @@ _MIN_FACT_CONTENT_LENGTH = 15
 
 
 def _run_memory_promotion(session_id: str) -> list:
-    """Emit high-value session facts as wicked.fact.extracted events on wicked-bus.
+    """Emit high-value session facts as wicked.garden.fact.extracted events on wicked-bus.
 
     Reads native task records (TaskCreate/TaskUpdate output) via
     scripts/mem/session_fact_extractor.py, filters to decisions + discoveries
@@ -267,7 +267,7 @@ def _run_memory_promotion(session_id: str) -> list:
             if len(fact.content) < _MIN_FACT_CONTENT_LENGTH:
                 continue
             emit_event(
-                "wicked.fact.extracted",
+                "wicked.garden.fact.extracted",
                 {
                     "type": fact.type,
                     "content": fact.content,
@@ -449,7 +449,7 @@ def _run_quality_telemetry(session_id: str) -> list:
 #
 # Always fails open — never hard-blocks session close.  Findings are written
 # to a session-scoped file that bootstrap.py can surface in the next briefing,
-# and emitted as a `wicked.guard.findings` event on wicked-bus.
+# and emitted as a `wicked.garden.guard.findings` event on wicked-bus.
 #
 # Ordering: runs AFTER telemetry (#443) so both can share the end-of-session
 # snapshot without blocking each other.

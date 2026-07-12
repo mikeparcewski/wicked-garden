@@ -227,7 +227,7 @@ def _record_specialist_engagement(domain: str, agent_name: str) -> None:
         bus-as-truth premise — events are append-only, so the on-disk
         projection should be too.  Read-modify-write the JSON array
         contradicted that premise and was a pre-bus design choice.
-      * W9b cutover (this PR): fires ``wicked.subagent.engaged`` BEFORE
+      * W9b cutover (this PR): fires ``wicked.garden.subagent.engaged`` BEFORE
         the JSONL append so the projector handler can replay the same
         line.  Gated on WG_BUS_AS_TRUTH_SUBAGENT_ENGAGEMENT.
 
@@ -300,7 +300,7 @@ def _record_specialist_engagement(domain: str, agent_name: str) -> None:
             from _bus import emit_event  # type: ignore[import]
             ts_compact = "".join(ch for ch in entry["completed_at"] if ch.isdigit())[:14] or "noid"
             emit_event(
-                "wicked.subagent.engaged",
+                "wicked.garden.subagent.engaged",
                 {
                     "project_id": project_id,
                     "phase": current_phase,

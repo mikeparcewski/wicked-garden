@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Bus-grain subscriber: react to wicked.gate.decided events.
+Bus-grain subscriber: react to wicked.garden.gate.decided events.
 
 Issue #592 (v8 PR-8) — migrated from Claude-lifecycle pattern.
 
-Grain: BUS-GRAIN — this handler fires on wicked.gate.decided events that may
+Grain: BUS-GRAIN — this handler fires on wicked.garden.gate.decided events that may
 have been emitted by a different session hours ago.  It does NOT use Claude's
 prompt / tool lifecycle hooks because Claude cannot see cross-session bus events.
 
@@ -15,7 +15,7 @@ Handler contract:
 Responsibilities:
   1. Validate the gate-decided event has required fields.
   2. Log the gate decision for observability.
-  3. Optionally emit a follow-on wicked.hook.gate_decided_processed event
+  3. Optionally emit a follow-on wicked.garden.hook.gate_decided_processed event
      (hook chaining example).
 
 Always fails open — any unhandled exception returns {"status": "error", ...}.
@@ -55,7 +55,7 @@ def main() -> None:
     # can react to this synthetic event).
     emit_events = [
         {
-            "event_type": "wicked.hook.gate_decided_processed",
+            "event_type": "wicked.garden.hook.gate_decided_processed",
             "payload": {
                 "project_id": project_id,
                 "phase": phase,

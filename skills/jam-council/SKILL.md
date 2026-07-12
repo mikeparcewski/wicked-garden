@@ -230,7 +230,7 @@ If `save_transcript.py` is unavailable, skip transcript storage silently.
 
 After synthesis, emit to wicked-bus. Payload rule: IDs + counts + outcomes only (no raw model text, no full prompts). `agreement_ratio` is a float in `[0.0, 1.0]`.
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.council.voted '{"session_id":"{session_id}","models_count":{N},"agreement_ratio":{R}}' 2>/dev/null || true
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.council.voted '{"session_id":"{session_id}","models_count":{N},"agreement_ratio":{R}}' 2>/dev/null || true
 ```
 
 ### 7. Synthesize Three-Stage Output

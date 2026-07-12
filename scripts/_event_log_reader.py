@@ -20,7 +20,7 @@ Typical call in a reader that previously read from disk::
     from _event_log_reader import read_latest_event_data
     # fast path — bus is source of truth
     data = read_latest_event_data(conn, project_id=..., phase=...,
-                                  event_type="wicked.gate.decided")
+                                  event_type="wicked.garden.gate.decided")
     if data is None:
         # disk fallback for legacy projects pre-cutover
         data = _load_from_disk(...)

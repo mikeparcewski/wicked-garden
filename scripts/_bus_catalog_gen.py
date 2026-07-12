@@ -22,10 +22,13 @@ def generate():
     lines.append("## Naming Convention")
     lines.append("")
     lines.append("```")
-    lines.append("wicked.<noun>.<past-tense-verb>")
+    lines.append("wicked.<domain>.<noun>.<past-tense-verb>")
     lines.append("```")
     lines.append("")
-    lines.append("Three segments. Always starts with `wicked.`. Noun = the thing that changed. Verb = past tense.")
+    lines.append("Four segments (wicked-bus SPEC grammar). Always starts with `wicked.`. "
+                 "Domain = the producing plugin's short name (`garden` for garden-owned "
+                 "events; `crew` for the shared phase lifecycle; `brain` for consumed "
+                 "wicked-brain events). Noun = the thing that changed. Verb = past tense.")
     lines.append("`domain` field is always `wicked-garden`. `subdomain` identifies the functional area.")
     lines.append("")
     lines.append("## Payload Tiers")
@@ -71,8 +74,8 @@ def generate():
     lines.append("")
     lines.append("### Slack Bot (5 events)")
     lines.append("")
-    lines.append("Subscribe to: `wicked.gate.blocked`, `wicked.phase.transitioned`, `wicked.project.completed`,")
-    lines.append("`wicked.session.synthesized`, `wicked.rework.triggered`")
+    lines.append("Subscribe to: `wicked.garden.gate.blocked`, `wicked.crew.phase.transitioned`, `wicked.garden.project.completed`,")
+    lines.append("`wicked.garden.session.synthesized`, `wicked.garden.rework.triggered`")
     lines.append("")
     lines.append("```bash")
     lines.append("npx wicked-bus subscribe --plugin my-slack-bot --filter 'wicked.gate.*' --filter 'wicked.phase.*'")

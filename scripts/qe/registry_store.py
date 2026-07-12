@@ -136,7 +136,7 @@ def main() -> int:
             chain_id = ""
 
         emit_event(
-            "wicked.scenario.run",
+            "wicked.garden.scenario.run",
             {
                 "scenario_id": args.scenario_slug,
                 "result": result,
@@ -147,7 +147,7 @@ def main() -> int:
     except Exception:
         pass  # fail open — bus emit must never break the caller
 
-    # Measure test coverage delta and emit `wicked.coverage.changed` when
+    # Measure test coverage delta and emit `wicked.garden.coverage.changed` when
     # non-zero. Strictly additive: a missing coverage report, malformed
     # output, or DomainStore failure is a silent no-op. The tracker itself
     # is fail-open by contract, but we still wrap defensively so the

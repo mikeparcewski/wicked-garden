@@ -707,7 +707,7 @@ def _write_reviewer_report(
     consensus_result: dict,
     eval_id: str,
 ) -> None:
-    """Emit wicked.consensus.gate_completed — projector materialises the file.
+    """Emit wicked.garden.consensus.gate_completed — projector materialises the file.
 
     Site 3 of bus-cutover (#746, PR #799).  Pre-PR-#799 this helper did
     write-then-emit: it read ``report_path.exists()`` to choose
@@ -744,7 +744,7 @@ def _write_reviewer_report(
         # time (PR #799 — projector self-deciding, eliminates source-side
         # race against the projector).
         emit_event(
-            "wicked.consensus.gate_completed",
+            "wicked.garden.consensus.gate_completed",
             {
                 "project_id": project_id,
                 "phase": phase,
@@ -762,7 +762,7 @@ def _write_reviewer_report(
 
 
 def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
-    """Emit wicked.consensus.gate_pending — projector materialises the file.
+    """Emit wicked.garden.consensus.gate_pending — projector materialises the file.
 
     Fires when consensus evaluation fails.  The projector handler
     ``_consensus_gate_pending`` materialises the pending placeholder ONLY
@@ -787,7 +787,7 @@ def _write_pending_reviewer_report(phase_dir: "Path", eval_id: str) -> None:
         # no reviewer-report.md exists yet (no-clobber invariant lives in
         # the projector handler).
         emit_event(
-            "wicked.consensus.gate_pending",
+            "wicked.garden.consensus.gate_pending",
             {
                 "project_id": project_id,
                 "phase": phase,

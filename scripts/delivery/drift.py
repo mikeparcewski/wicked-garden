@@ -498,7 +498,7 @@ def emit_drift_event(
             "reasons": classification.get("reasons"),
             "session_count": classification.get("session_count"),
         }
-        emit_event("wicked.quality.drift_detected", payload)
+        emit_event("wicked.garden.quality.drift_detected", payload)
         return True
     except Exception as exc:
         # Fail-open — bus absence must never break telemetry.

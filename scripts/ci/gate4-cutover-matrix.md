@@ -16,7 +16,7 @@ Located at `scripts/crew/smart_decisioning.py` lines ~1781–1870. Consumed by `
 
 ### FLAG 2 — Session-fact emission via `FactExtractor` (PARTIAL, policy call)
 
-`hooks/scripts/stop.py` `_run_memory_promotion` reads the smaht session turn log via `FactExtractor` and emits `wicked.fact.extracted` events. Brain auto-memorize subscribes. Deleting smaht/v2 breaks the feed source.
+`hooks/scripts/stop.py` `_run_memory_promotion` reads the smaht session turn log via `FactExtractor` and emits `wicked.garden.fact.extracted` events. Brain auto-memorize subscribes. Deleting smaht/v2 breaks the feed source.
 
 **Phase 2 action**: pick one —
 1. Reimplement a stdlib extractor over `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/*.jsonl` (native task transcript).
