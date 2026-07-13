@@ -737,7 +737,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   .cg-grid { grid-template-columns: 1fr; }
   .tb-afford { justify-content: flex-start; }
   .tb-afford-btn { margin-left: 0; }
-  .tb-stage-demo { min-height: 190px; padding: 18px; }
+  .tb-stage-demo { padding: 18px; }
   .tb-h2, .pg-h2, .cg-h2, .ib-h2 { font-size: clamp(1.7rem, 8vw, 2.4rem); }
   .gd-hero-h1 { font-size: clamp(2rem, 10vw, 3rem); }
   .pg-action { grid-template-columns: 1fr; }
