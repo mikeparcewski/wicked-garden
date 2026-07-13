@@ -109,7 +109,7 @@ export const TOOLS: Tool[] = [
     kind: "multi-model panel",
     hue: "solo",
     gap: "asks itself for a second opinion",
-    fill: "Convenes a real panel of independent external models (Gemini · Codex · …) — a second opinion that isn’t the model grading itself.",
+    fill: "Convenes a real panel of independent external models (Antigravity · Codex · …) — a second opinion that isn’t the model grading itself.",
     cmd: "wicked-garden-jam",
     cmdLabel: "garden skill · council",
   },

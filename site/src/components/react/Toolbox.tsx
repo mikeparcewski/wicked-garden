@@ -65,7 +65,7 @@ function PatchDemo() {
 
 function CouncilDemo() {
   const models = [
-    { m: "gemini", v: "ship", ok: true },
+    { m: "antigravity", v: "ship", ok: true },
     { m: "codex", v: "ship", ok: true },
     { m: "claude", v: "blocks: race", ok: false },
   ];
