@@ -104,57 +104,15 @@ export default function ProveGate() {
 
   return (
     <div className="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
+      {/* ── the auto-playing gate — full width, across the top ── */}
       <Reveal>
-        <p className="kicker" style={{ color: "var(--accent)" }}>02 / the gate</p>
-        <h2 className="pg-h2">Play the lying agent. Watch the gate refuse.</h2>
-        <p className="pg-intro">
-          Garden’s one non-negotiable, made drivable. It plays itself — breaking the
-          evidence and re-stamping the verdict. Flip a switch or pull the lever to take
-          control: the gate re-derives the claim instead of taking your word for it.
-        </p>
-      </Reveal>
-
-      {/* persistent affordance — mirrors the toolbox: live state + how to take control */}
-      <div className="pg-afford" data-pinned={!auto}>
-        {auto ? (
-          <>
-            <span className="pg-afford-state pg-afford-live" aria-hidden>▶</span>
-            <span className="pg-afford-text">
-              auto-playing the gate — <b>flip a switch or pull the lever</b> to take control
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="pg-afford-state" aria-hidden>❚❚</span>
-            <span className="pg-afford-text">you’re driving the gate</span>
-            <button type="button" className="pg-afford-btn" onClick={resume}>
-              ▶ resume auto-play
-            </button>
-          </>
-        )}
-      </div>
-
-      <Reveal delay={0.06}>
-        <div className="pg-shell">
-          {/* the claim handed to the visitor */}
-          <div className="pg-claim">
-            <span className="pg-claim-tape" aria-hidden />
-            <div className="pg-claim-kind">claim card · archetype: build</div>
-            <div className="pg-claim-text"><b>build:</b> all acceptance tests pass</div>
-            <p className="pg-claim-note">
-              The agent stamped this “done.” The gate re-runs the verifier, re-hashes
-              the recording, and checks the vault is even there. Break a condition and
-              prove it can’t be fooled.
-            </p>
+        <div className="pg-machine pg-machine--wide">
+          <div className="pg-machine-head">
+            <span>evidence conditions</span>
+            <span>{verdict ? "gate: re-derived" : pulled ? "gate: re-deriving" : "gate: armed"}</span>
           </div>
 
-          {/* the machine */}
-          <div className="pg-machine">
-            <div className="pg-machine-head">
-              <span>evidence conditions</span>
-              <span>{verdict ? "gate: re-derived" : pulled ? "gate: re-deriving" : "gate: armed"}</span>
-            </div>
-
+          <div className="pg-machine-body">
             <div className="pg-switches">
               {CONDITIONS.map((c) => {
                 const on = state[c.id];
@@ -192,8 +150,55 @@ export default function ProveGate() {
                 )}
               </div>
             </div>
+          </div>
 
-            <button type="button" className="pg-reset" onClick={reset}>reset the bench</button>
+          <button type="button" className="pg-reset" onClick={reset}>reset the bench</button>
+        </div>
+      </Reveal>
+
+      {/* persistent affordance — live state + how to take control */}
+      <div className="pg-afford" data-pinned={!auto}>
+        {auto ? (
+          <>
+            <span className="pg-afford-state pg-afford-live" aria-hidden>▶</span>
+            <span className="pg-afford-text">
+              auto-playing the gate — <b>flip a switch or pull the lever</b> to take control
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="pg-afford-state" aria-hidden>❚❚</span>
+            <span className="pg-afford-text">you’re driving the gate</span>
+            <button type="button" className="pg-afford-btn" onClick={resume}>
+              ▶ resume auto-play
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* ── title/intro (left) + the claim it re-derives (right) ── */}
+      <Reveal delay={0.06}>
+        <div className="pg-shell">
+          <div className="pg-intro-col">
+            <p className="kicker" style={{ color: "var(--accent)" }}>02 / the gate</p>
+            <h2 className="pg-h2">Play the lying agent. Watch the gate refuse.</h2>
+            <p className="pg-intro">
+              Garden’s one non-negotiable, made drivable. It plays itself — breaking the
+              evidence and re-stamping the verdict. Flip a switch or pull the lever to take
+              control: the gate re-derives the claim instead of taking your word for it.
+            </p>
+          </div>
+
+          {/* the claim handed to the visitor */}
+          <div className="pg-claim">
+            <span className="pg-claim-tape" aria-hidden />
+            <div className="pg-claim-kind">claim card · archetype: build</div>
+            <div className="pg-claim-text"><b>build:</b> all acceptance tests pass</div>
+            <p className="pg-claim-note">
+              The agent stamped this “done.” The gate re-runs the verifier, re-hashes
+              the recording, and checks the vault is even there. Break a condition and
+              prove it can’t be fooled.
+            </p>
           </div>
         </div>
       </Reveal>
