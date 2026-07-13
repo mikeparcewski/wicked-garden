@@ -204,7 +204,12 @@ def _assert_unique_ids(*groups: Sequence[dict[str, Any]]) -> None:
     seen: set[str] = set()
     for group in groups:
         for item in group:
-            rid = item["id"]
+            # Fail closed with an actionable EmitError rather than a raw KeyError
+            # (contract: the assembler never leaks bare exceptions). Runs before
+            # the round-trip check, so every later item['id'] access is guarded too.
+            rid = item.get("id")
+            if rid is None:
+                raise EmitError("every business_rule / validation / error_path needs an 'id'")
             if rid in seen:
                 raise EmitError(f"duplicate id {rid} within a requirement")
             seen.add(rid)
