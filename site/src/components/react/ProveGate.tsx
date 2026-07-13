@@ -106,7 +106,11 @@ export default function ProveGate() {
     <div className="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
       {/* ── the auto-playing gate — full width, across the top ── */}
       <Reveal>
-        <div className="pg-machine pg-machine--wide">
+        <div
+          className="pg-machine pg-machine--wide"
+          role="group"
+          aria-label="Evidence gate — interactive demo: break a condition, pull PROVE, and watch the gate re-derive the verdict"
+        >
           <div className="pg-machine-head">
             <span>evidence conditions</span>
             <span>{verdict ? "gate: re-derived" : pulled ? "gate: re-deriving" : "gate: armed"}</span>
