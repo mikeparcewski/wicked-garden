@@ -54,9 +54,12 @@ export default function ProveGate() {
     timers.current = [];
   }
 
-  // Any hands-on interaction pins the gate — the visitor is now driving.
+  // Any hands-on interaction pins the gate — the visitor is now driving. Always
+  // cancel pending timers (auto-play AND a queued manual-pull re-stamp), so a
+  // flip/reset right after a pull can't fire a stale setVerdict over the reset.
   function takeControl() {
-    if (auto) { setAuto(false); clearTimers(); }
+    clearTimers();
+    if (auto) setAuto(false);
   }
 
   // Self-playing timeline: reset → break a condition → pull → re-stamp → next.
