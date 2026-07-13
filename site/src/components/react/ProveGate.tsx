@@ -86,7 +86,7 @@ export default function ProveGate() {
     takeControl();
     if (pulled) return;
     setPulled(true);
-    window.setTimeout(() => setVerdict(derive(state)), 460);
+    timers.current.push(window.setTimeout(() => setVerdict(derive(state)), 460));
   }
   function reset() {
     takeControl();
@@ -108,7 +108,7 @@ export default function ProveGate() {
       <Reveal>
         <div
           className="pg-machine pg-machine--wide"
-          role="group"
+          role="region"
           aria-label="Evidence gate — interactive demo: break a condition, pull PROVE, and watch the gate re-derive the verdict"
         >
           <div className="pg-machine-head">
