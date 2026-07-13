@@ -468,13 +468,27 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .pg-afford-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .pg-afford-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* below the full-width gate: title/intro on the left, the claim it re-derives on the right */
-.pg-shell {
-  margin-top: clamp(1.25rem, 3vw, 2rem);
-  display: grid; gap: clamp(18px, 3vw, 44px);
+/* The gate lays out as a grid-areas mosaic so DOM order (intro → machine →
+   afford → claim) can differ from desktop visual order. Desktop: machine full
+   width across the top, the afford bar under it, then title/intro (7fr) beside
+   the claim it re-derives (5fr). Mobile flattens to a single column that keeps
+   the DOM order — intro first, then the machine (see the ≤1000 rule). */
+.pg-outer {
+  display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-areas:
+    "machine machine"
+    "afford  afford"
+    "intro   claim";
+  column-gap: clamp(18px, 3vw, 44px);
   align-items: start;
 }
+.pg-a-intro   { grid-area: intro; min-width: 0; }
+.pg-a-machine { grid-area: machine; min-width: 0; }
+.pg-a-afford  { grid-area: afford; }
+.pg-a-claim   { grid-area: claim; min-width: 0; }
+/* the intro/claim row sits below the afford bar — restore the old shell gap */
+.pg-a-intro, .pg-a-claim { margin-top: clamp(1.25rem, 3vw, 2rem); }
 .pg-intro-col { align-self: start; min-width: 0; }
 /* the gate is now full width across the top: lay its switch-bank beside the lever/stamp */
 .pg-machine--wide .pg-machine-body {
@@ -699,17 +713,31 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 @media (max-width: 1000px) {
   .gd-hero-grid { grid-template-columns: 1fr; }
   .gd-hero-demo { max-width: 460px; }
+
+  /* TOOLBOX: single column, and put the STAGE (the playing demo + its spec)
+     FIRST so the content the visitor actually watches is up top, with the tool
+     picker directly beneath it — instead of a long rail burying the demo. */
   .tb-shell { grid-template-columns: 1fr; }
-  .pg-shell { grid-template-columns: 1fr; }
+  .tb-stage { order: -1; }
+
+  /* GATE: flatten to one column in DOM order — title/intro first, then the
+     machine, its affordance bar, and finally the claim card. */
+  .pg-outer {
+    grid-template-columns: 1fr;
+    grid-template-areas: "intro" "machine" "afford" "claim";
+  }
+  .pg-a-intro { margin-top: 0; }
+  .pg-a-machine, .pg-a-claim { margin-top: clamp(1rem, 3.5vw, 1.5rem); }
   .pg-machine--wide .pg-machine-body { grid-template-columns: 1fr; }
   .pg-claim { transform: none; }
+
   .cg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .cg-grid { grid-template-columns: 1fr; }
   .tb-afford { justify-content: flex-start; }
   .tb-afford-btn { margin-left: 0; }
-  .tb-stage-demo { min-height: 190px; padding: 18px; }
+  .tb-stage-demo { padding: 18px; }
   .tb-h2, .pg-h2, .cg-h2, .ib-h2 { font-size: clamp(1.7rem, 8vw, 2.4rem); }
   .gd-hero-h1 { font-size: clamp(2rem, 10vw, 3rem); }
   .pg-action { grid-template-columns: 1fr; }
@@ -719,5 +747,14 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   .pg-lever[data-pulled="true"] .pg-lever-knob { top: 50%; left: 22px; }
   .pg-lever-word { margin-top: 0; }
   .hs-card { transform: none; }
+
+  /* Viewport-scale the biggest fixed type in the demos/stamps so nothing
+     overflows a ~360px phone. Upper bounds equal today's desktop values, so
+     ≥640px rendering is byte-identical. */
+  .tb-stage-demo { min-height: clamp(170px, 26svh, 210px); }
+  .dm-prove-stamp { font-size: clamp(1.5rem, 8vw, 2rem); }
+  .dm-prove-claim { font-size: clamp(0.9rem, 4vw, 1.02rem); }
+  .tb-stage-name { font-size: clamp(1.05rem, 5vw, 1.22rem); }
+  .pg-mark-sub { max-width: none; }
   .gd-hero-stats { gap: 0.5rem 1.1rem; }
 }
