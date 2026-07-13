@@ -1,0 +1,224 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://wickedagile.com/schemas/domain-model/1.0.0",
+  "title": "wicked domain-model (v1.0.0)",
+  "description": "Canonical, GENERIC, config-driven domain model — the shared spine of the wicked domain-brain effort (estate GROUNDS, brain EQUIPS, garden STEERS, crew GOVERNS). Successor to anti-legacy's requirements-graph.enriched.schema.json with the COBOL/CICS-specific vocabulary genericized: miner kind-sets live in config.coverage.* (NOT hardcoded here), provenance is {source, ref, source_kinds} (not {source_app, program, ...}), and source_kinds uses the generic 'type-def' tier (not COBOL 'data-def'). HARD INVARIANTS preserved from the donor: every requirement carries the full field set; business_rules has minItems 1; every business rule carries a numeric confidence in [0,1] AND a provenance{source, ref, source_kinds}; disposition is keep|modify|drop|new; a 'drop' needs a disposition_reason to be honored by the coverage gate. Rule/Validation/ErrorPath items are OBJECT-ONLY (the transitional string form is not accepted). IDs are RULE-/VAL-/ERR- + 3-to-6-digit zero-padded, unique within a requirement; the canonical global key is legacy_component + '#' + id. A domain fact REFERENCES an estate SymbolId (in legacy_components / provenance.ref) and never embeds a copy of the symbol's code, name-uniqueness, file, or line. Every emitted document MUST carry metadata.schema_version = '1.0.0'; a consumer rejects a schema_version it has no validator for.",
+  "type": "object",
+  "required": ["domains", "metadata"],
+  "additionalProperties": false,
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "description": "Where a fact came from and how it is grounded. Generalized from the donor's {source_app, program, ref, source_kinds} to a repo/service-agnostic shape.",
+      "required": ["source", "ref", "source_kinds"],
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The origin unit the fact came from — repo / service / module (replaces COBOL source_app + program)."
+        },
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The specific reference within the source — file#anchor, symbol, or an estate SymbolId. A REFERENCE, never a copy of the symbol's structure."
+        },
+        "source_kinds": {
+          "type": "array",
+          "description": "The grounding tier of each fact. Generic enum (adapted from the donor SOURCE-KINDs): code-body = executable logic read directly; type-def = type/schema/struct/interface/DB-schema declaration (generalizes COBOL data-def); comment = inline prose; doc = README/external. TRUST RULE: a rule is 'trusted' only when grounded in code-body and/or type-def; resting on comment/doc alone makes it RISK-eligible.",
+          "items": {
+            "type": "string",
+            "enum": ["code-body", "type-def", "comment", "doc"]
+          }
+        }
+      }
+    },
+    "rule": {
+      "type": "object",
+      "description": "A single business rule. OBJECT-ONLY in v1.0.0. HARD INVARIANT (ISS-11): confidence is a REQUIRED number in [0,1] and provenance is REQUIRED — a confidence-less, non-numeric-confidence, or provenance-less rule is a hard validation failure, not a warning.",
+      "required": ["id", "statement", "confidence", "provenance"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^RULE-[0-9]{3,6}$" },
+        "statement": { "type": "string", "minLength": 1 },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "source_ref": { "type": "string" }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "description": "A single validation. OBJECT-ONLY. confidence and provenance stay OPTIONAL here (unlike business rules). error_ref is the intra-requirement join to an ErrorPath id (the round-trip check).",
+      "required": ["id", "statement"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^VAL-[0-9]{3,6}$" },
+        "statement": { "type": "string", "minLength": 1 },
+        "field": { "type": "string" },
+        "error_ref": { "type": "string", "pattern": "^ERR-[0-9]{3,6}$" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "errorPath": {
+      "type": "object",
+      "description": "A single error path. OBJECT-ONLY. confidence and provenance stay OPTIONAL. code is the return/status code surfaced.",
+      "required": ["id", "statement"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^ERR-[0-9]{3,6}$" },
+        "statement": { "type": "string", "minLength": 1 },
+        "code": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "entity": {
+      "type": "object",
+      "required": ["description", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "requirement": {
+      "type": "object",
+      "required": [
+        "title",
+        "description",
+        "legacy_components",
+        "data_access",
+        "dependencies",
+        "business_rules",
+        "validations",
+        "error_paths"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "legacy_components": {
+          "type": "array",
+          "description": "SYNONYM CLARIFICATION: `legacy_components` and `source_components` name the SAME concept — the estate SymbolIds / node names this requirement covers. v1.0.0 keeps the wire key `legacy_components` for zero-churn porting from the anti-legacy donor; `source_components` is the preferred name in prose and future majors. A conformant emitter writes the key `legacy_components`; a consumer that also accepts `source_components` MUST treat it as identical. Non-null, never dropped (may be empty but the key is always present). Each entry SHOULD resolve to an estate node name or SymbolId — a REFERENCE, not a copy of the symbol's code/file/line.",
+          "items": { "type": "string" }
+        },
+        "data_access": {
+          "type": "array",
+          "description": "Data resources touched — table / collection / store names (generic; was DB2/IMS).",
+          "items": { "type": "string" }
+        },
+        "dependencies": {
+          "type": "array",
+          "description": "Other requirement ids / external services.",
+          "items": { "type": "string" }
+        },
+        "business_rules": {
+          "type": "array",
+          "description": "HARD INVARIANT: minItems 1. A requirement with zero rules is a placeholder — mark status 'unresolvable' with a reason instead.",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/rule" }
+        },
+        "validations": {
+          "type": "array",
+          "description": "Required (may be empty).",
+          "items": { "$ref": "#/$defs/validation" }
+        },
+        "error_paths": {
+          "type": "array",
+          "description": "Required (may be empty).",
+          "items": { "$ref": "#/$defs/errorPath" }
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "review", "unresolvable"]
+        },
+        "disposition": {
+          "type": "string",
+          "enum": ["keep", "modify", "drop", "new"],
+          "description": "HARD INVARIANT. Merge+reimagine disposition of this requirement relative to the target state. A 'drop' WITH a disposition_reason is excluded from the round-trip rule-coverage gate; a 'drop' WITHOUT a reason is NOT honored and still counts against coverage."
+        },
+        "disposition_reason": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Why this requirement carries its disposition. MANDATORY for 'drop' to be honored by the coverage gate — a reason-less drop cannot launder past GATE_3. Enforced by an if/then conditional on this object: disposition == 'drop' requires a non-empty disposition_reason."
+        },
+        "merged_programs": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "if": {
+        "properties": { "disposition": { "const": "drop" } },
+        "required": ["disposition"]
+      },
+      "then": {
+        "required": ["disposition_reason"]
+      }
+    },
+    "domain": {
+      "type": "object",
+      "required": ["requirements", "entities"],
+      "additionalProperties": false,
+      "properties": {
+        "requirements": {
+          "type": "object",
+          "description": "Keys = requirement ids; values = Requirement.",
+          "additionalProperties": { "$ref": "#/$defs/requirement" }
+        },
+        "entities": {
+          "type": "object",
+          "description": "Keys = entity names; values = Entity.",
+          "additionalProperties": { "$ref": "#/$defs/entity" }
+        },
+        "description": {
+          "type": "string",
+          "description": "Human label for the domain (new, generic)."
+        },
+        "cluster_id": {
+          "type": "integer",
+          "description": "The estate Louvain community index this domain was derived from. Advisory provenance only — NOT authoritative."
+        }
+      }
+    }
+  },
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["schema_version", "migration_mode"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0.0",
+          "description": "The bundle semver. Every emitted document MUST carry this; a consumer rejects a schema_version it has no validator for (no silent best-effort)."
+        },
+        "migration_mode": {
+          "type": "string",
+          "enum": ["structural", "functional"],
+          "description": "functional = capability-grouped (the default); structural = 1:1."
+        },
+        "source": {
+          "type": "string",
+          "description": "The repo/service the model was mined from (optional)."
+        }
+      }
+    },
+    "domains": {
+      "type": "object",
+      "description": "REQUIRED. Keys are domain slugs; each value is a Domain.",
+      "additionalProperties": { "$ref": "#/$defs/domain" }
+    }
+  }
+}

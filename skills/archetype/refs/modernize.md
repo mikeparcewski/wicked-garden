@@ -91,6 +91,20 @@ Discover it the usual way — and consider
 2. These extracted rules become the parity oracle: the new stack must satisfy the
    same rules. Pin each rule so the parity phase has a bar to check.
 
+**Domain-model extraction (the Domain-Brain path).** When the estate is graphed
+in **wicked-estate** and the goal is a shared, gate-able domain model — not just
+a local rule list — drive the **`wicked-garden-modernize`** router instead. It
+STEERS three fork workers that emit a document conforming to
+`@wicked/domain-model-schema@1.0.0` (vendored at
+`skills/modernize/vendor/domain-model.schema.json`): **modernize-extractor**
+(business rules with confidence + provenance → estate `requirement`
+annotations), **modernize-translator** (cluster → domain, drives
+`wicked-brain-domain`), **modernize-antagonist** (pre-build threat model). The
+document is the only thing that crosses repo lines (plus SymbolId strings): brain
+validates + stores it, crew gates on coverage. Garden clears no gate here — it is
+advisory steering; the coverage terminal is crew's. See
+`skills/modernize/SKILL.md`.
+
 ### blueprint
 
 1. Decide the **target-state architecture** with `code-modernization:modernize-reimagine`
