@@ -468,10 +468,18 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .pg-afford-btn:hover { transform: translateY(-1px); filter: brightness(1.05); }
 .pg-afford-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* below the full-width gate: title/intro on the left, the claim it re-derives on the right */
 .pg-shell {
-  margin-top: 1rem;
-  display: grid; gap: clamp(18px, 3vw, 40px);
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  margin-top: clamp(1.25rem, 3vw, 2rem);
+  display: grid; gap: clamp(18px, 3vw, 44px);
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: start;
+}
+.pg-intro-col { align-self: start; min-width: 0; }
+/* the gate is now full width across the top: lay its switch-bank beside the lever/stamp */
+.pg-machine--wide .pg-machine-body {
+  display: grid; gap: clamp(18px, 3.5vw, 48px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
 }
 .pg-claim {
@@ -693,6 +701,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   .gd-hero-demo { max-width: 460px; }
   .tb-shell { grid-template-columns: 1fr; }
   .pg-shell { grid-template-columns: 1fr; }
+  .pg-machine--wide .pg-machine-body { grid-template-columns: 1fr; }
   .pg-claim { transform: none; }
   .cg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
