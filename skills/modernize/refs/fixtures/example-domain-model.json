@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "schema_version": "1.0.0",
+    "migration_mode": "functional",
+    "source": "acme-billing-legacy"
+  },
+  "domains": {
+    "billing": {
+      "requirements": {
+        "REQ-BILL-LATEFEE": {
+          "title": "Assess late fee on overdue invoices",
+          "description": "Invoices unpaid past the grace window accrue a late fee.",
+          "legacy_components": [
+            "sym::billing::Invoice.assessLateFee::a1",
+            "sym::billing::LateFee.calc::a3"
+          ],
+          "data_access": [
+            "invoices",
+            "fee_schedule"
+          ],
+          "dependencies": [
+            "REQ-BILL-CLOSE"
+          ],
+          "business_rules": [
+            {
+              "id": "RULE-001",
+              "statement": "Invoices more than 30 days overdue accrue a 1.5% monthly late fee.",
+              "confidence": 0.86,
+              "provenance": {
+                "source": "acme-billing-legacy",
+                "ref": "sym::billing::LateFee.calc::a3",
+                "source_kinds": [
+                  "code-body"
+                ]
+              },
+              "source_ref": "src/billing/late_fee.py#L40"
+            },
+            {
+              "id": "RULE-002",
+              "statement": "The late fee is capped at 25% of the original invoice amount.",
+              "confidence": 0.72,
+              "provenance": {
+                "source": "acme-billing-legacy",
+                "ref": "sym::billing::LateFee.calc::a3",
+                "source_kinds": [
+                  "code-body",
+                  "comment"
+                ]
+              }
+            }
+          ],
+          "validations": [
+            {
+              "id": "VAL-001",
+              "statement": "Invoice amount must be positive.",
+              "field": "amount_due",
+              "error_ref": "ERR-001"
+            }
+          ],
+          "error_paths": [
+            {
+              "id": "ERR-001",
+              "statement": "Reject fee assessment when amount_due <= 0.",
+              "code": "422"
+            }
+          ],
+          "status": "active",
+          "disposition": "keep"
+        },
+        "REQ-BILL-CLOSE": {
+          "title": "Close a fully-paid invoice",
+          "description": "An invoice with zero balance transitions to closed.",
+          "legacy_components": [
+            "sym::billing::Invoice.close::a2"
+          ],
+          "data_access": [
+            "invoices"
+          ],
+          "dependencies": [],
+          "business_rules": [
+            {
+              "id": "RULE-001",
+              "statement": "An invoice closes automatically once amount_due reaches zero.",
+              "confidence": 0.91,
+              "provenance": {
+                "source": "acme-billing-legacy",
+                "ref": "sym::billing::Invoice.close::a2",
+                "source_kinds": [
+                  "code-body",
+                  "type-def"
+                ]
+              }
+            }
+          ],
+          "validations": [],
+          "error_paths": [],
+          "status": "active",
+          "disposition": "modify"
+        },
+        "REQ-BILL-DUNNING": {
+          "title": "Nightly paper dunning letter batch",
+          "description": "Legacy overnight batch printed paper overdue notices.",
+          "legacy_components": [
+            "sym::payments::Charge.entity::b3"
+          ],
+          "data_access": [
+            "invoices"
+          ],
+          "dependencies": [],
+          "business_rules": [
+            {
+              "id": "RULE-001",
+              "statement": "Overdue invoices generated a mailed paper dunning letter nightly.",
+              "confidence": 0.64,
+              "provenance": {
+                "source": "acme-billing-legacy",
+                "ref": "sym::payments::Charge.entity::b3",
+                "source_kinds": [
+                  "doc"
+                ]
+              }
+            }
+          ],
+          "validations": [],
+          "error_paths": [],
+          "status": "review",
+          "disposition": "drop",
+          "disposition_reason": "Paper dunning is replaced by the email notification service in the target; no parity obligation."
+        }
+      },
+      "entities": {
+        "Invoice": {
+          "description": "A customer invoice.",
+          "fields": [
+            {
+              "name": "invoice_id",
+              "type": "string",
+              "description": "Unique invoice key."
+            },
+            {
+              "name": "amount_due",
+              "type": "decimal",
+              "description": "Outstanding balance."
+            },
+            {
+              "name": "status",
+              "type": "string",
+              "description": "open | closed | void."
+            }
+          ]
+        }
+      },
+      "description": "Billing and invoice lifecycle",
+      "cluster_id": 0
+    },
+    "payments": {
+      "requirements": {
+        "REQ-PAY-CHARGE": {
+          "title": "Charge a payment method",
+          "description": "Authorize and capture a charge against a saved method.",
+          "legacy_components": [
+            "sym::payments::Payment.charge::b1"
+          ],
+          "data_access": [
+            "payments",
+            "payment_methods"
+          ],
+          "dependencies": [
+            "REQ-BILL-LATEFEE"
+          ],
+          "business_rules": [
+            {
+              "id": "RULE-001",
+              "statement": "A charge is declined if the payment method is expired.",
+              "confidence": 0.88,
+              "provenance": {
+                "source": "acme-billing-legacy",
+                "ref": "sym::payments::Payment.charge::b1",
+                "source_kinds": [
+                  "code-body",
+                  "type-def"
+                ]
+              }
+            }
+          ],
+          "validations": [
+            {
+              "id": "VAL-001",
+              "statement": "Charge amount must be > 0.",
+              "field": "amount"
+            }
+          ],
+          "error_paths": [
+            {
+              "id": "ERR-001",
+              "statement": "Return DECLINED on expired method.",
+              "code": "402"
+            }
+          ],
+          "status": "active",
+          "disposition": "keep"
+        }
+      },
+      "entities": {
+        "Payment": {
+          "description": "A payment attempt.",
+          "fields": [
+            {
+              "name": "payment_id",
+              "type": "string",
+              "description": "Unique payment key."
+            },
+            {
+              "name": "amount",
+              "type": "decimal",
+              "description": "Charged amount."
+            }
+          ]
+        }
+      },
+      "description": "Payment authorization and settlement",
+      "cluster_id": 1
+    }
+  }
+}

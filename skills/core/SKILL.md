@@ -83,6 +83,7 @@ Each domain is one consolidated skill that routes to its actions.
 | `wicked-garden-data` | Data analysis, pipelines, ML, and ontology recommendations | analyze · pipeline · ml · ontology |
 | `wicked-garden-engineering` | Architecture, code review, debugging, docs, planning, and deterministic multi-file code transformations | review · debug · arch · plan · apply |
 | `wicked-garden-jam` | Multi-model brainstorming + structured council (independent second opinion) | council · brainstorm · quick · revisit |
+| `wicked-garden-modernize` | Extract a schema-conformant domain model from a legacy estate (business rules + provenance, cluster→domain, pre-build threat model) — the modernize archetype's Domain-Brain path | extractor · translator · antagonist |
 | `wicked-garden-persona` | Define and invoke named personas to perform work with a specific lens | as · define · list |
 | `wicked-garden-platform` | Security, infrastructure, compliance, CI/CD, incidents, traces, and plugin diagnostics | security · compliance · incident · health |
 | `wicked-garden-product` | Requirements, customer feedback, strategy, UX, accessibility, and design review | elicit · acceptance · analyze · strategy · ux-review |
