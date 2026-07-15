@@ -206,6 +206,12 @@ def test_read_annotations_rejects_unexpected_array_shape(monkeypatch):
         est.read_annotations("sym::b::A::a1")
 
 
+def test_read_annotations_rejects_non_list_annotations_field(monkeypatch):
+    est, _ = _cli_estate(monkeypatch, json_return={"symbol": "x", "annotations": None})
+    with pytest.raises(RuntimeError, match="'annotations' is NoneType, expected a list"):
+        est.read_annotations("sym::b::A::a1")
+
+
 def test_find_by_annotation_is_unsupported_on_the_cli(monkeypatch):
     est, _ = _cli_estate(monkeypatch)
     with pytest.raises(NotImplementedError):

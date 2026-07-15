@@ -105,16 +105,20 @@ def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     try:
         # encoding="utf-8" pins decoding of the Rust binaries' UTF-8 output; bare
         # text=True would use the active code page on Windows (mojibake/errors).
+        # stdin=DEVNULL: these CLIs never prompt, but inheriting the parent stdin
+        # would stall to the timeout if one ever did (keep the "bounded" contract).
         return subprocess.run(
             argv, capture_output=True, text=True, encoding="utf-8",
-            timeout=_DEFAULT_TIMEOUT,
+            stdin=subprocess.DEVNULL, timeout=_DEFAULT_TIMEOUT,
         )
     except FileNotFoundError as e:
         raise RuntimeError(f"{argv[0]} not found or not executable: {e}") from e
-    except OSError as e:
-        raise RuntimeError(f"{argv[0]} could not be executed: {e}") from e
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(f"{argv[0]} exceeded {_DEFAULT_TIMEOUT}s: {argv[1:]!r}") from e
+    except ValueError as e:  # invalid UTF-8 in the peer's stdout/stderr
+        raise RuntimeError(f"{argv[0]} produced undecodable (non-UTF-8) output: {e}") from e
+    except OSError as e:
+        raise RuntimeError(f"{argv[0]} could not be executed: {e}") from e
 
 
 def _run_json(argv: list[str]) -> Any:
@@ -269,13 +273,21 @@ class CliEstateClient:
         # nothing and yields [] silently). `--symbol` returns the single-symbol shape
         # `{ "symbol": ..., "annotations": [...] }`.
         data = _run_json(self._argv("annotations", "--symbol", symbol_id, "--json"))
-        if isinstance(data, dict):
-            return data.get("annotations", [])
-        # Defensive: an unexpected array shape is a contract break, not a silent [].
-        raise RuntimeError(
-            f"wicked-estate annotations --symbol returned {type(data).__name__}, "
-            "expected the single-symbol object {symbol, annotations[]}"
-        )
+        # Fail LOUD on any shape other than {..., annotations: [...]}. A silent []
+        # (missing key, or annotations set to null/object) would read as "no
+        # annotations" and mask a contract break.
+        if not isinstance(data, dict):
+            raise RuntimeError(
+                f"wicked-estate annotations --symbol returned {type(data).__name__}, "
+                "expected the single-symbol object {symbol, annotations[]}"
+            )
+        anns = data.get("annotations")
+        if not isinstance(anns, list):
+            raise RuntimeError(
+                f"wicked-estate annotations --symbol: 'annotations' is "
+                f"{type(anns).__name__}, expected a list"
+            )
+        return anns
 
     def find_by_annotation(self, key: str, value: str | None = None) -> list[str]:
         # The real extraction flow does not use a reverse annotation lookup (the
