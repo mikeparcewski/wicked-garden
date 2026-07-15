@@ -164,6 +164,25 @@ def test_read_clusters_threads_the_min_filter(monkeypatch):
     assert argv[:3] == ["wicked-estate", "clusters", "5"]
 
 
+def test_resolve_fails_loud_on_non_list_shape(monkeypatch):
+    # A dict/None where the CLI contract is a JSON array must RAISE, not fail-open
+    # to [] (which would look like "zero hits" and let a write silently no-op).
+    est, _ = _cli_estate(monkeypatch, json_return={"unexpected": "shape"})
+    with pytest.raises(RuntimeError, match="expected a JSON array of hit objects"):
+        est.resolve("charge")
+
+
+def test_read_clusters_fails_loud_on_non_list_shape(monkeypatch):
+    est, _ = _cli_estate(monkeypatch, json_return={"clusters": []})
+    with pytest.raises(RuntimeError, match="expected a JSON array of community objects"):
+        est.read_clusters()
+
+
+def test_read_output_json_fails_loud_on_missing_file(tmp_path):
+    with pytest.raises(RuntimeError, match="wrote no output file"):
+        _clients._read_output_json(str(tmp_path / "absent.json"), "wicked-core coverage")
+
+
 def test_read_annotations_uses_symbol_flag_not_positional(monkeypatch):
     est, cap = _cli_estate(monkeypatch, json_return={"symbol": "sym::b::A::a1",
                                                      "annotations": [{"key": "RULE-1"}]})

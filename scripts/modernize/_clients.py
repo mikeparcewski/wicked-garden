@@ -103,8 +103,11 @@ _DEFAULT_TIMEOUT = 120
 def _invoke(argv: list[str]) -> subprocess.CompletedProcess:
     """Run ``argv`` (argv list, never a shell string), bounded + fail-loud."""
     try:
+        # encoding="utf-8" pins decoding of the Rust binaries' UTF-8 output; bare
+        # text=True would use the active code page on Windows (mojibake/errors).
         return subprocess.run(
-            argv, capture_output=True, text=True, timeout=_DEFAULT_TIMEOUT
+            argv, capture_output=True, text=True, encoding="utf-8",
+            timeout=_DEFAULT_TIMEOUT,
         )
     except FileNotFoundError as e:
         raise RuntimeError(f"{argv[0]} not found or not executable: {e}") from e
@@ -146,6 +149,24 @@ def _looks_like_symbol_id(value: str) -> bool:
     return isinstance(value, str) and value.startswith("sym::") and "::" in value[5:]
 
 
+def _read_output_json(out: str, cmd: str) -> Any:
+    """Read + parse a CLI's ``--out`` file. A 0-exit that produced no file (or a
+    non-UTF-8/invalid one) is a contract break — fail LOUD with a descriptive
+    error, never a raw FileNotFoundError/UnicodeDecodeError. encoding is pinned
+    so a Windows code page can't corrupt the read."""
+    path = Path(out)
+    if not path.exists():
+        raise RuntimeError(f"{cmd} exited 0 but wrote no output file at {out!r}")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, ValueError) as e:  # ValueError = UnicodeDecodeError
+        raise RuntimeError(f"{cmd} output {out!r} could not be read: {e}") from e
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"{cmd} output {out!r} is not JSON: {e}") from e
+
+
 # --- estate (the frozen read/write surface, CLI-backed) ----------------------
 
 class CliEstateClient:
@@ -180,7 +201,14 @@ class CliEstateClient:
             argv.append(str(int(params["min"])))
         argv += ["--json", "--summary", "--db", self._db]
         data = _run_json(argv)
-        return data if isinstance(data, list) else data.get("clusters", [])
+        # `clusters --json --summary` emits a JSON ARRAY of community objects. Any
+        # other shape is a contract break — fail loud, never a silent [].
+        if not isinstance(data, list):
+            raise RuntimeError(
+                f"wicked-estate clusters returned {type(data).__name__}, expected a "
+                "JSON array of community objects"
+            )
+        return data
 
     def resolve(self, name: str, file: str | None = None,
                 kind: str | None = None) -> list[str]:
@@ -190,7 +218,14 @@ class CliEstateClient:
         if kind is not None:
             argv += ["--kind", kind]
         hits = _run_json(argv)
-        # Object array -> pull each SymbolId.
+        # `resolve --json` emits a JSON ARRAY of hit objects (possibly empty). A
+        # non-list shape is a contract break — fail loud, NOT a fail-open [] that
+        # looks like "zero hits" and lets a downstream write silently no-op.
+        if not isinstance(hits, list):
+            raise RuntimeError(
+                f"wicked-estate resolve returned {type(hits).__name__}, expected a "
+                "JSON array of hit objects"
+            )
         return [h["symbol_id"] for h in hits if isinstance(h, dict) and h.get("symbol_id")]
 
     def annotate(self, symbol_id: str, type: str, key: str, value: str,
@@ -269,7 +304,7 @@ class CliCoreClient:
         """Emit the store's front-half coverage report to ``out`` and return it.
         Optional — ``domain_graph`` recomputes coverage internally."""
         _run([*self._bin, "coverage", "--db", db, "--out", out])
-        return json.loads(Path(out).read_text())
+        return _read_output_json(out, "wicked-core coverage")
 
     def domain_graph(self, db: str, out: str,
                      coverage: str | None = None) -> dict[str, Any]:
@@ -281,7 +316,7 @@ class CliCoreClient:
         if coverage is not None:
             argv += ["--coverage", coverage]
         _run(argv)
-        return json.loads(Path(out).read_text())
+        return _read_output_json(out, "wicked-core domain-graph")
 
 
 # --- factories ---------------------------------------------------------------
