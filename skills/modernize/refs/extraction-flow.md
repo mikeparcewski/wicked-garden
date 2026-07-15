@@ -43,9 +43,10 @@ symbol structure**. On the real CLI each field is a **separate argument** — th
 is no pipe-packed string:
 
 1. **Native projection into estate** (so estate queries see it): a typed
-   annotation — `annotate(symbol_id, type="business_rule"` (RESOLVED, at/above the
-   confidence threshold) or `"risk"` (below threshold)`, key=<rule_id>,
-   value=<statement>, confidence=<c>, provenance=<p>, replace=True)`.
+   annotation `annotate(symbol_id, type=<t>, key=<rule_id>, value=<statement>,
+   confidence=<c>, provenance=<p>, replace=True)`, where `type` is
+   `"business_rule"` when the rule is RESOLVED (confidence at/above the threshold)
+   or `"risk"` when it is below threshold.
 2. **The canonical requirement link**: `set_requirement(symbol_id,
    requirement=<statement>, validated=<resolved>)` (`semantics`). This is what the
    later `wicked-core domain-graph` read counts toward front-half coverage.

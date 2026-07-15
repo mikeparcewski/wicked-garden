@@ -238,8 +238,11 @@ def test_core_domain_graph_shells_and_returns_the_parsed_doc(monkeypatch, tmp_pa
 
 def _bin(env, package):
     import os
-    val = os.environ.get(env, "").strip()
-    return val or shutil.which(package)
+    # Mirror _resolve_bin's kill-switch: a set-but-empty env var forces "no
+    # binary" (skip the integration lane), NOT a PATH fallback.
+    if env in os.environ:
+        return os.environ[env].strip() or None
+    return shutil.which(package)
 
 
 _ESTATE = _bin("WICKED_ESTATE_BIN", "wicked-estate")
