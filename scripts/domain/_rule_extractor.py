@@ -72,35 +72,35 @@ def _build_prompt(batch: list[dict[str, Any]]) -> str:
 
 def _extract_json_array(text: str) -> list[Any]:
     """Pull the outermost JSON array from the model's stdout (it may wrap it in
-    prose or a code fence). Uses bracket-matching from the last ']' to avoid being
-    fooled by conversational brackets in prefix prose. Fail-loud if none is parseable."""
+    prose or a code fence). Tries each candidate ']' from right to left so suffix
+    prose brackets like `[Note: …]` don't shadow the real array. Fail-loud if none
+    is parseable."""
     s = text.strip()
     if s.startswith("```"):
         parts = s.split("```")
         if len(parts) >= 2:
             inner = parts[1]
             s = inner[4:] if inner.startswith("json") else inner
-    end = s.rfind("]")
-    if end == -1:
-        raise RuntimeError(f"model output has no JSON array: {text[:200]!r}")
-    depth, start = 0, -1
-    for i in range(end, -1, -1):
-        if s[i] == "]":
-            depth += 1
-        elif s[i] == "[":
-            depth -= 1
-            if depth == 0:
-                start = i
-                break
-    if start == -1:
-        raise RuntimeError(f"model output has no matched JSON array: {text[:200]!r}")
-    return json.loads(s[start:end + 1])
-
-
-def _looks_like_symbol_id(value: Any) -> bool:
-    return isinstance(value, str) and value.startswith("sym::") or (
-        isinstance(value, str) and "::" in value
-    )
+    # Scan ALL ']' positions right-to-left; stop at the first that yields a valid array.
+    for end in range(len(s) - 1, -1, -1):
+        if s[end] != "]":
+            continue
+        depth, start = 0, -1
+        for i in range(end, -1, -1):
+            if s[i] == "]":
+                depth += 1
+            elif s[i] == "[":
+                depth -= 1
+                if depth == 0:
+                    start = i
+                    break
+        if start == -1:
+            continue
+        try:
+            return json.loads(s[start:end + 1])
+        except json.JSONDecodeError:
+            continue
+    raise RuntimeError(f"model output has no parseable JSON array: {text[:200]!r}")
 
 
 def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
@@ -118,8 +118,9 @@ def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
     if not isinstance(conf, (int, float)) or isinstance(conf, bool) or not (0.0 <= conf <= 1.0):
         return False, f"confidence {conf!r} not a number in [0,1] (ISS-11)"
     prov = rule.get("provenance")
-    if not isinstance(prov, dict) or not prov.get("source") or not prov.get("ref"):
-        return False, "missing provenance{source,ref}"
+    if not isinstance(prov, dict) or not isinstance(prov.get("source"), str) or not prov["source"] or \
+            not isinstance(prov.get("ref"), str) or not prov["ref"]:
+        return False, "missing provenance{source,ref} (must be non-empty strings)"
     kinds = prov.get("source_kinds")
     if not isinstance(kinds, list) or not kinds:
         return False, "missing provenance.source_kinds"
