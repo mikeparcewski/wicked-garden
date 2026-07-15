@@ -174,8 +174,12 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
 
 
 def main(argv: list[str] | None = None) -> int:
+    import os
     ap = argparse.ArgumentParser(description="Deterministic extraction harness (model-adjunct per node).")
-    ap.add_argument("--db", required=True, help="estate store path")
+    # Default to the run's store the governance env already sets, so a crew-dispatched
+    # agent can just run the harness without threading the path.
+    ap.add_argument("--db", default=os.environ.get("WICKED_ESTATE_DB"),
+                    help="estate store path (default: $WICKED_ESTATE_DB)")
     ap.add_argument("--time-budget", type=float, default=780.0, help="seconds this pass may run (default 780)")
     ap.add_argument("--limit", type=int, default=0, help="max nodes this pass (0 = unbounded within time budget)")
     ap.add_argument("--batch", type=int, default=12, help="framed nodes per model call")
