@@ -23,6 +23,8 @@ from typing import Any
 # A generous per-batch ceiling; a hung/slow model must never wedge the loop.
 _MODEL_TIMEOUT = 180
 
+_VALID_SOURCE_KINDS = frozenset({"code-body", "type-def", "comment", "doc"})
+
 _PROMPT_HEADER = (
     "You extract testable BUSINESS RULES from legacy code. For each CODE UNIT below, "
     "state the single business rule it encodes — what the business requires, not how "
@@ -70,16 +72,28 @@ def _build_prompt(batch: list[dict[str, Any]]) -> str:
 
 def _extract_json_array(text: str) -> list[Any]:
     """Pull the outermost JSON array from the model's stdout (it may wrap it in
-    prose or a code fence). Fail-loud if none is parseable."""
+    prose or a code fence). Uses bracket-matching from the last ']' to avoid being
+    fooled by conversational brackets in prefix prose. Fail-loud if none is parseable."""
     s = text.strip()
-    # Strip a leading ```json / ``` fence if present.
     if s.startswith("```"):
-        s = s.split("```", 2)[1] if s.count("```") >= 2 else s
-        if s.startswith("json"):
-            s = s[4:]
-    start, end = s.find("["), s.rfind("]")
-    if start == -1 or end == -1 or end < start:
+        parts = s.split("```")
+        if len(parts) >= 2:
+            inner = parts[1]
+            s = inner[4:] if inner.startswith("json") else inner
+    end = s.rfind("]")
+    if end == -1:
         raise RuntimeError(f"model output has no JSON array: {text[:200]!r}")
+    depth, start = 0, -1
+    for i in range(end, -1, -1):
+        if s[i] == "]":
+            depth += 1
+        elif s[i] == "[":
+            depth -= 1
+            if depth == 0:
+                start = i
+                break
+    if start == -1:
+        raise RuntimeError(f"model output has no matched JSON array: {text[:200]!r}")
     return json.loads(s[start:end + 1])
 
 
@@ -109,6 +123,9 @@ def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
     kinds = prov.get("source_kinds")
     if not isinstance(kinds, list) or not kinds:
         return False, "missing provenance.source_kinds"
+    invalid = [k for k in kinds if not isinstance(k, str) or k not in _VALID_SOURCE_KINDS]
+    if invalid:
+        return False, f"invalid source_kinds {invalid!r} (expected subset of {sorted(_VALID_SOURCE_KINDS)})"
     return True, "ok"
 
 

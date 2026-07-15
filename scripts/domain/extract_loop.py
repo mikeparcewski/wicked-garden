@@ -26,6 +26,7 @@ persisted); non-zero only on a genuine harness/contract failure (fail-loud).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import sys
 import time
 from pathlib import Path
@@ -66,7 +67,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
     (validated=False) + a risk annotation — either way the node is ACCOUNTED, so the
     RISK-floor guarantees coverage completeness."""
-    rid = "RULE-%s" % (abs(hash(sid)) % 1000000)
+    rid = "RULE-%s" % hashlib.sha256(sid.encode()).hexdigest()[:12]
     if resolved and rule:
         stmt = rule["statement"]
         estate.annotate(sid, type="business_rule", key=rid, value=stmt,
@@ -89,6 +90,8 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
 
 def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         project_dir: Path | None = None) -> int:
+    if not db:
+        raise RuntimeError("--db / $WICKED_ESTATE_DB is required but was not provided")
     estate = _clients.estate_client(db=db, project_dir=project_dir)
     core = _clients.core_client(project_dir=project_dir)
     if core is None:
@@ -137,7 +140,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         for n in take:
             sid, name = n["symbol_id"], n.get("name", "")
             try:
-                slice_txt = estate.source(name)[:4000] if not dry_run else ""
+                slice_txt = estate.source(sid)[:4000] if not dry_run else ""
             except Exception:
                 slice_txt = ""
             framed.append(_rule_extractor.frame_context(n, slice_txt,
@@ -185,6 +188,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--batch", type=int, default=12, help="framed nodes per model call")
     ap.add_argument("--dry-run", action="store_true", help="deterministic stub instead of the model (zero cost)")
     args = ap.parse_args(argv)
+    if not args.db:
+        ap.error("--db is required (or set $WICKED_ESTATE_DB)")
     return run(args.db, time_budget=args.time_budget, limit=args.limit,
                batch=args.batch, dry_run=args.dry_run)
 
