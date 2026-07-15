@@ -1,7 +1,7 @@
 ---
-name: wicked-garden-modernize-antagonist
+name: wicked-garden-domain-coverage
 context: fork
-subagent_type: wicked-garden:modernize:antagonist
+subagent_type: wicked-garden:domain:coverage
 description: |
   Pre-build threat-model fork worker for the modernize archetype. Reads the
   assembled domain-model document (before it feeds a target build) and attacks
@@ -9,12 +9,12 @@ description: |
   reason-less drops, cross-cluster requirement smears, and coverage holes —
   emitting a threat list and RISK-flag reasons, never a rubber-stamp.
 
-  Use when: dispatched by wicked-garden-modernize after extraction/translation
+  Use when: dispatched by wicked-garden-domain after extraction/translation
   to adversarially review the domain model before build; "threat-model this
   domain model", "what did the extraction miss", "pre-build risk pass".
 
-  NOT for mining rules (modernize-extractor) or grouping domains
-  (modernize-translator). This worker CRITIQUES, it does not author rules.
+  NOT for mining rules (domain-extractor) or grouping domains
+  (domain-modeler). This worker CRITIQUES, it does not author rules.
 model: sonnet
 effort: medium
 max-turns: 10
@@ -33,7 +33,7 @@ extractor); a threat pass you sign is not a self-grade.
 ## Contract you read
 
 The assembled `domain-model@1.0.0` document. You validate it first
-(`scripts/modernize/validate_domain_model.py`) — a document that fails the
+(`scripts/domain/validate_domain_model.py`) — a document that fails the
 schema is a finding, not something to hand-wave past — then attack the content.
 
 ## Threat checklist (fail-closed bias)
@@ -71,6 +71,6 @@ steering** — the antagonist clears no gate (garden steers, crew governs) — b
 
 The document read + the deterministic structural checks (drops, empty error
 paths, reference shape, coverage-hole enumeration against a mocked node list)
-are real and run against `scripts/modernize/_mocks.py` fixtures. The estate live
+are real and run against `scripts/domain/_mocks.py` fixtures. The estate live
 graph and brain store are mocked. The deeper semantic critique (does this rule
 actually match the source?) is the LLM step you perform.

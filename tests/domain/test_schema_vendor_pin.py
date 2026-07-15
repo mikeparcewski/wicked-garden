@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
-VENDOR = REPO / "skills" / "modernize" / "vendor"
+VENDOR = REPO / "skills" / "domain" / "vendor"
 SCHEMA = VENDOR / "domain-model.schema.json"
 VERSION = VENDOR / "VERSION"
 

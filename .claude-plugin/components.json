@@ -21,6 +21,10 @@
     "data": ["data"],
     "data-engineer": ["data-engineer"],
     "deliberate": ["deliberate"],
+    "domain": ["domain"],
+    "domain-coverage": ["domain-coverage"],
+    "domain-extractor": ["domain-extractor"],
+    "domain-modeler": ["domain-modeler"],
     "engineering": ["architecture", "backend", "debugging", "docs", "engineering", "frontend", "integration", "large-scale-migration", "patch", "system-design", "unit-test-quality"],
     "engineering-api-documentarian": ["engineering-api-documentarian"],
     "engineering-migration-engineer": ["engineering-migration-engineer"],
@@ -30,10 +34,6 @@
     "jam": ["jam"],
     "jam-brainstorm-facilitator": ["jam-brainstorm-facilitator"],
     "jam-council": ["jam-council"],
-    "modernize": ["modernize"],
-    "modernize-antagonist": ["modernize-antagonist"],
-    "modernize-extractor": ["modernize-extractor"],
-    "modernize-translator": ["modernize-translator"],
     "multi-model": ["multi-model"],
     "persona": ["persona"],
     "persona-agent": ["persona-agent"],
@@ -57,7 +57,7 @@
     "workflow": ["workflow"],
     "worktrees": ["worktrees"]
   },
-  "fork_skills": ["wicked-garden-agentic-architect", "wicked-garden-agentic-performance-analyst", "wicked-garden-agentic-safety-reviewer", "wicked-garden-archetype", "wicked-garden-classify", "wicked-garden-crew-implementer", "wicked-garden-crew-researcher", "wicked-garden-crew-reviewer", "wicked-garden-data-engineer", "wicked-garden-engineering-api-documentarian", "wicked-garden-engineering-debugging", "wicked-garden-engineering-migration-engineer", "wicked-garden-engineering-solution-architect", "wicked-garden-ground", "wicked-garden-integration-discovery", "wicked-garden-jam-brainstorm-facilitator", "wicked-garden-jam-council", "wicked-garden-modernize-antagonist", "wicked-garden-modernize-extractor", "wicked-garden-modernize-translator", "wicked-garden-multi-model", "wicked-garden-persona-agent", "wicked-garden-platform-compliance-officer", "wicked-garden-platform-privacy-expert", "wicked-garden-platform-security-engineer", "wicked-garden-product-a11y-expert", "wicked-garden-product-requirements-analyst", "wicked-garden-product-ui-reviewer", "wicked-garden-product-ux-designer", "wicked-garden-product-value-strategist", "wicked-garden-qe-semantic-reviewer", "wicked-garden-runtime-exec", "wicked-garden-smaht", "wicked-garden-swarm", "wicked-garden-wickedizer", "wicked-garden-workflow", "wicked-garden-worktrees"],
+  "fork_skills": ["wicked-garden-agentic-architect", "wicked-garden-agentic-performance-analyst", "wicked-garden-agentic-safety-reviewer", "wicked-garden-archetype", "wicked-garden-classify", "wicked-garden-crew-implementer", "wicked-garden-crew-researcher", "wicked-garden-crew-reviewer", "wicked-garden-data-engineer", "wicked-garden-domain-coverage", "wicked-garden-domain-extractor", "wicked-garden-domain-modeler", "wicked-garden-engineering-api-documentarian", "wicked-garden-engineering-debugging", "wicked-garden-engineering-migration-engineer", "wicked-garden-engineering-solution-architect", "wicked-garden-ground", "wicked-garden-integration-discovery", "wicked-garden-jam-brainstorm-facilitator", "wicked-garden-jam-council", "wicked-garden-multi-model", "wicked-garden-persona-agent", "wicked-garden-platform-compliance-officer", "wicked-garden-platform-privacy-expert", "wicked-garden-platform-security-engineer", "wicked-garden-product-a11y-expert", "wicked-garden-product-requirements-analyst", "wicked-garden-product-ui-reviewer", "wicked-garden-product-ux-designer", "wicked-garden-product-value-strategist", "wicked-garden-qe-semantic-reviewer", "wicked-garden-runtime-exec", "wicked-garden-smaht", "wicked-garden-swarm", "wicked-garden-wickedizer", "wicked-garden-workflow", "wicked-garden-worktrees"],
   "hooks": ["SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "PostToolUseFailure", "TaskCompleted", "SubagentStart", "SubagentStop", "PermissionRequest", "Notification", "PreCompact", "Stop", "SessionEnd"],
   "specialists": [
     {

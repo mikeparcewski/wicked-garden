@@ -8,7 +8,7 @@ a focused draft-07 *subset* validator that covers exactly the keywords the
 vendored ``domain-model.schema.json`` uses):
 
 1. **Schema layer** — a self-contained draft-07 subset validator run against the
-   vendored ``skills/modernize/vendor/domain-model.schema.json`` (@wicked/domain-
+   vendored ``skills/domain/vendor/domain-model.schema.json`` (@wicked/domain-
    model-schema@1.0.0). It resolves local ``$ref`` pointers against ``$defs`` and
    supports: ``type`` (object/array/string/integer/number), ``required``,
    ``properties``, ``additionalProperties`` (``false`` or a sub-schema), ``items``,
@@ -39,8 +39,8 @@ from pathlib import Path
 from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-SCHEMA_PATH = _REPO_ROOT / "skills" / "modernize" / "vendor" / "domain-model.schema.json"
-VERSION_PATH = _REPO_ROOT / "skills" / "modernize" / "vendor" / "VERSION"
+SCHEMA_PATH = _REPO_ROOT / "skills" / "domain" / "vendor" / "domain-model.schema.json"
+VERSION_PATH = _REPO_ROOT / "skills" / "domain" / "vendor" / "VERSION"
 
 
 @lru_cache(maxsize=1)

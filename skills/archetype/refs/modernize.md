@@ -93,18 +93,18 @@ Discover it the usual way — and consider
 
 **Domain-model extraction (the Domain-Brain path).** When the estate is graphed
 in **wicked-estate** and the goal is a shared, gate-able domain model — not just
-a local rule list — drive the **`wicked-garden-modernize`** router instead. It
+a local rule list — drive the **`wicked-garden-domain`** router instead. It
 STEERS three fork workers that emit a document conforming to
 `@wicked/domain-model-schema@1.0.0` (vendored at
-`skills/modernize/vendor/domain-model.schema.json`): **modernize-extractor**
+`skills/domain/vendor/domain-model.schema.json`): **domain-extractor**
 (business rules with confidence + provenance → estate `requirement`
-annotations), **modernize-translator** (cluster → domain, invokes
+annotations), **domain-modeler** (cluster → domain, invokes
 `wicked-core domain-graph` — which reads the annotated estate store and builds the
-requirements graph itself, coverage-gated fail-closed), **modernize-antagonist**
+requirements graph itself, coverage-gated fail-closed), **domain-coverage**
 (pre-build threat model). Estate annotations + SymbolId strings are what cross repo
 lines; core builds + coverage-gates the requirements graph, crew governs the run.
 Garden clears no gate here — it is advisory steering; the coverage terminal is
-core's fail-closed build. See `skills/modernize/SKILL.md`.
+core's fail-closed build. See `skills/domain/SKILL.md`.
 
 ### blueprint
 

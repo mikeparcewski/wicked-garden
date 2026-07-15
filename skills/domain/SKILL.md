@@ -1,32 +1,36 @@
 ---
-name: wicked-garden-modernize
+name: wicked-garden-domain
 user-invocable: true
 description: |
-  Domain router for the modernize archetype's rule-extraction path: turn a
-  legacy estate into a schema-conformant domain-model document (business rules
-  with confidence + provenance, entities, requirements). The workers annotate the
-  estate store; wicked-core reads it and builds the requirements graph,
-  coverage-gating fail-closed. Steers three fork workers.
+  The FOUNDATIONAL domain-model capability: extract a codebase's domain — testable
+  business rules (with confidence + provenance), entities, requirements — as a
+  schema-conformant model on the estate graph. The workers annotate the store;
+  wicked-core reads it and builds the requirements graph, coverage-gating
+  fail-closed. Steers three fork workers.
 
-  Use when: "extract the business rules from this legacy codebase", "build a
-  domain model / requirements graph from the estate", "reverse-engineer what
-  this system does before we port it", "modernize" / "port from <legacy stack>"
-  and the ask is the rules-and-domains extraction half (not the code transform).
+  A shared substrate, not a modernization tool. The `modernize` archetype DERIVES
+  from it; build / migrate / review / specify / explore consume the SAME domain
+  model — none OWN it. Understanding a codebase's domain is upstream of almost
+  everything else garden does.
 
-  NOT for in-place expand-contract shape change (that is migrate); NOT the target
-  code transform itself (that is the code-modernization transform skills). This
-  skill produces the DOMAIN MODEL, not the new code.
-phase_relevance: ["discover", "extract", "blueprint"]
-archetype_relevance: ["modernize"]
+  Use when: "extract the business rules / domain model from this codebase", "build
+  a requirements graph from the code", "what does this system actually require",
+  "reverse-engineer the domain before we build/port/migrate". Works on ANY codebase
+  (modern or legacy) — the value is the domain model, not the porting.
+
+  NOT the code transform itself (that is the archetype consuming this model). This
+  skill produces the DOMAIN MODEL, not new code.
+phase_relevance: ["discover", "extract", "blueprint", "plan", "specify"]
+archetype_relevance: ["modernize", "build", "migrate", "review", "specify", "explore"]
 ---
 
-# wicked-garden-modernize
+# wicked-garden-domain
 
-The **rule-extraction spine** of the `modernize` archetype. Where the archetype
-playbook (`skills/archetype/refs/modernize.md`) covers the full
-discover→…→cutover shape, this skill owns the piece that produces the shared
-**domain-model document** — the artifact that crosses every repo boundary in the
-Domain-Brain contract.
+The **domain-model capability** — a foundational substrate, not a step inside one
+archetype. It produces the shared **domain model** (business rules + entities +
+requirements on the estate graph); the `modernize` archetype derives from it, and
+build / migrate / review / specify / explore consume the same model. Understanding
+a codebase's domain is upstream of building, porting, reviewing, or governing it.
 
 **The contract in one line:** the only thing that crosses repo lines is a
 document that validates against `@wicked/domain-model-schema@1.0.0` (vendored at
@@ -35,7 +39,7 @@ STEERS (annotates the estate store + cross-checks the built document), core
 BUILDS (`wicked-core domain-graph` reads the store, builds the requirements graph,
 and coverage-gates fail-closed), estate GROUNDS (owns SymbolId identity + the
 graph), crew GOVERNS (drives the run). The peer CLIs are shelled via
-`scripts/modernize/_clients.py`, or mocked behind fixtures when absent.
+`scripts/domain/_clients.py`, or mocked behind fixtures when absent.
 
 ## The four-way seam
 
@@ -54,9 +58,9 @@ estate is the sole writer of graph structure.
 
 | Ask | Worker | Produces |
 |-----|--------|----------|
-| Mine business rules from the estate → domain-model doc | [modernize-extractor](../modernize-extractor/SKILL.md) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
-| Group clusters into domains → invoke core's domain-graph build | [modernize-translator](../modernize-translator/SKILL.md) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
-| Threat-model the extracted model before build | [modernize-antagonist](../modernize-antagonist/SKILL.md) | pre-build threat list / RISK-flag reasons |
+| Mine business rules from the estate → domain-model doc | [domain-extractor](../domain-extractor/SKILL.md) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
+| Group clusters into domains → invoke core's domain-graph build | [domain-modeler](../domain-modeler/SKILL.md) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
+| Threat-model the extracted model before build | [domain-coverage](../domain-coverage/SKILL.md) | pre-build threat list / RISK-flag reasons |
 
 Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by
 loading its skill in a fork context. Run order for a full extraction:
@@ -83,12 +87,12 @@ real code you can run and test today:
 ```bash
 # Emit a conformant domain-model doc from mocked estate + rule inputs
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/modernize/emit_domain_model.py" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/domain/emit_domain_model.py" \
   --fixture > /tmp/domain-model.json
 
 # Validate any doc against the vendored schema + hard invariants
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/modernize/validate_domain_model.py" \
+  "${CLAUDE_PLUGIN_ROOT}/scripts/domain/validate_domain_model.py" \
   /tmp/domain-model.json
 ```
 
@@ -100,10 +104,10 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
   the vendored schema (no third-party dependency — the repo is stdlib+pytest
   only), plus the extra invariants the schema can't express (numeric confidence
   type, SymbolId-shaped references).
-- `scripts/modernize/_clients.py` — the selection seam: `estate_client(db)` /
+- `scripts/domain/_clients.py` — the selection seam: `estate_client(db)` /
   `core_client()` return CLI-backed clients when `wicked-estate` / `wicked-core`
   resolve, else the mocks. Shells the peers (argv lists, no shell string).
-- `scripts/modernize/_mocks.py` — the disjoint fixtures: a fake estate client
+- `scripts/domain/_mocks.py` — the disjoint fixtures: a fake estate client
   (canned clusters + `resolve`/`annotate`) and a fake brain client (the hermetic
   doc-assembly lane). **These mock the peers; no other-product code is imported.**
 

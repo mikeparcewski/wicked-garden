@@ -128,7 +128,7 @@ class BrainClient:
 
     def validate(self, doc: dict[str, Any]) -> bool:
         # brain rejects an unknown schema_version rather than best-efforting it.
-        from modernize.validate_domain_model import validate_document
+        from domain.validate_domain_model import validate_document
         errors = validate_document(doc)
         return not errors
 

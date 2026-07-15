@@ -149,8 +149,14 @@ def _run(argv: list[str]) -> str:
 
 
 def _looks_like_symbol_id(value: str) -> bool:
-    """A SymbolId reference, never a bare name (the silent-multiply scar)."""
-    return isinstance(value, str) and value.startswith("sym::") and "::" in value[5:]
+    """A resolved SymbolId reference, never a bare name (the silent-fan-out scar).
+    Real estate SymbolIds carry scheme+path structure — e.g.
+    ``ts-javascript . . . index/decodeHtmlEntities().`` (the live format) or a
+    ``sym::a::b`` synthetic id — so they contain a structural separator a bare
+    identifier never does (``::``, the ` . . . ` scheme marker, or a path ``/``)."""
+    if not isinstance(value, str) or not value.strip():
+        return False
+    return "::" in value or " . . . " in value or "/" in value
 
 
 def _read_output_json(out: str, cmd: str) -> Any:
@@ -213,6 +219,21 @@ class CliEstateClient:
                 "JSON array of community objects"
             )
         return data
+
+    def list_nodes(self) -> list[dict[str, Any]]:
+        """Every node in the store (`nodes --json`) — {symbol_id,name,kind,file,line,…}.
+        Feeds the singleton-assign cohesion framing, NOT the coverage denominator."""
+        data = _run_json(self._argv("nodes", "--json"))
+        if not isinstance(data, list):
+            raise RuntimeError(
+                f"wicked-estate nodes returned {type(data).__name__}, expected a JSON array"
+            )
+        return data
+
+    def source(self, name_or_symbol: str) -> str:
+        """The source slice(s) for a symbol (`source <name>`) — the untrusted DATA
+        the model reads to state a rule. Fail-loud (empty ⇒ no slice to reason over)."""
+        return _run(self._argv("source", name_or_symbol))
 
     def resolve(self, name: str, file: str | None = None,
                 kind: str | None = None) -> list[str]:
@@ -331,6 +352,63 @@ class CliCoreClient:
         return _read_output_json(out, "wicked-core domain-graph")
 
 
+# --- worklist + framing helpers (extract_loop) -------------------------------
+
+def unaccounted_nodes(coverage_doc: dict[str, Any]) -> list[dict[str, Any]]:
+    """The authoritative extraction worklist: the coverage report's own
+    ``unaccounted_nodes`` (each {symbol_id,name,kind,file,…}). This is the SAME
+    authority the coverage gate re-derives against, so the harness denominator ==
+    the gate denominator by construction — no drift. Fail-loud if the key is
+    absent (a silent [] would look like "coverage 1.0, nothing to do")."""
+    if "unaccounted_nodes" not in coverage_doc:
+        raise RuntimeError(
+            "coverage report has no `unaccounted_nodes` — cannot seed the extraction "
+            "worklist (wrong/old wicked-core coverage schema?)"
+        )
+    nodes = coverage_doc["unaccounted_nodes"]
+    if not isinstance(nodes, list):
+        raise RuntimeError(
+            f"`unaccounted_nodes` is {type(nodes).__name__}, expected a list"
+        )
+    return nodes
+
+
+def total_node_community(clusters: list[dict[str, Any]],
+                         all_nodes: list[dict[str, Any]]) -> dict[str, str]:
+    """Port of anti-legacy `_cluster_from_native`: map EVERY node → a community
+    label — Louvain members keep their community, and every node the engine omitted
+    is SINGLETON-assigned its own symbol_id as label, so ``node_community`` is TOTAL.
+    Feeds the cohesion framing signal ONLY (resolved-vs-RISK quality), NOT the
+    coverage denominator (which `unaccounted_nodes` owns)."""
+    node_community: dict[str, str] = {}
+    for comm in clusters:
+        members = sorted(str(m) for m in comm.get("members", []))
+        if not members:
+            continue
+        label = members[0]  # deterministic: min sorted member symbol_id
+        for sid in members:
+            node_community[sid] = label
+    for n in all_nodes:
+        sid = n.get("symbol_id")
+        if sid and sid not in node_community:
+            node_community[sid] = sid  # singleton-assign the engine-omitted node
+    return node_community
+
+
+RULE_MODEL_ENV = "WICKED_RULE_MODEL_BIN"
+
+
+def rule_model_argv(project_dir: Optional[Path] = None) -> Optional[list[str]]:
+    """Resolve the bounded per-node rule-extraction model CLI (the ONE model
+    boundary), on the same ladder as the peer bins. Set-but-empty = kill-switch
+    (deterministic dry-run only). Default: `claude -p` when `claude` resolves."""
+    if RULE_MODEL_ENV in os.environ:
+        val = os.environ[RULE_MODEL_ENV].strip()
+        return val.split() if val else None
+    found = shutil.which("claude")
+    return [found, "-p"] if found else None
+
+
 # --- factories ---------------------------------------------------------------
 
 ESTATE_ENV = "WICKED_ESTATE_BIN"
@@ -344,7 +422,7 @@ def estate_client(db: Optional[str] = None,
     bin_argv = _resolve_bin(ESTATE_ENV, "wicked-estate", project_dir)
     if bin_argv and db:
         return CliEstateClient(bin_argv, db)
-    from modernize._mocks import EstateClient  # local: the mock is the hermetic lane
+    from domain._mocks import EstateClient  # local: the mock is the hermetic lane
     return EstateClient()
 
 

@@ -1,4 +1,4 @@
-"""garden#989 — the CLI-backed un-mock clients (``scripts/modernize/_clients.py``).
+"""garden#989 — the CLI-backed un-mock clients (``scripts/domain/_clients.py``).
 
 The UNIT lane runs with NO binaries present: it monkeypatches the subprocess
 shims to capture the argv the client would run, proving the four mock/CLI
@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from modernize import _clients
+from domain import _clients
 
 
 # --- resolve precedence (no binary) ------------------------------------------
@@ -63,14 +63,14 @@ def test_invoke_fails_loud_on_unrunnable_binary(monkeypatch):
 def test_estate_client_falls_back_to_mock_without_a_binary(monkeypatch):
     monkeypatch.setenv("WICKED_ESTATE_BIN", "")  # force no binary
     client = _clients.estate_client(db="/tmp/x.db")
-    from modernize._mocks import EstateClient
+    from domain._mocks import EstateClient
     assert isinstance(client, EstateClient), "no binary -> the fixture-backed mock"
 
 
 def test_estate_client_needs_both_a_binary_and_a_db(monkeypatch):
     monkeypatch.setenv("WICKED_ESTATE_BIN", "/opt/wicked-estate")
     # A binary but no db -> still the mock (a CLI op without a store is meaningless).
-    from modernize._mocks import EstateClient
+    from domain._mocks import EstateClient
     assert isinstance(_clients.estate_client(db=None), EstateClient)
     assert isinstance(_clients.estate_client(db="/tmp/e.db"), _clients.CliEstateClient)
 

@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from modernize import _mocks
-from modernize.emit_domain_model import (
+from domain import _mocks
+from domain.emit_domain_model import (
     EmitError,
     build_document,
     build_domain,
@@ -22,14 +22,14 @@ from modernize.emit_domain_model import (
     build_rule,
     fixture_document,
 )
-from modernize.validate_domain_model import (
+from domain.validate_domain_model import (
     SCHEMA_PATH,
     load_schema,
     validate_document,
 )
 
 REPO = Path(__file__).resolve().parents[2]
-FIXTURE = REPO / "skills" / "modernize" / "refs" / "fixtures" / "example-domain-model.json"
+FIXTURE = REPO / "skills" / "domain" / "refs" / "fixtures" / "example-domain-model.json"
 
 
 def test_vendored_schema_is_present_and_draft07():
@@ -58,7 +58,7 @@ def test_checked_in_fixture_matches_emitter():
     on_disk = json.loads(FIXTURE.read_text(encoding="utf-8"))
     assert on_disk == fixture_document(), (
         "fixture drifted from emitter — regenerate with "
-        "`python scripts/modernize/emit_domain_model.py --fixture`"
+        "`python scripts/domain/emit_domain_model.py --fixture`"
     )
 
 

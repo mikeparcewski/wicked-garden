@@ -21,7 +21,7 @@ document that validates against this schema plus a SymbolId string.
 garden pulls from. Per the contract (§1), JS/TS consumers *add it as a
 dependency* once published; until then, garden **pins a vendored copy** and
 gates drift with a byte-compare test — the same discipline estate (Rust) uses to
-vendor its copy. `tests/modernize/test_schema_vendor_pin.py` enforces:
+vendor its copy. `tests/domain/test_schema_vendor_pin.py` enforces:
 
 1. `VERSION` matches the version segment of the schema `$id`.
 2. The vendored copy is byte-identical to `wicked-brain/schemas/…` **when that
