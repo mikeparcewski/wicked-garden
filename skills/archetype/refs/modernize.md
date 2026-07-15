@@ -98,12 +98,13 @@ STEERS three fork workers that emit a document conforming to
 `@wicked/domain-model-schema@1.0.0` (vendored at
 `skills/modernize/vendor/domain-model.schema.json`): **modernize-extractor**
 (business rules with confidence + provenance → estate `requirement`
-annotations), **modernize-translator** (cluster → domain, drives
-`wicked-brain-domain`), **modernize-antagonist** (pre-build threat model). The
-document is the only thing that crosses repo lines (plus SymbolId strings): brain
-validates + stores it, crew gates on coverage. Garden clears no gate here — it is
-advisory steering; the coverage terminal is crew's. See
-`skills/modernize/SKILL.md`.
+annotations), **modernize-translator** (cluster → domain, invokes
+`wicked-core domain-graph` — which reads the annotated estate store and builds the
+requirements graph itself, coverage-gated fail-closed), **modernize-antagonist**
+(pre-build threat model). Estate annotations + SymbolId strings are what cross repo
+lines; core builds + coverage-gates the requirements graph, crew governs the run.
+Garden clears no gate here — it is advisory steering; the coverage terminal is
+core's fail-closed build. See `skills/modernize/SKILL.md`.
 
 ### blueprint
 

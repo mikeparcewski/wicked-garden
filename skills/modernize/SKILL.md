@@ -4,8 +4,9 @@ user-invocable: true
 description: |
   Domain router for the modernize archetype's rule-extraction path: turn a
   legacy estate into a schema-conformant domain-model document (business rules
-  with confidence + provenance, entities, requirements) that brain validates and
-  stores and crew gates on coverage. Steers three fork workers.
+  with confidence + provenance, entities, requirements). The workers annotate the
+  estate store; wicked-core reads it and builds the requirements graph,
+  coverage-gating fail-closed. Steers three fork workers.
 
   Use when: "extract the business rules from this legacy codebase", "build a
   domain model / requirements graph from the estate", "reverse-engineer what
@@ -30,28 +31,31 @@ Domain-Brain contract.
 **The contract in one line:** the only thing that crosses repo lines is a
 document that validates against `@wicked/domain-model-schema@1.0.0` (vendored at
 `vendor/domain-model.schema.json`) plus an estate `SymbolId` string. Garden
-STEERS (emits + validates the document), brain EQUIPS (owns the schema + engine
-+ stores), estate GROUNDS (owns SymbolId identity + the graph), crew GOVERNS
-(gates on coverage). This skill mocks the other three behind fixtures.
+STEERS (annotates the estate store + cross-checks the built document), core
+BUILDS (`wicked-core domain-graph` reads the store, builds the requirements graph,
+and coverage-gates fail-closed), estate GROUNDS (owns SymbolId identity + the
+graph), crew GOVERNS (drives the run). The peer CLIs are shelled via
+`scripts/modernize/_clients.py`, or mocked behind fixtures when absent.
 
 ## The four-way seam
 
 ```
-crew GOVERNS  →  garden STEERS  →  brain EQUIPS  →  estate GROUNDS
-(coverage gate)  (this skill +      (domain-model    (SymbolId + graph
-                  3 fork workers)    engine + store)   + Louvain clusters)
+crew GOVERNS  →  garden STEERS  →  core BUILDS  →  estate GROUNDS
+(drives the run) (this skill +     (domain-graph +  (SymbolId + graph
+                  3 fork workers)   coverage gate)   + Louvain clusters)
 ```
 
-Garden never imports brain or estate code. It emits a document and references
-SymbolId strings; brain validates + stores; estate is the sole writer of graph
-structure.
+Garden never imports core or estate code — it shells their CLIs (argv lists, no
+shell string) or mocks them. It annotates the estate store and references SymbolId
+strings; core reads the store and builds + coverage-gates the requirements graph;
+estate is the sole writer of graph structure.
 
 ## Routing — the three fork workers
 
 | Ask | Worker | Produces |
 |-----|--------|----------|
 | Mine business rules from the estate → domain-model doc | [modernize-extractor](../modernize-extractor/SKILL.md) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
-| Group clusters into domains → drive brain's domain engine | [modernize-translator](../modernize-translator/SKILL.md) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` via brain |
+| Group clusters into domains → invoke core's domain-graph build | [modernize-translator](../modernize-translator/SKILL.md) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
 | Threat-model the extracted model before build | [modernize-antagonist](../modernize-antagonist/SKILL.md) | pre-build threat list / RISK-flag reasons |
 
 Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by
@@ -96,24 +100,33 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
   the vendored schema (no third-party dependency — the repo is stdlib+pytest
   only), plus the extra invariants the schema can't express (numeric confidence
   type, SymbolId-shaped references).
+- `scripts/modernize/_clients.py` — the selection seam: `estate_client(db)` /
+  `core_client()` return CLI-backed clients when `wicked-estate` / `wicked-core`
+  resolve, else the mocks. Shells the peers (argv lists, no shell string).
 - `scripts/modernize/_mocks.py` — the disjoint fixtures: a fake estate client
-  (canned clusters + `resolve`/`annotate`) and a fake brain client. **These mock
-  the other three products; no other-product code is imported.**
+  (canned clusters + `resolve`/`annotate`) and a fake brain client (the hermetic
+  doc-assembly lane). **These mock the peers; no other-product code is imported.**
 
-## Honest scope — implemented vs stubbed (PHASE-1)
+## Honest scope — implemented vs stubbed
 
 **Implemented + tested:** the vendored + pinned schema; the deterministic
-document assembler; the validator (schema + hard invariants); the fixture
-mocks; a conformant fixture document; the pytest suite that validates emitter
-output and the fixture against the schema.
+document assembler; the validator (schema + hard invariants); the CLI-backed
+clients (`_clients.py`) that shell the real `wicked-estate` + `wicked-core`, with
+argv-construction tests + an opt-in real-CLI lane; the fixture mocks; a conformant
+fixture document; the pytest suite that validates emitter output and the fixture
+against the schema.
 
-**Stubbed / mocked (the cross-repo seams):** the LLM rule-statement extraction
-step (rules are injected as input — the "skill-supplied extractor" seam); the
-real estate CLI (`clusters --json --summary`, `resolve`, `annotate`,
-`semantics`) — replaced by `_mocks.EstateClient`; the real brain engine
-(`wicked-brain domain build`) — replaced by `_mocks.BrainClient`. Wiring these
-to the live CLIs is the next phase; the interfaces are fixed by the contract so
-each side builds disjoint.
+**Wired to live CLIs (`_clients.py`):** the estate surface (`resolve`,
+`annotate --replace`, `semantics`, `clusters --json --summary`,
+`annotations`) → `CliEstateClient`; the domain-graph build
+(`wicked-core domain-graph` — reads the store, builds the requirements graph,
+coverage-gates fail-closed) → `CliCoreClient`. When the peers are absent, the
+selection seam falls back to `_mocks` for hermetic testing.
+
+**Still stubbed:** the LLM rule-statement extraction step (rules are injected as
+input — the "skill-supplied extractor" seam). And the real end-to-end run needs a
+fully-annotated, INDEXED store (coverage == 1.0) to clear core's fail-closed gate
+— that store-seeding step is the end-to-end milestone (core#28), not this slice.
 
 ## Ground in the repo's method first
 
@@ -126,5 +139,6 @@ repo-specific wiring. If present, load the matching playbook.
 - [refs/domain-model-emit.md](refs/domain-model-emit.md) — the full field map,
   the seven hard invariants, and the SymbolId reference rule.
 - [refs/extraction-flow.md](refs/extraction-flow.md) — how the extractor drives
-  estate (resolve → annotate → semantics) and brain, with the mock seam.
+  estate (resolve → annotate → semantics) and core (`domain-graph`), the
+  `_clients.py` selection seam, and the mock lane.
 - `vendor/README.md` — the vendored-schema pin + drift discipline.
