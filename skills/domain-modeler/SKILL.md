@@ -1,7 +1,7 @@
 ---
-name: wicked-garden-modernize-translator
+name: wicked-garden-domain-modeler
 context: fork
-subagent_type: wicked-garden:modernize:translator
+subagent_type: wicked-garden:domain:modeler
 description: |
   Domain-graph fork worker for the modernize archetype. Groups the estate's
   Louvain communities into business domains, attaches each requirement to its
@@ -10,12 +10,12 @@ description: |
   and builds the requirements graph) — then validates core's output against the
   vendored schema.
 
-  Use when: dispatched by wicked-garden-modernize after rule extraction to turn
+  Use when: dispatched by wicked-garden-domain after rule extraction to turn
   a flat rule set into cluster-keyed domains; "group these into domains", "build
   the requirements graph", "translate clusters into a domain model".
 
-  NOT for mining the rules themselves (that is modernize-extractor) or
-  threat-modeling (that is modernize-antagonist).
+  NOT for mining the rules themselves (that is domain-extractor) or
+  threat-modeling (that is domain-coverage).
 model: sonnet
 effort: medium
 max-turns: 12
@@ -61,7 +61,7 @@ communities). You **invoke core**, you don't reimplement it.
    `core_client()` is `None` (no peer), fall back to the hermetic lane —
    `emit_domain_model.py` assembles the doc and `_mocks.BrainClient` stands in.
 4. **Validate core's output.** Cross-check the built `requirements_graph.json`
-   with `scripts/modernize/validate_domain_model.py` (schema + hard invariants)
+   with `scripts/domain/validate_domain_model.py` (schema + hard invariants)
    before returning.
 
 ## Invariants you must not break
@@ -77,10 +77,10 @@ communities). You **invoke core**, you don't reimplement it.
 ## What is wired vs stubbed
 
 The estate `clusters` read and core's `domain-graph` build are **wired to the
-live CLIs** via `scripts/modernize/_clients.py` (`estate_client` / `core_client`),
+live CLIs** via `scripts/domain/_clients.py` (`estate_client` / `core_client`),
 falling back to `_mocks.py` when the peers are absent. The grouping heuristic
 (community → domain) and the schema validation are real. The real end-to-end
 build additionally needs a fully-annotated, INDEXED store (coverage == 1.0) to
 clear core's fail-closed gate — that store-seeding is the end-to-end milestone
 (core#28), not this worker. Full field map:
-[../modernize/refs/domain-model-emit.md](../modernize/refs/domain-model-emit.md).
+[../domain/refs/domain-model-emit.md](../domain/refs/domain-model-emit.md).

@@ -2,13 +2,13 @@
 
 The modernize workers never import estate or core code. They talk to a **fixed
 interface** and — depending on whether the peer CLIs are installed — either the
-**real CLI** (`scripts/modernize/_clients.py`) or, hermetically, a **mock**
-(`scripts/modernize/_mocks.py`). This ref documents the interface (the real
+**real CLI** (`scripts/domain/_clients.py`) or, hermetically, a **mock**
+(`scripts/domain/_mocks.py`). This ref documents the interface (the real
 CLI/engine contract) and the mock seam.
 
 ## Which implementation runs (the seam)
 
-`scripts/modernize/_clients.py` picks the backing at call time, mirroring
+`scripts/domain/_clients.py` picks the backing at call time, mirroring
 `scripts/_loom.py`'s precedence:
 
 - `estate_client(db)` → the CLI-backed `CliEstateClient` when **`wicked-estate`**
@@ -91,7 +91,7 @@ authority on the real path.)
 
 ## The disjoint-build mock seam
 
-`scripts/modernize/_mocks.py` remains the hermetic lane: garden builds + tests
+`scripts/domain/_mocks.py` remains the hermetic lane: garden builds + tests
 its side against fixtures while estate and core build theirs. The real path
 (`_clients.py`) shells the peer CLIs — argv lists, never a shell string — so the
 "imports NO other-product code" doctrine holds either way. The mocks:

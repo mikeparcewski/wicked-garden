@@ -10,7 +10,7 @@ code in PHASE-1). It takes:
     references,
 
 and assembles a document that validates against
-``skills/modernize/vendor/domain-model.schema.json`` (@wicked/domain-model-schema
+``skills/domain/vendor/domain-model.schema.json`` (@wicked/domain-model-schema
 @1.0.0), enforcing the HARD invariants at build time so a malformed document can
 never be emitted:
 
@@ -224,7 +224,7 @@ def fixture_document() -> dict[str, Any]:
     resolved via the mock, injected rules with confidence + provenance, a
     reason-carrying 'drop', and cluster_id advisory provenance.
     """
-    from modernize._mocks import EstateClient  # local import: mocks are test-only
+    from domain._mocks import EstateClient  # local import: mocks are test-only
 
     estate = EstateClient()
     src = "acme-billing-legacy"
@@ -388,7 +388,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     doc = fixture_document()
     if args.validate:
-        from modernize.validate_domain_model import validate_document
+        from domain.validate_domain_model import validate_document
         errors = validate_document(doc)
         if errors:
             for e in errors:
