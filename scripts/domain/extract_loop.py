@@ -78,8 +78,13 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     else:
         stmt = (rule or {}).get("statement") or ""
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")
+        raw_conf = (rule or {}).get("confidence", 0.0)
+        try:
+            safe_conf = float(raw_conf)
+        except (TypeError, ValueError):
+            safe_conf = 0.0
         estate.annotate(sid, type="risk", key=rid, value=risk_req[:500],
-                        confidence=float((rule or {}).get("confidence", 0.0)),
+                        confidence=safe_conf,
                         provenance="extract-loop:risk", replace=True)
         estate.set_requirement(sid, requirement=risk_req, validated=False)
     # Read-back re-derive: never trust the write's exit code alone.
