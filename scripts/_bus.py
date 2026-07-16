@@ -255,6 +255,18 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "platform.guard",
         "description": "Autonomous session-close guard pipeline surfaced findings (Issue #448)",
     },
+    "wicked.garden.outgov.pattern_drift_detected": {
+        "domain": "wicked-garden",
+        "subdomain": "platform.outgov",
+        "description": "Pattern-conformance check found drift between session output and a "
+                       "registered conformance rule (garden#983); advisory only.",
+    },
+    "wicked.garden.outgov.policy_violation_found": {
+        "domain": "wicked-garden",
+        "subdomain": "platform.outgov",
+        "description": "Per-turn policy compliance check surfaced a violation (garden#984); "
+                       "severity drives allow/deny decision.",
+    },
     "wicked.garden.compliance.passed": {
         "domain": "wicked-garden",
         "subdomain": "platform.compliance",

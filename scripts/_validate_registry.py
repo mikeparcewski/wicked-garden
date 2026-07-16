@@ -111,6 +111,9 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     "wicked.garden.quality.drift_detected",
     # crew condition resolution — observability only, verdict not mutated.
     "wicked.garden.condition.resolved",
+    # output governance observability signals — no projector state change.
+    "wicked.garden.outgov.pattern_drift_detected",
+    "wicked.garden.outgov.policy_violation_found",
 )
 
 # Reviewer values in gate-policy.json that are NOT subagent identifiers — they
