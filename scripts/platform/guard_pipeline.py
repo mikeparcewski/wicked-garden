@@ -16,12 +16,13 @@ Scope limits (important):
       If unavailable we emit a "semantic-review-unavailable" finding with
       severity=info and continue.
 
-The 5 checks:
+The 6 checks:
     1. bulletproof_scan  — R1-R6 surface heuristics on changed files
     2. debug_artifacts   — print/console.log/pdb/breakpoint leftovers
     3. adr_constraints   — ADR MUST/MUST NOT phrases vs the diff
     4. semantic_review   — delegates to scripts.qe.semantic_review (#444)
     5. skip_log          — unresolved skip-reeval entries (audit_skip_log.py)
+    6. outgov_pattern    — pattern-conformance rules from WICKED_OUTGOV_RULES_DIR
 
 Usage (as a module):
     from platform.guard_pipeline import run_pipeline
@@ -1013,6 +1014,8 @@ def _load_pattern_rules(rules_dir: Path, deadline: float = float("inf")) -> List
         if not isinstance(bundle, list):
             continue
         for item in bundle:
+            if time.monotonic() > deadline:
+                return rules
             if not isinstance(item, dict):
                 continue
             if str(item.get("rule_type", "")).lower() != "pattern":
@@ -1041,7 +1044,7 @@ def check_outgov_pattern(
     deadline = t0 + budget_seconds
     result = CheckResult(name="outgov_pattern", status="ok")
 
-    if os.environ.get("WG_OUTGOV", "off").strip().lower() == "off":
+    if os.environ.get("WG_OUTGOV", "off").strip().lower() not in ("warn", "strict"):
         result.status = "skip"
         result.note = "WG_OUTGOV=off"
         result.duration_ms = int((time.monotonic() - t0) * 1000)
@@ -1065,7 +1068,7 @@ def check_outgov_pattern(
         pattern_rules = _load_pattern_rules(rules_dir, deadline=deadline)
     except Exception as exc:
         result.status = "skip"
-        result.note = f"rule load failed (fail-open): {exc}"
+        result.note = f"rule load failed (fail-open): {str(exc)[:200]}"
         result.duration_ms = int((time.monotonic() - t0) * 1000)
         return result
 

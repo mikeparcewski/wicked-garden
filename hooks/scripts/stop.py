@@ -74,7 +74,7 @@ def _check_outgov_compliance(_input_data: dict) -> list:
     """Per-turn policy compliance advisory when WG_OUTGOV is enabled."""
     try:
         mode = os.environ.get("WG_OUTGOV", "off").strip().lower()
-        if mode == "off":
+        if mode not in ("warn", "strict"):
             return []
         deny_hint = (
             " For CRITICAL severity violations: stop and explain the policy conflict "

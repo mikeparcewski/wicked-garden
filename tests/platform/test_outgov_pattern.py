@@ -99,18 +99,17 @@ class TestLoadPatternRules:
         assert _load_pattern_rules(rules_dir) == []
 
     def test_respects_expired_deadline(self, tmp_path):
-        """An already-expired deadline stops loading after the first file check."""
+        """An already-expired deadline stops loading before reading any file."""
         import time
         from guard_pipeline import _load_pattern_rules
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         _make_bundle([_pat("PAT-001", "Would be loaded")], rules_dir / "a.json")
         _make_bundle([_pat("PAT-002", "Should be skipped")], rules_dir / "b.json")
-        # deadline in the past — sorted glob sees "a.json" first; the deadline check
-        # fires before "b.json", so at most 1 file is loaded.
+        # deadline already in the past — the per-file check fires immediately before
+        # any bundle is read, so the result is empty regardless of how many files exist.
         expired = time.monotonic() - 1.0
         result = _load_pattern_rules(rules_dir, deadline=expired)
-        # With an already-expired deadline the loop breaks before reading any file.
         assert len(result) == 0
 
 
