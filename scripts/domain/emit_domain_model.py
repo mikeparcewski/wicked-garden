@@ -200,7 +200,7 @@ def build_document(domains: dict[str, dict[str, Any]], *,
     return {"metadata": metadata, "domains": domains}
 
 
-def _assert_unique_ids(*groups: Sequence[dict[str, Any]]) -> None:
+def _assert_unique_ids(*groups: Sequence[Any]) -> None:
     seen: set[str] = set()
     for group in groups:
         for item in group:
