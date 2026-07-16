@@ -74,6 +74,7 @@ _STANDARD_CHECKS = (
     "adr_constraints",
     "semantic_review",
     "skip_log",
+    "outgov_pattern",
 )
 _DEEP_CHECKS = _STANDARD_CHECKS  # same check set, deeper semantic review
 

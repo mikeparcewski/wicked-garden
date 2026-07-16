@@ -63,6 +63,37 @@ def _session_dir(subdir: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Output governance — per-turn policy compliance advisory (garden#984)
+# ---------------------------------------------------------------------------
+#
+# When WG_OUTGOV=warn|strict, returns a systemMessage asking Claude to recall
+# Policy-type conformance rules from the estate graph and evaluate this turn's
+# output.  WG_OUTGOV=off (default) → skip silently.  Always fails open.
+
+def _check_outgov_compliance(_input_data: dict) -> list:
+    """Per-turn policy compliance advisory when WG_OUTGOV is enabled."""
+    try:
+        mode = os.environ.get("WG_OUTGOV", "off").strip().lower()
+        if mode not in ("warn", "strict"):
+            return []
+        deny_hint = (
+            " For CRITICAL severity violations: stop and explain the policy conflict "
+            "before writing or executing the action that would worsen it."
+            if mode == "strict"
+            else ""
+        )
+        return [
+            "[Output Governance] Evaluate this turn's output against applicable policy rules. "
+            "If the estate MCP is connected: use estate tools to list nodes with kind=Rule "
+            "and rule_type=Policy, identify applicable rules, and report any violations with "
+            "rule ID, severity, and a brief explanation. "
+            "If estate is unavailable: skip silently." + deny_hint
+        ]
+    except Exception:
+        return []
+
+
+# ---------------------------------------------------------------------------
 # Claim sentinel (answer tier) — claim-gated at the Stop boundary.
 # Replaces the old PostToolUse ref-watch that fired on every Bash call. Reads
 # the turn's final assistant message from the transcript; only a real
@@ -600,7 +631,8 @@ def main():
         # _persist_session_state) so its debounce write is the last state write
         # of the turn (avoids clobbering session_ended).
         sentinel_messages = _check_claim_sentinel(input_data)
-        prepend_messages = sentinel_messages + outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
+        outgov_messages = _check_outgov_compliance(input_data)
+        prepend_messages = sentinel_messages + outgov_messages + outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
         if prepend_messages and reflection:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         elif prepend_messages:

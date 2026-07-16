@@ -16,12 +16,13 @@ Scope limits (important):
       If unavailable we emit a "semantic-review-unavailable" finding with
       severity=info and continue.
 
-The 5 checks:
+The 6 checks:
     1. bulletproof_scan  — R1-R6 surface heuristics on changed files
     2. debug_artifacts   — print/console.log/pdb/breakpoint leftovers
     3. adr_constraints   — ADR MUST/MUST NOT phrases vs the diff
     4. semantic_review   — delegates to scripts.qe.semantic_review (#444)
     5. skip_log          — unresolved skip-reeval entries (audit_skip_log.py)
+    6. outgov_pattern    — pattern-conformance rules from WICKED_OUTGOV_RULES_DIR
 
 Usage (as a module):
     from platform.guard_pipeline import run_pipeline
@@ -968,6 +969,137 @@ def check_skip_log(
 
 
 # ---------------------------------------------------------------------------
+# Check 6: Output governance — pattern conformance (garden#983)
+# ---------------------------------------------------------------------------
+#
+# Reads Pattern-type conformance rules from WICKED_OUTGOV_RULES_DIR/rules/*.json
+# and surfaces them as findings so Claude can evaluate the session's output.
+#
+# Requires: WICKED_OUTGOV_RULES_DIR points to a directory containing a rules/
+# subdir with *.json conformance-rule bundles (wicked_governance schema).
+# WG_OUTGOV=off (default) → skip silently.  Always fails open.
+
+_OUTGOV_RULES_DIR_ENV = "WICKED_OUTGOV_RULES_DIR"
+_OUTGOV_SEV_MAP = {
+    "critical": SEVERITY_BLOCK,
+    "error": SEVERITY_WARN,
+    "warn": SEVERITY_WARN,
+    "info": SEVERITY_INFO,
+}
+
+
+def _load_pattern_rules(rules_dir: Path, deadline: float = float("inf")) -> List[Dict[str, Any]]:
+    """Read Pattern-type conformance rules from *.json bundles under rules_dir.
+
+    Stops loading new bundle files once *deadline* (monotonic) is exceeded so
+    the guard pipeline's per-check budget is respected (fail-open: partial results).
+    """
+    rules: List[Dict[str, Any]] = []
+    seen: set = set()
+    for path in sorted(rules_dir.glob("*.json")):
+        if time.monotonic() > deadline:
+            break
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, ValueError):
+            continue
+        if isinstance(raw, list):
+            bundle = raw
+        elif isinstance(raw, dict):
+            bundle = raw.get("rules", raw)
+            if isinstance(bundle, dict):
+                bundle = [bundle]
+        else:
+            continue
+        if not isinstance(bundle, list):
+            continue
+        for item in bundle:
+            if time.monotonic() > deadline:
+                return rules
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("rule_type", "")).lower() != "pattern":
+                continue
+            rid = str(item.get("id", "")).strip()
+            if not rid or rid in seen:
+                continue
+            seen.add(rid)
+            rules.append(item)
+    return rules
+
+
+def check_outgov_pattern(
+    files: List[str],
+    *,
+    budget_seconds: float,
+    **_kwargs: Any,
+) -> CheckResult:
+    """Surface applicable pattern-conformance rules from WICKED_OUTGOV_RULES_DIR.
+
+    Reads *.json rule bundles from the rules/ subdirectory and emits one
+    finding per rule so Claude can evaluate the session's output for conformance.
+    WG_OUTGOV=off (default) → skip.  Always fails open.
+    """
+    t0 = time.monotonic()
+    deadline = t0 + budget_seconds
+    result = CheckResult(name="outgov_pattern", status="ok")
+
+    if os.environ.get("WG_OUTGOV", "off").strip().lower() not in ("warn", "strict"):
+        result.status = "skip"
+        result.note = "WG_OUTGOV=off"
+        result.duration_ms = int((time.monotonic() - t0) * 1000)
+        return result
+
+    rules_env = os.environ.get(_OUTGOV_RULES_DIR_ENV, "").strip()
+    if not rules_env:
+        result.status = "skip"
+        result.note = f"{_OUTGOV_RULES_DIR_ENV} not set"
+        result.duration_ms = int((time.monotonic() - t0) * 1000)
+        return result
+
+    rules_dir = Path(rules_env) / "rules"
+    if not rules_dir.is_dir():
+        result.status = "skip"
+        result.note = f"rules dir not found: {rules_dir}"
+        result.duration_ms = int((time.monotonic() - t0) * 1000)
+        return result
+
+    try:
+        pattern_rules = _load_pattern_rules(rules_dir, deadline=deadline)
+    except Exception as exc:
+        result.status = "skip"
+        result.note = f"rule load failed (fail-open): {str(exc)[:200]}"
+        result.duration_ms = int((time.monotonic() - t0) * 1000)
+        return result
+
+    if not pattern_rules:
+        result.note = "no pattern rules found"
+        result.duration_ms = int((time.monotonic() - t0) * 1000)
+        return result
+
+    for rule in pattern_rules:
+        if time.monotonic() > deadline:
+            surfaced = len(result.findings)
+            result.note = (
+                f"budget exhausted; {surfaced} of {len(pattern_rules)} rules surfaced (fail-open)"
+            )
+            break
+        rid = rule.get("id", "?")
+        sev = _OUTGOV_SEV_MAP.get(str(rule.get("severity", "info")).lower(), SEVERITY_INFO)
+        statement = str(rule.get("statement", ""))[:200]
+        result.findings.append(Finding(
+            check="outgov_pattern",
+            rule_id=str(rid),
+            severity=sev,
+            message=f"[{rid}] {statement} — evaluate this session's output for conformance "
+                    f"(invoke wicked-garden-engineering-conformance-reviewer with this rule as rubric)",
+        ))
+
+    result.duration_ms = int((time.monotonic() - t0) * 1000)
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Registry + runner
 # ---------------------------------------------------------------------------
 
@@ -977,6 +1109,7 @@ CHECK_REGISTRY: Dict[str, Callable[..., CheckResult]] = {
     "adr_constraints": check_adr_constraints,
     "semantic_review": check_semantic_review,
     "skip_log": check_skip_log,
+    "outgov_pattern": check_outgov_pattern,
 }
 
 
