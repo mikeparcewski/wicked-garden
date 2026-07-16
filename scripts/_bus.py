@@ -345,6 +345,23 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.consensus",
         "description": "Pending consensus gate placeholder written to reviewer-report.md (evaluation failed)",
     },
+    # Sentinel domain — scripts/sentinel/invariants.py::log_sentinel_event (garden#974)
+    "wicked.garden.sentinel.claim_unverified": {
+        "domain": "wicked-garden",
+        "subdomain": "sentinel",
+        "description": "Sentinel found a claim that could not be independently verified (skip-is-evidence signal)",
+    },
+    "wicked.garden.sentinel.prepush_blocked": {
+        "domain": "wicked-garden",
+        "subdomain": "sentinel",
+        "description": "Pre-push hook blocked a commit due to a failed sentinel invariant check",
+    },
+    # Loom parity mirror — scripts/crew/phase_manager.py (garden#974)
+    "wicked.garden.loom.parity_mismatched": {
+        "domain": "wicked-garden",
+        "subdomain": "crew.loom",
+        "description": "Loom hard-gate verdict differs from the in-process gate result (diagnostic: parity mirror)",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.

@@ -358,7 +358,7 @@ def resolve_hard_gate(state: ProjectState, phase: str) -> bool:
         for migrate.cutover cannot disarm the cutover gate.
 
     A divergence (loom != in_process, with loom present) is surfaced as a
-    ``wicked.garden.loom.parity_mismatch`` signal — retained from the parity mirror —
+    ``wicked.garden.loom.parity_mismatched`` signal — retained from the parity mirror —
     so operators see drift even though the resolved decision is the safe OR.
     """
     in_process = _is_hard_gate(state, phase)
@@ -375,7 +375,7 @@ def resolve_hard_gate(state: ProjectState, phase: str) -> bool:
               f"archetype={archetype} phase={phase} "
               f"loom={loom_says} in_process={in_process}", file=sys.stderr)
         _bus_emit_safe(
-            "wicked.garden.loom.parity_mismatch",
+            "wicked.garden.loom.parity_mismatched",
             {"project_id": state.name, "archetype": archetype,
              "phase": phase, "loom": loom_says, "in_process": in_process,
              "resolved": loom_says or in_process},

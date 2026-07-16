@@ -128,7 +128,7 @@ class ClaimGateTests(_TempHome):
         self.assertEqual(v["invariant"], "done-claim-verdict")
         trail = inv._ledger_path(repo).with_suffix(".events.jsonl")
         self.assertTrue(trail.exists())
-        self.assertIn("unverified_claim", trail.read_text())
+        self.assertIn("claim_unverified", trail.read_text())
 
     def test_claim_tick_suppressed_by_verdict(self):
         repo = _make_repo(self.base)

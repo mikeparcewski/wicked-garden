@@ -114,6 +114,11 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     # output governance observability signals — no projector state change.
     "wicked.garden.outgov.pattern_drift_detected",
     "wicked.garden.outgov.policy_violation_found",
+    # sentinel / loom diagnostic signals — fire-and-forget observability; no
+    # garden projector state changes (consumers live in studio / external tooling).
+    "wicked.garden.sentinel.claim_unverified",
+    "wicked.garden.sentinel.prepush_blocked",
+    "wicked.garden.loom.parity_mismatched",
 )
 
 # Reviewer values in gate-policy.json that are NOT subagent identifiers — they

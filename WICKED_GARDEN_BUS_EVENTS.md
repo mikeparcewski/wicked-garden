@@ -68,6 +68,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | `wicked.garden.gate.blocked` | `crew.gate` | Gate returned REJECT — phase advancement blocked |
 | `wicked.garden.gate.decided` | `crew.gate` | Gate returned APPROVE, CONDITIONAL, or REJECT |
 | `wicked.garden.hitl.decision_recorded` | `crew.hitl` | HITL pause-decision evidence recorded by hitl_judge.write_hitl_decision_evidence (Site W5 cutover) |
+| `wicked.garden.loom.parity_mismatched` | `crew.loom` | Loom hard-gate verdict differs from the in-process gate result (diagnostic: parity mirror) |
 | `wicked.garden.modernize.stack_gap` | `crew.modernize` | Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration |
 | `wicked.garden.phase.auto_advanced` | `crew.phase` | Phase auto-advanced for low-complexity project (audit trail) |
 | `wicked.garden.project.completed` | `crew.project` | Crew project completed (final phase approved) |
@@ -122,6 +123,13 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.garden.coverage.changed` | `qe.coverage` | Test coverage metrics changed |
 | `wicked.garden.scenario.run` | `qe.scenario` | Test scenario executed with pass/fail result |
+
+### Sentinel
+
+| Event Type | Subdomain | Description |
+|------------|-----------|-------------|
+| `wicked.garden.sentinel.claim_unverified` | `sentinel` | Sentinel found a claim that could not be independently verified (skip-is-evidence signal) |
+| `wicked.garden.sentinel.prepush_blocked` | `sentinel` | Pre-push hook blocked a commit due to a failed sentinel invariant check |
 
 ## chain_id
 
