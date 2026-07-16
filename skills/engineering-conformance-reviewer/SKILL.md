@@ -14,6 +14,11 @@ description: |
   NOT a replacement for the full `engineering` review skill — focuses only on
   conformance to stored Pattern rules; architecture and code-quality checks live
   in the `engineering` skill.
+
+  Semantic evaluation reuses `wicked-garden-qe-semantic-reviewer` as the
+  designated agent-half evaluator (per garden#984 spec). This skill is the
+  orchestrating wrapper that loads applicable Pattern rules and delegates the
+  per-rule semantic judgment to qe-semantic-reviewer.
 phase_relevance: ["build", "review"]
 archetype_relevance: ["build", "review", "modernize"]
 ---

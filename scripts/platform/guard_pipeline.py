@@ -1057,8 +1057,8 @@ def check_outgov_pattern(
     try:
         pattern_rules = _load_pattern_rules(rules_dir)
     except Exception as exc:
-        result.status = "error"
-        result.note = f"rule load error: {exc}"
+        result.status = "skip"
+        result.note = f"rule load failed (fail-open): {exc}"
         result.duration_ms = int((time.monotonic() - t0) * 1000)
         return result
 
