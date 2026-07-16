@@ -996,11 +996,14 @@ def _load_pattern_rules(rules_dir: Path) -> List[Dict[str, Any]]:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, ValueError):
             continue
-        if not isinstance(raw, dict):
+        if isinstance(raw, list):
+            bundle = raw
+        elif isinstance(raw, dict):
+            bundle = raw.get("rules", raw)
+            if isinstance(bundle, dict):
+                bundle = [bundle]
+        else:
             continue
-        bundle = raw.get("rules", [])
-        if isinstance(bundle, dict):
-            bundle = [bundle]
         if not isinstance(bundle, list):
             continue
         for item in bundle:
@@ -1073,7 +1076,7 @@ def check_outgov_pattern(
             rule_id=str(rid),
             severity=sev,
             message=f"[{rid}] {statement} — evaluate this session's output for conformance "
-                    f"(invoke wicked-garden-qe-semantic-reviewer with this rule as rubric)",
+                    f"(invoke wicked-garden-engineering-conformance-reviewer with this rule as rubric)",
         ))
 
     result.duration_ms = int((time.monotonic() - t0) * 1000)

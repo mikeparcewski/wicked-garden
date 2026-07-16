@@ -8,10 +8,9 @@ from pathlib import Path
 
 import pytest
 
-# Make guard_pipeline importable.
-_SCRIPTS_ROOT = Path(__file__).resolve().parent.parent.parent / "scripts"
-sys.path.insert(0, str(_SCRIPTS_ROOT / "platform"))
-sys.path.insert(0, str(_SCRIPTS_ROOT))
+# conftest.py puts scripts/ at sys.path[0]; we only need to append scripts/platform
+# for guard_pipeline. Using append avoids shadowing the conftest-established order.
+sys.path.append(str(Path(__file__).resolve().parents[2] / "scripts" / "platform"))
 
 
 def _make_bundle(rules: list, path: Path) -> None:
@@ -75,11 +74,23 @@ class TestLoadPatternRules:
         from guard_pipeline import _load_pattern_rules
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
+        # Rule dict at root with no "rules" key — should be treated as a single rule.
         (rules_dir / "bare.json").write_text(
-            json.dumps({"rules": _pat("PAT-001", "Bare")}), encoding="utf-8"
+            json.dumps(_pat("PAT-001", "Bare")), encoding="utf-8"
         )
         result = _load_pattern_rules(rules_dir)
         assert len(result) == 1
+
+    def test_top_level_list(self, tmp_path):
+        from guard_pipeline import _load_pattern_rules
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "list.json").write_text(
+            json.dumps([_pat("PAT-001", "First"), _pat("PAT-002", "Second")]),
+            encoding="utf-8",
+        )
+        result = _load_pattern_rules(rules_dir)
+        assert len(result) == 2
 
     def test_empty_dir(self, tmp_path):
         from guard_pipeline import _load_pattern_rules
@@ -116,7 +127,7 @@ class TestCheckOutgovPattern:
         assert "rules dir not found" in (result.note or "")
 
     def test_emits_findings_for_pattern_rules(self, tmp_path, monkeypatch):
-        from guard_pipeline import check_outgov_pattern, SEVERITY_WARN, SEVERITY_BLOCK
+        from guard_pipeline import check_outgov_pattern, SEVERITY_BLOCK
         monkeypatch.setenv("WG_OUTGOV", "warn")
         monkeypatch.setenv("WICKED_OUTGOV_RULES_DIR", str(tmp_path))
         rules_dir = tmp_path / "rules"
