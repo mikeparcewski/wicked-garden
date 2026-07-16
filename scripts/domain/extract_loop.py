@@ -80,7 +80,13 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")
         raw_conf = (rule or {}).get("confidence", 0.0)
         try:
-            safe_conf = float(raw_conf)
+            # Reject booleans (float(True)==1.0 but booleans are not valid confidence
+            # signals here). The chained comparison also rejects nan/inf naturally since
+            # nan comparisons always return False.
+            if isinstance(raw_conf, bool):
+                raise TypeError
+            _c = float(raw_conf)
+            safe_conf = _c if (0.0 <= _c <= 1.0) else 0.0
         except (TypeError, ValueError):
             safe_conf = 0.0
         estate.annotate(sid, type="risk", key=rid, value=risk_req[:500],

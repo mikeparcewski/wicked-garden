@@ -31,10 +31,10 @@ Run the coverage emitter from the estate store. This produces the
 `coverage-report.json` file the deterministic gate validator checks.
 
 ```bash
-wicked-core coverage --db "${WICKED_ESTATE_DB:-~/.wicked-estate/graph.db}" --out coverage-report.json
+wicked-core coverage --db "${WICKED_ESTATE_DB:-$HOME/.wicked-estate/graph.db}" --out coverage-report.json
 ```
 
-If `wicked-core` is not on PATH, find it at `~/.cargo/bin/wicked-core` or
+If `wicked-core` is not on PATH, find it at `$HOME/.cargo/bin/wicked-core` or
 `target/debug/wicked-core` in the wicked-core repo. If the coverage emitter
 fails or produces `coverage < 1.0`, do NOT fabricate a passing report — record
 the real metrics and RISK-flag every unaccounted node in your output.

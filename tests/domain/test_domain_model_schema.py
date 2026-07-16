@@ -278,3 +278,27 @@ def test_brain_mock_refuses_nonconformant_doc():
     brain = _mocks.BrainClient()
     with pytest.raises(ValueError, match="non-conformant"):
         brain.build_domain_graph({"metadata": {}, "domains": {}})
+
+
+# --- type-guard regression tests (garden#990 / garden#992 fixes) -------
+
+def test_build_requirement_non_dict_business_rule_raises_emit_error():
+    """_assert_unique_ids must raise EmitError for non-dict items, not crash."""
+    with pytest.raises(EmitError, match="must be a dict"):
+        build_requirement(
+            title="T", description="D",
+            legacy_components=["C"],
+            business_rules=["oops"],  # non-dict item in list
+        )
+
+
+def test_validate_document_non_list_business_rules_does_not_crash():
+    """validate_document used to crash with AttributeError when business_rules
+    was a non-list value (e.g. 42).  The type-guard fix skips it; schema
+    errors are returned instead."""
+    doc = fixture_document()
+    domain_key = next(iter(doc["domains"]))
+    req_key = next(iter(doc["domains"][domain_key]["requirements"]))
+    doc["domains"][domain_key]["requirements"][req_key]["business_rules"] = 42
+    errors = validate_document(doc)
+    assert isinstance(errors, list)  # no AttributeError, just schema errors

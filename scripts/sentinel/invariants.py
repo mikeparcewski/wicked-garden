@@ -225,7 +225,7 @@ def claim_tick(state_get, state_set, *, final_message: Optional[str],
             "action": ("Invoke the `wicked-garden-prove` skill to re-derive the claim now, or state "
                        "the override reason — the claim is logged either way."),
         }
-        log_sentinel_event(repo, "unverified_claim",
+        log_sentinel_event(repo, "claim_unverified",
                            {"sha": head, "invariant": "done-claim-verdict"})
         return violation
     except Exception:  # noqa: BLE001 — sentinel never breaks a hook
