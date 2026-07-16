@@ -88,13 +88,15 @@ def _read_config_preference(key: str) -> Optional[str]:
         if not _CONFIG_PATH.exists():
             return None
         data = json.loads(_CONFIG_PATH.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return None
         prefs = data.get("tool_preferences")
         if isinstance(prefs, dict):
             value = prefs.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
         return None
-    except (json.JSONDecodeError, OSError):
+    except (json.JSONDecodeError, OSError, ValueError):
         return None
 
 

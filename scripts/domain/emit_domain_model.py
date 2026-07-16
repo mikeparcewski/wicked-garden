@@ -204,6 +204,11 @@ def _assert_unique_ids(*groups: Sequence[dict[str, Any]]) -> None:
     seen: set[str] = set()
     for group in groups:
         for item in group:
+            if not isinstance(item, dict):
+                raise EmitError(
+                    f"every business_rule / validation / error_path must be a dict, "
+                    f"got {type(item).__name__}"
+                )
             # Fail closed with an actionable EmitError rather than a raw KeyError
             # (contract: the assembler never leaks bare exceptions). Runs before
             # the round-trip check, so every later item['id'] access is guarded too.

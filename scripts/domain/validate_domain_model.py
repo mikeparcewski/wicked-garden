@@ -203,13 +203,16 @@ def _extra_invariants(doc: dict[str, Any]) -> list[str]:
             where = f"domains/{dkey}/requirements/{rkey}"
             if not isinstance(req, dict):
                 continue
-            rules = req.get("business_rules", []) or []
-            vals = req.get("validations", []) or []
-            errs = req.get("error_paths", []) or []
+            _r = req.get("business_rules", [])
+            _v = req.get("validations", [])
+            _e = req.get("error_paths", [])
+            rules: list = _r if isinstance(_r, list) else []
+            vals: list = _v if isinstance(_v, list) else []
+            errs: list = _e if isinstance(_e, list) else []
 
             # id uniqueness within the requirement
             seen: set[str] = set()
-            for item in list(rules) + list(vals) + list(errs):
+            for item in rules + vals + errs:
                 if not isinstance(item, dict):
                     continue
                 iid = item.get("id")
@@ -229,7 +232,8 @@ def _extra_invariants(doc: dict[str, Any]) -> list[str]:
                         )
 
             # SymbolId-reference shape (invariant 5): references, never copies
-            for comp in req.get("legacy_components", []) or []:
+            _lc = req.get("legacy_components", [])
+            for comp in (_lc if isinstance(_lc, list) else []):
                 if not _looks_like_reference(comp):
                     errors.append(
                         f"{where}: legacy_components entry is not a valid "
