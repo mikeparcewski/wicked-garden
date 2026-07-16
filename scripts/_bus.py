@@ -265,7 +265,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "domain": "wicked-garden",
         "subdomain": "platform.outgov",
         "description": "Per-turn policy compliance check surfaced a violation (garden#984); "
-                       "severity drives allow/deny decision.",
+                       "advisory only — prepended to next session turn, no allow/deny gate.",
     },
     "wicked.garden.compliance.passed": {
         "domain": "wicked-garden",

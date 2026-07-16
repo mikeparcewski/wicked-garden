@@ -1076,7 +1076,10 @@ def check_outgov_pattern(
 
     for rule in pattern_rules:
         if time.monotonic() > deadline:
-            result.note = "budget exhausted; partial rule set surfaced (fail-open)"
+            surfaced = len(result.findings)
+            result.note = (
+                f"budget exhausted; {surfaced} of {len(pattern_rules)} rules surfaced (fail-open)"
+            )
             break
         rid = rule.get("id", "?")
         sev = _OUTGOV_SEV_MAP.get(str(rule.get("severity", "info")).lower(), SEVERITY_INFO)

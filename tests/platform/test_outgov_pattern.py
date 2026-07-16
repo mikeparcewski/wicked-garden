@@ -181,6 +181,11 @@ class TestCheckOutgovPattern:
         # budget_seconds=0 forces the deadline to fire; result must be ok (fail-open).
         result = check_outgov_pattern([], budget_seconds=0.0)
         assert result.status == "ok"
-        # Either "budget exhausted" (deadline fired during emission) or
-        # "no pattern rules found" (deadline fired during load) — both are correct.
+        # Either "budget exhausted; N of M rules surfaced" (deadline fired during emission)
+        # or "no pattern rules found" (deadline fired during load) — both are correct.
+        # Either way the note must NOT claim "partial rule set surfaced" without a count.
+        note = result.note or ""
+        assert not note.startswith("budget exhausted; partial"), (
+            "note must include surfaced/total counts, not just 'partial'"
+        )
         assert result.duration_ms >= 0

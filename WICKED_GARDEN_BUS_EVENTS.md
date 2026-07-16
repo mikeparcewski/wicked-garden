@@ -115,6 +115,8 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | `wicked.garden.compliance.passed` | `platform.compliance` | Compliance check passed for a framework |
 | `wicked.garden.guard.findings` | `platform.guard` | Autonomous session-close guard pipeline surfaced findings (Issue #448) |
 | `wicked.garden.log.rotated` | `platform.log_retention` | Log file rotated by log_retention.rotate_if_needed (audit marker) |
+| `wicked.garden.outgov.pattern_drift_detected` | `platform.outgov` | Pattern-conformance check found drift between session output and a registered conformance rule (garden#983); advisory only. |
+| `wicked.garden.outgov.policy_violation_found` | `platform.outgov` | Per-turn policy compliance check surfaced a violation (garden#984); advisory only — prepended to next session turn, no allow/deny gate. |
 | `wicked.garden.security.finding_raised` | `platform.security` | Security review raised a finding |
 
 ### Qe
