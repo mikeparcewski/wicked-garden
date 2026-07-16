@@ -98,6 +98,21 @@ class TestLoadPatternRules:
         rules_dir.mkdir()
         assert _load_pattern_rules(rules_dir) == []
 
+    def test_respects_expired_deadline(self, tmp_path):
+        """An already-expired deadline stops loading after the first file check."""
+        import time
+        from guard_pipeline import _load_pattern_rules
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        _make_bundle([_pat("PAT-001", "Would be loaded")], rules_dir / "a.json")
+        _make_bundle([_pat("PAT-002", "Should be skipped")], rules_dir / "b.json")
+        # deadline in the past — sorted glob sees "a.json" first; the deadline check
+        # fires before "b.json", so at most 1 file is loaded.
+        expired = time.monotonic() - 1.0
+        result = _load_pattern_rules(rules_dir, deadline=expired)
+        # With an already-expired deadline the loop breaks before reading any file.
+        assert len(result) == 0
+
 
 # ---------------------------------------------------------------------------
 # check_outgov_pattern
@@ -154,3 +169,18 @@ class TestCheckOutgovPattern:
         result = check_outgov_pattern([], budget_seconds=5.0)
         assert result.status == "ok"
         assert not result.findings
+
+    def test_budget_exhausted_does_not_crash(self, tmp_path, monkeypatch):
+        """check_outgov_pattern is fail-open even with an exhausted budget."""
+        from guard_pipeline import check_outgov_pattern
+        monkeypatch.setenv("WG_OUTGOV", "warn")
+        monkeypatch.setenv("WICKED_OUTGOV_RULES_DIR", str(tmp_path))
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        _make_bundle([_pat("PAT-001", "Use DI"), _pat("PAT-002", "No globals")], rules_dir / "a.json")
+        # budget_seconds=0 forces the deadline to fire; result must be ok (fail-open).
+        result = check_outgov_pattern([], budget_seconds=0.0)
+        assert result.status == "ok"
+        # Either "budget exhausted" (deadline fired during emission) or
+        # "no pattern rules found" (deadline fired during load) — both are correct.
+        assert result.duration_ms >= 0

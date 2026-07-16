@@ -987,11 +987,17 @@ _OUTGOV_SEV_MAP = {
 }
 
 
-def _load_pattern_rules(rules_dir: Path) -> List[Dict[str, Any]]:
-    """Read Pattern-type conformance rules from *.json bundles under rules_dir."""
+def _load_pattern_rules(rules_dir: Path, deadline: float = float("inf")) -> List[Dict[str, Any]]:
+    """Read Pattern-type conformance rules from *.json bundles under rules_dir.
+
+    Stops loading new bundle files once *deadline* (monotonic) is exceeded so
+    the guard pipeline's per-check budget is respected (fail-open: partial results).
+    """
     rules: List[Dict[str, Any]] = []
     seen: set = set()
     for path in sorted(rules_dir.glob("*.json")):
+        if time.monotonic() > deadline:
+            break
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, ValueError):
@@ -1032,6 +1038,7 @@ def check_outgov_pattern(
     WG_OUTGOV=off (default) → skip.  Always fails open.
     """
     t0 = time.monotonic()
+    deadline = t0 + budget_seconds
     result = CheckResult(name="outgov_pattern", status="ok")
 
     if os.environ.get("WG_OUTGOV", "off").strip().lower() == "off":
@@ -1055,7 +1062,7 @@ def check_outgov_pattern(
         return result
 
     try:
-        pattern_rules = _load_pattern_rules(rules_dir)
+        pattern_rules = _load_pattern_rules(rules_dir, deadline=deadline)
     except Exception as exc:
         result.status = "skip"
         result.note = f"rule load failed (fail-open): {exc}"
@@ -1068,6 +1075,9 @@ def check_outgov_pattern(
         return result
 
     for rule in pattern_rules:
+        if time.monotonic() > deadline:
+            result.note = "budget exhausted; partial rule set surfaced (fail-open)"
+            break
         rid = rule.get("id", "?")
         sev = _OUTGOV_SEV_MAP.get(str(rule.get("severity", "info")).lower(), SEVERITY_INFO)
         statement = str(rule.get("statement", ""))[:200]
