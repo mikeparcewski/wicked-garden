@@ -72,7 +72,7 @@ wicked-understanding (repo playbooks from HEAD) and codegraph (structural code i
 
 Refs (the detailed content) live in `skills/{domain}/refs/` files (200-300 lines each) and are loaded on demand.
 
-**Hooks** — three active hook types: `SessionStart` (bootstrap: environment setup, peer verification), `UserPromptSubmit` (archetype detection, system-reminder injection), `Stop` (teardown: session audit write). Hooks use `command` type over `prompt`/`agent` for determinism and zero token cost. Stop hooks use `"async": true`. Hooks return `{"ok": true}` on success, `{"ok": false, "reason": "..."}` to block. All hook scripts are stdlib-only Python.
+**Hooks** — three active hook types: `SessionStart` (bootstrap: environment setup, peer verification), `UserPromptSubmit` (archetype detection, system-reminder injection), `Stop` (teardown: session audit write). Hooks use `command` type over `prompt`/`agent` for determinism and zero token cost. Stop hooks use `"async": true`. Bootstrap and Stop hooks return `{"ok": true}` on success; `{"ok": false, "reason": "..."}` blocks the event. The UserPromptSubmit hook returns `{"continue": true}` to proceed (with `hookSpecificOutput` for injected context) or `{"continue": false}` to block. All hook scripts are stdlib-only Python.
 
 **Daemon** (`daemon/`) — a Flask server for long-running operations (e.g., indexing, background event processing). Not required for core plugin function; opt-in for operations that exceed hook timeout limits.
 

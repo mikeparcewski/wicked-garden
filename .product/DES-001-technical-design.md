@@ -270,7 +270,7 @@ Three active hooks, all `command` type:
 | Prompt Submit | `UserPromptSubmit` | `hooks/scripts/prompt_submit.py` | Archetype detection; system-reminder injection |
 | Stop | `Stop` | `hooks/scripts/stop.py` | Session teardown; audit write; event flush |
 
-Hook scripts are stdlib-only Python — no third-party imports. All hooks return `{"ok": true}` on success. A hook returning `{"ok": false, "reason": "..."}` blocks the triggering event. The Stop hook uses `"async": true` to avoid blocking session shutdown.
+Hook scripts are stdlib-only Python — no third-party imports. Bootstrap and Stop hooks return `{"ok": true}` on success; `{"ok": false, "reason": "..."}` blocks the triggering event. The UserPromptSubmit hook (`prompt_submit.py`) returns `{"continue": true}` to proceed and carries injected context in `hookSpecificOutput`; `{"continue": false}` blocks the prompt. The Stop hook uses `"async": true` to avoid blocking session shutdown.
 
 Hook scripts access `CLAUDE_PLUGIN_ROOT` to construct paths. All shell variables are quoted. Temp paths use `tempfile.gettempdir()`.
 

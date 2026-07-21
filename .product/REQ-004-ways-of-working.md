@@ -142,16 +142,14 @@ Version scheme: semver. `minor` for new capabilities or skill additions. `patch`
 Two primary GitHub Actions workflows:
 
 **`validate.yml`** — runs on push and PR targeting `main`:
-- Plugin structure validation (frontmatter, naming, slim body contract).
-- `components.json` sync check.
-- Hook script syntax validation (Python stdlib-only check).
-- Compiler output AST check (stdlib-only enforcement in emitted `gate.py`).
-- Cross-platform path checks (no hardcoded `/tmp`, no bare `python3` without fallback).
+- `python scripts/ci/validate.py`: plugin structure (frontmatter, naming, slim body), `components.json` sync, hook script syntax, compiler AST check, cross-platform path check, event name format.
+- `python scripts/_validate_registry.py`: in-code allowlist validation.
 
 **`test.yml`** — runs on push and PR targeting `main`:
-- Unit tests: `tests/` directory via pytest.
-- Compiler tests: `tests/compiler/test_compile.py` (AST-enforced stdlib-only check on emitted gate).
-- Hook integration tests: fire hook events and verify output format.
+- Installs wicked peers globally (wicked-vault, wicked-loom, wicked-testing) — required for trust-spine E2E tests.
+- Unit + E2E tests: `python -m pytest tests/ -q` with `WICKED_REQUIRE_E2E=1` (trust-spine must not skip).
+- wicked-patch conformance: `python -m pytest scripts/engineering/patch/tests/test_conformance.py -q`.
+- Phase manager smoke: `phase_manager.py ci-smoke` create/status/delete round-trip.
 
 A PR is not merge-ready until both workflows are green. The wicked-testing acceptance gate (when configured) additionally requires an independent QE verdict — the evaluator agent is not the agent that ran the tests.
 
