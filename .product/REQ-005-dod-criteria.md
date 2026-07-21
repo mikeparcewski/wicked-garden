@@ -51,7 +51,8 @@ These criteria verify that the core capabilities work as designed. They are veri
 
 **Compiler:**
 - [x] **L2-009** — `compile.py` Phase 0 detection identifies the ecosystem, test/lint/build commands, and claims documents for a representative set of repo types (Node, Python, Rust). Evidence: `tests/crew/test_flow_compiler.py` PASSED; `tests/compiler/test_compile.py` 19 passed (2026-07-21).
-- [x] **L2-010** — The emitted `gate.py` uses only Python stdlib (no third-party imports). Evidence: AST stdlib-only enforcement in `tests/compiler/test_compile.py` PASSED — the test statically asserts no non-stdlib imports in the emitted gate (2026-07-21). Note: end-to-end runtime execution with a live `wicked-vault` via `npx` is not covered by unit tests; that path requires an integration test (tracked as an open gap alongside L2-011/012).
+- [x] **L2-010a** — The emitted `gate.py` contains only Python stdlib imports (no third-party packages). Evidence: AST stdlib-only enforcement in `tests/compiler/test_compile.py` — 19 passed, statically asserts no non-stdlib imports in the emitted gate (2026-07-21).
+- [ ] **L2-010b** — The emitted `gate.py` runs to completion in a clean environment with `wicked-vault` resolved via `npx` (end-to-end emitted gate execution). Requires integration test against a real repo with live npx resolution; not yet run end-to-end (tracked as an open gap alongside L2-011/012).
 - [ ] **L2-011** — With `--trigger hook`, a git pre-push hook is installed that executes the emitted gate on push. Requires integration test against a real repo; not yet run end-to-end.
 - [ ] **L2-012** — With `--trigger ci`, a GitHub Actions workflow file is written that executes the emitted gate. Requires integration test against a real repo; not yet run end-to-end.
 
