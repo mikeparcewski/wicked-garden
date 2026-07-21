@@ -134,9 +134,14 @@ def verdict_for(repo: Path, sha: Optional[str] = None) -> Optional[Dict[str, Any
 # Override / detection events → the bus (fire-and-forget; the skip is evidence)
 # ---------------------------------------------------------------------------
 
+_SENTINEL_EVENTS = frozenset({"claim_unverified", "prepush_blocked"})
+
+
 def log_sentinel_event(repo: Path, event: str, detail: Dict[str, Any]) -> None:
     """Emit wicked.garden.sentinel.<event> to the bus if available; always append to a
     local trail so the record exists even without the bus layer."""
+    if event not in _SENTINEL_EVENTS:
+        raise ValueError(f"Unknown sentinel event {event!r}; valid values: {sorted(_SENTINEL_EVENTS)}")
     payload = {"repo": str(repo), "ts": time.time(), **detail}
     try:
         trail = _ledger_path(repo).with_suffix(".events.jsonl")

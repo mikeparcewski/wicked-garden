@@ -480,7 +480,7 @@ def _run_quality_telemetry(session_id: str) -> list:
 #
 # Always fails open — never hard-blocks session close.  Findings are written
 # to a session-scoped file that bootstrap.py can surface in the next briefing,
-# and emitted as a `wicked.garden.guard.findings` event on wicked-bus.
+# and emitted as a `wicked.garden.guard.surfaced` event on wicked-bus.
 #
 # Ordering: runs AFTER telemetry (#443) so both can share the end-of-session
 # snapshot without blocking each other.

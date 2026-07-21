@@ -2,7 +2,7 @@
 name: REQ-005-dod-criteria
 title: wicked-garden — Definition of Done Criteria
 status: partially-verified
-version: 0.2
+version: 0.3
 date: 2026-07-21
 author: mike.parcewski@gmail.com
 review-required: true
@@ -29,7 +29,7 @@ These criteria are mechanical. They are verified by `/wg-check` and the `validat
 - [x] **L1-009** — All Python scripts in `scripts/` and `hooks/scripts/` pass Python syntax check (`python3 -m py_compile`). Evidence: `python3 -m compileall scripts/ hooks/scripts/ -q` → exit 0 (covers all Python files recursively; 2026-07-21).
 - [x] **L1-010** — `validate.yml` CI workflow is green on the PR branch. Evidence: `validate` and `test` CI checks (`validate.yml`, `test.yml`) on the docs/garden-dod-l1-evidence branch — both `SUCCESS` (same evidence as L1-002 through L1-004; CI runs on every push to this branch, 2026-07-21).
 - [x] **L1-011** — `plugin.json` version matches `marketplace.json` version. Evidence: both `12.28.1` (2026-07-21).
-- [x] **L1-012** — Event names in all bus emissions follow the 4-segment format `wicked.<domain>.<noun>.<past-tense-verb>`. Evidence: scan of production Python — 60 distinct well-formed 4-segment events; "bad" patterns are test fixtures only (2026-07-21).
+- [x] **L1-012** — Event names in all bus emissions follow the 4-segment format `wicked.<domain>.<noun>.<past-tense-verb>`. Evidence: `BUS_EVENT_MAP` in `scripts/_bus.py` contains 51 events (verified at runtime: `python3 -c "from _bus import BUS_EVENT_MAP; print(len(BUS_EVENT_MAP))"` → 51). All 51 are 4-segment. Two events were renamed from non-conforming noun forms to past-tense verbs in this PR: `wicked.garden.guard.findings` → `wicked.garden.guard.surfaced`; `wicked.garden.modernize.stack_gap` → `wicked.garden.modernize.gap_emitted`. Two orphaned entries (`rollout.decided`, `experiment.concluded`) removed from `_validate_registry.py`. (2026-07-21, v0.3)
 
 ---
 
@@ -40,7 +40,7 @@ These criteria verify that the core capabilities work as designed. They are veri
 **Evidence gate:**
 - [x] **L2-001** — `gate_satisfied()` returns green when wicked-loom and wicked-vault are present and evidence matches. Evidence: `tests/qe/test_loom_gate_contract.py::GateLoomAuthoritative::test_loom_pass_is_the_only_path` PASSED (2026-07-21).
 - [x] **L2-002** — `gate_satisfied()` returns `gate: "unavailable"` (not green) when loom is absent or `WICKED_LOOM_CUTOVER=off`. Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` and `test_off_disables_loom_fails_closed` PASSED (2026-07-21).
-- [x] **L2-003** — `gate_satisfied()` fails closed when vault is unresolvable (`WICKED_VAULT_BIN=""`). Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` (sets `WICKED_VAULT_BIN=""`) PASSED; `test_loom_unresolvable_fails_closed` covers loom resolution failure (2026-07-21).
+- [x] **L2-003** — `gate_satisfied()` fails closed when loom is unresolvable (returns `gate: "unavailable"`). Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` PASSED — mocks `resolve_loom=None`, confirms gate returns ERROR/unavailable. Note: `WICKED_VAULT_BIN=""` is the kill-switch for the concrete vault probe (`vault_available()`) but does NOT kill-switch `gate_satisfied()` when loom is active (loom resolves vault independently). The gate's fail-closed posture when loom is absent is what the test verifies (2026-07-21, v0.3).
 - [ ] **L2-004** — Hard-gate attestation rejects evidence recorded under `created_by_source='env-user'` (vault `>= 0.4.0`). Requires vault `>= 0.4.0` installed; not yet run end-to-end.
 - [x] **L2-005** — Evidence recorded under an explicit `--actor` (e.g., `garden-prove`) passes the attestation gate. Evidence: `tests/qe/test_prove.py::AttestationForwardingTests::test_with_attestations_forwarded_to_gate` PASSED (2026-07-21).
 
@@ -57,9 +57,9 @@ These criteria verify that the core capabilities work as designed. They are veri
 - [ ] **L2-012** — With `--trigger ci`, a GitHub Actions workflow file is written that executes the emitted gate. Requires integration test against a real repo; not yet run end-to-end.
 
 **wicked-patch:**
-- [x] **L2-013** — `rename` applies consistently across all files referencing the target symbol, including those connected via injected codegraph edges. Evidence: 228 patch tests PASSED (2026-07-21; `python3 -m pytest tests/ -k patch`).
-- [x] **L2-014** — The `patch plan` step shows the complete affected file set before applying changes. Evidence: patch plan tests included in the 228 PASSED patch tests (2026-07-21).
-- [x] **L2-015** — Language generators produce syntactically valid output for each supported language (Python, TypeScript, Java, Go, SQL, Rust). Evidence: language generator tests included in the 228 PASSED patch tests (2026-07-21).
+- [ ] **L2-013** — `rename` applies consistently across all files referencing the target symbol, including those connected via injected codegraph edges. Note: the `-k patch` filter collects 228 tests matching "patch" as a substring across the whole suite (including semver tests, loom pin tests, etc.) — those are not wicked-patch tests. The actual wicked-patch conformance tests are 12 tests in `scripts/engineering/patch/tests/test_conformance.py`, which verify language generator output (L2-015) only. Multi-file rename propagation and plan completeness (L2-013/014) have NO dedicated test coverage. The specific sub-claim about "injected codegraph edges" (bus/dispatch edges in wicked-estate) is also unverified: `PropagationEngine` queries wicked-brain's HTTP API, not wicked-estate. Open gap pending integration test.
+- [ ] **L2-014** — The `patch plan` step shows the complete affected file set before applying changes. Note: the 12 conformance tests (`scripts/engineering/patch/tests/test_conformance.py`) verify language generator syntactic correctness only — plan completeness across multi-file renames is not covered. Open gap pending integration test.
+- [x] **L2-015** — Language generators produce syntactically valid output for each supported language (Python, TypeScript, Java, Go, SQL, Rust). Evidence: `scripts/engineering/patch/tests/test_conformance.py` — 12 tests covering Python, TypeScript, Java, JSP, SQL, Go, C#, Ruby, Kotlin, Rust, PHP, Perl generators PASSED (2026-07-21). These are the actual wicked-patch conformance tests (not the broader `-k patch` filter).
 
 **Council:**
 - [x] **L2-016** — The `council` action dispatches to at least one external LLM CLI and returns a synthesized verdict. Evidence: 11 council tests PASSED (2026-07-21; `python3 -m pytest tests/ -k council`).
@@ -81,9 +81,9 @@ These criteria require independent evaluation — the evaluator is not the agent
 - [ ] **L3-003** — The evaluator agent (wicked-testing's judge) is not the agent that ran the test scenarios (structural separation, not convention).
 
 **Adversarial review:**
-- [ ] **L3-004** — An adversarial review has been run on all changed skills and scripts. The reviewer is not the author. Findings are addressed or explicitly accepted with rationale.
-- [ ] **L3-005** — The adversarial review checked: frontmatter accuracy (description matches actual behavior), refs content correctness (rubrics are valid), gate semantics (no vacuous-pass paths), cross-platform paths, and naming compliance.
-- [ ] **L3-006** — Review findings are recorded (not silently discarded). At least one reviewer finding was actioned or accepted with documented rationale.
+- [x] **L3-004** — An adversarial review has been run on all changed skills and scripts. The reviewer is not the author. Findings are addressed or explicitly accepted with rationale. Evidence: `.product/reviews/adversarial-review-v12.28.1.md` — initial verdict FAIL (C-001: misleading evidence; H-001: wrong event count; H-002: 2 events non-conforming; H-003: misleading evidence citation). All blocking findings addressed in this PR (see L3-006). (2026-07-21)
+- [x] **L3-005** — The adversarial review checked: frontmatter accuracy (description matches actual behavior), refs content correctness (rubrics are valid), gate semantics (no vacuous-pass paths), cross-platform paths, and naming compliance. Evidence: `adversarial-review-v12.28.1.md` — gate logic confirmed correct (fail-closed paths verified), triple-fallback hooks confirmed, AST stdlib check confirmed, event naming compliance verified (2 events renamed), evidence chain checked (2026-07-21).
+- [x] **L3-006** — Review findings are recorded (not silently discarded). At least one reviewer finding was actioned or accepted with documented rationale. Evidence: C-001 resolved (L2-013/014 unchecked, evidence scoped down to 12 actual conformance tests); H-001 resolved (L1-012 count corrected to 51); H-002 resolved (2 events renamed to past-tense verbs); H-003 resolved (L2-003 evidence reworded). M-001/M-002/M-003/M-004 also addressed. Review record: `.product/reviews/adversarial-review-v12.28.1.md`.
 
 **Release published:**
 - [ ] **L3-007** — `plugin.json` and `marketplace.json` version are bumped (semver, appropriate bump level for the change).
@@ -115,3 +115,4 @@ These criteria require independent evaluation — the evaluator is not the agent
 |---------|------|--------|--------|
 | 0.1 | 2026-07-21 | mike.parcewski@gmail.com | Initial draft — all L1/L2/L3 items unchecked |
 | 0.2 | 2026-07-21 | mike.parcewski@gmail.com | Evidence pass: all 12 L1 criteria checked off (CI green, syntax checks, components sync, version match). L2-001/002/003/005/006/007/008/009/010/013/014/015/016/017/018/019 verified via 972-test suite (972 passed, 17 skipped). L2-004/011/012 require end-to-end integration tests. All L3 items remain open (require acceptance pipeline + adversarial review). |
+| 0.3 | 2026-07-21 | mike.parcewski@gmail.com | Adversarial review findings addressed (initial verdict FAIL → resolving to PASS): C-001 — L2-013/014 unchecked (evidence was misleading; 228 tests ≠ wicked-patch tests; scoped to 12 actual conformance tests; multi-file graph traversal gap noted); H-001 — L1-012 event count corrected to 51; H-002 — two events renamed (`guard.findings` → `guard.surfaced`, `modernize.stack_gap` → `modernize.gap_emitted`); H-003 — L2-003 evidence reworded to reflect what test actually proves (loom absent, not VAULT_BIN=""); M-001 — `npm test` script added to package.json; M-002 — `matcher: "*"` added to TaskCompleted hook; M-003 — `_SENTINEL_EVENTS` frozenset guard added; M-004 — orphaned rollout/experiment events removed from `_validate_registry.py`. L3-004/005/006 checked (adversarial review run, findings recorded and actioned). 972 tests still pass. |
