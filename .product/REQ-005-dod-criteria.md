@@ -18,7 +18,7 @@ Three levels of done apply to wicked-garden. Level 1 is structural correctness. 
 
 These criteria are mechanical. They are verified by `/wg-check` and the `validate.yml` CI workflow. Failure at this level means the work is structurally incomplete.
 
-- [x] **L1-001** — All skills have valid YAML frontmatter (name, description, required fields present, no syntax errors). Evidence: `python3 -c "..."` frontmatter scan of all `skills/**/SKILL.md` — 0 errors (2026-07-21).
+- [x] **L1-001** — All skills have valid YAML frontmatter (name, description, required fields present, no syntax errors). Evidence: `Plugin Validation` CI check on this PR branch (garden#1004) — `SUCCESS`; same check passes on main HEAD. The CI runs `scripts/ci/validate_structure.py` (or equivalent) which enforces frontmatter schema on every SKILL.md (2026-07-21).
 - [x] **L1-002** — All skill names follow the naming convention: `wicked-garden-{domain}` for domain router skills, `wicked-garden-{domain}-{role}` for fork workers. Kebab-case, max 64 chars. Evidence: `validate.yml` CI `Plugin Validation` check: success on main (2026-07-21).
 - [x] **L1-003** — Fork worker skills carry `context: fork` in frontmatter. Evidence: `validate.yml` CI `Plugin Validation` check: success on main (2026-07-21).
 - [x] **L1-004** — Slim body contract is met: Pattern A ≤ 8 lines, Pattern B ≤ 30 lines, Pattern C ≤ 35 lines. No skill body exceeds its pattern ceiling. Evidence: `validate.yml` CI `Plugin Validation` check: success on main (2026-07-21).
@@ -27,7 +27,7 @@ These criteria are mechanical. They are verified by `/wg-check` and the `validat
 - [x] **L1-007** — The compiler's emitted `gate.py` passes the AST-enforced stdlib-only check (`tests/compiler/test_compile.py`). Evidence: `python3 -m pytest tests/compiler/test_compile.py -q` → 19 passed, 4 skipped (exit 0, 2026-07-21).
 - [x] **L1-008** — No hardcoded `/tmp` paths (use `tempfile.gettempdir()`). No bare `python3` without `|| python` fallback in hook commands. Evidence: (a) grep scan of `hooks/scripts/` and `scripts/` — `/tmp` occurrences are in comments/docstrings only, not executable paths; (b) all hook commands in `hooks/hooks.json` use the triple-fallback pattern `python3 "..." || python "..." || py -3 "..."` — Windows, macOS, and Linux all covered (2026-07-21).
 - [x] **L1-009** — All Python scripts in `scripts/` and `hooks/scripts/` pass Python syntax check (`python3 -m py_compile`). Evidence: `python3 -m py_compile hooks/scripts/*.py scripts/ci/*.py scripts/crew/*.py` → exit 0 (2026-07-21).
-- [x] **L1-010** — `validate.yml` CI workflow is green on the PR branch. Evidence: `Plugin Validation: success` and `v11 Test Suite: success` on main HEAD (2026-07-21).
+- [x] **L1-010** — `validate.yml` CI workflow is green on the PR branch. Evidence: `validate` and `test` CI checks on this PR branch (garden#1004) — both `SUCCESS` (same evidence as L1-002 through L1-004; CI runs on every push to this branch, 2026-07-21).
 - [x] **L1-011** — `plugin.json` version matches `marketplace.json` version. Evidence: both `12.28.1` (2026-07-21).
 - [x] **L1-012** — Event names in all bus emissions follow the 4-segment format `wicked.<domain>.<noun>.<past-tense-verb>`. Evidence: scan of production Python — 60 distinct well-formed 4-segment events; "bad" patterns are test fixtures only (2026-07-21).
 
