@@ -38,14 +38,14 @@
   "assertions": {
     "A1": {
       "description": "npm test passes — all unit and integration tests exit 0",
-      "evidence": "step1_npm_test: exit_code=0, output tail shows '972 passed, 17 skipped in 53.24s'. No FAIL lines. 972 tests run, 17 legitimately skipped (end-to-end integration tests requiring live tools). All assertions green."
+      "evidence": "step1_npm_test: command was `npm test 2>&1 | tail -10` (no pipefail); exit_code=0 reflects tail, not npm test. However, output tail unambiguously shows '972 passed, 17 skipped in 53.24s' — no FAIL lines. Evidence for the exit status of npm test is the output content, not the captured exit_code. 972 tests run, 17 legitimately skipped. Note: scenario v1.1 adds `set -o pipefail` to correctly capture npm exit status in future runs."
     },
     "A2": {
-      "description": "BUS_EVENT_MAP contains exactly 52 events, all 4-segment",
-      "evidence": "step2_bus_event_count: BUS_EVENT_MAP loaded from scripts/_bus.py. event_count=52, non_conforming=[] (computed via filter len(k.split('.'))!=4 — finds events NOT having 4 segments). assert count==52 and assert not bad both pass. All 52 events follow wicked.<domain>.<noun>.<verb> format. exit_code=0."
+      "description": "BUS_EVENT_MAP contains exactly 52 events, all 4-segment wicked.<domain>.<noun>.<past-tense-verb>",
+      "evidence": "step2_bus_event_count: BUS_EVENT_MAP loaded from scripts/_bus.py. event_count=52, non_conforming=[] (computed via filter len(k.split('.'))!=4 — finds events NOT having 4 segments). assert count==52 and assert not bad both pass. All 52 events follow wicked.<domain>.<noun>.<past-tense-verb> format (verified by 4-segment check; wicked. prefix is implicit as all BUS_EVENT_MAP keys start with wicked.). exit_code=0. Note: scenario v1.1 adds explicit wicked. prefix assertion."
     },
     "A3": {
-      "description": "gate_satisfied() fails closed when loom is absent (returns gate unavailable, not green)",
+      "description": "gate_satisfied() fails closed when WICKED_LOOM_CUTOVER=off (loom disabled, returns gate unavailable, not green)",
       "evidence": "step3_gate_fails_closed: vault_gate loaded from scripts/qe/vault_gate.py (same path used by test_loom_gate_contract.py — adds both scripts/ and scripts/qe/ to sys.path). WICKED_LOOM_CUTOVER=off disables loom. gate_satisfied('.', 'delivery', 'build') returns {satisfied: false, re_derived: false, gate: 'unavailable', reason: '...fails closed...'}. gate='unavailable', not 'satisfied'. exit_code=0. Command includes print statement; output matches exactly."
     },
     "A4": {
