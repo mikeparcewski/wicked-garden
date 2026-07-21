@@ -2,7 +2,7 @@
 name: REQ-005-dod-criteria
 title: wicked-garden — Definition of Done Criteria
 status: partially-verified
-version: 0.5
+version: 0.7
 date: 2026-07-21
 author: mike.parcewski@gmail.com
 review-required: true
@@ -41,7 +41,7 @@ These criteria verify that the core capabilities work as designed. They are veri
 - [x] **L2-001** — `gate_satisfied()` returns green when wicked-loom and wicked-vault are present and evidence matches. Evidence: `tests/qe/test_loom_gate_contract.py::GateLoomAuthoritative::test_loom_pass_is_the_only_path` PASSED (2026-07-21).
 - [x] **L2-002** — `gate_satisfied()` returns `gate: "unavailable"` (not green) when loom is absent or `WICKED_LOOM_CUTOVER=off`. Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` and `test_off_disables_loom_fails_closed` PASSED (2026-07-21).
 - [x] **L2-003** — `gate_satisfied()` fails closed when loom is unresolvable (returns `gate: "unavailable"`). Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` PASSED — mocks `resolve_loom=None`, confirms gate returns ERROR/unavailable. Note: `WICKED_VAULT_BIN=""` is the kill-switch for the concrete vault probe (`vault_available()`) but does NOT kill-switch `gate_satisfied()` when loom is active (loom resolves vault independently). The gate's fail-closed posture when loom is absent is what the test verifies (2026-07-21, v0.4).
-- [ ] **L2-004** — Hard-gate attestation rejects evidence recorded under `created_by_source='env-user'` (vault `>= 0.4.0`). Requires vault `>= 0.4.0` installed; not yet run end-to-end.
+- [x] **L2-004** — Hard-gate attestation rejects evidence recorded under `created_by_source='env-user'` (vault `>= 0.4.0`). Evidence (2026-07-21, vault 0.9.0): (1) `wicked-vault record --scope l2-004-test --phase verify ... --artifact test-artifact.txt` (no `--actor`) → artifact ID `019F85F5DD2A62E049B179068641`, `created_by_source='env-user'`. (2) `wicked-vault inspect` confirms `created_by: michael.parcewski, source: env-user`. (3) `wicked-vault attest ... --evaluator test-evaluator` (no `--allow-weak-worker-identity`) → exit 1, error: `"attest refused (G10/D4): the artifact was recorded under a weak/ambient worker identity (created_by_source='env-user'), so 'evaluator != created_by' is not a trustworthy independence signal."` Vault fails-closed exactly as specified. vault 0.9.0 satisfies the `>= 0.4.0` floor.
 - [x] **L2-005** — Evidence recorded under an explicit `--actor` (e.g., `garden-prove`) passes the attestation gate. Evidence: `tests/qe/test_prove.py::AttestationForwardingTests::test_with_attestations_forwarded_to_gate` PASSED (2026-07-21).
 
 **Archetype detection:**
@@ -124,3 +124,4 @@ These criteria require independent evaluation — the evaluator is not the agent
 | 0.4 | 2026-07-21 | mike.parcewski@gmail.com | Bot review follow-up fixes: `modernize.md` event name updated to `gap_emitted`; `unverified_task_done` added to `_SENTINEL_EVENTS` frozenset (call site in `task_completed.py` was silently broken); `wicked.garden.sentinel.unverified_task_done` added to `BUS_EVENT_MAP` and `_validate_registry.py` `_AUDIT_MARKER_EVENTS` — bus catalog regenerated (51→52 events). L1-012 count updated to 52. 972 tests still pass. |
 | 0.5 | 2026-07-21 | mike.parcewski@gmail.com | L2-013 and L2-014 checked off (partial): `test_propagation_plan.py` adds 10 tests across `PropagationMultiFilePlanTests` (L2-013) and `PropagationPlanCompletenessTests` (L2-014). Remaining gap: injected codegraph edge path (bus/dispatch edges via wicked-estate HTTP API) is not covered — production codegraph integration is unverified; SQLite symbol-graph propagation is verified. 26 patch tests pass total (PR #1009). |
 | 0.6 | 2026-07-21 | mike.parcewski@gmail.com | Updated L3-007/008 evidence to reflect 12.29.1 release (PR #1010): version synced across package.json/plugin.json/marketplace.json/package-lock.json; CHANGELOG entries added for both 12.29.0 (missing) and 12.29.1. |
+| 0.7 | 2026-07-21 | mike.parcewski@gmail.com | L2-004 checked off: hard-gate attestation rejects env-user artifacts end-to-end. vault 0.9.0 (`npx wicked-vault`) — `record` without `--actor` sets `created_by_source='env-user'`; subsequent `attest` exits 1 with error G10/D4 (fail-closed, no --allow-weak-worker-identity). |
