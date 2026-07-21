@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+## [12.29.1] — 2026-07-21
+
+### Added
+- **Wicked-patch propagation tests (L2-013/L2-014).** `scripts/engineering/patch/tests/test_propagation_plan.py` — 10 new tests across `PropagationMultiFilePlanTests` (L2-013: RENAME_FIELD plan covers all referencing files, excludes unrelated files, all symbols in `all_affected`, concrete file set matches expected) and `PropagationPlanCompletenessTests` (L2-014: `format_plan` shows plan before patches, source file full path present, impact symbol names present, `Total: N symbols in M files` footer, source symbol name). Uses synthetic SQLite patch-schema DB; no live wicked-brain required. 26 patch tests pass total.
+
+### Fixed
+- Synced `package.json` version with `plugin.json` (was stuck at 12.28.1 after the 12.29.0 release; now 12.29.1 across all three files).
+- Test docstring accuracy: `test_propagation_plan.py` docstring now says "minimal subset of the patch-schema" (not "mirrors exactly"); `test_rename_plan_file_count_matches_all_affected_symbols` uses concrete expected set (not tautological derivation); `test_format_plan_shows_all_impact_symbol_names` caveat added about 10-symbol truncation.
+
+## [12.29.0] — 2026-07-21
+
+### Added
+- **`wicked.garden.sentinel.unverified_task_done` bus event.** Fixes a silent swallow at `hooks/scripts/task_completed.py:299` — the `unverified_task_done` sentinel was emitted but never registered in `_SENTINEL_EVENTS`, so the hook silently dropped it. Added to `_SENTINEL_EVENTS`, `BUS_EVENT_MAP`, and `_validate_registry.py` `_AUDIT_MARKER_EVENTS`. BUS_EVENT_MAP now has 52 events (was 51).
+- **Cross-platform `npm test` script.** Adds `scripts/ci/run_pytest.js` and wires it as the `test` script in `package.json`, enabling `npm test` as a uniform test runner on macOS, Linux, and Windows.
+
+### Fixed
+- **Event naming compliance.** Renamed two non-conforming events to past-tense verbs per the 4-segment `wicked.<domain>.<noun>.<past-tense-verb>` grammar: `wicked.garden.guard.findings` → `wicked.garden.guard.surfaced`; `wicked.garden.modernize.stack_gap` → `wicked.garden.modernize.gap_emitted`.
+- **`_SENTINEL_EVENTS` frozenset completeness.** `unverified_task_done` added to the guard set so the task-completed hook correctly detects and gates on it.
+- Removed orphaned rollout/experiment events from `_validate_registry.py` that had no corresponding call sites.
+
 ## [12.28.1] — 2026-07-12
 
 ### Fixed

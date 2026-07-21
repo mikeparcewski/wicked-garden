@@ -1,6 +1,6 @@
 {
   "name": "wicked-garden",
-  "version": "12.28.1",
+  "version": "12.29.1",
   "type": "module",
   "description": "Curated toolkit for what AI coding agents can't do alone: evidence-gated work, codegraph relationships, deterministic multi-file refactor, multi-model second opinions, and cross-session memory. Installs as a Claude Code plugin.",
   "keywords": [
