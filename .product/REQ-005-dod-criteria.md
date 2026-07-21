@@ -2,7 +2,7 @@
 name: REQ-005-dod-criteria
 title: wicked-garden — Definition of Done Criteria
 status: partially-verified
-version: 0.8
+version: 0.9
 date: 2026-07-21
 author: mike.parcewski@gmail.com
 review-required: true
@@ -78,8 +78,8 @@ These criteria require independent evaluation — the evaluator is not the agent
 **wicked-testing acceptance gate:**
 - [x] **L3-001** — The wicked-garden self-test acceptance scenario (`.wicked-testing/scenarios/garden-self-test.md`) passes the wicked-testing acceptance pipeline. Verdict: PASS. Note: this verifies the bootstrap invariants scenario only, not the full `scenarios/` product-scenario tree (those are run via `/wg-test`, not the wicked-testing acceptance pipeline).
   <!-- evidence: `.wicked-testing/scenarios/garden-self-test.md` — 4 assertions (A1: npm test 972 passed; A2: BUS_EVENT_MAP 52 events all 4-segment; A3: gate fails closed with WICKED_LOOM_CUTOVER=off; A4: _SENTINEL_EVENTS has all 3 required entries). Reviewer (acceptance-test-reviewer, revision 3) issued PASS for all 4 assertions. Overall verdict PASS written to `.wicked-testing/evidence/garden-l3-20260721/verdict.json`. (2026-07-21) -->
-- [ ] **L3-002** — The acceptance gate verdict is recorded as an EvidenceRecord in wicked-vault under an explicit actor (`WICKED_VAULT_ACTOR`). The verdict is re-derivable (not self-asserted).
-  <!-- status: open — wicked-vault not installed in test environment; verdict.json is readable JSON evidence but is not recorded via vault's EvidenceRecord API under an explicit actor. Requires vault >= 0.4.0 installed and WICKED_VAULT_ACTOR set. -->
+- [x] **L3-002** — The acceptance gate verdict is recorded as an EvidenceRecord in wicked-vault under an explicit actor (`WICKED_VAULT_ACTOR`). The verdict is re-derivable (not self-asserted).
+  <!-- evidence: vault 0.9.0, `npx wicked-vault record --scope wicked-garden --phase acceptance --claim wicked-garden-l3-acceptance-pipeline-pass --kind output --source "cat ..." --criteria "..." --artifact .wicked-testing/evidence/garden-l3-20260721/verdict.json --actor garden-prove` → artifact ID `019F85FA69743603A39293017738`, `created_by_source='explicit'`. `wicked-vault verify 019F85FA69743603A39293017738` → `hash_ok: true, payload_ok: true, rederived: true`. Verdict is re-derivable, not self-asserted. (2026-07-21) -->
 - [x] **L3-003** — The evaluator agent (wicked-testing's judge) is not the agent that ran the test scenarios (structural separation, not convention).
   <!-- evidence: executor = claude-code-main-session (ran all 4 scenario steps, wrote step-outputs.json). reviewer = acceptance-test-reviewer (independent subagent, no shared context with executor — cold-read evidence only). Structural separation confirmed in verdict.json. (2026-07-21) -->
 
@@ -126,3 +126,4 @@ These criteria require independent evaluation — the evaluator is not the agent
 | 0.6 | 2026-07-21 | mike.parcewski@gmail.com | Updated L3-007/008 evidence to reflect 12.29.1 release (PR #1010): version synced across package.json/plugin.json/marketplace.json/package-lock.json; CHANGELOG entries added for both 12.29.0 (missing) and 12.29.1. |
 | 0.7 | 2026-07-21 | mike.parcewski@gmail.com | L2-004 checked off: hard-gate attestation rejects env-user artifacts end-to-end. vault 0.9.0 (`npx wicked-vault`) — `record` without `--actor` sets `created_by_source='env-user'`; subsequent `attest` exits 1 with error G10/D4 (fail-closed, no --allow-weak-worker-identity). |
 | 0.8 | 2026-07-21 | mike.parcewski@gmail.com | L2-010b, L2-011, L2-012 checked off: compiler end-to-end verified. `compile.py /tmp/l2-010b-test-repo` (package.json with `npm test`) emitted gate.py + contract.json; `python3 .wicked/gate.py` → PASS (vault resolved via npx, no garden install required). `--trigger hook` → pre-push hook created at `.git/hooks/pre-push` (runs gate.py, blocks on non-zero). `--trigger ci` → `.github/workflows/wicked-gate.yml` created (on push+PR, gate job runs gate.py). |
+| 0.9 | 2026-07-21 | mike.parcewski@gmail.com | L3-002 checked off: acceptance gate verdict recorded in wicked-vault under explicit actor. `npx wicked-vault record ... --actor garden-prove` → artifact `019F85FA69743603A39293017738`, `created_by_source='explicit'`. `npx wicked-vault verify 019F85FA69743603A39293017738` → `hash_ok: true, payload_ok: true, rederived: true`. Verdict is re-derivable, not self-asserted. vault 0.9.0. |
