@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# DEPRECATED: This module is scheduled for removal from wicked-garden in a future release.
+# Multi-phase project state management is the responsibility of wicked-crew, which drives
+# governed multi-agent workflows natively via wicked-core. Use wicked-crew instead of
+# calling phase_manager.py directly. Hooks that reference this file will be updated during
+# the wicked-crew integration milestone; until then this module remains functional.
 """phase_manager.py — v11 slim project-state manager.
 
 The v6-v10 universal-pipeline implementation (gate-result.json schema
