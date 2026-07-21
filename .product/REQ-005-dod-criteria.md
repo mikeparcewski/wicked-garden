@@ -89,10 +89,10 @@ These criteria require independent evaluation — the evaluator is not the agent
 - [x] **L3-006** — Review findings are recorded (not silently discarded). At least one reviewer finding was actioned or accepted with documented rationale. Evidence: C-001 resolved (L2-013/014 unchecked, evidence scoped down to 12 actual conformance tests); H-001 resolved (L1-012 count corrected, now 52 after adding `unverified_task_done`); H-002 resolved (2 events renamed to past-tense verbs); H-003 resolved (L2-003 evidence reworded). M-001/M-002/M-003/M-004 also addressed. Review record: `.product/reviews/adversarial-review-v12.28.1.md`.
 
 **Release published:**
-- [ ] **L3-007** — `plugin.json` and `marketplace.json` version are bumped (semver, appropriate bump level for the change).
-  <!-- evidence: PR #1007 (chore/bump-v12.29.0) is open but not yet merged. Both files are bumped to 12.29.0 in that PR. Will be checked off once PR #1007 merges to main. (2026-07-21) -->
-- [ ] **L3-008** — `components.json` regenerated and committed with the version bump.
-  <!-- evidence: `python3 scripts/ci/sync_components.py` → "components.json: in sync" — no diff from current skill tree. Included in PR #1007. Will be checked off once PR #1007 merges to main. (2026-07-21) -->
+- [x] **L3-007** — `plugin.json` and `marketplace.json` version are bumped (semver, appropriate bump level for the change).
+  <!-- evidence: PR #1007 (chore/bump-v12.29.0) merged to main (commit 4f87c2be). Both plugin.json and marketplace.json bumped to 12.29.0. Minor bump justified by new sentinel event, two event renames, new cross-platform npm test script. (2026-07-21) -->
+- [x] **L3-008** — `components.json` regenerated and committed with the version bump.
+  <!-- evidence: `python3 scripts/ci/sync_components.py` → "components.json: in sync" — no diff from current skill tree. components.json is current and was included in PR #1007 (merged). (2026-07-21) -->
 - [ ] **L3-009** — Release tagged in git and published to the marketplace registry.
 - [ ] **L3-010** — `test.yml` CI workflow is green on the release tag (unit tests + E2E trust-spine tests + wicked-patch conformance tests all pass).
 
