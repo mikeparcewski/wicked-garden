@@ -75,7 +75,7 @@ Discover it the usual way — and consider
    - `status: wired` (exit 0) → the printed `dispatch` names the `blueprint`,
      `transform`, and `validate` skills/gate to use in the phases below.
    - unknown / `planned` / `none` (exit 3) → the reader returns a **capability-gap
-     task** and emits `wicked.garden.modernize.stack_gap`. **STOP.** Create that task
+     task** and emits `wicked.garden.modernize.gap_emitted`. **STOP.** Create that task
      (`TaskCreate`) and surface the gap to the user — never invent a transform for a
      stack the system can't actually handle. This is the fail-closed ETHOS as
      dispatch data: an honest "we don't handle this yet" beats a fabricated port.
