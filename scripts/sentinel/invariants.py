@@ -134,7 +134,7 @@ def verdict_for(repo: Path, sha: Optional[str] = None) -> Optional[Dict[str, Any
 # Override / detection events → the bus (fire-and-forget; the skip is evidence)
 # ---------------------------------------------------------------------------
 
-_SENTINEL_EVENTS = frozenset({"claim_unverified", "prepush_blocked"})
+_SENTINEL_EVENTS = frozenset({"claim_unverified", "prepush_blocked", "unverified_task_done"})
 
 
 def log_sentinel_event(repo: Path, event: str, detail: Dict[str, Any]) -> None:
