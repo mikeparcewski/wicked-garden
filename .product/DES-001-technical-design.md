@@ -97,7 +97,7 @@ User submits prompt
   → hook script emits system-reminder:
       <wg archetype="migrate" score="0.91" />
       (or multi-archetype: <wg archetype="build,migrate" score="0.85,0.72" />)
-  → hook returns {"ok": true}
+  → hook returns {"continue": true}
 
 Harness injects system-reminder into context
   → harness (or agent) invokes wicked-garden-archetype skill
@@ -262,13 +262,21 @@ Structural code graph built and maintained by wicked-brain at `.codegraph/codegr
 
 ## Hook Architecture
 
-Three active hooks, all `command` type:
+Thirteen registered hook events across all `command` type scripts, dispatched through `hooks/scripts/invoke.py`:
 
-| Hook | Event | Script | Purpose |
-|------|-------|--------|---------|
-| Bootstrap | `SessionStart` | `hooks/scripts/bootstrap.py` | Environment setup; peer verification (`/wicked-garden-core setup` flow); session initialization |
-| Prompt Submit | `UserPromptSubmit` | `hooks/scripts/prompt_submit.py` | Archetype detection; system-reminder injection |
-| Stop | `Stop` | `hooks/scripts/stop.py` | Session teardown; audit write; event flush |
+| Hook | Event(s) | Script arg | Purpose |
+|------|---------|------------|---------|
+| Bootstrap | `SessionStart` | `bootstrap` | Environment setup; peer verification (`/wicked-garden-core setup` flow); session initialization |
+| Prompt Submit | `UserPromptSubmit` | `prompt_submit` | Archetype detection; system-reminder injection |
+| Pre-Tool | `PreToolUse` | `pre_tool` | Tool input validation; MEMORY.md write guard; plan-mode intercept |
+| Post-Tool | `PostToolUse`, `PostToolUseFailure` | `post_tool` | Task state sync; file-change tracking; search index invalidation |
+| Task Completed | `TaskCompleted` | `task_completed` | Task audit write |
+| Subagent Lifecycle | `SubagentStart`, `SubagentStop` | `subagent_lifecycle start\|stop` | Subagent session tracking |
+| Permission Request | `PermissionRequest` | `permission_request` | Permission audit |
+| Notification | `Notification` | `notification` | Background notification handling |
+| Pre-Compact | `PreCompact` | `pre_compact` | Context-window checkpoint before compaction |
+| Stop | `Stop` | `stop` | Session teardown; audit write; event flush |
+| Session End | `SessionEnd` | `session_end` | Final session cleanup |
 
 Hook scripts are stdlib-only Python — no third-party imports. Bootstrap and Stop hooks return `{"ok": true}` on success; `{"ok": false, "reason": "..."}` blocks the triggering event. The UserPromptSubmit hook (`prompt_submit.py`) returns `{"continue": true}` to proceed and carries injected context in `hookSpecificOutput`; `{"continue": false}` blocks the prompt. The Stop hook uses `"async": true` to avoid blocking session shutdown.
 

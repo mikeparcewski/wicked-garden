@@ -118,7 +118,7 @@ Nine domains ship with the plugin: `engineering`, `platform`, `product`, `data`,
 
 ### Hook
 
-A **Hook** is a lifecycle callback that fires at a named Claude Code event. wicked-garden registers three active hooks:
+A **Hook** is a lifecycle callback that fires at a named Claude Code event. wicked-garden registers 13 hook events across all `command` type scripts (dispatched through `hooks/scripts/invoke.py`). The three primary hooks are:
 
 - **Bootstrap** (`SessionStart`) — environment setup, peer verification, session initialization.
 - **Prompt Submit** (`UserPromptSubmit`) — archetype detection via `archetypes_v11.py`; injects `<wg archetype="X" score="Y" />` system-reminder.

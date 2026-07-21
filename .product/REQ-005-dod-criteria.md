@@ -88,7 +88,7 @@ These criteria require independent evaluation — the evaluator is not the agent
 - [ ] **L3-007** — `plugin.json` and `marketplace.json` version are bumped (semver, appropriate bump level for the change).
 - [ ] **L3-008** — `components.json` regenerated and committed with the version bump.
 - [ ] **L3-009** — Release tagged in git and published to the marketplace registry.
-- [ ] **L3-010** — `test.yml` CI workflow is green on the release tag (unit tests + scenario tests + compiler tests all pass).
+- [ ] **L3-010** — `test.yml` CI workflow is green on the release tag (unit tests + E2E trust-spine tests + wicked-patch conformance tests all pass).
 
 ---
 
