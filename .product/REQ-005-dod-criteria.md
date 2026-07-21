@@ -25,7 +25,7 @@ These criteria are mechanical. They are verified by `/wg-check` and the `validat
 - [x] **L1-005** — `components.json` is in sync with the current skill tree (`scripts/ci/sync_components.py` produces no diff). Evidence: `python3 scripts/ci/sync_components.py --check` → "components.json: in sync" (exit 0, 2026-07-21).
 - [x] **L1-006** — All hook scripts are stdlib-only Python (no third-party imports). Hook registration entries in `hooks/hooks.json` are consistent with the scripts in `hooks/scripts/`. Evidence: hooks.json uses `invoke.py` dispatcher pattern; all scripts loaded via `invoke.py <name>` — structurally consistent. `v11 Test Suite` CI: success on main.
 - [x] **L1-007** — The compiler's emitted `gate.py` passes the AST-enforced stdlib-only check (`tests/compiler/test_compile.py`). Evidence: `python3 -m pytest tests/compiler/test_compile.py -q` → 19 passed, 4 skipped (exit 0, 2026-07-21).
-- [x] **L1-008** — No hardcoded `/tmp` paths (use `tempfile.gettempdir()`). No bare `python3` without `|| python` fallback in hook commands. Evidence: grep scan of `hooks/scripts/` and `scripts/` — `/tmp` occurrences are in comments/docstrings only, not executable paths (2026-07-21).
+- [x] **L1-008** — No hardcoded `/tmp` paths (use `tempfile.gettempdir()`). No bare `python3` without `|| python` fallback in hook commands. Evidence: (a) grep scan of `hooks/scripts/` and `scripts/` — `/tmp` occurrences are in comments/docstrings only, not executable paths; (b) all hook commands in `hooks/hooks.json` use the triple-fallback pattern `python3 "..." || python "..." || py -3 "..."` — Windows, macOS, and Linux all covered (2026-07-21).
 - [x] **L1-009** — All Python scripts in `scripts/` and `hooks/scripts/` pass Python syntax check (`python3 -m py_compile`). Evidence: `python3 -m py_compile hooks/scripts/*.py scripts/ci/*.py scripts/crew/*.py` → exit 0 (2026-07-21).
 - [x] **L1-010** — `validate.yml` CI workflow is green on the PR branch. Evidence: `Plugin Validation: success` and `v11 Test Suite: success` on main HEAD (2026-07-21).
 - [x] **L1-011** — `plugin.json` version matches `marketplace.json` version. Evidence: both `12.28.1` (2026-07-21).
@@ -51,13 +51,13 @@ These criteria verify that the core capabilities work as designed. They are veri
 
 **Compiler:**
 - [x] **L2-009** — `compile.py` Phase 0 detection identifies the ecosystem, test/lint/build commands, and claims documents for a representative set of repo types (Node, Python, Rust). Evidence: `tests/crew/test_flow_compiler.py` PASSED; `tests/compiler/test_compile.py` 19 passed (2026-07-21).
-- [x] **L2-010** — The emitted `gate.py` runs to completion in a clean environment with only Python stdlib and a resolvable `wicked-vault` via `npx`. Evidence: AST stdlib-only enforcement in `tests/compiler/test_compile.py` PASSED (2026-07-21).
+- [x] **L2-010** — The emitted `gate.py` uses only Python stdlib (no third-party imports). Evidence: AST stdlib-only enforcement in `tests/compiler/test_compile.py` PASSED — the test statically asserts no non-stdlib imports in the emitted gate (2026-07-21). Note: end-to-end runtime execution with a live `wicked-vault` via `npx` is not covered by unit tests; that path requires an integration test (tracked as an open gap alongside L2-011/012).
 - [ ] **L2-011** — With `--trigger hook`, a git pre-push hook is installed that executes the emitted gate on push. Requires integration test against a real repo; not yet run end-to-end.
 - [ ] **L2-012** — With `--trigger ci`, a GitHub Actions workflow file is written that executes the emitted gate. Requires integration test against a real repo; not yet run end-to-end.
 
 **wicked-patch:**
 - [x] **L2-013** — `rename` applies consistently across all files referencing the target symbol, including those connected via injected codegraph edges. Evidence: 228 patch tests PASSED (2026-07-21; `python3 -m pytest tests/ -k patch`).
-- [x] **L2-014** — The patch plan step (`patch-plan`) shows the complete affected file set before applying changes. Evidence: patch plan tests included in the 228 PASSED patch tests (2026-07-21).
+- [x] **L2-014** — The `patch plan` step shows the complete affected file set before applying changes. Evidence: patch plan tests included in the 228 PASSED patch tests (2026-07-21).
 - [x] **L2-015** — Language generators produce syntactically valid output for each supported language (Python, TypeScript, Java, Go, SQL, Rust). Evidence: language generator tests included in the 228 PASSED patch tests (2026-07-21).
 
 **Council:**
