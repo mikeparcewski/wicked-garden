@@ -22,7 +22,7 @@ The core principle is consistent with the product's evidence-gate stance: a FAIL
 
 ### Layer 1 — Unit Tests (`tests/`)
 
-Unit tests cover the imperative Python scripts under `scripts/` and `hooks/scripts/`. They run via pytest and do not require wicked-vault, wicked-loom, or any peer to be installed (peers are mocked or stubbed).
+Unit tests cover the imperative Python scripts under `scripts/` and `hooks/scripts/`. They run via pytest and do not require wicked-vault, wicked-loom, or any peer to be installed (peers are mocked or stubbed). **Note**: `tests/e2e/` (trust-spine E2E tests) also lives under `tests/` and is included in the `pytest tests/ -q` CI run with `WICKED_REQUIRE_E2E=1`; it requires wicked-loom and wicked-vault installed and is conceptually a Layer 2 integration test co-located with unit tests for convenience.
 
 **Scope:**
 - `tests/compiler/` — compiler output tests, including `test_compile.py` (AST-enforced stdlib-only check on emitted `gate.py`).
@@ -42,7 +42,7 @@ Run: `pytest tests/ -v`
 - T5 — Descriptive names: test names describe the scenario (`test_gate_fails_closed_when_loom_absent`).
 - T6 — Provenance: tests that exercise evidence paths record evidence under explicit actor identities.
 
-**CI trigger**: `test.yml` workflow, all branches.
+**CI trigger**: `test.yml` workflow, push and pull_request to `main`.
 
 ---
 
@@ -56,7 +56,7 @@ Integration tests verify multi-component flows where the components interact for
 - Hook integration: fires `UserPromptSubmit` event with test prompts; verifies system-reminder injection in the hook's output JSON.
 - wicked-patch integration: applies a patch against a small synthetic repo using the codegraph fixture; verifies all expected files changed and no unexpected files changed.
 
-**CI trigger**: `test.yml` workflow, push to `main` and release branches. Integration tests that require live peers are skipped in environments where peers are not installed — CI must have wicked-vault and wicked-loom available for gate integration tests to run.
+**CI trigger**: `test.yml` workflow, push and pull_request to `main`. Integration tests that require live peers are skipped in environments where peers are not installed — CI installs wicked-vault and wicked-loom via npm for gate integration tests to run.
 
 ---
 
@@ -86,7 +86,7 @@ The evaluator is **not** the agent that ran the tests. This is structural, not c
 
 **Evidence recording**: the wicked-testing acceptance gate records its verdict as an EvidenceRecord in wicked-vault under `WICKED_VAULT_ACTOR`. The gate is re-derivable; a cached status is not accepted.
 
-**CI trigger**: `test.yml` workflow, push to `main` and release branches. Requires wicked-testing and wicked-vault installed.
+**CI trigger**: Not run in CI on every push. Scenario tests require the wicked-testing acceptance pipeline, which is a pre-release gate (see Pre-release gate section below), not a per-push CI trigger.
 
 ---
 
@@ -112,23 +112,20 @@ Adversarial review is not automated testing — it is an independent human or ag
 
 ## CI Workflow Structure
 
-### `validate.yml` — structural validation (all branches, all PRs)
+### `validate.yml` — structural validation (push and pull_request to `main`)
 
-1. Python syntax check on all scripts in `scripts/` and `hooks/scripts/` (`python3 -m py_compile`).
-2. Frontmatter validation on all SKILL.md files (required fields present, naming convention, slim body line count).
-3. `components.json` sync check: `scripts/ci/sync_components.py` produces no diff.
-4. Hook registration consistency: all entries in `hooks/hooks.json` have corresponding scripts in `hooks/scripts/`.
-5. Compiler AST check: `tests/compiler/test_compile.py` (emitted `gate.py` is stdlib-only).
-6. Cross-platform check: no hardcoded `/tmp`, no bare `python3` without `|| python` fallback in hook commands.
-7. Event name format check: all bus event emissions match `wicked.<domain>.<noun>.<past-tense-verb>`.
+Runs two scripts:
+1. `python scripts/ci/validate.py` — structural checks: Python syntax (`py_compile`), SKILL.md frontmatter validation, `components.json` sync, hook registration consistency, compiler AST check, cross-platform path checks, event name format.
+2. `python scripts/_validate_registry.py` — in-code allowlist validation.
 
-### `test.yml` — functional tests (main branch + release branches)
+### `test.yml` — functional tests (push and pull_request to `main`)
 
-1. Unit tests: `pytest tests/` — all layers that do not require live peers.
-2. Integration tests: gate integration (requires wicked-loom + wicked-vault); skipped in environments without them.
-3. Compiler integration: emitted gate runs against test fixtures.
-4. Hook integration: event firing and system-reminder verification.
-5. Scenario tests: wicked-testing acceptance pipeline on `scenarios/`. Records verdict to wicked-vault.
+1. Installs wicked peers globally: `npm i -g wicked-vault wicked-loom wicked-testing` (required for trust-spine E2E tests).
+2. Unit + E2E tests: `python -m pytest tests/ -q` with `WICKED_REQUIRE_E2E=1` — the trust-spine tests (`tests/e2e/`) MUST run, not skip.
+3. wicked-patch conformance: `python -m pytest scripts/engineering/patch/tests/test_conformance.py -q`.
+4. Phase manager smoke: `phase_manager.py ci-smoke` create/status/delete round-trip.
+
+Scenario tests (`scenarios/`) and the wicked-testing acceptance pipeline are **not** run in CI — they are a pre-release gate (see Pre-release gate section).
 
 ### Pre-release gate
 
