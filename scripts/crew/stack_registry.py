@@ -124,7 +124,7 @@ def resolve_dispatch(
 
 
 def _emit_gap(gap_task: Dict[str, Any], emit: bool) -> None:
-    """Fire the stack-gap bus event. Fire-and-forget, fail-open — bus absent
+    """Fire the gap_emitted bus event. Fire-and-forget, fail-open — bus absent
     must never block the dispatch decision (the gap_task is the source of truth)."""
     if not emit:
         return
