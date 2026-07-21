@@ -56,10 +56,10 @@ The **actual** wicked-patch conformance tests live in `scripts/engineering/patch
 
 ```
 python3 -c "import sys; sys.path.insert(0,'scripts'); from _bus import BUS_EVENT_MAP; print(len(BUS_EVENT_MAP))"
-# → 51
+# → 52  (at time of finding: 51; one event wicked.garden.sentinel.unverified_task_done added post-review)
 ```
 
-There are **51** events in BUS_EVENT_MAP, not 60. No other source (hooks, skills) emits bus events outside this map except `_validate_registry.py`, which references two events (`wicked.garden.rollout.decided`, `wicked.garden.experiment.concluded`) not present in BUS_EVENT_MAP — raising a separate question about whether those are planned, orphaned, or from a prior version. Adding those two still gives 53, not 60.
+There were **51** events in BUS_EVENT_MAP at time of review (not 60). No other source (hooks, skills) emits bus events outside this map except `_validate_registry.py`, which referenced two events (`wicked.garden.rollout.decided`, `wicked.garden.experiment.concluded`) not present in BUS_EVENT_MAP — raising a separate question about whether those are planned, orphaned, or from a prior version. Adding those two still gave 53, not 60. Final count after resolution: **52** events (one missing event added; two orphaned entries removed from `_validate_registry.py`).
 
 **Action required.** Correct the evidence count in the DoD. If additional events are referenced elsewhere, enumerate them and confirm they belong.
 
