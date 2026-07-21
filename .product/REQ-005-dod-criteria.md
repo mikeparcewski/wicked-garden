@@ -2,7 +2,7 @@
 name: REQ-005-dod-criteria
 title: wicked-garden — Definition of Done Criteria
 status: partially-verified
-version: 0.3
+version: 0.4
 date: 2026-07-21
 author: mike.parcewski@gmail.com
 review-required: true
