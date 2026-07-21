@@ -40,7 +40,7 @@ These criteria verify that the core capabilities work as designed. They are veri
 **Evidence gate:**
 - [x] **L2-001** — `gate_satisfied()` returns green when wicked-loom and wicked-vault are present and evidence matches. Evidence: `tests/qe/test_loom_gate_contract.py::GateLoomAuthoritative::test_loom_pass_is_the_only_path` PASSED (2026-07-21).
 - [x] **L2-002** — `gate_satisfied()` returns `gate: "unavailable"` (not green) when loom is absent or `WICKED_LOOM_CUTOVER=off`. Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` and `test_off_disables_loom_fails_closed` PASSED (2026-07-21).
-- [x] **L2-003** — `gate_satisfied()` fails closed when vault is unresolvable (`WICKED_VAULT_BIN=""`). Evidence: `test_loom_unresolvable_fails_closed` PASSED (2026-07-21).
+- [x] **L2-003** — `gate_satisfied()` fails closed when vault is unresolvable (`WICKED_VAULT_BIN=""`). Evidence: `test_gate_satisfied_fails_closed_when_loom_absent` (sets `WICKED_VAULT_BIN=""`) PASSED; `test_loom_unresolvable_fails_closed` covers loom resolution failure (2026-07-21).
 - [ ] **L2-004** — Hard-gate attestation rejects evidence recorded under `created_by_source='env-user'` (vault `>= 0.4.0`). Requires vault `>= 0.4.0` installed; not yet run end-to-end.
 - [x] **L2-005** — Evidence recorded under an explicit `--actor` (e.g., `garden-prove`) passes the attestation gate. Evidence: `tests/qe/test_prove.py::AttestationForwardingTests::test_with_attestations_forwarded_to_gate` PASSED (2026-07-21).
 
