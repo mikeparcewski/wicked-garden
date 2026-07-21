@@ -1,7 +1,7 @@
 ---
 name: adversarial-review-v12.28.1
 title: wicked-garden — Adversarial Review v12.28.1
-verdict: FAIL
+verdict: PASS
 date: 2026-07-21
 reviewer: council-adversarial
 resolution: PASS (findings addressed 2026-07-21 in fix/garden-adversarial-review-findings)
