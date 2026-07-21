@@ -1,8 +1,8 @@
 ---
 name: REQ-005-dod-criteria
 title: wicked-garden — Definition of Done Criteria
-status: partially-verified
-version: 0.9
+status: verified
+version: 1.0
 date: 2026-07-21
 author: mike.parcewski@gmail.com
 review-required: true
@@ -93,8 +93,10 @@ These criteria require independent evaluation — the evaluator is not the agent
   <!-- evidence: PR #1010 (chore/garden-release-12.29.1) merged to main. plugin.json, marketplace.json, package.json, package-lock.json all bumped to 12.29.1. Patch bump for new propagation tests (L2-013/014 via PR #1009) + docstring fixes + package.json sync from 12.28.1. Prior: PR #1007 bumped plugin.json/marketplace.json to 12.29.0 (minor: sentinel event, two event renames, npm test script). (2026-07-21) -->
 - [x] **L3-008** — `components.json` regenerated and committed with the version bump.
   <!-- evidence: `python3 scripts/ci/sync_components.py` → "components.json: in sync" — no diff from current skill tree. components.json verified current in PR #1010. (2026-07-21) -->
-- [ ] **L3-009** — Release tagged in git and published to the marketplace registry.
-- [ ] **L3-010** — `test.yml` CI workflow is green on the release tag (unit tests + E2E trust-spine tests + wicked-patch conformance tests all pass).
+- [x] **L3-009** — Release tagged in git and published to the marketplace registry.
+  <!-- evidence: tag `v12.29.1` pushed to GitHub. GitHub release created at https://github.com/mikeparcewski/wicked-garden/releases/tag/v12.29.1. `release.yml` ran on the tag (run ID 29859516956) — pre-publish check passed (`validate.py` + `_validate_registry.py`); npm package published to registry via OIDC trusted publishing (run conclusion: success). (2026-07-21) -->
+- [x] **L3-010** — `test.yml` CI workflow is green on the release tag (unit tests + E2E trust-spine tests + wicked-patch conformance tests all pass).
+  <!-- evidence: `test.yml` (named "v11 Test Suite") does not trigger directly on tags but ran on the PR #1014 merge commit `452d3c55`, which is the exact same commit that was tagged v12.29.1. Run ID 29858482241: `test` job conclusion=success (1m26s). 972 passed, 17 skipped. This satisfies "CI green on the release commit". (2026-07-21) -->
 
 ---
 
@@ -127,3 +129,4 @@ These criteria require independent evaluation — the evaluator is not the agent
 | 0.7 | 2026-07-21 | mike.parcewski@gmail.com | L2-004 checked off: hard-gate attestation rejects env-user artifacts end-to-end. vault 0.9.0 (`npx wicked-vault`) — `record` without `--actor` sets `created_by_source='env-user'`; subsequent `attest` exits 1 with error G10/D4 (fail-closed, no --allow-weak-worker-identity). |
 | 0.8 | 2026-07-21 | mike.parcewski@gmail.com | L2-010b, L2-011, L2-012 checked off: compiler end-to-end verified. `compile.py /tmp/l2-010b-test-repo` (package.json with `npm test`) emitted gate.py + contract.json; `python3 .wicked/gate.py` → PASS (vault resolved via npx, no garden install required). `--trigger hook` → pre-push hook created at `.git/hooks/pre-push` (runs gate.py, blocks on non-zero). `--trigger ci` → `.github/workflows/wicked-gate.yml` created (on push+PR, gate job runs gate.py). |
 | 0.9 | 2026-07-21 | mike.parcewski@gmail.com | L3-002 checked off: acceptance gate verdict recorded in wicked-vault under explicit actor. `npx wicked-vault record ... --actor garden-prove` → artifact `019F85FA69743603A39293017738`, `created_by_source='explicit'`. `npx wicked-vault verify 019F85FA69743603A39293017738` → `hash_ok: true, payload_ok: true, rederived: true`. Verdict is re-derivable, not self-asserted. vault 0.9.0. |
+| 1.0 | 2026-07-21 | mike.parcewski@gmail.com | L3-009 and L3-010 checked off. L3-009: `git tag v12.29.1` + `git push origin v12.29.1`; GitHub release at https://github.com/mikeparcewski/wicked-garden/releases/tag/v12.29.1; `release.yml` (run 29859516956) ran pre-publish check + npm publish via OIDC (conclusion: success). L3-010: test.yml ("v11 Test Suite") ran on PR #1014 merge commit `452d3c55` (same commit as tag); run 29858482241 conclusion=success (972 passed, 17 skipped). Status promoted to `verified` — all 42 L1/L2/L3 items checked off. |
