@@ -496,7 +496,7 @@ def _run_guard_pipeline() -> list:
         from guard_pipeline import (
             run_pipeline,
             write_briefing_file,
-            emit_findings_event,
+            emit_guard_surfaced_event,
             render_summary,
         )
     except Exception as exc:
@@ -521,7 +521,7 @@ def _run_guard_pipeline() -> list:
         write_briefing_file(report)
 
         # Emit bus event (fire-and-forget)
-        emit_findings_event(report)
+        emit_guard_surfaced_event(report)
 
         # Only return a summary line when we actually have findings or budget blew.
         if report.total_findings > 0 or report.status != "ok":

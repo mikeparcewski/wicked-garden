@@ -409,7 +409,7 @@ def _run_guard_pipeline(plugin_root: Path) -> List[str]:
     try:
         sys.path.insert(0, str(plugin_root / "scripts" / "platform"))
         from guard_pipeline import (  # type: ignore
-            run_pipeline, write_briefing_file, emit_findings_event, render_summary,
+            run_pipeline, write_briefing_file, emit_guard_surfaced_event, render_summary,
         )
     except Exception as exc:
         print(f"[wicked-garden] guard pipeline unavailable: {exc}", file=sys.stderr)
@@ -427,7 +427,7 @@ def _run_guard_pipeline(plugin_root: Path) -> List[str]:
 
         report = run_pipeline(build_phase_just_closed=build_just_closed)
         write_briefing_file(report)
-        emit_findings_event(report)
+        emit_guard_surfaced_event(report)
 
         if report.total_findings > 0 or report.status != "ok":
             return [render_summary(report)]

@@ -1274,7 +1274,7 @@ def render_summary(report: PipelineReport, *, max_lines: int = 8) -> str:
 # Bus emission
 # ---------------------------------------------------------------------------
 
-def emit_findings_event(report: PipelineReport) -> None:
+def emit_guard_surfaced_event(report: PipelineReport) -> None:
     """Emit a wicked.garden.guard.surfaced event.  Fail-open.
 
     Uses scripts/_bus.py::emit_event when available and the event is in the
@@ -1337,7 +1337,7 @@ def _main_cli(argv: List[str]) -> int:
     sys.stdout.write("\n")
 
     if args.emit_bus:
-        emit_findings_event(report)
+        emit_guard_surfaced_event(report)
     if args.write_briefing:
         write_briefing_file(report)
     return 0
