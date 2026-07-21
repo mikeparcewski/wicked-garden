@@ -132,6 +132,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.garden.sentinel.claim_unverified` | `sentinel` | Sentinel found a claim that could not be independently verified (skip-is-evidence signal) |
 | `wicked.garden.sentinel.prepush_blocked` | `sentinel` | Pre-push hook blocked a commit due to a failed sentinel invariant check |
+| `wicked.garden.sentinel.unverified_task_done` | `sentinel` | TaskCompleted hook found a done-claim that could not be independently verified (skip-is-evidence signal) |
 
 ## chain_id
 

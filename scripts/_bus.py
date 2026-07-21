@@ -356,6 +356,11 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "sentinel",
         "description": "Pre-push hook blocked a commit due to a failed sentinel invariant check",
     },
+    "wicked.garden.sentinel.unverified_task_done": {
+        "domain": "wicked-garden",
+        "subdomain": "sentinel",
+        "description": "TaskCompleted hook found a done-claim that could not be independently verified (skip-is-evidence signal)",
+    },
     # Loom parity mirror — scripts/crew/phase_manager.py (garden#974)
     "wicked.garden.loom.parity_mismatched": {
         "domain": "wicked-garden",

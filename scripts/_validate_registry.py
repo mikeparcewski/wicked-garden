@@ -116,6 +116,7 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     # garden projector state changes (consumers live in studio / external tooling).
     "wicked.garden.sentinel.claim_unverified",
     "wicked.garden.sentinel.prepush_blocked",
+    "wicked.garden.sentinel.unverified_task_done",
     "wicked.garden.loom.parity_mismatched",
 )
 
