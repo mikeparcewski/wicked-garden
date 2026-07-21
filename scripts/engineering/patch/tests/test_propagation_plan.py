@@ -7,7 +7,9 @@ L2-014: format_plan output shows the complete affected file set before any patch
         are applied (plan completeness check).
 
 Uses a synthetic patch-schema SQLite DB built in memory — no wicked-brain, no peers.
-The DB mirrors exactly what codegraph_db.build_patch_db() produces.
+The DB is a minimal subset of the patch-schema (symbols + refs tables only); it does
+not include every table or index that codegraph_db.build_patch_db() produces (e.g. no
+metadata table), but includes all columns PropagationEngine queries.
 """
 
 from __future__ import annotations
@@ -130,16 +132,17 @@ class PropagationMultiFilePlanTests(unittest.TestCase):
                       "UserFactory (which uses User) must appear in all_affected")
 
     def test_rename_plan_file_count_matches_all_affected_symbols(self):
-        """L2-013: files_affected is the union of all affected symbol file_paths."""
+        """L2-013: files_affected contains exactly the concrete expected file set for this graph."""
         spec = ChangeSpec(
             change_type=ChangeType.RENAME_FIELD,
             target_symbol_id="entity:User",
         )
         plan = self._engine.plan_propagation(spec)
-        # files_affected is derived from all_affected — assert they agree
-        expected = {s.file_path for s in plan.all_affected if s.file_path}
+        # Assert against the concrete expected set for this synthetic graph, not derived from plan
+        # (deriving from all_affected would be tautological since files_affected IS that union).
+        expected = {"src/models/user.py", "src/api/serializers.py", "src/tests/factories.py"}
         self.assertEqual(plan.files_affected, expected,
-                         "files_affected must equal the union of all affected symbol file paths")
+                         "files_affected must be exactly the 3 files in the User rename graph")
 
     def test_rename_plan_total_file_count(self):
         """L2-013: User has 2 consumers across 2 extra files → total 3 files affected."""
@@ -189,19 +192,24 @@ class PropagationPlanCompletenessTests(unittest.TestCase):
                       "Source file full path must appear in format_plan output (L2-014)")
 
     def test_format_plan_shows_all_impact_symbol_names(self):
-        """L2-014: every referencing symbol's name appears in format_plan output."""
+        """L2-014: all symbols in this small synthetic graph appear in format_plan output.
+
+        Note: format_plan truncates each impact section to the first 10 symbols — this test
+        is valid only for plans with ≤ 10 impacts per section (which this 3-symbol graph is).
+        Larger plans may have impact names truncated with '... and N more'.
+        """
         spec = ChangeSpec(
             change_type=ChangeType.RENAME_FIELD,
             target_symbol_id="entity:User",
         )
         plan = self._engine.plan_propagation(spec)
         output = format_plan(plan, change_type=ChangeType.RENAME_FIELD.value)
-        # format_plan shows impact symbols by name + basename, not full path.
-        # All impacted symbol names must be mentioned.
-        for symbol in plan.all_affected:
+        # Assert the concrete expected names for this synthetic graph (not dynamically derived).
+        expected_names = {"User", "UserSerializer", "UserFactory"}
+        for name in expected_names:
             self.assertIn(
-                symbol.name, output,
-                f"Symbol '{symbol.name}' must appear in format_plan output (L2-014 plan completeness)",
+                name, output,
+                f"Symbol '{name}' must appear in format_plan output (L2-014 plan completeness)",
             )
 
     def test_format_plan_total_line_reflects_file_count(self):
