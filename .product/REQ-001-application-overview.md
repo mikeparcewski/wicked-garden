@@ -62,7 +62,7 @@ The plugin installs via `/plugin install wicked-garden` into any Claude Code ses
 1. A developer in a repo that does not have wicked-garden installed wants a build gate that re-derives claims on push and in CI.
 2. They (or an agent with wicked-garden) invoke the `wicked-garden-prove` skill's `compile` action: `/wicked-garden-prove compile <repo> --trigger hook,ci`.
 3. The compiler (`scripts/compiler/compile.py`) runs Phase 0 detection: it identifies the ecosystem (Node, Python, Rust, etc.), locates test/lint/build commands, identifies claims documents (files with `claims:` frontmatter), and maps risk surfaces.
-4. It derives a multi-claim contract and writes four files into `<repo>/.wicked/`: `contract.json`, `gate.py`, `README`, `bindings.json`. When a claims document is detected, it also writes `claims_lint.py`.
+4. It derives a multi-claim contract and writes four files into `<repo>/.wicked/`: `contract.json`, `gate.py`, `README.md`, `bindings.json`. When a claims document is detected, it also writes `claims_lint.py`.
 5. The emitted `gate.py` is stdlib-only, imports nothing from wicked-garden, and resolves `wicked-vault` via `npx` — so it runs in any repo with neither wicked-garden nor wicked-loom present.
 6. With `--trigger hook,ci`, the compiler also installs a git pre-push hook and a GitHub Actions workflow. Every push re-derives the gate claims; a failing gate blocks the push.
 
@@ -86,7 +86,7 @@ The plugin installs via `/plugin install wicked-garden` into any Claude Code ses
 
 1. A developer needs to rename a domain type across a large codebase — source files, tests, migration files, configuration, and documentation.
 2. They invoke the patch skill: `/wicked-garden-engineering rename OldName NewName`.
-3. The `wicked-garden-engineering-patch` nested skill reads the codegraph from wicked-brain (`scripts/codegraph/codegraph.db`), identifies all nodes referencing `OldName`, and computes the full set of affected files including injected edges (bus producer→consumer, dispatch links) that grep cannot see.
+3. The `wicked-garden-engineering-patch` nested skill reads the codegraph from wicked-brain (`.codegraph/codegraph.db`), identifies all nodes referencing `OldName`, and computes the full set of affected files including injected edges (bus producer→consumer, dispatch links) that grep cannot see.
 4. The skill shows the patch plan (files affected, kinds of change, risk surface). The developer approves or scopes the change.
 5. On approval, the patch applies deterministically using the language-specific generator for each file type. Generators exist out of the box for Python, TypeScript, Java, Go, SQL, Rust, Kotlin, C#, PHP, and Ruby. A `new-generator` action lets contributors add additional languages.
 6. The result is a complete, consistent rename across every file that references the symbol — including the relationships grep cannot see.

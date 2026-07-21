@@ -141,16 +141,15 @@ Version scheme: semver. `minor` for new capabilities or skill additions. `patch`
 
 Two primary GitHub Actions workflows:
 
-**`validate.yml`** — runs on every push and PR:
+**`validate.yml`** — runs on push and PR targeting `main`:
 - Plugin structure validation (frontmatter, naming, slim body contract).
 - `components.json` sync check.
 - Hook script syntax validation (Python stdlib-only check).
 - Compiler output AST check (stdlib-only enforcement in emitted `gate.py`).
 - Cross-platform path checks (no hardcoded `/tmp`, no bare `python3` without fallback).
 
-**`test.yml`** — runs on push to `main` and on release branches:
+**`test.yml`** — runs on push and PR targeting `main`:
 - Unit tests: `tests/` directory via pytest.
-- Scenario tests: `scenarios/` directory via the wicked-testing acceptance gate.
 - Compiler tests: `tests/compiler/test_compile.py` (AST-enforced stdlib-only check on emitted gate).
 - Hook integration tests: fire hook events and verify output format.
 

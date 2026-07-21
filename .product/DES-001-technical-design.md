@@ -224,7 +224,7 @@ Developer invokes: /wicked-garden-prove compile <repo> [--trigger hook,ci]
       contract.json   — the derived contract
       gate.py         — stdlib-only, vault-direct gate script
       bindings.json   — ecosystem bindings
-      README          — usage instructions
+      README.md       — usage instructions
       claims_lint.py  — written when claims: frontmatter doc is detected
   → if --trigger hook:
       installs git pre-push hook that runs gate.py
