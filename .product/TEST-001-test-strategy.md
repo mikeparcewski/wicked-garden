@@ -22,7 +22,7 @@ The core principle is consistent with the product's evidence-gate stance: a FAIL
 
 ### Layer 1 — Unit Tests (`tests/`)
 
-Unit tests cover the imperative Python scripts under `scripts/` and `hooks/scripts/`. They run via pytest and do not require wicked-vault, wicked-loom, or any peer to be installed (peers are mocked or stubbed).
+Unit tests cover the imperative Python scripts under `scripts/` and `hooks/scripts/`. They run via pytest and do not require wicked-vault, wicked-loom, or any peer to be installed (peers are mocked or stubbed). **Note**: `tests/e2e/` (trust-spine E2E tests) also lives under `tests/` and is included in the `pytest tests/ -q` CI run with `WICKED_REQUIRE_E2E=1`; it requires wicked-loom and wicked-vault installed and is conceptually a Layer 2 integration test co-located with unit tests for convenience.
 
 **Scope:**
 - `tests/compiler/` — compiler output tests, including `test_compile.py` (AST-enforced stdlib-only check on emitted `gate.py`).
