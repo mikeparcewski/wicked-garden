@@ -1,0 +1,32 @@
+{
+  "scenario": "garden-self-test",
+  "run_id": "garden-l3-20260721",
+  "date": "2026-07-21",
+  "reviewer": "acceptance-test-reviewer",
+  "executor": "claude-code-main-session",
+  "revision": 3,
+  "assertions": {
+    "A1": {
+      "verdict": "PASS",
+      "evidence": "step1_npm_test: exit_code=0, output '972 passed, 17 skipped in 53.24s'. No FAIL lines present.",
+      "notes": "Executor used tail -10 instead of scenario's tail -5 — immaterial, both capture the summary line. Pipeline exit_code reflects tail (last command), not npm test directly; however the output content unambiguously confirms a passing run with no failures. 17 skipped tests are consistent with integration tests requiring live tools."
+    },
+    "A2": {
+      "verdict": "PASS",
+      "evidence": "step2_bus_event_count: exit_code=0. Command matches scenario exactly. Output: 'event_count: 52', 'non_conforming: []', 'PASS'. Filter is `[k for k in BUS_EVENT_MAP if len(k.split('.'))!=4]` — correct direction (collects non-conforming events). `print('non_conforming:', bad)` prints the computed variable. `assert not bad` is present and passed. Both asserts exited clean.",
+      "notes": "Revision 2 incorrectly claimed the filter used ==4, the print hardcoded [], and assert not bad was absent. All three claims are factually wrong: the command in step-outputs.json uses !=4, prints `bad`, and includes `assert not bad`. The evidence directly confirms the scenario's assertion: 52 events, zero non-conforming."
+    },
+    "A3": {
+      "verdict": "PASS",
+      "evidence": "step3_gate_fails_closed: exit_code=0. Output: gate_result shows {'satisfied': False, 're_derived': False, 'gate': 'unavailable', 'reason': '...wicked-vault is a required evidence backend but is not resolvable...Gate fails closed...'}. PASS line printed by the explicit print statement that follows the assert.",
+      "notes": "Command imports vault_gate from scripts/qe (correct path), sets WICKED_LOOM_CUTOVER=off, calls gate_satisfied('.','delivery','build'), asserts result.get('gate')=='unavailable'. Assert passed. The reason string references vault not being resolvable — the gate may have fired the 'tool not installed' code path rather than specifically the CUTOVER=off path, but both produce gate='unavailable'. The behavioral assertion ('fails closed when loom is absent') is satisfied by the observed output."
+    },
+    "A4": {
+      "verdict": "PASS",
+      "evidence": "step4_sentinel_events: exit_code=0. Command matches scenario exactly. Output: 'sentinel_events: [\"claim_unverified\", \"prepush_blocked\", \"unverified_task_done\"]', 'PASS: all required sentinel events registered'. All three required entries present in sorted list.",
+      "notes": "`missing = required - _SENTINEL_EVENTS` resolved to empty set; `assert not missing` passed; PASS line is produced by the explicit print statement in the command. Command and output are internally consistent."
+    }
+  },
+  "overall_verdict": "PASS",
+  "summary": "All four assertions pass. A1: npm test exits 0 with 972 tests passing, no FAIL lines. A2: BUS_EVENT_MAP has exactly 52 events; the non-conforming filter (!=4) is correct, prints the computed variable, and assert not bad passed — revision 2's three defect claims were factually incorrect readings of the command. A3: gate_satisfied() returns gate='unavailable' with WICKED_LOOM_CUTOVER=off, confirming fail-closed behavior. A4: _SENTINEL_EVENTS contains all three required sentinel event names. No command/output contradictions found across any step."
+}
