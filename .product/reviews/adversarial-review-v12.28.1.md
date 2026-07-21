@@ -63,7 +63,7 @@ There are **51** events in BUS_EVENT_MAP, not 60. No other source (hooks, skills
 
 **Action required.** Correct the evidence count in the DoD. If additional events are referenced elsewhere, enumerate them and confirm they belong.
 
-**Resolution (2026-07-21):** L1-012 evidence corrected to 51 events. Two orphaned events (`wicked.garden.rollout.decided`, `wicked.garden.experiment.concluded`) removed from `_validate_registry.py` (they were not in BUS_EVENT_MAP).
+**Resolution (2026-07-21):** L1-012 evidence corrected to 51 events. Two orphaned events (`wicked.garden.rollout.decided`, `wicked.garden.experiment.concluded`) removed from `_validate_registry.py` (they were not in BUS_EVENT_MAP). **Follow-up (2026-07-21, bot review):** One missing event `wicked.garden.sentinel.unverified_task_done` added to BUS_EVENT_MAP — the call site in `hooks/scripts/task_completed.py:299` was registered in `_SENTINEL_EVENTS` but absent from the map, causing silent bus drops. Final count: 52 events. DoD L1-012 updated to 52.
 
 ### H-002 — Two event names violate the past-tense-verb convention
 
