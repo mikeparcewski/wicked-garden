@@ -480,7 +480,7 @@ def _run_quality_telemetry(session_id: str) -> list:
 #
 # Always fails open — never hard-blocks session close.  Findings are written
 # to a session-scoped file that bootstrap.py can surface in the next briefing,
-# and emitted as a `wicked.garden.guard.findings` event on wicked-bus.
+# and emitted as a `wicked.garden.guard.surfaced` event on wicked-bus.
 #
 # Ordering: runs AFTER telemetry (#443) so both can share the end-of-session
 # snapshot without blocking each other.
@@ -496,7 +496,7 @@ def _run_guard_pipeline() -> list:
         from guard_pipeline import (
             run_pipeline,
             write_briefing_file,
-            emit_findings_event,
+            emit_guard_surfaced_event,
             render_summary,
         )
     except Exception as exc:
@@ -521,7 +521,7 @@ def _run_guard_pipeline() -> list:
         write_briefing_file(report)
 
         # Emit bus event (fire-and-forget)
-        emit_findings_event(report)
+        emit_guard_surfaced_event(report)
 
         # Only return a summary line when we actually have findings or budget blew.
         if report.total_findings > 0 or report.status != "ok":

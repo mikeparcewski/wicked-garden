@@ -64,7 +64,7 @@ _HANDLERS: dict[str, str] = {
     "wicked.garden.archetype.completed":                  "_on_generic",
     "wicked.garden.archetype.hard_gate_passed":           "_on_generic",
     "wicked.garden.archetype.classified":                 "_on_generic",
-    "wicked.garden.modernize.stack_gap":                  "_on_generic",
+    "wicked.garden.modernize.gap_emitted":                "_on_generic",
     "wicked.garden.project.complexity_scored":            "_on_generic",
     "wicked.crew.phase.transitioned":                   "_on_generic",
     "wicked.garden.phase.auto_advanced":                  "_on_generic",

@@ -81,7 +81,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     # is planned/none, OR an unknown stack. The reader NEVER fabricates a
     # migration for these — it emits this gap event + returns a gap-task dict
     # for the caller to hand to TaskCreate, then STOPS (fail-closed ETHOS).
-    "wicked.garden.modernize.stack_gap": {
+    "wicked.garden.modernize.gap_emitted": {
         "domain": "wicked-garden",
         "subdomain": "crew.modernize",
         "description": "Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration",
@@ -250,7 +250,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "platform.security",
         "description": "Security review raised a finding",
     },
-    "wicked.garden.guard.findings": {
+    "wicked.garden.guard.surfaced": {
         "domain": "wicked-garden",
         "subdomain": "platform.guard",
         "description": "Autonomous session-close guard pipeline surfaced findings (Issue #448)",
@@ -355,6 +355,11 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "domain": "wicked-garden",
         "subdomain": "sentinel",
         "description": "Pre-push hook blocked a commit due to a failed sentinel invariant check",
+    },
+    "wicked.garden.sentinel.unverified_task_done": {
+        "domain": "wicked-garden",
+        "subdomain": "sentinel",
+        "description": "TaskCompleted hook found a done-claim that could not be independently verified (skip-is-evidence signal)",
     },
     # Loom parity mirror — scripts/crew/phase_manager.py (garden#974)
     "wicked.garden.loom.parity_mismatched": {

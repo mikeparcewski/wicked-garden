@@ -69,7 +69,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 | `wicked.garden.gate.decided` | `crew.gate` | Gate returned APPROVE, CONDITIONAL, or REJECT |
 | `wicked.garden.hitl.decision_recorded` | `crew.hitl` | HITL pause-decision evidence recorded by hitl_judge.write_hitl_decision_evidence (Site W5 cutover) |
 | `wicked.garden.loom.parity_mismatched` | `crew.loom` | Loom hard-gate verdict differs from the in-process gate result (diagnostic: parity mirror) |
-| `wicked.garden.modernize.stack_gap` | `crew.modernize` | Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration |
+| `wicked.garden.modernize.gap_emitted` | `crew.modernize` | Legacy stack class is planned/none/unknown — capability-gap task emitted instead of a fabricated migration |
 | `wicked.garden.phase.auto_advanced` | `crew.phase` | Phase auto-advanced for low-complexity project (audit trail) |
 | `wicked.garden.project.completed` | `crew.project` | Crew project completed (final phase approved) |
 | `wicked.garden.project.complexity_scored` | `crew.scoring` | Complexity score computed for a project |
@@ -113,7 +113,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.garden.compliance.failed` | `platform.compliance` | Compliance check failed for a framework |
 | `wicked.garden.compliance.passed` | `platform.compliance` | Compliance check passed for a framework |
-| `wicked.garden.guard.findings` | `platform.guard` | Autonomous session-close guard pipeline surfaced findings (Issue #448) |
+| `wicked.garden.guard.surfaced` | `platform.guard` | Autonomous session-close guard pipeline surfaced findings (Issue #448) |
 | `wicked.garden.log.rotated` | `platform.log_retention` | Log file rotated by log_retention.rotate_if_needed (audit marker) |
 | `wicked.garden.outgov.pattern_drift_detected` | `platform.outgov` | Pattern-conformance check found drift between session output and a registered conformance rule (garden#983); advisory only. |
 | `wicked.garden.outgov.policy_violation_found` | `platform.outgov` | Per-turn policy compliance check surfaced a violation (garden#984); advisory only — prepended to next session turn, no allow/deny gate. |
@@ -132,6 +132,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.garden.sentinel.claim_unverified` | `sentinel` | Sentinel found a claim that could not be independently verified (skip-is-evidence signal) |
 | `wicked.garden.sentinel.prepush_blocked` | `sentinel` | Pre-push hook blocked a commit due to a failed sentinel invariant check |
+| `wicked.garden.sentinel.unverified_task_done` | `sentinel` | TaskCompleted hook found a done-claim that could not be independently verified (skip-is-evidence signal) |
 
 ## chain_id
 

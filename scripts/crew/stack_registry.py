@@ -8,7 +8,7 @@ module is the thin reader the `modernize` archetype's `discover` phase consults.
 The load-bearing honesty contract (garden ETHOS — "never invent a pass"):
 on an UNKNOWN stack, or a stack whose ``status`` is ``planned``/``none``, the
 reader does NOT fabricate a transform. It returns a **capability-gap task** dict
-(for the caller to hand to ``TaskCreate``) and fires a ``wicked.garden.modernize.stack_gap``
+(for the caller to hand to ``TaskCreate``) and fires a ``wicked.garden.modernize.gap_emitted``
 bus event (fire-and-forget, fail-open). Only ``status: wired`` returns a runnable
 dispatch. This mirrors the loom gate's fail-closed posture in dispatch data.
 
@@ -82,7 +82,7 @@ def resolve_dispatch(
       - anything else (unknown /
         planned / none / a typo /
         any novel status)           -> gap_task = {...}, dispatch = None, and a
-        ``wicked.garden.modernize.stack_gap`` event is emitted (when ``emit``).
+        ``wicked.garden.modernize.gap_emitted`` event is emitted (when ``emit``).
 
     Dispatch is strictly **wired-only**: a stack whose status is anything other
     than ``wired`` — including an unrecognised/misspelled status — fails closed
@@ -124,7 +124,7 @@ def resolve_dispatch(
 
 
 def _emit_gap(gap_task: Dict[str, Any], emit: bool) -> None:
-    """Fire the stack-gap bus event. Fire-and-forget, fail-open — bus absent
+    """Fire the gap_emitted bus event. Fire-and-forget, fail-open — bus absent
     must never block the dispatch decision (the gap_task is the source of truth)."""
     if not emit:
         return
@@ -134,7 +134,7 @@ def _emit_gap(gap_task: Dict[str, Any], emit: bool) -> None:
             sys.path.insert(0, scripts_dir)
         from _bus import emit_event  # type: ignore
         emit_event(
-            "wicked.garden.modernize.stack_gap",
+            "wicked.garden.modernize.gap_emitted",
             {"stack": gap_task["stack"], "status": gap_task["status"],
              "title": gap_task["title"]},
             chain_id=f"modernize.{gap_task['stack']}.{gap_task['status']}.gap",

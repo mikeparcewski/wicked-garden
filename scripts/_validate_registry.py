@@ -101,11 +101,9 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     "wicked.garden.scenario.run",
     "wicked.garden.coverage.changed",
     "wicked.garden.security.finding_raised",
-    "wicked.garden.guard.findings",
+    "wicked.garden.guard.surfaced",
     "wicked.garden.compliance.passed",
     "wicked.garden.compliance.failed",
-    "wicked.garden.rollout.decided",
-    "wicked.garden.experiment.concluded",
     "wicked.garden.fact.extracted",
     "wicked.test.verdict.created",
     "wicked.garden.quality.drift_detected",
@@ -118,6 +116,7 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     # garden projector state changes (consumers live in studio / external tooling).
     "wicked.garden.sentinel.claim_unverified",
     "wicked.garden.sentinel.prepush_blocked",
+    "wicked.garden.sentinel.unverified_task_done",
     "wicked.garden.loom.parity_mismatched",
 )
 

@@ -1274,8 +1274,8 @@ def render_summary(report: PipelineReport, *, max_lines: int = 8) -> str:
 # Bus emission
 # ---------------------------------------------------------------------------
 
-def emit_findings_event(report: PipelineReport) -> None:
-    """Emit a wicked.garden.guard.findings event.  Fail-open.
+def emit_guard_surfaced_event(report: PipelineReport) -> None:
+    """Emit a wicked.garden.guard.surfaced event.  Fail-open.
 
     Uses scripts/_bus.py::emit_event when available and the event is in the
     BUS_EVENT_MAP.  When not, writes a JSONL line to a session-scoped
@@ -1294,8 +1294,8 @@ def emit_findings_event(report: PipelineReport) -> None:
     try:
         sys.path.insert(0, str(_SCRIPTS_ROOT))
         from _bus import emit_event, BUS_EVENT_MAP  # type: ignore
-        if "wicked.garden.guard.findings" in BUS_EVENT_MAP:
-            emit_event("wicked.garden.guard.findings", payload)
+        if "wicked.garden.guard.surfaced" in BUS_EVENT_MAP:
+            emit_event("wicked.garden.guard.surfaced", payload)
             return
     except Exception:
         pass  # fail open — fall through to JSONL fallback below
@@ -1305,7 +1305,7 @@ def emit_findings_event(report: PipelineReport) -> None:
         out_dir = _session_guard_dir()
         out_dir.mkdir(parents=True, exist_ok=True)
         with open(out_dir / "bus-fallback.jsonl", "a", encoding="utf-8") as f:
-            f.write(json.dumps({"event": "wicked.garden.guard.findings", "payload": payload}) + "\n")
+            f.write(json.dumps({"event": "wicked.garden.guard.surfaced", "payload": payload}) + "\n")
     except Exception:
         pass  # fail open — telemetry should never block the caller
 
@@ -1337,7 +1337,7 @@ def _main_cli(argv: List[str]) -> int:
     sys.stdout.write("\n")
 
     if args.emit_bus:
-        emit_findings_event(report)
+        emit_guard_surfaced_event(report)
     if args.write_briefing:
         write_briefing_file(report)
     return 0
