@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# DEPRECATED: This module is scheduled for removal from wicked-garden in a future release.
+# Work-shape archetype detection and steering will be handled natively by wicked-crew's
+# governed workflow engine (wicked-core). The UserPromptSubmit hook that currently imports
+# this module will be updated during the wicked-crew integration milestone. Until then
+# this module remains functional; do not add new callers.
 """archetypes_v11.py — Work-shape archetype detection + steering engine.
 
 v11 reframes the crew workflow: instead of a fixed
