@@ -123,3 +123,117 @@ def test_loop_dry_run_resolves_every_node(monkeypatch):
     for sid in ids:
         req, validated = estate.writes[sid]["req"]
         assert validated is True  # the deterministic stub is a confident, valid rule
+
+
+# --- structural path (_DirectStore, density batching, cluster offsets) -------
+
+def _fixture_db(tmp_path, n_files=1):
+    """Minimal estate-schema sqlite the structural path reads: two clusters —
+    'hot' (h::a called by h::b, h::c) and 'cold' (c::x → c::y, lower leverage)."""
+    import json as J, sqlite3
+    db = tmp_path / "estate.db"
+    c = sqlite3.connect(db)
+    c.executescript("""
+        CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT);
+        CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT);
+        CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
+        CREATE TABLE files (path TEXT, git_sha TEXT);
+        CREATE TABLE content (git_sha TEXT, blob BLOB);
+    """)
+    syms = ["h::a", "h::b", "h::c", "c::x", "c::y"]
+    for i, s in enumerate(syms, start=1):
+        c.execute("INSERT INTO symbols VALUES (?, ?)", (i, s))
+        data = J.dumps({"location": {"span": {"start_byte": 0, "end_byte": 9}}})
+        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?)", (i, s.split("::")[-1], f"f{i}.py", data))
+    # both kind spellings must count (stores differ on JSON-quoting)
+    c.execute("INSERT INTO edges VALUES (2, 1, 'calls')")
+    c.execute("INSERT INTO edges VALUES (3, 1, '\"calls\"')")
+    c.execute("INSERT INTO edges VALUES (4, 5, '\"calls\"')")
+    for i in range(1, 6):
+        c.execute("INSERT INTO files VALUES (?, ?)", (f"f{i}.py", f"sha{i}"))
+        c.execute("INSERT INTO content VALUES (?, ?)", (f"sha{i}", b"def body(): pass"))
+    c.commit(); c.close()
+    return str(db)
+
+
+def test_direct_store_reads_both_edge_kind_spellings(tmp_path):
+    store = extract_loop._DirectStore(_fixture_db(tmp_path))
+    assert store.leverage("h::a") == 2          # two callers, both spellings counted
+    names = store.blast_neighbors("h::a")
+    assert "caller:b" in names and "caller:c" in names
+    assert store.leverage("c::y") == 1
+
+
+def test_direct_store_source_slice_uses_byte_span(tmp_path):
+    store = extract_loop._DirectStore(_fixture_db(tmp_path))
+    assert store.source_slice("h::a") == "def body("  # bytes [0, 9)
+
+
+def test_direct_store_file_cache_is_bounded(tmp_path):
+    import json as J, sqlite3
+    db = _fixture_db(tmp_path)
+    c = sqlite3.connect(db)
+    data = J.dumps({"location": {"span": {"start_byte": 0, "end_byte": 5}}})
+    for i in range(140):
+        sid = 100 + i
+        c.execute("INSERT INTO symbols VALUES (?, ?)", (sid, f"m::f{i}"))
+        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?)", (sid, f"f{i}", f"many{i}.py", data))
+        c.execute("INSERT INTO files VALUES (?, ?)", (f"many{i}.py", f"msha{i}"))
+        c.execute("INSERT INTO content VALUES (?, ?)", (f"msha{i}", b"hello world"))
+    c.commit(); c.close()
+    store = extract_loop._DirectStore(db)
+    for i in range(140):
+        assert store.source_slice(f"m::f{i}") == "hello"
+    assert len(store._file_text) <= 128  # eviction happened inside source_slice
+
+
+class _SliceStore:
+    def __init__(self, size):
+        self.size = size
+    def source_slice(self, sid, cap=2000):
+        return "x" * self.size
+
+
+@pytest.mark.parametrize("size,base,expect", [
+    (50, 20, 32),    # sparse → ×1.6
+    (2000, 20, 12),  # dense → ×0.6
+    (800, 20, 20),   # mid → ×1.0
+    (2000, 4, 4),    # clamp floor
+    (50, 60, 64),    # clamp ceiling
+])
+def test_density_batch_adapts_and_clamps(size, base, expect):
+    members = [{"symbol_id": f"s{i}"} for i in range(12)]
+    assert extract_loop._density_batch(members, _SliceStore(size), base) == expect
+
+
+def _run_structural(tmp_path, monkeypatch, cluster_offset):
+    """Full run() through the structural branch against the fixture db; returns
+    the order nodes settled (estate write order)."""
+    db = _fixture_db(tmp_path)
+    ids = ["h::a", "h::b", "h::c", "c::x", "c::y"]
+    estate = _FakeEstate()
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "total_node_community",
+                        lambda clusters, nodes: {s: s.split("::")[0] for s in ids})
+    rc = extract_loop.run(db, time_budget=30, limit=2, batch=2, dry_run=True,
+                          cluster_offset=cluster_offset)
+    assert rc == 0
+    return list(estate.writes)
+
+
+def test_offset_zero_takes_highest_leverage_cluster_first(tmp_path, monkeypatch):
+    first = _run_structural(tmp_path, monkeypatch, cluster_offset=0)[0]
+    assert first.startswith("h::")
+
+
+def test_offset_wraps_beyond_cluster_count(tmp_path, monkeypatch):
+    # 2 clusters, offset 5 → 5 % 2 = 1 → the SECOND-ranked cluster, not the tail pile-up
+    first = _run_structural(tmp_path, monkeypatch, cluster_offset=5)[0]
+    assert first.startswith("c::")
+
+
+def test_negative_offset_clamps_to_head(tmp_path, monkeypatch):
+    first = _run_structural(tmp_path, monkeypatch, cluster_offset=-3)[0]
+    assert first.startswith("h::")
