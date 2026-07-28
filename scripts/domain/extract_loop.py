@@ -123,7 +123,7 @@ class _DirectStore:
         self.callees = {}
         self.callers = {}
         self.in_deg = {}
-        for r in self._c.execute("SELECT source, target FROM edges WHERE kind = '\"calls\"'"):
+        for r in self._c.execute("SELECT source, target FROM edges WHERE kind IN ('calls', '\"calls\"')"):
             self.callees.setdefault(r["source"], []).append(r["target"])
             self.callers.setdefault(r["target"], []).append(r["source"])
             self.in_deg[r["target"]] = self.in_deg.get(r["target"], 0) + 1
@@ -166,7 +166,9 @@ class _DirectStore:
                     "SELECT c.blob FROM files f JOIN content c ON c.git_sha = f.git_sha WHERE f.path = ?",
                     (file,),
                 ).fetchone()
-                self._file_text[file] = bytes(r["blob"]) if r else b""
+                if len(self._file_text) >= 128:  # bounded FIFO — long runs must not grow without limit
+                    self._file_text.pop(next(iter(self._file_text)))
+                self._file_text[file] = r["blob"] if r else b""
             blob = self._file_text[file]
             if end > start and end <= len(blob):
                 return blob[start:end].decode("utf-8", errors="replace")[:cap]
@@ -251,7 +253,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
             # cluster_offset lets parallel workers each own a different leverage-ranked
             # cluster instead of all fighting over the head (offset 0 = head).
             ranked = sorted(clusters_seen.values(), key=_cluster_leverage, reverse=True)
-            head = ranked[min(cluster_offset, len(ranked) - 1)]
+            head = ranked[max(0, cluster_offset) % len(ranked)]
             head.sort(key=lambda n: store.leverage(n["symbol_id"]), reverse=True)
             take = head[: _density_batch(head, store, batch)]
         else:
