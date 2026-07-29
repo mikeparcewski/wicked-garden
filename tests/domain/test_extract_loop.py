@@ -135,7 +135,7 @@ def _fixture_db(tmp_path, n_files=1):
     c = sqlite3.connect(db)
     c.executescript("""
         CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT);
-        CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT);
+        CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);
         CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
         CREATE TABLE files (path TEXT, git_sha TEXT);
         CREATE TABLE content (git_sha TEXT, blob BLOB);
@@ -144,7 +144,7 @@ def _fixture_db(tmp_path, n_files=1):
     for i, s in enumerate(syms, start=1):
         c.execute("INSERT INTO symbols VALUES (?, ?)", (i, s))
         data = J.dumps({"location": {"span": {"start_byte": 0, "end_byte": 9}}})
-        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?)", (i, s.split("::")[-1], f"f{i}.py", data))
+        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?, NULL)", (i, s.split("::")[-1], f"f{i}.py", data))
     # both kind spellings must count (stores differ on JSON-quoting)
     c.execute("INSERT INTO edges VALUES (2, 1, 'calls')")
     c.execute("INSERT INTO edges VALUES (3, 1, '\"calls\"')")
@@ -177,7 +177,7 @@ def test_direct_store_file_cache_is_bounded(tmp_path):
     for i in range(140):
         sid = 100 + i
         c.execute("INSERT INTO symbols VALUES (?, ?)", (sid, f"m::f{i}"))
-        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?)", (sid, f"f{i}", f"many{i}.py", data))
+        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?, NULL)", (sid, f"f{i}", f"many{i}.py", data))
         c.execute("INSERT INTO files VALUES (?, ?)", (f"many{i}.py", f"msha{i}"))
         c.execute("INSERT INTO content VALUES (?, ?)", (f"msha{i}", b"hello world"))
     c.commit(); c.close()
@@ -274,3 +274,66 @@ def test_plain_timeout_still_risk_floors(monkeypatch):
     for sid in ("a::f1", "a::f2"):
         req, validated = estate.writes[sid]["req"]
         assert req.startswith("[RISK]") and validated is False
+
+
+# --- zero-yield abort + floor monotonicity ------------------------------------
+
+def _run_with_model_yield(monkeypatch, rules, ids=None, db="x.db"):
+    ids = ids or ["a::f1", "a::f2", "a::f3", "a::f4"]
+    estate = _FakeEstate()
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
+    monkeypatch.setattr(_rule_extractor, "extract_rules", lambda batch, argv: rules)
+    rc = extract_loop.run(db, time_budget=30, limit=0, batch=12, dry_run=False)
+    return rc, estate
+
+
+def test_zero_rules_for_a_real_batch_aborts(monkeypatch):
+    rc, estate = _run_with_model_yield(monkeypatch, [])
+    assert rc == 75 and estate.writes == {}
+
+
+def test_empty_statement_shells_for_a_real_batch_abort(monkeypatch):
+    # a degraded CLI can emit rule shells with blank statements — same outage signature
+    shells = [{"symbol_id": f"a::f{i}", "statement": "", "confidence": 0.9,
+               "provenance": {"source": "m", "ref": f"a::f{i}", "source_kinds": ["code-body"]}}
+              for i in range(1, 5)]
+    rc, estate = _run_with_model_yield(monkeypatch, shells)
+    assert rc == 75 and estate.writes == {}
+
+
+def test_partial_yield_still_floors_the_misses(monkeypatch):
+    # one substantive rule → the batch is judged normally: hit resolves, misses floor
+    rules = [_good("a::f1")]
+    rc, estate = _run_with_model_yield(monkeypatch, rules)
+    assert rc == 0
+    assert estate.writes["a::f1"]["req"][1] is True
+    for sid in ("a::f2", "a::f3", "a::f4"):
+        req, validated = estate.writes[sid]["req"]
+        assert req.startswith("[RISK]") and validated is False
+
+
+def test_floor_never_overwrites_existing_statement(tmp_path, monkeypatch):
+    # fixture store: give h::a an existing substantive statement, then run a pass whose
+    # model yields ONE substantive rule (so the batch isn't zero-yield) but nothing for
+    # h::a — its floor must be SKIPPED, content is monotonic.
+    import json as J, sqlite3
+    db = _fixture_db(tmp_path)
+    c = sqlite3.connect(db)
+    c.execute("UPDATE nodes SET requirement = 'callers must pass a validated payload' WHERE name = 'a'")
+    c.commit(); c.close()
+    ids = ["h::a", "h::b", "h::c", "c::x"]
+    estate = _FakeEstate()
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
+    monkeypatch.setattr(_clients, "total_node_community", lambda clusters, nodes: {s: "one" for s in ids})
+    monkeypatch.setattr(_rule_extractor, "extract_rules", lambda batch, argv: [_good("h::b")])
+    rc = extract_loop.run(db, time_budget=30, limit=0, batch=12, dry_run=False)
+    assert rc == 0
+    assert "h::a" not in estate.writes          # kept its existing statement — no floor write
+    assert estate.writes["h::b"]["req"][1] is True
+    assert estate.writes["h::c"]["req"][0].startswith("[RISK]")  # blank node still floors
