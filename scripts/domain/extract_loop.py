@@ -77,6 +77,22 @@ def _stub_rule(node: dict) -> dict:
     }
 
 
+_FLOOR_MARKERS = ("no rule returned for this node", "empty statement (model could not state a rule)")
+
+
+def _has_statement(store, symbol_id: str) -> bool:
+    """True when the node already carries a substantive statement (not a floor
+    placeholder) — the signal that a failed retry must not degrade it. Reads the
+    store snapshot; without a direct store the answer is unknowable cheaply, so
+    the guard stays inactive (flat-path behavior unchanged)."""
+    if store is None:
+        return False
+    req = (store.requirement_of(symbol_id) or "").strip()
+    if not req:
+        return False
+    return not any(m in req for m in _FLOOR_MARKERS)
+
+
 def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
@@ -114,6 +130,30 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
         raise RuntimeError(f"write not durable: {sid} missing annotation {rid} on read-back")
 
 
+_ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+
+
+def _maybe_decompress(blob) -> bytes:
+    """Estate stores content zstd-compressed; node spans are byte offsets into the
+    DECOMPRESSED text. Slicing the raw blob feeds the model binary noise — observed
+    live as whole batches of 'cannot state a rule'. Returns b'' when the blob is
+    compressed but no decompressor is available, which routes framing to the
+    subprocess fallback instead of producing garbage."""
+    b = blob if isinstance(blob, bytes) else bytes(blob)
+    if not b.startswith(_ZSTD_MAGIC):
+        return b
+    try:
+        from compression import zstd  # stdlib, Python 3.14+
+        return zstd.decompress(b)
+    except ImportError:
+        pass
+    try:
+        import zstandard
+        return zstandard.ZstdDecompressor().decompress(b)
+    except ImportError:
+        return b""
+
+
 class _DirectStore:
     """READ-ONLY direct sqlite access for structural context (CommandIQ req-engine v3 pattern):
     the per-node blast radius (1-hop caller/callee names) and source slices come straight from
@@ -132,8 +172,14 @@ class _DirectStore:
             self.sym_of[r["sid"]] = r["sym"]
         # node names + files + spans (span parsed lazily from data JSON only when sourcing)
         self.node_row = {}
-        for r in self._c.execute("SELECT symbol, name, file, data FROM nodes"):
+        self._req = {}
+        try:
+            rows = self._c.execute("SELECT symbol, name, file, data, requirement FROM nodes")
+        except sqlite3.OperationalError:  # older stores predate the requirement column
+            rows = self._c.execute("SELECT symbol, name, file, data, NULL FROM nodes")
+        for r in rows:
             self.node_row[r["symbol"]] = (r["name"], r["file"], r["data"])
+            self._req[r["symbol"]] = r[4] or ""
         # calls adjacency (edge kinds are stored JSON-quoted, e.g. '"calls"')
         self.callees = {}
         self.callers = {}
@@ -143,6 +189,10 @@ class _DirectStore:
             self.callers.setdefault(r["target"], []).append(r["source"])
             self.in_deg[r["target"]] = self.in_deg.get(r["target"], 0) + 1
         self._file_text = {}
+
+    def requirement_of(self, symbol_id: str) -> str:
+        sid = self.sid_of.get(symbol_id)
+        return self._req.get(sid, "") if sid is not None else ""
 
     def name_of_sid(self, sid: int) -> str:
         row = self.node_row.get(sid)
@@ -183,7 +233,7 @@ class _DirectStore:
                 ).fetchone()
                 if len(self._file_text) >= 128:  # bounded FIFO — long runs must not grow without limit
                     self._file_text.pop(next(iter(self._file_text)))
-                self._file_text[file] = r["blob"] if r else b""
+                self._file_text[file] = _maybe_decompress(r["blob"]) if r else b""
             blob = self._file_text[file]
             if end > start and end <= len(blob):
                 return blob[start:end].decode("utf-8", errors="replace")[:cap]
@@ -314,6 +364,17 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                           file=sys.stderr)
                     return 75  # EX_TEMPFAIL
                 print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch", file=sys.stderr)
+            substantive = sum(1 for r in by_id.values() if (r.get("statement") or "").strip())
+            if substantive == 0 and len(take) >= 4:
+                # Zero substantive yield for a whole real batch is an outage signature,
+                # not a judgment — a limited/degraded CLI can print its notice and exit 0
+                # (parsed as no rules), or emit rule shells with empty statements. Abort
+                # the pass; flooring here would grind the worklist into placeholders.
+                # (Small batches are exempt so one unstatable node can't wedge the loop.)
+                print(f"[extract-loop] ZERO-YIELD batch ({len(take)} framed, {len(by_id)} rules, "
+                      "0 substantive) — treating as infra failure; pass aborted, batch NOT floored",
+                      file=sys.stderr)
+                return 75  # EX_TEMPFAIL
 
         # Deterministic decision + write per node — RISK-FLOOR: every node terminates.
         for n in take:
@@ -326,6 +387,14 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                 resolved = adjusted >= RESOLVE_THRESHOLD
                 _write_node(estate, sid, name, rule, resolved,
                             "below confidence threshold" if not resolved else "")
+            elif (rule or {}).get("statement"):
+                _write_node(estate, sid, name, rule, False, reason)
+            elif _has_statement(store, sid):
+                # Statement-less floor over existing content would DEGRADE the store —
+                # a re-queued node keeps its prior statement instead. Floors only ever
+                # fill blanks; content is monotonic.
+                print(f"[extract-loop] floor skipped for {sid} (existing statement kept)",
+                      file=sys.stderr)
             else:
                 _write_node(estate, sid, name, rule, False, reason)
             processed += 1
