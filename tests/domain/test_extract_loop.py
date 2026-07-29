@@ -295,12 +295,22 @@ def test_zero_rules_for_a_real_batch_aborts(monkeypatch):
     assert rc == 75 and estate.writes == {}
 
 
-def test_empty_statement_shells_for_a_real_batch_abort(monkeypatch):
-    # a degraded CLI can emit rule shells with blank statements — same outage signature
-    shells = [{"symbol_id": f"a::f{i}", "statement": "", "confidence": 0.9,
+def test_empty_statement_objects_are_judgments_and_floor(monkeypatch):
+    # one object per unit with an explicit empty statement is the model's per-node
+    # judgment (the contract for rule-less helpers) — floor them, do NOT abort
+    shells = [{"symbol_id": f"a::f{i}", "statement": "", "confidence": 0.1,
                "provenance": {"source": "m", "ref": f"a::f{i}", "source_kinds": ["code-body"]}}
               for i in range(1, 5)]
     rc, estate = _run_with_model_yield(monkeypatch, shells)
+    assert rc == 0
+    for i in range(1, 5):
+        req, validated = estate.writes[f"a::f{i}"]["req"]
+        assert req.startswith("[RISK]") and validated is False
+
+
+def test_wholesale_empty_array_aborts(monkeypatch):
+    # a literal [] for a real batch is the outage signature, not a judgment
+    rc, estate = _run_with_model_yield(monkeypatch, [])
     assert rc == 75 and estate.writes == {}
 
 
