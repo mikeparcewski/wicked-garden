@@ -237,3 +237,40 @@ def test_offset_wraps_beyond_cluster_count(tmp_path, monkeypatch):
 def test_negative_offset_clamps_to_head(tmp_path, monkeypatch):
     first = _run_structural(tmp_path, monkeypatch, cluster_offset=-3)[0]
     assert first.startswith("h::")
+
+
+# --- infra failures abort the pass (outage ≠ judgment) ------------------------
+
+def _run_with_model_error(monkeypatch, message):
+    ids = ["a::f1", "a::f2"]
+    estate = _FakeEstate()
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
+    def boom(batch, argv):
+        raise RuntimeError(message)
+    monkeypatch.setattr(_rule_extractor, "extract_rules", boom)
+    rc = extract_loop.run("x.db", time_budget=30, limit=0, batch=12, dry_run=False)
+    return rc, estate
+
+
+def test_session_limit_aborts_pass_and_floors_nothing(monkeypatch):
+    rc, estate = _run_with_model_error(
+        monkeypatch, "rule model exited 1: You've hit your session limit · resets 9:30pm")
+    assert rc == 75          # EX_TEMPFAIL — resume later, don't gate on it
+    assert estate.writes == {}  # the outage burned NOTHING into the store
+
+
+def test_rate_limit_aborts_pass(monkeypatch):
+    rc, estate = _run_with_model_error(monkeypatch, "429 rate limit exceeded")
+    assert rc == 75 and estate.writes == {}
+
+
+def test_plain_timeout_still_risk_floors(monkeypatch):
+    # a per-batch timeout IS a judgment (batch too hard) — floor and continue
+    rc, estate = _run_with_model_error(monkeypatch, "rule model exceeded 180s")
+    assert rc == 0
+    for sid in ("a::f1", "a::f2"):
+        req, validated = estate.writes[sid]["req"]
+        assert req.startswith("[RISK]") and validated is False
