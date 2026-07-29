@@ -242,6 +242,7 @@ def test_negative_offset_clamps_to_head(tmp_path, monkeypatch):
 # --- infra failures abort the pass (outage ≠ judgment) ------------------------
 
 def _run_with_model_error(monkeypatch, message):
+    monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
     ids = ["a::f1", "a::f2"]
     estate = _FakeEstate()
     core = _FakeCore(estate, ids)
@@ -279,6 +280,7 @@ def test_plain_timeout_still_risk_floors(monkeypatch):
 # --- zero-yield abort + floor monotonicity ------------------------------------
 
 def _run_with_model_yield(monkeypatch, rules, ids=None, db="x.db"):
+    monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
     ids = ids or ["a::f1", "a::f2", "a::f3", "a::f4"]
     estate = _FakeEstate()
     core = _FakeCore(estate, ids)

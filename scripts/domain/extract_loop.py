@@ -77,6 +77,8 @@ def _stub_rule(node: dict) -> dict:
     }
 
 
+_RETRY_PAUSE = 45.0  # seconds between the two attempts on a suspect batch
+
 _FLOOR_MARKERS = ("no rule returned for this node", "empty statement (model could not state a rule)")
 
 
@@ -351,32 +353,45 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         if dry_run:
             by_id = {n["symbol_id"]: _stub_rule(n) for n in take}
         else:
-            try:
-                for r in _rule_extractor.extract_rules(framed, model_argv):
-                    if isinstance(r, dict) and r.get("symbol_id") in ids:
-                        by_id[r["symbol_id"]] = r
-            except Exception as e:
-                if _is_infra_failure(e):
+            # Providers blip: an occasional empty response or transient error is normal,
+            # a REPEAT on the same batch is an outage. One in-pass retry (after a short
+            # pause) before EX_TEMPFAIL keeps transients from costing a whole pass.
+            for attempt in (1, 2):
+                by_id = {}
+                floor_batch = False
+                infra_exc = None
+                try:
+                    for r in _rule_extractor.extract_rules(framed, model_argv):
+                        if isinstance(r, dict) and r.get("symbol_id") in ids:
+                            by_id[r["symbol_id"]] = r
+                except Exception as e:
+                    if _is_infra_failure(e):
+                        infra_exc = e
+                    else:
+                        print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch",
+                              file=sys.stderr)
+                        floor_batch = True
+                if floor_batch or by_id:
+                    break
+                if infra_exc is None and len(take) < 4:
+                    # Tiny batch, no objects, no classified error: could be one genuinely
+                    # unstatable node — floor it rather than wedge the loop.
+                    break
+                if attempt == 2:
                     # An outage is not a judgment. Flooring here would burn the whole
                     # remaining worklist into placeholders — stop the pass instead;
-                    # nothing from this batch is written, resume re-derives it.
-                    print(f"[extract-loop] INFRA FAILURE — pass aborted, batch NOT floored ({e})",
+                    # nothing from this batch is written, resume re-derives it. NO
+                    # parseable rule objects for a whole real batch is the same outage
+                    # signature (notice printed with exit 0, or a wholesale empty array);
+                    # per-unit objects with explicit empty statements are a JUDGMENT and
+                    # floor as designed.
+                    why = f"infra: {infra_exc}" if infra_exc else f"zero-yield ({len(take)} framed, 0 rule objects)"
+                    print(f"[extract-loop] {why} — persisted after retry; pass aborted, batch NOT floored",
                           file=sys.stderr)
                     return 75  # EX_TEMPFAIL
-                print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch", file=sys.stderr)
-            if not by_id and len(take) >= 4:
-                # NO parseable rule objects for a whole real batch is an outage signature
-                # — a limited/degraded CLI prints its notice and exits 0 (parsed as no
-                # rules) or returns a wholesale empty array. Abort the pass; flooring
-                # here would grind the worklist into placeholders. A response with one
-                # object per unit and explicit empty statements is DIFFERENT: that is the
-                # model's per-node judgment (the contract for rule-less helpers), and it
-                # floors those nodes as designed. (Small batches are exempt so one
-                # unstatable node can't wedge the loop.)
-                print(f"[extract-loop] ZERO-YIELD batch ({len(take)} framed, 0 rule objects) — "
-                      "treating as infra failure; pass aborted, batch NOT floored",
-                      file=sys.stderr)
-                return 75  # EX_TEMPFAIL
+                print("[extract-loop] transient zero-yield/infra on batch — retrying once "
+                      f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
+                time.sleep(_RETRY_PAUSE)
 
         # Deterministic decision + write per node — RISK-FLOOR: every node terminates.
         for n in take:
