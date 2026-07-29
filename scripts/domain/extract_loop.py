@@ -364,15 +364,17 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                           file=sys.stderr)
                     return 75  # EX_TEMPFAIL
                 print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch", file=sys.stderr)
-            substantive = sum(1 for r in by_id.values() if (r.get("statement") or "").strip())
-            if substantive == 0 and len(take) >= 4:
-                # Zero substantive yield for a whole real batch is an outage signature,
-                # not a judgment — a limited/degraded CLI can print its notice and exit 0
-                # (parsed as no rules), or emit rule shells with empty statements. Abort
-                # the pass; flooring here would grind the worklist into placeholders.
-                # (Small batches are exempt so one unstatable node can't wedge the loop.)
-                print(f"[extract-loop] ZERO-YIELD batch ({len(take)} framed, {len(by_id)} rules, "
-                      "0 substantive) — treating as infra failure; pass aborted, batch NOT floored",
+            if not by_id and len(take) >= 4:
+                # NO parseable rule objects for a whole real batch is an outage signature
+                # — a limited/degraded CLI prints its notice and exits 0 (parsed as no
+                # rules) or returns a wholesale empty array. Abort the pass; flooring
+                # here would grind the worklist into placeholders. A response with one
+                # object per unit and explicit empty statements is DIFFERENT: that is the
+                # model's per-node judgment (the contract for rule-less helpers), and it
+                # floors those nodes as designed. (Small batches are exempt so one
+                # unstatable node can't wedge the loop.)
+                print(f"[extract-loop] ZERO-YIELD batch ({len(take)} framed, 0 rule objects) — "
+                      "treating as infra failure; pass aborted, batch NOT floored",
                       file=sys.stderr)
                 return 75  # EX_TEMPFAIL
 
