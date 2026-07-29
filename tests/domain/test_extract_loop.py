@@ -337,3 +337,32 @@ def test_floor_never_overwrites_existing_statement(tmp_path, monkeypatch):
     assert "h::a" not in estate.writes          # kept its existing statement — no floor write
     assert estate.writes["h::b"]["req"][1] is True
     assert estate.writes["h::c"]["req"][0].startswith("[RISK]")  # blank node still floors
+
+
+# --- compressed content blobs -------------------------------------------------
+
+def test_source_slice_decompresses_zstd_blobs(tmp_path):
+    import json as J, sqlite3
+    from compression import zstd
+    db = tmp_path / "estate-z.db"
+    c = sqlite3.connect(db)
+    c.executescript("""
+        CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT);
+        CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);
+        CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
+        CREATE TABLE files (path TEXT, git_sha TEXT);
+        CREATE TABLE content (git_sha TEXT, blob BLOB);
+    """)
+    src = b"def guarded(x):\n    return x > 0\n"
+    data = J.dumps({"location": {"span": {"start_byte": 0, "end_byte": len(src)}}})
+    c.execute("INSERT INTO symbols VALUES (1, 'z::guarded')")
+    c.execute("INSERT INTO nodes VALUES (1, 'guarded', 'z.py', ?, NULL)", (data,))
+    c.execute("INSERT INTO files VALUES ('z.py', 'zsha')")
+    c.execute("INSERT INTO content VALUES ('zsha', ?)", (zstd.compress(src),))
+    c.commit(); c.close()
+    store = extract_loop._DirectStore(str(db))
+    assert store.source_slice("z::guarded") == src.decode()
+
+
+def test_maybe_decompress_passes_plain_bytes_through():
+    assert extract_loop._maybe_decompress(b"plain text") == b"plain text"

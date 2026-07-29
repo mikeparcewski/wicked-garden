@@ -130,6 +130,30 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
         raise RuntimeError(f"write not durable: {sid} missing annotation {rid} on read-back")
 
 
+_ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
+
+
+def _maybe_decompress(blob) -> bytes:
+    """Estate stores content zstd-compressed; node spans are byte offsets into the
+    DECOMPRESSED text. Slicing the raw blob feeds the model binary noise — observed
+    live as whole batches of 'cannot state a rule'. Returns b'' when the blob is
+    compressed but no decompressor is available, which routes framing to the
+    subprocess fallback instead of producing garbage."""
+    b = blob if isinstance(blob, bytes) else bytes(blob)
+    if not b.startswith(_ZSTD_MAGIC):
+        return b
+    try:
+        from compression import zstd  # stdlib, Python 3.14+
+        return zstd.decompress(b)
+    except ImportError:
+        pass
+    try:
+        import zstandard
+        return zstandard.ZstdDecompressor().decompress(b)
+    except ImportError:
+        return b""
+
+
 class _DirectStore:
     """READ-ONLY direct sqlite access for structural context (CommandIQ req-engine v3 pattern):
     the per-node blast radius (1-hop caller/callee names) and source slices come straight from
@@ -209,7 +233,7 @@ class _DirectStore:
                 ).fetchone()
                 if len(self._file_text) >= 128:  # bounded FIFO — long runs must not grow without limit
                     self._file_text.pop(next(iter(self._file_text)))
-                self._file_text[file] = r["blob"] if r else b""
+                self._file_text[file] = _maybe_decompress(r["blob"]) if r else b""
             blob = self._file_text[file]
             if end > start and end <= len(blob):
                 return blob[start:end].decode("utf-8", errors="replace")[:cap]
