@@ -49,6 +49,21 @@ def _cohesion(sid: str, node_community: dict[str, str], community_sizes: dict[st
     return min(1.1, 0.95 + 0.03 * size)
 
 
+_INFRA_MARKERS = ("session limit", "rate limit", "rate_limit", "overloaded", "quota",
+                  "credit balance", "billing", "unauthorized", "authentication",
+                  "connection refused", "connection reset", "network", "econnrefused",
+                  "usage limit", "insufficient")
+
+
+def _is_infra_failure(exc: Exception) -> bool:
+    """True when the model boundary failed for infrastructure reasons (quota, auth,
+    network) rather than judgment. A per-batch timeout stays a judgment failure —
+    THAT batch was too hard — but an account-level outage would fail every future
+    batch identically, so it must stop the pass, not floor the worklist."""
+    msg = str(exc).lower()
+    return any(m in msg for m in _INFRA_MARKERS)
+
+
 def _stub_rule(node: dict) -> dict:
     """Deterministic no-model rule: a valid, confident business rule per node so a
     `--dry-run` pass drives coverage to 1.0 (proves the loop + gate, zero model cost)."""
@@ -291,6 +306,13 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                     if isinstance(r, dict) and r.get("symbol_id") in ids:
                         by_id[r["symbol_id"]] = r
             except Exception as e:
+                if _is_infra_failure(e):
+                    # An outage is not a judgment. Flooring here would burn the whole
+                    # remaining worklist into placeholders — stop the pass instead;
+                    # nothing from this batch is written, resume re-derives it.
+                    print(f"[extract-loop] INFRA FAILURE — pass aborted, batch NOT floored ({e})",
+                          file=sys.stderr)
+                    return 75  # EX_TEMPFAIL
                 print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch", file=sys.stderr)
 
         # Deterministic decision + write per node — RISK-FLOOR: every node terminates.
