@@ -367,6 +367,14 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                 except Exception as e:
                     if _is_infra_failure(e):
                         infra_exc = e
+                    elif "exceeded" in str(e) and attempt == 1:
+                        # A batch timeout is often provider slowness, not batch difficulty
+                        # — one retry before conceding. A repeat floors (termination), it
+                        # does not abort: a genuinely oversized batch must not wedge passes.
+                        print(f"[extract-loop] model batch timeout ({e}) — retrying once "
+                              f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
+                        time.sleep(_RETRY_PAUSE)
+                        continue
                     else:
                         print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch",
                               file=sys.stderr)

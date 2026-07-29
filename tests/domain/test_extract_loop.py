@@ -268,13 +268,46 @@ def test_rate_limit_aborts_pass(monkeypatch):
     assert rc == 75 and estate.writes == {}
 
 
-def test_plain_timeout_still_risk_floors(monkeypatch):
-    # a per-batch timeout IS a judgment (batch too hard) — floor and continue
-    rc, estate = _run_with_model_error(monkeypatch, "rule model exceeded 180s")
+def test_persistent_timeout_floors_after_one_retry(monkeypatch):
+    # a timeout retries once (provider slowness); a REPEAT floors — never aborts
+    calls = {"n": 0}
+    def slow(batch, argv):
+        calls["n"] += 1
+        raise RuntimeError("rule model exceeded 180s")
+    ids = ["a::f1", "a::f2"]
+    estate = _FakeEstate()
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
+    monkeypatch.setattr(_rule_extractor, "extract_rules", slow)
+    rc = extract_loop.run("x.db", time_budget=30, limit=0, batch=12, dry_run=False)
     assert rc == 0
-    for sid in ("a::f1", "a::f2"):
+    assert calls["n"] >= 2  # retried before conceding
+    for sid in ids:
         req, validated = estate.writes[sid]["req"]
         assert req.startswith("[RISK]") and validated is False
+
+
+def test_transient_timeout_recovers_on_retry(monkeypatch):
+    calls = {"n": 0}
+    def flaky(batch, argv):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("rule model exceeded 180s")
+        return [_good("a::f1"), _good("a::f2")]
+    ids = ["a::f1", "a::f2"]
+    estate = _FakeEstate()
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
+    monkeypatch.setattr(_rule_extractor, "extract_rules", flaky)
+    rc = extract_loop.run("x.db", time_budget=30, limit=0, batch=12, dry_run=False)
+    assert rc == 0
+    assert estate.writes["a::f1"]["req"][1] is True  # recovered rules validate
 
 
 # --- zero-yield abort + floor monotonicity ------------------------------------
