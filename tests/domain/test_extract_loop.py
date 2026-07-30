@@ -411,3 +411,16 @@ def test_source_slice_decompresses_zstd_blobs(tmp_path):
 
 def test_maybe_decompress_passes_plain_bytes_through():
     assert extract_loop._maybe_decompress(b"plain text") == b"plain text"
+
+
+def test_trailing_dot_symbol_ids_recanonize(monkeypatch):
+    # canonical ids can carry a trailing '.'; models strip it — rules must still land
+    ids = ["m::helper().", "m::other()."]
+    returned = [
+        {**_good("m::helper()."), "symbol_id": "m::helper()"},
+        {**_good("m::other()."), "symbol_id": "m::other()."},
+    ]
+    rc, estate = _run_with_model_yield(monkeypatch, returned, ids=ids)
+    assert rc == 0
+    assert estate.writes["m::helper()."]["req"][1] is True  # normalized match validated
+    assert estate.writes["m::other()."]["req"][1] is True

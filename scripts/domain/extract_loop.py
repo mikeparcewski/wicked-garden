@@ -360,9 +360,20 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                 by_id = {}
                 floor_batch = False
                 infra_exc = None
+                # Models normalize punctuation-bearing ids (a trailing '.' in the symbol
+                # grammar came back stripped, dropping EVERY rule of certain batches as a
+                # "mismatch" and mimicking an outage). Exact match first; else re-canonize
+                # by trailing-dot-insensitive lookup. Anything else stays a hallucination.
+                canon = {sid.rstrip("."): sid for sid in ids}
                 try:
                     for r in _rule_extractor.extract_rules(framed, model_argv):
-                        if isinstance(r, dict) and r.get("symbol_id") in ids:
+                        if not isinstance(r, dict):
+                            continue
+                        rid = r.get("symbol_id")
+                        if rid in ids:
+                            by_id[rid] = r
+                        elif isinstance(rid, str) and rid.strip().rstrip(".") in canon:
+                            r["symbol_id"] = canon[rid.strip().rstrip(".")]
                             by_id[r["symbol_id"]] = r
                 except Exception as e:
                     if _is_infra_failure(e):
