@@ -8,6 +8,9 @@ on:
   push:
     tags: ['v*', '*-v*']
 
+# The job only calls the GitHub API with its own PAT — GITHUB_TOKEN needs nothing.
+permissions: {}
+
 jobs:
   dispatch:
     runs-on: ubuntu-latest
