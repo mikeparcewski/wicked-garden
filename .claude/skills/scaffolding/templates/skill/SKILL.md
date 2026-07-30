@@ -1,5 +1,5 @@
 ---
-name: {{name}}
+name: "{{name}}"
 description: |
   {{description}}
   Use when {{use_when}}.
