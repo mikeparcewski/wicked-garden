@@ -1,5 +1,5 @@
 ---
-name: {{skill_name}}
+name: "{{skill_name}}"
 description: {{description}}
 context: fork
 allowed-tools: [{{tools}}]
