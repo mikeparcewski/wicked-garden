@@ -38,6 +38,13 @@ _PROMPT_HEADER = (
     '"source_kinds": ["code-body"|"type-def"|"comment"|"doc", ...]}}\n'
     "If a unit’s behavior is unclear, set statement to \"\" and confidence low — do "
     "NOT guess. Ground trusted rules in code-body/type-def, not comment/doc alone.\n"
+    "State each rule in PRODUCT-FUNCTIONAL terms: what the business requires, not the "
+    "implementation. Name a specific tool, library, or technology ONLY when the source "
+    "makes that tool itself the requirement — otherwise state the capability (e.g. "
+    "'adversarial prompt-injection testing', not a vendor suite). For configuration or "
+    "data-fixture units (lockfiles, manifests, data JSON/YAML), state a rule only when "
+    "it encodes a genuine business constraint; format trivia and tool settings take "
+    "statement \"\".\n"
 )
 
 
