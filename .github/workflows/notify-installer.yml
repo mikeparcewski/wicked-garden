@@ -1,0 +1,30 @@
+# Fire the wicked-installer registry-conformance check whenever a release tag
+# lands, so a rename/retire/typo in this package surfaces there immediately
+# instead of on the daily schedule. Requires the INSTALLER_DISPATCH_TOKEN
+# secret (a fine-grained PAT with wicked-installer repo scope) — GITHUB_TOKEN
+# cannot dispatch cross-repo. Without the secret the job no-ops loudly.
+name: notify installer
+on:
+  push:
+    tags: ['v*', '*-v*']
+
+# The job only calls the GitHub API with its own PAT — GITHUB_TOKEN needs nothing.
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: repository_dispatch package-released
+        env:
+          TOKEN: ${{ secrets.INSTALLER_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::INSTALLER_DISPATCH_TOKEN not set — installer conformance will only run on its daily schedule"
+            exit 0
+          fi
+          curl -sf -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/mikeparcewski/wicked-installer/dispatches \
+            -d "{\"event_type\":\"package-released\",\"client_payload\":{\"repo\":\"${{ github.repository }}\",\"tag\":\"${{ github.ref_name }}\"}}"
