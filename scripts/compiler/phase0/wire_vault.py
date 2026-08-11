@@ -43,12 +43,27 @@ import tempfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# Resolve the vault CLI portably: WICKED_VAULT_BIN env first, else a sibling
-# checkout (dev default). A .mjs/.js path runs via node; anything else direct.
-_VAULT_BIN = os.environ.get("WICKED_VAULT_BIN", "").strip() or str(
-    Path.home() / "Projects" / "wicked-vault" / "bin" / "wicked-vault.mjs")
-VAULT_PREFIX = (["node", _VAULT_BIN] if _VAULT_BIN.endswith((".mjs", ".js"))
-                else [_VAULT_BIN])
+
+
+def _resolve_vault_prefix() -> list[str]:
+    """Resolve the vault CLI portably — never a hardcoded local checkout.
+
+    Ladder: ``WICKED_VAULT_BIN`` env first (a ``.mjs``/``.js`` path runs via
+    ``node``; anything else runs direct), else ``wicked-vault`` on PATH, else the
+    published npm fallback ``npx --yes wicked-vault``. The npx fallback is what
+    makes this resolvable on an end-user machine with no sibling checkout — the
+    same direct-vault route the emitted gate uses.
+    """
+    env_bin = os.environ.get("WICKED_VAULT_BIN", "").strip()
+    if env_bin:
+        return ["node", env_bin] if env_bin.endswith((".mjs", ".js")) else [env_bin]
+    found = shutil.which("wicked-vault")
+    if found:
+        return [found]
+    return ["npx", "--yes", "wicked-vault"]
+
+
+VAULT_PREFIX = _resolve_vault_prefix()
 EVIDENCE = HERE / "evidence" / "wire-vault-transcript.txt"
 
 # Per-repo wall-clock budget for the REAL detected test_command. If it exceeds
@@ -265,11 +280,12 @@ def wire(repo: Path, tee: Tee) -> dict:
 
 
 def main() -> int:
-    # When invoked via `node <path>`, that path must exist. A bare command
-    # (global install / PATH) is left to the subprocess to resolve.
-    if VAULT_PREFIX[0] == "node" and not Path(_VAULT_BIN).exists():
+    # When invoked via `node <path>` (an explicit WICKED_VAULT_BIN .mjs/.js
+    # override), that path must exist. A bare command / npx fallback is left to
+    # the subprocess to resolve.
+    if VAULT_PREFIX[0] == "node" and not Path(VAULT_PREFIX[1]).exists():
         sys.stderr.write(
-            f"wicked-vault CLI not found at {_VAULT_BIN} "
+            f"wicked-vault CLI not found at {VAULT_PREFIX[1]} "
             "(set WICKED_VAULT_BIN to override)\n")
         return 2
     repos = [Path(a).resolve() for a in sys.argv[1:]] or [

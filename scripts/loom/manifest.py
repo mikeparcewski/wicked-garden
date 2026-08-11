@@ -19,8 +19,9 @@ non-``wired`` peer satisfies a gate.**  When a flow requires a peer that is
 silently proceeds and never fakes a pass.  Capability is *data*, never invented.
 
 Peer status notes (post-rationalization):
-  vault    — wired; binary ``wicked-vault`` (will be re-homed into wicked-qe;
-             coordinate bin name update with the vault-absorption agent)
+  vault    — wired; binary ``wicked-vault``. A DIRECT infra peer published from
+             its own repo (mikeparcewski/wicked-vault): self-contained, zero
+             runtime deps, installed directly — NOT routed through wicked-testing.
   testing  — wired; ``wicked-testing`` (wicked-qe rename pending; bin stays)
   brain    — DEPRECATED (bridge period: garden now exposes equivalent surfaces
              via wicked-memory + wicked-knowledge; use_loom check still passes)
@@ -82,8 +83,8 @@ class Peer:
 
 # Peer registry — post-rationalization state.
 # Notes:
-#   - wicked-vault will be re-homed into wicked-qe; coordinate bin name with
-#     the vault-absorption agent before the next release cut.
+#   - wicked-vault is a direct infra peer (mikeparcewski/wicked-vault):
+#     self-contained, installed directly, not via wicked-testing.
 #   - wicked-brain is in the bridge-period deprecation path; marked
 #     experimental so gates never depend on it for new work.
 #   - wicked-bus Rust rewrite uses the same CLI interface; no manifest change.
@@ -92,11 +93,20 @@ PEERS: dict = {
         name="vault",
         npm_package="wicked-vault",
         env_var="WICKED_VAULT_BIN",
-        version_pin="0.3",
-        # Post-absorption: wicked-vault is now exposed via wicked-testing's
-        # package.json bin field. Installing wicked-testing puts wicked-vault
-        # on PATH — no separate vault install command is needed.
-        install_cmd=["npx", "wicked-testing", "install"],
+        # 0.4 floor: vault >= 0.4.0 is load-bearing for hard-gate attest (it
+        # fails closed on a weak/ambient worker identity — see CLAUDE.md). Keep
+        # this MAJOR.MINOR floor in lockstep with plugin.json's ``wicked_vault_version``.
+        version_pin="0.4",
+        # wicked-vault is a DIRECT infra peer, published from its own repo
+        # (mikeparcewski/wicked-vault): self-contained, zero runtime deps. Install
+        # it directly — no routing through wicked-testing. ``npm i -g wicked-vault``
+        # puts the ``wicked-vault`` binary on PATH, which is exactly what the
+        # gate's concrete-install probe (vault_gate.vault_available →
+        # ``shutil.which("wicked-vault")``) resolves. (The package also ships a
+        # ``wicked-vault-install`` bin, but that only copies the vault SKILLS into
+        # CLI config roots — it does not put the binary on PATH, and there is no
+        # ``wicked-vault-install`` npm package for ``npx`` to resolve on its own.)
+        install_cmd=["npm", "install", "-g", "wicked-vault@latest"],
         probe_cmd=["wicked-vault", "--version"],
         status=STATUS_WIRED,
     ),

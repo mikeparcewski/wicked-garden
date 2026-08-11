@@ -18,15 +18,16 @@ No API keys, no external services, no cloud — everything runs locally.
 
 ### Required peer plugins
 
-Companion peers are set up alongside the toolkit — `/wicked-garden-core setup` verifies them and **blocks only on the one the evidence gate needs** (the wicked-vault backend, installed via wicked-testing). They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
+Companion peers are set up alongside the toolkit — `/wicked-garden-core setup` verifies them and **blocks only on the one the evidence gate needs** (the wicked-vault backend, a self-contained infra peer installed directly). They are required at install but resilient at runtime (the garden degrades gracefully if one goes missing mid-session). Graceful degradation means a session continues where it's safe to; it never means a gate treats missing evidence as a pass — that path fails closed.
 
 ```bash
-npx wicked-testing install    # wicked-testing — evidence-gated testing; bundles the wicked-vault evidence backend the gate re-derives against
-/plugin install wicked-brain  # wicked-brain — cross-session memory + search
-/plugin install wicked-bus    # wicked-bus — event bridge
+npm i -g wicked-vault         # wicked-vault — REQUIRED: the evidence backend the gate re-derives against (self-contained infra peer, installed directly)
+npx wicked-testing install    # wicked-testing — opt-in: evidence-gated acceptance testing (author ≠ executor ≠ reviewer)
+/plugin install wicked-brain  # wicked-brain — opt-in: cross-session memory + search
+/plugin install wicked-bus    # wicked-bus — opt-in: event bridge
 ```
 
-The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-testing` (which bundles `wicked-vault`) installs locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
+The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-testing` installs locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
 
 ### Show the active mode (status line)
 
