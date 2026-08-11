@@ -256,12 +256,10 @@ class _PersistentBroker:
         if db:
             argv += ["--db", db]
 
-        # Drain stale queue items from any previous session.
-        while True:
-            try:
-                self._q.get_nowait()
-            except queue.Empty:
-                break
+        # Fresh queue per session: a previous reader thread may enqueue an EOF
+        # sentinel *after* any drain loop runs, corrupting the new session.
+        # Creating a new Queue guarantees cross-session isolation.
+        self._q = queue.Queue()
 
         try:
             proc = subprocess.Popen(
@@ -355,13 +353,26 @@ class _PersistentBroker:
 
     def _close(self) -> None:
         """atexit / planned teardown: close stdin so the server exits on EOF."""
-        try:
-            if self._proc and self._proc.stdin and not self._proc.stdin.closed:
-                self._proc.stdin.close()
-        except Exception:
-            pass
+        proc = self._proc
         self._proc = None
         self._init_resp = None
+        if proc is None:
+            return
+        try:
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.close()
+        except Exception:
+            pass
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+                proc.wait(timeout=1)
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # ── exchange ─────────────────────────────────────────────────────────────
 
@@ -380,15 +391,21 @@ class _PersistentBroker:
 
         responses: dict = {}
         for req in real:
-            line = self._dequeue(timeout)
-            if line is None:
-                return None
-            try:
-                obj = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(obj, dict) and obj.get("id") is not None:
-                responses[obj["id"]] = obj
+            # Read until we get the id-bearing response for this request.
+            # Notifications (id absent or None) are silently skipped so that
+            # any server-initiated notification cannot displace a real response.
+            while True:
+                line = self._dequeue(timeout)
+                if line is None:
+                    return None
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(obj, dict) and obj.get("id") is not None:
+                    responses[obj["id"]] = obj
+                    break
+                # Notification — skip and read the next line.
         return responses
 
     # ── dispatch (public callable) ────────────────────────────────────────────
@@ -422,7 +439,12 @@ class _PersistentBroker:
                 # Case (c): DB changed — close old process before restarting.
                 self._close()
             if not self._start(db):
-                self._failed = True
+                # Only mark permanently failed when this is a reconnect path
+                # (previously_started). A first-start failure is transient
+                # (binary not yet installed, temporary spawn error) and must
+                # not permanently degrade the broker for the process lifetime.
+                if previously_started:
+                    self._failed = True
                 return {}
 
         # Partition: skip initialize + notifications (already done at startup).

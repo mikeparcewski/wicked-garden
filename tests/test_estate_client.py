@@ -20,7 +20,6 @@ MCP binary (there is no HTTP port — this is the estate analogue of
 """
 
 import json
-import statistics
 import subprocess
 import sys
 import textwrap
@@ -92,8 +91,6 @@ def fake_mcp_bin(tmp_path, monkeypatch):
     script.write_text(_FAKE_MCP_SRC)
     exe = sys.executable
     script_str = str(script)
-
-    original_resolve = _estate_client.resolve_mcp_bin
 
     def _patched_resolve():
         return exe
@@ -262,33 +259,35 @@ def test_persistent_broker_is_drop_in_via_set_dispatch(fake_mcp_bin):
 def test_persistent_broker_concurrency_safe():
     """10 concurrent health() calls on the same broker complete without deadlock.
 
-    Uses a thread-safe fake dispatch that adds deliberate concurrency by sleeping
-    briefly, ensuring multiple threads race the lock. All 10 must return True
-    and exactly 10 dispatch calls must be recorded.
+    Uses a threading.Barrier to deterministically release all threads at the
+    same moment, guaranteeing lock contention without relying on sleep timing.
+    All 10 must return True and exactly 10 dispatch calls must be recorded.
     """
     init_resp = {
         "jsonrpc": "2.0", "id": 1,
         "result": {"serverInfo": {"name": "wicked-estate"}},
     }
+    N = 10
+    barrier = threading.Barrier(N)
     call_count = [0]
     count_lock = threading.Lock()
 
     def counting_dispatch(requests, *, db, timeout):
+        barrier.wait()   # release all threads simultaneously for guaranteed contention
         with count_lock:
             call_count[0] += 1
-        time.sleep(0.002)   # encourage thread interleaving
         return {1: init_resp}
 
     _estate_client.set_dispatch(counting_dispatch)
 
-    with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = [pool.submit(_estate_client.health) for _ in range(10)]
+    with ThreadPoolExecutor(max_workers=N) as pool:
+        futures = [pool.submit(_estate_client.health) for _ in range(N)]
         results = [f.result() for f in as_completed(futures)]
 
     assert all(r is True for r in results), (
         f"some health() calls returned non-True: {results}"
     )
-    assert call_count[0] == 10, f"expected 10 dispatches, got {call_count[0]}"
+    assert call_count[0] == N, f"expected {N} dispatches, got {call_count[0]}"
 
 
 def test_persistent_broker_concurrency_safe_with_real_broker(fake_mcp_bin):
