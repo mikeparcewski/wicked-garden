@@ -1,6 +1,11 @@
 # ADR 0004 — Move the code-relationship graph to wicked-brain (inverts ADR 0001's homing)
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0005](0005-code-graph-re-homes-to-wicked-estate.md) (2026-08-11) — the
+  graph's **home moved from wicked-brain to wicked-estate** (which independently built a more capable
+  graph: 75-language tree-sitter extractor, `ExtraEdgeExtractor` TOML injected edges, cross-repo
+  `XedgeStore`, and `BlastRadius`/`Lineage`/`TraverseGraph` MCP tools), and the brain graph
+  implementation this ADR described was stripped from the wicked-brain tree. The injected-edge idea
+  and the knowing/doing split stand; the home and the codegraph engine choice do not. Originally: Accepted.
 - **Date:** 2026-06-10
 - **Supersedes:** the *homing* decision of [ADR 0001](0001-code-relationship-graph-engine.md) (graph lives in garden). **Keeps** ADR 0001's engine choice (codegraph) and the injected-edge concept.
 - **Context owners:** wicked-garden + wicked-brain
