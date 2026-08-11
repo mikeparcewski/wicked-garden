@@ -79,6 +79,29 @@ def test_fail_open_when_bin_missing(tmp_path, monkeypatch):
     assert _estate_client.stats() is None
 
 
+def test_fail_open_when_server_dies_mid_batch(monkeypatch):
+    """Non-zero exit → {} even if valid JSON-RPC lines landed on stdout.
+
+    Pins the fail-open contract's 'non-zero exit' clause: a server that dies
+    mid-batch may have emitted a partial response set; treating it as success
+    would hand callers a half-round-trip. (A clean stdin-EOF shutdown exits 0.)
+    """
+    init_resp = json.dumps(
+        {"jsonrpc": "2.0", "id": 1, "result": {"serverInfo": {"name": "wicked-estate"}}}
+    )
+
+    class _DyingProc:
+        returncode = 1
+
+        def communicate(self, input=None, timeout=None):
+            return (init_resp + "\n", "")
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", lambda *a, **k: _DyingProc())
+    assert _estate_client._dispatch([json.loads(init_resp)], db=None, timeout=5) == {}
+    assert _estate_client.health() is False
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Envelope unwrapping
 # ─────────────────────────────────────────────────────────────────────────────
@@ -134,17 +157,17 @@ def test_broker_seam_swaps_transport_without_touching_callers():
 # Live round-trip — the S2 proof (spawns a real wicked-estate-mcp)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_MCP_BIN = _estate_client.resolve_mcp_bin()
-_CLI_BIN = _estate_client.resolve_estate_bin()
-
-
 @pytest.mark.slow
-@pytest.mark.skipif(
-    _MCP_BIN is None or _CLI_BIN is None,
-    reason="wicked-estate / wicked-estate-mcp not installed — live round-trip skipped",
-)
 def test_live_roundtrip_to_estate(tmp_path, monkeypatch):
     """Index a tiny fixture, then reach estate through the shim end-to-end."""
+    # Resolve at run time (not collection time) so the skip decision sees the
+    # same environment the test itself runs under.
+    mcp_bin = _estate_client.resolve_mcp_bin()
+    cli_bin = _estate_client.resolve_estate_bin()
+    if mcp_bin is None or cli_bin is None:
+        pytest.skip(
+            "wicked-estate / wicked-estate-mcp not installed — live round-trip skipped"
+        )
     src = tmp_path / "src"
     src.mkdir()
     (src / "lib.py").write_text(
@@ -156,7 +179,7 @@ def test_live_roundtrip_to_estate(tmp_path, monkeypatch):
     )
     db = tmp_path / "graph.db"
     built = subprocess.run(
-        [_CLI_BIN, "index", str(src), "--db", str(db)],
+        [cli_bin, "index", str(src), "--db", str(db)],
         capture_output=True, text=True, timeout=120,
     )
     assert built.returncode == 0, f"index failed: {built.stderr}"

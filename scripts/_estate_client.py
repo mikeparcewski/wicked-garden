@@ -166,6 +166,13 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             pass
         return {}
 
+    # Fail-open contract: a non-zero exit means the server died mid-batch —
+    # any output it managed to emit is suspect, so degrade to {} rather than
+    # hand back a partial round-trip as success. (A clean stdin-EOF shutdown
+    # exits 0; wicked-estate-mcp's main loop returns Ok(()) on EOF.)
+    if proc.returncode != 0:
+        return {}
+
     responses: dict = {}
     for line in (out or "").splitlines():
         line = line.strip()
@@ -200,6 +207,25 @@ def set_dispatch(fn: Callable[..., dict]) -> None:
 # JSON-RPC — handshake + one tool call, all fail-open
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _initialize_request() -> dict:
+    """The ONE initialize request every handshake uses (id=1).
+
+    Single source of truth so `health()` probes with exactly the same shape a
+    real tool call sends — if the server ever gets stricter about initialize
+    fields, health and the call path cannot diverge.
+    """
+    return {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "wicked-garden-estate-shim", "version": "0"},
+        },
+    }
+
+
 def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
     """Run one MCP method behind the initialize handshake. Return its response.
 
@@ -210,16 +236,7 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
     Returns the id=2 response dict, or None if the call did not round-trip.
     """
     requests = [
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {
-                "protocolVersion": "2024-11-05",
-                "capabilities": {},
-                "clientInfo": {"name": "wicked-garden-estate-shim", "version": "0"},
-            },
-        },
+        _initialize_request(),
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
@@ -233,8 +250,10 @@ def _unwrap(envelope: Optional[dict]) -> Optional[Any]:
     """Extract a tool's payload from an MCP tools/call envelope.
 
     Estate wraps results as {"result": {"content": [{"type":"text","text": …}],
-    "isError": bool}}. The text is the tool's own JSON string. Returns the
-    parsed payload, or None on error / isError=true / malformed shape.
+    "isError": bool}}. The text is usually the tool's own JSON string, which is
+    parsed and returned; a tool that emits plain (non-JSON) text gets its text
+    handed back verbatim as a str. Returns None on error / isError=true /
+    a malformed envelope shape.
     """
     if not isinstance(envelope, dict):
         return None
@@ -266,14 +285,7 @@ def health(timeout: float = 5.0) -> bool:
     successful `initialize` proves the whole path (resolve → spawn → handshake).
     """
     try:
-        requests = [
-            {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "initialize",
-                "params": {"protocolVersion": "2024-11-05", "capabilities": {}},
-            }
-        ]
+        requests = [_initialize_request()]
         responses = _active_dispatch(requests, db=resolve_db(), timeout=timeout)
         resp = responses.get(1)
         return bool(
