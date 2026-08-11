@@ -14,18 +14,23 @@ never hard-crashes when estate is missing or slow.
 
 Transport
 ---------
-**Spawn-per-call** today (simplest correct thing): each call spawns
+**Persistent stdio broker** (default): a single `wicked-estate-mcp` subprocess
+is kept alive for the Python process lifetime. All dispatches are serialized
+through a lock; the initialize handshake is done once at startup, so hot-path
+calls pay only the JSON encode/decode + pipe round-trip cost (~1ms vs ~80ms for
+spawn-per-call). On subprocess death the broker reconnects once; on a second
+death it degrades gracefully. Set `WICKED_ESTATE_PERSISTENT=0` to fall back to
+spawn-per-call (useful for debugging or when strict process isolation matters).
+
+**Spawn-per-call** (fallback / escape hatch): each call spawns
 `wicked-estate-mcp`, does the `initialize` handshake, issues one `tools/call`,
-parses the result, and lets the process exit on stdin EOF. This is slower than
-a long-lived server but requires zero lifecycle management and cannot leak
-processes.
+parses the result, and lets the process exit on stdin EOF. Available via
+`set_dispatch(_dispatch)` or `WICKED_ESTATE_PERSISTENT=0` env var.
 
 The spawn-vs-broker choice is an implementation detail behind a single seam:
-`_dispatch()` (installed as `_active_dispatch`). A future persistent stdio
-broker replaces **that one function** via `set_dispatch()` — every public
-function here routes through it, so **no caller changes** when the transport
-does. Callers only ever touch the stable API below (or the `__main__` CLI,
-which is the `wicked-estate-call` entry point).
+`_dispatch()` / `_PersistentBroker.__call__()` (installed as `_active_dispatch`
+and swappable via `set_dispatch()`). Every public function routes through it, so
+**no caller changes** when the transport does.
 
 Fail-open contract
 ------------------
@@ -37,15 +42,18 @@ not crash.
 Cross-platform
 --------------
 Pure stdlib. `subprocess` with an argv list (no shell). `shutil.which` resolves
-`.exe`/`.cmd` on Windows. `communicate(timeout=...)` is the portable timeout
-(no Unix-only signals). All paths via `pathlib`; all wire framing via `json`.
+`.exe`/`.cmd` on Windows. All paths via `pathlib`; all wire framing via `json`.
+The broker uses `threading.Lock` + `queue.Queue` — both stdlib, cross-platform.
 """
 
+import atexit
 import json
 import os
+import queue
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -195,12 +203,293 @@ def set_dispatch(fn: Callable[..., dict]) -> None:
     """Install an alternative transport (e.g. a persistent stdio broker).
 
     `fn` must accept `(requests, *, db, timeout)` and return {id: response},
-    exactly like `_dispatch`. This is the single seam that lets the
-    spawn-per-call transport be swapped for a long-lived broker later with no
-    change to any public function or caller.
+    exactly like `_dispatch`. This is the single seam that lets the transport
+    be swapped with no change to any public function or caller.
     """
     global _active_dispatch
     _active_dispatch = fn
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Persistent stdio broker — one subprocess per Python process, lock-serialized
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _PersistentBroker:
+    """Keep one wicked-estate-mcp subprocess alive per Python process.
+
+    The initialize handshake is done once at first use. Subsequent calls pay
+    only the JSON encode/decode + pipe round-trip — no per-call spawn or
+    handshake overhead. All dispatches are serialized through `_lock`, so the
+    class is thread-safe without request-ID multiplexing.
+
+    Reconnect policy
+    ----------------
+    On subprocess death detected during a call, the broker attempts one
+    reconnect. If the reconnect itself fails or the new process dies on its
+    first use, `_failed` is set and every subsequent call returns {} (permanent
+    degrade). The reconnect budget is per Python-process-lifetime.
+
+    Escape hatch
+    ------------
+    ``WICKED_ESTATE_PERSISTENT=0`` prevents auto-install at import time.
+    ``set_dispatch(_dispatch)`` restores spawn-per-call at runtime.
+    """
+
+    def __init__(self) -> None:
+        self._lock: threading.Lock = threading.Lock()
+        self._proc: Optional[subprocess.Popen] = None   # type: ignore[type-arg]
+        self._init_resp: Optional[dict] = None           # cached after handshake
+        self._db: Optional[str] = None                   # db the process was started with
+        self._q: queue.Queue = queue.Queue()             # response lines from reader thread
+        self._failed: bool = False                        # permanent-degrade flag
+        self._reconnect_used: bool = False               # one reconnect per lifetime
+        atexit.register(self._close)
+
+    # ── subprocess lifecycle ──────────────────────────────────────────────────
+
+    def _start(self, db: Optional[str]) -> bool:
+        """Spawn and handshake. Returns True on success; cleans up on failure."""
+        exe = resolve_mcp_bin()
+        if not exe:
+            return False
+        argv = [exe]
+        if db:
+            argv += ["--db", db]
+
+        # Fresh queue per session: a previous reader thread may enqueue an EOF
+        # sentinel *after* any drain loop runs, corrupting the new session.
+        # Creating a new Queue guarantees cross-session isolation.
+        self._q = queue.Queue()
+
+        try:
+            proc = subprocess.Popen(
+                argv,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+            )
+        except (OSError, ValueError):
+            return False
+
+        # Start the reader thread *before* writing so no response line is lost.
+        threading.Thread(
+            target=self._reader_loop,
+            args=(proc.stdout, self._q),
+            daemon=True,
+        ).start()
+
+        # Send initialize + notifications/initialized.
+        init_req = _initialize_request()
+        notif = {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}
+        try:
+            proc.stdin.write(json.dumps(init_req, separators=(",", ":")) + "\n")
+            proc.stdin.write(json.dumps(notif, separators=(",", ":")) + "\n")
+            proc.stdin.flush()
+        except OSError:
+            self._kill(proc)
+            return False
+
+        # Read and validate the initialize response (5 s timeout — not the
+        # caller's timeout; this is the one-time startup handshake).
+        line = self._dequeue(5.0)
+        if line is None:
+            self._kill(proc)
+            return False
+        try:
+            resp = json.loads(line)
+        except json.JSONDecodeError:
+            self._kill(proc)
+            return False
+        if not (
+            isinstance(resp, dict)
+            and isinstance(resp.get("result"), dict)
+            and resp["result"].get("serverInfo", {}).get("name") == "wicked-estate"
+        ):
+            self._kill(proc)
+            return False
+
+        self._proc = proc
+        self._init_resp = resp
+        self._db = db
+        return True
+
+    @staticmethod
+    def _reader_loop(stdout: Any, q: "queue.Queue[tuple]") -> None:
+        """Daemon thread: stream stdout lines into q, put ("eof", None) on close."""
+        try:
+            for line in stdout:
+                stripped = line.rstrip("\n")
+                if stripped:
+                    q.put(("data", stripped))
+        except Exception:
+            pass
+        q.put(("eof", None))
+
+    def _dequeue(self, timeout: float) -> Optional[str]:
+        """Pull the next response line from the reader queue.
+
+        Returns the line string on success, None on timeout or EOF.
+        An EOF sentinel is re-enqueued so later callers also see it.
+        """
+        try:
+            kind, value = self._q.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        if kind == "eof":
+            self._q.put(("eof", None))   # re-enqueue: future callers must see EOF too
+            return None
+        return value                     # kind == "data"
+
+    def _is_alive(self) -> bool:
+        return self._proc is not None and self._proc.poll() is None
+
+    @staticmethod
+    def _kill(proc: subprocess.Popen) -> None:  # type: ignore[type-arg]
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+    def _close(self) -> None:
+        """atexit / planned teardown: close stdin so the server exits on EOF."""
+        proc = self._proc
+        self._proc = None
+        self._init_resp = None
+        if proc is None:
+            return
+        try:
+            if proc.stdin and not proc.stdin.closed:
+                proc.stdin.close()
+        except Exception:
+            pass
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            try:
+                proc.kill()
+                proc.wait(timeout=1)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    # ── exchange ─────────────────────────────────────────────────────────────
+
+    def _exchange(self, real: list, *, timeout: float) -> Optional[dict]:
+        """Write id-bearing non-initialize requests, collect one response each.
+
+        Returns {req_id: response} on success, None if a write or read fails
+        (caller interprets None as process death and triggers reconnect logic).
+        """
+        try:
+            for req in real:
+                self._proc.stdin.write(json.dumps(req, separators=(",", ":")) + "\n")
+            self._proc.stdin.flush()
+        except OSError:
+            return None
+
+        responses: dict = {}
+        for req in real:
+            # Read until we get the id-bearing response for this request.
+            # Notifications (id absent or None) are silently skipped so that
+            # any server-initiated notification cannot displace a real response.
+            while True:
+                line = self._dequeue(timeout)
+                if line is None:
+                    return None
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(obj, dict) and obj.get("id") is not None:
+                    responses[obj["id"]] = obj
+                    break
+                # Notification — skip and read the next line.
+        return responses
+
+    # ── dispatch (public callable) ────────────────────────────────────────────
+
+    def __call__(self, requests: list, *, db: Optional[str], timeout: float) -> dict:
+        """Drop-in replacement for ``_dispatch``. Identical signature; persistent
+        transport. Thread-safe: all work happens under ``self._lock``."""
+        with self._lock:
+            return self._locked(requests, db=db, timeout=timeout)
+
+    def _locked(self, requests: list, *, db: Optional[str], timeout: float) -> dict:
+        """Called under self._lock. Returns {id: response}, {} on any failure."""
+        if self._failed:
+            return {}
+
+        # Ensure the process is running. Three cases:
+        #  (a) First start: no process, no init_resp yet — start freely.
+        #  (b) Unexpected death between calls: process gone, init_resp present —
+        #      consumes the one reconnect budget; degrade if budget exhausted.
+        #  (c) Planned restart: DB changed while process is still alive —
+        #      close + restart, NOT counted against the reconnect budget.
+        if not self._is_alive() or self._db != db:
+            previously_started = self._init_resp is not None
+            if not self._is_alive() and previously_started:
+                # Case (b): death between calls.
+                if self._reconnect_used:
+                    self._failed = True
+                    return {}
+                self._reconnect_used = True
+            elif self._is_alive() and self._db != db:
+                # Case (c): DB changed — close old process before restarting.
+                self._close()
+            if not self._start(db):
+                # Only mark permanently failed when this is a reconnect path
+                # (previously_started). A first-start failure is transient
+                # (binary not yet installed, temporary spawn error) and must
+                # not permanently degrade the broker for the process lifetime.
+                if previously_started:
+                    self._failed = True
+                return {}
+
+        # Partition: skip initialize + notifications (already done at startup).
+        real = [
+            r for r in requests
+            if r.get("id") is not None and r.get("method") != "initialize"
+        ]
+
+        # Health / initialize-only probe → return cached init response directly.
+        if not real:
+            return {1: self._init_resp}
+
+        # Send requests and collect responses.
+        result = self._exchange(real, timeout=timeout)
+        if result is None:
+            # Process died mid-exchange. One reconnect attempt allowed per lifetime.
+            self._close()
+            if self._reconnect_used:
+                self._failed = True
+                return {}
+            self._reconnect_used = True
+            if not self._start(db):
+                self._failed = True
+                return {}
+            result = self._exchange(real, timeout=timeout)
+            if result is None:
+                self._failed = True
+                return {}
+
+        return {1: self._init_resp, **result}
+
+
+def _maybe_install_broker() -> None:
+    """Install the persistent broker at module import unless opted out.
+
+    Escape hatch: ``WICKED_ESTATE_PERSISTENT=0`` keeps spawn-per-call.
+    Callers can also call ``set_dispatch(_dispatch)`` at runtime to revert,
+    or ``set_dispatch(_PersistentBroker())`` to get a fresh broker instance.
+    """
+    if os.environ.get("WICKED_ESTATE_PERSISTENT", "1") == "0":
+        return
+    set_dispatch(_PersistentBroker())
+
+
+_maybe_install_broker()
 
 
 # ─────────────────────────────────────────────────────────────────────────────

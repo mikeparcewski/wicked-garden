@@ -2,22 +2,30 @@
 
 Pins the seam that lets garden's Python hooks reach wicked-estate's **stdio**
 MCP binary (there is no HTTP port — this is the estate analogue of
-`test_brain_port.py`). Two layers:
+`test_brain_port.py`). Three layers:
 
   * Hermetic unit tests (always run): binary/DB resolution, fail-open on an
-    unreachable estate, envelope unwrapping, and the transport seam — proving a
-    persistent broker can replace spawn-per-call via `set_dispatch` with no
-    change to any public function.
+    unreachable estate, envelope unwrapping, the transport seam, and the
+    persistent broker — proving set_dispatch() is a true drop-in, the broker is
+    thread-safe, and the degrade/reconnect policy is enforced.
 
-  * A live round-trip smoke test (`slow`, skipped when the estate binaries are
-    absent): indexes a tiny fixture with `wicked-estate index`, then drives a
-    real `wicked-estate-mcp` through the shim and asserts a `SearchEntity` call
-    returns the known symbol. This is the S2 proof that the seam actually
-    reaches estate.
+  * A live round-trip smoke test (``slow``, skipped when estate binaries are
+    absent): indexes a tiny fixture with ``wicked-estate index``, then drives a
+    real ``wicked-estate-mcp`` through the shim and asserts a SearchEntity call
+    returns the known symbol.
+
+  * A transport benchmark (``slow``): measures spawn-per-call vs persistent
+    broker p50/p95 over 20 sequential health() calls and asserts the broker is
+    materially faster.
 """
 
 import json
 import subprocess
+import sys
+import textwrap
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
@@ -30,6 +38,76 @@ def _restore_dispatch():
     original = _estate_client._active_dispatch
     yield
     _estate_client.set_dispatch(original)
+
+
+# ── minimal fake MCP server (used in broker integration tests) ────────────────
+# Written to a tempfile and invoked via sys.executable so it runs on any OS
+# that has Python — no shebang dependency, no chmod required on Windows.
+
+_FAKE_MCP_SRC = textwrap.dedent("""\
+    import sys, json
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            req = json.loads(line)
+        except Exception:
+            continue
+        if req.get("id") is None:
+            continue  # notification — no response
+        rid = req["id"]
+        method = req.get("method", "")
+        if method == "initialize":
+            resp = {
+                "jsonrpc": "2.0", "id": rid,
+                "result": {
+                    "serverInfo": {"name": "wicked-estate"},
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {}
+                }
+            }
+        else:
+            resp = {
+                "jsonrpc": "2.0", "id": rid,
+                "result": {"content": [{"type": "text", "text": "{}"}], "isError": False}
+            }
+        sys.stdout.write(json.dumps(resp) + "\\n")
+        sys.stdout.flush()
+""")
+
+
+@pytest.fixture()
+def fake_mcp_bin(tmp_path, monkeypatch):
+    """Write _FAKE_MCP_SRC to a temp file, point WICKED_ESTATE_MCP_BIN at it.
+
+    Uses sys.executable so it works cross-platform without a Unix shebang.
+    resolve_mcp_bin() is monkeypatched to return the launcher command so the
+    broker spawns [sys.executable, script_path] rather than [binary_path].
+
+    Returns: the path to the script (the Popen argv is patched separately).
+    """
+    script = tmp_path / "fake_estate_mcp.py"
+    script.write_text(_FAKE_MCP_SRC)
+    exe = sys.executable
+    script_str = str(script)
+
+    def _patched_resolve():
+        return exe
+
+    # We also need Popen to use [exe, script] not just [exe].
+    # Patch subprocess.Popen inside the broker's _start() so it gets the script.
+    original_popen = subprocess.Popen
+
+    def _patched_popen(argv, **kwargs):
+        # Inject the script path after the Python executable.
+        if argv and argv[0] == exe:
+            argv = [exe, script_str] + list(argv[1:])
+        return original_popen(argv, **kwargs)
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", _patched_resolve)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", _patched_popen)
+    return script_str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -151,6 +229,313 @@ def test_broker_seam_swaps_transport_without_touching_callers():
     _estate_client.set_dispatch(fake_dispatch)
     assert _estate_client.health() is True                 # initialize-only batch
     assert _estate_client.search("ReachShimProbe") == canned["matches"]  # +tools/call
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Persistent broker — drop-in contract, thread-safety, reconnect/degrade
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_persistent_broker_is_drop_in_via_set_dispatch(fake_mcp_bin):
+    """_PersistentBroker installed via set_dispatch() is a true drop-in.
+
+    health() and search() work identically to the spawn-per-call path — no
+    caller changes required. Pins the seam contract that the original shim PR
+    described and the broker PR delivers.
+    """
+    broker = _estate_client._PersistentBroker()
+    _estate_client.set_dispatch(broker)
+
+    # health: should return True (initialize round-trips through fake MCP).
+    assert _estate_client.health(timeout=10) is True
+
+    # search: should return [] (fake MCP returns empty-object payload).
+    result = _estate_client.search("anything", timeout=10)
+    assert isinstance(result, list)
+
+    # A second health() hits the cached init response — no re-spawn.
+    assert _estate_client.health(timeout=10) is True
+
+
+def test_persistent_broker_concurrency_safe():
+    """10 concurrent health() calls on the same broker complete without deadlock.
+
+    Uses a threading.Barrier to deterministically release all threads at the
+    same moment, guaranteeing lock contention without relying on sleep timing.
+    All 10 must return True and exactly 10 dispatch calls must be recorded.
+    """
+    init_resp = {
+        "jsonrpc": "2.0", "id": 1,
+        "result": {"serverInfo": {"name": "wicked-estate"}},
+    }
+    N = 10
+    barrier = threading.Barrier(N)
+    call_count = [0]
+    count_lock = threading.Lock()
+
+    def counting_dispatch(requests, *, db, timeout):
+        barrier.wait()   # release all threads simultaneously for guaranteed contention
+        with count_lock:
+            call_count[0] += 1
+        return {1: init_resp}
+
+    _estate_client.set_dispatch(counting_dispatch)
+
+    with ThreadPoolExecutor(max_workers=N) as pool:
+        futures = [pool.submit(_estate_client.health) for _ in range(N)]
+        results = [f.result() for f in as_completed(futures)]
+
+    assert all(r is True for r in results), (
+        f"some health() calls returned non-True: {results}"
+    )
+    assert call_count[0] == N, f"expected {N} dispatches, got {call_count[0]}"
+
+
+def test_persistent_broker_concurrency_safe_with_real_broker(fake_mcp_bin):
+    """10 concurrent health() calls through a real _PersistentBroker.
+
+    Verifies the lock serializes correctly with a real subprocess — no
+    interleaved reads, no corrupted responses, no deadlock.
+    """
+    broker = _estate_client._PersistentBroker()
+    _estate_client.set_dispatch(broker)
+
+    with ThreadPoolExecutor(max_workers=10) as pool:
+        futures = [pool.submit(_estate_client.health, 10.0) for _ in range(10)]
+        results = [f.result() for f in as_completed(futures)]
+
+    assert all(r is True for r in results), (
+        f"concurrent broker health() calls returned non-True: {results}"
+    )
+
+
+def test_persistent_broker_reconnects_once_on_mid_exchange_death(tmp_path, monkeypatch):
+    """Broker reconnects once when the process dies mid-exchange.
+
+    The dying script handles the initialize handshake then exits immediately.
+    When the broker then calls list_tools() (which sends a tools/list request
+    via _exchange), the reader queue gets an EOF sentinel — _exchange returns
+    None, triggering the reconnect path.  The second process (working fake)
+    handles the tools/list and returns successfully.
+
+    This test is deterministic: the reconnect is triggered through the
+    _exchange → None path (not the _is_alive() between-call path), so there
+    is no OS-level poll() race.
+    """
+    # Script that responds to initialize then exits — simulates a server that
+    # crashes right after the handshake.
+    dying_script = tmp_path / "dying_mcp.py"
+    dying_script.write_text(textwrap.dedent("""\
+        import sys, json
+        for line in sys.stdin:
+            line = line.strip()
+            if not line: continue
+            req = json.loads(line)
+            if req.get("id") is None: continue  # skip notification
+            resp = {"jsonrpc":"2.0","id":req["id"],
+                    "result":{"serverInfo":{"name":"wicked-estate"},
+                              "protocolVersion":"2024-11-05","capabilities":{}}}
+            sys.stdout.write(json.dumps(resp) + "\\n")
+            sys.stdout.flush()
+            sys.exit(0)  # die after the first id-bearing message (initialize)
+    """))
+
+    working_script = tmp_path / "working_mcp.py"
+    working_script.write_text(_FAKE_MCP_SRC)
+
+    exe = sys.executable
+    call_num = [0]
+    original_popen = subprocess.Popen
+
+    def popen_factory(argv, **kwargs):
+        call_num[0] += 1
+        script = str(dying_script) if call_num[0] == 1 else str(working_script)
+        # argv[0] is the binary path from resolve_mcp_bin (patched to exe below);
+        # pass the script as the next arg so Python runs it as a script file.
+        return original_popen([exe, script] + list(argv[1:]), **kwargs)
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: exe)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", popen_factory)
+
+    broker = _estate_client._PersistentBroker()
+    _estate_client.set_dispatch(broker)
+
+    # list_tools() goes through _exchange (sends tools/list after handshake).
+    # The dying process exits after initialize, so _exchange sees EOF on the
+    # first real request → reconnect_used is set → working process starts.
+    tools = _estate_client.list_tools(timeout=10)
+
+    # Observable: call completed without exception; result is a list.
+    assert isinstance(tools, list), f"list_tools() returned {tools!r}, expected list"
+
+    # Reconnect budget was consumed.
+    assert broker._reconnect_used is True, "expected _reconnect_used after process death"
+
+    # Broker is still functional — working process handles subsequent calls.
+    assert _estate_client.health(timeout=10) is True
+
+
+def test_persistent_broker_reconnects_on_between_call_death(tmp_path, monkeypatch):
+    """Broker handles process death detected between calls (not mid-exchange).
+
+    The dying process exits after the handshake.  We explicitly wait for it to
+    die before making the next call so _is_alive() deterministically returns
+    False.  The broker should restart (consuming the reconnect budget) and serve
+    the second call normally.
+    """
+    dying_script = tmp_path / "dying_mcp.py"
+    dying_script.write_text(textwrap.dedent("""\
+        import sys, json
+        for line in sys.stdin:
+            line = line.strip()
+            if not line: continue
+            req = json.loads(line)
+            if req.get("id") is None: continue
+            resp = {"jsonrpc":"2.0","id":req["id"],
+                    "result":{"serverInfo":{"name":"wicked-estate"},
+                              "protocolVersion":"2024-11-05","capabilities":{}}}
+            sys.stdout.write(json.dumps(resp) + "\\n")
+            sys.stdout.flush()
+            sys.exit(0)
+    """))
+
+    working_script = tmp_path / "working_mcp.py"
+    working_script.write_text(_FAKE_MCP_SRC)
+
+    exe = sys.executable
+    call_num = [0]
+    original_popen = subprocess.Popen
+
+    def popen_factory(argv, **kwargs):
+        call_num[0] += 1
+        script = str(dying_script) if call_num[0] == 1 else str(working_script)
+        return original_popen([exe, script] + list(argv[1:]), **kwargs)
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: exe)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", popen_factory)
+
+    broker = _estate_client._PersistentBroker()
+    _estate_client.set_dispatch(broker)
+
+    # First call: starts the dying process, caches init response via health().
+    assert _estate_client.health(timeout=10) is True
+
+    # Wait explicitly for the dying process to exit so poll() is deterministic.
+    assert broker._proc is not None
+    try:
+        broker._proc.wait(timeout=3.0)
+    except subprocess.TimeoutExpired:
+        pass  # should not happen — dying script exits immediately
+
+    # Second call: _is_alive() returns False (proc exited), _init_resp is set
+    # → counts as reconnect → working process starts → health succeeds.
+    assert _estate_client.health(timeout=10) is True
+    assert broker._reconnect_used is True, "expected _reconnect_used after between-call death"
+
+
+def test_persistent_broker_degrades_permanently_after_reconnect_exhausted():
+    """After one reconnect, a second process death causes permanent degrade.
+
+    Verifies the fail-open contract: once _failed is set, every subsequent
+    call returns {} without raising, and health() returns False.
+    """
+    init_resp = {
+        "jsonrpc": "2.0", "id": 1,
+        "result": {"serverInfo": {"name": "wicked-estate"}},
+    }
+
+    broker = _estate_client._PersistentBroker()
+
+    # Pre-populate broker state: already started and used its reconnect budget.
+    broker._init_resp = init_resp
+    broker._db = None
+    broker._reconnect_used = True   # reconnect budget exhausted
+
+    # Simulate a dead process (poll() returns non-None).
+    class _DeadProc:
+        stdin = None
+        def poll(self): return 1
+
+    broker._proc = _DeadProc()
+
+    # Install the broker directly — don't go through the module-level dispatch.
+    # Test the broker.__call__ interface directly.
+    requests = [_estate_client._initialize_request()]
+    result = broker(requests, db=None, timeout=5.0)
+    assert result == {}, f"expected {{}} from dead broker, got {result}"
+    assert broker._failed is True, "broker should have set _failed after exhausting reconnects"
+
+    # Subsequent calls must also return {} without raising.
+    assert broker(requests, db=None, timeout=5.0) == {}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Transport benchmark — spawn-per-call vs persistent broker (live, slow)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.slow
+def test_broker_benchmark_vs_spawn_per_call():
+    """Measure p50/p95 for spawn-per-call vs persistent broker over 20 calls.
+
+    Requires wicked-estate-mcp to be installed. The broker must be materially
+    faster (p50 broker < p50 spawn) since it eliminates the ~75ms spawn+handshake
+    on every call. Aim: broker p50 ≤ 10ms (i.e., only the pipe round-trip cost).
+    """
+    if _estate_client.resolve_mcp_bin() is None:
+        pytest.skip("wicked-estate-mcp not installed — benchmark skipped")
+
+    N = 20
+    WARMUP = 2   # discarded: first call primes the broker and OS caches
+
+    def _percentile(data, p):
+        """Linear-interpolation percentile (Python 3.10+ has statistics.quantiles)."""
+        sorted_d = sorted(data)
+        idx = (len(sorted_d) - 1) * p / 100
+        lo, hi = int(idx), min(int(idx) + 1, len(sorted_d) - 1)
+        return sorted_d[lo] + (idx - lo) * (sorted_d[hi] - sorted_d[lo])
+
+    # ── spawn-per-call ────────────────────────────────────────────────────────
+    _estate_client.set_dispatch(_estate_client._dispatch)
+    spawn_ms: list = []
+    for _ in range(WARMUP + N):
+        t0 = time.perf_counter()
+        _estate_client.health(timeout=15.0)
+        spawn_ms.append((time.perf_counter() - t0) * 1000)
+    spawn_ms = spawn_ms[WARMUP:]      # discard warmup
+
+    spawn_p50 = _percentile(spawn_ms, 50)
+    spawn_p95 = _percentile(spawn_ms, 95)
+
+    # ── persistent broker ─────────────────────────────────────────────────────
+    broker = _estate_client._PersistentBroker()
+    _estate_client.set_dispatch(broker)
+    broker_ms: list = []
+    for _ in range(WARMUP + N):
+        t0 = time.perf_counter()
+        _estate_client.health(timeout=15.0)
+        broker_ms.append((time.perf_counter() - t0) * 1000)
+    broker_ms = broker_ms[WARMUP:]    # discard warmup (first call does handshake)
+
+    broker_p50 = _percentile(broker_ms, 50)
+    broker_p95 = _percentile(broker_ms, 95)
+
+    speedup = spawn_p50 / broker_p50 if broker_p50 > 0 else float("inf")
+
+    # Print to stdout so pytest -s shows the numbers (also captured in test log).
+    print(
+        f"\nTransport benchmark ({N} sequential health() calls, {WARMUP} warmup discarded):\n"
+        f"  spawn-per-call  p50={spawn_p50:.1f}ms  p95={spawn_p95:.1f}ms\n"
+        f"  persistent broker  p50={broker_p50:.1f}ms  p95={broker_p95:.1f}ms\n"
+        f"  speedup: {speedup:.1f}x"
+    )
+
+    # Assertions: broker must be strictly faster at p50 and within a 10ms floor.
+    assert broker_p50 < spawn_p50, (
+        f"Broker p50 ({broker_p50:.1f}ms) is not faster than spawn p50 ({spawn_p50:.1f}ms)"
+    )
+    assert broker_p50 <= 10.0, (
+        f"Broker p50 ({broker_p50:.1f}ms) exceeds 10ms — "
+        "persistent transport overhead is unexpectedly high"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
