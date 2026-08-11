@@ -13,8 +13,10 @@ RETIRED — those are NOT ported. What IS ported:
   - manifest peer registry (spot checks — vault install_cmd post-absorption)
 
 Key differences from the archived tests:
-  - vault install_cmd is now ["npx", "wicked-testing", "install"] (vault absorbed
-    into wicked-testing; archived tests expected ["npx", "wicked-vault-install"])
+  - vault install_cmd installs wicked-vault DIRECTLY as an infra peer
+    (["npm", "install", "-g", "wicked-vault@latest"]); it does NOT route through
+    wicked-testing, and it is not the old ["npx", "wicked-vault-install"] form
+    (that bin only installs skills, not the binary)
   - brain is STATUS_EXPERIMENTAL (bridge/deprecation period), so capability_ok=False
     for brain rows; archived tests expected all peers capability_ok=True
   - imports are prefixed `loom.` (in-process package, not a top-level CLI module)
@@ -124,10 +126,10 @@ class CheckPeerTests(unittest.TestCase):
 
     def test_ok_when_version_meets_pin(self):
         with patch.object(compose, "resolve_version_bin", return_value=["wicked-vault"]):
-            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.3.2\n"))
+            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.4.4\n"))
         self.assertEqual(r["status"], "ok")
-        self.assertEqual(r["installed"], "0.3.2")
-        self.assertEqual(r["pin"], "0.3")
+        self.assertEqual(r["installed"], "0.4.4")
+        self.assertEqual(r["pin"], "0.4")
         self.assertTrue(r["ok"])
 
     def test_drift_when_below_pin(self):
@@ -168,7 +170,7 @@ class CheckPeerTests(unittest.TestCase):
 
     def test_capability_carried_on_ok_row(self):
         with patch.object(compose, "resolve_version_bin", return_value=["wicked-vault"]):
-            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.3.2\n"))
+            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.4.4\n"))
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["capability"], "wired")
         self.assertTrue(r["capability_ok"])
@@ -265,10 +267,9 @@ class CheckAllTests(unittest.TestCase):
 
 class InstallPeerTests(unittest.TestCase):
 
-    def test_install_vault_runs_wicked_testing_install(self):
-        """Post-absorption: vault is now installed via wicked-testing.
-        install_cmd = ["npx", "wicked-testing", "install"] (not the old
-        ["npx", "wicked-vault-install"])."""
+    def test_install_vault_runs_direct_npm_global(self):
+        """vault is a DIRECT infra peer: install_cmd installs wicked-vault
+        directly (npm i -g), never routing through wicked-testing."""
         calls = []
 
         def run(cmd, timeout=None):
@@ -276,7 +277,8 @@ class InstallPeerTests(unittest.TestCase):
             return RunResult(returncode=0, stdout="ok", stderr="")
 
         r = compose.install_peer("vault", run=run)
-        self.assertEqual(calls, [["npx", "wicked-testing", "install"]])
+        self.assertEqual(calls, [["npm", "install", "-g", "wicked-vault@latest"]])
+        self.assertNotIn("wicked-testing", " ".join(calls[0]))
         self.assertEqual(r["status"], "installed")
 
     def test_install_unknown_peer_is_error(self):
@@ -383,13 +385,14 @@ class ResolveVersionBinTests(unittest.TestCase):
 
 class ManifestTests(unittest.TestCase):
 
-    def test_vault_install_cmd_is_wicked_testing(self):
-        """Post-absorption: vault comes via wicked-testing. install_cmd must
-        NOT be the old wicked-vault-install."""
+    def test_vault_install_cmd_is_direct_infra_peer(self):
+        """vault is a DIRECT infra peer: install_cmd installs wicked-vault
+        directly and never routes through wicked-testing."""
         vault = manifest.get("vault")
         self.assertIsNotNone(vault)
-        self.assertEqual(vault.install_cmd, ["npx", "wicked-testing", "install"])
-        self.assertNotIn("wicked-vault-install", " ".join(vault.install_cmd))
+        self.assertEqual(vault.install_cmd,
+                         ["npm", "install", "-g", "wicked-vault@latest"])
+        self.assertNotIn("wicked-testing", " ".join(vault.install_cmd))
 
     def test_vault_is_wired(self):
         vault = manifest.get("vault")

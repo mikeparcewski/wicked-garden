@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **wicked-vault is now a direct infra peer — no longer installed "via wicked-testing".** `wicked-vault@0.4.4` is published from its own repo (mikeparcewski/wicked-vault): self-contained, zero runtime deps. The loom peer registry (`scripts/loom/manifest.py`) now installs it directly (`install_cmd` = `["npm", "install", "-g", "wicked-vault@latest"]`, was `["npx", "wicked-testing", "install"]`) and bumps the vault MAJOR.MINOR floor `0.3` → `0.4` (in lockstep with `plugin.json`). `plugin.json` `wicked_vault_version` floor `^0.4.0` → `^0.4.4`. Narrative corrected across `plugin.json` / `marketplace.json` descriptions, `docs/getting-started.md`, and `skills/core/refs/setup.md` (vault installs directly, not through wicked-testing). Fixed a hardcoded `~/Projects/wicked-vault` dev path in `scripts/compiler/phase0/wire_vault.py` so it resolves the published vault via `npx --yes wicked-vault`. This cuts the testing → garden coupling and makes the garden's evidence gate standalone.
+
 ## [12.29.1] — 2026-07-21
 
 ### Added

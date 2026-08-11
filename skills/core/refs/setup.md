@@ -45,7 +45,7 @@ Parse the JSON. Only `core` tools are required during setup. For each `core` too
 
 After core tools, if `uv` is available, sync Python deps: `{uv_path} sync --quiet`. If sync fails, warn that search indexing will be unavailable but continue.
 
-> **One required, three opt-in.** The evidence gate needs **wicked-vault** (§2.6) — it ships via wicked-testing and the internal loom engine is built into wicked-garden itself, so no separate loom install is needed. The other three (**wicked-testing**, **wicked-brain**, **wicked-bus**) are **opt-in toolkit layers** — install them for the acceptance-testing, memory, and audit-trail capabilities; skip any and the rest of the toolkit still works.
+> **One required, three opt-in.** The evidence gate needs **wicked-vault** (§2.6) — it installs directly as a self-contained infra peer, and the internal loom engine is built into wicked-garden itself, so no separate loom install is needed. The other three (**wicked-testing**, **wicked-brain**, **wicked-bus**) are **opt-in toolkit layers** — install them for the acceptance-testing, memory, and audit-trail capabilities; skip any and the rest of the toolkit still works.
 
 ### 2.5 Verify wicked-testing (Recommended — acceptance-testing layer)
 
@@ -120,7 +120,7 @@ PY
 npx wicked-vault --version 2>/dev/null || echo "MISSING"
 ```
 
-- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a peer (sibling to wicked-bus / wicked-brain / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npx wicked-testing install" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npx wicked-testing install` (installs the cross-CLI skills) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npx wicked-testing install` then restart by invoking the wicked-garden-core skill's `setup` action."
+- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus / wicked-brain / wicked-testing)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
 - Version string (e.g. `0.3.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
 
 ### 2.7 Verify wicked-bus (Recommended — audit-trail layer)
