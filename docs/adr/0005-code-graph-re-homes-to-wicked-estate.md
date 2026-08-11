@@ -9,9 +9,10 @@
   relationship graph with **injected edges** as the load-bearing idea — stands; only the home and
   the engine change.
 - **Context owners:** wicked-garden + wicked-estate
-- **Relates to (estate):** estate [ADR-005 — code-intel as a brain](../../../wicked-estate/docs/adr/ADR-005-code-intel-as-a-brain.md),
-  estate [ADR-001 — graph schema](../../../wicked-estate/docs/adr/ADR-001-graph-schema.md),
-  estate `docs/extractor-sdk.md`, estate `CLAUDE.md`.
+- **Relates to (estate):** estate `docs/adr/ADR-005-code-intel-as-a-brain.md` (code-intel as a brain),
+  estate `docs/adr/ADR-001-graph-schema.md` (graph schema),
+  estate `docs/extractor-sdk.md`, estate `CLAUDE.md`. (Cross-repo references are given as
+  paths, not links — they resolve in the `wicked-estate` repo, not this one.)
 - **Retarget checklist:** [`0005-retarget-inventory.md`](0005-retarget-inventory.md) — the actionable
   call-site → estate mapping that Stage S5 executes.
 
