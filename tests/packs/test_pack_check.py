@@ -88,6 +88,37 @@ def test_fork_worker_exempt_from_line_cap(tmp_path):
     assert "PK020" not in _codes(findings)
 
 
+def test_unterminated_frontmatter_is_pk011(tmp_path):
+    """A SKILL.md whose frontmatter never closes must be malformed (PK011),
+    not half-parsed as valid (Copilot review, PR #1057)."""
+    root = tmp_path / "acme-open"
+    (root / "skills" / "acme-open").mkdir(parents=True)
+    (root / "wicked-pack.json").write_text(json.dumps({
+        "spec": 1, "name": "acme-open", "vendor": "acme", "version": "1.0.0",
+        "domains": [{"name": "open"}],
+    }), encoding="utf-8")
+    (root / "skills" / "acme-open" / "SKILL.md").write_text(
+        "---\nname: acme-open\ndescription: no closing fence\n# body\n",
+        encoding="utf-8")
+    findings = check_pack(root)
+    assert "PK011" in _codes(findings, "error")
+
+
+def test_absolute_skills_dir_rejected(tmp_path):
+    """skills_dir must not escape the pack root — absolute paths (POSIX or
+    Windows drive-letter) fail structural validation (Copilot review, PR #1057)."""
+    for bad in ("/etc", "C:\\evil", "..\\up"):
+        root = tmp_path / f"acme-esc-{abs(hash(bad)) % 1000}"
+        root.mkdir()
+        (root / "wicked-pack.json").write_text(json.dumps({
+            "spec": 1, "name": "acme-esc", "vendor": "acme", "version": "1.0.0",
+            "skills_dir": bad, "domains": [{"name": "esc"}],
+        }), encoding="utf-8")
+        findings = check_pack(root)
+        rendered = "\n".join(f.render() for f in findings)
+        assert "relative path inside the pack" in rendered, f"{bad!r} was not rejected"
+
+
 def test_dir_name_mismatch_trips_pk017(tmp_path):
     root = tmp_path / "acme-mix"
     (root / "skills" / "acme-mix").mkdir(parents=True)

@@ -572,11 +572,18 @@ def _check_pack_floors():
         violations = [f for f in findings if f.get("status") in ("below-floor", "bad-range")]
         if not violations:
             return None
-        lines = [
-            f"  - {v['pack']}: needs {v['peer']} {v['floor']}, installed "
-            f"{v.get('installed') or 'unparseable floor'}"
-            for v in violations[:5]
-        ]
+        lines = []
+        for v in violations[:5]:
+            if v.get("status") == "bad-range":
+                lines.append(
+                    f"  - {v['pack']}: peer {v['peer']} declares a malformed "
+                    f"floor {v['floor']!r} (expected \">=X.Y.Z\" or \"^X.Y.Z\")"
+                )
+            else:
+                lines.append(
+                    f"  - {v['pack']}: needs {v['peer']} {v['floor']}, "
+                    f"installed {v.get('installed') or 'unknown'}"
+                )
         return (
             "[Packs] peer version floor violation(s) — pack capabilities may "
             "misbehave until peers are updated (informational, nothing is blocked):\n"

@@ -103,6 +103,8 @@ def _parse_frontmatter(text: str) -> tuple:
 
     Scalar top-level keys only, plus multi-line ``description: |`` blocks
     captured verbatim — mirrors the resolver's line-scan (no YAML lib).
+    Frontmatter without a CLOSING fence is malformed and yields ``({}, 0)``
+    so the caller reports PK011 instead of trusting a half-open block.
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != _FRONTMATTER_FENCE:
@@ -110,9 +112,11 @@ def _parse_frontmatter(text: str) -> tuple:
     fm: dict = {}
     desc_lines: list = []
     in_desc = False
+    closed = False
     end = 0
     for i, line in enumerate(lines[1:], start=1):
         if line.strip() == _FRONTMATTER_FENCE:
+            closed = True
             end = i
             break
         if in_desc:
@@ -127,6 +131,8 @@ def _parse_frontmatter(text: str) -> tuple:
                 in_desc = True
                 continue
             fm.setdefault(key, val)
+    if not closed:
+        return {}, 0
     if desc_lines:
         fm["description"] = " ".join(l for l in desc_lines if l)
     return fm, end
@@ -181,8 +187,9 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
 
     for e in structural_errors(manifest, pack_root):
         err("PK002", MANIFEST_NAME, e)
-    if any(f.code == "PK002" and "skills dir" in f.message for f in findings):
-        return findings  # cannot walk a missing tree
+    if any(f.code == "PK002" and ("skills dir" in f.message or "skills_dir" in f.message)
+           for f in findings):
+        return findings  # cannot walk a missing/escaping tree
 
     vendor = str(manifest.get("vendor", ""))
     skills_dir = pack_root / str(manifest.get("skills_dir", "skills"))

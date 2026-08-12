@@ -19,9 +19,9 @@
     },
     "vendor": {
       "type": "string",
-      "pattern": "^(?!wicked)[a-z0-9]+(-[a-z0-9]+)*$",
+      "pattern": "^(?!wicked($|-))[a-z0-9]+(-[a-z0-9]+)*$",
       "maxLength": 64,
-      "description": "Vendor prefix all skill names in the pack must carry ({vendor}-{domain}[-{role}]). 'wicked' and 'wicked-*' are reserved."
+      "description": "Vendor prefix all skill names in the pack must carry ({vendor}-{domain}[-{role}]). Exactly 'wicked' and 'wicked-*' are reserved (matching the runtime validator); other vendors that merely start with the letters 'wicked' are allowed."
     },
     "version": {
       "type": "string",

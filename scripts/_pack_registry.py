@@ -154,7 +154,18 @@ def structural_errors(manifest: dict, root: Path) -> list:
         errors.append(f"version must be semver (got {version!r})")
 
     skills_rel = manifest.get("skills_dir", "skills")
-    if not isinstance(skills_rel, str) or ".." in skills_rel.replace("\\", "/").split("/"):
+    # Reject anything that could escape the pack root: parent segments AND
+    # absolute paths (POSIX or Windows — checked textually so validation is
+    # host-independent). Discovery, hashing, and the checker all walk this.
+    escapes_root = True
+    if isinstance(skills_rel, str) and skills_rel:
+        normalized = skills_rel.replace("\\", "/")
+        escapes_root = (
+            ".." in normalized.split("/")
+            or normalized.startswith("/")
+            or bool(re.match(r"^[A-Za-z]:", skills_rel))
+        )
+    if escapes_root:
         errors.append(f"skills_dir must be a relative path inside the pack (got {skills_rel!r})")
     else:
         skills_dir = Path(root) / skills_rel

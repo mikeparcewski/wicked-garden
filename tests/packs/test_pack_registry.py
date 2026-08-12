@@ -122,6 +122,22 @@ def test_reserved_vendor_prefix_rejected(isolated_registry, monkeypatch, tmp_pat
     assert any("reserved prefix" in e for e in errors)
 
 
+def test_vendor_merely_starting_with_wicked_letters_allowed(isolated_registry, monkeypatch, tmp_path):
+    """Only exactly 'wicked' and 'wicked-*' are reserved — 'wickedx' is an
+    (ugly but) legal vendor, matching the JSON schema (Copilot review, PR #1057)."""
+    pack = tmp_path / "wickedx-tools"
+    (pack / "skills" / "wickedx-tools").mkdir(parents=True)
+    (pack / "wicked-pack.json").write_text(json.dumps({
+        "spec": 1, "name": "wickedx-tools", "vendor": "wickedx",
+        "version": "1.0.0", "domains": [{"name": "tools"}],
+    }), encoding="utf-8")
+    (pack / "skills" / "wickedx-tools" / "SKILL.md").write_text(
+        "---\nname: wickedx-tools\ndescription: router\n---\n# r\n", encoding="utf-8")
+    monkeypatch.setenv("WICKED_PACK_PATH", str(pack))
+    packs, errors = preg.discover_packs()
+    assert any(p.name == "wickedx-tools" for p in packs), errors
+
+
 def test_specialist_entries_shape(isolated_registry, monkeypatch):
     monkeypatch.setenv("WICKED_PACK_PATH", str(VALID))
     packs, _ = preg.discover_packs()
