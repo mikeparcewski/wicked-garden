@@ -54,9 +54,9 @@ any Bash call. See §6.
     by this wall-clock, even on success.
   - `change-ticket:` required iff `trust_level == production-authorized`.
 - **`run_id`** — UUID of the current `runs` row; defines `EVIDENCE_DIR`.
-- **`.wicked-testing/config.json`** — `detected_tooling` should flag at
+- **`.wicked-qe/config.json`** — `detected_tooling` should flag at
   least one of `toxiproxy-cli | tc | kubectl | aws`.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — domain rules such
+- **`.wicked-qe/evidence/<run_id>/context.md`** — domain rules such
   as "payments dependency MUST NOT see >50% error rate", "do not touch
   the `auth-*` pod pool". Honor every rule; if a rule contradicts the
   scenario, refuse to run and return `ERR_CONTEXT_CONFLICT`.
@@ -138,7 +138,7 @@ if the steady-state assertion passes — that's how you prove revert works.
 
 ## 3. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                          | manifest `kind` | Required |
 |-------------------------------|-----------------|----------|
@@ -220,8 +220,8 @@ BEFORE invoking any Bash chaos tool:
    `ERR_BLAST_RADIUS_INVALID`.
 4. No `rollback_after_sec` — every experiment has a timer. Return
    `ERR_NO_STEADY_STATE`.
-5. The injector targets the wicked-testing store itself
-   (`.wicked-testing/` mount or `wicked-testing.db`). Return
+5. The injector targets the qe evidence store itself
+   (`.wicked-qe/` mount or `wicked-qe.db`). Return
    `ERR_CONTEXT_CONFLICT` — never chaos-test your own ledger during
    the run that's recording it.
 
@@ -248,10 +248,10 @@ VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

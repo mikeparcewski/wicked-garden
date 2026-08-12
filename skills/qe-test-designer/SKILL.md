@@ -61,7 +61,7 @@ Steps without expected evidence and an assertion are rejected at plan time.
 
 ## Execution
 
-- Capture every artifact into `.wicked-testing/evidence/<run-id>/artifacts/`
+- Capture every artifact into `.wicked-qe/evidence/<run-id>/artifacts/`
 - Record `sha256`, bytes, and `captured_at` for each artifact
 - Never silently swallow errors — non-zero exit = FAIL unless the step
   explicitly expects failure
@@ -78,6 +78,6 @@ Write the manifest per `docs/EVIDENCE.md` and emit
 
 ## References
 
-- `docs/INTEGRATION.md` (wicked-testing npm package) — contract
-- `docs/EVIDENCE.md` (wicked-testing npm package) — manifest schema
-- `SCENARIO-FORMAT.md` (wicked-testing npm package) — scenario input format
+- [refs/integration.md](refs/integration.md) — contract
+- [refs/evidence.md](refs/evidence.md) — manifest schema
+- [refs/scenario-format.md](refs/scenario-format.md) — scenario input format

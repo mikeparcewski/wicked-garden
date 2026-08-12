@@ -44,9 +44,9 @@ top 40 would have caught it at 1/50th the cost."
   `git diff --stat <ref>` to discover changed files and their churn.
 - **Scenario registry** — all active scenarios from DomainStore
   (`SELECT id, name, source_path, body FROM scenarios WHERE deleted = 0`).
-  Read via `sqlite3 .wicked-testing/wicked-testing.db` using bound params
+  Read via `sqlite3 .wicked-qe/wicked-qe.db` using bound params
   (scenarios are keyed by project_id; agent discovers project_id from
-  `.wicked-testing/config.json`).
+  `.wicked-qe/config.json`).
 - **Coverage history** — the ledger's historical coverage signal. For each
   scenario, which files did its runs touch? Captured under
   `evidence/<run-id>/coverage.json` when an executor writes it. Older runs
@@ -76,7 +76,7 @@ echo "${CHANGED_FILES}" > "${EVIDENCE_DIR}/changed-files.txt"
 git diff --stat "${DIFF_REF}"...HEAD > "${EVIDENCE_DIR}/diff-stat.txt"
 
 # 3. Scenario registry from DomainStore (parameter-bound, not interpolated).
-sqlite3 -json ".wicked-testing/wicked-testing.db" <<EOF > "${EVIDENCE_DIR}/scenarios.json"
+sqlite3 -json ".wicked-qe/wicked-qe.db" <<EOF > "${EVIDENCE_DIR}/scenarios.json"
 SELECT id, name, source_path, body
 FROM scenarios
 WHERE deleted = 0
@@ -84,7 +84,7 @@ WHERE deleted = 0
 EOF
 
 # 4. Historical coverage — files each scenario's most-recent passing run touched.
-sqlite3 -json ".wicked-testing/wicked-testing.db" <<EOF > "${EVIDENCE_DIR}/coverage-history.json"
+sqlite3 -json ".wicked-qe/wicked-qe.db" <<EOF > "${EVIDENCE_DIR}/coverage-history.json"
 .parameter set :window 30
 SELECT s.id AS scenario_id, r.evidence_path
 FROM scenarios s
@@ -111,13 +111,13 @@ score = 0.50 * direct_file_overlap        # scenario touched a changed file
       + 0.10 * recent_flake_penalty       # 1.0 if scenario has flaked this week, else 0.5
 ```
 
-Weights are tunable via `.wicked-testing/config.json`'s `tia.weights` map;
+Weights are tunable via `.wicked-qe/config.json`'s `tia.weights` map;
 they default to the above. Agent reads the config once and respects
 overrides but logs the effective weights into the evidence file.
 
 ## 4. Evidence output
 
-Write under `.wicked-testing/evidence/<run_id>/`:
+Write under `.wicked-qe/evidence/<run_id>/`:
 
 | File                         | kind          | notes                                                          |
 |------------------------------|---------------|----------------------------------------------------------------|
@@ -173,7 +173,7 @@ store.create("tasks", {
 Also emit (optional, fire-and-forget via `wicked-ledger`'s `emitBusEvent`):
 
 ```
-wicked.testimpact.computed  payload: { diff_ref, top_n, scenario_count, coverage_gap_count }
+wicked.test.impact.computed  payload: { diff_ref, top_n, scenario_count, coverage_gap_count }
 ```
 
 No `verdicts` row — TIA is advisory, not an adjudication. The caller runs
@@ -210,12 +210,12 @@ the top N and the scenario-executor / acceptance pipeline produces verdicts.
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```
 
 ## wicked-ledger resolution

@@ -59,7 +59,7 @@ absence; your verdict language reflects that.
 
 You receive and require the following from the caller:
 
-- **Scenario file path** — wicked-testing scenario markdown. Frontmatter
+- **Scenario file path** — qe scenario markdown. Frontmatter
   MUST declare one of:
   - `target:` — an https URL for DAST / live endpoint testing, OR
   - `target_file:` — a path tree for SAST / secrets scanning.
@@ -70,12 +70,12 @@ You receive and require the following from the caller:
   - `change-ticket:` required iff `trust_level == production-authorized`
   - `asvs_level:` one of `L1`, `L2`, `L3` — default `L2`
 - **`run_id`** — UUID of the current `runs` row; defines
-  `EVIDENCE_DIR=.wicked-testing/evidence/<run_id>/`.
-- **`.wicked-testing/config.json`** — `detected_tooling` map. At minimum
+  `EVIDENCE_DIR=.wicked-qe/evidence/<run_id>/`.
+- **`.wicked-qe/config.json`** — `detected_tooling` map. At minimum
   one of `semgrep | codeql | bandit | gosec | njsscan` must be available
   for SAST; one of `zap | nuclei` for DAST; one of
   `gitleaks | trufflehog | detect-secrets` for secrets.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional domain
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional domain
   rules (e.g. "this service stores PHI — treat Medium as High", "IDOR
   must probe the `/patients/:id/chart` route"). Honor every rule.
 
@@ -335,7 +335,7 @@ SAST + secrets scanning on the local tree does NOT require trust_level
 
 ## 8. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                              | manifest `kind`  | Required           |
 |-----------------------------------|------------------|--------------------|
@@ -465,10 +465,10 @@ VERDICT={PASS|CONDITIONAL|FAIL|SKIP} REVIEWER=wicked-garden-qe-security-test-eng
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

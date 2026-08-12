@@ -58,11 +58,11 @@ Your output is read by an auditor, not a developer. Be explicit.
     shell command. Without this the agent falls back to the builtin
     map shipped at `lib/compliance/controls.json`.
 - **`run_id`** — UUID of the current `runs` row; defines `EVIDENCE_DIR`.
-- **`.wicked-testing/config.json`** — `detected_tooling` must include
+- **`.wicked-qe/config.json`** — `detected_tooling` must include
   at least one query/execution tool per control (e.g. `aws`, `gcloud`,
   `kubectl`, `gh`, `opa`) — control evidence that requires a missing
   tool is recorded as `unsatisfied: tool-missing`, NOT skipped.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional domain
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional domain
   rules like "production AWS account is 111-222" or "data class PHI
   only in eu-west-1".
 
@@ -136,7 +136,7 @@ semgrep --config p/pci-dss --json src/ \
 
 ## 4. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 ```
 evidence/<run_id>/
@@ -262,10 +262,10 @@ VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-compliance-test-engineer RUN_ID={R
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

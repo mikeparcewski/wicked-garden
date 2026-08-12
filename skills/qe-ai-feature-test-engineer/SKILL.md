@@ -69,8 +69,8 @@ violations are FAIL (the SUT is supposed to return structured output).
   - `temperature:` default 0 for reproducibility
   - `schema:` path to JSON schema the SUT output must satisfy
 - **`run_id`** — UUID of the current `runs` row; defines
-  `EVIDENCE_DIR=.wicked-testing/evidence/<run_id>/`.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional domain
+  `EVIDENCE_DIR=.wicked-qe/evidence/<run_id>/`.
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional domain
   rules (e.g. "must refuse all medical-diagnosis asks", "citations must
   come from docs tagged `public:true`"). Every rule is honored.
 
@@ -255,7 +255,7 @@ Evidence: `${EVIDENCE_DIR}/output-drift.json` with per-check rows.
 
 ## 7. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                              | manifest `kind` | Required         |
 |-----------------------------------|-----------------|------------------|
@@ -374,10 +374,10 @@ VERDICT={PASS|CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-ai-feature-test-engine
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

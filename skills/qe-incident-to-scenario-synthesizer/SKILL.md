@@ -72,7 +72,7 @@ expected_error_class: TypeError
 ```
 
 - **`run_id`** — UUID of the current `runs` row; defines `EVIDENCE_DIR`.
-- **`.wicked-testing/config.json`** — optional; used to pick the default
+- **`.wicked-qe/config.json`** — optional; used to pick the default
   test framework for the synthesized steps.
 - **Scenario output dir** — `scenarios/`. Must exist. One file per
   incident id.
@@ -118,7 +118,7 @@ node {WT_LIB}/incident/normalize-direct.mjs \
 ## 3. Scenario synthesis
 
 Write exactly one file: `scenarios/<incident_id>.md`. Use the
-wicked-testing scenario format (see `SCENARIO-FORMAT.md`).
+qe scenario format (see [refs/scenario-format.md](../qe/refs/scenario-format.md)).
 
 ```markdown
 ---
@@ -169,7 +169,7 @@ Human review required — scenario is `pending-review` until approved.
 
 ## 4. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                              | manifest `kind` | Required |
 |-----------------------------------|-----------------|----------|
@@ -279,10 +279,10 @@ VERDICT=PASS REVIEWER=wicked-garden-qe-incident-to-scenario-synthesizer RUN_ID={
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

@@ -4,7 +4,7 @@ archetype_relevance: ["build", "review", "ship"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `acceptance-testing` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `acceptance-testing` orchestrator). Loaded on demand
      via Read() from the router's `accept` action — not a skill. -->
 
 
@@ -41,7 +41,7 @@ The reviewer must NEVER receive executor conversation context. This is enforced 
 1. **Tool restriction**: `allowed-tools: [Read]` in `../../qe-acceptance-test-reviewer/SKILL.md`. On Claude Code, this is enforced at the host level. On other CLIs, this is advisory.
 2. **Evidence-only dispatch**: The reviewer is dispatched with ONLY:
    - The original scenario file path
-   - The evidence directory path (`.wicked-testing/evidence/{run-id}/`)
+   - The evidence directory path (`.wicked-qe/evidence/{run-id}/`)
    - The test plan (writer output)
    - It does NOT include: executor stdout, executor reasoning, or any executor conversational context
 3. **Forked-skill context boundary**: The reviewer skill declares `context: fork` and runs as a separate forked-skill invocation in a fresh context, not sharing history with the executor.
@@ -68,7 +68,7 @@ wicked-garden-qe accept <scenario-file> [--phase write|execute|review|all] [--js
 (`wicked-garden-qe accept` is the historical alias — treat it as the same
 invocation.)
 
-- `scenario-file` — path to a wicked-testing scenario .md file
+- `scenario-file` — path to a qe scenario .md file
 - `--phase all` (default) — full Write → Execute → Review pipeline
 - `--phase write` — generate test plan only (for review before execution)
 - `--phase execute` — execute with existing plan
@@ -88,7 +88,8 @@ test -f "{scenario-file}" || echo "ERR_SCENARIO_NOT_FOUND"
 Check config:
 
 ```bash
-test -f ".wicked-testing/config.json" || echo "ERR_NO_CONFIG"
+# dual-read (Phase 6c): a legacy .wicked-testing root still counts
+{ test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"
 ```
 
 On `ERR_NO_CONFIG`, stop and tell the user to run the `wicked-garden-qe setup`
@@ -101,12 +102,20 @@ the run's canonical UUID. This serves three goals at once:
 
 - eliminates the 1-second-granularity collision when two pipelines start
   within the same timestamp (formerly `RUN_ID="$(date +%Y%m%dT%H%M%S)-..."`);
-- matches the public contract path `.wicked-testing/evidence/<run-id>/manifest.json`
-  consumers read (see `schemas/evidence.json` (wicked-testing npm package));
+- matches the public contract path `.wicked-qe/evidence/<run-id>/manifest.json`
+  consumers read (see `schemas/evidence.json` (wicked-vault npm package));
 - avoids any risk of collision with canonical `runs/<id>.json` records that
   used to share the `runs/` parent directory.
 
 ```javascript
+// Resolve the ledger root dual-read (Phase 6c): '.wicked-qe', or a legacy
+// '.wicked-testing' root written before the rename — never both.
+import { createDomainStore, resolveLedgerRoot } from 'wicked-ledger';
+import { basename } from 'node:path';
+const LEDGER_ROOT = resolveLedgerRoot(process.cwd());
+const WICKED_DIR  = basename(LEDGER_ROOT);                 // '.wicked-qe' (or legacy)
+const store = createDomainStore({ root: LEDGER_ROOT });
+
 // Ensure project + scenario exist, then:
 const run = store.create('runs', {
   project_id: project.id,
@@ -115,7 +124,6 @@ const run = store.create('runs', {
   status: 'running',
 });
 const RUN_ID       = run.id;                               // canonical UUID
-const WICKED_DIR   = '.wicked-testing';
 const EVIDENCE_DIR = `${WICKED_DIR}/evidence/${RUN_ID}`;
 // mkdir -p EVIDENCE_DIR; write evidence_path back onto the run record
 store.update('runs', run.id, { evidence_path: EVIDENCE_DIR });
@@ -378,7 +386,7 @@ const { manifest } = buildManifest({
   scenarioRecord: store.get('scenarios', scenario.id),
   verdictRecord:  verdictRecord,
   evidenceDir:    EVIDENCE_DIR,
-  wickedTestingVersion: pkgVersion,
+  qeVersion: pkgVersion,
 });
 
 // 4. Emit the skill-level evidence.captured event (DomainStore doesn't fire
@@ -393,7 +401,7 @@ emitBusEvent('wicked.test.evidence.captured', {
   verdict_id: null,
   vault_payload_sha: null,
   artifact_count: manifest.artifacts.length,
-  wicked_testing_version: pkgVersion,
+  qe_version: pkgVersion,
 });
 ```
 
@@ -431,20 +439,20 @@ lists the failures.
 ## Integration
 
 - Results queryable via `wicked-garden-qe insight "what was the last verdict for scenario X?"`
-- Evidence files at `.wicked-testing/evidence/<run-id>/` (see `schemas/evidence.json` (wicked-testing npm package))
-- Public manifest: `.wicked-testing/evidence/<run-id>/manifest.json` — the only file downstream consumers should read
+- Evidence files at `.wicked-qe/evidence/<run-id>/` (see `schemas/evidence.json` (wicked-vault npm package))
+- Public manifest: `.wicked-qe/evidence/<run-id>/manifest.json` — the only file downstream consumers should read
 - Verdict written to DomainStore `verdicts` table
 - Run written to DomainStore `runs` table
-- Bus events emitted per `docs/INTEGRATION.md` (wicked-testing npm package) when `wicked-bus` is on PATH
+- Bus events emitted per [refs/integration.md](refs/integration.md) when `wicked-bus` is on PATH
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```
 
 ## wicked-ledger resolution

@@ -4,7 +4,7 @@ archetype_relevance: ["build", "ship", "review"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `execution` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `execution` orchestrator). Loaded on demand
      via Read() from the router's `execute` action — not a skill. -->
 
 
@@ -12,7 +12,7 @@ archetype_relevance: ["build", "ship", "review"]
 
 The doer. Takes a scenario or test command, runs it, captures everything,
 writes the ledger entry. Evidence lives under
-`.wicked-testing/evidence/<run-id>/`.
+`.wicked-qe/evidence/<run-id>/`.
 
 ## Usage
 
@@ -62,7 +62,7 @@ Skill(
 {path to scenarios/<name>.md}
 
 ## Evidence Directory
-.wicked-testing/evidence/{RUN_ID}/
+.wicked-qe/evidence/{RUN_ID}/
 
 ## Instructions
 1. Read the scenario via the Read tool.
@@ -113,10 +113,10 @@ SKIP with reason `trust-level-insufficient`.
 ## Evidence & ledger
 
 - Every run produces a `run_id` (UUID v4 from DomainStore)
-- Artifacts land in `.wicked-testing/evidence/<run-id>/`
+- Artifacts land in `.wicked-qe/evidence/<run-id>/`
 - `manifest.json` is written per `docs/EVIDENCE.md` (produced by `wicked-ledger`'s `buildManifest`)
 - The run + verdict are written to the SQLite ledger
-- Bus events emitted (when bus present): `wicked.testrun.started`,
+- Bus events emitted (when bus present): `wicked.test.run.started`,
   `wicked.test.run.completed`, `wicked.evidence.captured`, and finally
   `wicked.test.verdict.created`. These names are the wicked-ledger
   emitter's existing wire contract; the 3-segment stragglers get the
@@ -138,17 +138,17 @@ SKIP with reason `trust-level-insufficient`.
 
 ## References
 
-- `docs/INTEGRATION.md` (wicked-testing npm package)
-- `docs/EVIDENCE.md` (wicked-testing npm package)
+- [refs/integration.md](refs/integration.md)
+- [refs/evidence.md](refs/evidence.md)
 - `../../qe-scenario-executor/SKILL.md`, `../../qe-test-designer/SKILL.md`,
   `../../qe-acceptance-test-executor/SKILL.md`
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

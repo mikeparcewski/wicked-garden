@@ -44,14 +44,14 @@ with an explicit list of unchecked manual items.
 
 You receive and require the following from the caller:
 
-- **Scenario file path** — the wicked-testing scenario markdown, which in
+- **Scenario file path** — the qe scenario markdown, which in
   its frontmatter declares `tools.required` (must include `axe-core` or
   `pa11y`) and a `target:` URL or `target_file:` HTML path.
 - **`run_id`** — the UUID of the current `runs` row in DomainStore. Used
-  to compute `EVIDENCE_DIR=.wicked-testing/evidence/<run_id>/`.
-- **`.wicked-testing/config.json`** — optional; the `detected_tooling`
+  to compute `EVIDENCE_DIR=.wicked-qe/evidence/<run_id>/`.
+- **`.wicked-qe/config.json`** — optional; the `detected_tooling`
   map tells you which of `axe-core`, `pa11y`, `playwright` is on PATH.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional; free-form
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional; free-form
   domain rules (e.g. "this app must pass WCAG 2.2 AA not just 2.1 AA",
   "focus ring must be ≥ 3:1 against its background"). Respect every rule.
 
@@ -119,7 +119,7 @@ npx --yes pa11y "${TARGET}" \
 # Headless keyboard walk; each Tab press captures a screenshot + the
 # computed outline style of document.activeElement.
 npx --yes playwright test \
-  --config=.wicked-testing/playwright-a11y.config.ts \
+  --config=.wicked-qe/playwright-a11y.config.ts \
   --reporter=json \
   > "${EVIDENCE_DIR}/keyboard-walk.json"
 ```
@@ -130,14 +130,14 @@ npx --yes playwright test \
 # Force the media query on and diff against the default run. A large
 # visual delta with no motion-reduction handling = FAIL on WCAG 2.3.3.
 npx --yes playwright test \
-  --config=.wicked-testing/playwright-a11y.config.ts \
+  --config=.wicked-qe/playwright-a11y.config.ts \
   --grep @prefers-reduced-motion \
   > "${EVIDENCE_DIR}/reduced-motion.json"
 ```
 
 ## 3. Evidence output
 
-Write the following under `.wicked-testing/evidence/<run_id>/`. The run's
+Write the following under `.wicked-qe/evidence/<run_id>/`. The run's
 manifest (built by the orchestrator via `wicked-ledger`'s `buildManifest`) picks these
 up from disk and classifies each by `kind`:
 
@@ -207,7 +207,7 @@ result to the caller with a stable `code`:
 | `ERR_TARGET_UNREACHABLE`   | URL returned a connection error or 4xx/5xx          | user   |
 | `ERR_TOOL_MISSING`         | neither axe-core nor pa11y is installable via npx   | system |
 | `ERR_SCENARIO_MALFORMED`   | frontmatter missing `target` or `target_file`       | user   |
-| `ERR_EVIDENCE_DIR_MISSING` | `.wicked-testing/evidence/<run_id>/` not pre-created| system |
+| `ERR_EVIDENCE_DIR_MISSING` | `.wicked-qe/evidence/<run_id>/` not pre-created| system |
 | `ERR_JSON_WRITE_FAILED`    | propagated from DomainStore — canonical store down  | system |
 | `ERR_AXE_TIMEOUT`          | axe step exceeded `timeoutMs` in exec-with-timeout  | user   |
 
@@ -250,10 +250,10 @@ VERDICT=CONDITIONAL REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

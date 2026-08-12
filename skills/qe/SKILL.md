@@ -30,8 +30,10 @@ archetype_relevance: ["*"]
 Evidence-gated testing as a domain: strategy → authoring → execution →
 independent verdict, with a read-only ledger lens. Verdicts are re-derived
 from captured evidence — never self-asserted by the agent that ran the work.
-Absorbed from the wicked-testing plugin in Phase 6b; the `.wicked-testing/`
-data contract (config, evidence dirs, SQLite ledger) is unchanged.
+Absorbed from the retired wicked-testing plugin in Phase 6b; Phase 6c renamed
+the on-disk data contract to `.wicked-qe/` (config, evidence dirs, SQLite
+ledger) — legacy `.wicked-testing/` roots still resolve via wicked-ledger's
+dual-read `resolveLedgerRoot`.
 
 ## Routing
 
@@ -54,16 +56,17 @@ action; multi-model deliberation is `jam` council; in-run crew review is
 ## Preflight (all actions except setup)
 
 ```bash
-test -f ".wicked-testing/config.json" || echo "ERR_NO_CONFIG"
+# dual-read (Phase 6c): a legacy .wicked-testing root still counts
+{ test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"
 ```
 
 On `ERR_NO_CONFIG`, run § setup first (it is safe to auto-run: it only
-scaffolds `.wicked-testing/` and registers a project record).
+scaffolds `.wicked-qe/` and registers a project record).
 
 ## setup — per-project initialization
 
 1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/setup.md")` — full playbook.
-2. Detect available test CLIs, create `.wicked-testing/` + `config.json`,
+2. Detect available test CLIs, create `.wicked-qe/` + `config.json`,
    register the project row in the ledger DomainStore.
 
 ## plan — strategy, risk, testability, AC quality
@@ -84,7 +87,7 @@ scaffolds `.wicked-testing/` and registers a project record).
 
 1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/execute.md")` — full playbook.
 2. Dispatch `wicked-garden-qe-scenario-executor` (or the matching specialist);
-   evidence lands in `.wicked-testing/evidence/<run-id>/`; run + verdict rows
+   evidence lands in `.wicked-qe/evidence/<run-id>/`; run + verdict rows
    go to the ledger. Verdict requests default to § accept, never self-grading.
 
 ## review — independent verdicts
@@ -108,7 +111,7 @@ scaffolds `.wicked-testing/` and registers a project record).
    judges from evidence paths only (`allowed-tools: Read`, `context: fork`,
    evidence-only dispatch). Never leak executor context to the reviewer.
 2. Verdict + run rows are written via the wicked-ledger DomainStore and the
-   public manifest lands at `.wicked-testing/evidence/<run-id>/manifest.json`.
+   public manifest lands at `.wicked-qe/evidence/<run-id>/manifest.json`.
 
 ## Fork workers (dispatch with the Skill tool)
 
@@ -145,16 +148,16 @@ AC quality ↔ `product-requirements-analyst`; AI-feature probes ↔
 ## Data layer
 
 - **Evidence + config contract (shared with crew/ledger — do not rename):**
-  `.wicked-testing/config.json`, `.wicked-testing/evidence/<run-id>/`,
-  `.wicked-testing/wicked-testing.db`.
+  `.wicked-qe/config.json`, `.wicked-qe/evidence/<run-id>/`,
+  `.wicked-qe/wicked-qe.db`.
 - **wicked-ledger** (npm, pinned via `wicked_ledger_version` in plugin.json):
   DomainStore CRUD, fixed-SQL oracle queries, `buildManifest`. Import-style
   snippets need the package resolvable from the project
   (`npm i --no-save wicked-ledger`).
 - **`{WT_LIB}` helpers**: specialist playbooks reference helper modules that
-  live in the wicked-testing npm package's `lib/` until the 6c extraction —
-  resolve `WT_LIB="$(npm root -g)/wicked-testing/lib"` (fallback: local
-  `node_modules/wicked-testing/lib`).
+  ship in-catalog at `${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/` (ported from the
+  retired wicked-testing package in Phase 6c) — resolve
+  `WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"`.
 
 ## Integration with wicked-crew
 

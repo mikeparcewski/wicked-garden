@@ -41,9 +41,9 @@ Retry masks the bug; you name the bug.
   If only the path is given, resolve the id from DomainStore
   (`store.search("scenarios", { source_path: <path> })` → pick most recent).
 - **`run_id`** — current `runs` row; defines `EVIDENCE_DIR`.
-- **`.wicked-testing/wicked-testing.db`** — historical `verdicts` rows.
+- **`.wicked-qe/wicked-qe.db`** — historical `verdicts` rows.
   Read-only via the oracle pattern (see §2). Do not read it unless it exists.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional; may declare
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional; may declare
   a custom window (`flake_window_days: 30`) or a quarantine policy override.
 - **Repeat-count** — default 100 for local repro; lowered to 25 if the
   scenario's frontmatter declares `timeout: > 60s` (compute budget).
@@ -56,7 +56,7 @@ Retry masks the bug; you name the bug.
 # 14-day verdict history for this scenario — mirrors the oracle's
 # last_verdict_for_scenario pattern but windowed. Uses sqlite3's
 # .parameter mechanism so the scenario id is bound, not interpolated.
-sqlite3 -json ".wicked-testing/wicked-testing.db" <<EOF > "${EVIDENCE_DIR}/verdict-history.json"
+sqlite3 -json ".wicked-qe/wicked-qe.db" <<EOF > "${EVIDENCE_DIR}/verdict-history.json"
 .parameter set :id "${SCENARIO_ID}"
 SELECT v.verdict, v.reason, v.created_at, r.status AS run_status
 FROM verdicts v
@@ -138,7 +138,7 @@ The proposed fix for each cause is well-known and NOT "add retry":
 
 ## 4. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                          | manifest `kind` | Required |
 |-------------------------------|-----------------|----------|
@@ -205,7 +205,7 @@ as `status: "open"` tasks in the next run.
 
 | code                          | meaning                                            | class  |
 |-------------------------------|----------------------------------------------------|--------|
-| `ERR_SQLITE_UNAVAILABLE`      | `.wicked-testing/wicked-testing.db` missing        | user   |
+| `ERR_SQLITE_UNAVAILABLE`      | `.wicked-qe/wicked-qe.db` missing        | user   |
 | `ERR_SCENARIO_NOT_FOUND`      | scenario_id / path resolves to no row              | user   |
 | `ERR_INSUFFICIENT_HISTORY`    | fewer than 10 verdicts in window; refuse to judge  | user   |
 | `ERR_FILTER_INVALID`          | scenario_id not a UUID                             | user   |
@@ -243,10 +243,10 @@ VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-flaky-test-hunter RUN_ID={RUN_ID}
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

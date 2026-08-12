@@ -4,7 +4,7 @@ archetype_relevance: ["review", "build"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `review` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `review` orchestrator). Loaded on demand
      via Read() from the router's `review` action — not a skill. -->
 
 
@@ -61,7 +61,7 @@ Skill(
 independent verdict.
 
 ## Evidence Directory
-.wicked-testing/evidence/{RUN_ID}/
+.wicked-qe/evidence/{RUN_ID}/
 
 ## Scenario Path
 {path — read it yourself}
@@ -131,17 +131,17 @@ Emits `wicked.test.verdict.created` on the bus when present.
 
 ## References
 
-- `docs/INTEGRATION.md` (wicked-testing npm package)
-- `docs/EVIDENCE.md` (wicked-testing npm package)
+- [refs/integration.md](refs/integration.md)
+- [refs/evidence.md](refs/evidence.md)
 - `../../qe-acceptance-test-reviewer/SKILL.md`, `../../qe-semantic-reviewer/SKILL.md`,
   `../../qe-code-analyzer/SKILL.md`, `../../qe-production-quality-engineer/SKILL.md`
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

@@ -54,7 +54,7 @@ _SKILLS_DIR = _REPO / "skills"
 # dirs never worth scanning: live worktrees (full repo copies — would double-count),
 # vcs/build junk, and test-run evidence (artifacts mention worker names in their output).
 _EXCLUDE_PARTS = {".git", "__pycache__", ".codegraph", "node_modules",
-                  ".claude", ".wicked-testing"}
+                  ".claude", ".wicked-qe", ".wicked-testing"}
 # extensions worth scanning for references
 _SCAN_EXT = {".md", ".py", ".json"}
 

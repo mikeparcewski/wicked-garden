@@ -126,10 +126,10 @@ class CheckPeerTests(unittest.TestCase):
 
     def test_ok_when_version_meets_pin(self):
         with patch.object(compose, "resolve_version_bin", return_value=["wicked-vault"]):
-            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.4.4\n"))
+            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.5.0\n"))
         self.assertEqual(r["status"], "ok")
-        self.assertEqual(r["installed"], "0.4.4")
-        self.assertEqual(r["pin"], "0.4")
+        self.assertEqual(r["installed"], "0.5.0")
+        self.assertEqual(r["pin"], "0.5")
         self.assertTrue(r["ok"])
 
     def test_drift_when_below_pin(self):
@@ -170,7 +170,7 @@ class CheckPeerTests(unittest.TestCase):
 
     def test_capability_carried_on_ok_row(self):
         with patch.object(compose, "resolve_version_bin", return_value=["wicked-vault"]):
-            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.4.4\n"))
+            r = compose.check_peer("vault", run=_runner(stdout="wicked-vault 0.5.0\n"))
         self.assertEqual(r["status"], "ok")
         self.assertEqual(r["capability"], "wired")
         self.assertTrue(r["capability_ok"])

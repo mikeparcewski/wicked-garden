@@ -4,16 +4,16 @@ archetype_relevance: ["*"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `setup` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `setup` orchestrator). Loaded on demand
      via Read() from the router's `setup` action — not a skill. -->
 
 
 # qe setup — full playbook
 
-Initialize wicked-testing for the current project. Creates
-`.wicked-testing/config.json`, detects available test CLIs, and registers a
+Initialize the qe domain for the current project. Creates
+`.wicked-qe/config.json`, detects available test CLIs, and registers a
 project record in the DomainStore. This is the remediation for `ERR_NO_CONFIG`
-anywhere in wicked-testing (plan, acceptance-testing, test-oracle,
+anywhere in the qe domain (plan, acceptance-testing, test-oracle,
 release-readiness all point here).
 
 This skill runs in the main context (Bash/Write) — it is an orchestrating
@@ -44,17 +44,17 @@ npx --no-install playwright --version > /dev/null 2>&1 && echo "npx-playwright: 
 npx --no-install cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" || echo "npx-cypress: false"
 ```
 
-### 2. Create .wicked-testing Directory
+### 2. Create .wicked-qe Directory
 
 ```bash
-mkdir -p .wicked-testing/projects .wicked-testing/strategies .wicked-testing/scenarios \
-         .wicked-testing/runs .wicked-testing/verdicts .wicked-testing/tasks \
-         .wicked-testing/evidence
+mkdir -p .wicked-qe/projects .wicked-qe/strategies .wicked-qe/scenarios \
+         .wicked-qe/runs .wicked-qe/verdicts .wicked-qe/tasks \
+         .wicked-qe/evidence
 ```
 
 ### 3. Write config.json
 
-Write `.wicked-testing/config.json` using Python cross-platform pattern:
+Write `.wicked-qe/config.json` using Python cross-platform pattern:
 
 ```bash
 python3 -c "
@@ -72,7 +72,7 @@ config = {
     'created_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'),
     'claim_nudge': False
 }
-open('.wicked-testing/config.json', 'w').write(json.dumps(config, indent=2))
+open('.wicked-qe/config.json', 'w').write(json.dumps(config, indent=2))
 " 2>/dev/null || python -c "<same script>"
 ```
 
@@ -110,7 +110,7 @@ Oracle and stats commands require SQLite. Run: npm rebuild better-sqlite3
 | curl | {Installed / Not found} |
 | pa11y | {Installed / Not found} |
 
-**Config**: .wicked-testing/config.json
+**Config**: .wicked-qe/config.json
 **Project ID**: {id}
 
 Next steps:
@@ -118,7 +118,7 @@ Next steps:
 - `wicked-garden-qe author` skill — author test scenarios
 - `wicked-garden-qe accept` skill (e.g. on `scenarios/test-runner.md`) — run the acceptance test pipeline
 - **Claim-boundary nudge (optional, off by default):** set `"claim_nudge": true` in
-  `.wicked-testing/config.json` to be reminded to run `acceptance` whenever a turn
+  `.wicked-qe/config.json` to be reminded to run `acceptance` whenever a turn
   claims "tests pass" with no acceptance verdict on record. Auto-registers under a
   marketplace/plugin install; loose-skill installs require plugin-mode (see CHANGELOG).
 ```

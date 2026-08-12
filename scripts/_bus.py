@@ -296,13 +296,14 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "facts",
         "description": "Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain -> estate memory)",
     },
-    # wicked-testing integration — test-lifecycle verdict event (#549, AC-25).
+    # qe integration — test-lifecycle verdict event (#549, AC-25).
     # Renamed to the wicked-bus SPEC form wicked.test.<noun>.<past-verb>
-    # (was wicked.verdict.recorded) in lockstep with the wicked-testing producer.
+    # (was wicked.verdict.recorded). Domain stamp rebranded wicked-testing → qe
+    # in Phase 6c, in lockstep with the wicked-ledger producer.
     "wicked.test.verdict.created": {
-        "domain": "wicked-testing",
+        "domain": "qe",
         "subdomain": "gate.verdict",
-        "description": "wicked-testing reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP)",
+        "description": "qe reviewer recorded a gate verdict (PASS/FAIL/N-A/SKIP)",
     },
     # Delivery domain — telemetry.py + drift.py (Issue #443)
     "wicked.garden.quality.drift_detected": {

@@ -335,7 +335,10 @@ def _extract_scenario_metrics(
         return out
     try:
         from _domain_store import DomainStore  # type: ignore
-        ds = DomainStore("wicked-testing", hook_mode=True)
+        # Phase 6c: the qe domain owns scenario verdicts now; fall back to the
+        # retired wicked-testing domain so pre-6c local data keeps counting.
+        ds = DomainStore("wicked-qe", hook_mode=True)
+        legacy_ds = DomainStore("wicked-testing", hook_mode=True)
         scanned = 0
         for source in ("verdicts", "runs", "scenarios"):
             if deadline is not None and time.monotonic() > deadline:
@@ -344,6 +347,13 @@ def _extract_scenario_metrics(
                 rows = ds.list(source, project=project) or []
             except Exception:
                 rows = []
+            if not rows:
+                # Legacy fallback: pre-6c data lives under the retired
+                # wicked-testing domain name.
+                try:
+                    rows = legacy_ds.list(source, project=project) or []
+                except Exception:
+                    rows = []
             for row in rows:
                 scanned += 1
                 if scanned > _MAX_SCENARIO_SCAN:
