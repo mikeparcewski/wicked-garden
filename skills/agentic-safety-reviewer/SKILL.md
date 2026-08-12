@@ -8,6 +8,11 @@ description: |
   Use when: safety review of an AI agent system, guardrail assessment, prompt
   injection audit, PII/compliance exposure check, HITL gate verification, or
   as a parallel worker in a heavyweight wicked-garden-agentic review.
+
+  Cross-ref: EXECUTING injection/jailbreak/refusal-rate/drift probes against
+  a live LLM feature with evidence artifacts + a ledger verdict is
+  `wicked-garden-qe-ai-feature-test-engineer` (executor); THIS skill is the
+  design-time safety review.
 model: opus
 effort: high
 max-turns: 15

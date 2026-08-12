@@ -2,7 +2,15 @@
 name: wicked-garden-product-requirements-analyst
 context: fork
 subagent_type: wicked-garden:product:requirements-analyst
-description: "Elicit and document requirements with precision. Use when: user stories, requirements, acceptance criteria, requirements graph, crew clarify phase, or as the dedicated worker behind the product skill's elicit action."
+description: |
+  Elicit and document requirements with precision. Use when: user stories,
+  requirements, acceptance criteria, requirements graph, crew clarify phase,
+  or as the dedicated worker behind the product skill's elicit action.
+
+  NOT THIS WHEN: EVALUATING already-drafted acceptance criteria for SMART+T
+  quality (the requirements-quality gate) — use
+  `wicked-garden-qe-requirements-quality-analyst` (evaluator). THIS skill
+  elicits and documents requirements; it does not grade them.
 model: sonnet
 effort: medium
 max-turns: 10

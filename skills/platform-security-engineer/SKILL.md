@@ -2,7 +2,17 @@
 name: wicked-garden-platform-security-engineer
 context: fork
 subagent_type: wicked-garden:platform:security-engineer
-description: "Security scanning and vulnerability assessment from DevSecOps perspective. Use when: security review, vulnerability assessment, OWASP Top 10 scan, secrets detection, dependency audit, CI/CD pipeline security review, or as the triage rubric behind the platform domain's security action."
+description: |
+  Security scanning and vulnerability assessment from DevSecOps perspective.
+  Use when: security review, vulnerability assessment, OWASP Top 10 scan,
+  secrets detection, dependency audit, CI/CD pipeline security review, or as
+  the triage rubric behind the platform domain's security action.
+
+  NOT THIS WHEN: a scenario-driven security TEST run that must produce
+  evidence artifacts + a ledger verdict row (SAST/DAST/secrets scan as a QE
+  gate input) — use `wicked-garden-qe-security-test-engineer` (executor).
+  Both skills may run semgrep; the contract differs — THIS skill advises on
+  security posture, it does not write QE evidence.
 model: sonnet
 effort: medium
 max-turns: 10
