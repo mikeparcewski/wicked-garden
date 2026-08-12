@@ -368,6 +368,17 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.loom",
         "description": "Loom hard-gate verdict differs from the in-process gate result (diagnostic: parity mirror)",
     },
+    # QE domain — incident-to-scenario-synthesizer + release-readiness-engineer
+    "wicked.qe.scenario.authored": {
+        "domain": "wicked-garden",
+        "subdomain": "qe.scenario",
+        "description": "Scenario file authored from a production incident; queues a human review task",
+    },
+    "wicked.qe.release.assessed": {
+        "domain": "wicked-garden",
+        "subdomain": "qe.release",
+        "description": "Release readiness verdict assessed against ledger evidence window",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.

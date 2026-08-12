@@ -183,7 +183,7 @@ for (const b of blockers) {
 }
 
 // Bus emit (optional, fire-and-forget).
-emitBusEvent("wicked.release.assessed", {
+emitBusEvent("wicked.qe.release.assessed", {
   project_id: PROJECT_ID,
   run_id: RUN_ID,
   verdict: gateDecision,
@@ -216,7 +216,7 @@ emitBusEvent("wicked.release.assessed", {
 ## References
 
 - `wicked-ledger` domain-store (`import { createDomainStore } from "wicked-ledger"`) — verdicts / tasks schema
-- `wicked-ledger` bus-emit (`emitBusEvent`) — `wicked.release.assessed` producer
+- `wicked-ledger` bus-emit (`emitBusEvent`) — `wicked.qe.release.assessed` producer
 - [`../qe-flaky-test-hunter/SKILL.md`](../qe-flaky-test-hunter/SKILL.md) — source of quarantine tasks
 - [`../qe-coverage-archaeologist/SKILL.md`](../qe-coverage-archaeologist/SKILL.md) — coverage-delta reference
 - [`../qe-production-quality-engineer/SKILL.md`](../qe-production-quality-engineer/SKILL.md) — prod SLO state source

@@ -125,6 +125,8 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.garden.coverage.changed` | `qe.coverage` | Test coverage metrics changed |
 | `wicked.garden.scenario.run` | `qe.scenario` | Test scenario executed with pass/fail result |
+| `wicked.qe.release.assessed` | `qe.release` | Release readiness verdict assessed against ledger evidence window |
+| `wicked.qe.scenario.authored` | `qe.scenario` | Scenario file authored from a production incident; queues a human review task |
 
 ### Sentinel
 
