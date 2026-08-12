@@ -13,7 +13,7 @@ So the gate becomes: *is the claim actually backed by evidence that
 clears its declared contract?* — not *did someone say it was done?*
 
 **Required peer, fail-closed by default.** wicked-vault is a required
-sibling (like wicked-bus / wicked-brain). When it is
+sibling (like wicked-bus). When it is
 genuinely unresolvable, ``gate_satisfied`` (``require=True`` default)
 **fails closed** — it never self-asserts a PASS. ``require=False`` is an
 explicit opt-out to the doctrine-light ``evidence_tracker`` claim-only

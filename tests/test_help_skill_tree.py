@@ -38,7 +38,7 @@ ARCHETYPE_SKILL = SKILLS_DIR / "archetype" / "SKILL.md"
 ARCHETYPES_JSON = REPO / ".claude-plugin" / "archetypes.json"
 
 # Match a plugin-skill token: wicked-garden-<kebab-name>. Sibling plugins
-# (wicked-brain, wicked-bus, ...) never carry the `wicked-garden-` prefix,
+# (wicked-bus, wicked-vault, ...) never carry the `wicked-garden-` prefix,
 # so they are excluded by construction.
 SKILL_TOKEN_RE = re.compile(r"\bwicked-garden-[a-z0-9]+(?:-[a-z0-9]+)*")
 

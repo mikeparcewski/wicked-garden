@@ -56,7 +56,7 @@ Q1 — multi-select, header "Layers":
 "Which optional layers do you want to add?"
 
 Options (multiSelect: true):
-- label: "wicked-brain", description: "Persistent memory — cross-session recall, cited search, code graph"
+- label: "wicked-estate", description: "Memory/context layer — cross-session memory, cited knowledge recall, code graph (Rust binaries)"
 - label: "wicked-understanding", description: "Repo playbooks from HEAD — the repo's 'how,' always current"
 - label: "wicked-bus", description: "Local event bus — one SQLite file, no broker, no daemon, no ports"
 
@@ -82,7 +82,7 @@ Run in the order listed. Show a ✓ or ✗ line per tool as each completes.
 
 | Tool | Method |
 |---|---|
-| wicked-brain | Claude Code slash command — display `/plugin install wicked-brain`, ask user to run it, then verify by checking if the plugin dir exists under `~/.claude/plugins/wicked-brain` |
+| wicked-estate | Install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or `~/.local/bin` (see the wicked-estate README — cargo install or a release download), then verify with the §2.5b presence probe in refs/setup.md |
 | wicked-understanding | `npx skills add mikeparcewski/wicked-understanding --all` |
 | wicked-bus | Claude Code slash command — display `/plugin install wicked-bus`, ask user to run it, then verify under `~/.claude/plugins/wicked-bus` |
 | wicked-interactive | `claude plugins marketplace add mikeparcewski/wicked-interactive && claude plugins install wicked-interactive` |
@@ -109,5 +109,5 @@ Parse JSON output. Show a summary table — peer name, version/status (`ok`/`dri
 
 Display:
 - A clean installed-tools summary with versions
-- Quick start hint: invoke the wicked-garden-core skill's `setup` action — full onboarding (indexes your codebase into wicked-brain, writes project memory, configures the status line)
+- Quick start hint: invoke the wicked-garden-core skill's `setup` action — full onboarding (indexes your codebase into the wicked-estate knowledge layer, writes project memory, configures the status line)
 - Or just start: describe a task and wicked-garden routes it to the right work-shape archetype automatically

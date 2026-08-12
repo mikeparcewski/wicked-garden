@@ -30,8 +30,6 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
-from _brain_port import resolve_port
-
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
@@ -378,50 +376,11 @@ def _find_active_crew_project_legacy(workspace: str = ""):
     return None, None
 
 
-def _brain_api(action, params=None, timeout=3):
-    """Call brain API. Returns parsed JSON or None."""
-    try:
-        import urllib.request
-        port = resolve_port()
-        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # nosem: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is f"http://localhost:{port}/api" with int-validated port from resolve_port()
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
-
-
-def _run_memory_decay():
-    """Run memory decay maintenance via brain lint. Returns a summary string or None.
-
-    S4: brain-era maintenance only — wicked-estate owns its memory lifecycle
-    in-store (tier/reinforcement in the memext sidecar), so under estate
-    routing this is a no-op. The brain path is deleted at S7.
-    """
-    try:
-        from _context_backend import route
-        if route() != "brain":
-            return None  # estate manages decay/reinforcement internally
-        result = _brain_api("lint", {}, timeout=5)
-        if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
-            return f"Memory: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
-        return None
-    except Exception:
-        return None
-
-
 def _check_search_staleness():
-    """Check the routed context backend's index health. Returns a note or None.
+    """Check the context backend's index health. Returns a note or None.
 
-    S4: routed via _context_backend — estate coverage totals (cached per
-    session/TTL) under estate/auto, the legacy brain stats + auto-start under
-    WICKED_CONTEXT_BACKEND=brain. Fails open — any exception returns None so
-    the session always continues.
+    Estate coverage totals via _context_backend (cached per session/TTL).
+    Fails open — any exception returns None so the session always continues.
     """
     try:
         from _context_backend import staleness_note
@@ -441,10 +400,8 @@ def _check_onboarding_status():
     (~/.something-wicked/wicked-garden/config.json), not per-project, so it
     cannot answer the per-project onboarding question here.
 
-    S4: the index/memory signals come from the routed backend — estate
-    coverage totals (knowledge_total/memory_total, cached per session/TTL)
-    under estate/auto, the legacy brain stats + search probe under
-    WICKED_CONTEXT_BACKEND=brain.
+    The index/memory signals come from estate coverage totals
+    (knowledge_total/memory_total, cached per session/TTL).
     """
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
 
@@ -473,19 +430,9 @@ def _check_onboarding_status():
     # has been set up — skip the memory probe.
     if has_index:
         has_memories = True  # indexed content ≡ project was onboarded
-    elif stats.get("backend") == "estate":
+    else:
         # Estate answers the memory question directly from coverage totals.
         has_memories = stats.get("memory_total", 0) > 0
-    else:
-        # Brain path: broad memory search (any result counts, not just /mem- paths).
-        result = _brain_api("search", {"query": "project memory onboarding", "limit": 5}, timeout=3)
-        if result is None:
-            # Brain went unreachable between calls — fail open.
-            return False, True, None
-        if isinstance(result, list) and result:
-            has_memories = True
-        elif isinstance(result, dict) and result.get("results"):
-            has_memories = True
 
     directive = None
     if not has_index and not has_memories:
@@ -498,7 +445,7 @@ def _check_onboarding_status():
             "Do NOT respond with text first — invoke the skill as your first action."
         )
     elif not has_index and has_memories:
-        # Memories exist but brain index is gone → rebuild only
+        # Memories exist but the knowledge index is empty → rebuild only
         directive = (
             f"[Onboarding] IMPORTANT: Project '{project}' has memories but no search index. "
             "You MUST invoke the wicked-garden-search skill's `index` action now to build the search index."
@@ -555,127 +502,13 @@ def _detect_dangerous_mode():
 
 
 # ---------------------------------------------------------------------------
-# wicked-brain dependency check
-# ---------------------------------------------------------------------------
-
-def _check_brain_dependency():
-    """Check whether the wicked-brain plugin is installed.
-
-    Scans ~/.claude/settings.json and .claude/settings.json (project-level)
-    for 'wicked-brain' in their enabledPlugins keys.
-
-    If found:
-        - Returns (True, None) — no briefing note needed.
-        - Also attempts a lightweight server health probe on the default port
-          and returns (True, note) where note describes the offline state if
-          the server is not reachable.
-
-    If NOT found:
-        - Returns (False, note) — note contains the install instruction.
-
-    Always fails open — any exception returns (None, None) so the session
-    is never blocked.
-    """
-    try:
-        # Settings file locations to check (global first, then project-local)
-        settings_candidates = [
-            Path.home() / ".claude" / "settings.json",
-            Path(".claude") / "settings.json",
-        ]
-
-        # Also honour CLAUDE_CONFIG_DIR if set
-        config_dir_env = os.environ.get("CLAUDE_CONFIG_DIR")
-        if config_dir_env:
-            settings_candidates.append(Path(config_dir_env) / "settings.json")
-
-        brain_installed = False
-
-        # Check 1: enabledPlugins in settings.json (plugin-style install)
-        for settings_path in settings_candidates:
-            try:
-                if not settings_path.exists():
-                    continue
-                settings = json.loads(settings_path.read_text(encoding="utf-8"))
-                enabled = settings.get("enabledPlugins", {})
-                if isinstance(enabled, dict) and "wicked-brain" in enabled:
-                    brain_installed = True
-                    break
-                if isinstance(enabled, list) and "wicked-brain" in enabled:
-                    brain_installed = True
-                    break
-            except (json.JSONDecodeError, OSError):
-                continue
-
-        # Check 2: loose skill installs at ~/.claude/skills/wicked-brain-*
-        # Users can install wicked-brain skills directly without the plugin wrapper.
-        if not brain_installed:
-            try:
-                skills_dir = Path.home() / ".claude" / "skills"
-                if skills_dir.exists():
-                    for entry in skills_dir.iterdir():
-                        if entry.is_dir() and entry.name.startswith("wicked-brain"):
-                            brain_installed = True
-                            break
-            except OSError:
-                pass  # fail open
-
-        # Check 3: CLAUDE_CONFIG_DIR skills directory
-        if not brain_installed and config_dir_env:
-            try:
-                alt_skills_dir = Path(config_dir_env) / "skills"
-                if alt_skills_dir.exists():
-                    for entry in alt_skills_dir.iterdir():
-                        if entry.is_dir() and entry.name.startswith("wicked-brain"):
-                            brain_installed = True
-                            break
-            except OSError:
-                pass  # fail open
-
-        if not brain_installed:
-            note = (
-                "[wicked-brain] optional layer not installed.\n"
-                "Add it for cross-session memory + cited search: claude plugin install wicked-brain --scope project\n"
-                "The toolkit works without it — you lose the memory/context layer "
-                "(cross-session recall, brain-backed search, smaht:briefing)."
-            )
-            return False, note
-
-        # wicked-brain is installed — probe server health and auto-start on
-        # miss. _brain_api returns None on any error (server not running,
-        # connection refused, timeout, parse error); ensure_server is the
-        # deterministic fix for the "not running" case and fails open.
-        server_note = None
-        if _brain_api("health", {}, timeout=1) is None:
-            started = False
-            try:
-                from _brain_port import ensure_server
-                started = ensure_server()
-            except Exception:
-                pass
-            if started:
-                server_note = "[wicked-brain] Server was down — auto-started for this session."
-            else:
-                server_note = (
-                    "[wicked-brain] Plugin installed but the server could not be "
-                    "auto-started. Diagnose with `wicked-brain-call --start` "
-                    "(log: {brain}/_meta/server.log). Brain skills auto-start the "
-                    "server on every call — do NOT skip brain usage."
-                )
-
-        return True, server_note
-
-    except Exception:
-        return None, None  # Fail open — never block session start
-
-
-# ---------------------------------------------------------------------------
 # wicked-vault dependency check (required evidence backend)
 # ---------------------------------------------------------------------------
 
 def _check_vault_dependency():
     """Return a briefing note if wicked-vault is not resolvable, else None.
 
-    wicked-vault is a required peer (sibling to wicked-bus / wicked-brain):
+    wicked-vault is a required peer (sibling to wicked-bus):
     every archetype produces-gate re-derives against it via
     ``scripts/qe/vault_gate.py``. When it is absent those gates fail closed,
     so we surface a one-line install pointer at SessionStart.
@@ -784,13 +617,13 @@ def _check_loom_dependency():
 def _check_bus_dependency():
     """Return a briefing note if wicked-bus is not installed, else None.
 
-    wicked-bus is an opt-in layer (sibling to wicked-brain / wicked-vault —
-    see ADR 0003): the garden's archetype events flow through it. When it
-    is absent, cross-plugin event wiring is silently dropped, so we surface a
+    wicked-bus is an opt-in layer (sibling to wicked-vault — see ADR 0003):
+    the garden's archetype events flow through it. When it is absent,
+    cross-plugin event wiring is silently dropped, so we surface a
     one-line install pointer at SessionStart.
 
-    Detection mirrors ``_check_brain_dependency`` — wicked-bus installs as a
-    Claude Code *plugin*, not an npx CLI, so we verify by presence:
+    wicked-bus installs as a Claude Code *plugin*, not an npx CLI, so we
+    verify by presence:
       1. ``enabledPlugins`` in ~/.claude/settings.json, project-local
          .claude/settings.json, and CLAUDE_CONFIG_DIR/settings.json.
       2. Loose skill installs at ``skills/wicked-bus-*`` under the home and
@@ -1065,7 +898,7 @@ def _suggest_commands_for_project() -> str | None:
         has_ci = (cwd / ".github" / "workflows").is_dir()
 
         # Always useful
-        suggestions.append("`wicked-brain:search` — semantic code search")
+        suggestions.append("`wicked-garden-search` skill — code-intelligence + cited knowledge search")
         suggestions.append("`wicked-garden-engineering` skill, `review` action — structured code review")
 
         # Project-type-specific
@@ -1406,10 +1239,7 @@ def main():
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
         project_data, project_name = _find_active_crew_project(workspace)
 
-        # 6. Run memory decay
-        decay_summary = _run_memory_decay()
-
-        # 6b. Check search index staleness and auto-reindex if needed
+        # 6. Check search index staleness and auto-reindex if needed
         search_staleness_note = _check_search_staleness()
         mode_notes = []
         # CH-02: inject legacy reeval-log migration notice when legacy entries are found.
@@ -1496,64 +1326,20 @@ def main():
         if registry_note:
             mode_notes.append(registry_note)
 
-        # 7d. Check the context-backend dependency (memory/context layer).
-        #     S4: routed — wicked-estate binary + stores under estate/auto,
-        #     the legacy wicked-brain plugin checks under
-        #     WICKED_CONTEXT_BACKEND=brain. Never blocks the session.
+        # 7d. Check the context-backend dependency (memory/context layer):
+        #     the wicked-estate binary + stores. Never blocks the session.
+        #     (An empty store is surfaced by _check_search_staleness.)
         try:
-            from _context_backend import route as _ctx_route
-            _ctx_backend = _ctx_route()
+            from _context_backend import estate_dependency
+            ctx_available, ctx_note = estate_dependency()
         except Exception:
-            _ctx_backend = "brain"  # router missing → legacy behavior
-        if _ctx_backend == "brain":
-            brain_available, brain_note = _check_brain_dependency()
-        else:
-            try:
-                from _context_backend import estate_dependency
-                brain_available, brain_note = estate_dependency()
-            except Exception:
-                brain_available, brain_note = None, None
-        if state is not None and brain_available is not None:
-            state.update(brain_available=brain_available)
-        if brain_note:
+            ctx_available, ctx_note = None, None
+        if state is not None and ctx_available is not None:
+            state.update(context_backend_available=ctx_available)
+        if ctx_note:
             # the context layer is not a hard requirement — surface the
             # install pointer informationally, never block the session.
-            mode_notes.append(brain_note)
-
-        # 7e. Empty-store directive.
-        #     Brain route: if brain is installed but has no content, emit the
-        #     legacy init→ingest pipeline directive (start directive when the
-        #     server isn't reachable). Estate route: an empty store is already
-        #     surfaced by _check_search_staleness (staleness_note), so only
-        #     the brain path emits here.
-        if brain_available and _ctx_backend == "brain":
-            stats = _brain_api("stats", {}, timeout=2)
-            if stats is None:
-                # The dependency check above already attempted a deterministic
-                # auto-start; re-probe once in case readiness landed late.
-                try:
-                    from _brain_port import ensure_server
-                    if ensure_server():
-                        stats = _brain_api("stats", {}, timeout=2)
-                except Exception:
-                    pass
-            if stats is None:
-                mode_notes.append(
-                    "[wicked-brain] Plugin installed but the server did not respond "
-                    "after auto-start. Diagnose with `wicked-brain-call --start`, "
-                    "then run the brain pipeline: ingest → retag → compile."
-                )
-            elif stats.get("total", 0) == 0:
-                mode_notes.append(
-                    "[wicked-brain] Brain is empty for this project. "
-                    "You MUST run the full brain pipeline now as background agents:\n"
-                    "  1. `wicked-brain:init` — initialize the brain if needed\n"
-                    "  2. `wicked-brain:ingest` with the current working directory\n"
-                    "  3. `wicked-brain:retag` — expand keywords into semantic tags\n"
-                    "  4. `wicked-brain:compile` — synthesize wiki articles from chunks\n"
-                    "Run these sequentially in a background agent. "
-                    "Do NOT wait for completion before responding to the user."
-                )
+            mode_notes.append(ctx_note)
 
         # 8. Assemble session briefing
         # --- Status block (user-facing) ---
@@ -1654,9 +1440,6 @@ def main():
         # --- Mode-specific warnings/notes ---
         for note in mode_notes:
             briefing_parts.append(note)
-
-        if decay_summary:
-            briefing_parts.append(f"[Memory] {decay_summary}")
 
         # NOTE (v9.2.10): the per-session _MEMORY_INSTRUCTIONS append was
         # removed. CLAUDE.md's "Memory Management" section already covers

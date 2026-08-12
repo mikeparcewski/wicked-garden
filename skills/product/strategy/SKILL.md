@@ -131,16 +131,16 @@ Payback Period = Investment / Annual Benefit
 
 ## Integration
 
-### With wicked-brain:memory
+### With the memory layer (wicked-garden-mem)
 
 Store strategic insights:
 ```
-Skill(skill="wicked-brain:memory", args="store \"ROI analysis: {project}\" --type decision")
+Skill(skill="wicked-garden-mem", args="store \"ROI analysis: {project}\" (kind=fact)")
 ```
 
 Recall past analysis:
 ```
-Skill(skill="wicked-brain:memory", args="recall \"strategic analysis {domain}\"")
+Skill(skill="wicked-garden-mem", args="recall \"strategic analysis {domain}\"")
 ```
 
 ### With wicked-crew

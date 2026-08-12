@@ -45,8 +45,9 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
         return
 
 # Escalation threshold — after this many consecutive completed tasks without
-# a wicked-brain:memory call, the memory directive switches to [ESCALATION]
-# language. Named per R3 (no magic numbers); historical value = 3.
+# a memory-store call (the wicked-garden-mem skill), the memory directive
+# switches to [ESCALATION] language. Named per R3 (no magic numbers);
+# historical value = 3.
 _ESCALATION_THRESHOLD = 3
 
 # Keywords that suggest a deliverable-producing task
@@ -81,16 +82,6 @@ def _is_deliverable_task(subject: str) -> bool:
     """Return True if the task subject suggests it produced a deliverable."""
     subject_lower = subject.lower()
     return any(kw in subject_lower for kw in _DELIVERABLE_PATTERNS)
-
-
-def _infer_mem_type(subject: str) -> str:
-    """Infer the most appropriate wicked-brain:memory type from task subject."""
-    s = subject.lower()
-    if any(kw in s for kw in ("fix", "resolve", "bug", "defect")):
-        return "decision"
-    if any(kw in s for kw in ("phase:", "design", "architect", "strategy")):
-        return "episodic"
-    return "procedural"
 
 
 # Issue #572: event_type + verdict constants used by the re-eval debounce rule.
@@ -242,29 +233,24 @@ def main():
         # get a lighter nudge so memories still get captured.
         system_message = ""
         if subject and _is_deliverable_task(subject):
-            mem_type = _infer_mem_type(subject)
             task_label = f'"{subject}"' if subject else f"task {task_id}"
-            # S4: name the memory surface for the routed context backend
-            # (brain while the bridge is alive, estate memory.capture after).
+            # Name the memory surface (estate memory.capture; the
+            # wicked-garden-mem skill is its agent surface). Fail-open to the
+            # same wording. `type=` was retired-brain vocabulary; estate's
+            # memory.capture takes kind/tier/scope/content instead, so no
+            # type clause is suffixed (Copilot review, #1044).
             try:
                 from _context_backend import memory_directive_target
                 _mem_target = memory_directive_target()
             except Exception:
-                _mem_target = "wicked-brain:memory"
-            # `type=` is wicked-brain:memory vocabulary; estate's memory.capture
-            # takes kind/tier/scope/content instead. Suffix the hint only when
-            # the directive targets the brain skill, so the instruction stays
-            # valid under either routed backend (Copilot review, #1044).
-            _type_clause = (
-                f" with type={mem_type}" if "wicked-brain" in _mem_target else ""
-            )
+                _mem_target = "the wicked-estate `memory.capture` tool"
             if compliance_required:
                 escalation_prefix = (
                     "[ESCALATION] " if escalations >= _ESCALATION_THRESHOLD else ""
                 )
                 system_message = (
                     f"{escalation_prefix}[Memory] Task {task_label} completed. "
-                    f"REQUIRED: Call {_mem_target}{_type_clause} "
+                    f"REQUIRED: Call {_mem_target} "
                     "to capture any decision, gotcha, or pattern from this work. "
                     "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
                 )
@@ -272,7 +258,7 @@ def main():
                 system_message = (
                     f"[Memory] Task {task_label} completed. "
                     "If this produced a decision, gotcha, or reusable pattern, "
-                    f"store it with {_mem_target}{_type_clause}."
+                    f"store it with {_mem_target}."
                 )
 
         # Evidence nudge for crew tasks (Issue #253).

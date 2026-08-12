@@ -216,7 +216,7 @@ If `--phase execute`, stop here.
 
 ### 4. Phase: Pre-Review Cold Context (Optional, pre-dispatch validated)
 
-If wicked-brain is present, gather NON-PREJUDICIAL cold knowledge and write it
+If the knowledge layer (wicked-estate) is reachable, gather NON-PREJUDICIAL cold knowledge and write it
 to `${EVIDENCE_DIR}/context.md` **via `{WT_LIB}/context-md-validator.mjs`**. The
 validator is the code-enforced boundary that keeps the reviewer isolated —
 prose-only rules in the reviewer agent body are a last line of defense, not
@@ -227,7 +227,7 @@ no context.md and the reviewer runs with scenario + plan + evidence only
 ```javascript
 import { buildReviewerContext } from "{WT_LIB}/context-md-validator.mjs";
 
-const brainKnowledge = /* optional: wicked-brain:search results assembled
+const brainKnowledge = /* optional: wicked-garden-mem recall results assembled
                         into a markdown body of domain rules + tool quirks */;
 const result = buildReviewerContext({
   evidenceDir: EVIDENCE_DIR,
@@ -259,10 +259,10 @@ if (result.rejected) {
 Example safe query:
 
 ```
-wicked-brain:search query="<scenario-category> test rules" limit=5
+Skill(skill="wicked-garden-mem", args="recall \"<scenario-category> test rules\"")
 ```
 
-If wicked-brain is absent, skip this phase entirely — no `context.md` is
+If the knowledge layer is absent, skip this phase entirely — no `context.md` is
 written and the reviewer still has everything it needs (scenario + plan +
 evidence).
 

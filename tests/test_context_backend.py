@@ -1,25 +1,21 @@
-"""tests/test_context_backend.py — the S4 context-backend router contract.
+"""tests/test_context_backend.py — the context-backend seam contract (estate-only).
 
-Pins the seam that retargets garden's context-assembly layer from
-wicked-brain onto wicked-estate (scripts/_context_backend.py):
+Pins the seam between garden's context-assembly layer and wicked-estate
+(scripts/_context_backend.py), post-S7 (wicked-brain retired):
 
-  * the symbolish classifier (identifier-shaped queries route to brain
-    while the bridge is alive — per the S3 parity bench);
-  * WICKED_CONTEXT_BACKEND flag semantics (estate | brain | auto);
+  * WICKED_CONTEXT_BACKEND flag semantics (estate | off; legacy bridge
+    values ``auto``/``brain`` and unknown values mean estate);
   * the estate two-call recall fusion (knowledge.recall + memory.recall,
     RRF-merged) including normalization and #96 source attribution;
-  * fail-open degradation: estate dead + brain dead ⇒ empty results, never
-    an exception (the exact brain-absent behavior hooks rely on today);
-  * capture_memory routing (estate memory.capture primary; legacy brain
-    path under the flag);
+  * fail-open degradation: estate dead ⇒ empty results, never an exception;
+  * ``off`` mode: designed silence — empty results, no notes, no probes;
+  * capture_memory (estate memory.capture);
   * stats TTL caching (per-session file cache — never re-probed per prompt).
 
 Hermetic: the estate side is faked by planting a fake ``_estate_client``
-module in sys.modules; the brain side by monkeypatching ``_brain_api`` /
-``brain_alive``. No subprocess, no network.
+module in sys.modules. No subprocess, no network.
 """
 
-import json
 import sys
 import time
 import types
@@ -31,17 +27,14 @@ import _context_backend as cb
 
 @pytest.fixture(autouse=True)
 def _clean_router(monkeypatch, tmp_path):
-    """Isolate every test: default flag, cold probe memo, tmp stats cache."""
+    """Isolate every test: default flag, tmp stats cache."""
     monkeypatch.delenv("WICKED_CONTEXT_BACKEND", raising=False)
     monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
     monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE_PREFIX", raising=False)
     monkeypatch.delenv("WICKED_CONTEXT_STATS_TTL_SECS", raising=False)
-    cb._reset_probe_cache()
     cache_file = tmp_path / "ctx-stats.json"
     monkeypatch.setattr(cb, "_stats_cache_path", lambda: cache_file)
     yield
-    cb._reset_probe_cache()
-    sys.modules.pop("_fake_estate_marker", None)
 
 
 def _plant_fake_estate(monkeypatch, **overrides):
@@ -75,86 +68,26 @@ def _plant_fake_estate(monkeypatch, **overrides):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Classifier
+# Flag semantics
 # ─────────────────────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("query", [
-    "where is resolve_port used",                # snake_case
-    "explain SessionState.load behavior",        # dotted + CamelCase
-    "fix the bug in prompt_submit.py",           # bare code filename
-    "from _brain_port import resolve_port",      # import-like
-    "hooks/scripts/bootstrap.py brain gate",     # path-like
-    "what does _PersistentBroker do",            # CamelCase-ish snake mix
-    "wicked_estate::GraphStore lifetime",        # rust path
-])
-def test_is_symbolish_positives(query):
-    assert cb.is_symbolish(query) is True
-
-
-@pytest.mark.parametrize("query", [
-    "how does the acceptance pipeline decide a verdict",
-    "what are the constraints around memory decay",
-    "explain the crew workflow phases",
-    "why does onboarding require a wizard",
-    "e.g. the general case, i.e. plain English",  # 1-char dotted segments
-    "",
-])
-def test_is_symbolish_negatives(query):
-    assert cb.is_symbolish(query) is False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Flag semantics + routing
-# ─────────────────────────────────────────────────────────────────────────────
-
-def test_backend_mode_defaults_to_auto():
-    assert cb.backend_mode() == "auto"
+def test_backend_mode_defaults_to_estate():
+    assert cb.backend_mode() == "estate"
 
 
 def test_backend_mode_honors_flag(monkeypatch):
     monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "estate")
     assert cb.backend_mode() == "estate"
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "brain")
-    assert cb.backend_mode() == "brain"
+    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "off")
+    assert cb.backend_mode() == "off"
 
 
-def test_backend_mode_unknown_value_falls_back_to_auto(monkeypatch):
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "banana")
-    assert cb.backend_mode() == "auto"
-
-
-def test_route_estate_flag_is_absolute(monkeypatch):
-    """estate mode never consults brain, even for symbolish queries."""
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "estate")
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert cb.route("resolve_port usage") == "estate"
-
-
-def test_route_brain_flag_is_absolute(monkeypatch):
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "brain")
-    assert cb.route("plain english question") == "brain"
-
-
-def test_route_auto_symbolish_goes_to_brain_while_alive(monkeypatch):
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert cb.route("where is resolve_port used") == "brain"
-
-
-def test_route_auto_symbolish_degrades_to_estate_when_brain_gone(monkeypatch):
-    """The incremental-retire property: brain absent ⇒ auto is estate-only."""
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
-    assert cb.route("where is resolve_port used") == "estate"
-
-
-def test_route_auto_nonsymbolish_goes_to_estate_even_with_brain_alive(monkeypatch):
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert cb.route("how does the crew workflow decide phases") == "estate"
-
-
-def test_route_queryless_operations_default_to_estate(monkeypatch):
-    """Writes and stats (no query) route estate-first in auto."""
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert cb.route() == "estate"
+@pytest.mark.parametrize("legacy", ["auto", "brain", "banana", "  ESTATE  "])
+def test_backend_mode_legacy_and_unknown_values_mean_estate(monkeypatch, legacy):
+    """S7: the bridge-period values (auto/brain) and anything unknown fall
+    back to estate — auto was 'estate primary' and the brain route is gone."""
+    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", legacy)
+    assert cb.backend_mode() == "estate"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -228,10 +161,9 @@ def test_estate_search_degrades_to_knowledge_only_when_memory_leg_fails(monkeypa
         knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": [_K_ITEM]},
         recall=recall_pre_98,
     )
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
     results = cb.search("how does gate policy work", limit=10)
     assert [r["kind"] for r in results] == ["chunk"]
-    assert results[0]["backend"] == "estate"  # knowledge answered — no brain bounce
+    assert results[0]["backend"] == "estate"
 
 
 def test_recall_memories_uses_the_subtree_prefix_too(monkeypatch):
@@ -273,107 +205,70 @@ def test_rrf_fusion_dedupes_by_id_and_sums_scores():
     assert fused[0]["score"] == pytest.approx(2.0 / (cb._RRF_K + 1))
 
 
-def test_estate_search_empty_is_a_valid_answer_no_brain_bounce(monkeypatch):
-    """A reachable-but-empty estate answer stays [] — no bounce to brain."""
+def test_estate_search_empty_is_a_valid_answer(monkeypatch):
+    """A reachable-but-empty estate answer stays [] — a valid result."""
     _plant_fake_estate(monkeypatch)  # both recalls return empty
-    called = {"brain": False}
-
-    def brain_search(q, limit=10):
-        called["brain"] = True
-        return []
-
-    monkeypatch.setattr(cb, "_brain_search", brain_search)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
     assert cb.search("plain english question") == []
-    assert called["brain"] is False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Fallback routing — auto mode
+# Fail-open degradation
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_auto_falls_back_to_brain_when_estate_unreachable(monkeypatch):
-    _plant_fake_estate(
-        monkeypatch,
-        knowledge_recall=lambda q, token_budget=2000, timeout=8.0: None,  # dead
-    )
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    monkeypatch.setattr(
-        cb, "_brain_api",
-        lambda action, params=None, timeout=3.0: (
-            {"results": [{"id": "c1", "path": "chunks/extracted/x.md/chunk-001.md",
-                          "snippet": "hit"}]}
-            if action == "search" else {"status": "ok"}
-        ),
-    )
-    results = cb.search("plain english question")
-    assert len(results) == 1
-    assert results[0]["backend"] == "brain"
-    assert results[0]["source"].startswith("wicked-brain://")
-
-
-def test_auto_symbolish_falls_back_to_estate_when_brain_dies_midway(monkeypatch):
-    """brain_alive said yes but the search call failed → estate covers."""
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    monkeypatch.setattr(cb, "_brain_search", lambda q, limit=10: None)  # dead
-    _plant_fake_estate(
-        monkeypatch,
-        knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": [_K_ITEM]},
-    )
-    results = cb.search("where is resolve_port used")
-    assert len(results) == 1
-    assert results[0]["backend"] == "estate"
-
-
-def test_search_fails_open_when_both_backends_dead(monkeypatch):
-    """The keystone guarantee: estate dead + brain dead ⇒ [] — never a raise."""
+def test_search_fails_open_when_estate_dead(monkeypatch):
+    """The keystone guarantee: estate dead ⇒ [] — never a raise."""
     _plant_fake_estate(
         monkeypatch,
         knowledge_recall=lambda q, token_budget=2000, timeout=8.0: None,
     )
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
     assert cb.search("anything at all") == []
 
 
 def test_search_fails_open_when_estate_module_is_missing(monkeypatch):
     monkeypatch.setitem(sys.modules, "_estate_client", None)  # import → error
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
     assert cb.search("anything at all") == []
 
 
-def test_brain_mode_does_not_touch_estate(monkeypatch):
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "brain")
+def test_recall_memories_fails_open_when_estate_module_is_missing(monkeypatch):
+    monkeypatch.setitem(sys.modules, "_estate_client", None)
+    assert cb.recall_memories("anything") == []
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# off mode — designed silence, no probes
+# ─────────────────────────────────────────────────────────────────────────────
+
+def test_off_mode_search_is_empty_and_never_touches_estate(monkeypatch):
+    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "off")
     fake = _plant_fake_estate(monkeypatch)
-    monkeypatch.setattr(
-        cb, "_brain_api",
-        lambda action, params=None, timeout=3.0: {"results": []},
-    )
-    assert cb.search("query") == []
+    assert cb.search("anything") == []
+    assert cb.recall_memories("anything") == []
     assert fake.calls == []
 
 
-def test_brain_search_retries_with_two_term_combinations(monkeypatch):
-    """The legacy FTS5 AND-narrowing retry moved here from brain_adapter."""
-    queries = []
+def test_off_mode_capture_returns_none_without_probing(monkeypatch):
+    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "off")
+    fake = _plant_fake_estate(monkeypatch)
+    assert cb.capture_memory("t", "c") is None
+    assert fake.calls == []
 
-    def brain_api(action, params=None, timeout=3.0):
-        queries.append(params["query"])
-        if params["query"] == "alpha gamma":
-            return {"results": [{"id": "1", "path": "p1", "snippet": "s"},
-                                {"id": "2", "path": "p2", "snippet": "s"}]}
-        return {"results": []}
 
-    monkeypatch.setattr(cb, "_brain_api", brain_api)
-    results = cb._brain_search("alpha beta gamma", limit=10)
-    assert queries == ["alpha beta gamma", "alpha gamma", "alpha beta"]
-    assert len(results) == 2
+def test_off_mode_stats_and_notes_are_silent(monkeypatch):
+    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "off")
+    fake = _plant_fake_estate(monkeypatch)
+    assert cb.stats() is None
+    assert cb.health() is False
+    assert cb.gate_note() is None
+    assert cb.staleness_note() is None
+    assert cb.estate_dependency() == (None, None)
+    assert fake.calls == []
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # capture_memory
 # ─────────────────────────────────────────────────────────────────────────────
 
-def test_capture_memory_estate_path_calls_memory_capture(monkeypatch):
+def test_capture_memory_calls_memory_capture(monkeypatch):
     captured = {}
 
     def call(tool, arguments=None, timeout=8.0):
@@ -382,7 +277,6 @@ def test_capture_memory_estate_path_calls_memory_capture(monkeypatch):
         return {"memory_id": "mem xyz"}
 
     _plant_fake_estate(monkeypatch, call=call)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
     mem_id = cb.capture_memory(
         "Session goal (turn 1)", "do the thing", tier="working",
         tags=["session-goal", "auto-captured"],
@@ -395,30 +289,8 @@ def test_capture_memory_estate_path_calls_memory_capture(monkeypatch):
     assert captured["args"]["content"].startswith("Session goal (turn 1)")
 
 
-def test_capture_memory_brain_mode_uses_legacy_path(monkeypatch):
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "brain")
-    fake = _plant_fake_estate(monkeypatch)
-    monkeypatch.setattr(
-        cb, "_brain_capture",
-        lambda title, content, tier="episodic", tags=None, **kw: "memories/working/mem-1",
-    )
-    assert cb.capture_memory("t", "c", tier="working") == "memories/working/mem-1"
-    assert fake.calls == []  # estate never touched
-
-
-def test_capture_memory_auto_falls_back_to_brain_on_estate_write_failure(monkeypatch):
+def test_capture_memory_fails_open_when_estate_dead(monkeypatch):
     _plant_fake_estate(monkeypatch)  # call() returns None → write failed
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    monkeypatch.setattr(
-        cb, "_brain_capture",
-        lambda title, content, tier="episodic", tags=None, **kw: "memories/working/mem-2",
-    )
-    assert cb.capture_memory("t", "c", tier="working") == "memories/working/mem-2"
-
-
-def test_capture_memory_fails_open_when_everything_is_dead(monkeypatch):
-    _plant_fake_estate(monkeypatch)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
     assert cb.capture_memory("t", "c") is None
 
 
@@ -485,30 +357,10 @@ def test_stats_failure_is_cached_with_short_ttl(monkeypatch, tmp_path):
         return None
 
     _plant_fake_estate(monkeypatch, call=dead_call)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
     assert cb.stats() is None
     probes_after_first = counter["n"]
     assert cb.stats() is None
     assert counter["n"] == probes_after_first  # served from failure record
-
-
-def test_stats_brain_mode_passes_through_brain_payload(monkeypatch):
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "brain")
-    monkeypatch.setattr(
-        cb, "_brain_api",
-        lambda action, params=None, timeout=3.0: {"total": 42} if action == "stats" else None,
-    )
-    assert cb.stats() == {"total": 42, "backend": "brain"}
-
-
-def test_stats_auto_falls_back_to_brain_when_estate_dead(monkeypatch):
-    _plant_fake_estate(monkeypatch)  # coverage → None
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    monkeypatch.setattr(
-        cb, "_brain_api",
-        lambda action, params=None, timeout=3.0: {"total": 7} if action == "stats" else {"status": "ok"},
-    )
-    assert cb.stats() == {"total": 7, "backend": "brain"}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -520,27 +372,14 @@ def test_gate_note_silent_when_estate_healthy(monkeypatch):
     assert cb.gate_note() is None
 
 
-def test_gate_note_degraded_when_everything_is_dead(monkeypatch):
+def test_gate_note_degraded_when_estate_dead(monkeypatch):
     _plant_fake_estate(monkeypatch)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
-    monkeypatch.setattr(cb, "_ensure_brain", lambda wait_secs=2.0: False)
     note = cb.gate_note()
     assert note is not None
     assert "fail open" in note or "degraded" in note
 
 
-def test_gate_note_brain_covers_when_estate_dead_in_auto(monkeypatch):
-    _plant_fake_estate(monkeypatch)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    # brain stats also answers, so stats() falls back to brain → healthy
-    monkeypatch.setattr(
-        cb, "_brain_api",
-        lambda action, params=None, timeout=3.0: {"total": 5},
-    )
-    assert cb.gate_note() is None  # brain fallback made stats() healthy
-
-
-def test_staleness_note_empty_estate_store_points_at_migration(monkeypatch):
+def test_staleness_note_empty_estate_store_points_at_ingest(monkeypatch):
     def empty_call(tool, arguments=None, timeout=8.0):
         return {"total": 0}
 
@@ -549,33 +388,19 @@ def test_staleness_note_empty_estate_store_points_at_migration(monkeypatch):
     assert note is not None and "empty" in note
 
 
-def test_memory_directive_target_brain_while_bridge_alive(monkeypatch):
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert cb.memory_directive_target() == "wicked-brain:memory"
-
-
-def test_memory_directive_target_estate_after_retirement(monkeypatch):
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
+def test_memory_directive_target_is_estate_worded():
     assert "memory.capture" in cb.memory_directive_target()
+    assert "brain" not in cb.memory_directive_target()
 
 
-def test_memory_directive_target_estate_mode_ignores_brain(monkeypatch):
-    monkeypatch.setenv("WICKED_CONTEXT_BACKEND", "estate")
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert "memory.capture" in cb.memory_directive_target()
-
-
-def test_grounding_lines_follow_the_bridge(monkeypatch):
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
-    assert any("wicked-brain:query" in line for line in cb.grounding_directive_lines())
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
-    cb._reset_probe_cache()
-    assert any("wicked-garden-search" in line for line in cb.grounding_directive_lines())
+def test_grounding_lines_are_estate_worded():
+    lines = cb.grounding_directive_lines()
+    assert any("wicked-garden-search" in line for line in lines)
+    assert not any("wicked-brain" in line for line in lines)
 
 
 def test_estate_dependency_missing_binary(monkeypatch):
     _plant_fake_estate(monkeypatch, resolve_mcp_bin=lambda: None)
-    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: False)
     available, note = cb.estate_dependency()
     assert available is False
     assert "wicked-estate" in note

@@ -139,7 +139,7 @@ class SessionState:
     context_hash: str = ""
 
     # Escalation counter: incremented by task_completed.py on each deliverable completion.
-    # Reset by post_tool.py when a wicked-brain:memory Skill call succeeds.
+    # Reset by post_tool.py when a wicked-garden-mem Skill call succeeds.
     memory_compliance_escalations: int = 0
 
     # Written by bootstrap.py when onboarding is confirmed complete (both memories and index).
@@ -170,11 +170,11 @@ class SessionState:
     # None means resolution has not run yet this session.
     resolved_capabilities: dict | None = None
 
-    # wicked-brain dependency check (set by bootstrap.py at SessionStart).
-    # True  — wicked-brain plugin is installed (found in enabledPlugins).
+    # Context-backend dependency check (set by bootstrap.py at SessionStart).
+    # True  — the wicked-estate MCP binary resolves.
     # False — not installed; bootstrap emits an install hint to the briefing.
     # None  — check has not run yet this session (e.g., early-exit before setup).
-    brain_available: bool | None = None
+    context_backend_available: bool | None = None
 
     # Fast-path sentinel: set by bootstrap.py when config.json setup_complete=True.
     # Allows prompt_submit.py guard to skip config.json file read on every turn.

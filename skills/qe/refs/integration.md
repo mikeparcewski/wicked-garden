@@ -178,11 +178,11 @@ required.
 
 ---
 
-## 5. Brain Memories (optional enrichment)
+## 5. Memories (optional enrichment)
 
-When [wicked-brain](https://github.com/mikeparcewski/wicked-brain) is installed,
-The qe domain writes memories for non-trivial events. Consumers may search
-these memories; the shapes are part of the contract.
+When the memory layer (wicked-estate, via the wicked-garden-mem skill) is
+reachable, the qe domain writes memories for non-trivial events. Consumers may
+recall these memories; the shapes are part of the contract.
 
 ### Memory types written by the qe domain
 
@@ -208,7 +208,7 @@ run_id: <uuid>         # when applicable
 ---
 ```
 
-If wicked-brain is not installed, memory writes are a no-op.
+If the memory layer is unreachable, memory writes are a no-op.
 
 ---
 
@@ -239,7 +239,7 @@ content blindly; use the manifest's `artifacts[]` index.
 |------------------|-------------------------------------------|------------------------------------------|
 | SQLite           | Ledger writes + oracle queries            | qe fails loud (required)                |
 | wicked-bus       | Emit events on every significant action   | No-op; log a single debug line           |
-| wicked-brain     | Write memories on interesting signals     | No-op; log a single debug line           |
+| wicked-estate    | Write memories on interesting signals     | No-op; log a single debug line           |
 | wicked-garden    | Events consumed by crew gate              | N/A (wicked-garden is downstream)        |
 
 The qe domain is usable **standalone** — only SQLite is required.

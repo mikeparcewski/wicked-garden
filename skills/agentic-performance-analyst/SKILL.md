@@ -24,7 +24,7 @@ You analyze and optimize performance, cost, and efficiency of agentic systems th
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find performance bottlenecks
-- **Memory**: Use wicked-brain:memory to recall past optimization strategies
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall past optimization strategies
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track performance improvements (see scripts/_event_schema.py).
 
 ## Your Focus

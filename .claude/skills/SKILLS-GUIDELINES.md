@@ -22,7 +22,7 @@ This is non-negotiable for wicked-garden. Users should never be forced to instal
 │  - Basic commands                                            │
 ├─────────────────────────────────────────────────────────────┤
 │                    ENHANCED (When available)                 │
-│  + wicked-brain → Cross-session memory (FTS5 index + chunks) │
+│  + wicked-estate → Cross-session memory + knowledge (mem)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -54,7 +54,7 @@ Every plugin README should include an Integration table:
 
 | Plugin | Enhancement | Without It |
 |--------|-------------|------------|
-| wicked-brain | Cross-session insights | Session-only memory |
+| wicked-garden-mem (estate) | Cross-session insights | Session-only memory |
 ```
 
 #### Skill Description Pattern
@@ -72,7 +72,7 @@ description: |
   - Secondary use case
 
   Enhanced with:
-  - wicked-brain: Stores learnings across sessions
+  - wicked-garden-mem: Stores learnings across sessions
 ---
 ```
 
@@ -230,7 +230,7 @@ description: |
   - Secondary trigger
 
   Enhanced with:
-  - wicked-brain: Stores learnings across sessions
+  - wicked-garden-mem: Stores learnings across sessions
 ---
 ```
 

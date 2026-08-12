@@ -26,7 +26,7 @@ Allowlists covered (when the source-of-truth file exists):
   matching context:fork SKILL.md or specialist alias).
 - Reviewer identifiers in ``.claude-plugin/gate-policy.json``
   ↔ fork-worker skills in ``skills/**/SKILL.md`` (frontmatter ``name`` /
-  legacy ``subagent_type``). External plugin reviewers (``wicked-brain:*``)
+  legacy ``subagent_type``). External plugin reviewers (``wicked-bus:*``)
   are recognised via a configurable allow-prefix list and reported as
   ``external`` (advisory), not ``missing``.
 - Bus event types in ``scripts/_bus.py::BUS_EVENT_MAP`` ↔ projector handlers
@@ -47,9 +47,9 @@ Categories:
 
 Out-of-scope (informational only, never elevated to ``missing``):
 
-- ``external``     — drop-in plugin reviewers (``wicked-brain:*``,
-                     ``wicked-bus:*``) that legitimately live in another
-                     plugin. Surfaced for visibility but never failing.
+- ``external``     — drop-in plugin reviewers (``wicked-bus:*``) that
+                     legitimately live in another plugin. Surfaced for
+                     visibility but never failing.
 - ``skipped``      — a check skipped because its source-of-truth file is
                      missing on this checkout (e.g. ``daemon/projector.py``
                      not present in a slim install). Bootstrap surfaces
@@ -78,7 +78,6 @@ _BLOCKING_CATEGORIES = frozenset({CAT_MISSING, CAT_MALFORMED, CAT_INVALID_ID})
 # Reviewer subagent_type prefixes that are EXPECTED to live outside this plugin.
 # Anything starting with one of these is downgraded from `missing` to `external`.
 _EXTERNAL_REVIEWER_PREFIXES: Tuple[str, ...] = (
-    "wicked-brain:",
     "wicked-bus:",
 )
 
@@ -90,7 +89,7 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     "wicked.garden.crew.qe_evaluator_migrated",
     "wicked.garden.log.rotated",
     # jam events do not project to wicked-garden's projector — their
-    # consumers live in jam scripts and the brain auto-memorize subscriber.
+    # consumers live in jam scripts.
     "wicked.garden.session.started",
     "wicked.garden.session.synthesized",
     "wicked.garden.session.synthesis_ready",
@@ -961,7 +960,7 @@ def format_briefing(
         - A short multi-line block otherwise.
 
     The default ``include_advisory=False`` keeps the briefing quiet during
-    normal operation: drop-in plugin references (`wicked-brain:*`)
+    normal operation: drop-in plugin references (`wicked-bus:*`)
     and known orphan handlers populate the advisory
     bucket and would otherwise add 10-15 lines to every SessionStart.
     The CLI runner shows ALL findings unconditionally — this filter only

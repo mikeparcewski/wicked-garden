@@ -141,7 +141,7 @@ tamper-evident attestation (`--with-attestations`). Self-graded "done"
 cannot clear a hard gate.
 
 This makes **wicked-vault** a required peer alongside wicked-bus and
-wicked-brain — on npm, `>= 0.4`.
+wicked-estate — the memory/knowledge layer (Rust binaries).
 
 ## What replaces propose-process
 
@@ -164,7 +164,7 @@ match + boolean signals → archetype set, with confidence scores.
   invoke them as needed.
 - **Hooks** still classify intent, track tool use, and run lifecycle
   scripts.
-- **wicked-brain** is still the memory layer. **wicked-bus** is still
+- **wicked-estate** is the memory layer. **wicked-bus** is still
   the audit substrate.
 - **Slim Body Contract** still applies — command/skill bodies stay
   small.

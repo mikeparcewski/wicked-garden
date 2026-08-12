@@ -1,7 +1,7 @@
 # Vendored: `@wicked/domain-model-schema`
 
 **Pinned copy — do not hand-edit.** This is a byte-for-byte vendored copy of the
-canonical domain-model JSON Schema that lives in **wicked-brain** (the schema
+canonical domain-model JSON Schema that lived in **wicked-brain** (now archived; the schema
 owner), so garden's modernize extraction skills can emit + validate documents
 **without importing brain code**. This is the disjoint-build discipline the
 Domain-Brain contract mandates: the only thing that crosses repo lines is a
@@ -12,7 +12,7 @@ document that validates against this schema plus a SymbolId string.
 | Package | `@wicked/domain-model-schema` |
 | Version (`VERSION`) | `1.0.0` |
 | Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.0.0` |
-| Canonical source | `wicked-brain/schemas/domain-model.schema.json` |
+| Canonical source | `wicked-brain/schemas/domain-model.schema.json` (archived repo) |
 | Draft | JSON Schema draft-07 |
 
 ## Why vendored, not a dependency
@@ -24,7 +24,7 @@ gates drift with a byte-compare test — the same discipline estate (Rust) uses 
 vendor its copy. `tests/domain/test_schema_vendor_pin.py` enforces:
 
 1. `VERSION` matches the version segment of the schema `$id`.
-2. The vendored copy is byte-identical to `wicked-brain/schemas/…` **when that
+2. The vendored copy is byte-identical to the archived `wicked-brain/schemas/…` **when that
    sibling repo is present** (skips gracefully in a repo-isolated checkout / CI
    where the sibling isn't checked out — we never fail on the sibling's absence,
    only on a detected drift).

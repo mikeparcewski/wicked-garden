@@ -11,12 +11,12 @@ invalidated, or modified. Light workflow — run it inline, no fork needed.
 
 ### 1. Recall Past Decision
 
-Search for the decision via wicked-brain
+Search for the decision via the wicked-garden-mem skill
 
 ```
 Skill(
-  skill="wicked-brain:memory",
-  args="recall \"decisions tagged 'jam,decision' related to: {topic}\" --filter_type decision"
+  skill="wicked-garden-mem",
+  args="recall \"jam decision related to: {topic}\""
 )
 ```
 
@@ -52,13 +52,10 @@ How did this decision work out?
 
 ### 4. Record Outcome
 
-Store the outcome in wicked-brain:memory
+Store the outcome via the wicked-garden-mem skill
 
 ```
-wicked-brain:memory "Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}"
-  --type decision
-  --tags jam,outcome,{topic-keywords}
-  --importance high
+Skill(skill="wicked-garden-mem", args="store \"Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}\" (kind=fact, about=[jam, outcome, {topic-keywords}])")
 ```
 
 ### 5. Report
@@ -75,6 +72,6 @@ This outcome will be surfaced in future brainstorms on similar topics.
 
 ## Graceful Degradation
 
-Without wicked-brain: display a message that decision revisit requires
-wicked-brain for decision storage. Suggest the user install the wicked-brain
-plugin for full decision lifecycle tracking.
+Without a reachable memory layer (wicked-estate): display a message that
+decision revisit requires the memory layer for decision storage. Suggest
+installing wicked-estate for full decision lifecycle tracking.

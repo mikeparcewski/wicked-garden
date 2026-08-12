@@ -2,14 +2,13 @@
 """
 where_am_i.py — Emit a compact path manifest for the current session.
 
-Resolves the five storage roots used by wicked-garden subagent dispatches
+Resolves the storage roots used by wicked-garden subagent dispatches
 so callers don't have to re-enumerate them in every prompt:
 
   1. plugin_root       — the wicked-garden plugin checkout
   2. source_cwd        — the working directory at invocation
   3. project_artifacts — ~/.something-wicked/wicked-garden/projects/{slug}/...
-  4. brain             — ~/.wicked-brain/projects/{basename}/_meta/config.json
-  5. bus_db            — ~/.something-wicked/wicked-bus/bus.db
+  4. bus_db            — ~/.something-wicked/wicked-bus/bus.db
 
 Usage:
     where_am_i.py            # JSON manifest (default)
@@ -32,10 +31,6 @@ from pathlib import Path
 _ENV_PLUGIN_ROOT = "CLAUDE_PLUGIN_ROOT"
 _CREW_DOMAIN = "wicked-crew"
 _CREW_PROJECTS_SUB = "projects"
-_BRAIN_ROOT = Path.home() / ".wicked-brain"
-_BRAIN_PROJECTS = _BRAIN_ROOT / "projects"
-_BRAIN_META_CONFIG = Path("_meta") / "config.json"
-_ROOT_BRAIN_CONFIG = _BRAIN_ROOT / "_meta" / "config.json"
 _BUS_DB_PATH = Path.home() / ".something-wicked" / "wicked-bus" / "bus.db"
 
 _FENCE_OPEN = "```json"
@@ -108,45 +103,6 @@ def _resolve_project_artifacts() -> tuple[str | None, str | None]:
     return str(base), active_id
 
 
-def _resolve_brain() -> dict | None:
-    """Resolve brain config path + port for the current cwd.
-
-    Prefers the project brain at ~/.wicked-brain/projects/{cwd_basename}/.
-    Falls back to the root brain config. Returns None when neither exists.
-    """
-    try:
-        cwd_name = Path(os.getcwd()).name
-    except OSError as exc:
-        _note(f"brain cwd basename failed: {exc}")
-        cwd_name = ""
-
-    candidates: list[Path] = []
-    if cwd_name:
-        candidates.append(_BRAIN_PROJECTS / cwd_name / _BRAIN_META_CONFIG)
-    candidates.append(_ROOT_BRAIN_CONFIG)
-
-    for cfg_path in candidates:
-        if not cfg_path.is_file():
-            continue
-        try:
-            with open(cfg_path, encoding="utf-8") as fh:
-                cfg = json.load(fh)
-        except (OSError, ValueError) as exc:
-            _note(f"brain config read failed at {cfg_path}: {exc}")
-            continue
-        port_val = cfg.get("server_port")
-        try:
-            port = int(port_val) if port_val is not None else None
-        except (TypeError, ValueError):
-            port = None
-        # cfg_path is .../<project>/_meta/config.json — emit the project dir.
-        brain_path = cfg.get("brain_path") or str(cfg_path.parent.parent)
-        return {"path": brain_path, "port": port}
-
-    _note("brain config not found")
-    return None
-
-
 def _resolve_bus_db() -> str | None:
     """Return the bus DB path if present, else None."""
     try:
@@ -164,7 +120,6 @@ def build_manifest() -> dict:
     plugin_root = _resolve_plugin_root()
     source_cwd = _resolve_source_cwd()
     project_artifacts, active_project_id = _resolve_project_artifacts()
-    brain = _resolve_brain()
     bus_db = _resolve_bus_db()
 
     return {
@@ -172,7 +127,6 @@ def build_manifest() -> dict:
         "source_cwd": source_cwd,
         "active_project_id": active_project_id,
         "project_artifacts": project_artifacts,
-        "brain": brain,
         "bus_db": bus_db,
     }
 

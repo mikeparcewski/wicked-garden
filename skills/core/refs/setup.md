@@ -45,45 +45,29 @@ Parse the JSON. Only `core` tools are required during setup. For each `core` too
 
 After core tools, if `uv` is available, sync Python deps: `{uv_path} sync --quiet`. If sync fails, warn that search indexing will be unavailable but continue.
 
-> **One required, two opt-in.** The evidence gate needs **wicked-vault** (§2.6) — it installs directly as a self-contained infra peer, and the internal loom engine is built into wicked-garden itself, so no separate loom install is needed. The other two (**wicked-brain**, **wicked-bus**) are **opt-in toolkit layers** — install them for the memory and audit-trail capabilities; skip any and the rest of the toolkit still works. Evidence-gated acceptance testing needs no install: the `qe` domain ships in-catalog.
+> **One required, two recommended/opt-in.** The evidence gate needs **wicked-vault** (§2.6) — it installs directly as a self-contained infra peer, and the internal loom engine is built into wicked-garden itself, so no separate loom install is needed. **wicked-estate** (§2.5b) is the memory/context layer — recommended; **wicked-bus** is an opt-in audit-trail layer. Skip either and the rest of the toolkit still works. Evidence-gated acceptance testing needs no install: the `qe` domain ships in-catalog.
 
-### 2.5b Verify wicked-brain (Recommended — memory/context layer)
+### 2.5b Verify wicked-estate (Recommended — memory/context layer)
 
-wicked-brain installs as a **Claude Code plugin** (not an npx CLI), so verify by presence rather than a version probe.
+wicked-estate is a Rust binary pair (`wicked-estate` CLI + `wicked-estate-mcp` MCP server). Hooks resolve it via `WICKED_ESTATE_MCP_BIN` → PATH → `~/.local/bin`, so verify by presence:
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
-import json, os
+import os, shutil
 from pathlib import Path
-installed = False
-candidates = [Path.home()/".claude"/"settings.json", Path(".claude")/"settings.json"]
-cfg = os.environ.get("CLAUDE_CONFIG_DIR")
-if cfg: candidates.append(Path(cfg)/"settings.json")
-for p in candidates:
-    try:
-        if not p.exists(): continue
-        enabled = json.loads(p.read_text(encoding="utf-8")).get("enabledPlugins", {})
-        if "wicked-brain" in (enabled if isinstance(enabled, (dict, list)) else {}):
-            installed = True; break
-    except Exception: continue
-if not installed:
-    roots = [Path.home()/".claude"/"skills"]
-    if cfg: roots.append(Path(cfg)/"skills")
-    for r in roots:
-        try:
-            if r.exists() and any(e.is_dir() and e.name.startswith("wicked-brain") for e in r.iterdir()):
-                installed = True; break
-        except OSError: continue
-print("READY" if installed else "MISSING")
+override = os.environ.get("WICKED_ESTATE_MCP_BIN")
+found = (override and Path(override).is_file()) or shutil.which("wicked-estate-mcp") \
+    or (Path.home()/".local"/"bin"/"wicked-estate-mcp").is_file()
+print("READY" if found else "MISSING")
 PY
 ```
 
-- `MISSING` → **recommended, not blocking.** wicked-brain is the memory/context layer (cross-session recall, cited search, `smaht:briefing`); the rest of the toolkit works without it. Show "wicked-brain isn't installed — you'll lose cross-session memory + brain-backed search until you add it." **INTERACTIVE mode**: AskUserQuestion header "wicked-brain (optional layer)", options "Install now" = "Run: /plugin install wicked-brain" / "Skip" = "Continue without the memory layer". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: instruct the user to run `/plugin install wicked-brain` (a Claude Code slash command), then re-run the presence check and confirm `READY`. If skipped: continue setup.
-- `READY` → show "wicked-brain — ready (plugin installed)."
+- `MISSING` → **recommended, not blocking.** wicked-estate is the memory/context layer (cross-session memory, knowledge recall with citations, the code graph behind `wicked-garden-search`); the rest of the toolkit works without it — hooks fail open. Show "wicked-estate isn't installed — you'll lose cross-session memory + knowledge recall until you add it (binaries `wicked-estate` + `wicked-estate-mcp` on PATH or ~/.local/bin)." Continue setup either way.
+- `READY` → show "wicked-estate — ready (binary present)."
 
 ### 2.5c Verify wicked-understanding (Recommended — repo-playbooks layer)
 
-wicked-understanding installs as **`skills`-standard skills** (multi-CLI; no server). It analyzes the current repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`) the agent loads on demand — the "how to work in THIS repo" layer that pairs with wicked-brain's "what". Per-repo, so verify by presence of its generated skills rather than a version probe.
+wicked-understanding installs as **`skills`-standard skills** (multi-CLI; no server). It analyzes the current repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`) the agent loads on demand — the "how to work in THIS repo" layer that pairs with the knowledge layer's "what". Per-repo, so verify by presence of its generated skills rather than a version probe.
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
@@ -111,7 +95,7 @@ PY
 npx wicked-vault --version 2>/dev/null || echo "MISSING"
 ```
 
-- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus / wicked-brain)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
+- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
 - Version string (e.g. `0.3.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
 
 ### 2.7 Verify wicked-bus (Recommended — audit-trail layer)
@@ -235,43 +219,38 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/set
 
 #### 5.1 Full Onboarding
 
-Runs the **brain pipeline** — init knowledge layer, index codebase, improve search quality, store onboarding context. Show progress as each step completes. If any step fails, log it and continue — each step is independently valuable.
+Runs the **knowledge pipeline** — build the code graph, ingest the codebase into the knowledge store, store onboarding context. Show progress as each step completes. If any step fails, log it and continue — each step is independently valuable.
 
 First, ask which directories to onboard. **INTERACTIVE mode**: Use AskUserQuestion with header "Directories", options "Current directory (Recommended)" = "Onboard the project root: {cwd}" / "Specify directories" = "Choose specific directories to index (enter paths via Other)". **PLAIN_TEXT mode**: ask in plain text (a = current directory `{cwd}`, b = specify paths), STOP, wait, verify, echo back.
 
-##### Brain Pipeline (in order)
+##### Knowledge Pipeline (in order)
 
-**Step A — Brain init** (if brain doesn't exist). Probe the brain (resolve its port dynamically): `PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"; curl -s -X POST "http://localhost:${PORT}/api" -H "Content-Type: application/json" -d '{"action":"health","params":{}}' 2>/dev/null`. If connection refused or no brain directory at `~/.wicked-brain`, run `Skill(skill="wicked-brain-init")`.
-Then start the server with `Skill(skill="wicked-brain-server")`.
+**Step A — Verify wicked-estate** (§2.5b probe). If MISSING, skip Steps B–C (log it) and still do Step D's best effort — the mem backend degrades gracefully.
 
-**Step B — Ingest codebase**. Show "Indexing codebase into brain..." then `Skill(skill="wicked-brain-ingest", args="{selected_directory}")`.
+**Step B — Build the code graph**. Show "Indexing code graph..." then run `wicked-estate index {selected_directory}` (binary via `WICKED_ESTATE_BIN` → PATH → `~/.local/bin`; DB defaults to `.wicked-estate/graph.db`). This powers blast-radius/lineage/hotspots.
 
-**Step C — Retag** (semantic tag expansion). Show "Improving search tags..." then `Skill(skill="wicked-brain-retag")`.
+**Step C — Ingest codebase knowledge**. Show "Ingesting codebase into the knowledge store..." then `Skill(skill="wicked-garden-mem", args="ingest {selected_directory}")` — the mem skill dispatches its ingest worker (text chunked deterministically, binary docs via LLM vision, provenance on every chunk).
 
-**Step D — Compile** (synthesize wiki articles). Show "Generating knowledge articles..." then `Skill(skill="wicked-brain-compile")`.
-
-**Step E — Configure brain instructions** (write source_type guidance + wiki stats into CLAUDE.md). Must run AFTER compile so the wiki count is accurate. Show "Configuring brain instructions..." then `Skill(skill="wicked-brain-configure")`.
-
-**Step F — Store onboarding memory** as a brain chunk. `{DETECTED_TOOLS_SUMMARY}` lists only available tools (e.g. "gh, docker"):
+**Step D — Store onboarding memory**. `{DETECTED_TOOLS_SUMMARY}` lists only available tools (e.g. "gh, docker"):
 ```
-Skill(skill="wicked-brain:memory", args="\"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" --type procedural --tags onboarding,project-context,{project}")
+Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" (kind=skill, about=[onboarding, project-context, {project}])")
 ```
 
-Show: "Onboarding complete — brain has {N} chunks, {M} wiki articles."
+Show: "Onboarding complete — knowledge store has {N} chunks (mem review reports totals)."
 
 #### 5.2 Quick Scout
 
-Ask which directories to scout (same question mode pattern as 5.1 — AskUserQuestion or plain text depending on mode). Then run `Skill(skill="wicked-brain:search")` and store an enriched onboarding memory with detected context from Step 5.0:
+Ask which directories to scout (same question mode pattern as 5.1 — AskUserQuestion or plain text depending on mode). Then Glob/Read the key entry points and store an enriched onboarding memory with detected context from Step 5.0:
 
 ```
-Skill(skill="wicked-brain:memory", args="\"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" --type procedural --tags onboarding,project-context,{project}")
+Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" (kind=skill, about=[onboarding, project-context, {project}])")
 ```
 
 #### 5.3 Skip
 
 Store a skip memory so the bootstrap directive doesn't fire again:
 ```
-Skill(skill="wicked-brain:memory", args="\"Onboarding: {project} skipped by user on {date}. Invoke the wicked-garden-core skill's setup action to onboard later.\" --type procedural --tags onboarding,{project}")
+Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} skipped by user on {date}. Invoke the wicked-garden-core skill's setup action to onboard later.\" (kind=skill, about=[onboarding, {project}])")
 ```
 
 ### 6. Clear Onboarding Gate
@@ -327,7 +306,7 @@ Show:
 wicked-garden is ready!
 
 Storage:         Local (DomainStore)
-wicked-brain:    {"ready (plugin installed)" or "MISSING — install required"}
+wicked-estate:   {"ready (binary present)" or "MISSING — memory/context layer degraded"}
 wicked-bus:      {"ready (plugin installed)" or "MISSING — install required"}
 wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
 loom engine:     {"ready (internal — scripts/loom/)" or "MISSING — garden installation problem"}
@@ -339,7 +318,7 @@ Preferences:     Delivery → {selected issue tracker}
 
 Quick start: wicked-garden-core (help) · wicked-garden-archetype (build) ·
 wicked-garden-prove (compile) · wicked-garden-engineering (review) ·
-wicked-brain:search "query"
+wicked-garden-mem (recall "query")
 ```
 
 ## Graceful Degradation

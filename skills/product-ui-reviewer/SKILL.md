@@ -32,7 +32,7 @@ the **code** level (hunting hardcoded values, inline styles, token violations) a
   - Hex colors: `wicked-garden:search "#[0-9a-fA-F]{3,6}"`
   - Magic-number spacing: `wicked-garden:search "[0-9]+px"`
   - Inline styles: `wicked-garden:search "style={{"`
-- **Memory**: Use wicked-brain:memory to recall design-system tokens and past decisions
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall design-system tokens and past decisions
 - **Browse**: Use wicked-browse to capture UI screenshots for rendered review
 - **Screenshot**: Read PNG/JPG files directly — the Read tool renders images visually
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log UI issues

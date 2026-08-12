@@ -77,7 +77,7 @@ EOF
 
 2. Search docs only for "password":
    ```
-   wicked-brain:search password
+   Skill(skill="wicked-garden-mem", args="recall \"password\"")
    ```
 
 3. Compare with unified search:

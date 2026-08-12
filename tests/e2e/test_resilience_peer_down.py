@@ -81,31 +81,41 @@ class HooksFailOpenTests(unittest.TestCase):
                               input=payload, capture_output=True, text=True,
                               env=env, cwd=str(_REPO), timeout=30)
 
-    def test_bootstrap_fails_open_with_brain_down(self):
-        # Brain unreachable: point the brain port somewhere dead. Bootstrap must
-        # still return 0 with valid JSON (it only warns, never blocks).
-        env = _clean_env(WICKED_BRAIN_PORT="59999")
-        proc = self._bootstrap(env)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        json.loads(proc.stdout)
+    def test_bootstrap_fails_open_with_estate_binary_missing(self):
+        # Context backend unreachable: make the wicked-estate MCP binary
+        # unresolvable (bare PATH; ~/.local/bin under a scratch HOME).
+        # Bootstrap must still return 0 with valid JSON (warns, never blocks).
+        home = tempfile.TemporaryDirectory()
+        try:
+            env = _clean_env(PATH="/usr/bin:/bin", HOME=home.name)
+            proc = self._bootstrap(env)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            json.loads(proc.stdout)
+        finally:
+            home.cleanup()
 
     def test_bootstrap_fails_open_with_all_backends_killswitched(self):
-        env = _clean_env(WICKED_LOOM_CUTOVER="off", WICKED_VAULT_BIN="",
-                         WICKED_BRAIN_PORT="59999")
-        proc = self._bootstrap(env)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        json.loads(proc.stdout)
+        home = tempfile.TemporaryDirectory()
+        try:
+            env = _clean_env(WICKED_LOOM_CUTOVER="off", WICKED_VAULT_BIN="",
+                             PATH="/usr/bin:/bin", HOME=home.name)
+            proc = self._bootstrap(env)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            json.loads(proc.stdout)
+        finally:
+            home.cleanup()
 
     def test_prompt_submit_fails_open_with_backends_down(self):
         # Configured HOME so the hook proceeds PAST the setup gate and actually
         # exercises the backend-down path (in a fresh/unconfigured env the setup
         # gate blocks first — correct, but it wouldn't test resilience). All
-        # evidence backends are killswitched + brain unreachable: the hook must
+        # evidence backends are killswitched + the estate binary unresolvable
+        # (bare PATH; ~/.local/bin under the scratch HOME): the hook must
         # still produce a controlled exit and never crash.
         home = configured_home()
         try:
             env = _clean_env(WICKED_LOOM_CUTOVER="off", WICKED_VAULT_BIN="",
-                             WICKED_BRAIN_PORT="59999", HOME=home.name)
+                             PATH="/usr/bin:/bin", HOME=home.name)
             payload = json.dumps({"hook_event_name": "UserPromptSubmit",
                                   "prompt": "implement a feature",
                                   "cwd": str(_REPO), "session_id": "e2e-chaos"})

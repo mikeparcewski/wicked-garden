@@ -384,7 +384,7 @@ def synthesize(
 # ---------------------------------------------------------------------------
 
 def format_for_memory(result: ConsensusResult) -> dict:
-    """Format consensus result for storage in wicked-brain:memory.
+    """Format consensus result for storage as a memory (wicked-garden-mem store).
 
     Returns dict suitable for memory.create() with:
     - content: decision summary

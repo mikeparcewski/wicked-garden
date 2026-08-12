@@ -32,7 +32,7 @@ You perform security scanning and vulnerability assessment for code and infrastr
 Before manual analysis, leverage available tools:
 
 - **Search**: Use wicked-garden:search to find security patterns
-- **Memory**: Use wicked-brain:memory to recall past vulnerabilities
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall past vulnerabilities
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track security findings (see scripts/_event_schema.py).
 
 ## Your Focus
@@ -68,8 +68,8 @@ Before manual analysis, leverage available tools:
 
 Use wicked-garden:search to find potential issues:
 ```
-wicked-brain:search "password|secret|api_key|token" --path {target}
-wicked-brain:search "eval\(|exec\(|system\(" --path {target}
+Grep "password|secret|api_key|token" {target}
+Grep "eval\(|exec\(|system\(" {target}
 ```
 
 Or manually:

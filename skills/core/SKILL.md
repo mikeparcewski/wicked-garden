@@ -90,15 +90,15 @@ Each domain is one consolidated skill that routes to its actions.
 | `wicked-garden-product` | Requirements, customer feedback, strategy, UX, accessibility, and design review | elicit · acceptance · analyze · strategy · ux-review |
 | `wicked-garden-qe` | Evidence-gated quality engineering: strategy, scenario authoring, execution, independent verdicts, ledger insight, and the 3-agent acceptance pipeline | setup · plan · author · execute · review · insight · accept |
 | `wicked-garden-search` | Structural code search, lineage, blast-radius, and codebase intelligence | blast-radius · lineage · hotspots · service-map · index |
-| `wicked-garden-smaht` | On-demand context assembly + session briefing from brain, search, and the event log | briefing · state · events-import · intent |
+| `wicked-garden-smaht` | On-demand context assembly + session briefing from the knowledge layer, search, and the event log | briefing · state · events-import · intent |
 
-> **Cross-session memory is the `wicked-garden-mem` domain** (wicked-estate is
-> the engine): `store` / `recall` / `answer` replace the retired
-> `wicked-brain:memory` / `wicked-brain:query` surface. Code/concept search
-> still rides `wicked-brain:search`; relationship graphs (blast-radius /
-> lineage / hotspots) live in the **wicked-estate MCP** (`BlastRadius` /
-> `Lineage` / `TraverseGraph` / `RankHotspots`, ADR 0005) — the
-> `wicked-garden-search` skill wraps them.
+> **Cross-session memory + knowledge is the `wicked-garden-mem` domain**
+> (wicked-estate is the engine): `store` / `recall` / `answer` / `ingest`
+> replace the retired wicked-brain skill cluster. Relationship graphs
+> (blast-radius / lineage / hotspots) live in the **wicked-estate MCP**
+> (`BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`, ADR 0005) —
+> the `wicked-garden-search` skill wraps them; symbol lookup is the estate
+> MCP `SearchEntity` tool.
 
 ### Quick start
 
@@ -107,22 +107,22 @@ Each domain is one consolidated skill that routes to its actions.
 - **Re-derive "done" from evidence**: `wicked-garden-prove`.
 - **Review code**: `wicked-garden-engineering` with `review ./src`.
 - **Independent multi-model second opinion**: `wicked-garden-jam` with `council "should we adopt event sourcing here?"`.
-- **Search code relationships**: `wicked-brain:search "handlePayment"`, then `wicked-garden-search` with `blast-radius src/payments.py`.
-- **Store a decision**: `wicked-brain:memory` (store mode).
+- **Search code relationships**: estate MCP `SearchEntity` for the symbol, then `wicked-garden-search` with `blast-radius src/payments.py`.
+- **Store a decision**: `wicked-garden-mem` (store action).
 
 ### How it works
 
 1. Every prompt is classified into one or more **archetypes** by the
    `UserPromptSubmit` hook; each archetype owns its own phase shape, HITL
    discipline, and cost band (steering, not a fixed pipeline).
-2. **smaht** assembles context on demand (pull-model) from brain, search, and
-   the unified event log — there is no per-prompt push.
+2. **smaht** assembles context on demand (pull-model) from the knowledge
+   layer, search, and the unified event log — there is no per-prompt push.
 3. **Specialist domains** (engineering, platform, product, qe, data, agentic,
    jam, search) provide deep expertise the harness routes into.
 4. **`wicked-garden-prove`** re-derives an archetype's "done" through the
    evidence gate rather than trusting a "tests pass" claim.
-5. **State** persists across sessions via wicked-brain memory, search indexes,
-   the event log, and native tasks.
+5. **State** persists across sessions via wicked-estate memory, search
+   indexes, the event log, and native tasks.
 
 ### Getting more help
 
@@ -132,7 +132,7 @@ overview.
 
 ## Action: where-am-i
 
-Read-only query that prints a single compact manifest of the five storage
+Read-only query that prints a single compact manifest of the storage
 roots used by wicked-garden dispatches. Subagents should include
 "invoke wicked-garden-core where-am-i first" as a directive instead of
 hand-enumerating paths — it costs fewer tokens and closes a class of
@@ -157,7 +157,6 @@ Output shape:
   "source_cwd": "/abs/path",
   "active_project_id": "string-or-null",
   "project_artifacts": "/abs/path/to/projects-or-specific-project",
-  "brain": {"path": "/abs/path", "port": 4243},
   "bus_db": "/abs/path"
 }
 ```
@@ -165,7 +164,7 @@ Output shape:
 Any field that cannot be resolved emits `null` and logs a one-line note to
 stderr. The script never raises and is safe to invoke from any cwd. Graceful
 degradation: missing `CLAUDE_PLUGIN_ROOT` falls back to the checkout inferred
-from the script location; missing brain config emits `"brain": null`; missing
+from the script location; missing
 bus DB emits `"bus_db": null`; no active crew project emits
 `"active_project_id": null` and points `project_artifacts` at the crew
 projects domain root.

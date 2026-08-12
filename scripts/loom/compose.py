@@ -87,8 +87,8 @@ def _probe_command(version_cmd: list, peer: Peer) -> list:
     """The version-probe argv: the resolved version binary + the probe's
     trailing args.
 
-    The version binary can differ from the runnable package — brain runs as
-    ``wicked-brain`` but reports its version via ``wicked-brain-server`` — so
+    The version binary can differ from the runnable package (a peer may
+    declare a distinct ``version_bin`` for its probe) — so
     we resolve ``peer.version_package`` (not npm_package) here.
     """
     return version_cmd + peer.probe_cmd[1:]

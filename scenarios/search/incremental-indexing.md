@@ -75,7 +75,7 @@ EOF
 
 5. Search for the new method:
    ```
-   wicked-brain:search cancel_order
+   estate MCP SearchEntity {"name": "cancel_order"}
    ```
 
 6. Check updated stats:

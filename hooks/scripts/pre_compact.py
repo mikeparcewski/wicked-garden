@@ -5,9 +5,9 @@ PreCompact hook — wicked-garden WIP snapshot before context compression.
 v6: the v5 ticket-rail preservation path (HistoryCondenser + PressureTracker)
 was removed with smaht/v2 in #428. The remaining jobs are:
 1. Stamp SessionState.last_compact_ts (dedup guard)
-2. Save a lightweight WIP memory to the routed context backend (S4: estate
-   memory.capture by default, legacy brain under WICKED_CONTEXT_BACKEND=brain)
-   using SessionState + native in-progress task subjects as the input
+2. Save a lightweight WIP memory to the context backend (wicked-estate
+   memory.capture) using SessionState + native in-progress task subjects
+   as the input
 3. Prompt Claude to store any additional memories before context is lost
 
 Always fails open — any unhandled exception returns {"continue": true}.
@@ -120,8 +120,7 @@ def _save_wip_state(session_id, project):
     title = f"WIP: {active_project or 'Session work'} — pre-compaction snapshot"
 
     try:
-        # S4: routed capture — estate memory.capture by default, the legacy
-        # brain file+index path under WICKED_CONTEXT_BACKEND=brain.
+        # Estate memory.capture via the context backend.
         from _context_backend import capture_memory
         chunk_id = capture_memory(
             title=title,
@@ -188,14 +187,13 @@ def main():
         except Exception:
             pass  # fail open
 
-    # S4: name the memory surface for the routed backend (brain while the
-    # bridge is alive; estate memory.capture after retirement). Fail-open to
-    # the legacy wording.
+    # Name the memory surface (estate memory.capture). Fail-open to the
+    # same wording.
     try:
         from _context_backend import memory_directive_target
         _mem_target = memory_directive_target()
     except Exception:
-        _mem_target = "wicked-brain:memory"
+        _mem_target = "the wicked-estate `memory.capture` tool"
 
     _log("context", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
     print(json.dumps({

@@ -65,7 +65,7 @@ Facilitate stakeholder alignment, surface concerns, and build consensus. NOT req
 2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/product/refs/align.md")` — the process, facilitation checklist, questions to ask, and output format.
 3. Apply the rubric directly: identify stakeholders, surface concerns, classify ALIGNED / CONFLICTED / UNCLEAR, propose compromises, and emit decisions-required + next steps (owner + deadline).
 
-Persist status via `TaskCreate`/`TaskUpdate` (`metadata.event_type="task"`); store stakeholder patterns via `wicked-brain:memory`. Heavyweight facilitation (value design + alignment in one worker): the `wicked-garden-product-value-strategist` fork skill — its Part B is the facilitation version of this rubric.
+Persist status via `TaskCreate`/`TaskUpdate` (`metadata.event_type="task"`); store stakeholder patterns via the `wicked-garden-mem` skill (store action). Heavyweight facilitation (value design + alignment in one worker): the `wicked-garden-product-value-strategist` fork skill — its Part B is the facilitation version of this rubric.
 
 ## Action: analyze
 
@@ -107,7 +107,7 @@ direct). Pipeline step 1 of 3: **listen** -> analyze -> synthesize.
 Generate wireframes, mockups, and component specs at the right fidelity — ASCII
 for ideation, HTML/CSS for stakeholder review, annotated spec for developer handoff.
 1. Parse `<description-or-target>`, `--format` (ascii/html/spec), `--fidelity` (low/medium/high). Auto-select format: bare description / low -> ascii; high / stakeholder context -> html; file path -> spec.
-2. Gather context: if a description, use as the brief; if a file path, read it to understand the current structure; recall design tokens via `wicked-brain:memory`.
+2. Gather context: if a description, use as the brief; if a file path, read it to understand the current structure; recall design tokens via the `wicked-garden-mem` skill (recall action).
 3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/product/refs/mockup.md")` — fidelity selection, ASCII/HTML/spec formats, generation process, and output format. Tier-3 depth: `skills/product/mockup/`.
 4. Apply the rubric directly and emit the mockup with state/responsive/a11y annotations and open questions. Pair with the `ux` action (flows) and the `screenshot` action (compare to built UI).
 

@@ -15,12 +15,13 @@ architecture. The hook is now responsible only for session-level concerns:
 
 v9.2.11 removed the periodic [Memory] nudge that fired every 10 turns.
 Periodic reminders without a real signal are noise — Claude knows about
-wicked-brain:memory from CLAUDE.md and uses it when there is something
-to checkpoint. The proper checkpoint is the wicked-brain-session-teardown
-agent at session end, not a 10-turn timer.
+the memory surface (the wicked-garden-mem skill) from CLAUDE.md and uses it
+when there is something to checkpoint. The proper checkpoint is the mem
+skill's `capture` action (session teardown) at session end, not a 10-turn
+timer.
 
-Subagents pull context on demand via wicked-brain:search/query and
-the wicked-garden-search skill rather than having a briefing pushed every turn.
+Subagents pull context on demand via the wicked-garden-mem and
+wicked-garden-search skills rather than having a briefing pushed every turn.
 The hook is stdlib-only.
 
 Always fails open — any unhandled exception returns {"continue": true}.
@@ -60,9 +61,8 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
 def _capture_session_goal(prompt: str, turn_count: int, project: str, session_id: str):
     """On turns 1-2, save the session goal as WORKING memory.
 
-    S4: routed through _context_backend.capture_memory — estate
-    ``memory.capture`` by default, the legacy brain file+index path under
-    WICKED_CONTEXT_BACKEND=brain. Fail-open, never blocks the prompt.
+    Through _context_backend.capture_memory (estate ``memory.capture``).
+    Fail-open, never blocks the prompt.
     """
     if turn_count > 2:
         return
@@ -529,13 +529,12 @@ def _check_setup_gate(prompt: str) -> str | None:
 
 
 def _check_context_gate(prompt: str) -> None:
-    """Warn if the routed context backend is not reachable.
+    """Warn if the context backend (wicked-estate) is not reachable.
 
-    S4: probes the backend selected by WICKED_CONTEXT_BACKEND (estate primary
-    in ``auto``; brain under ``brain``, including its deterministic
-    auto-start). If unreachable, prints a note to stderr — this feeds back to
-    the model via the hook error channel but does NOT hard-block (sys.exit(2)).
-    The estate probe is cached per session/TTL so this stays cheap per prompt.
+    If unreachable, prints a note to stderr — this feeds back to the model
+    via the hook error channel but does NOT hard-block (sys.exit(2)). The
+    estate probe is cached per session/TTL so this stays cheap per prompt.
+    Silent when WICKED_CONTEXT_BACKEND=off (designed silence).
 
     Exempted on setup/help commands (context layer not needed before setup).
     """
@@ -723,18 +722,18 @@ def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=
         return label  # empty when auto-detected
 
     # synthesis directive shared by feature / research / rigor.
-    # S4: grounding steps are backend-aware — brain wording while the bridge
-    # is installed and answering, estate wording otherwise (fail-open to the
-    # legacy brain wording if the router cannot be imported).
+    # Fail-open to a matching inline copy if the backend module cannot be
+    # imported (the wording must stay estate-only either way).
     try:
         from _context_backend import grounding_directive_lines
         grounding = grounding_directive_lines()
     except Exception:
         grounding = [
-            "1. Call wicked-brain:query for conceptual grounding ('how does X work', "
-            "'what are the constraints around Y').",
-            "2. Call wicked-brain:search for specific symbols, files, or past decisions. "
-            "Drill into wiki hits with wicked-brain:read depth=2.",
+            "1. Ground in the knowledge layer via the wicked-garden-search skill "
+            "(wicked-estate knowledge + memory recall) — concepts, symbols, files, "
+            "and past decisions, with source attribution.",
+            "2. Open the cited sources with Read before answering; do not answer "
+            "from recall snippets alone.",
         ]
     directive_lines = [
         f"[Context Assembly — intent={intent}] Deep context needed before answering.",
@@ -839,8 +838,8 @@ def main():
     # MUST run before HOT continuations so setup can never be bypassed.
     _check_setup_gate(prompt)
 
-    # Context gate — soft directive if the routed context backend (estate
-    # primary; brain under WICKED_CONTEXT_BACKEND=brain) is not reachable.
+    # Context gate — soft directive if the context backend (wicked-estate)
+    # is not reachable.
     # Runs after setup gate (context layer irrelevant before setup completes).
     # Does NOT hard-block — hooks fail open, retrieval degrades to empty.
     _check_context_gate(prompt)
@@ -927,7 +926,7 @@ def main():
     # Complexity + risk gate — inject a deep-context pull directive for complex/risky prompts.
     # v6: the v5 Router + Orchestrator pre-fetch were deleted in #428. Classification
     # is an inline heuristic; v6.3.6 retired the wicked-garden:smaht:synthesize skill
-    # and replaced it with a directive pointing at wicked-brain directly.
+    # and replaced it with a grounding directive (estate-worded since S7).
     # v10 Phase 1 (#813): replace the legacy 5-classifier cascade
     # (complexity scorer → context-assembly classifier → near-HOT guard →
     # synthesis early-return) with a single intent variable. Intent gates
@@ -1003,9 +1002,9 @@ def main():
         # turns 10, 20, 30 ... regardless of whether the session had produced
         # anything worth checkpointing — exactly the false-urgency anti-
         # pattern the v9.2.6 "silent contract drift" wiki article warns
-        # against. CLAUDE.md tells Claude how to use wicked-brain:memory; the
-        # session-teardown agent handles end-of-session synthesis. A turn-
-        # counter timer added no signal.
+        # against. CLAUDE.md tells Claude how to store memories (the
+        # wicked-garden-mem skill); the mem skill's capture action handles
+        # end-of-session synthesis. A turn-counter timer added no signal.
 
         # Jam suggestion: when ambiguity signals present
         jam_hint = _suggest_jam(prompt, state)

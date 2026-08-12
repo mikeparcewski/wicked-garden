@@ -22,11 +22,11 @@ Companion peers are set up alongside the toolkit — `/wicked-garden-core setup`
 
 ```bash
 npm i -g wicked-vault         # wicked-vault — REQUIRED: the evidence backend the gate re-derives against (self-contained infra peer, installed directly)
-/plugin install wicked-brain  # wicked-brain — opt-in: cross-session memory + search
+# wicked-estate — opt-in: cross-session memory + knowledge (install the Rust binaries onto PATH or ~/.local/bin)
 /plugin install wicked-bus    # wicked-bus — opt-in: event bridge
 ```
 
-The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) ships in-catalog as the `qe` domain — nothing to install. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
+The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-bus` installs as a Claude Code plugin; `wicked-estate` is a Rust binary pair on PATH or ~/.local/bin. Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) ships in-catalog as the `qe` domain — nothing to install. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
 
 ### Show the active mode (status line)
 
@@ -94,15 +94,15 @@ Detects the repo's test/lint/build commands and emits a self-contained `gate.py`
 
 ### 5. Remember Decisions Across Sessions
 
-Memory is provided by the [wicked-brain](https://github.com/mikeparcewski/wicked-brain) peer plugin:
+Memory + knowledge are provided by [wicked-estate](https://github.com/mikeparcewski/wicked-estate) through the `wicked-garden-mem` skill:
 
 ```
-Skill(skill="wicked-brain:memory", args="store \"Chose Postgres over Redis for sessions — need transactions\" --type decision")
+Skill(skill="wicked-garden-mem", args="store \"Chose Postgres over Redis for sessions — need transactions\" (kind=fact)")
 # ... 30 sessions later ...
-Skill(skill="wicked-brain:memory", args="recall \"session storage decisions\" --filter_type decision")
+Skill(skill="wicked-garden-mem", args="recall \"session storage decisions\"")
 ```
 
-Search the same brain instead of grep — `wicked-brain:search "handleAuth"` gives structural code intelligence, lineage, and blast radius.
+Search the same knowledge layer instead of grep — the `wicked-garden-search` skill gives structural code intelligence, lineage, and blast radius over the estate graph.
 
 ## Common Workflows
 
@@ -124,7 +124,7 @@ Search the same brain instead of grep — `wicked-brain:search "handleAuth"` giv
 ```bash
 /wicked-garden-search service-map         # detect service architecture
 /wicked-garden-search hotspots            # most-referenced symbols
-wicked-brain:search "auth flow"           # structural search across the brain
+Skill(skill="wicked-garden-mem", args="recall \"auth flow\"")   # knowledge + memory recall
 ```
 
 ### "I need to plan and build a feature"
@@ -201,6 +201,6 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 ## Next Steps
 
 - [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
-- [Required Peers](required-peers.md) — wicked-vault, wicked-brain, wicked-bus
+- [Required Peers](required-peers.md) — wicked-vault, wicked-estate, wicked-bus
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
 - [Domains](domains.md) — browse the domain skills and their actions

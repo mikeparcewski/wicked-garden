@@ -10,8 +10,8 @@ exists only for the partial-session failure mode (SessionEnd never fires
 because the CLI was killed, network dropped, user walked away).
 
 Always fails open — never blocks session end. The ledger artifacts written
-here (timeline.jsonl, findings.json, brain wiki articles) are picked up by
-the next bootstrap, so a missed run is recoverable.
+here (timeline.jsonl, findings.json) are picked up by the next bootstrap,
+so a missed run is recoverable.
 """
 
 import json

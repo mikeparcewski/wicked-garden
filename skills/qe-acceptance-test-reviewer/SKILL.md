@@ -50,7 +50,7 @@ This isolation is enforced three ways:
 
 The orchestrating skill may place a `context.md` file inside the evidence
 directory before dispatching you. This file is pre-vetted cold knowledge from
-wicked-brain — things like "this tool has a known quirk on macOS" or "WCAG AA
+the knowledge layer — things like "this tool has a known quirk on macOS" or "WCAG AA
 requires ≥ 4.5:1 contrast". Read it the same way you read any evidence file.
 
 **What `context.md` is allowed to contain** (non-prejudicial):

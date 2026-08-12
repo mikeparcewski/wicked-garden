@@ -64,4 +64,4 @@ information is missing? How do we communicate the decision?
 
 Make trade-offs explicit · find shared goals · propose compromise · escalate if
 needed · document the decision. Persist status via `TaskCreate`/`TaskUpdate`
-(`metadata.event_type="task"`); store stakeholder patterns via `wicked-brain:memory`.
+(`metadata.event_type="task"`); store stakeholder patterns via the `wicked-garden-mem` skill (store action).

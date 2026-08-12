@@ -23,7 +23,7 @@ Before manual work, leverage available tools:
 - **wicked-garden-data (`analyze` sub-action)**: For data profiling and SQL queries via DuckDB
 - **wicked-garden:search**: Find existing pipeline code
 - **Native tasks**: TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` track data quality issues
-- **wicked-brain:memory**: Recall past pipeline patterns
+- **wicked-garden-mem (recall action)**: Recall past pipeline patterns
 
 ## Core Responsibilities
 
@@ -33,7 +33,7 @@ When designing ETL/ELT pipelines:
 
 **Check existing patterns**:
 ```
-wicked-brain:search "pipeline|etl|transform" --path {target}
+Grep "pipeline|etl|transform" {target}
 ```
 
 **Design checklist**:

@@ -7,11 +7,10 @@ Consolidates: crew stop, mem stop, session-end fact emission.
 Flow:
 1. Session outcome check (mismatch report from auto_issue_reporter state)
 2. Automatic memory promotion from native tasks (session_fact_extractor)
-3. Working-tier consolidation via brain compile + lint
-4. Memory decay maintenance
-5. Persist final SessionState
-6. Event store retention purge
-7. Emit memory flush reminder directive
+   + auto-memorize drain into estate memory
+3. Persist final SessionState
+4. Event store retention purge
+5. Heavy cadence teardown (telemetry + guard pipeline, once per session)
 
 Always fails open — any unhandled exception returns {"systemMessage": ...}.
 Runs async so it does NOT block the user on exit.
@@ -28,13 +27,6 @@ from typing import Optional
 # Add shared scripts directory to path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
-
-def _resolve_brain_port():
-    try:
-        from _brain_port import resolve_port
-        return resolve_port()
-    except Exception:
-        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
 
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
@@ -247,19 +239,19 @@ def _check_session_outcome() -> list:
 
 
 # ---------------------------------------------------------------------------
-# Step 2b: Session-end fact emission → wicked-brain auto-memorize
+# Step 2b: Session-end fact emission → auto-memorize drain (estate memory)
 # ---------------------------------------------------------------------------
 #
 # v6: Session facts are extracted from native Claude tasks
 # (${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json) by
 # scripts/mem/session_fact_extractor.py. This replaces the v5 smaht
 # FactExtractor/HistoryCondenser pipeline deleted in Gate 4 Phase 2 (#428).
-# Emission shape is unchanged: wicked.garden.fact.extracted events on wicked-bus,
-# picked up by wicked-brain's auto-memorize subscriber, which re-applies its
-# own type/length/dedup policy.
+# Emission shape: wicked.garden.fact.extracted events on wicked-bus, drained
+# by the garden-run auto-memorize consumer (scripts/mem/auto_memorize.py),
+# which re-applies its own type/length/dedup policy.
 
-# Fact types eligible for emission — mirrors brain's auto-memorize policy.
-# Brain will re-check these; this pre-filter keeps bus traffic sensible.
+# Fact types eligible for emission — mirrors the auto-memorize policy.
+# The drain will re-check these; this pre-filter keeps bus traffic sensible.
 _EMITTABLE_FACT_TYPES = frozenset({"decision", "discovery"})
 _MIN_FACT_CONTENT_LENGTH = 15
 
@@ -268,7 +260,7 @@ def _run_memory_promotion(session_id: str, transcript_path: Optional[str] = None
     """Emit high-value session facts as wicked.garden.fact.extracted events on wicked-bus.
 
     Reads native task records (TaskCreate/TaskUpdate output) plus the session
-    transcript tail via scripts/_brain_ingest/session_fact_extractor.py,
+    transcript tail via scripts/mem/session_fact_extractor.py,
     filters to decisions + discoveries over the length threshold, skips facts
     this session already emitted (per-session ledger — Stop fires every turn),
     and emits one event per fact. The garden-run auto-memorize consumer
@@ -279,10 +271,10 @@ def _run_memory_promotion(session_id: str, transcript_path: Optional[str] = None
     to stderr.
     """
     try:
-        # scripts/ is on sys.path via the hook bootstrap; _brain_ingest is a
-        # package under scripts/ so the qualified import resolves without any
+        # scripts/ is on sys.path via the hook bootstrap; mem is a package
+        # under scripts/ so the qualified import resolves without any
         # additional sys.path manipulation.
-        from _brain_ingest.session_fact_extractor import (
+        from mem.session_fact_extractor import (
             extract_session_facts,
             filter_unemitted,
             mark_emitted,
@@ -367,87 +359,6 @@ def _run_auto_memorize_drain() -> list:
     except Exception as e:
         print(f"[wicked-garden] auto-memorize drain error: {e}", file=sys.stderr)
         return []
-
-
-# ---------------------------------------------------------------------------
-# Step 2 & 3: Memory flush reminder + decay
-# ---------------------------------------------------------------------------
-
-def _brain_api(action, params=None, timeout=3):
-    """Call brain API. Returns parsed JSON or None."""
-    try:
-        import urllib.request
-        port = _resolve_brain_port()
-        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
-
-
-def _run_memory_decay() -> list:
-    """Run decay maintenance via brain lint API. Return list of result message strings.
-
-    S4: brain-route only — wicked-estate owns its memory lifecycle in-store,
-    so under estate routing this is a no-op. Deleted with the brain path at S7.
-    """
-    messages = []
-    try:
-        from _context_backend import route
-        if route() != "brain":
-            return messages  # estate manages decay/reinforcement internally
-        # Session-end maintenance writes — auto-start the server so a stopped
-        # server doesn't silently skip decay (fail-open, lock-safe, one
-        # spawn attempt per process).
-        try:
-            from _brain_port import ensure_server
-            ensure_server(wait_secs=2.0)
-        except Exception:
-            pass
-        result = _brain_api("lint", {}, timeout=5)
-        if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
-            messages.append(
-                f"[Memory] Decay: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
-            )
-    except Exception as e:
-        print(f"[wicked-garden] decay error: {e}", file=sys.stderr)
-    return messages
-
-
-def _run_working_consolidation() -> list:
-    """Consolidate working-tier memories via brain compile + lint.
-
-    Returns a list of message strings. Fails open — never blocks session end.
-    S4: brain-route only — estate consolidation is in-store (memory.reflect
-    owns that surface); no-op under estate routing. Deleted at S7.
-    """
-    messages = []
-    try:
-        from _context_backend import route
-        if route() != "brain":
-            return messages  # estate consolidates in-store
-        try:
-            from _brain_port import ensure_server
-            ensure_server(wait_secs=2.0)
-        except Exception:
-            pass
-        compile_result = _brain_api("compile", {}, timeout=10)
-        lint_result = _brain_api("lint", {}, timeout=5)
-        compiled = compile_result.get("compiled", 0) if compile_result else 0
-        cleaned = lint_result.get("deleted", 0) if lint_result else 0
-        if compiled > 0 or cleaned > 0:
-            messages.append(
-                f"[Memory] Consolidation: {compiled} compiled, {cleaned} cleaned"
-            )
-    except Exception as e:
-        print(f"[wicked-garden] consolidation error: {e}", file=sys.stderr)
-    return messages
 
 
 def _get_turn_count() -> int:
@@ -626,7 +537,8 @@ def main():
         )
 
         # 2c. Auto-memorize drain — the garden-run consumer of the fact events
-        # (brain's server subscriber retired at S7). Durable cursor: events
+        # (it replaced the retired wicked-brain server subscriber at S7).
+        # Durable cursor: events
         # emitted here (or left over from earlier sessions) land in estate
         # memory; failures redeliver next Stop.
         drain_messages = _run_auto_memorize_drain()
@@ -685,14 +597,14 @@ def main():
         #     branch ever fired. The "smart" branching had never executed in
         #     production.
         #   - _run_memory_promotion already self-reports when facts are
-        #     auto-extracted ("[Memory] Emitted N fact event(s); wicked-brain
-        #     will auto-memorize..."), so the reflection's "use wicked-brain:
-        #     memory" guidance was duplicate noise.
+        #     auto-extracted ("[Memory] Emitted N fact event(s)..."), so the
+        #     reflection's "store a memory" guidance was duplicate noise.
         #   - The brainstorm in v9.2.15 chose Option A (delete) over Option B
         #     (fix the parser + re-gate) because the smart branch is dead
         #     code defending behavior no user has seen. CLAUDE.md's "Memory
-        #     Management" section already tells Claude to use wicked-brain:
-        #     memory for decisions; an end-of-turn reminder adds no signal.
+        #     Management" section already tells Claude to store decisions
+        #     (now via the wicked-garden-mem skill); an end-of-turn reminder
+        #     adds no signal.
         # `tasks_completed_this_session` is no longer read; the variable
         # remains in scope above for any future use without breaking the
         # `session_state` load.

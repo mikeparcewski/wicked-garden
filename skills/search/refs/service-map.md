@@ -1,7 +1,7 @@
 # Service map — detect and visualize the service architecture
 
 Detect services and their connections from infrastructure configuration files
-and the brain knowledge layer. Generates a service dependency map.
+and code patterns. Generates a service dependency map.
 
 ## Arguments
 
@@ -16,18 +16,12 @@ and the brain knowledge layer. Generates a service dependency map.
    ```
    Parse found files to extract service names, types, and connections.
 
-2. **Search brain for service patterns** in the codebase:
-   ```bash
-   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
-   curl -s -X POST "http://localhost:${PORT}/api" \
-     -H "Content-Type: application/json" \
-     -d '{"action":"search","params":{"query":"service endpoint controller route","limit":30}}'
-   ```
-   If brain is unavailable, fall back to Grep:
+2. **Search code for service patterns** — the estate MCP `SearchEntity` tool
+   (when connected) for service/controller/router symbols, plus Grep:
    ```
    Grep: @(Service|RestController|Controller|Router|app\.(get|post|put|delete))
    ```
-   Suggest `wicked-brain:ingest` to index the codebase for richer service discovery.
+   Suggest `wicked-estate index` to build the code graph for richer service discovery.
 
 3. Merge infrastructure and code-level discoveries into a unified service map.
 
@@ -74,4 +68,4 @@ service-map /path/to/project
 ## Notes
 
 - Infrastructure sources (docker, k8s) don't require indexing
-- Code patterns benefit from brain indexing via `wicked-brain:ingest`
+- Code patterns benefit from the estate code graph (`wicked-estate index`)

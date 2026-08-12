@@ -55,4 +55,4 @@ Run `/wicked-garden-product analyze` to extract themes and trends.
 
 Feedback stored at `{PRODUCT_ROOT}/voice/feedback/{source}/{YYYY-MM}/{id}.md`.
 Log critical items via `TaskCreate` (`metadata.event_type="task"`); recall past
-insights via `wicked-brain:memory`.
+insights via the `wicked-garden-mem` skill.

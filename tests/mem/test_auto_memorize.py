@@ -4,7 +4,7 @@ Brain's server ran the auto-memorize subscriber; garden runs it now:
 ``scripts/mem/auto_memorize.py`` drains ``wicked.garden.fact.extracted`` from
 wicked-bus (durable cursor, native delivery_attempts/dead_letters tables) and
 persists promoted facts to wicked-estate via the mem backend. The emitter side
-(``scripts/_brain_ingest/session_fact_extractor.py``) gains the transcript
+(``scripts/mem/session_fact_extractor.py``) gains the transcript
 source that fixes the starvation (zero fact events ever emitted — native task
 records exist for almost no session).
 
@@ -36,7 +36,7 @@ if str(_REPO_ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT / "scripts"))
 
 import _estate_client  # noqa: E402
-from _brain_ingest import session_fact_extractor as sfe  # noqa: E402
+from mem import session_fact_extractor as sfe  # noqa: E402
 from mem import auto_memorize  # noqa: E402
 
 _AUTO = _REPO_ROOT / "scripts" / "mem" / "auto_memorize.py"

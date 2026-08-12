@@ -1,15 +1,16 @@
 """
-Knowledge-layer adapter for wicked-smaht context assembly (S4: brain→estate).
+Knowledge-layer adapter for wicked-smaht context assembly.
 
-Queries the routed context backend (wicked-estate recall fusion by default;
-the legacy wicked-brain FTS5 index for symbolish queries while the bridge is
-alive — see scripts/_context_backend.py) for code and document context
-relevant to the current prompt. Returns ContextItems whose ``source`` names
-the answering backend ("estate" / "brain") and whose metadata carries the
-store-level source attribution (estate #96) and memory scope.
+Queries the context backend (wicked-estate recall fusion — see
+scripts/_context_backend.py) for code and document context relevant to the
+current prompt. Returns ContextItems whose ``source`` names the backend
+("estate") and whose metadata carries the store-level source attribution
+(estate #96) and memory scope. (The module keeps its historical
+``brain_adapter`` name from the brain era; wicked-brain itself retired at
+S7 — estate is the only backend.)
 
-The knowledge layer degrades gracefully: when no backend is reachable, this
-adapter logs a warning to stderr and returns empty — never raises.
+The knowledge layer degrades gracefully: when the backend is unreachable,
+this adapter logs a warning to stderr and returns empty — never raises.
 """
 
 import sys
@@ -53,11 +54,11 @@ def _extract_keywords(prompt: str, limit: int = 3) -> str:
 
 
 def _query_backend(prompt: str) -> list:
-    """Query the routed context backend with extracted keywords.
+    """Query the context backend with extracted keywords.
 
-    Routing, the estate two-call recall fusion, and the brain-side FTS5
-    3-term→2-term retry all live in _context_backend.search(). Returns
-    normalized result dicts, or [] when no backend answers (fail-open).
+    The estate two-call recall fusion lives in _context_backend.search().
+    Returns normalized result dicts, or [] when the backend does not answer
+    (fail-open).
     """
     keywords = _extract_keywords(prompt, limit=3)
     if not keywords:
@@ -114,9 +115,8 @@ def _readable_title(source_file: str) -> str:
 def _clean_snippet(raw: str) -> str:
     """Strip YAML frontmatter lines and FTS highlight tags from snippet.
 
-    Both backends can surface frontmatter (the brain server re-indexes full
-    chunk files; estate's migrated chunks kept those bodies). Strip
-    aggressively: snake_case keys, floats, timestamps, list tags, and
+    Estate can surface frontmatter (the migrated chunks kept their full
+    bodies). Strip aggressively: snake_case keys, floats, timestamps, list tags, and
     separator markers.
     """
     import re as _re
@@ -164,8 +164,8 @@ def _source_file_of(item: dict) -> str:
     """Derive the originating source file from a normalized backend item.
 
     Estate items carry a ``source`` attribution URI like
-    ``wicked-brain://wicked-garden/chunks/extracted/<slug>/chunk-001.md``;
-    brain items carry ``wicked-brain://<chunk path>``. Memories have no
+    ``wicked-brain://wicked-garden/chunks/extracted/<slug>/chunk-001.md``
+    (the migrated chunks kept their brain-era URIs). Memories have no
     source file — group them by their own id so each stays distinct.
     """
     if item.get("kind") == "memory":

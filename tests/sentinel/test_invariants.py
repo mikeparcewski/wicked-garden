@@ -233,23 +233,17 @@ class GateStampIntegrationTests(_TempHome):
 
 
 class SessionEndTests(_TempHome):
-    def test_capture_check_silent_without_brain_layer(self):
-        repo = _make_repo(self.base)
-        self.assertIsNone(inv.check_session_capture(repo, time.time() - 100, 50))
+    def test_session_capture_check_retired_at_s7(self):
+        """S7: the session-capture invariant was retired with wicked-brain —
+        the module must no longer export it, and session_end_lines must keep
+        its call shape without it."""
+        self.assertFalse(hasattr(inv, "check_session_capture"))
+        self.assertNotIn("check_session_capture", inv.__all__)
 
-    def test_capture_check_fires_for_active_uncaptured_session(self):
+    def test_session_end_lines_keeps_call_shape(self):
         repo = _make_repo(self.base)
-        proj = Path(os.environ["HOME"]) / ".wicked-brain" / "projects" / "p1"
-        (proj / "_meta").mkdir(parents=True)
-        (proj / "memory").mkdir()
-        (proj / "_meta" / "config.json").write_text(
-            json.dumps({"source_path": str(repo)}))
-        v = inv.check_session_capture(repo, time.time() - 100, 50)
-        self.assertIsNotNone(v)
-        self.assertEqual(v["invariant"], "session-capture")
-        # writing a memory silences it
-        (proj / "memory" / "m.md").write_text("learned")
-        self.assertIsNone(inv.check_session_capture(repo, time.time() - 100, 50))
+        lines = inv.session_end_lines(repo, time.time() - 100, 50)
+        self.assertIsInstance(lines, list)
 
 
 if __name__ == "__main__":

@@ -34,12 +34,12 @@ Extract title, body, and any discussion context. If not a GH issue, use the raw 
 
 **Search for affected areas**:
 - Extract key references from the description
-- Use `wicked-brain:search` for symbol search
+- Use the estate MCP `SearchEntity` tool (or Grep) for symbol search
 - If `--deep` flag: use the `wicked-garden-search` skill's `blast-radius` action on key symbols
 
 **Recall relevant memories**:
 ```
-Skill(skill="wicked-brain:memory", args="\"{key terms}\" --limit 5")
+Skill(skill="wicked-garden-mem", args="recall \"{key terms}\"")
 ```
 
 ### 3. Detect Context and Load Lens
@@ -92,7 +92,7 @@ Format the agent's findings using the **Deliberation Brief** template from
 Store as a memory for future reference:
 
 ```
-Skill(skill="wicked-brain:memory", args="\"Deliberation: {title} — {strategy}: {one-line rationale}\" --type decision --tags deliberation,{project}")
+Skill(skill="wicked-garden-mem", args="store \"Deliberation: {title} — {strategy}: {one-line rationale}\" (kind=fact, about=[deliberation, {project}])")
 ```
 
 ### 7. Crew Integration

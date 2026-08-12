@@ -27,8 +27,8 @@ def generate():
     lines.append("")
     lines.append("Four segments (wicked-bus SPEC grammar). Always starts with `wicked.`. "
                  "Domain = the producing plugin's short name (`garden` for garden-owned "
-                 "events; `crew` for the shared phase lifecycle; `brain` for consumed "
-                 "wicked-brain events). Noun = the thing that changed. Verb = past tense.")
+                 "events; `crew` for the shared phase lifecycle). "
+                 "Noun = the thing that changed. Verb = past tense.")
     lines.append("`domain` field is always `wicked-garden`. `subdomain` identifies the functional area.")
     lines.append("")
     lines.append("## Payload Tiers")
