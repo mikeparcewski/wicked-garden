@@ -1,9 +1,9 @@
 ---
 name: wicked-garden-qe-acceptance-test-executor
 description: |
-  Follows structured wicked-testing test plans step-by-step, collecting evidence artifacts.
+  Follows structured qe test plans step-by-step, collecting evidence artifacts.
   Executes and captures only — does not judge or grade pass/fail.
-  Writes evidence files to .wicked-testing/evidence/{run-id}/.
+  Writes evidence files to .wicked-qe/evidence/{run-id}/.
   Use when: acceptance test execution, evidence collection, test plan execution
 
   <example>
@@ -50,7 +50,7 @@ Read the test plan produced by acceptance-test-writer. Extract:
 
 ### 2. Set Up Evidence Directory
 
-The evidence directory is provided in the task prompt (`.wicked-testing/evidence/{run-id}/`). Create it:
+The evidence directory is provided in the task prompt (`.wicked-qe/evidence/{run-id}/`). Create it:
 
 ```bash
 mkdir -p "${EVIDENCE_DIR}"
@@ -171,7 +171,7 @@ Return a text evidence report with all captured data:
 If wicked-bus is installed on PATH, emit progress events so downstream tools
 (wicked-garden crew gates, dashboards) can react in real time:
 
-> `wicked.testrun.step` and `--domain wicked-testing` are the emitter's
+> `wicked.test.run.step` and `--domain qe` are the emitter's
 > existing wire contract, consumed by current ledger/dashboard tooling.
 > The 4-segment `wicked.qe.*` rebrand lands at the bus-emit seam in
 > Phase 6c — do not rename the emit here first.
@@ -181,9 +181,9 @@ If wicked-bus is installed on PATH, emit progress events so downstream tools
 # stderr silence works on both POSIX shells and Windows Git Bash. A plain
 # `2>/dev/null || true` is Unix-only; native PowerShell drops the redirect
 # and the emit's stderr would leak into the transcript.
-python3 -c "import subprocess,sys; subprocess.run(['wicked-bus','emit','--type','wicked.testrun.step','--domain','wicked-testing','--payload','{\"run_id\":\"'+sys.argv[1]+'\",\"step\":\"STEP-'+sys.argv[2]+'\",\"status\":\"captured\"}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)" "${RUN_ID}" "${N}" \
+python3 -c "import subprocess,sys; subprocess.run(['wicked-bus','emit','--type','wicked.test.run.step','--domain','qe','--payload','{\"run_id\":\"'+sys.argv[1]+'\",\"step\":\"STEP-'+sys.argv[2]+'\",\"status\":\"captured\"}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)" "${RUN_ID}" "${N}" \
   2>/dev/null \
-  || python -c "import subprocess,sys; subprocess.run(['wicked-bus','emit','--type','wicked.testrun.step','--domain','wicked-testing','--payload','{\"run_id\":\"'+sys.argv[1]+'\",\"step\":\"STEP-'+sys.argv[2]+'\",\"status\":\"captured\"}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)" "${RUN_ID}" "${N}" \
+  || python -c "import subprocess,sys; subprocess.run(['wicked-bus','emit','--type','wicked.test.run.step','--domain','qe','--payload','{\"run_id\":\"'+sys.argv[1]+'\",\"step\":\"STEP-'+sys.argv[2]+'\",\"status\":\"captured\"}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)" "${RUN_ID}" "${N}" \
   || true
 ```
 

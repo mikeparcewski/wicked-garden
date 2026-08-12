@@ -4,7 +4,7 @@ archetype_relevance: ["specify", "build"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `plan` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `plan` orchestrator). Loaded on demand
      via Read() from the router's `plan` action — not a skill. -->
 
 
@@ -25,7 +25,7 @@ wicked-garden-qe plan [target] [--project <name>] [--json]
 
 ### Preflight: check config
 
-Verify `.wicked-testing/config.json` exists. If not:
+Verify `.wicked-qe/config.json` exists. If not:
 
 ```
 Config not found. Run wicked-garden-qe setup first.
@@ -143,7 +143,6 @@ python3 -c "import json,sys; sys.stdout.write(json.dumps({'ok': True, 'data': {'
 
 ## References
 
-- `docs/INTEGRATION.md` (wicked-testing npm package)
-- `docs/NAMESPACE.md` (wicked-testing npm package)
+- [refs/integration.md](refs/integration.md)
 - `../../qe-test-strategist/SKILL.md`, `../../qe-risk-assessor/SKILL.md`,
   `../../qe-testability-reviewer/SKILL.md`, `../../qe-requirements-quality-analyst/SKILL.md`

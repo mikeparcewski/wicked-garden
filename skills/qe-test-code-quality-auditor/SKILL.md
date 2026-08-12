@@ -49,9 +49,9 @@ when convenient).
     `P0`, `P1`, `P2`; default `P2` (include everything).
   - `top_n:` findings in the remediation list; default 30.
 - **`run_id`** — UUID of the current `runs` row; defines `EVIDENCE_DIR`.
-- **`.wicked-testing/config.json`** — optional; `detected_tooling` to
+- **`.wicked-qe/config.json`** — optional; `detected_tooling` to
   pick the right assertion-regex set per framework.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional rules,
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional rules,
   e.g. "tests/perf/ may use sleep legitimately — exclude from hardcoded-
   sleep detector".
 
@@ -184,7 +184,7 @@ node {WT_LIB}/test-quality/scan-dead-tests.mjs \
 
 ## 4. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                              | manifest `kind` | Required |
 |-----------------------------------|-----------------|----------|
@@ -290,10 +290,10 @@ VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-test-code-quality-auditor R
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

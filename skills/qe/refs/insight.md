@@ -4,13 +4,13 @@ archetype_relevance: ["review", "ship", "incident"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `insight` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `insight` orchestrator). Loaded on demand
      via Read() from the router's `insight` action — not a skill. -->
 
 
 # qe insight — full playbook
 
-The read-only lens on wicked-testing's ledger. Built on the fixed-SQL oracle
+The read-only lens on the qe evidence ledger. Built on the fixed-SQL oracle
 so answers are auditable, not LLM-guessed.
 
 ## Usage
@@ -54,7 +54,7 @@ invoke it with the Skill tool so it runs in an isolated context:
 ```
 Skill(
   skill="wicked-garden-qe-test-oracle",
-  args="""Answer the question below against the wicked-testing ledger.
+  args="""Answer the question below against the qe evidence ledger.
 
 ## Question
 {natural-language question}
@@ -136,7 +136,7 @@ commands are now questions you ask it (routing per the dispatch table above):
 
 ## References
 
-- `docs/INTEGRATION.md` (wicked-testing npm package)
+- [refs/integration.md](refs/integration.md)
 - `../../qe-test-oracle/SKILL.md`
 - `wicked-ledger` oracle-queries (consumed dependency — query catalog)
 

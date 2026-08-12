@@ -55,7 +55,7 @@ refuse to overwrite a baseline without a reviewer ack.
   Each baseline has a sidecar `.baseline.json` with:
   `{ approved_by, approved_at, pr, baseline_sha }`. Missing sidecar
   => `ERR_BASELINE_UNAPPROVED`.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional rules
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional rules
   like "ignore webkit on the cart page" or "tighten threshold to 0.05
   on brand pages".
 
@@ -72,7 +72,7 @@ WT_TARGETS="${TARGET_URLS}" \
 WT_MASKS="${MASK_SELECTORS}" \
 WT_OUT="${EVIDENCE_DIR}/screenshots" \
   npx --yes playwright test \
-    --config=.wicked-testing/playwright-visual.config.ts \
+    --config=.wicked-qe/playwright-visual.config.ts \
     --reporter=json \
     > "${EVIDENCE_DIR}/playwright-run.json"
 ```
@@ -81,7 +81,7 @@ Your Playwright config must honor `mask_selectors` via the
 `page.screenshot({ mask: [...] })` option:
 
 ```typescript
-// .wicked-testing/playwright-visual.config.ts (excerpt)
+// .wicked-qe/playwright-visual.config.ts (excerpt)
 const masks = (process.env.WT_MASKS ?? "")
   .split(",").filter(Boolean).map(sel => page.locator(sel));
 await page.screenshot({
@@ -155,7 +155,7 @@ the allowed ratio of mismatched pixels to total.
 
 ## 4. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 ```
 evidence/<run_id>/
@@ -281,10 +281,10 @@ VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID=
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

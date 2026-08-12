@@ -4,7 +4,7 @@ description: |
   Bootstrap acceptance scenario for wicked-garden. Validates the core
   invariants that every release must preserve: test suite green, bus event
   registry valid, gate fails closed, sentinels registered.
-  Dogfoods wicked-testing against wicked-garden itself.
+  Dogfoods the qe domain against wicked-garden itself.
 version: "1.1"
 category: cli
 tags: [bootstrap, self-test, dogfood, garden]

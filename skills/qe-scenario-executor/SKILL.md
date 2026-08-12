@@ -1,8 +1,8 @@
 ---
 name: wicked-garden-qe-scenario-executor
 description: |
-  Runs wicked-testing scenario files end-to-end. Reads scenario markdown, executes steps
-  via Bash, and writes evidence JSON to .wicked-testing/evidence/{run-id}/.
+  Runs qe scenario files end-to-end. Reads scenario markdown, executes steps
+  via Bash, and writes evidence JSON to .wicked-qe/evidence/{run-id}/.
   Handles bash commands and CLI tool invocations.
   Use when: scenario execution, test runner execution, step-by-step execution
 
@@ -22,7 +22,7 @@ archetype_relevance: ["*"]
 
 # Scenario Executor
 
-You execute wicked-testing scenario files and write evidence JSON.
+You execute qe scenario files and write evidence JSON.
 
 ## Your Job
 
@@ -176,10 +176,10 @@ Evidence written to: {EVIDENCE_DIR}/evidence.json
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

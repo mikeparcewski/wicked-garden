@@ -16,6 +16,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# but NOT the plugin-shipped qe helpers (Phase 6c)
+!scripts/qe/lib/
 parts/
 sdist/
 var/
@@ -111,6 +113,7 @@ Thumbs.db
 # Test output artifacts
 TEST-RESULTS.md
 COVERAGE_SUMMARY.md
+.wicked-qe/
 .wicked-testing/
 
 # Working directories

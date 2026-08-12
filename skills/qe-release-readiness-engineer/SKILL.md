@@ -44,7 +44,7 @@ fixes or accepted risks), or NO-GO (do not ship; named blockers).
   in the window.
 - **Release window** — defaults to 7 days; configurable to `--window 14d`
   etc. All ledger queries respect this window.
-- **Project name** — from `.wicked-testing/config.json`. The agent scopes
+- **Project name** — from `.wicked-qe/config.json`. The agent scopes
   every ledger query to this project.
 - **Risk register** — the most recent `strategies` row from the ledger
   matching the project; or an explicit `--risk-register <path>`.
@@ -65,7 +65,7 @@ fixes or accepted risks), or NO-GO (do not ship; named blockers).
 WINDOW_DAYS="${WINDOW_DAYS:-7}"
 
 # Recent verdicts summary.
-sqlite3 -json ".wicked-testing/wicked-testing.db" <<EOF > "${EVIDENCE_DIR}/verdicts-window.json"
+sqlite3 -json ".wicked-qe/wicked-qe.db" <<EOF > "${EVIDENCE_DIR}/verdicts-window.json"
 .parameter set :window $WINDOW_DAYS
 SELECT v.verdict, v.created_at, v.reason, v.reviewer,
        s.name AS scenario_name, p.name AS project_name
@@ -79,7 +79,7 @@ ORDER BY v.created_at DESC;
 EOF
 
 # Open quarantine tasks.
-sqlite3 -json ".wicked-testing/wicked-testing.db" <<EOF > "${EVIDENCE_DIR}/open-quarantines.json"
+sqlite3 -json ".wicked-qe/wicked-qe.db" <<EOF > "${EVIDENCE_DIR}/open-quarantines.json"
 SELECT t.id, t.title, t.body, t.updated_at
 FROM tasks t
 WHERE t.status IN ('open', 'in_progress')
@@ -126,7 +126,7 @@ emits the reasoning trace so a reviewer can audit.
 
 ## 4. Evidence output
 
-Write under `.wicked-testing/evidence/<run_id>/`:
+Write under `.wicked-qe/evidence/<run_id>/`:
 
 | File                           | kind       | notes                                                      |
 |--------------------------------|------------|------------------------------------------------------------|
@@ -223,12 +223,12 @@ emitBusEvent("wicked.release.assessed", {
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```
 
 ## wicked-ledger resolution

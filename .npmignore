@@ -29,6 +29,7 @@ node_modules/
 .brain.db-wal
 _meta/
 .something-wicked/
+.wicked-qe/
 .wicked-testing/
 .wicked-vault/
 .codegraph/

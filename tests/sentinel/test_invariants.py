@@ -156,7 +156,7 @@ class EvidenceFreshnessTests(_TempHome):
 
     def test_stale_when_source_newer_than_evidence(self):
         repo = _make_repo(self.base)
-        ev = repo / ".wicked-testing" / "evidence"
+        ev = repo / ".wicked-qe" / "evidence"
         ev.mkdir(parents=True)
         rec = ev / "run.json"
         rec.write_text("{}")
@@ -170,7 +170,7 @@ class EvidenceFreshnessTests(_TempHome):
     def test_fresh_evidence_is_silent(self):
         repo = _make_repo(self.base)
         (repo / "f.txt").write_text("modified\n")
-        ev = repo / ".wicked-testing" / "evidence"
+        ev = repo / ".wicked-testing" / "evidence"  # legacy dirname — proves dual-read
         ev.mkdir(parents=True)
         (ev / "run.json").write_text("{}")  # written after the source change
         self.assertIsNone(inv.check_evidence_freshness(repo))

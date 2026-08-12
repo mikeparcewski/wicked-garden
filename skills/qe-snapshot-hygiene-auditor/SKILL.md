@@ -52,7 +52,7 @@ ranked top-N list so a reviewer can spend 30 minutes, not 30 hours.
 - **Git working tree** — required; `git log -p` drives rubber-stamp
   detection. Refuse if the scenario's `target_dirs` are not inside a
   git repo.
-- **`.wicked-testing/evidence/<run_id>/context.md`** — optional rules
+- **`.wicked-qe/evidence/<run_id>/context.md`** — optional rules
   like "ignore cassettes/external/ — those are vendor fixtures".
 
 ## 2. Detector invocation
@@ -154,7 +154,7 @@ leverage).
 
 ## 4. Evidence output
 
-Under `.wicked-testing/evidence/<run_id>/`:
+Under `.wicked-qe/evidence/<run_id>/`:
 
 | File                              | manifest `kind` | Required |
 |-----------------------------------|-----------------|----------|
@@ -265,10 +265,10 @@ VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-snapshot-hygiene-auditor RU
 
 ## Helper resolution (`{WT_LIB}`)
 
-`{WT_LIB}` is the wicked-testing npm package's `lib/` directory — the helper
-modules stay in that package until the 6c extraction. Resolve it (cross-platform):
+`{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="$(npm root -g 2>/dev/null)/wicked-testing/lib"
-[ -d "$WT_LIB" ] || WT_LIB="$(npm root 2>/dev/null)/wicked-testing/lib"
+WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
 ```

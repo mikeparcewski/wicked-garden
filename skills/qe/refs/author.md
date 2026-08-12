@@ -4,7 +4,7 @@ archetype_relevance: ["build", "specify"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     wicked-testing's `authoring` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `authoring` orchestrator). Loaded on demand
      via Read() from the router's `author` action — not a skill. -->
 
 
@@ -99,7 +99,7 @@ verbatim; fold it into the authoring reply:
 | Log / metric / trace assertion test                  | `wicked-garden-qe-observability-test-engineer` |
 | Data migration forward+rollback test                 | `wicked-garden-qe-data-quality-tester`        |
 
-Scenario files use the format in `SCENARIO-FORMAT.md` (wicked-testing npm package).
+Scenario files use the format in [refs/scenario-format.md](refs/scenario-format.md).
 
 ## Output
 
@@ -120,7 +120,7 @@ bus when present.
 
 ## References
 
-- `docs/INTEGRATION.md` (wicked-testing npm package)
-- `SCENARIO-FORMAT.md` (wicked-testing npm package)
+- [refs/integration.md](refs/integration.md)
+- [refs/scenario-format.md](refs/scenario-format.md)
 - `../../qe-test-automation-engineer/SKILL.md`, `../../qe-acceptance-test-writer/SKILL.md`,
   `../../qe-contract-testing-engineer/SKILL.md`

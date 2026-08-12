@@ -21,7 +21,7 @@ is an *invariant between two observable states* — never a command match:
   invariant                 observable A            observable B
   ------------------------  ----------------------  -------------------------
   done-claim has a verdict  sentinel verdict ledger ref advance / task done
-  evidence is fresh         .wicked-testing ledger  mtime of modified files
+  evidence is fresh         qe evidence ledger      mtime of modified files
   learnings captured        brain memory dir        session activity
   playbooks current         repo-* skill dirs       commits since their mtime
 
@@ -243,7 +243,11 @@ def claim_tick(state_get, state_set, *, final_message: Optional[str],
 # ---------------------------------------------------------------------------
 
 def _newest_evidence_ts(repo: Path) -> Optional[float]:
-    root = repo / ".wicked-testing"
+    # Dual-read (Phase 6c): prefer the current `.wicked-qe` ledger root, fall
+    # back to a legacy `.wicked-testing` root written before the rename.
+    root = repo / ".wicked-qe"
+    if not root.is_dir():
+        root = repo / ".wicked-testing"
     if not root.is_dir():
         return None
     newest = 0.0
@@ -259,7 +263,7 @@ def _newest_evidence_ts(repo: Path) -> Optional[float]:
 
 
 def check_evidence_freshness(repo: Path) -> Optional[Dict[str, Any]]:
-    """Answer-tier (only when .wicked-testing exists). Modified-but-uncommitted /
+    """Answer-tier (only when a qe ledger root exists). Modified-but-uncommitted /
     just-committed files newer than the newest evidence record = stale claim."""
     newest_evidence = _newest_evidence_ts(repo)
     if newest_evidence is None:
@@ -283,7 +287,7 @@ def check_evidence_freshness(repo: Path) -> Optional[Dict[str, Any]]:
         "tier": "answer",
         "invariant": "evidence-freshness",
         "evidence": (f"source files changed {age_min:.0f}m after the newest "
-                     f".wicked-testing evidence — the recorded runs predate this work"),
+                     f"qe ledger evidence — the recorded runs predate this work"),
         "action": "Re-run the relevant scenario (wicked-garden-qe execute) or state why the evidence still holds.",
     }
 
