@@ -8,7 +8,7 @@ L2-014: format_plan output shows the complete affected file set before any patch
 
 Uses a synthetic patch-schema SQLite DB built in memory — no wicked-brain, no peers.
 The DB is a minimal subset of the patch-schema (symbols + refs tables only); it does
-not include every table or index that codegraph_db.build_patch_db() produces (e.g. no
+not include every table or index that estate_db.build_patch_db() produces (e.g. no
 metadata table), but includes all columns PropagationEngine queries.
 """
 

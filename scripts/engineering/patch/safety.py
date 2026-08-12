@@ -175,15 +175,17 @@ class FreshnessChecker:
 
             conn.close()
 
-            # Calculate age
-            age = datetime.now() - index_time
+            # Calculate age. indexed_at is written tz-aware (UTC) by estate_db.py;
+            # naive-vs-aware subtraction raises, so anchor "now" in the same zone.
+            now = datetime.now(index_time.tzinfo) if index_time.tzinfo else datetime.now()
+            age = now - index_time
             age_hours = age.total_seconds() / 3600
 
             if age_hours > max_age_hours:
                 return SafetyCheckResult(
                     passed=False,
                     message=f"Symbol graph is stale ({age_hours:.1f}h old). "
-                            f"Invoke the wicked-garden-search skill's index action or use --force",
+                            f"Re-run `wicked-estate index` and estate_db.py, or use --force",
                     details={
                         "index_time": index_time.isoformat(),
                         "age_hours": age_hours,

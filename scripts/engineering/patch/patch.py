@@ -3,15 +3,17 @@
 wicked-patch CLI - Language-agnostic code generation and change propagation.
 
 Generates patches for code changes and propagates them across all affected files.
-Symbol resolution uses wicked-brain's symbols/dependents API. Patch generation
-(add-field, rename, remove) additionally requires --db for symbol-level graph traversal.
+The --db symbol graph is translated from a wicked-estate store by estate_db.py
+(ADR 0005). Patch generation (add-field, rename, remove) requires --db for
+symbol-level graph traversal.
 
 Usage:
-    # Plan what would be affected (brain-backed, no --db needed)
-    patch plan SYMBOL_ID --change add_field
-
-    # Plan with full symbol graph (requires local DB)
+    # Plan with the full symbol graph (recommended; --db from estate_db.py)
     patch plan SYMBOL_ID --change add_field --db symbols.db
+
+    # Plan without --db (legacy fallback: only works while a wicked-brain
+    # server is running; otherwise pass --db)
+    patch plan SYMBOL_ID --change add_field
 
     # Add a field to an entity/class
     patch add-field SYMBOL_ID --name email --type String --column EMAIL --db symbols.db
@@ -718,7 +720,7 @@ Examples:
 """,
     )
 
-    parser.add_argument("--db", help="Path to symbol database (required until wicked-brain#23 lands)")
+    parser.add_argument("--db", help="Path to symbol database (build one from a wicked-estate store with estate_db.py)")
     parser.add_argument("--version", action="version", version="wicked-patch 1.0.0")
 
     subparsers = parser.add_subparsers(dest="command", help="Command")
