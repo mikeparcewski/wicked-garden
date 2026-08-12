@@ -280,10 +280,17 @@ def _handle_write_guard(tool_input: dict) -> str:
     is_auto_memory = _AUTO_MEMORY_MARKER in file_path and "/memory/" in file_path
 
     if is_memory_md or is_auto_memory:
+        # S4: name the memory surface for the routed context backend (brain
+        # while the bridge is alive, estate memory.capture afterwards).
+        try:
+            from _context_backend import memory_directive_target
+            _mem_target = memory_directive_target()
+        except Exception:
+            _mem_target = "wicked-brain:memory"
         return _deny(
             "Do not write to MEMORY.md or the auto memory directory. "
             "This project uses wicked-garden memory for persistence. "
-            "Use wicked-brain:memory to save decisions, patterns, and gotchas instead."
+            f"Use {_mem_target} to save decisions, patterns, and gotchas instead."
         )
 
     # Issue #442: challenge-artifacts gate for build-phase writes

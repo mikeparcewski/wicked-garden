@@ -307,6 +307,17 @@ def run_heavy_cadence(trigger: str, session_id: Optional[str] = None,
 # Brain APIs called identically; what changed is only WHEN they fire.
 # ---------------------------------------------------------------------------
 
+def _context_route() -> str:
+    """Resolve the context-backend route (S4). Fail-open to "brain" so the
+    legacy maintenance path keeps running when the router is unavailable."""
+    try:
+        from _context_backend import route
+
+        return route()
+    except Exception:
+        return "brain"
+
+
 def _brain_api_call(plugin_root: Path, action: str, params: dict, timeout: int = 5):
     """Lightweight brain HTTP wrapper — same shape as stop.py::_brain_api but
     importable without pulling in stop.py's hook-specific dependencies.
@@ -330,9 +341,15 @@ def _brain_api_call(plugin_root: Path, action: str, params: dict, timeout: int =
 
 
 def _run_memory_decay(plugin_root: Path) -> List[str]:
-    """Run decay maintenance via brain lint API. Idempotent."""
+    """Run decay maintenance via brain lint API. Idempotent.
+
+    S4: brain-route only — wicked-estate owns its memory lifecycle in-store,
+    so under estate routing this is a no-op. Deleted with the brain path at S7.
+    """
     messages: List[str] = []
     try:
+        if _context_route() != "brain":
+            return messages  # estate manages decay/reinforcement internally
         result = _brain_api_call(plugin_root, "lint", {}, timeout=5)
         if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
             messages.append(
@@ -348,9 +365,14 @@ def _run_memory_consolidation(plugin_root: Path) -> List[str]:
 
     Heaviest call in the cadence (10s timeout on compile). Idempotent —
     same chunks won't re-synthesize the same wiki article.
+
+    S4: brain-route only — estate consolidation is in-store (memory.reflect
+    owns that surface); no-op under estate routing. Deleted at S7.
     """
     messages: List[str] = []
     try:
+        if _context_route() != "brain":
+            return messages  # estate consolidates in-store
         compile_result = _brain_api_call(plugin_root, "compile", {}, timeout=10)
         lint_result = _brain_api_call(plugin_root, "lint", {}, timeout=5)
         compiled = compile_result.get("compiled", 0) if compile_result else 0

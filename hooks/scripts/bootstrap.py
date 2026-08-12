@@ -397,8 +397,16 @@ def _brain_api(action, params=None, timeout=3):
 
 
 def _run_memory_decay():
-    """Run memory decay maintenance via brain lint. Returns a summary string or None."""
+    """Run memory decay maintenance via brain lint. Returns a summary string or None.
+
+    S4: brain-era maintenance only — wicked-estate owns its memory lifecycle
+    in-store (tier/reinforcement in the memext sidecar), so under estate
+    routing this is a no-op. The brain path is deleted at S7.
+    """
     try:
+        from _context_backend import route
+        if route() != "brain":
+            return None  # estate manages decay/reinforcement internally
         result = _brain_api("lint", {}, timeout=5)
         if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
             return f"Memory: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
@@ -408,65 +416,68 @@ def _run_memory_decay():
 
 
 def _check_search_staleness():
-    """Check brain index health. Returns a briefing note or None.
+    """Check the routed context backend's index health. Returns a note or None.
 
-    Brain is the unified knowledge layer — no legacy SQLite fallback.
-    Fails open — any exception returns None so the session always continues.
+    S4: routed via _context_backend — estate coverage totals (cached per
+    session/TTL) under estate/auto, the legacy brain stats + auto-start under
+    WICKED_CONTEXT_BACKEND=brain. Fails open — any exception returns None so
+    the session always continues.
     """
-    stats = _brain_api("stats", {}, timeout=2)
-    if stats is None:
-        # Deterministic auto-start — server lifecycle is a hook job, not a
-        # model directive. ensure_server is lock-safe and fails open.
-        try:
-            from _brain_port import ensure_server
-            if ensure_server():
-                stats = _brain_api("stats", {}, timeout=2)
-        except Exception:
-            pass
-    if stats is None:
-        return (
-            "Brain server unreachable and auto-start failed — run "
-            "`wicked-brain-call --start` to see the cause. Brain skills "
-            "auto-start the server on every call; do NOT skip brain usage."
-        )
-    if stats.get("total", 0) == 0:
-        return "Brain index is empty — run `wicked-brain:ingest` to index your codebase"
-    return None  # Brain is healthy
+    try:
+        from _context_backend import staleness_note
+        return staleness_note()
+    except Exception:
+        return None
 
 
 def _check_onboarding_status():
     """Check if the current project has been onboarded (search index + memories).
 
     Returns (has_index, has_memories, directive_or_none).
-    Fails open when the brain is unreachable: transient API errors must not be
-    interpreted as "this project was never onboarded". Per-install setup state
-    is enforced separately by _check_setup_gate in prompt_submit.py — that
-    flag is user-level (~/.something-wicked/wicked-garden/config.json), not
-    per-project, so it cannot answer the per-project onboarding question here.
+    Fails open when the context backend is unreachable: transient errors must
+    not be interpreted as "this project was never onboarded". Per-install
+    setup state is enforced separately by _check_setup_gate in
+    prompt_submit.py — that flag is user-level
+    (~/.something-wicked/wicked-garden/config.json), not per-project, so it
+    cannot answer the per-project onboarding question here.
+
+    S4: the index/memory signals come from the routed backend — estate
+    coverage totals (knowledge_total/memory_total, cached per session/TTL)
+    under estate/auto, the legacy brain stats + search probe under
+    WICKED_CONTEXT_BACKEND=brain.
     """
     project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
-    cwd = str(Path.cwd())
 
     has_index = False
     has_memories = False  # default: assume not onboarded (fail-closed for new projects)
 
-    # Check search index — brain is the knowledge layer
-    stats = _brain_api("stats", {}, timeout=2)
-    brain_reachable = stats is not None
+    # Check the knowledge layer through the routed backend
+    stats = None
+    try:
+        from _context_backend import stats as _ctx_stats
+        stats = _ctx_stats()
+    except Exception:
+        stats = None
+    backend_reachable = stats is not None
     if stats and stats.get("total", 0) > 0:
         has_index = True
 
-    # If brain is unreachable, we cannot determine onboarding state — fail open.
-    # Brain unavailability is surfaced separately by _check_brain_dependency.
-    if not brain_reachable:
+    # If the backend is unreachable, we cannot determine onboarding state —
+    # fail open. Unavailability is surfaced separately by the dependency
+    # check (7d) in main().
+    if not backend_reachable:
         return False, True, None
 
-    # Check for any stored memories (broad: any brain result, not just /mem- paths).
-    # If brain has an index with content (has_index=True), that alone is sufficient
-    # evidence that the project has been set up — skip the memory search.
+    # Check for any stored memories. If the backend has indexed content
+    # (has_index=True), that alone is sufficient evidence that the project
+    # has been set up — skip the memory probe.
     if has_index:
-        has_memories = True  # indexed brain content ≡ project was onboarded
+        has_memories = True  # indexed content ≡ project was onboarded
+    elif stats.get("backend") == "estate":
+        # Estate answers the memory question directly from coverage totals.
+        has_memories = stats.get("memory_total", 0) > 0
     else:
+        # Brain path: broad memory search (any result counts, not just /mem- paths).
         result = _brain_api("search", {"query": "project memory onboarding", "limit": 5}, timeout=3)
         if result is None:
             # Brain went unreachable between calls — fail open.
@@ -1485,20 +1496,37 @@ def main():
         if registry_note:
             mode_notes.append(registry_note)
 
-        # 7d. Check wicked-brain dependency (opt-in memory/context layer)
-        brain_available, brain_note = _check_brain_dependency()
+        # 7d. Check the context-backend dependency (memory/context layer).
+        #     S4: routed — wicked-estate binary + stores under estate/auto,
+        #     the legacy wicked-brain plugin checks under
+        #     WICKED_CONTEXT_BACKEND=brain. Never blocks the session.
+        try:
+            from _context_backend import route as _ctx_route
+            _ctx_backend = _ctx_route()
+        except Exception:
+            _ctx_backend = "brain"  # router missing → legacy behavior
+        if _ctx_backend == "brain":
+            brain_available, brain_note = _check_brain_dependency()
+        else:
+            try:
+                from _context_backend import estate_dependency
+                brain_available, brain_note = estate_dependency()
+            except Exception:
+                brain_available, brain_note = None, None
         if state is not None and brain_available is not None:
             state.update(brain_available=brain_available)
         if brain_note:
-            # brain is an opt-in toolkit layer, not a hard requirement — surface
-            # the install pointer informationally, never block the session.
+            # the context layer is not a hard requirement — surface the
+            # install pointer informationally, never block the session.
             mode_notes.append(brain_note)
 
-        # 7e. Brain auto-init and auto-ingest
-        #     If brain is installed but has no content for this project, emit
-        #     a directive so the agent auto-runs init + ingest on first use.
-        #     If the server isn't reachable, emit a start directive instead.
-        if brain_available:
+        # 7e. Empty-store directive.
+        #     Brain route: if brain is installed but has no content, emit the
+        #     legacy init→ingest pipeline directive (start directive when the
+        #     server isn't reachable). Estate route: an empty store is already
+        #     surfaced by _check_search_staleness (staleness_note), so only
+        #     the brain path emits here.
+        if brain_available and _ctx_backend == "brain":
             stats = _brain_api("stats", {}, timeout=2)
             if stats is None:
                 # The dependency check above already attempted a deterministic

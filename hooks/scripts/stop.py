@@ -392,9 +392,16 @@ def _brain_api(action, params=None, timeout=3):
 
 
 def _run_memory_decay() -> list:
-    """Run decay maintenance via brain lint API. Return list of result message strings."""
+    """Run decay maintenance via brain lint API. Return list of result message strings.
+
+    S4: brain-route only — wicked-estate owns its memory lifecycle in-store,
+    so under estate routing this is a no-op. Deleted with the brain path at S7.
+    """
     messages = []
     try:
+        from _context_backend import route
+        if route() != "brain":
+            return messages  # estate manages decay/reinforcement internally
         # Session-end maintenance writes — auto-start the server so a stopped
         # server doesn't silently skip decay (fail-open, lock-safe, one
         # spawn attempt per process).
@@ -417,9 +424,14 @@ def _run_working_consolidation() -> list:
     """Consolidate working-tier memories via brain compile + lint.
 
     Returns a list of message strings. Fails open — never blocks session end.
+    S4: brain-route only — estate consolidation is in-store (memory.reflect
+    owns that surface); no-op under estate routing. Deleted at S7.
     """
     messages = []
     try:
+        from _context_backend import route
+        if route() != "brain":
+            return messages  # estate consolidates in-store
         try:
             from _brain_port import ensure_server
             ensure_server(wait_secs=2.0)

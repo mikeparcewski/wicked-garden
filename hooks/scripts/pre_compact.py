@@ -5,8 +5,9 @@ PreCompact hook — wicked-garden WIP snapshot before context compression.
 v6: the v5 ticket-rail preservation path (HistoryCondenser + PressureTracker)
 was removed with smaht/v2 in #428. The remaining jobs are:
 1. Stamp SessionState.last_compact_ts (dedup guard)
-2. Save a lightweight WIP memory to wicked-brain using SessionState + native
-   in-progress task subjects as the input
+2. Save a lightweight WIP memory to the routed context backend (S4: estate
+   memory.capture by default, legacy brain under WICKED_CONTEXT_BACKEND=brain)
+   using SessionState + native in-progress task subjects as the input
 3. Prompt Claude to store any additional memories before context is lost
 
 Always fails open — any unhandled exception returns {"continue": true}.
@@ -24,13 +25,6 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
-def _resolve_brain_port():
-    try:
-        from _brain_port import resolve_port
-        return resolve_port()
-    except Exception:
-        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
-
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
@@ -42,71 +36,6 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
         log(domain, level, event, ok=ok, ms=ms, detail=detail)
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Brain API helpers
-# ---------------------------------------------------------------------------
-
-def _brain_api(action, params=None, timeout=3):
-    """Call brain API. Returns parsed JSON or None."""
-    try:
-        import urllib.request
-        port = _resolve_brain_port()
-        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
-
-
-def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="episodic", importance=5):
-    """Write a memory chunk to brain. Returns chunk_id or None."""
-    try:
-        mem_id = str(_uuid_mod.uuid4())
-        chunk_id = f"memories/{tier}/mem-{mem_id}"
-        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
-        chunk_path.parent.mkdir(parents=True, exist_ok=True)
-
-        tags_list = tags or []
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-        lines = ["---"]
-        lines.append("source: wicked-brain:memory")
-        lines.append(f"memory_type: {mem_type}")
-        lines.append(f"memory_tier: {tier}")
-        lines.append(f"title: {title}")
-        lines.append(f"importance: {importance}")
-        lines.append("contains:")
-        for t in tags_list:
-            lines.append(f"  - {t}")
-        lines.append(f'indexed_at: "{now}"')
-        lines.append("---")
-        lines.append("")
-        lines.append(f"# {title}")
-        lines.append("")
-        lines.append(content)
-
-        chunk_path.write_text("\n".join(lines), encoding="utf-8")
-
-        # Index in brain FTS5 — auto-start the server first so a stopped
-        # server doesn't silently drop the index entry (fail-open).
-        try:
-            from _brain_port import ensure_server
-            ensure_server(wait_secs=2.0)
-        except Exception:
-            pass
-        search_text = f"{title} {content} {' '.join(tags_list)}"
-        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
-        return chunk_id
-    except Exception:
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -156,11 +85,12 @@ def _build_wip_markdown(session_state_dict, in_progress):
 
 
 def _save_wip_state(session_id, project):
-    """Save a lightweight WIP memory to wicked-brain.
+    """Save a lightweight WIP memory to the routed context backend.
 
     v6: no HistoryCondenser ticket rail. Input is SessionState + native
     in-progress task subjects. The richer v5 snapshot (decisions, file scope,
-    open questions) is gone.
+    open questions) is gone. S4: the write routes through
+    _context_backend.capture_memory (estate primary).
     """
     try:
         from _session import SessionState
@@ -190,13 +120,14 @@ def _save_wip_state(session_id, project):
     title = f"WIP: {active_project or 'Session work'} — pre-compaction snapshot"
 
     try:
-        chunk_id = _write_brain_memory(
+        # S4: routed capture — estate memory.capture by default, the legacy
+        # brain file+index path under WICKED_CONTEXT_BACKEND=brain.
+        from _context_backend import capture_memory
+        chunk_id = capture_memory(
             title=title,
             content=content,
             tier="working",
             tags=["wip", "pre-compact", "auto-saved"],
-            mem_type="working",
-            importance=5,
         )
         if chunk_id:
             _log("context", "verbose", "pre_compact.wip_saved", ok=True,
@@ -257,13 +188,22 @@ def main():
         except Exception:
             pass  # fail open
 
+    # S4: name the memory surface for the routed backend (brain while the
+    # bridge is alive; estate memory.capture after retirement). Fail-open to
+    # the legacy wording.
+    try:
+        from _context_backend import memory_directive_target
+        _mem_target = memory_directive_target()
+    except Exception:
+        _mem_target = "wicked-brain:memory"
+
     _log("context", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
     print(json.dumps({
         "continue": True,
         "systemMessage": (
             "[Memory] Context compression imminent. WIP state has been auto-saved. "
             "After compaction, your WIP will be automatically restored on the next prompt. "
-            "Store any additional decisions or patterns NOW with wicked-brain:memory."
+            f"Store any additional decisions or patterns NOW with {_mem_target}."
         ),
     }))
 

@@ -656,18 +656,31 @@ def context(
     return call("ContextBundle", args, timeout=timeout)
 
 
-def recall(query: str, scope: str = "", token_budget: int = 2000, timeout: float = 8.0) -> list:
+def recall(
+    query: str,
+    scope: str = "",
+    token_budget: int = 2000,
+    timeout: float = 8.0,
+    scope_prefix: Optional[str] = None,
+) -> list:
     """Memory recall → estate `memory.recall`. Returns the `items` list.
+
+    ``scope_prefix`` (estate #98): when not None it is sent on the wire and
+    REPLACES the ancestor-visible ``scope`` filter with subtree matching —
+    ``""`` means the root subtree, i.e. every memory including migrated
+    leaf scopes like ``brain:wicked-garden/doc:<id>``. None omits the param
+    (inheritance behavior, and the only shape pre-#98 binaries understand).
+    An older binary that rejects the param surfaces as a tool error → [] —
+    the same fail-open degrade as any other recall failure.
 
     Requires the memory domain store (WICKED_MEMORY_DB / $WICKED_HOME/memory.db)
     to be present; when it is not, the tool returns an error and this yields [].
     Fail-open.
     """
-    payload = call(
-        "memory.recall",
-        {"query": query, "scope": scope, "token_budget": token_budget},
-        timeout=timeout,
-    )
+    arguments: dict = {"query": query, "scope": scope, "token_budget": token_budget}
+    if scope_prefix is not None:
+        arguments["scope_prefix"] = scope_prefix
+    payload = call("memory.recall", arguments, timeout=timeout)
     if isinstance(payload, dict):
         items = payload.get("items")
         return items if isinstance(items, list) else []
@@ -760,7 +773,8 @@ def main(argv: list) -> int:
                       budget=int(args.get("budget", 8000))) or {})
     elif action == "recall":
         q = args.get("query") or args.get("_", "")
-        _emit({"items": recall(q, args.get("scope", ""), int(args.get("token_budget", 2000)))})
+        _emit({"items": recall(q, args.get("scope", ""), int(args.get("token_budget", 2000)),
+                               scope_prefix=args.get("scope_prefix"))})
     elif action == "knowledge-recall":
         q = args.get("query") or args.get("_", "")
         _emit(knowledge_recall(q, int(args.get("token_budget", 2000))) or {})

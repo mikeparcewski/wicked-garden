@@ -69,7 +69,7 @@ def main() -> None:
         messages = []
 
     # Claim sentinel — info-tier session-close lines (never blocking): a
-    # significant session that captured zero brain memories, or repo playbooks
+    # significant session that captured zero memory-layer memories, or repo playbooks
     # (wicked-understanding) that have drifted well behind HEAD. Observed state
     # only; each check is fail-open and silent when its layer is absent.
     try:

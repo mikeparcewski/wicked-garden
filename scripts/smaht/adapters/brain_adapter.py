@@ -1,20 +1,18 @@
 """
-Brain adapter for wicked-smaht context assembly.
+Knowledge-layer adapter for wicked-smaht context assembly (S4: brain→estate).
 
-Queries the wicked-brain FTS5 index for code and document context
-relevant to the current prompt. Returns ContextItems tagged with
-source="brain" so the slow path briefing formatter labels them correctly.
+Queries the routed context backend (wicked-estate recall fusion by default;
+the legacy wicked-brain FTS5 index for symbolish queries while the bridge is
+alive — see scripts/_context_backend.py) for code and document context
+relevant to the current prompt. Returns ContextItems whose ``source`` names
+the answering backend ("estate" / "brain") and whose metadata carries the
+store-level source attribution (estate #96) and memory scope.
 
-wicked-brain is a required dependency — context assembly is degraded without it.
-When brain is unreachable, this adapter logs a warning to stderr and returns empty.
+The knowledge layer degrades gracefully: when no backend is reachable, this
+adapter logs a warning to stderr and returns empty — never raises.
 """
 
-import json
-import os
 import sys
-import urllib.error
-import urllib.request
-from pathlib import Path
 from typing import List
 
 from . import ContextItem, run_in_thread
@@ -38,7 +36,7 @@ _STOP_WORDS = frozenset({
 
 
 def _extract_keywords(prompt: str, limit: int = 3) -> str:
-    """Extract up to `limit` keywords for FTS5 AND query.
+    """Extract up to `limit` keywords for the backend query.
 
     Position-order preserves the prompt's intent; the first non-stop words
     are almost always the topic. Callers pass limit=2 for retry fallback.
@@ -54,55 +52,24 @@ def _extract_keywords(prompt: str, limit: int = 3) -> str:
     return " ".join(unique[:limit]) if unique else ""
 
 
-def _query_brain(prompt: str) -> list:
-    """Query brain FTS5 index with automatic recall fallback.
+def _query_backend(prompt: str) -> list:
+    """Query the routed context backend with extracted keywords.
 
-    FTS5 uses AND — more terms = fewer results. Try 3 terms first (higher
-    precision); if < 2 results, try two 2-term combinations and pick the
-    one with more results:
-      - first + third (drop middle — often the most generic term)
-      - first + second (standard narrowing)
+    Routing, the estate two-call recall fusion, and the brain-side FTS5
+    3-term→2-term retry all live in _context_backend.search(). Returns
+    normalized result dicts, or [] when no backend answers (fail-open).
     """
-    keywords = _extract_keywords(prompt, limit=3).split()
+    keywords = _extract_keywords(prompt, limit=3)
     if not keywords:
         return []
 
-    query = " ".join(keywords)
-
     try:
-        from _brain_port import resolve_port as _resolve_port
-        port = _resolve_port()
+        from _context_backend import search as _ctx_search
 
-        def _search(q: str) -> list:
-            payload = json.dumps({
-                "action": "search",
-                "params": {"query": q, "limit": 10},
-            }).encode("utf-8")
-            req = urllib.request.Request(
-                f"http://localhost:{port}/api",
-                data=payload,
-                headers={"Content-Type": "application/json"},
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=3) as resp:
-                return json.loads(resp.read().decode("utf-8")).get("results", [])
-
-        results = _search(query)
-        if len(results) < 2 and len(keywords) >= 3:
-            # Try dropping the middle keyword (often the least specific)
-            alt_a = f"{keywords[0]} {keywords[2]}"  # first + third
-            alt_b = f"{keywords[0]} {keywords[1]}"  # first + second
-            ra = _search(alt_a)
-            rb = _search(alt_b)
-            # Prefer whichever returns more results (wider recall)
-            results = ra if len(ra) >= len(rb) else rb
-        elif len(results) < 2 and len(keywords) == 2:
-            # Already at 2 terms; nothing further to try
-            pass  # intentional: no-op
-        return results
+        return _ctx_search(keywords, limit=10)
     except Exception as _e:
         print(
-            f"smaht: brain adapter unreachable (port {port})"
+            "smaht: context backend unreachable"
             f" — context assembly degraded: {type(_e).__name__}",
             file=sys.stderr,
         )
@@ -147,9 +114,10 @@ def _readable_title(source_file: str) -> str:
 def _clean_snippet(raw: str) -> str:
     """Strip YAML frontmatter lines and FTS highlight tags from snippet.
 
-    FTS5 snippets contain frontmatter when the brain server re-indexes full
-    chunk files. Strip aggressively: snake_case keys, floats, timestamps,
-    list tags, and separator markers.
+    Both backends can surface frontmatter (the brain server re-indexes full
+    chunk files; estate's migrated chunks kept those bodies). Strip
+    aggressively: snake_case keys, floats, timestamps, list tags, and
+    separator markers.
     """
     import re as _re
 
@@ -192,13 +160,28 @@ def _clean_snippet(raw: str) -> str:
     return result[:160] if result else ""
 
 
+def _source_file_of(item: dict) -> str:
+    """Derive the originating source file from a normalized backend item.
+
+    Estate items carry a ``source`` attribution URI like
+    ``wicked-brain://wicked-garden/chunks/extracted/<slug>/chunk-001.md``;
+    brain items carry ``wicked-brain://<chunk path>``. Memories have no
+    source file — group them by their own id so each stays distinct.
+    """
+    if item.get("kind") == "memory":
+        return item.get("id", "") or "memory"
+    ref = item.get("source", "") or item.get("id", "")
+    if "chunks/extracted/" in ref:
+        return ref.split("chunks/extracted/", 1)[1].split("/chunk-")[0]
+    return ref
+
+
 async def query(prompt: str) -> List[ContextItem]:
-    """Query brain for code and document context relevant to the prompt."""
-    results = await run_in_thread(_query_brain, prompt)
+    """Query the knowledge layer for context relevant to the prompt."""
+    results = await run_in_thread(_query_backend, prompt)
     if not results:
         return []
 
-    import re
     # Score against extracted keywords only (not full prompt) so incidental
     # words in the prompt (e.g. "crew" in "without going through the crew
     # workflow") don't boost unrelated documents that happen to mention them.
@@ -208,18 +191,10 @@ async def query(prompt: str) -> List[ContextItem]:
     best_by_source: dict[str, dict] = {}
 
     for r in results:
-        path = r.get("path", "") or r.get("id", "")
-        snippet = r.get("snippet", "")
-
-        # Determine source file from chunk path
-        source_file = ""
-        if "chunks/extracted/" in path:
-            part = path.replace("chunks/extracted/", "").split("/chunk-")[0]
-            source_file = part
-        else:
-            source_file = path
-
-        clean_snippet = _clean_snippet(snippet)
+        if not isinstance(r, dict):
+            continue
+        source_file = _source_file_of(r)
+        clean_snippet = _clean_snippet(r.get("snippet", ""))
         kw_score = _keyword_score(score_against, f"{source_file} {clean_snippet}")
         # Items with no readable snippet get a relevance floor of 0.2 so they
         # rank below items that survived cleaning and only appear if budget allows.
@@ -230,7 +205,7 @@ async def query(prompt: str) -> List[ContextItem]:
         existing = best_by_source.get(source_file)
         if existing is None or relevance > existing["relevance"]:
             best_by_source[source_file] = {
-                "path": path,
+                "item": r,
                 "source_file": source_file,
                 "snippet": clean_snippet,
                 "relevance": relevance,
@@ -239,15 +214,26 @@ async def query(prompt: str) -> List[ContextItem]:
     # Second pass: convert to ContextItems
     items: List[ContextItem] = []
     for source_file, entry in best_by_source.items():
-        title = _readable_title(source_file)
+        r = entry["item"]
+        if r.get("kind") == "memory":
+            # A memory's first content line is its natural title.
+            title = r.get("title") or "memory"
+        else:
+            title = _readable_title(source_file)
         items.append(ContextItem(
-            id=entry["path"],
-            source="brain",
+            id=r.get("id", ""),
+            source=r.get("backend", "estate"),
             title=title,
             summary=entry["snippet"],
             excerpt=entry["snippet"][:100],
             relevance=entry["relevance"],
-            metadata={"brain_path": entry["path"]},
+            metadata={
+                # Store-level attribution (estate #96) + scope for memories.
+                "source": r.get("source", ""),
+                "scope": r.get("scope", ""),
+                "type": r.get("kind", ""),
+                "backend": r.get("backend", ""),
+            },
         ))
 
     items.sort(key=lambda x: x.relevance, reverse=True)

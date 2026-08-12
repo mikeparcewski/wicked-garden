@@ -40,14 +40,6 @@ _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve(
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 sys.path.insert(0, str(_SCRIPTS_DIR))
 
-def _resolve_brain_port():
-    try:
-        from _brain_port import resolve_port
-        return resolve_port()
-    except Exception:
-        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
-
-
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
@@ -65,76 +57,24 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
 # Session goal capture (turns 1-2)
 # ---------------------------------------------------------------------------
 
-def _brain_api(action, params=None, timeout=3):
-    """Call brain API. Returns parsed JSON or None."""
-    try:
-        import urllib.request
-        port = _resolve_brain_port()
-        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
-
-
-def _write_brain_memory(title, content, tier="episodic", tags=None, mem_type="episodic", importance=5):
-    """Write a memory chunk to brain. Returns chunk_id or None."""
-    try:
-        import uuid
-        mem_id = str(uuid.uuid4())
-        chunk_id = f"memories/{tier}/mem-{mem_id}"
-        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
-        chunk_path.parent.mkdir(parents=True, exist_ok=True)
-
-        tags_list = tags or []
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-
-        lines = ["---"]
-        lines.append("source: wicked-brain:memory")
-        lines.append(f"memory_type: {mem_type}")
-        lines.append(f"memory_tier: {tier}")
-        lines.append(f"title: {title}")
-        lines.append(f"importance: {importance}")
-        lines.append("contains:")
-        for t in tags_list:
-            lines.append(f"  - {t}")
-        lines.append(f'indexed_at: "{now}"')
-        lines.append("---")
-        lines.append("")
-        lines.append(f"# {title}")
-        lines.append("")
-        lines.append(content)
-
-        chunk_path.write_text("\n".join(lines), encoding="utf-8")
-
-        # Index in brain FTS5
-        search_text = f"{title} {content} {' '.join(tags_list)}"
-        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
-        return chunk_id
-    except Exception:
-        return None
-
-
 def _capture_session_goal(prompt: str, turn_count: int, project: str, session_id: str):
-    """On turns 1-2, save the session goal as WORKING memory via brain API."""
+    """On turns 1-2, save the session goal as WORKING memory.
+
+    S4: routed through _context_backend.capture_memory — estate
+    ``memory.capture`` by default, the legacy brain file+index path under
+    WICKED_CONTEXT_BACKEND=brain. Fail-open, never blocks the prompt.
+    """
     if turn_count > 2:
         return
     if len(prompt.strip()) < 20:
         return
     try:
-        _write_brain_memory(
+        from _context_backend import capture_memory
+        capture_memory(
             title=f"Session goal (turn {turn_count})",
             content=prompt[:500],
             tier="working",
             tags=["session-goal", "auto-captured"],
-            mem_type="working",
-            importance=5,
         )
     except Exception:
         pass
@@ -588,51 +528,28 @@ def _check_setup_gate(prompt: str) -> str | None:
     return None
 
 
-def _check_brain_gate(prompt: str) -> None:
-    """Warn if wicked-brain server is not reachable.
+def _check_context_gate(prompt: str) -> None:
+    """Warn if the routed context backend is not reachable.
 
-    Probes the brain API with a 1s timeout. If unreachable, prints a directive
-    to stderr — this feeds back to the model via the hook error channel but does
-    NOT hard-block (sys.exit(2)) since brain is a server process that may be
-    starting up or temporarily unavailable.
+    S4: probes the backend selected by WICKED_CONTEXT_BACKEND (estate primary
+    in ``auto``; brain under ``brain``, including its deterministic
+    auto-start). If unreachable, prints a note to stderr — this feeds back to
+    the model via the hook error channel but does NOT hard-block (sys.exit(2)).
+    The estate probe is cached per session/TTL so this stays cheap per prompt.
 
-    Exempted on setup/help commands (brain not needed before setup completes).
+    Exempted on setup/help commands (context layer not needed before setup).
     """
     stripped = prompt.strip().lower()
     if stripped.startswith(_GUARD_PASS_PREFIXES):
         return
 
     try:
-        port = _resolve_brain_port()
-        payload = json.dumps({"action": "stats", "params": {}}).encode("utf-8")
-        import urllib.request
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=1) as _resp:
-            pass  # Brain is running — no action needed
+        from _context_backend import gate_note
+        note = gate_note()
+        if note:
+            print(note, file=sys.stderr)
     except Exception:
-        # Deterministic auto-start before nagging: a stopped server is a
-        # hook-fixable condition, not something to delegate to the model.
-        started = False
-        try:
-            from _brain_port import ensure_server
-            started = ensure_server(wait_secs=2.0)
-        except Exception:
-            pass
-        if not started:
-            print(
-                "[wicked-brain] Brain server is not running on port "
-                f"{_resolve_brain_port()} and auto-start failed.\n"
-                "wicked-garden requires wicked-brain for context assembly and memory.\n"
-                "Brain skills auto-start the server on every call — do NOT skip "
-                "brain usage. Diagnose with: wicked-brain-call --start. "
-                "If not installed: claude plugin install wicked-brain --scope project",
-                file=sys.stderr,
-            )
+        pass  # fail open — a broken router must never block a prompt
 
 
 # v11: _assemble_current_chain, _consume_facilitator_reeval, and
@@ -805,14 +722,24 @@ def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=
     if intent == "simple-edit":
         return label  # empty when auto-detected
 
-    # synthesis directive shared by feature / research / rigor
+    # synthesis directive shared by feature / research / rigor.
+    # S4: grounding steps are backend-aware — brain wording while the bridge
+    # is installed and answering, estate wording otherwise (fail-open to the
+    # legacy brain wording if the router cannot be imported).
+    try:
+        from _context_backend import grounding_directive_lines
+        grounding = grounding_directive_lines()
+    except Exception:
+        grounding = [
+            "1. Call wicked-brain:query for conceptual grounding ('how does X work', "
+            "'what are the constraints around Y').",
+            "2. Call wicked-brain:search for specific symbols, files, or past decisions. "
+            "Drill into wiki hits with wicked-brain:read depth=2.",
+        ]
     directive_lines = [
         f"[Context Assembly — intent={intent}] Deep context needed before answering.",
         "BEFORE drafting a response:",
-        "1. Call wicked-brain:query for conceptual grounding ('how does X work', "
-        "'what are the constraints around Y').",
-        "2. Call wicked-brain:search for specific symbols, files, or past decisions. "
-        "Drill into wiki hits with wicked-brain:read depth=2.",
+        *grounding,
     ]
     if intent == "rigor":
         directive_lines.append(
@@ -912,10 +839,11 @@ def main():
     # MUST run before HOT continuations so setup can never be bypassed.
     _check_setup_gate(prompt)
 
-    # Brain gate — soft directive if brain server is not reachable.
-    # Runs after setup gate (brain irrelevant before setup completes).
-    # Does NOT hard-block — brain server may be starting up; user can start it.
-    _check_brain_gate(prompt)
+    # Context gate — soft directive if the routed context backend (estate
+    # primary; brain under WICKED_CONTEXT_BACKEND=brain) is not reachable.
+    # Runs after setup gate (context layer irrelevant before setup completes).
+    # Does NOT hard-block — hooks fail open, retrieval degrades to empty.
+    _check_context_gate(prompt)
 
     # Onboarding gate — inject directive if project hasn't been onboarded.
     # Checked after setup gate but before HOT path so continuations during
