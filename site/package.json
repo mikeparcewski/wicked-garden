@@ -21,7 +21,7 @@
     "motion": "^13.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "wicked-web": "github:mikeparcewski/wicked-web#61396e428846e67e081e4ac529ec045b15931ab8"
+    "wicked-web": "github:mikeparcewski/wicked-web#cf770de0a151d46837ae8b3369606b005bb8473c"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
