@@ -34,6 +34,7 @@ def _clean_router(monkeypatch, tmp_path):
     """Isolate every test: default flag, cold probe memo, tmp stats cache."""
     monkeypatch.delenv("WICKED_CONTEXT_BACKEND", raising=False)
     monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE_PREFIX", raising=False)
     monkeypatch.delenv("WICKED_CONTEXT_STATS_TTL_SECS", raising=False)
     cb._reset_probe_cache()
     cache_file = tmp_path / "ctx-stats.json"
@@ -52,8 +53,8 @@ def _plant_fake_estate(monkeypatch, **overrides):
         fake.calls.append(("knowledge_recall", query))
         return {"items": []}
 
-    def recall(query, scope="", token_budget=2000, timeout=8.0):
-        fake.calls.append(("recall", query, scope))
+    def recall(query, scope="", token_budget=2000, timeout=8.0, scope_prefix=None):
+        fake.calls.append(("recall", query, scope, scope_prefix))
         return []
 
     def call(tool, arguments=None, timeout=8.0):
@@ -181,7 +182,7 @@ def test_estate_search_fuses_knowledge_and_memory(monkeypatch):
     _plant_fake_estate(
         monkeypatch,
         knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": [_K_ITEM]},
-        recall=lambda q, scope="", token_budget=2000, timeout=8.0: [_M_ITEM],
+        recall=lambda q, scope="", token_budget=2000, timeout=8.0, scope_prefix=None: [_M_ITEM],
     )
     results = cb.search("how does gate policy work", limit=10)
     assert len(results) == 2
@@ -191,12 +192,62 @@ def test_estate_search_fuses_knowledge_and_memory(monkeypatch):
     assert results[0]["score"] == pytest.approx(results[1]["score"])
 
 
+def test_estate_search_recalls_the_full_memory_subtree(monkeypatch):
+    """estate #98: the memory leg sends scope_prefix="" (root subtree) so
+    migrated leaf-scoped memories (brain:…/doc:…) are fused in — they were
+    invisible under the ancestor-only `scope` filter."""
+    fake = _plant_fake_estate(
+        monkeypatch,
+        knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": []},
+    )
+    cb.search("gh account switch 403", limit=10)
+    recall_calls = [c for c in fake.calls if c[0] == "recall"]
+    assert recall_calls == [("recall", "gh account switch 403", "", "")]
+
+
+def test_memory_scope_prefix_defaults_and_overrides(monkeypatch):
+    # Default: root subtree — every memory, migrated subtrees included.
+    assert cb._memory_scope_prefix() == ""
+    # A pinned custom scope keeps its ancestor-visible meaning (param omitted).
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE", "org:acme")
+    assert cb._memory_scope_prefix() is None
+    # The explicit prefix override wins over both.
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE_PREFIX", "brain:wicked-garden")
+    assert cb._memory_scope_prefix() == "brain:wicked-garden"
+
+
+def test_estate_search_degrades_to_knowledge_only_when_memory_leg_fails(monkeypatch):
+    """An older binary rejecting scope_prefix (or any memory-leg blowup) must
+    degrade the fusion to knowledge-only — never estate-down, never a raise."""
+
+    def recall_pre_98(query, scope="", token_budget=2000, timeout=8.0):
+        raise TypeError("recall() got an unexpected keyword argument 'scope_prefix'")
+
+    _plant_fake_estate(
+        monkeypatch,
+        knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": [_K_ITEM]},
+        recall=recall_pre_98,
+    )
+    monkeypatch.setattr(cb, "brain_alive", lambda timeout=1.0: True)
+    results = cb.search("how does gate policy work", limit=10)
+    assert [r["kind"] for r in results] == ["chunk"]
+    assert results[0]["backend"] == "estate"  # knowledge answered — no brain bounce
+
+
+def test_recall_memories_uses_the_subtree_prefix_too(monkeypatch):
+    """Memory-only recall gets the same #98 subtree visibility as the fusion."""
+    fake = _plant_fake_estate(monkeypatch)
+    assert cb.recall_memories("gate policy decisions") == []
+    recall_calls = [c for c in fake.calls if c[0] == "recall"]
+    assert recall_calls == [("recall", "gate policy decisions", "", "")]
+
+
 def test_estate_search_surfaces_source_attribution(monkeypatch):
     """#96: estate `source` (knowledge) and scope (memory) survive normalization."""
     _plant_fake_estate(
         monkeypatch,
         knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": [_K_ITEM]},
-        recall=lambda q, scope="", token_budget=2000, timeout=8.0: [_M_ITEM],
+        recall=lambda q, scope="", token_budget=2000, timeout=8.0, scope_prefix=None: [_M_ITEM],
     )
     results = cb.search("gate policy", limit=10)
     by_kind = {r["kind"]: r for r in results}

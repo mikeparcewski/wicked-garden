@@ -206,6 +206,34 @@ def test_unwrap_returns_none_on_garbage():
     assert _estate_client._unwrap({"result": {}}) is None
 
 
+def test_recall_scope_prefix_on_the_wire():
+    """estate #98: recall(scope_prefix=…) sends the param — "" included, since
+    "" means the root subtree (every memory); None omits it entirely (the only
+    shape pre-#98 binaries understand)."""
+    seen = []
+
+    def fake_dispatch(requests, *, db, timeout):
+        out = {1: {"jsonrpc": "2.0", "id": 1,
+                   "result": {"serverInfo": {"name": "wicked-estate"}}}}
+        for r in requests:
+            if r.get("method") == "tools/call":
+                seen.append(r["params"]["arguments"])
+                env = _envelope({"items": []})
+                env["id"] = r["id"]
+                out[r["id"]] = env
+        return out
+
+    _estate_client.set_dispatch(fake_dispatch)
+    assert _estate_client.recall("q") == []
+    assert _estate_client.recall("q", scope_prefix="") == []
+    assert _estate_client.recall("q", scope_prefix="brain:wicked-garden") == []
+    assert len(seen) == 3
+    assert "scope_prefix" not in seen[0]
+    assert seen[1]["scope_prefix"] == ""
+    assert seen[2]["scope_prefix"] == "brain:wicked-garden"
+    assert all(a["query"] == "q" and a["scope"] == "" for a in seen)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # The transport seam — a broker can replace spawn-per-call transparently
 # ─────────────────────────────────────────────────────────────────────────────

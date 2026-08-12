@@ -201,6 +201,28 @@ def _memory_scope() -> str:
     return os.environ.get("WICKED_ESTATE_MEMORY_SCOPE", "")
 
 
+def _memory_scope_prefix() -> Optional[str]:
+    """Subtree filter for estate memory recall (estate #98 ``scope_prefix``).
+
+    The ancestor-visible ``scope`` filter alone cannot see leaf-scoped
+    memories — the 205 migrated brain memories live at scopes like
+    ``brain:wicked-garden/doc:<id>`` and were invisible to root recalls.
+    ``scope_prefix`` REPLACES that filter with subtree matching; the default
+    ``""`` (root subtree) sees ALL memories: root + every migrated subtree.
+
+    When the operator pinned a custom recall scope via
+    WICKED_ESTATE_MEMORY_SCOPE, honor it — return None (param omitted,
+    inheritance semantics) so the pin keeps meaning what it meant.
+    Explicit override: WICKED_ESTATE_MEMORY_SCOPE_PREFIX.
+    """
+    prefix = os.environ.get("WICKED_ESTATE_MEMORY_SCOPE_PREFIX")
+    if prefix is not None:
+        return prefix
+    if os.environ.get("WICKED_ESTATE_MEMORY_SCOPE"):
+        return None  # custom scope pinned — keep ancestor-visible semantics
+    return ""
+
+
 def _f(value: Any) -> float:
     try:
         return float(value)
@@ -278,8 +300,12 @@ def _estate_search(query: str, limit: int = 10, timeout: float = 5.0) -> Optiona
     """Two-call estate retrieval. None = estate unreachable (caller may fall back).
 
     knowledge.recall is the primary signal (bench r@10 0.703); memory.recall
-    is fused in when it has anything to say. An empty-but-reachable answer is
-    a valid [] — only a dead estate returns None.
+    is fused in when it has anything to say — with ``scope_prefix`` (estate
+    #98) so the fusion sees ALL memories, migrated ``brain:…`` subtrees
+    included. An empty-but-reachable answer is a valid [] — only a dead
+    estate returns None. A memory-leg failure (e.g. an older binary
+    rejecting ``scope_prefix``) degrades the fusion to knowledge-only —
+    knowledge already answered, so it is not treated as estate-down.
     """
     try:
         import _estate_client
@@ -291,9 +317,16 @@ def _estate_search(query: str, limit: int = 10, timeout: float = 5.0) -> Optiona
         if payload is None:
             return None  # unreachable / tool error — fail toward the caller
         k_items = payload.get("items", []) if isinstance(payload, dict) else []
-        m_items = _estate_client.recall(
-            query, scope=_memory_scope(), token_budget=800, timeout=timeout
-        )
+        try:
+            m_items = _estate_client.recall(
+                query,
+                scope=_memory_scope(),
+                scope_prefix=_memory_scope_prefix(),
+                token_budget=800,
+                timeout=timeout,
+            )
+        except Exception:
+            m_items = []  # memory leg failed — knowledge-only fusion, as before
         k_norm = [_norm_knowledge(i) for i in k_items if isinstance(i, dict)]
         m_norm = [_norm_memory(i) for i in m_items if isinstance(i, dict)]
         return _rrf_fuse([k_norm, m_norm], limit)
@@ -355,7 +388,11 @@ def search(query: str, limit: int = 10, timeout: float = 5.0) -> List[dict]:
 
 
 def recall_memories(query: str, limit: int = 10, timeout: float = 5.0) -> List[dict]:
-    """Memory-only recall (estate memory.recall; brain search under brain mode)."""
+    """Memory-only recall (estate memory.recall; brain search under brain mode).
+
+    Same subtree visibility as the fusion: ``scope_prefix`` (estate #98) so
+    migrated ``brain:…`` leaf memories are recallable here too.
+    """
     if not query or not str(query).strip():
         return []
     try:
@@ -365,7 +402,11 @@ def recall_memories(query: str, limit: int = 10, timeout: float = 5.0) -> List[d
         import _estate_client
 
         items = _estate_client.recall(
-            query, scope=_memory_scope(), token_budget=max(800, limit * 200), timeout=timeout
+            query,
+            scope=_memory_scope(),
+            scope_prefix=_memory_scope_prefix(),
+            token_budget=max(800, limit * 200),
+            timeout=timeout,
         )
         return [_norm_memory(i) for i in items if isinstance(i, dict)][:limit]
     except Exception:
