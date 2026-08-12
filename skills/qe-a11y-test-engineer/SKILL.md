@@ -219,7 +219,9 @@ refuse a verdict — a11y is a gate.
 - **WCAG 2.1 AA is the floor, not the ceiling.** If the scenario's
   context.md requires 2.2 AA, use the `wcag22aa` tag as well.
 - **Zero axe violations ≠ compliant.** Always render the verdict as
-  `N-A` (pending human review) unless the scenario explicitly waives it.
+  `CONDITIONAL` (approve with the manual checklist as the listed fixes)
+  unless the scenario explicitly waives manual review — never `N-A`:
+  the a11y item always applies (see the DomainStore write above).
 - **Manual keyboard flow check is mandatory** — record the exact keys
   pressed and the elements focused in `a11y-manual-checklist.md`. If
   Playwright isn't available, leave the checklist items as unchecked
@@ -243,7 +245,7 @@ pa11y: {pa11yErrorCount} errors, {pa11yWarningCount} warnings
 keyboard: {keyboardPassCount}/{keyboardTotalCount} steps reached target without a trap
 verdict: CONDITIONAL (axe+pa11y clean, manual review required)
 
-VERDICT=N-A REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}
+VERDICT=CONDITIONAL REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

@@ -171,6 +171,11 @@ Return a text evidence report with all captured data:
 If wicked-bus is installed on PATH, emit progress events so downstream tools
 (wicked-garden crew gates, dashboards) can react in real time:
 
+> `wicked.testrun.step` and `--domain wicked-testing` are the emitter's
+> existing wire contract, consumed by current ledger/dashboard tooling.
+> The 4-segment `wicked.qe.*` rebrand lands at the bus-emit seam in
+> Phase 6c — do not rename the emit here first.
+
 ```bash
 # After each step completes — fire-and-forget via Python wrapper so the
 # stderr silence works on both POSIX shells and Windows Git Bash. A plain

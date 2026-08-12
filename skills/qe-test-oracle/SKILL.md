@@ -72,14 +72,16 @@ Map the question to one of the 12 named queries using keyword matching:
 Use the sqlite3 CLI to run parameterized queries:
 
 ```bash
-sqlite3 -json ".wicked-testing/wicked-testing.db" "
-  SELECT s.id, s.name, s.format_version, s.source_path, s.created_at
-  FROM scenarios s
-  JOIN projects p ON s.project_id = p.id
-  WHERE p.name = '{project_name}'
-    AND s.deleted = 0
-  ORDER BY s.created_at DESC
-"
+# Bind filter values as sqlite3 parameters — never splice them into the
+# SQL text. The value must already have passed the sanitization gate below.
+sqlite3 -json ".wicked-testing/wicked-testing.db" \
+  ".parameter set :project_name '{validated project_name}'" \
+  "SELECT s.id, s.name, s.format_version, s.source_path, s.created_at
+   FROM scenarios s
+   JOIN projects p ON s.project_id = p.id
+   WHERE p.name = :project_name
+     AND s.deleted = 0
+   ORDER BY s.created_at DESC"
 ```
 
 All queries use only the 12 named patterns. No ad-hoc SQL. No string interpolation with user input.

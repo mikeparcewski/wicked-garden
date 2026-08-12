@@ -40,15 +40,16 @@ command -v cypress > /dev/null 2>&1 && echo "cypress: true" || echo "cypress: fa
 command -v k6 > /dev/null 2>&1 && echo "k6: true" || echo "k6: false"
 command -v curl > /dev/null 2>&1 && echo "curl: true" || echo "curl: false"
 command -v pa11y > /dev/null 2>&1 && echo "pa11y: true" || echo "pa11y: false"
-npx playwright --version > /dev/null 2>&1 && echo "npx-playwright: true" || echo "npx-playwright: false"
-npx cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" || echo "npx-cypress: false"
+npx --no-install playwright --version > /dev/null 2>&1 && echo "npx-playwright: true" || echo "npx-playwright: false"
+npx --no-install cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" || echo "npx-cypress: false"
 ```
 
 ### 2. Create .wicked-testing Directory
 
 ```bash
 mkdir -p .wicked-testing/projects .wicked-testing/strategies .wicked-testing/scenarios \
-         .wicked-testing/runs .wicked-testing/verdicts .wicked-testing/tasks
+         .wicked-testing/runs .wicked-testing/verdicts .wicked-testing/tasks \
+         .wicked-testing/evidence
 ```
 
 ### 3. Write config.json
@@ -71,8 +72,8 @@ config = {
     'created_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'),
     'claim_nudge': False
 }
-sys.stdout.write(json.dumps(config, indent=2))
-" 2>/dev/null || python -c "..."
+open('.wicked-testing/config.json', 'w').write(json.dumps(config, indent=2))
+" 2>/dev/null || python -c "<same script>"
 ```
 
 Update the capabilities based on detection results from Step 1.

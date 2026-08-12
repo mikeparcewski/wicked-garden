@@ -187,6 +187,90 @@ TARGETED = {
             "'created_at': __import__('datetime').datetime.now(__import__('datetime')"
             ".timezone.utc).isoformat().replace('+00:00', 'Z'),",
         ),
+        (   # PR #1047 Copilot: bare npx can prompt/download — detection must be side-effect-free
+            'npx playwright --version > /dev/null 2>&1 && echo "npx-playwright: true" || echo "npx-playwright: false"\n'
+            'npx cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" || echo "npx-cypress: false"',
+            'npx --no-install playwright --version > /dev/null 2>&1 && echo "npx-playwright: true" || echo "npx-playwright: false"\n'
+            'npx --no-install cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" || echo "npx-cypress: false"',
+        ),
+        (   # PR #1047 Copilot: the canonical evidence root must be scaffolded too
+            "mkdir -p .wicked-testing/projects .wicked-testing/strategies .wicked-testing/scenarios \\\n"
+            "         .wicked-testing/runs .wicked-testing/verdicts .wicked-testing/tasks",
+            "mkdir -p .wicked-testing/projects .wicked-testing/strategies .wicked-testing/scenarios \\\n"
+            "         .wicked-testing/runs .wicked-testing/verdicts .wicked-testing/tasks \\\n"
+            "         .wicked-testing/evidence",
+        ),
+        (   # PR #1047 Copilot: snippet must actually write config.json (and a real fallback)
+            'sys.stdout.write(json.dumps(config, indent=2))\n" 2>/dev/null || python -c "..."',
+            'open(\'.wicked-testing/config.json\', \'w\').write(json.dumps(config, indent=2))\n'
+            '" 2>/dev/null || python -c "<same script>"',
+        ),
+    ],
+    "a11y-test-engineer": [
+        (   # PR #1047 Copilot: rule contradicted the DomainStore block (N-A vs CONDITIONAL)
+            "- **Zero axe violations ≠ compliant.** Always render the verdict as\n"
+            "  `N-A` (pending human review) unless the scenario explicitly waives it.",
+            "- **Zero axe violations ≠ compliant.** Always render the verdict as\n"
+            "  `CONDITIONAL` (approve with the manual checklist as the listed fixes)\n"
+            "  unless the scenario explicitly waives manual review — never `N-A`:\n"
+            "  the a11y item always applies (see the DomainStore write above).",
+        ),
+        (
+            "VERDICT=N-A REVIEWER=",
+            "VERDICT=CONDITIONAL REVIEWER=",
+        ),
+    ],
+    "test-oracle": [
+        (   # PR #1047 Copilot: example contradicted the no-interpolation contract
+            "```bash\n"
+            'sqlite3 -json ".wicked-testing/wicked-testing.db" "\n'
+            "  SELECT s.id, s.name, s.format_version, s.source_path, s.created_at\n"
+            "  FROM scenarios s\n"
+            "  JOIN projects p ON s.project_id = p.id\n"
+            "  WHERE p.name = '{project_name}'\n"
+            "    AND s.deleted = 0\n"
+            "  ORDER BY s.created_at DESC\n"
+            '"\n'
+            "```",
+            "```bash\n"
+            "# Bind filter values as sqlite3 parameters — never splice them into the\n"
+            "# SQL text. The value must already have passed the sanitization gate below.\n"
+            'sqlite3 -json ".wicked-testing/wicked-testing.db" \\\n'
+            "  \".parameter set :project_name '{validated project_name}'\" \\\n"
+            '  "SELECT s.id, s.name, s.format_version, s.source_path, s.created_at\n'
+            "   FROM scenarios s\n"
+            "   JOIN projects p ON s.project_id = p.id\n"
+            "   WHERE p.name = :project_name\n"
+            "     AND s.deleted = 0\n"
+            '   ORDER BY s.created_at DESC"\n'
+            "```",
+        ),
+    ],
+    "execution": [
+        (   # PR #1047 Copilot: 3-segment event names — known wire contract, 6c rebrand
+            "- Bus events emitted (when bus present): `wicked.testrun.started`,\n"
+            "  `wicked.test.run.completed`, `wicked.evidence.captured`, and finally\n"
+            "  `wicked.test.verdict.created`",
+            "- Bus events emitted (when bus present): `wicked.testrun.started`,\n"
+            "  `wicked.test.run.completed`, `wicked.evidence.captured`, and finally\n"
+            "  `wicked.test.verdict.created`. These names are the wicked-ledger\n"
+            "  emitter's existing wire contract; the 3-segment stragglers get the\n"
+            "  4-segment `wicked.qe.*` rebrand at the bus-emit seam in Phase 6c —\n"
+            "  do not rename them in this playbook first",
+        ),
+    ],
+    "acceptance-test-executor": [
+        (   # PR #1047 Copilot: same wire-contract note for the step emit
+            "If wicked-bus is installed on PATH, emit progress events so downstream tools\n"
+            "(wicked-garden crew gates, dashboards) can react in real time:",
+            "If wicked-bus is installed on PATH, emit progress events so downstream tools\n"
+            "(wicked-garden crew gates, dashboards) can react in real time:\n"
+            "\n"
+            "> `wicked.testrun.step` and `--domain wicked-testing` are the emitter's\n"
+            "> existing wire contract, consumed by current ledger/dashboard tooling.\n"
+            "> The 4-segment `wicked.qe.*` rebrand lands at the bus-emit seam in\n"
+            "> Phase 6c — do not rename the emit here first.",
+        ),
     ],
     "authoring": [
         (

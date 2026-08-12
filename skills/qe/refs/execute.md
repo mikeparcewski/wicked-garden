@@ -118,7 +118,10 @@ SKIP with reason `trust-level-insufficient`.
 - The run + verdict are written to the SQLite ledger
 - Bus events emitted (when bus present): `wicked.testrun.started`,
   `wicked.test.run.completed`, `wicked.evidence.captured`, and finally
-  `wicked.test.verdict.created`
+  `wicked.test.verdict.created`. These names are the wicked-ledger
+  emitter's existing wire contract; the 3-segment stragglers get the
+  4-segment `wicked.qe.*` rebrand at the bus-emit seam in Phase 6c —
+  do not rename them in this playbook first
 
 ## Output
 
