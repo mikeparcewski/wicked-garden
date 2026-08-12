@@ -121,10 +121,26 @@ def test_recall_requires_query(monkeypatch, capsys):
     assert code == 1 and "query" in out["error"]
 
 
+def test_recall_rejects_scope_and_scope_prefix_together(monkeypatch, capsys):
+    code, out, rec = _run(monkeypatch, capsys, "recall",
+                          {"query": "q", "scope": "project:x", "scope_prefix": ""})
+    assert code == 1 and "not both" in out["error"]
+    assert rec.calls == []
+
+
+@pytest.mark.parametrize("action", ["recall", "sources"])
+def test_bad_token_budget_is_a_usage_error_not_a_crash(monkeypatch, capsys, action):
+    code, out, rec = _run(monkeypatch, capsys, action,
+                          {"query": "q", "token_budget": "lots"})
+    assert code == 1 and "token_budget" in out["error"]
+    assert rec.calls == []
+
+
 # ── forget (kind-guarded erase) ───────────────────────────────────────────────
 
-def test_forget_requires_kind_id_segment(monkeypatch, capsys):
-    for bad in ("", "*", "everything", "project"):
+def test_forget_requires_well_formed_kind_id_segments(monkeypatch, capsys):
+    for bad in ("", "*", "everything", "project", ":", "http://x",
+                "project:", ":id", "project:x/", "project:x//doc:y"):
         code, out, rec = _run(monkeypatch, capsys, "forget", {"scope_prefix": bad})
         assert code == 1, f"unguarded erase allowed for {bad!r}"
         assert "kind:id" in out["error"]

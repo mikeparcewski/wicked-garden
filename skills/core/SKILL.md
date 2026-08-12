@@ -84,7 +84,7 @@ Each domain is one consolidated skill that routes to its actions.
 | `wicked-garden-engineering` | Architecture, code review, debugging, docs, planning, and deterministic multi-file code transformations | review · debug · arch · plan · apply |
 | `wicked-garden-jam` | Multi-model brainstorming + structured council (independent second opinion) | council · brainstorm · quick · revisit |
 | `wicked-garden-domain` | Extract a codebase's domain model — business rules + provenance, entities, requirements on the estate graph — a foundational substrate build/migrate/review/modernize all consume (none own) | extractor · modeler · coverage |
-| `wicked-garden-mem` | Cross-session memory + knowledge over wicked-estate: store/recall learnings, cited answers, document ingest (binary via vision), session capture | store · recall · answer · review · forget · ingest · capture |
+| `wicked-garden-mem` | Cross-session memory + knowledge over wicked-estate: store/recall learnings, cited answers, document ingest (binary via vision), session capture | store · recall · answer · review · forget · maintain · ingest · capture |
 | `wicked-garden-persona` | Define and invoke named personas to perform work with a specific lens | as · define · list |
 | `wicked-garden-platform` | Security, infrastructure, compliance, CI/CD, incidents, traces, and plugin diagnostics | security · compliance · incident · health |
 | `wicked-garden-product` | Requirements, customer feedback, strategy, UX, accessibility, and design review | elicit · acceptance · analyze · strategy · ux-review |

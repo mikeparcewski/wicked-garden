@@ -53,6 +53,7 @@ Usage
 """
 
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -101,6 +102,29 @@ def _default_scope():
     return f"project:{name}"
 
 
+# One slash-separated scope segment: non-empty kind, ':', non-empty id.
+_SCOPE_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_-]+:[^/]+$")
+
+
+def _is_kind_id_prefix(scope_prefix):
+    """True iff every slash-separated segment is a well-formed ``kind:id``.
+
+    This is the erase guard's shape check — ``":"``, ``"http://x"``, or a
+    trailing empty segment must NOT count as a kind-guarded prefix.
+    """
+    segments = scope_prefix.split("/")
+    return bool(segments) and all(_SCOPE_SEGMENT_RE.match(s) for s in segments)
+
+
+def _parse_budget(args):
+    """(token_budget, error) — usage error instead of a ValueError crash."""
+    raw = args.get("token_budget", 2000)
+    try:
+        return int(raw), None
+    except (TypeError, ValueError):
+        return None, f"token_budget must be an integer, got: {raw!r}"
+
+
 def _capture_one(item):
     """One memory.capture call. Returns (memory_id | None, error | None)."""
     content = (item.get("content") or "").strip()
@@ -140,8 +164,17 @@ def do_recall(args):
     if not query:
         _emit({"error": "recall requires a query"})
         return 1
-    arguments = {"query": query, "token_budget": int(args.get("token_budget", 2000))}
-    if "scope" in args and "scope_prefix" not in args:
+    if "scope" in args and "scope_prefix" in args:
+        _emit({"error": "recall takes scope OR scope_prefix, not both "
+                        "(scope = ancestor-visible inheritance; "
+                        "scope_prefix = subtree filter)"})
+        return 1
+    budget, err = _parse_budget(args)
+    if err:
+        _emit({"error": err})
+        return 1
+    arguments = {"query": query, "token_budget": budget}
+    if "scope" in args:
         # Explicit scope, no prefix: estate's ancestor-visible inheritance.
         arguments["scope"] = args["scope"]
     else:
@@ -176,14 +209,17 @@ def do_forget(args):
         _emit({"error": "forget requires a string scope_prefix"})
         return 1
     scope_prefix = scope_prefix.strip()
-    # Kind-guarded erase: a real kind:id segment, or an explicit erase-all.
-    if ":" not in scope_prefix:
+    # Kind-guarded erase: every segment a well-formed kind:id, or an
+    # explicit erase-all. A bare ":", "http://x", or partial segment is
+    # rejected — the guard exists so one malformed call can't nuke subtrees.
+    if not _is_kind_id_prefix(scope_prefix):
         if scope_prefix in ("", "*") and args.get("confirm_erase_all") is True:
             scope_prefix = ""
         else:
             _emit({
-                "error": "forget requires a kind:id scope_prefix (e.g. "
-                         '"project:wicked-garden" or "brain:wicked-garden/doc:abc"). '
+                "error": "forget requires a well-formed kind:id scope_prefix "
+                         '(e.g. "project:wicked-garden" or '
+                         '"brain:wicked-garden/doc:abc"). '
                          'To erase EVERYTHING pass {"scope_prefix": "", '
                          '"confirm_erase_all": true}.'
             })
@@ -281,7 +317,10 @@ def do_sources(args):
     if not query:
         _emit({"error": "sources requires a query"})
         return 1
-    budget = int(args.get("token_budget", 2000))
+    budget, err = _parse_budget(args)
+    if err:
+        _emit({"error": err})
+        return 1
     knowledge = _estate_client.call("knowledge.recall", {"query": query, "token_budget": budget})
     k_items = knowledge.get("items", []) if isinstance(knowledge, dict) else []
     memory = _estate_client.call(
