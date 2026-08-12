@@ -751,7 +751,8 @@ def check_bus_handlers(plugin_root: Path) -> List[Dict[str, Any]]:
 
     # 4-segment format: wicked.<domain>.<noun>.<past-tense-verb>
     _segment_re = re.compile(r"^wicked\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$")
-    for evt in sorted(event_keys):
+    sorted_events = sorted(event_keys)
+    for evt in sorted_events:
         if not _segment_re.match(evt):
             findings.append(
                 {
@@ -760,13 +761,13 @@ def check_bus_handlers(plugin_root: Path) -> List[Dict[str, Any]]:
                     "target": evt,
                     "detail": (
                         "event key does not follow the canonical 4-segment format "
-                        "wicked.<domain>.<noun>.<verb> (SPEC: WICKED_GARDEN_BUS_EVENTS.md)"
+                        "wicked.<domain>.<noun>.<past-tense-verb> (SPEC: WICKED_GARDEN_BUS_EVENTS.md)"
                     ),
                 }
             )
 
     audit_marker = set(_AUDIT_MARKER_EVENTS)
-    for evt in sorted(event_keys):
+    for evt in sorted_events:
         if evt in audit_marker:
             continue
         if evt in handler_keys:
