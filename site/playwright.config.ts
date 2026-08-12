@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
-const PORT = Number(process.env.E2E_PORT ?? 4333);
+const rawPort = process.env.E2E_PORT ?? '4333';
+const PORT = Number.parseInt(rawPort, 10);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error(`E2E_PORT must be a port number (1-65535), got "${rawPort}"`);
+}
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30_000,
