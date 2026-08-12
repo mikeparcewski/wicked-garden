@@ -7,7 +7,7 @@ Evidence is the qe domain's **proof of work**: the artifacts a test produced
 verdict. This document is the **public contract** for how evidence is stored
 and read.
 
-See [INTEGRATION.md](INTEGRATION.md) for how this ties into the bus and brain.
+See [integration.md](integration.md) for how this ties into the bus and brain.
 
 ---
 

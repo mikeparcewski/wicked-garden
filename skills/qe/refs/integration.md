@@ -1,4 +1,4 @@
-# the qe domain Integration Contract
+# qe Domain Integration Contract
 
 This document defines the **public surface** that wicked-garden (and any other
 consumer) depends on. Everything here is stable across minor versions — breaking
@@ -11,16 +11,17 @@ not depend on SQL schema, file paths inside `lib/`, or skill definition contents
 
 ## 1. Namespace
 
-All user-facing surface lives under the `the qe domain:` namespace. Everything
-is a skill — there are no separate agent or command component types.
+All user-facing surface is in-catalog wicked-garden skills (dash-form names —
+see CLAUDE.md "Naming Conventions"). Everything is a skill — there are no
+separate agent or command component types.
 
-- Skills: `the qe domain:<name>`
-- Slash invocation of workflow skills: `/the qe domain:<name>`
-- Worker skills are dispatched by the same `the qe domain:<name>` strings that
-  used to be agent `subagent_type` values — the dispatch names are unchanged.
+- Router skill: `wicked-garden-qe` with actions (`setup`, `plan`, `author`,
+  `execute`, `accept`, `review`, `insight`)
+- Specialist worker skills: `wicked-garden-qe-<role>` (context:fork), e.g.
+  `wicked-garden-qe-test-strategist`
 
-The `qe:` prefix is **retired**. It appears only in wicked-garden backward-compat
-aliases for one minor version.
+The retired wicked-testing package's `wicked-testing:<name>` colon namespace is
+gone (Phase 6c); this contract maps its former surfaces to the in-catalog names.
 
 ---
 
@@ -30,11 +31,11 @@ Five skills form the public surface. Consumers may reference these by name.
 
 | Skill                     | Purpose                                                        |
 |---------------------------|----------------------------------------------------------------|
-| `the qe domain:plan`     | Test strategy, risk, testability, requirements quality         |
-| `the qe domain:authoring`| Scenario writing, test code generation, test data / fixtures   |
-| `the qe domain:execution`| Run tests, collect evidence, write to ledger                   |
-| `the qe domain:review`   | Independent verdict, semantic review, test-quality audit       |
-| `the qe domain:insight`  | Stats, reports, flaky detection, coverage archaeology          |
+| `wicked-garden-qe` `plan`     | Test strategy, risk, testability, requirements quality         |
+| `wicked-garden-qe` `author`| Scenario writing, test code generation, test data / fixtures   |
+| `wicked-garden-qe` `execute`| Run tests, collect evidence, write to ledger                   |
+| `wicked-garden-qe` `review`   | Independent verdict, semantic review, test-quality audit       |
+| `wicked-garden-qe` `insight`  | Stats, reports, flaky detection, coverage archaeology          |
 
 Each Tier-1 skill **internally** dispatches Tier-2 specialist skills
 (ui-component-test-engineer, load-performance-engineer, etc.) into isolated
@@ -48,28 +49,28 @@ is not a breaking change.
 
 ## 3. Core Worker Skills (Tier 1 — stable dispatch names)
 
-Consumers (notably wicked-garden's crew gate) may dispatch these forked worker
-skills by name. The names are identical to the former agent `subagent_type`
-values, so nothing changed for consumers. This list is frozen; renames require
+Consumers (notably the crew gate) dispatch these forked worker skills by their
+dash-form names (Phase 6c: the former `wicked-testing:<role>` dispatch strings
+map 1:1 to `wicked-garden-qe-<role>`). This list is frozen; renames require
 a major version.
 
 | Skill (dispatch name)                              | Owning Skill   |
 |----------------------------------------------------|----------------|
-| `the qe domain:test-strategist`                   | plan           |
-| `the qe domain:testability-reviewer`              | plan           |
-| `the qe domain:requirements-quality-analyst`      | plan           |
-| `the qe domain:risk-assessor`                     | plan           |
-| `the qe domain:test-designer`                     | authoring      |
-| `the qe domain:test-automation-engineer`          | authoring      |
-| `the qe domain:acceptance-test-writer`            | authoring      |
-| `the qe domain:scenario-executor`                 | execution      |
-| `the qe domain:acceptance-test-executor`          | execution      |
-| `the qe domain:contract-testing-engineer`         | execution      |
-| `the qe domain:acceptance-test-reviewer`          | review         |
-| `the qe domain:semantic-reviewer`                 | review         |
-| `the qe domain:code-analyzer`                     | review         |
-| `the qe domain:production-quality-engineer`       | review         |
-| `the qe domain:test-oracle`                       | insight        |
+| `wicked-garden-qe-test-strategist`                   | plan           |
+| `wicked-garden-qe-testability-reviewer`              | plan           |
+| `wicked-garden-qe-requirements-quality-analyst`      | plan           |
+| `wicked-garden-qe-risk-assessor`                     | plan           |
+| `wicked-garden-qe-test-designer`                     | authoring      |
+| `wicked-garden-qe-test-automation-engineer`          | authoring      |
+| `wicked-garden-qe-acceptance-test-writer`            | authoring      |
+| `wicked-garden-qe-scenario-executor`                 | execution      |
+| `wicked-garden-qe-acceptance-test-executor`          | execution      |
+| `wicked-garden-qe-contract-testing-engineer`         | execution      |
+| `wicked-garden-qe-acceptance-test-reviewer`          | review         |
+| `wicked-garden-qe-semantic-reviewer`                 | review         |
+| `wicked-garden-qe-code-analyzer`                     | review         |
+| `wicked-garden-qe-production-quality-engineer`       | review         |
+| `wicked-garden-qe-test-oracle`                       | insight        |
 
 Tier-2 specialist skills (integration, ui-component, e2e, visual, a11y, load,
 chaos, fuzz, mutation, i18n, data-quality, observability, flaky-hunter, etc.)
@@ -79,7 +80,7 @@ are **not** part of the public contract. They are dispatched by Tier-1 skills.
 
 ## 4. Bus Events (public contract)
 
-the qe domain emits events to [wicked-bus](https://github.com/mikeparcewski/wicked-bus)
+The qe domain emits events to [wicked-bus](https://github.com/mikeparcewski/wicked-bus)
 when it is installed. **Emission is best-effort**: if wicked-bus is not present,
 the emit is a no-op; the qe domain's own SQLite ledger is always written.
 
@@ -90,8 +91,9 @@ the emit is a no-op; the qe domain's own SQLite ledger is always written.
   - The **2nd segment of the event *type*** is the **short** domain slug (`test`), e.g.
     `test` in `wicked.test.run.completed`. This is the compact routing token baked
     into the type string.
-  - The **`domain` payload field / SQLite column** is the **full package name**
-    `the qe domain`. It never abbreviates to `test`.
+  - The **`domain` payload field / SQLite column** is the qe toolchain's
+    domain stamp: **`qe`** (was `wicked-testing` pre-6c). It never uses the
+    type-string token `test`.
   - So a completed run emits type `wicked.test.run.completed` with `domain: qe`.
 - `subdomain` scopes by functional area (`ledger`, `scenario`, `testrun`, `verdict`, `evidence`)
 - Payload follows the standard tier rules — IDs and outcomes always, small categoricals
@@ -161,7 +163,7 @@ the manifest path has `artifact_count` but `verdict_id: null` + `vault_payload_s
 `vault.record`) for a single recorded envelope: `{ scope, phase, claim_id, kind,
 source, id, envelope_hash, payload_sha256, criteria_authored_by, status_at_record }`.
 Distinct from `wicked.test.evidence.captured`, which describes a whole run's artifacts.
-**`wicked.test.contract.published`** — `{ version: "<semver>", agents: [{ subagent_type: "the qe domain:<name>", tier: 1|2 }] }`
+**`wicked.test.contract.published`** — `{ version: "<semver>", agents: [{ skill: "wicked-garden-qe-<name>", tier: 1|2 }] }`
 (The `agents` / `subagent_type` payload field names are retained for wire
 compatibility; each entry describes a forked worker skill and the value is its
 skill dispatch name.)
@@ -179,7 +181,7 @@ required.
 ## 5. Brain Memories (optional enrichment)
 
 When [wicked-brain](https://github.com/mikeparcewski/wicked-brain) is installed,
-the qe domain writes memories for non-trivial events. Consumers may search
+The qe domain writes memories for non-trivial events. Consumers may search
 these memories; the shapes are part of the contract.
 
 ### Memory types written by the qe domain
@@ -198,7 +200,7 @@ these memories; the shapes are part of the contract.
 name: <short-title>
 description: <one-line summary>
 type: failure-pattern | flake-signal | coverage-gap | test-decision
-source: the qe domain
+source: qe
 source_version: <semver>
 project_id: <uuid>
 scenario_id: <uuid>    # when applicable
@@ -235,26 +237,25 @@ content blindly; use the manifest's `artifacts[]` index.
 
 | Dependency       | Present behavior                          | Absent behavior                          |
 |------------------|-------------------------------------------|------------------------------------------|
-| SQLite           | Ledger writes + oracle queries            | the qe domain fails loud (required)     |
+| SQLite           | Ledger writes + oracle queries            | qe fails loud (required)                |
 | wicked-bus       | Emit events on every significant action   | No-op; log a single debug line           |
 | wicked-brain     | Write memories on interesting signals     | No-op; log a single debug line           |
 | wicked-garden    | Events consumed by crew gate              | N/A (wicked-garden is downstream)        |
 
-the qe domain is usable **standalone** — only SQLite is required.
+The qe domain is usable **standalone** — only SQLite is required.
 Bus + brain integration is pure upside when the ecosystem is present.
 
 ---
 
 ## 8. Version & Compatibility
 
-- the qe domain uses semver.
+- The qe surface versions with wicked-garden (semver).
 - The surface in this document is stable across **minor** versions.
 - Breaking changes to namespace, skill dispatch names, event types, evidence manifest
   schema, or degradation rules require a **major** version.
-- wicked-garden pins a minor-version range (`^X.Y`) of the qe domain in its
-  plugin.json `qe_version` field.
-- SessionStart hook in wicked-garden verifies the installed version satisfies
-  the pin; mismatches print a one-line actionable nudge.
+- wicked-garden pins a minor-version range (`^X.Y`) of wicked-ledger (the qe data layer) in its
+  plugin.json's `wicked_ledger_version` field.
+
 
 ---
 
