@@ -26,7 +26,7 @@ User project description
 propose-process facilitator
   ├── Score 9 risk factors (0-3 each)
   ├── Read skills/**/SKILL.md (context:fork) frontmatter → pick specialists
-  ├── Pick phases from phases.json catalog
+  ├── Pick phases per the workflow definition (crew WorkflowDef — workflows-as-data)
   ├── Set rigor_tier (minimal / standard / full)
   └── Emit process-plan.md + full task chain
 ```
@@ -57,8 +57,15 @@ clarify → design → [challenge?] → [test-strategy?] → build → test → 
 ```
 
 Brackets = optional phases. The facilitator picks which phases apply based on
-factor readings. `phases.json` defines gate config per phase (min_gate_score,
-valid_skip_reasons, depends_on).
+factor readings. Per-phase gate config and ordering are **workflows-as-data**:
+crew's `WorkflowDef` (id + ordered `PhaseDef[]` with `gate`, `depends_on`,
+`skill_ref`) is the engine contract; garden-side hard gates mirror
+`.claude-plugin/archetypes.json` via `scripts/crew/phase_manager.py`.
+
+> **Drift-guard**: `tests/test_workflow_drift.py` pins this skill to the
+> engine's data — verdict vocabulary to `scripts/_event_schema.py` and the
+> contract terms to crew's `WorkflowDef` (when a wicked-crew checkout is
+> resolvable). Update this reference and the data together, never one side.
 
 ### Phase Summary
 
