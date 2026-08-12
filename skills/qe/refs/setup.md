@@ -68,7 +68,7 @@ config = {
         'curl': True,
         'pa11y': False
     },
-    'created_at': __import__('datetime').datetime.utcnow().isoformat() + 'Z',
+    'created_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'),
     'claim_nudge': False
 }
 sys.stdout.write(json.dumps(config, indent=2))

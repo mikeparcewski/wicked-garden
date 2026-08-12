@@ -182,6 +182,11 @@ TARGETED = {
             "## wicked-testing Setup Complete",
             "## QE Setup Complete",
         ),
+        (   # datetime.utcnow() is deprecated since Python 3.12
+            "'created_at': __import__('datetime').datetime.utcnow().isoformat() + 'Z',",
+            "'created_at': __import__('datetime').datetime.now(__import__('datetime')"
+            ".timezone.utc).isoformat().replace('+00:00', 'Z'),",
+        ),
     ],
     "authoring": [
         (
