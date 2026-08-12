@@ -116,6 +116,9 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     "wicked.garden.sentinel.prepush_blocked",
     "wicked.garden.sentinel.unverified_task_done",
     "wicked.garden.loom.parity_mismatched",
+    # QE skill signals — fire-and-forget; consumed by ledger / dashboard tooling.
+    "wicked.qe.scenario.authored",
+    "wicked.qe.release.assessed",
 )
 
 # Reviewer values in gate-policy.json that are NOT subagent identifiers — they
