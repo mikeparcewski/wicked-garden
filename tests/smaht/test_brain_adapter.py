@@ -23,7 +23,10 @@ import pytest
 _REPO = Path(__file__).resolve().parents[2]
 _SMAHT = str(_REPO / "scripts" / "smaht")
 if _SMAHT not in sys.path:
-    sys.path.insert(0, _SMAHT)
+    # APPEND — never insert(0): tests/conftest.py keeps scripts/ at sys.path[0]
+    # so scripts/-level modules can't be shadowed (the crew.py scar). Same
+    # pattern conftest uses for scripts/crew.
+    sys.path.append(_SMAHT)
 
 import _context_backend  # noqa: E402  (scripts/ is on sys.path via conftest)
 from adapters import brain_adapter  # noqa: E402
