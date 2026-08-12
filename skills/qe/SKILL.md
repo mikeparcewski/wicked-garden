@@ -125,16 +125,15 @@ flaky-test-hunter, coverage-archaeologist, exploratory-tester,
 test-code-quality-auditor, snapshot-hygiene-auditor, test-impact-analyzer,
 mutation-test-engineer}`.
 
-Domain specialists: `wicked-garden-qe-{a11y, security, compliance, ai-feature,
-chaos, iac, integration, load-performance, localization, observability,
-ui-component, visual-regression, fuzz-property, data-quality}-test-engineer`
-(dash-names follow the pattern; e.g. `wicked-garden-qe-a11y-test-engineer`,
-`wicked-garden-qe-load-performance-engineer`,
-`wicked-garden-qe-fuzz-property-engineer`,
-`wicked-garden-qe-data-quality-tester`), plus
-`wicked-garden-qe-{e2e-orchestrator, contract-testing-engineer,
-test-automation-engineer, test-data-manager,
-incident-to-scenario-synthesizer}`.
+Domain specialists (all prefixed `wicked-garden-qe-`): `a11y-test-engineer` ·
+`security-test-engineer` · `compliance-test-engineer` ·
+`ai-feature-test-engineer` · `chaos-test-engineer` · `iac-test-engineer` ·
+`integration-test-engineer` · `localization-test-engineer` ·
+`observability-test-engineer` · `ui-component-test-engineer` ·
+`load-performance-engineer` · `visual-regression-engineer` ·
+`fuzz-property-engineer` · `data-quality-tester` · `e2e-orchestrator` ·
+`contract-testing-engineer` · `test-automation-engineer` ·
+`test-data-manager` · `incident-to-scenario-synthesizer`.
 
 **Executor-vs-advisor twins** (reciprocal NOT-THIS-WHEN contracts): qe
 specialists RUN tools and write evidence + ledger verdict rows; their garden
