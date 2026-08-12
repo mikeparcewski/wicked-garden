@@ -8,11 +8,12 @@ The --db symbol graph is translated from a wicked-estate store by estate_db.py
 symbol-level graph traversal.
 
 Usage:
-    # Plan what would be affected (brain-backed, no --db needed)
-    patch plan SYMBOL_ID --change add_field
-
-    # Plan with full symbol graph (requires local DB)
+    # Plan with the full symbol graph (recommended; --db from estate_db.py)
     patch plan SYMBOL_ID --change add_field --db symbols.db
+
+    # Plan without --db (legacy fallback: only works while a wicked-brain
+    # server is running; otherwise pass --db)
+    patch plan SYMBOL_ID --change add_field
 
     # Add a field to an entity/class
     patch add-field SYMBOL_ID --name email --type String --column EMAIL --db symbols.db
