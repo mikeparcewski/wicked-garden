@@ -128,3 +128,9 @@ capture what we learned", before /clear or exit). It sweeps the conversation
 for decisions, patterns, gotchas, discoveries, and preferences, classifies
 each onto the estate kind/tier vocabulary, and batch-writes them via
 `capture-batch`. Report what it stored.
+
+**Auto-memorize (ambient path)**: independent of this action, the Stop hook
+emits `wicked.garden.fact.extracted` events for decisions/discoveries it
+spots and drains them into estate via `scripts/mem/auto_memorize.py`
+(durable wicked-bus cursor, content-hash dedup, native DLQ — inspect with
+`... auto_memorize.py status '{}'` or `wicked-bus dlq list`).

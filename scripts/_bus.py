@@ -294,7 +294,7 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
     "wicked.garden.fact.extracted": {
         "domain": "smaht",
         "subdomain": "facts",
-        "description": "Structured fact extracted from conversation (consumed by wicked-brain auto-memorize)",
+        "description": "Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain -> estate memory)",
     },
     # wicked-testing integration — test-lifecycle verdict event (#549, AC-25).
     # Renamed to the wicked-bus SPEC form wicked.test.<noun>.<past-verb>

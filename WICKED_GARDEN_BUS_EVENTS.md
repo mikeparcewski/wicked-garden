@@ -89,7 +89,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
-| `wicked.garden.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by wicked-brain auto-memorize) |
+| `wicked.garden.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain, scripts/mem/auto_memorize.py, which persists to wicked-estate memory) |
 
 ### Gate
 

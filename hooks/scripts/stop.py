@@ -19,6 +19,7 @@ Runs async so it does NOT block the user on exit.
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -263,13 +264,15 @@ _EMITTABLE_FACT_TYPES = frozenset({"decision", "discovery"})
 _MIN_FACT_CONTENT_LENGTH = 15
 
 
-def _run_memory_promotion(session_id: str) -> list:
+def _run_memory_promotion(session_id: str, transcript_path: Optional[str] = None) -> list:
     """Emit high-value session facts as wicked.garden.fact.extracted events on wicked-bus.
 
-    Reads native task records (TaskCreate/TaskUpdate output) via
-    scripts/mem/session_fact_extractor.py, filters to decisions + discoveries
-    over the length threshold, and emits one event per fact. Brain's
-    auto-memorize subscriber handles persistence asynchronously.
+    Reads native task records (TaskCreate/TaskUpdate output) plus the session
+    transcript tail via scripts/_brain_ingest/session_fact_extractor.py,
+    filters to decisions + discoveries over the length threshold, skips facts
+    this session already emitted (per-session ledger — Stop fires every turn),
+    and emits one event per fact. The garden-run auto-memorize consumer
+    (scripts/mem/auto_memorize.py) persists them to wicked-estate memory.
 
     Returns a list of message strings (empty when nothing was emitted or the
     bus is unavailable). Always fails open — exceptions are caught and logged
@@ -279,10 +282,15 @@ def _run_memory_promotion(session_id: str) -> list:
         # scripts/ is on sys.path via the hook bootstrap; _brain_ingest is a
         # package under scripts/ so the qualified import resolves without any
         # additional sys.path manipulation.
-        from _brain_ingest.session_fact_extractor import extract_session_facts
+        from _brain_ingest.session_fact_extractor import (
+            extract_session_facts,
+            filter_unemitted,
+            mark_emitted,
+        )
         from _bus import emit_event
 
-        facts = extract_session_facts(session_id, limit=20)
+        facts = extract_session_facts(session_id, limit=20, transcript_path=transcript_path)
+        facts = filter_unemitted(facts, session_id)
         if not facts:
             if os.environ.get("WICKED_DEBUG"):
                 print(
@@ -292,6 +300,7 @@ def _run_memory_promotion(session_id: str) -> list:
             return []
 
         emitted = 0
+        emitted_facts = []
         for fact in facts:
             if fact.type not in _EMITTABLE_FACT_TYPES:
                 continue
@@ -308,13 +317,55 @@ def _run_memory_promotion(session_id: str) -> list:
                 },
             )
             emitted += 1
+            emitted_facts.append(fact)
 
         if emitted == 0:
             return []
-        return [f"[Memory] Emitted {emitted} fact event(s); wicked-brain will auto-memorize eligible ones."]
+        mark_emitted(emitted_facts, session_id)
+        return [f"[Memory] Emitted {emitted} fact event(s); the auto-memorize drain persists eligible ones to estate."]
 
     except Exception as e:
         print(f"[wicked-garden] fact emit error: {e}", file=sys.stderr)
+        return []
+
+
+def _run_auto_memorize_drain() -> list:
+    """Drain pending fact events into estate memory (garden-run consumer).
+
+    Replaces wicked-brain's server-side auto-memorize subscriber (S7): spawns
+    scripts/mem/auto_memorize.py, which polls the durable wicked-garden-mem
+    cursor, promotes + dedups each fact, and writes via estate memory.capture.
+    A failed estate write leaves the cursor put (at-least-once — next Stop
+    retries; three failed drains dead-letter the event natively). Always fails
+    open and never blocks session end.
+    """
+    try:
+        from _bus import _check_available
+        if not _check_available():
+            return []
+    except Exception:
+        return []
+    try:
+        script = _PLUGIN_ROOT / "scripts" / "mem" / "auto_memorize.py"
+        if not script.is_file():
+            return []
+        proc = subprocess.run(
+            [sys.executable, str(script), "drain", "{}"],
+            capture_output=True, text=True, timeout=25,
+        )
+        if proc.returncode != 0 or not proc.stdout.strip():
+            return []
+        result = json.loads(proc.stdout.strip().splitlines()[-1])
+        stored = result.get("stored", 0)
+        dead = result.get("dead_lettered", 0)
+        if stored or dead:
+            msg = f"[Memory] Auto-memorized {stored} fact(s) into estate"
+            if dead:
+                msg += f"; {dead} dead-lettered (see `wicked-bus dlq list`)"
+            return [msg + "."]
+        return []
+    except Exception as e:
+        print(f"[wicked-garden] auto-memorize drain error: {e}", file=sys.stderr)
         return []
 
 
@@ -558,7 +609,16 @@ def main():
         # self-reports cleanly, and the next session's bootstrap relies on
         # memories being current. Heavy cadence work (decay/consolidation/
         # telemetry/guard) was extracted in v9.2.15 — see _heavy_cadence.py.
-        promotion_messages = _run_memory_promotion(session_id)
+        promotion_messages = _run_memory_promotion(
+            session_id, input_data.get("transcript_path")
+        )
+
+        # 2c. Auto-memorize drain — the garden-run consumer of the fact events
+        # (brain's server subscriber retired at S7). Durable cursor: events
+        # emitted here (or left over from earlier sessions) land in estate
+        # memory; failures redeliver next Stop.
+        drain_messages = _run_auto_memorize_drain()
+        promotion_messages = promotion_messages + drain_messages
 
         # 4. Persist session state
         _persist_session_state()
