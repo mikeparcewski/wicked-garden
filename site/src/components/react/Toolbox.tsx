@@ -97,18 +97,19 @@ function ArchetypesDemo() {
   );
 }
 
-function DeliberateDemo() {
+function MemDemo() {
   return (
-    <div className="dm dm-delib">
-      <div className="dm-delib-ask">“add a retry to the flaky API call”</div>
-      <div className="dm-delib-lenses">
-        {["assumptions", "root cause", "alternatives", "risk", "reframe"].map((l, n) => (
-          <span key={l} className="dm-delib-lens" style={{ ["--d" as string]: `${0.4 + n * 0.14}s` }}>{l}</span>
-        ))}
+    <div className="dm dm-mem">
+      <div className="dm-mem-store">
+        <span className="dm-mem-kind">decision · stored</span>
+        “WAL mode for the ledger — fsync JSON first”
       </div>
-      <div className="dm-delib-out">
-        <span className="dm-delib-out-tag">reframed</span>
-        it isn’t flaky — the timeout is 500ms. Fix the timeout, not the symptom.
+      <div className="dm-mem-gap" aria-hidden>· · · three weeks later · new session · · ·</div>
+      <div className="dm-mem-ask">“why did we pick WAL again?”</div>
+      <div className="dm-mem-answer">
+        <span className="dm-mem-answer-tag">recalled</span>
+        crash-safe writes without a server — decided 3 weeks ago
+        <span className="dm-mem-cite">[cited · estate record]</span>
       </div>
     </div>
   );
@@ -120,7 +121,7 @@ const DEMOS: Record<string, () => JSX.Element> = {
   patch: PatchDemo,
   council: CouncilDemo,
   archetypes: ArchetypesDemo,
-  deliberate: DeliberateDemo,
+  mem: MemDemo,
 };
 
 const ADVANCE_MS = 4200;
@@ -167,7 +168,7 @@ export default function Toolbox() {
         <p className="tb-intro">
           Your harness plans, swarms, and ships. These are the six things a
           planner-executor genuinely can’t do on its own — and they’re a sample:{" "}
-          the full kit runs to 94 skills across 12 domains. It plays itself; click any tool to pin it.
+          the full catalog runs to 141 skills across 14 domains. It plays itself; click any tool to pin it.
         </p>
       </Reveal>
 

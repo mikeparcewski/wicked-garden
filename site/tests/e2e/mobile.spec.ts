@@ -23,6 +23,14 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
   await expect(card).toBeVisible();
   await expect(card.locator('.hs-claim')).not.toBeEmpty();
 
+  // The qe wall band collapses cleanly: roles stack, the desktop-only dashed
+  // wall + evidence channel are gone, the report-card flip still works.
+  const qe = page.locator('#qe');
+  await qe.scrollIntoViewIfNeeded();
+  await expect(qe.locator('.qw-role')).toHaveCount(3);
+  await expect(qe.locator('.qw-wall')).toBeHidden();
+  await expect(qe.locator('.qw-channel')).toBeHidden();
+
   // No horizontal overflow — the page must not scroll sideways on a phone.
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

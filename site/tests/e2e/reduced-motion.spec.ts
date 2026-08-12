@@ -21,6 +21,9 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
     ['#toolbox', /Six gaps your agent/],
     ['#gate', /Play the lying agent/],
     ['#toolkit', /Six tools were the sample/],
+    ['#qe', /No agent grades its own homework/],
+    ['#fleet', /Forty specialists/],
+    ['#extend', /Your domain\. Your pack\./],
     ['#install', /One command/],
   ];
   for (const [id, heading] of sections) {
@@ -34,6 +37,12 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
   // The hero island still runs its (shortened) verdict loop without throwing.
   await page.locator('.hs-card').scrollIntoViewIfNeeded();
   await expect(page.locator('.hs-card .hs-stage')).toBeVisible();
+
+  // qe bands honor reduced motion: the evidence channel doesn't play and the
+  // fleet doesn't auto-cycle — the visitor drives from the start.
+  await expect(page.locator('.qw-stage')).not.toHaveClass(/is-playing/);
+  await expect(page.locator('#fleet .qf-afford')).toContainText('driving');
+  await expect(page.locator('#fleet .qf-agent')).toHaveCount(40);
 
   expect(errors, `pageerror events: ${errors.map((e) => e.message).join('; ')}`).toEqual([]);
 });

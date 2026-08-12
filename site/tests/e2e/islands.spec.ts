@@ -2,10 +2,12 @@ import { test, expect } from '@playwright/test';
 import { expectRevealed, clickCopyChip } from './utils';
 
 /**
- * Smoke coverage for the six React islands mounted on index.astro
- * (all client:load): HeroStamp, Toolbox, ProveGate, CapabilityGrid,
- * InstallBench, CopyChip. Each test asserts the island (a) renders and
- * (b) responds to one representative interaction.
+ * Smoke coverage for the React islands mounted on index.astro (all
+ * client:load): HeroStamp, Toolbox, ProveGate, CapabilityGrid, ExtendPack,
+ * InstallBench, CopyChip — plus the shared SameGarden platform map. The two
+ * qe-domain islands (QeWall, QeFleet) have their own spec (qe.spec.ts).
+ * Each test asserts the island (a) renders and (b) responds to one
+ * representative interaction.
  */
 
 // Clipboard permissions so CopyChip's navigator.clipboard.writeText resolves
@@ -17,10 +19,12 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('hero renders headline, stats, and install command', async ({ page }) => {
+test('hero renders headline, capability-plane stats, and install command', async ({ page }) => {
   await expect(page).toHaveTitle(/wicked-garden/);
   await expect(page.locator('h1')).toContainText('The tools your coding agent');
-  await expect(page.locator('.gd-hero-stats')).toContainText('94');
+  await expect(page.locator('.gd-hero-stats')).toContainText('141');
+  await expect(page.locator('.gd-hero-stats')).toContainText('40');
+  await expect(page.locator('#hero .kicker').first()).toContainText('capability plane');
   await expect(
     page.locator('#hero').getByRole('button', { name: 'Copy command: npx wicked-installer' }),
   ).toBeVisible();
@@ -87,16 +91,56 @@ test('ProveGate: driving the gate re-derives PROVED, breaking the vault FAILS CL
   await expect(machine.locator('.pg-mark-word')).toHaveText('FAILS CLOSED');
 });
 
-test('CapabilityGrid: 12 domain cards + 4 peers render and reveal on scroll', async ({ page }) => {
+test('CapabilityGrid: 14 domain cards + 4 peers render; qe card deep-links to the wall', async ({
+  page,
+}) => {
   const grid = page.locator('#toolkit');
   await grid.scrollIntoViewIfNeeded();
   await expect(grid.getByRole('heading', { name: /Six tools were the sample/ })).toBeVisible();
-  await expect(grid.locator('.cg-card')).toHaveCount(12);
+  await expect(grid.locator('.cg-card')).toHaveCount(14);
   await expect(grid.locator('.cg-peer')).toHaveCount(4);
+  await expect(grid.locator('.cg-peer').first()).toContainText('wicked-estate');
   // The island is presentational — its dynamic behavior is the scroll-triggered
   // reveal. Assert the fade-in actually completed (opacity → 1).
   await expectRevealed(grid.locator('.cg-grid'));
   await expect(grid.locator('.cg-card').first()).toContainText('skills');
+  // The qe domain card is the doorway to the absorbed wall band.
+  const qeCard = grid.locator('.cg-card--qe');
+  await expect(qeCard).toHaveAttribute('href', '#qe');
+  await expect(qeCard).toContainText('quality engineering');
+  await expect(qeCard).toContainText('42 skills');
+});
+
+test('ExtendPack: the extension pitch renders scaffold, rules, and the compile chip', async ({
+  page,
+}) => {
+  const xp = page.locator('#extend');
+  await xp.scrollIntoViewIfNeeded();
+  await expect(xp.getByRole('heading', { name: /Your domain\. Your pack\./ })).toBeVisible();
+  await expectRevealed(xp.getByRole('heading', { name: /Your domain\. Your pack\./ }));
+  // the {vendor}-{domain}-{role} scaffold rows
+  await expect(xp.locator('.xp-row')).toHaveCount(3);
+  await expect(xp.locator('.xp-dir').first()).toContainText('acme-fintech/');
+  await expect(xp.locator('.xp-rule')).toHaveCount(3);
+  // Interaction: copy the prove-compile command (the garden-free gate).
+  await clickCopyChip(
+    xp.getByRole('button', { name: /Copy command: wicked-garden-prove compile/ }),
+  );
+});
+
+test('SameGarden platform map: four planes render, garden is "you are here"', async ({ page }) => {
+  const map = page.locator('#platform-map');
+  await map.scrollIntoViewIfNeeded();
+  await expect(map.locator('.sg-plane')).toHaveCount(4);
+  // garden's own card never self-promotes — it renders as the here-marker
+  // inside the capability plane.
+  const capability = map.locator('.sg-plane--capability');
+  await expect(capability).toContainText('wicked-garden');
+  await expect(capability.locator('.sg-here-chip')).toContainText('you are here');
+  // the other planes still link out
+  await expect(
+    map.locator('.sg-plane--foundation').getByRole('link', { name: /Visit wicked-estate/ }),
+  ).toBeVisible();
 });
 
 test('InstallBench: renders both install paths; copy chip gives feedback', async ({ page }) => {
