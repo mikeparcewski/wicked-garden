@@ -34,7 +34,6 @@ DEFAULTS_BY_DOMAIN: dict[tuple[str, str], list[str]] = {
     ("skills", "platform"): ["build", "review", "operate"],
     ("skills", "agentic"): ["design", "review"],
     ("skills", "propose-process"): ["bootstrap", "clarify"],
-    ("skills", "multi-model"): ["clarify", "design"],
     ("skills", "deliberate"): ["clarify", "design"],
     ("skills", "crew"): ["*"],
     ("skills", "delivery"): ["build", "review", "operate"],

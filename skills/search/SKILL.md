@@ -42,6 +42,7 @@ its own graph; it consumes brain's. Garden contributes its proprietary
 | `hotspots` | most-referenced symbols, god-objects | [refs/hotspots.md](refs/hotspots.md) |
 | `service-map` | service architecture from infra + code | [refs/service-map.md](refs/service-map.md) |
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
+| `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
 
 ## Index / freshness (shared by every action)
 
@@ -185,3 +186,10 @@ For "give me an architecture walkthrough" / "narrate this codebase" / "where
 should I start reading", use the nested skill:
 [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) — produces a guided
 reading order, annotated directory map, data-flow diagram, and gotchas list.
+
+## Answer — cited synthesis ("ask the record")
+
+For "answer this from the knowledge base" / "what does the record say about
+X", load [refs/answer.md](refs/answer.md) — synthesizes an answer strictly
+from wicked-estate `knowledge.recall` + `memory.recall` results, citing each
+claim's `source`. Shared with the `wicked-garden-mem` skill's `answer` action.
