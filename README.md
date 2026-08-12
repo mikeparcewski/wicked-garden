@@ -96,6 +96,23 @@ Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-es
 
 ---
 
+## Build on it
+
+The catalog is open: ship your own domain pack — a `wicked-pack.json`
+manifest plus `{vendor}-{domain}` router / `{vendor}-{domain}-{role}` fork
+workers — and the runtime discovers it without a garden PR: catalog listing,
+crew specialist routing, peer-floor probing, same evidence discipline.
+
+```bash
+npx wicked-garden pack check ./acme-seo-pack   # the shipped conformance gate
+npx wicked-installer pack add acme-seo-pack    # acquire + validate + install + register
+npx wicked-garden pack list                    # what the runtime sees
+```
+
+Full author guide: [`docs/extending.md`](docs/extending.md).
+
+---
+
 ## Principles
 
 - **Don't fight the harness.** Fill the gaps; never re-implement what it already does well.
@@ -106,7 +123,7 @@ Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-es
 
 ## More
 
-[`ETHOS.md`](ETHOS.md) · [`docs/getting-started.md`](docs/getting-started.md) · [`docs/domains.md`](docs/domains.md) · [`docs/required-peers.md`](docs/required-peers.md) · [`docs/compiler.md`](docs/compiler.md)
+[`ETHOS.md`](ETHOS.md) · [`docs/getting-started.md`](docs/getting-started.md) · [`docs/domains.md`](docs/domains.md) · [`docs/required-peers.md`](docs/required-peers.md) · [`docs/compiler.md`](docs/compiler.md) · [`docs/extending.md`](docs/extending.md)
 
 ## Requirements
 

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/wicked-pack.schema.json",
+  "spec": 1,
+  "name": "acme-seo",
+  "vendor": "acme",
+  "version": "0.1.0",
+  "description": "ACME's SEO domain pack — a router plus two fork workers, used as the extension-contract e2e fixture.",
+  "skills_dir": "skills",
+  "domains": [
+    {
+      "name": "seo",
+      "description": "Search-engine optimization: keyword research, content audits, ranking verdicts.",
+      "specialist": {
+        "role": "seo-engineering",
+        "description": "SEO specialist — keyword strategy, content audits, and crawlability review with recorded evidence.",
+        "enhances": ["design", "build", "review"]
+      },
+      "produces": [
+        {
+          "archetype": "review",
+          "produces": ["seo-audit"],
+          "gate": "vault"
+        }
+      ]
+    }
+  ],
+  "peers": {
+    "wicked-garden": ">=12.0.0",
+    "wicked-vault": ">=0.5.0"
+  },
+  "provenance": {
+    "source": "https://github.com/acme/acme-seo-pack",
+    "publisher": "acme",
+    "license": "MIT"
+  }
+}

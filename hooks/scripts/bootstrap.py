@@ -553,6 +553,47 @@ def _check_vault_dependency():
         return None  # Fail open — never block session start
 
 
+def _check_pack_floors():
+    """Return a briefing note when an installed pack's peer floor is violated.
+
+    Extension-contract gap 6: third-party packs declare peer version floors
+    in wicked-pack.json (``peers``). SessionStart runs the CHEAP check only
+    (probe=False — garden's own version, zero subprocesses); the full probe
+    lives in ``npx wicked-garden pack floors``. Strictly fail-open: unknown
+    versions are never reported, and any error returns None.
+    """
+    try:
+        import _pack_registry
+
+        packs, _errors = _pack_registry.discover_packs()
+        if not packs:
+            return None
+        findings = _pack_registry.check_peer_floors(packs, probe=False)
+        violations = [f for f in findings if f.get("status") in ("below-floor", "bad-range")]
+        if not violations:
+            return None
+        lines = []
+        for v in violations[:5]:
+            if v.get("status") == "bad-range":
+                lines.append(
+                    f"  - {v['pack']}: peer {v['peer']} declares a malformed "
+                    f"floor {v['floor']!r} (expected \">=X.Y.Z\" or \"^X.Y.Z\")"
+                )
+            else:
+                lines.append(
+                    f"  - {v['pack']}: needs {v['peer']} {v['floor']}, "
+                    f"installed {v.get('installed') or 'unknown'}"
+                )
+        return (
+            "[Packs] peer version floor violation(s) — pack capabilities may "
+            "misbehave until peers are updated (informational, nothing is blocked):\n"
+            + "\n".join(lines)
+            + "\n  Full probe: npx wicked-garden pack floors"
+        )
+    except Exception:
+        return None  # fail open — packs never block session start
+
+
 def _check_loom_dependency():
     """Return a briefing note if loom peer-resolution is unavailable, else None.
 
@@ -1257,6 +1298,10 @@ def main():
         _loom_note = _check_loom_dependency()
         if _loom_note:
             mode_notes.append(_loom_note)
+        # Third-party pack peer floors (extension contract, fail-open).
+        _pack_note = _check_pack_floors()
+        if _pack_note:
+            mode_notes.append(_pack_note)
         if onedrive_path:
             mode_notes.append(
                 f"[Path] OneDrive directory detected. Resolved base: {onedrive_path}. "
