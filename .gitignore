@@ -16,6 +16,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+# but NOT the plugin-shipped qe helpers (Phase 6c)
+!scripts/qe/lib/
 parts/
 sdist/
 var/
