@@ -251,13 +251,20 @@ def main():
                 _mem_target = memory_directive_target()
             except Exception:
                 _mem_target = "wicked-brain:memory"
+            # `type=` is wicked-brain:memory vocabulary; estate's memory.capture
+            # takes kind/tier/scope/content instead. Suffix the hint only when
+            # the directive targets the brain skill, so the instruction stays
+            # valid under either routed backend (Copilot review, #1044).
+            _type_clause = (
+                f" with type={mem_type}" if "wicked-brain" in _mem_target else ""
+            )
             if compliance_required:
                 escalation_prefix = (
                     "[ESCALATION] " if escalations >= _ESCALATION_THRESHOLD else ""
                 )
                 system_message = (
                     f"{escalation_prefix}[Memory] Task {task_label} completed. "
-                    f"REQUIRED: Call {_mem_target} with type={mem_type} "
+                    f"REQUIRED: Call {_mem_target}{_type_clause} "
                     "to capture any decision, gotcha, or pattern from this work. "
                     "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
                 )
@@ -265,7 +272,7 @@ def main():
                 system_message = (
                     f"[Memory] Task {task_label} completed. "
                     "If this produced a decision, gotcha, or reusable pattern, "
-                    f"store it with {_mem_target} (type={mem_type})."
+                    f"store it with {_mem_target}{_type_clause}."
                 )
 
         # Evidence nudge for crew tasks (Issue #253).
