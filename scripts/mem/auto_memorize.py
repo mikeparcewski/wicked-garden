@@ -137,11 +137,16 @@ def promote_fact(event):
 # ── dedup ledger ─────────────────────────────────────────────────────────────
 
 def _ledger_path():
-    override = os.environ.get("WICKED_MEM_LEDGER_DIR")
-    base = Path(override) if override else (
-        Path.home() / ".something-wicked" / "wicked-garden" / "local" / "wicked-mem"
-    )
-    return base / "auto_memorize_hashes.json"
+    override = os.environ.get("WICKED_MEM_LEDGER_DIR")  # test seam
+    if override:
+        return Path(override) / "auto_memorize_hashes.json"
+    try:
+        from _paths import get_local_path  # project-scoped storage root
+        return get_local_path("wicked-mem") / "auto_memorize_hashes.json"
+    except Exception:
+        # Fail-open fallback mirroring the _paths layout root.
+        return (Path.home() / ".something-wicked" / "wicked-garden"
+                / "local" / "wicked-mem" / "auto_memorize_hashes.json")
 
 
 def _load_ledger():

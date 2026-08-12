@@ -297,12 +297,20 @@ def extract_transcript_facts(transcript_path: str, limit: int = 10) -> list:
 # content-hash dedup remains the cross-session guard.
 
 def _emitted_ledger_path(session_id: str) -> Path:
-    override = os.environ.get("WICKED_MEM_LEDGER_DIR")
-    base = Path(override) if override else (
-        Path.home() / ".something-wicked" / "wicked-garden" / "local" / "wicked-mem"
-    )
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", session_id or "default")[:80]
-    return base / "emitted" / f"{safe}.json"
+    override = os.environ.get("WICKED_MEM_LEDGER_DIR")  # test seam
+    if override:
+        return Path(override) / "emitted" / f"{safe}.json"
+    try:
+        _scripts = str(Path(__file__).resolve().parents[1])
+        if _scripts not in sys.path:
+            sys.path.insert(0, _scripts)
+        from _paths import get_local_path  # project-scoped storage root
+        return get_local_path("wicked-mem", "emitted") / f"{safe}.json"
+    except Exception:
+        # Fail-open fallback mirroring the _paths layout root.
+        return (Path.home() / ".something-wicked" / "wicked-garden"
+                / "local" / "wicked-mem" / "emitted" / f"{safe}.json")
 
 
 def _fact_hash(content: str) -> str:
