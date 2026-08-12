@@ -326,7 +326,7 @@ def _extract_scenario_metrics(
     iteration at _MAX_SCENARIO_SCAN to bound the worst-case scan even when no
     deadline is provided.
 
-    Falls back to all-zero output when wicked-testing is not installed.
+    Falls back to all-zero output when no qe scenario data exists.
     """
     out = {"scenario_pass": 0, "scenario_partial": 0, "scenario_fail": 0}
     if not project or project == "_global":
