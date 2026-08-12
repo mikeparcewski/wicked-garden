@@ -32,6 +32,14 @@ is the dispatchable fork-skill name (``wicked-garden-{domain}-{role}``).
 
 The builder is cached per ``plugin_root`` string so repeated calls from
 hooks or scripts do not re-walk the skills tree.
+
+Third-party packs (extension-contract gap 2): after walking garden's own
+skills tree, the builder discovers installed packs via
+``scripts/_pack_registry.py`` (wicked-pack.json manifests) and indexes
+their ``context: fork`` workers under the same maps — so crew dispatch of
+``{vendor}-{domain}-{role}`` (e.g. ``acme-seo-keyword-analyst``) resolves
+exactly like a first-party worker. Garden walks FIRST, so a pack can never
+shadow a first-party role name; pack discovery is strictly fail-open.
 """
 
 from __future__ import annotations
@@ -124,6 +132,66 @@ def _load_domains(plugin_root: Path) -> list:
     return names
 
 
+def _discover_packs_safe() -> list:
+    """Discovered third-party packs, or [] — never raises (fail-open)."""
+    try:
+        import sys
+        scripts_dir = str(Path(__file__).resolve().parents[1])
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        import _pack_registry
+        packs, _errors = _pack_registry.discover_packs()
+        return packs
+    except Exception:
+        return []
+
+
+def _index_pack_workers(pack, maps: dict, warnings: list) -> None:
+    """Index one pack's ``context: fork`` workers into the resolver maps.
+
+    Pack workers are named ``{vendor}-{domain}-{role}``; their specialist
+    domain is the qualified ``{vendor}-{domain}`` (so pack domains can never
+    collide with garden's bare domain names). Both the bare role tail and
+    the full skill name resolve. First match wins — garden is indexed
+    before any pack, and packs are iterated in discovery priority order.
+    """
+    try:
+        skills_dir = Path(pack.skills_dir)
+        if not skills_dir.is_dir():
+            return
+        pack_domains = sorted(pack.domain_names(), key=len, reverse=True)
+        for skill_path in sorted(skills_dir.rglob("SKILL.md")):
+            meta = _parse_skill_frontmatter(skill_path)
+            if meta.get("context") != "fork":
+                continue
+            skill_name = meta.get("name")
+            if not skill_name or not skill_name.startswith(pack.vendor + "-"):
+                continue
+            tail = skill_name[len(pack.vendor) + 1:]
+            domain = next((d for d in pack_domains if tail.startswith(d + "-")), None)
+            if domain is None:
+                continue  # not a {vendor}-{domain}-{role} worker — pack check flags it
+            role = tail[len(domain) + 1:]
+            qualified_domain = pack.specialist_domain(domain)
+
+            if role in maps["role_to_skill"]:
+                if maps["role_to_skill"][role] != skill_name:
+                    warnings.append(
+                        f"role collision: '{role}' maps to both "
+                        f"'{maps['role_to_skill'][role]}' and '{skill_name}' "
+                        f"(pack {pack.name}) — keeping first"
+                    )
+            else:
+                maps["role_to_skill"][role] = skill_name
+                maps["role_to_domain"][role] = qualified_domain
+            # The full skill name ALWAYS resolves (even when the bare role
+            # lost a collision) — crew dispatches pack workers by full name.
+            maps["skill_to_role"].setdefault(skill_name, role)
+            maps["skill_to_domain"].setdefault(skill_name, qualified_domain)
+    except Exception:
+        pass  # fail-open — a broken pack never breaks first-party resolution
+
+
 def _split_domain_role(skill_name: str, legacy_subagent_type: str) -> Tuple[str, str]:
     """Derive ``(domain, bare_role)`` for a fork skill.
 
@@ -158,6 +226,7 @@ def _build_resolver_cached(plugin_root_str: str) -> dict:
     role_to_skill: dict = {}
     role_to_domain: dict = {}
     skill_to_role: dict = {}
+    skill_to_domain: dict = {}
     subagent_to_role: dict = {}
     warnings: list = []
 
@@ -190,8 +259,24 @@ def _build_resolver_cached(plugin_root_str: str) -> dict:
             role_to_skill[role] = skill_name
             role_to_domain[role] = domain
             skill_to_role[skill_name] = role
+            skill_to_domain[skill_name] = domain
             if legacy_subagent_type:
                 subagent_to_role.setdefault(legacy_subagent_type, role)
+
+    # Third-party packs (gap 2): indexed AFTER garden so first-party names
+    # always win collisions. Strictly fail-open.
+    maps = {
+        "role_to_skill": role_to_skill,
+        "role_to_domain": role_to_domain,
+        "skill_to_role": skill_to_role,
+        "skill_to_domain": skill_to_domain,
+    }
+    packs = _discover_packs_safe()
+    pack_domains: list = []
+    for pack in packs:
+        _index_pack_workers(pack, maps, warnings)
+        for domain_name in pack.domain_names():
+            pack_domains.append(pack.specialist_domain(domain_name))
 
     return {
         # role -> dispatchable fork-skill name (dash form). The key keeps
@@ -201,10 +286,14 @@ def _build_resolver_cached(plugin_root_str: str) -> dict:
         "role_to_skill": role_to_skill,
         "role_to_domain": role_to_domain,
         "skill_to_role": skill_to_role,
+        # skill name -> owning specialist domain (garden bare domains;
+        # packs use the qualified "{vendor}-{domain}" form).
+        "skill_to_domain": skill_to_domain,
         # legacy colon subagent_type -> role (only where a fork skill kept
         # the legacy frontmatter key), plus skill name -> role.
         "subagent_to_role": {**subagent_to_role, **skill_to_role},
-        "domains": _load_domains(plugin_root),
+        "domains": _load_domains(plugin_root) + pack_domains,
+        "packs": [pack.name for pack in packs],
         "warnings": warnings,
     }
 
@@ -237,9 +326,10 @@ def resolve_role(
     """Return ``(domain, skill_name)`` for a role, or ``(None, None)``.
 
     Accepts a bare role (``requirements-analyst``), a fork-skill name
-    (``wicked-garden-product-requirements-analyst``), or a legacy colon
-    subagent_type (``wicked-garden:product:requirements-analyst``) —
-    all resolve to the dispatchable fork-skill name.
+    (``wicked-garden-product-requirements-analyst`` — or a pack worker
+    like ``acme-seo-keyword-analyst``), or a legacy colon subagent_type
+    (``wicked-garden:product:requirements-analyst``) — all resolve to
+    the dispatchable fork-skill name.
 
     Unknown roles return ``(None, None)`` without raising. Callers that
     want close-match suggestions should drive ``difflib.get_close_matches``
@@ -251,9 +341,14 @@ def resolve_role(
     if not role_name:
         return None, None
 
-    # Qualified identifiers (legacy colon form or dash skill name): map
-    # back to the bare role via the reverse map, then use the forward
-    # maps so the return shape is consistent for every input form.
+    # Exact fork-skill name (first-party OR pack worker): the direct map
+    # is authoritative — immune to bare-role collisions.
+    direct_domain = resolver.get("skill_to_domain", {}).get(role_name)
+    if direct_domain is not None:
+        return direct_domain, role_name
+
+    # Legacy colon identifiers: map back to the bare role via the reverse
+    # map, then fall through to the forward maps below.
     if role_name.startswith(_SUBAGENT_PREFIX) or role_name.startswith(_SKILL_PREFIX):
         bare = resolver.get("subagent_to_role", {}).get(role_name)
         if bare is None:

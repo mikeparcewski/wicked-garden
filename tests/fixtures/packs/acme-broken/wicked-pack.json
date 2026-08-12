@@ -1,0 +1,30 @@
+{
+  "spec": 1,
+  "name": "acme-broken",
+  "vendor": "acme",
+  "version": "0.1.0",
+  "description": "Deliberately non-conformant pack — exercises the pack check failure modes. Every defect here is intentional.",
+  "skills_dir": "skills",
+  "domains": [
+    {
+      "name": "seo",
+      "specialist": {
+        "role": "seo-engineering",
+        "enhances": ["design", "sorcery"]
+      },
+      "produces": [
+        {
+          "archetype": "seo-magic",
+          "produces": ["Audit_Report"]
+        }
+      ]
+    }
+  ],
+  "peers": {
+    "wicked-vault": "latest"
+  },
+  "provenance": {
+    "source": "https://github.com/acme/acme-broken-pack",
+    "publisher": "acme"
+  }
+}

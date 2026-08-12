@@ -145,15 +145,25 @@ def _write_trace(entry: dict) -> None:
 def _load_specialist_domains() -> set:
     """Return the set of specialist domain names from specialist.json.
 
-    Reads .claude-plugin/specialist.json relative to CLAUDE_PLUGIN_ROOT.
+    Reads .claude-plugin/specialist.json relative to CLAUDE_PLUGIN_ROOT,
+    then merges specialist domains contributed by installed third-party
+    packs (extension-contract gap 2 — ``{vendor}-{domain}`` entries from
+    wicked-pack.json manifests, via scripts/_pack_registry.py).
     Returns an empty set on any error so the hook stays fail-open.
     """
+    domains: set = set()
     try:
         specialist_path = _PLUGIN_ROOT / ".claude-plugin" / "specialist.json"
         data = json.loads(specialist_path.read_text(encoding="utf-8"))
-        return {s["name"] for s in data.get("specialists", []) if "name" in s}
+        domains = {s["name"] for s in data.get("specialists", []) if "name" in s}
     except Exception:
         return set()
+    try:
+        import _pack_registry
+        domains.update(_pack_registry.specialist_domains())
+    except Exception:
+        pass  # packs are optional — fail open to first-party domains only
+    return domains
 
 
 def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):

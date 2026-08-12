@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/wicked-pack.schema.json",
+  "title": "wicked-pack.json — third-party skill-pack manifest",
+  "description": "Drop-in registration manifest for a third-party pack (extension contract, SKILL-RATIONALIZATION §5). Placed at the pack root next to its skills/ tree. Garden discovers it at runtime from WICKED_PACK_PATH, the registered-pack file, Claude Code plugin dirs, and <project>/.wicked/packs/ — no garden PR required. Executable validation: `npx wicked-garden pack check <dir>` (scripts/pack/check.py).",
+  "type": "object",
+  "required": ["spec", "name", "vendor", "version", "domains"],
+  "additionalProperties": false,
+  "properties": {
+    "spec": {
+      "const": 1,
+      "description": "Manifest spec version. Currently 1."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 64,
+      "description": "Pack name, kebab-case, must start with the vendor prefix (e.g. acme-seo). The wicked* prefix is reserved for the first-party catalog."
+    },
+    "vendor": {
+      "type": "string",
+      "pattern": "^(?!wicked)[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 64,
+      "description": "Vendor prefix all skill names in the pack must carry ({vendor}-{domain}[-{role}]). 'wicked' and 'wicked-*' are reserved."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+",
+      "description": "Pack semver."
+    },
+    "description": {
+      "type": "string",
+      "description": "One-paragraph pack summary (shown by `pack list`)."
+    },
+    "skills_dir": {
+      "type": "string",
+      "default": "skills",
+      "description": "Relative path to the skills tree (skills/<skill-name>/SKILL.md). Must stay inside the pack."
+    },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "description": "The domains this pack contributes. Each declared domain must have exactly one router skill named {vendor}-{domain}; its workers are {vendor}-{domain}-{role} fork skills.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "description": "Bare domain name (e.g. seo). The crew-facing specialist domain becomes {vendor}-{name}."
+          },
+          "description": { "type": "string" },
+          "specialist": {
+            "type": "object",
+            "description": "Present iff this domain should be crew-routable (the pack equivalent of a specialist.json entry). Registered as {vendor}-{domain}; first-party names always win a collision.",
+            "required": ["role"],
+            "additionalProperties": false,
+            "properties": {
+              "role": {
+                "type": "string",
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+                "description": "Human-facing discipline label (e.g. seo-engineering)."
+              },
+              "description": { "type": "string" },
+              "enhances": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Crew phases this specialist enhances: clarify | design | qe | build | review | operate | *"
+              }
+            }
+          },
+          "produces": {
+            "type": "array",
+            "description": "Produces-contract declarations (extension-contract gap 5). Each names an archetype and the produces ids the domain's work yields; gates re-derive them via wicked-vault (`loom gate` consumes the produces id directly). Steering attach is documented in docs/extending.md — declared data today, auto-steering is the named seam.",
+            "items": {
+              "type": "object",
+              "required": ["archetype", "produces"],
+              "additionalProperties": false,
+              "properties": {
+                "archetype": {
+                  "type": "string",
+                  "description": "One of garden's work-shape archetypes (.claude-plugin/archetypes.json): triage, explore, specify, decide, ship, review, incident, build, migrate, modernize."
+                },
+                "produces": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+                  "description": "Kebab-case produces ids (the vault cross-check --phase values)."
+                },
+                "gate": {
+                  "type": "string",
+                  "enum": ["vault"],
+                  "default": "vault",
+                  "description": "Gate backend. Only the vault re-derivation gate exists; a pack never ships its own gate logic."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "peers": {
+      "type": "object",
+      "description": "Peer version floors (extension-contract gap 6), e.g. {\"wicked-garden\": \">=12.29.0\", \"wicked-vault\": \">=0.5.0\"}. Checked FAIL-OPEN: violations are surfaced at SessionStart and by `pack floors`, never blocked on.",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^(>=|\\^)\\s*\\d+\\.\\d+\\.\\d+$"
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "description": "Declared provenance (extension-contract gap 4 — minimal + honest). Registration additionally records a sha256 of this manifest and a content hash of the skills tree. There is NO signing: hashes detect post-registration drift, they do not prove authorship. Install packs only from sources you trust — skills carry shell.",
+      "additionalProperties": false,
+      "properties": {
+        "source": { "type": "string", "description": "Canonical origin URL (git repo or npm page)." },
+        "publisher": { "type": "string", "description": "Vendor / maintainer identity as published." },
+        "license": { "type": "string" }
+      }
+    }
+  }
+}
