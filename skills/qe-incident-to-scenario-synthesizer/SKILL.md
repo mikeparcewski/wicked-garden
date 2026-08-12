@@ -6,7 +6,7 @@ description: |
   reproduces it. Takes an incident-report markdown OR direct fields
   (stack trace, endpoint URL, HTTP method, request body), extracts the
   minimal reproducer, writes `scenarios/<incident-id>.md` with
-  `linked_to_incident:` frontmatter, emits `wicked.scenario.authored`
+  `linked_to_incident:` frontmatter, emits `wicked.qe.scenario.authored`
   with `source: incident`, and queues a review task under
   `assignee_skill: incident-to-scenario-synthesizer:review` so a human
   confirms before the scenario is marked active.
@@ -20,7 +20,7 @@ description: |
   user: "Synthesize a scenario from docs/postmortems/INC-4829.md."
   <commentary>Use incident-to-scenario-synthesizer — it reads the
   postmortem, extracts stack + request + endpoint, writes scenarios/
-  INC-4829.md with status: pending-review, emits wicked.scenario.authored,
+  INC-4829.md with status: pending-review, emits wicked.qe.scenario.authored,
   and queues a human-review task. Scenario is NOT active until approved.</commentary>
   </example>
 model: sonnet
@@ -217,7 +217,7 @@ store.create("tasks", {
 
 // 3. Bus event so downstream listeners (e.g. a reviewer dashboard) can
 //    surface the authored scenario immediately.
-bus.emit("wicked.scenario.authored", {
+bus.emit("wicked.qe.scenario.authored", {
   scenario_path: scenarioPath,
   incident_id: incidentId,
   source: "incident",
@@ -271,7 +271,7 @@ top_frame: {file}:{line} ({function})
 
 synthesized: scenarios/{incident_id}.md   status: pending-review
 
-emitted event: wicked.scenario.authored  source=incident  run_id={RUN_ID}
+emitted event: wicked.qe.scenario.authored  source=incident  run_id={RUN_ID}
 queued task:   incident-to-scenario-synthesizer:review  ({incident_id})
 
 VERDICT=PASS REVIEWER=wicked-garden-qe-incident-to-scenario-synthesizer RUN_ID={RUN_ID}
