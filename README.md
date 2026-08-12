@@ -30,7 +30,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | says *"tests pass"* (sometimes it's lying) | re-runs the proof. False "done" → **rejected.** Missing backend → **fails closed.** Never a vacuous green. |
 | greps and reads — blind to string-wired links | sees the **injected edges** (event→consumer, command→agent, agent→capability) grep never will → `blast-radius`, `lineage` |
 | refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
-| forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → wicked-brain |
+| forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → the mem domain over wicked-estate |
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
 | asks *itself* for a second opinion | convenes a **real multi-model panel** (Gemini / Codex / …) → the jam skill's `council` action |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
@@ -69,7 +69,8 @@ npm i -g wicked-vault          # wicked-vault (≥ 0.4.0), the honest-evidence b
 The rest of the kit is **opt-in layers** — add what you want, skip the rest and the toolkit still works:
 
 ```bash
-/plugin install wicked-brain   # the memory layer — cross-session recall + cited search (the "what")
+# wicked-estate — the memory/knowledge layer (cross-session recall + cited search, the "what"):
+#   install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or ~/.local/bin
 /plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 
@@ -109,7 +110,7 @@ Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-es
 
 ## Requirements
 
-A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.4.0) plus opt-in layers (`wicked-brain` · `wicked-bus`).
+A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.4.0) plus opt-in layers (`wicked-estate` · `wicked-bus`).
 
 ## License
 

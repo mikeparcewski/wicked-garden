@@ -14,7 +14,7 @@ Before drafting a plan, explore the codebase to understand:
 - [ ] Any feature flags or config that gates the change
 
 Use `wicked-garden:search:blast-radius {symbol}` to find all call sites. Fall back to
-`wicked-brain:search` or Grep when the index is unavailable.
+the estate MCP SearchEntity tool, or Grep when the index is unavailable.
 
 ## Risk assessment checklist
 

@@ -5,7 +5,7 @@ Generators are the code-production side of the patch pipeline:
 - Input: change spec + affected symbols
 - Output: concrete patches per file
 
-Uses the symbol graph (from --db or wicked-brain once available) to
+Uses the symbol graph (--db, translated from a wicked-estate store) to
 propagate changes across all affected files automatically.
 """
 

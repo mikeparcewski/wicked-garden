@@ -75,10 +75,10 @@ TaskCreate(
 )
 ```
 
-### With wicked-brain:memory
+### With the memory layer (wicked-garden-mem)
 Store for pattern recall:
 ```
-Skill(skill="wicked-brain:memory", args="store \"auth-requirements-2026\" \"$(cat requirements.md)\"")
+Skill(skill="wicked-garden-mem", args="store \"auth-requirements-2026: $(cat requirements.md)\"")
 ```
 
 ### With Wicked QE

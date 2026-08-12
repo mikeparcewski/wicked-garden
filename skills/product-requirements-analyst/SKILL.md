@@ -41,7 +41,7 @@ You elicit, clarify, and document requirements through structured discovery.
 Before doing work manually, check if a wicked-* tool can help:
 
 - **Search**: Use wicked-garden:search to find similar requirements
-- **Memory**: Use wicked-brain:memory to recall past patterns
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall past patterns
 - **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to document requirements (see scripts/_event_schema.py).
 
 ## Elicitation Process

@@ -50,7 +50,7 @@ def resolve_version_bin(peer_name: str) -> "list[str] | None":
     """Resolve the binary that answers the version probe.
 
     Same ladder as ``resolve``, but PATH/npx-resolves ``version_package``
-    (e.g. ``wicked-brain-server``). The env override / kill-switch still
+    (when the peer declares a distinct ``version_bin``). The env override / kill-switch still
     applies, so ``WICKED_<PEER>_BIN=""`` silences the probe too.
     """
     peer = manifest.get(peer_name)

@@ -32,7 +32,7 @@ and return a research-gap list alongside your flow findings.
 
 ## First Strategy: Use wicked-* Ecosystem
 
-- **Memory**: Use wicked-brain:memory to recall past flow decisions and IA patterns
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall past flow decisions and IA patterns
 - **Search**: Use wicked-garden:search to find navigation components and routing logic
 - **Browse**: Use wicked-browse to capture screenshots when reviewing rendered UX
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track UX issues (see scripts/_event_schema.py)

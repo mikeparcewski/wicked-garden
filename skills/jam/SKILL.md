@@ -4,7 +4,7 @@ user-invocable: true
 description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   quick sessions are ephemeral (no storage). brainstorm and council sessions
-  are tracked as native tasks (process) and stored in wicked-brain:memory (outcome).
+  are tracked as native tasks (process) and stored via wicked-garden-mem (outcome).
   Use when: "brainstorm this", "explore ideas", "get different perspectives",
   "focus group", "what do you think about", "pros and cons", "quick check",
   "jam quick <idea>", "jam brainstorm <topic>", "jam council <topic> with
@@ -71,7 +71,7 @@ Full brainstorm with evidence-backed perspectives. The facilitator gathers
 evidence from the ecosystem (past decisions, code context, brainstorm
 outcomes) before assembling personas, so they argue from data — not just
 opinions. After synthesis, a structured decision record is automatically
-stored via wicked-brain:memory for organizational memory.
+stored via the wicked-garden-mem skill for organizational memory.
 
 **Convergence modes** (pass through as `convergence_mode`):
 
@@ -126,10 +126,10 @@ Revisit a past brainstorm decision to record whether it was validated,
 invalidated, or modified. Light workflow — run it inline, no fork:
 
 1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/revisit.md")` — the 5-step
-   workflow: recall the decision via wicked-brain:memory (`--filter_type
-   decision`), display the decision summary, ask
-   validated/invalidated/modified, store the outcome (tags `jam,outcome`,
-   importance high), report. Degrades gracefully when wicked-brain is absent.
+   workflow: recall the decision via the wicked-garden-mem skill, display
+   the decision summary, ask validated/invalidated/modified, store the
+   outcome (about tags `jam,outcome`), report. Degrades gracefully when the
+   memory layer is absent.
 2. Follow it step by step, waiting for the user's outcome answer in step 3.
 
 ## Workers (forked skills)

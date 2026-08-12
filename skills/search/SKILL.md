@@ -18,8 +18,9 @@ description: |
   "narrate this codebase". Replaces the former /wicked-garden:search:*
   commands (index, blast-radius, lineage, hotspots, service-map).
 
-  NOT for general code/concept search — use `wicked-brain:search` (semantic
-  layer) or the wicked-estate MCP's SearchEntity (symbol lookup) directly.
+  NOT for general concept/memory search — use the `wicked-garden-mem` skill
+  (recall/answer over estate's knowledge + memory stores) or the wicked-estate
+  MCP's SearchEntity (symbol lookup) directly.
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---
@@ -170,7 +171,7 @@ tool. → Full procedure: [refs/hotspots.md](refs/hotspots.md)
 ## Service map — detect the service architecture
 
 Detect services and their connections from infrastructure config
-(docker-compose/k8s/helm) plus brain/code patterns; report as table, json, or
+(docker-compose/k8s/helm) plus code patterns; report as table, json, or
 mermaid. → Full procedure: [refs/service-map.md](refs/service-map.md)
 
 ## Narrate — codebase orientation

@@ -64,4 +64,4 @@ decisions, AC, tests that should verify it).
 
 When a clarify task is active, append the elicited stories to the task via
 `TaskUpdate` (`metadata.event_type="task"`) for traceability; store recurring
-requirement patterns via `wicked-brain:memory`.
+requirement patterns via the `wicked-garden-mem` skill.

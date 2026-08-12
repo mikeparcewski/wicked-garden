@@ -24,8 +24,8 @@ Four values, locked. To change the vocabulary, run a brainstorm — don't add ad
 | Intent | When to set | What fires |
 |---|---|---|
 | `simple-edit` | Trivial turns, status checks, continuations | Nothing — silent |
-| `feature` | Building / fixing / refactoring code | Synthesis directive (wicked-brain pull) |
-| `research` | Conceptual questions, "explain how", "why does" | Synthesis directive (wicked-brain pull) |
+| `feature` | Building / fixing / refactoring code | Synthesis directive (knowledge-layer pull) |
+| `research` | Conceptual questions, "explain how", "why does" | Synthesis directive (knowledge-layer pull) |
 | `rigor` | Crew sessions, multi-phase work, audit trail required | Synthesis directive + active-chain context |
 
 ## Usage

@@ -129,7 +129,7 @@ efficient SQL-based profiling via DuckDB.
 ## Integration
 
 - Native tasks: document quality issues via TaskCreate with `metadata.event_type="task"`.
-- wicked-brain:memory: store quality patterns across sessions.
+- wicked-garden-mem (store action): store quality patterns across sessions.
 
 ## General engineering checklist
 

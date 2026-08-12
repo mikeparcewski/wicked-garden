@@ -7,8 +7,8 @@ Background
 wicked-estate ships a single stdio JSON-RPC 2.0 MCP binary
 (`wicked-estate-mcp`): newline-delimited requests on stdin, one response per
 request on stdout. There is no HTTP daemon and no port — so the brain-era
-pattern (`_brain_port.resolve_port()` → POST http://localhost:PORT/api) does
-not apply. This module is the estate analogue of `_brain_port.py`: it owns
+pattern (resolve a port → POST http://localhost:PORT/api, as the retired
+brain-era `_brain_port.py` did) does not apply. This module owns
 binary/DB resolution, a health probe, and a fail-open call surface, so a hook
 never hard-crashes when estate is missing or slow.
 
@@ -570,7 +570,7 @@ def _unwrap(envelope: Optional[dict]) -> Optional[Any]:
 def health(timeout: float = 5.0) -> bool:
     """True if estate is reachable: binary resolves + initialize round-trips.
 
-    The estate analogue of `_brain_port._health_ok()`. Spawn-per-call means a
+    The estate health probe (analogue of the retired brain-era `_health_ok()`). Spawn-per-call means a
     successful `initialize` proves the whole path (resolve → spawn → handshake).
     """
     try:

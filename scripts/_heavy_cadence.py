@@ -1,15 +1,14 @@
 """scripts/_heavy_cadence.py — session-end heavy cadence work + 60-min stop fallback.
 
 Provenance: v9.2.15 redesign of stop.py per-turn cadence. Pre-fix, four heavy
-functions ran on EVERY Stop hook (per turn end):
+functions ran on EVERY Stop hook (per turn end); two survive S7 (the brain-era
+memory decay/consolidation calls were deleted with wicked-brain's retirement —
+wicked-estate owns its memory lifecycle in-store):
 
-  - _run_memory_decay        (brain `lint`)
-  - _run_working_consolidation (brain `compile` + `lint`, 10s heaviest call)
   - _run_quality_telemetry   (timeline.jsonl append + drift bus event)
   - _run_guard_pipeline      (scalpel/standard profile + findings.json + bus)
 
 Per-turn cadence costs:
-  ~90 brain HTTP calls per 30-turn session  (vs 3 if session-end-scoped)
   30 timeline.jsonl appends                 (vs 1)
   30 findings.json overwrites               (vs 1; mid-session signal lost)
   4-session drift baseline → 4-turn baseline (CORRECTNESS BUG, not just perf)
@@ -48,7 +47,7 @@ records `last_heavy_run_ts` + `trigger` + `session_id` so the guard is
 deterministic. SessionState is per-session (resets on new session), so it can't
 gate cross-session fallback — sidecar is the right persistence boundary.
 
-Brain calls themselves are unchanged. Only WHEN they fire changed.
+The heavy calls themselves are unchanged. Only WHEN they fire changed.
 
 v9.2.15 council mitigation (3-of-4 reviewers cited TOCTOU race as top risk):
 sidecar writes use the write-temp-then-os.replace pattern instead of bare
@@ -60,7 +59,7 @@ corrupt state.
 
 R1: no dead code — every helper is called from main flow + tests.
 R3: constants named (FALLBACK_INTERVAL_SECS, SIDECAR_FILENAME).
-R5: subprocess-free in module body (subprocess only via _brain_api).
+R5: subprocess-free.
 """
 from __future__ import annotations
 
@@ -78,8 +77,6 @@ from typing import List, Optional
 #  - Short enough that abruptly-killed sessions get caught up the next time
 #    a Stop fires after the user resumes work — no >1hr gap in decay/
 #    consolidation activity.
-#  - Same magnitude as wicked-brain's own stale-content thresholds so brain
-#    decay decisions remain timely even under fallback.
 FALLBACK_INTERVAL_SECS: int = 60 * 60
 
 # Turn-count arm of the Stop gate (v9.2.16, #842). A session that has taken
@@ -277,24 +274,26 @@ def should_run_fallback(
 
 def run_heavy_cadence(trigger: str, session_id: Optional[str] = None,
                        plugin_root: Optional[Path] = None) -> List[str]:
-    """Run all four heavy functions + record the run in the sidecar.
+    """Run the heavy functions + record the run in the sidecar.
 
     Used by:
       - hooks/scripts/session_end.py (primary, trigger=session_end)
       - hooks/scripts/stop.py (fallback when should_run_fallback() True,
         trigger=stop_fallback)
 
-    Returns aggregated message strings (decay + consolidation + telemetry +
-    guard) suitable for a systemMessage emit. Each underlying function fails
-    open — a brain outage doesn't block the others.
+    Returns aggregated message strings (telemetry + guard) suitable for a
+    systemMessage emit. Each underlying function fails open — an outage in
+    one doesn't block the others.
+
+    S7 note: the brain-era memory decay/consolidation legs were deleted with
+    wicked-brain's retirement — wicked-estate owns its memory lifecycle
+    in-store (memory.reflect owns consolidation).
     """
     if plugin_root is None:
         # Default — used when called from a hook. Tests pass plugin_root.
         plugin_root = Path(__file__).resolve().parents[1]
 
     messages: List[str] = []
-    messages.extend(_run_memory_consolidation(plugin_root))
-    messages.extend(_run_memory_decay(plugin_root))
     messages.extend(_run_quality_telemetry(plugin_root, session_id or ""))
     messages.extend(_run_guard_pipeline(plugin_root))
 
@@ -303,88 +302,9 @@ def run_heavy_cadence(trigger: str, session_id: Optional[str] = None,
 
 
 # ---------------------------------------------------------------------------
-# The four heavy functions — extracted from stop.py and unchanged in behavior.
-# Brain APIs called identically; what changed is only WHEN they fire.
+# The heavy functions — extracted from stop.py and unchanged in behavior.
+# What changed is only WHEN they fire.
 # ---------------------------------------------------------------------------
-
-def _context_route() -> str:
-    """Resolve the context-backend route (S4). Fail-open to "brain" so the
-    legacy maintenance path keeps running when the router is unavailable."""
-    try:
-        from _context_backend import route
-
-        return route()
-    except Exception:
-        return "brain"
-
-
-def _brain_api_call(plugin_root: Path, action: str, params: dict, timeout: int = 5):
-    """Lightweight brain HTTP wrapper — same shape as stop.py::_brain_api but
-    importable without pulling in stop.py's hook-specific dependencies.
-    """
-    try:
-        sys.path.insert(0, str(plugin_root / "scripts"))
-        from _brain_port import resolve_port
-        import urllib.request
-        import urllib.error
-
-        port = resolve_port()
-        url = f"http://localhost:{port}/api/{action}"
-        data = json.dumps(params or {}).encode("utf-8")
-        req = urllib.request.Request(
-            url, data=data, headers={"Content-Type": "application/json"}, method="POST"
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
-
-
-def _run_memory_decay(plugin_root: Path) -> List[str]:
-    """Run decay maintenance via brain lint API. Idempotent.
-
-    S4: brain-route only — wicked-estate owns its memory lifecycle in-store,
-    so under estate routing this is a no-op. Deleted with the brain path at S7.
-    """
-    messages: List[str] = []
-    try:
-        if _context_route() != "brain":
-            return messages  # estate manages decay/reinforcement internally
-        result = _brain_api_call(plugin_root, "lint", {}, timeout=5)
-        if result and (result.get("archived", 0) > 0 or result.get("deleted", 0) > 0):
-            messages.append(
-                f"[Memory] Decay: {result.get('archived', 0)} archived, {result.get('deleted', 0)} cleaned"
-            )
-    except Exception as e:
-        print(f"[wicked-garden] decay error: {e}", file=sys.stderr)
-    return messages
-
-
-def _run_memory_consolidation(plugin_root: Path) -> List[str]:
-    """Consolidate working-tier memories via brain compile + lint.
-
-    Heaviest call in the cadence (10s timeout on compile). Idempotent —
-    same chunks won't re-synthesize the same wiki article.
-
-    S4: brain-route only — estate consolidation is in-store (memory.reflect
-    owns that surface); no-op under estate routing. Deleted at S7.
-    """
-    messages: List[str] = []
-    try:
-        if _context_route() != "brain":
-            return messages  # estate consolidates in-store
-        compile_result = _brain_api_call(plugin_root, "compile", {}, timeout=10)
-        lint_result = _brain_api_call(plugin_root, "lint", {}, timeout=5)
-        compiled = compile_result.get("compiled", 0) if compile_result else 0
-        cleaned = lint_result.get("deleted", 0) if lint_result else 0
-        if compiled > 0 or cleaned > 0:
-            messages.append(
-                f"[Memory] Consolidation: {compiled} compiled, {cleaned} cleaned"
-            )
-    except Exception as e:
-        print(f"[wicked-garden] consolidation error: {e}", file=sys.stderr)
-    return messages
-
 
 def _run_quality_telemetry(plugin_root: Path, session_id: str) -> List[str]:
     """Append a timeline record + detect drift. Returns any messages.

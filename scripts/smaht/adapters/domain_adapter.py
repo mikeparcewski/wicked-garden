@@ -107,7 +107,7 @@ def _query_domain(config: dict, keywords: str, project: str = "") -> list:
 
     Uses _skip_discovery=True to bypass integration-discovery (MCP routing).
     This is a read-only context query — smaht never needs to delegate reads
-    to external tools, and discovery can block for up to 3 s when brain is
+    to external tools, and discovery can block for up to 3 s when the backend is
     slow, which exceeds the fast-path 0.5 s timeout (issue #374).
 
     Returns a list of raw record dicts, or [] on any error.

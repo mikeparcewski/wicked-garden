@@ -46,8 +46,8 @@ Track the session as a native task (fail open on any tool errors):
 2. After each persona contributes, after synthesis, and on decision:
    `TaskUpdate(taskId, description='append: {persona_name}: {key_insight}' / 'Synthesis: {summary}' / 'Decision: {decision_record}')`
 
-Continue storing outcomes in wicked-brain:memory (native task = process,
-brain memory = outcome).
+Continue storing outcomes via the wicked-garden-mem skill (native task =
+process, stored memory = outcome).
 
 ## Session Structure
 
@@ -55,11 +55,11 @@ brain memory = outcome).
 
 Before assembling personas, gather real evidence from the ecosystem:
 
-**Step 1a: Recall past decisions** (if wicked-brain available)
+**Step 1a: Recall past decisions** (if the knowledge layer is available)
 ```
 Skill(
-  skill="wicked-brain:memory",
-  args="recall \"past decisions related to: {topic}\" --filter_type decision"
+  skill="wicked-garden-mem",
+  args="recall \"past decisions related to: {topic}\""
 )
 ```
 This surfaces: "Last time we discussed caching, we chose Redis because of X. Outcome: validated."
@@ -70,11 +70,11 @@ Use Grep or wicked-garden:search to find relevant code patterns, existing implem
 ```
 This surfaces: "There are 3 existing cache implementations in the codebase using pattern X."
 
-**Step 1c: Check past brainstorm outcomes** (if wicked-brain available)
+**Step 1c: Check past brainstorm outcomes** (if the knowledge layer is available)
 ```
 Skill(
-  skill="wicked-brain:memory",
-  args="recall \"brainstorm outcomes tagged jam,outcome\" --filter_type decision"
+  skill="wicked-garden-mem",
+  args="recall \"brainstorm outcomes jam decision\""
 )
 ```
 This surfaces: "2 past decisions on similar topics: 1 validated, 1 modified."
@@ -284,9 +284,9 @@ Skip this step if no external CLIs are available. This is graceful enhancement, 
 
 After synthesis, automatically store a structured decision record:
 
-1. Store via wicked-brain:memory (store mode) — graceful degradation: skip if unavailable:
+1. Store via the wicked-garden-mem skill (store action) — graceful degradation: skip if unavailable:
    ```
-   Skill(skill="wicked-brain:memory", args="store \"Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}\" --type decision --tags \"jam,decision,{2-3 topic keywords}\" --importance high")
+   Skill(skill="wicked-garden-mem", args="store \"Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}\" (kind=fact, about=[jam, decision, {2-3 topic keywords}])")
    ```
 2. **If unavailable**: Show the decision record inline so users can manually save it
 
@@ -329,7 +329,7 @@ Put synthesis FIRST (context efficiency):
 - **Build, don't repeat**: Each round adds value
 - **Synthesis matters**: Don't just summarize, distill insights
 - **Evidence over opinions**: When evidence is available, personas cite it — "Based on the existing Redis implementation..." not "I think Redis might work"
-- **Always store decisions**: After synthesis, store the decision record via wicked-brain:memory (store mode)
+- **Always store decisions**: After synthesis, store the decision record via the wicked-garden-mem skill (store action)
 
 ## Dispatch
 

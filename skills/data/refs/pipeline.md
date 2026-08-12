@@ -123,9 +123,9 @@ via DuckDB.
 
 ## Integration
 
-- **wicked-brain:search**: find pipeline code with `wicked-brain:search "dag|pipeline"` (FTS5 over indexed code).
+- **Code search**: find pipeline code with Grep `"dag|pipeline"` or the estate MCP SearchEntity tool.
 - **Native tasks**: track pipeline issues via TaskCreate with `metadata.event_type="task"`.
-- **wicked-brain:memory**: recall pipeline patterns.
+- **wicked-garden-mem (recall action)**: recall pipeline patterns.
 
 ## Engineering standards (apply to both)
 

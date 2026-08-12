@@ -59,19 +59,19 @@ TaskGet(taskId="{id}")
 
 **Validation & persistence**: PreToolUse runs `pretool_taskcreate.py` on every TaskCreate/TaskUpdate, validating the `metadata` dict against `scripts/_event_schema.py` (event_type, chain_id shape, source_agent, required per-type fields). Tasks persist natively under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
 
-## wicked-brain:memory
+## wicked-garden-mem (memory over wicked-estate)
 
 **When available**: Cross-session learning
 
 ```
 # Store decision
-Skill(skill="wicked-brain:memory", args="store \"{decision}\" --type decision --tags \"{project}\"")
+Skill(skill="wicked-garden-mem", args="store \"{decision}\" (kind=fact, about=[{project}])")
 
 # Recall past context
-Skill(skill="wicked-brain:memory", args="recall \"{project pattern}\"")
+Skill(skill="wicked-garden-mem", args="recall \"{project pattern}\"")
 
 # Store episodic memory
-Skill(skill="wicked-brain:memory", args="store \"Encountered {issue}, resolved by {solution}\" --type episodic --tags \"{project}\"")
+Skill(skill="wicked-garden-mem", args="store \"Encountered {issue}, resolved by {solution}\" (kind=episode, about=[{project}])")
 ```
 
 **Fallback**: Project files stored locally via DomainStore under the wicked-crew domain
@@ -89,7 +89,7 @@ Skill(skill="wicked-brain:memory", args="store \"Encountered {issue}, resolved b
 
 Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. The PreToolUse hook enforces the metadata envelope defined in `scripts/_event_schema.py`.
 
-For optional memory storage (wicked-brain:memory), use graceful degradation:
+For optional memory storage (wicked-garden-mem), use graceful degradation:
 
 ```python
 # Check if a utility plugin skill is available
@@ -98,7 +98,7 @@ For optional memory storage (wicked-brain:memory), use graceful degradation:
 
 ```
 # In markdown commands, use conditional phrasing:
-# "If wicked-brain:memory is available:" → Skill(skill="wicked-brain:memory", args="store ...")
+# "If the memory layer is available:" → Skill(skill="wicked-garden-mem", args="store ...")
 # Otherwise, skip the step (no fallback needed)
 ```
 

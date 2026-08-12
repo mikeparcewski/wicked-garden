@@ -3,8 +3,8 @@ name: wicked-garden-smaht
 context: fork
 description: |
   Context assembly / briefing builder (the name is a phonetic play on "smart").
-  Gathers a relevant on-demand context briefing over wicked-brain + wicked-garden:search
-  + domain state. Pull-model: subagents call it when they need background rather than
+  Gathers a relevant on-demand context briefing over the wicked-estate knowledge
+  layer + wicked-garden:search + domain state. Pull-model: subagents call it when they need background rather than
   having context pushed onto every prompt (v6 replaced the v5 push orchestrator, #428).
   Routes three sub-actions backed by refs/: briefing (what happened since the last
   session — NOT live state), state (live SessionState/adapter/directive inspection —
@@ -23,7 +23,7 @@ archetype_relevance: ["*"]
 
 # Context Assembly (v6 pull-model)
 
-Gather relevant context from wicked-brain + wicked-garden:search + domain state when
+Gather relevant context from the knowledge layer (wicked-estate) + wicked-garden:search + domain state when
 a subagent or command asks for it. There is no per-prompt push — the user prompt
 submit hook no longer runs an orchestrator.
 
@@ -46,14 +46,14 @@ reference below (and `briefing` when resuming after a session break).
 ## Quick Reference
 
 ```bash
-# Brain search — primary knowledge source
-wicked-brain:search "your query"
+# Knowledge recall — primary knowledge source (estate memory + knowledge fusion)
+Skill(skill="wicked-garden-mem", args="recall \"your query\"")
 
-# Brain query — conceptual / "how does X work"
-wicked-brain:query "how does the facilitator rubric work"
+# Cited answer — conceptual / "how does X work"
+Skill(skill="wicked-garden-mem", args="answer \"how does the facilitator rubric work\"")
 
-# Codebase symbol / docs search (FTS5 over indexed code, docs, wiki)
-wicked-brain:search "symbol or pattern"
+# Codebase symbol lookup (estate MCP, when connected)
+SearchEntity {"name": "symbol"}
 
 # Pull v11 archetype-mode project state (the v6 crew.py find-active
 # auto-resolver was deleted with the universal pipeline — look up by name)
@@ -64,17 +64,18 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 
 | Source | Plugin | Content |
 |--------|--------|---------|
-| brain | wicked-brain (required) | Code, docs, wiki, memories — FTS5 search |
-| search | wicked-garden | Indexed code symbols + docs |
-| mem | wicked-garden | Memories, decisions, learnings |
+| knowledge | wicked-estate | Code, docs, memories — hybrid recall with citations |
+| search | wicked-garden | Code graph: blast-radius, lineage, hotspots |
+| mem | wicked-garden | Memories, decisions, learnings (estate engine) |
 | crew | wicked-garden | Project phase, outcomes, constraints |
 | jam | wicked-garden | Brainstorm sessions, perspectives |
 
 ## Pull-Model Rules
 
 1. **Ask only for what you need.** Each adapter costs latency and tokens.
-2. **Brain first.** `wicked-brain:search` replaces Grep/Glob/Agent(Explore) for any
-   open-ended search. Fall back to raw tools only when the brain returns empty.
+2. **Knowledge layer first.** `wicked-garden-mem` recall replaces Grep/Glob/
+   Agent(Explore) for any open-ended search. Fall back to raw tools only when
+   the recall returns empty.
 3. **Active chain matters.** When a crew project is active, prefer queries scoped
    to that project's `chain_id` — see `scripts/_session.py::SessionState.active_chain_id`.
 4. **Recent events win.** For debugging, prefer the last 20 chain-matching events

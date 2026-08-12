@@ -13,7 +13,7 @@ Do NOT run additional rounds regardless of complexity. Do NOT store anything.
 - NO transcript storage — ephemeral output
 - NO bus events
 - NO multi-AI step
-- NO evidence gathering (no wicked-brain lookups)
+- NO evidence gathering (no knowledge-layer lookups)
 - Synthesis: concise, target ≤ 200 words total
 
 ## Step 1: Pick 4 Personas

@@ -5,7 +5,7 @@ Queries the unified event log (events.db) for recent cross-domain activity
 relevant to the current prompt. Surfaces crew phase transitions, jam decisions,
 native task changes, and other domain events alongside traditional context sources.
 
-This adapter complements brain_adapter (which queries memories) by providing
+This adapter complements brain_adapter (the knowledge/memory adapter) by providing
 the broader activity timeline that memories alone don't capture.
 """
 

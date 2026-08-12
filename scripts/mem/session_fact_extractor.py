@@ -14,17 +14,17 @@ Source of truth shift:
 - v6: native task records (subject + description, filtered to completed)
 
 The emission shape on wicked-bus stays the same — `wicked.garden.fact.extracted`
-events with {type, content, entities, source, session_id} — so the brain
-auto-memorize subscriber is unaffected.
+events with {type, content, entities, source, session_id} — consumed by the
+garden-run auto-memorize drain (scripts/mem/auto_memorize.py → estate memory).
 
-Fact types (mirrors brain auto-memorize policy):
+Fact types (mirrors the auto-memorize policy):
 - decision    — "decided on X", "chose Y", "let's use Z"
 - discovery   — "found that X", "turns out Y"
 - artifact    — "created X", "wrote Y"
 - problem_solved — "fixed X", "resolved Y"
 - context     — "the system uses X", "currently running Y"
 
-Only `decision` and `discovery` are emittable (brain re-filters).
+Only `decision` and `discovery` are emittable (the drain re-filters).
 
 stdlib-only. Fails open — returns [] on any I/O or parse error.
 """

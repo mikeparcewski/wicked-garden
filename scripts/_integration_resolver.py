@@ -119,68 +119,40 @@ def _read_config_preference(domain: str) -> Optional[str]:
 # ---------------------------------------------------------------------------
 
 
-def _brain_api(action, params=None, timeout=3):
-    """Call brain API. Returns parsed JSON or None."""
-    try:
-        import urllib.request
-        from _brain_port import resolve_port
-        port = resolve_port()
-        payload = json.dumps({"action": action, "params": params or {}}).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except Exception:
-        return None
+# Machine-parseable marker line stored in the preference memory's content.
+# _check_mem_preference extracts the tool name from it on recall.
+_PREF_MARKER = "tool-preference"
+_PREF_LINE_RE = None  # compiled lazily in _check_mem_preference
 
 
 def _check_mem_preference(domain: str) -> Optional[str]:
-    """Query brain for a previously stored tool preference.
+    """Query estate memory for a previously stored tool preference.
 
-    Searches for memories tagged with "tool-preference" and the domain
-    name via the brain search API. Returns the tool name found in the
-    memory content, or None if not found or brain is unavailable.
+    Recalls memories matching "tool-preference {domain}" through the context
+    backend and extracts the tool name from the stored marker line
+    (``tool-preference {domain} = {tool}``). Returns None when nothing is
+    stored or the backend is unavailable.
 
-    Fails gracefully so callers that run before brain is initialized
+    Fails gracefully so callers that run before the backend is reachable
     (e.g. during onboarding) continue to work.
     """
+    global _PREF_LINE_RE
     try:
-        result = _brain_api("search", {"query": f"tool-preference {domain}", "limit": 5}, timeout=3)
-        if not result:
-            return None
+        import re as _re
+        from _context_backend import recall_memories
 
-        # Handle both list and dict response formats
-        results = result if isinstance(result, list) else result.get("results", [])
-        for r in results:
-            # Look for tool-preference memories that match this domain
-            content = r.get("content", "") or ""
-            path = r.get("path", "") or ""
-            if "tool-preference" in content and domain in content:
-                # Extract the tool name — it's the short content of the memory
-                # Try to read the actual chunk file for the definitive content
-                try:
-                    chunk_path = Path.home() / ".wicked-brain" / path
-                    if chunk_path.exists():
-                        text = chunk_path.read_text(encoding="utf-8")
-                        # Content is after the frontmatter and title
-                        parts = text.split("---", 2)
-                        if len(parts) >= 3:
-                            body = parts[2].strip()
-                            # Skip the title line (# ...)
-                            body_lines = [l for l in body.splitlines() if l.strip() and not l.startswith("#")]
-                            if body_lines:
-                                tool = body_lines[-1].strip()
-                                if tool:
-                                    return tool
-                except Exception:
-                    pass  # fail open
+        if _PREF_LINE_RE is None:
+            _PREF_LINE_RE = _re.compile(
+                rf"{_PREF_MARKER}\s+(?P<domain>\S+)\s*=\s*(?P<tool>\S+)"
+            )
+        for item in recall_memories(f"{_PREF_MARKER} {domain}", limit=5):
+            text = f"{item.get('title', '')}\n{item.get('snippet', '')}"
+            m = _PREF_LINE_RE.search(text)
+            if m and m.group("domain") == domain:
+                return m.group("tool")
         return None
     except Exception:
-        # Brain may be unavailable — always fail gracefully
+        # Backend may be unavailable — always fail gracefully
         return None
 
 
@@ -275,47 +247,22 @@ def _local_fallback_and_store(domain: str, matches: list) -> str:
 
 
 def _store_preference(domain: str, tool: str) -> None:
-    """Persist a tool preference to brain as a memory chunk.
+    """Persist a tool preference to estate memory (semantic tier).
 
-    Writes a memory chunk with tags=["tool-preference", domain] so future
-    sessions can skip the discovery step.
+    Stores a marker line (``tool-preference {domain} = {tool}``) that
+    _check_mem_preference parses back on recall, tagged with
+    ["tool-preference", domain] so future sessions can skip discovery.
 
-    Fails silently on any error so a broken brain never blocks writes.
+    Fails silently on any error so an unreachable backend never blocks writes.
     """
     try:
-        import uuid
-        import os as _os
-        from datetime import datetime, timezone
+        from _context_backend import capture_memory
 
-        mem_id = str(uuid.uuid4())
-        chunk_id = f"memories/semantic/mem-{mem_id}"
-        chunk_path = Path.home() / ".wicked-brain" / f"{chunk_id}.md"
-        chunk_path.parent.mkdir(parents=True, exist_ok=True)
-
-        tags_list = ["tool-preference", domain]
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
-        title = f"Tool preference: {domain} → {tool}"
-
-        lines = ["---"]
-        lines.append("source: wicked-brain:memory")
-        lines.append("memory_type: preference")
-        lines.append("memory_tier: semantic")
-        lines.append(f"title: {title}")
-        lines.append("importance: 5")
-        lines.append("contains:")
-        for t in tags_list:
-            lines.append(f"  - {t}")
-        lines.append(f'indexed_at: "{now}"')
-        lines.append("---")
-        lines.append("")
-        lines.append(f"# {title}")
-        lines.append("")
-        lines.append(tool)
-
-        chunk_path.write_text("\n".join(lines), encoding="utf-8")
-
-        # Index in brain FTS5
-        search_text = f"{title} {tool} {' '.join(tags_list)}"
-        _brain_api("index", {"id": f"{chunk_id}.md", "path": f"{chunk_id}.md", "content": search_text, "brain_id": "wicked-brain"})
+        capture_memory(
+            title=f"Tool preference: {domain} -> {tool}",
+            content=f"{_PREF_MARKER} {domain} = {tool}",
+            tier="semantic",
+            tags=[_PREF_MARKER, domain],
+        )
     except Exception:
-        pass  # fail open: brain may be unavailable
+        pass  # fail open: backend may be unavailable

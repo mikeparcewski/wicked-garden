@@ -140,11 +140,11 @@ TaskUpdate(
 )
 ```
 
-### With wicked-brain
+### With the knowledge layer
 
 Find related evidence (FTS5 over indexed code):
 ```bash
-wicked-brain:search "audit|logging|encrypt"
+Skill(skill="wicked-garden-mem", args="recall \"audit logging encryption\"")
 ```
 
 ## Output Format

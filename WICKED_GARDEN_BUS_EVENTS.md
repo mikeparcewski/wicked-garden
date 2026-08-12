@@ -9,7 +9,7 @@
 wicked.<domain>.<noun>.<past-tense-verb>
 ```
 
-Four segments (wicked-bus SPEC grammar). Always starts with `wicked.`. Domain = the producing plugin's short name (`garden` for garden-owned events; `crew` for the shared phase lifecycle; `brain` for consumed wicked-brain events). Noun = the thing that changed. Verb = past tense.
+Four segments (wicked-bus SPEC grammar). Always starts with `wicked.`. Domain = the producing plugin's short name (`garden` for garden-owned events; `crew` for the shared phase lifecycle). Noun = the thing that changed. Verb = past tense.
 `domain` field is always `wicked-garden`. `subdomain` identifies the functional area.
 
 ## Payload Tiers
@@ -89,7 +89,7 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 
 | Event Type | Subdomain | Description |
 |------------|-----------|-------------|
-| `wicked.garden.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain, scripts/mem/auto_memorize.py, which persists to wicked-estate memory) |
+| `wicked.garden.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain -> estate memory) |
 
 ### Gate
 

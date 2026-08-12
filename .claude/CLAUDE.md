@@ -157,7 +157,7 @@ Prefer `command` hooks over `prompt`/`agent` (deterministic, testable, no token 
 
 ## Storage
 
-DomainStore (`scripts/_domain_store.py`) — local JSON files with optional integration-discovery routing to MCP tools. SessionState (`scripts/_session.py`) — per-session shared state. FTS5 + BM25 search is provided by the wicked-bus event store (`scripts/_event_store.py`) and the wicked-brain index — there is no standalone `SqliteStore` module.
+DomainStore (`scripts/_domain_store.py`) — local JSON files with optional integration-discovery routing to MCP tools. SessionState (`scripts/_session.py`) — per-session shared state. FTS5 + BM25 search is provided by the wicked-bus event store (`scripts/_event_store.py`); knowledge/memory recall is wicked-estate (via `scripts/_estate_client.py`) — there is no standalone `SqliteStore` module.
 
 Storage paths: `~/.something-wicked/wicked-garden/projects/{slug}/{domain}/{subpath}` (project-scoped via cwd hash). Never hardcode `~/.something-wicked/` paths in consumer code — use `get_local_path()` from `_paths.py` or `_domain_store.py`.
 
@@ -200,13 +200,13 @@ All skills, hooks, agents, and shell commands must work on macOS/Linux and Windo
 ## Code Search
 
 **Always prefer search domain over native tools**:
-- Code symbol search → `wicked-brain:search` instead of Grep
-- Conceptual queries → `wicked-brain:query` instead of `Agent(Explore)`
+- Code symbol search → the wicked-estate MCP `SearchEntity` tool instead of Grep
+- Conceptual queries → the `wicked-garden-mem` skill's `answer` action instead of `Agent(Explore)`
 - Impact analysis → the `wicked-garden-search` skill's `blast-radius` action
 - Data lineage → the `wicked-garden-search` skill's `lineage` action
 - Fall back to Grep/Glob only when the index is unavailable.
 
-**Code-relationship graph lives in wicked-estate** (ADR 0005, superseding ADR 0004): blast-radius/lineage/callers are estate MCP tools (`BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`), backed by estate's 75-language tree-sitter static graph + injected edges (bus/dispatch/capability, and garden's archetype edges via the drop-in TOML rules in `.wicked-estate-extractors/archetype.toml`, applied by `wicked-estate index`). The `wicked-garden-search` skill's actions are thin wrappers over estate; the brain-era `graph-*` actions, `wicked-brain:graph`, and the `.codegraph-extractors/*.mjs` drop-ins are retired. wicked-patch reads the same estate graph (via `scripts/engineering/patch/estate_db.py`).
+**Code-relationship graph lives in wicked-estate** (ADR 0005, superseding ADR 0004): blast-radius/lineage/callers are estate MCP tools (`BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`), backed by estate's 75-language tree-sitter static graph + injected edges (bus/dispatch/capability, and garden's archetype edges via the drop-in TOML rules in `.wicked-estate-extractors/archetype.toml`, applied by `wicked-estate index`). The `wicked-garden-search` skill's actions are thin wrappers over estate; the brain-era `graph-*` actions and the `.codegraph-extractors/*.mjs` drop-ins are retired. wicked-patch reads the same estate graph (via `scripts/engineering/patch/estate_db.py`).
 
 ## AskUserQuestion Fallback (Dangerous Mode)
 
@@ -227,13 +227,11 @@ When testing wicked-garden machinery and you hit a bug, file a GitHub issue imme
 gh issue create --label bug --title "<surface>: <one-line>" --body "<location> | <observed vs expected> | <impact> | <fix proposal>"
 ```
 
-## wicked-brain
+## Knowledge & memory (wicked-estate via the mem/search domains)
 
-Digital brain: **wicked-garden** | server port 4243
+wicked-brain retired at Phase 5-S7 — wicked-estate is the engine; the garden `mem`/`search` skills are the agent surface. `~/.wicked-brain` remains on disk as a frozen archive (never write to it).
 
-- Use `wicked-brain:search` / `:query` instead of Grep/Glob/Agent(Explore) for any open-ended search or conceptual question.
-- Use `wicked-brain:context` at the start of a new topic.
-- Use `wicked-brain:session-teardown` at session end.
-- Use `wicked-brain:memory` (store mode) to capture non-obvious decisions, patterns, gotchas.
-- Always pass `session_id` with search/query calls for access tracking.
-- DO NOT read brain files directly — go through skills.
+- Use `wicked-garden-mem` `recall`/`answer` instead of Grep/Glob/Agent(Explore) for any open-ended search or conceptual question.
+- Use `wicked-garden-mem` `store` to capture non-obvious decisions, patterns, gotchas.
+- Use `wicked-garden-mem` `capture` at session end (teardown sweep); `ingest` for documents.
+- Relationship graphs (blast-radius/lineage/hotspots) → `wicked-garden-search`; symbol lookup → estate MCP `SearchEntity`.

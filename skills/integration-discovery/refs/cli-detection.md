@@ -240,14 +240,14 @@ Please choose (number or name):
 
 ---
 
-## Storing Preferences in wicked-brain
+## Storing Preferences in the memory layer
 
 After the first tool selection decision, store the preference so future decisions are consistent.
 
 ### Store Pattern
 
 ```
-Skill(skill="wicked-brain:memory", args="store \"cli-preference:{category}: {chosen-tool} (project: {project-path})\" --type preference")
+Skill(skill="wicked-garden-mem", args="store \"cli-preference:{category}: {chosen-tool} (project: {project-path})\" (kind=fact)")
 ```
 
 **Examples**:
@@ -264,7 +264,7 @@ cli-preference:database → psql
 Before detecting CLIs for a category, check if a preference already exists:
 
 ```
-Skill(skill="wicked-brain:memory", args="recall \"cli-preference:{category}\" --filter_type preference")
+Skill(skill="wicked-garden-mem", args="recall \"cli-preference:{category}\"")
 ```
 
 If a stored preference exists and the tool is still available (`command -v` check), use it without re-running discovery.

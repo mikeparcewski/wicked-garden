@@ -95,7 +95,7 @@ The output must NOT contain any of these markers:
 
 The output must NOT contain:
 - `save_transcript.py`
-- `wicked-brain:memory` store calls
+- `wicked-garden-mem` store calls
 - `EventStore.append`
 - `wicked-bus emit`
 

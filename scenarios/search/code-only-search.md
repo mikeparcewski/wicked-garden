@@ -65,7 +65,7 @@ EOF
 
 2. Search code only for "cache":
    ```
-   wicked-brain:search cache
+   estate MCP SearchEntity {"name": "cache"}
    ```
 
 3. Compare with unified search:

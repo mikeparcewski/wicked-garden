@@ -5,10 +5,9 @@ tests/test_where_am_i.py — Unit tests for scripts/where_am_i.py.
 Every case cites Issue #576 — the per-dispatch path-bloat reduction.
 
 Coverage (T1-T6 compliant):
-  - Default JSON shape exposes all six top-level keys.
+  - Default JSON shape exposes all five top-level keys.
   - --fence wraps output in ```json markers.
   - --env substitutes $CLAUDE_PLUGIN_ROOT when the env var is present.
-  - Missing brain config returns brain: null without raising.
   - Missing bus DB returns bus_db: null without raising.
   - active_project_id is null when no session state is active.
   - Running the helper as a subprocess returns exit code 0 on success.
@@ -46,7 +45,6 @@ _EXPECTED_KEYS = {
     "source_cwd",
     "active_project_id",
     "project_artifacts",
-    "brain",
     "bus_db",
 }
 
@@ -88,9 +86,6 @@ class _Base(unittest.TestCase):
         self.env_patch.start()
         (self.tmp_path / "tmp").mkdir(exist_ok=True)
 
-        # Defensive: remove any env that could leak the real brain port.
-        os.environ.pop("WICKED_BRAIN_PORT", None)
-
     def tearDown(self):
         self.env_patch.stop()
         self.tmp.cleanup()
@@ -111,7 +106,8 @@ class _Base(unittest.TestCase):
 
 
 class TestDefaultShape(_Base):
-    """Default JSON shape has all six top-level keys (#576 contract)."""
+    """Default JSON shape has all five top-level keys (#576 contract; the
+    brain key was retired with wicked-brain at S7)."""
 
     def test_default_json_has_all_top_level_keys(self):
         rc, out = self._chdir_and_run([])
@@ -145,17 +141,6 @@ class TestEnvSubstitution(_Base):
         self.assertEqual(parsed["plugin_root"], "$CLAUDE_PLUGIN_ROOT")
 
 
-class TestMissingBrainConfig(_Base):
-    """Missing brain config returns brain: null without raising (#576)."""
-
-    def test_missing_brain_returns_null(self):
-        # fake_home has no .wicked-brain tree at all.
-        rc, out = self._chdir_and_run([])
-        self.assertEqual(rc, 0)
-        parsed = json.loads(out)
-        self.assertIsNone(parsed["brain"])
-
-
 class TestMissingBusDb(_Base):
     """Missing bus DB returns bus_db: null without raising (#576)."""
 
@@ -177,24 +162,14 @@ class TestActiveProjectIdNullByDefault(_Base):
         self.assertIsNone(parsed["active_project_id"])
 
 
-class TestBrainResolutionWhenConfigPresent(_Base):
-    """Brain block resolves path + port from a valid config (#576)."""
+class TestBrainKeyRetired(_Base):
+    """S7: the brain key was retired from the manifest with wicked-brain."""
 
-    def test_brain_reads_project_config(self):
-        # The helper keys on cwd basename; fake_cwd is .../source
-        project_dir = self.fake_home / ".wicked-brain" / "projects" / "source"
-        meta_dir = project_dir / "_meta"
-        meta_dir.mkdir(parents=True, exist_ok=True)
-        (meta_dir / "config.json").write_text(
-            json.dumps({"server_port": 4299, "source_path": str(self.fake_cwd)}),
-            encoding="utf-8",
-        )
+    def test_manifest_has_no_brain_key(self):
         rc, out = self._chdir_and_run([])
         self.assertEqual(rc, 0)
         parsed = json.loads(out)
-        self.assertIsNotNone(parsed["brain"])
-        self.assertEqual(parsed["brain"]["port"], 4299)
-        self.assertEqual(parsed["brain"]["path"], str(project_dir))
+        self.assertNotIn("brain", parsed)
 
 
 class TestSubprocessExitCode(_Base):

@@ -2,11 +2,13 @@
 """tests/hooks/test_post_tool_skill.py — Issue #608 exact-match guard.
 
 Issue #608: ``hooks/scripts/post_tool.py::_handle_skill`` previously used
-substring matching ``if "wicked-brain:memory" not in skill: return`` to decide
-when to reset the memory-compliance escalation counter. This false-positives on
-any future skill whose name *contains* ``wicked-brain:memory`` as a substring
-(e.g. ``wicked-brain:memory-export``, ``wicked-brain:memory-audit``), silently
-weakening the ``[ESCALATION]`` directive mechanism.
+substring matching to decide when to reset the memory-compliance escalation
+counter. This false-positives on any future skill whose name *contains* the
+memory skill's name as a substring (e.g. ``wicked-garden-mem-export``),
+silently weakening the ``[ESCALATION]`` directive mechanism.
+
+S7: the canonical memory surface is the ``wicked-garden-mem`` skill (over
+wicked-estate); the retired ``wicked-brain:memory`` name no longer resets.
 
 This suite locks in exact-match semantics.
 
@@ -41,7 +43,7 @@ from _session import SessionState  # noqa: E402
 
 
 class TestSkillExactMatchGuard(unittest.TestCase):
-    """Issue #608: counter resets only on exact ``wicked-brain:memory``."""
+    """Issue #608: counter resets only on exact ``wicked-garden-mem``."""
 
     def setUp(self) -> None:
         # Isolate session state to a per-test tempdir so we don't pollute the
@@ -70,7 +72,36 @@ class TestSkillExactMatchGuard(unittest.TestCase):
         state.update(memory_compliance_escalations=count)
 
     def test_exact_skill_name_resets_counter(self) -> None:
-        """skill='wicked-brain:memory' (exact) zeroes the escalation counter."""
+        """skill='wicked-garden-mem' (exact) zeroes the escalation counter."""
+        self._seed_escalations(3)
+
+        result = post_tool._handle_skill({"skill": "wicked-garden-mem"})
+
+        self.assertEqual(result, {"continue": True})
+        self.assertEqual(
+            SessionState.load().memory_compliance_escalations,
+            0,
+            "Exact 'wicked-garden-mem' skill must reset the escalation counter "
+            "to 0 (Issue #608 contract).",
+        )
+
+    def test_substring_match_skill_does_not_reset_counter(self) -> None:
+        """skill='wicked-garden-mem-export' must NOT reset the counter (#608 bug)."""
+        self._seed_escalations(3)
+
+        result = post_tool._handle_skill({"skill": "wicked-garden-mem-export"})
+
+        self.assertEqual(result, {"continue": True})
+        self.assertEqual(
+            SessionState.load().memory_compliance_escalations,
+            3,
+            "Skills whose name *contains* 'wicked-garden-mem' as a substring "
+            "(here: 'wicked-garden-mem-export') must NOT reset the escalation "
+            "counter — that was the Issue #608 false-positive bug.",
+        )
+
+    def test_retired_brain_memory_skill_does_not_reset_counter(self) -> None:
+        """The retired 'wicked-brain:memory' name must NOT reset the counter (S7)."""
         self._seed_escalations(3)
 
         result = post_tool._handle_skill({"skill": "wicked-brain:memory"})
@@ -78,24 +109,9 @@ class TestSkillExactMatchGuard(unittest.TestCase):
         self.assertEqual(result, {"continue": True})
         self.assertEqual(
             SessionState.load().memory_compliance_escalations,
-            0,
-            "Exact 'wicked-brain:memory' skill must reset the escalation counter "
-            "to 0 (Issue #608 contract).",
-        )
-
-    def test_substring_match_skill_does_not_reset_counter(self) -> None:
-        """skill='wicked-brain:memory-export' must NOT reset the counter (#608 bug)."""
-        self._seed_escalations(3)
-
-        result = post_tool._handle_skill({"skill": "wicked-brain:memory-export"})
-
-        self.assertEqual(result, {"continue": True})
-        self.assertEqual(
-            SessionState.load().memory_compliance_escalations,
             3,
-            "Skills whose name *contains* 'wicked-brain:memory' as a substring "
-            "(here: 'wicked-brain:memory-export') must NOT reset the escalation "
-            "counter — that was the Issue #608 false-positive bug.",
+            "wicked-brain:memory was retired at S7 — only the wicked-garden-mem "
+            "skill resets the escalation counter.",
         )
 
 

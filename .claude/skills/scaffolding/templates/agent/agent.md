@@ -59,7 +59,7 @@ Include:
 
 Reference other wicked-* surfaces when helpful:
 - Native TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent}`: track tasks and findings (see `scripts/_event_schema.py`)
-- wicked-brain: store decisions and patterns
+- wicked-garden-mem: store decisions and patterns (wicked-estate engine)
 - the wicked-garden-search skill: find code patterns
 
 ## Communication

@@ -1,8 +1,8 @@
 """tests/test_heavy_cadence_redesign.py — heavy-cadence teardown reliability.
 
-Provenance: pre-v9.2.15, four heavy functions ran on EVERY Stop hook (per turn):
-  - _run_memory_decay        (~30 brain `lint` calls/session)
-  - _run_working_consolidation (~30 brain `compile` calls/session, 10s each)
+Provenance: pre-v9.2.15, four heavy functions ran on EVERY Stop hook (per
+turn); two survive S7 (the brain-era decay/consolidation legs were deleted
+with wicked-brain's retirement):
   - _run_quality_telemetry   (timeline.jsonl appends inflated 30x)
   - _run_guard_pipeline      (findings.json overwritten per-turn)
 
@@ -218,8 +218,7 @@ def test_session_end_and_stop_do_not_double_run(tmp_sidecar, monkeypatch):
     """End-to-end de-dupe: after run_heavy_cadence records session 'S', a
     subsequent Stop for the SAME session must not fire again."""
     import _heavy_cadence
-    for fn in ("_run_memory_decay", "_run_memory_consolidation", "_run_guard_pipeline"):
-        monkeypatch.setattr(_heavy_cadence, fn, lambda root: [])
+    monkeypatch.setattr(_heavy_cadence, "_run_guard_pipeline", lambda root: [])
     monkeypatch.setattr(_heavy_cadence, "_run_quality_telemetry", lambda root, sid: [])
 
     # SessionEnd (or a first Stop) runs and records session 'S'.
@@ -253,7 +252,7 @@ def test_fallback_turn_arm_fires_below_time_window(tmp_sidecar):
 
 def test_fallback_suppressed_when_new_session_short_and_recent(tmp_sidecar):
     """A NEW session with few turns AND <60 min since the last run must NOT
-    fire — a heavy run just happened, so brain/telemetry state is fresh and a
+    fire — a heavy run just happened, so telemetry/guard state is fresh and a
     2-turn session is not worth a second teardown."""
     import _heavy_cadence
     _write_sidecar_file(tmp_sidecar, minutes_ago=5, session_id="prev-session")
@@ -303,15 +302,13 @@ def test_fallback_turn_threshold_is_30():
 
 
 # ---------------------------------------------------------------------------
-# run_heavy_cadence orchestration — runs all four + writes sidecar
+# run_heavy_cadence orchestration — runs the heavy functions + writes sidecar
 # ---------------------------------------------------------------------------
 
 def test_run_heavy_cadence_writes_sidecar_after_run(tmp_sidecar, monkeypatch):
     """Every successful invocation persists timestamp + trigger + session_id so
     the next Stop's de-dupe/gate has a deterministic answer."""
     import _heavy_cadence
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_decay", lambda root: [])
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_consolidation", lambda root: [])
     monkeypatch.setattr(_heavy_cadence, "_run_quality_telemetry", lambda root, sid: [])
     monkeypatch.setattr(_heavy_cadence, "_run_guard_pipeline", lambda root: [])
 
@@ -326,8 +323,6 @@ def test_run_heavy_cadence_stop_fallback_records_correct_trigger(tmp_sidecar, mo
     """When the Stop path runs the teardown, the sidecar records stop_fallback —
     so the trigger distribution reflects which path actually did the work."""
     import _heavy_cadence
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_decay", lambda root: [])
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_consolidation", lambda root: [])
     monkeypatch.setattr(_heavy_cadence, "_run_quality_telemetry", lambda root, sid: [])
     monkeypatch.setattr(_heavy_cadence, "_run_guard_pipeline", lambda root: [])
 
@@ -340,19 +335,24 @@ def test_run_heavy_cadence_stop_fallback_records_correct_trigger(tmp_sidecar, mo
 
 
 def test_run_heavy_cadence_aggregates_messages(tmp_sidecar, monkeypatch):
-    """All four functions' messages flow through to the caller."""
+    """All heavy functions' messages flow through to the caller."""
     import _heavy_cadence
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_decay", lambda root: ["[Memory] Decay: 1, 2"])
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_consolidation", lambda root: ["[Memory] Consolidation: 3, 4"])
     monkeypatch.setattr(_heavy_cadence, "_run_quality_telemetry", lambda root, sid: ["[Telemetry] Drift detected"])
     monkeypatch.setattr(_heavy_cadence, "_run_guard_pipeline", lambda root: ["[Guard] 5 findings"])
 
     messages = _heavy_cadence.run_heavy_cadence("stop_fallback", session_id="test")
-    assert len(messages) == 4
-    assert any("Decay" in m for m in messages)
-    assert any("Consolidation" in m for m in messages)
+    assert len(messages) == 2
     assert any("Drift" in m for m in messages)
     assert any("Guard" in m for m in messages)
+
+
+def test_heavy_cadence_brain_era_legs_are_gone():
+    """S7: the decay/consolidation legs were deleted with wicked-brain —
+    _heavy_cadence must not define them anymore."""
+    import _heavy_cadence
+    assert not hasattr(_heavy_cadence, "_run_memory_decay")
+    assert not hasattr(_heavy_cadence, "_run_memory_consolidation")
+    assert not hasattr(_heavy_cadence, "_brain_api_call")
 
 
 def test_run_heavy_cadence_does_not_write_sidecar_on_raise(tmp_sidecar, monkeypatch):
@@ -360,10 +360,8 @@ def test_run_heavy_cadence_does_not_write_sidecar_on_raise(tmp_sidecar, monkeypa
     sidecar is NOT written — preserving the "next Stop retries" property."""
     import _heavy_cadence
     def boom(root, *args):
-        raise RuntimeError("brain unreachable")
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_decay", lambda root: [])
-    monkeypatch.setattr(_heavy_cadence, "_run_memory_consolidation", boom)
-    monkeypatch.setattr(_heavy_cadence, "_run_quality_telemetry", lambda root, sid: [])
+        raise RuntimeError("telemetry backend unreachable")
+    monkeypatch.setattr(_heavy_cadence, "_run_quality_telemetry", boom)
     monkeypatch.setattr(_heavy_cadence, "_run_guard_pipeline", lambda root: [])
     with pytest.raises(RuntimeError):
         _heavy_cadence.run_heavy_cadence("session_end", session_id="s")
@@ -382,8 +380,6 @@ def test_stop_py_no_longer_calls_heavy_functions_directly():
         line for line in text.splitlines()
         if line.strip() and not line.strip().startswith("#")
         and any(call in line for call in (
-            "_run_memory_decay()",
-            "_run_working_consolidation()",
             "_run_quality_telemetry(",
             "_run_guard_pipeline()",
         ))

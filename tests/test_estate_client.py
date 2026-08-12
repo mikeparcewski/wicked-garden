@@ -2,7 +2,7 @@
 
 Pins the seam that lets garden's Python hooks reach wicked-estate's **stdio**
 MCP binary (there is no HTTP port — this is the estate analogue of
-`test_brain_port.py`). Three layers:
+the retired `test_brain_port.py`). Three layers:
 
   * Hermetic unit tests (always run): binary/DB resolution, fail-open on an
     unreachable estate, envelope unwrapping, the transport seam, and the

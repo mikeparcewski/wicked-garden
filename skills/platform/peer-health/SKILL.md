@@ -2,7 +2,7 @@
 name: wicked-garden-platform-peer-health
 description: |
   Run a health check on all wicked-* peer tools (wicked-vault,
-  wicked-brain, wicked-bus). Reports reachability, version vs. pin, and
+  wicked-bus). Reports reachability, version vs. pin, and
   declared capability status for each peer. The replacement for
   `npx wicked-loom doctor` after Phase B absorption — peer-resolution now runs
   in-process via scripts/loom/, no external wicked-loom needed.
@@ -20,7 +20,7 @@ Check reachability and version health of wicked-* peer tools.
 
 ## Arguments
 
-- `--peer <name>` — check a single peer (vault, brain, bus)
+- `--peer <name>` — check a single peer (vault, bus)
 - `--strict` — exit non-zero if any peer has capability-gap (status != wired)
 - `--json` — emit raw JSON rows instead of the formatted table
 
@@ -94,9 +94,9 @@ if args.strict:
 but `experimental` or `planned` (not trusted for gating). The gate only
 trusts `wired` peers — anything else yields a `capability-gap` verdict.
 
-**wicked-brain** is currently `STATUS_EXPERIMENTAL` (bridge/deprecation period):
-garden exposes equivalent surfaces via wicked-estate MCP. New work must not
-declare brain as a required gate peer.
+**wicked-brain** was retired at S7 and removed from the peer manifest:
+garden exposes its surfaces via wicked-estate (the wicked-garden-mem/search
+skill domains). It is not a peer to probe, install, or gate on.
 
 ## Usage examples
 

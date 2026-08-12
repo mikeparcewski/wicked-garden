@@ -54,14 +54,14 @@ if str(_smaht_dir / "v2") not in sys.path:
 # This is the static reference that replaces SubagentStart hook's pointer injection.
 PLUGIN_SKILL_MAP = {
     "mem": [
-        "wicked-brain:memory (recall mode) — retrieve past decisions, constraints, patterns",
-        "wicked-brain:memory (store mode) — persist a decision or learning for future sessions",
+        "wicked-garden-mem (recall action) — retrieve past decisions, constraints, patterns",
+        "wicked-garden-mem (store action) — persist a decision or learning for future sessions",
     ],
     "search": [
-        "wicked-brain:search — find code symbols (functions, classes, methods)",
-        "wicked-garden-search (refs action) — find where a symbol is referenced",
+        "estate MCP SearchEntity tool — find code symbols (functions, classes, methods)",
         "wicked-garden-search (blast-radius action) — analyze what changing a symbol affects",
-        "wicked-brain:search — search documents (PDF, markdown, Office)",
+        "wicked-garden-search (lineage action) — trace where a symbol's data flows from/to",
+        "wicked-garden-mem (answer action) — cited answers from the knowledge store (PDF, markdown, Office)",
     ],
     "tasks": [
         "TaskCreate/TaskUpdate/TaskList/TaskGet — native Claude Code task tools; metadata validated by PreToolUse",
@@ -129,14 +129,14 @@ def build_ecosystem_orientation(installed_plugins: list = None) -> dict:
 
 
 async def gather_memories(task: str, limit: int = 3) -> list:
-    """Query wicked-brain for task-relevant memories.
+    """Query the knowledge layer (wicked-estate) for task-relevant memories.
 
     Uses brain_adapter directly — brain_adapter.query() returns ContextItems
-    with source="brain". The previous domain_adapter.query() only returned
-    items with source="crew" or source="jam", so the `source == "brain"`
+    with source="estate". The previous domain_adapter.query() only returned
+    items with source="crew" or source="jam", so the knowledge-layer
     filter always dropped every item, making this function silently return [].
-    Fix: route directly to brain_adapter, which queries the wicked-brain FTS5
-    index. Returns [] gracefully when brain is unavailable.
+    Fix: route directly to brain_adapter, which queries estate's recall
+    fusion. Returns [] gracefully when the backend is unavailable.
     """
     try:
         from adapters import brain_adapter
@@ -158,9 +158,9 @@ async def gather_memories(task: str, limit: int = 3) -> list:
 async def gather_code_context(task: str, files: list = None, limit: int = 5) -> list:
     """Query domain adapter for relevant code context.
 
-    Source-agnostic: returns items from any adapter (brain, domain, etc.).
+    Source-agnostic: returns items from any adapter (estate, domain, etc.).
     The former source=="search" filter was removed because no adapter emits
-    source="search" — items come from brain/domain adapters instead.
+    source="search" — items come from the knowledge/domain adapters instead.
     """
     try:
         from adapters import domain_adapter
@@ -213,7 +213,7 @@ async def build_package(task: str, project: str = None, files: list = None,
     """Build a structured context package for a subagent.
 
     This is the core function — assembles task-scoped context from
-    wicked-brain (decisions, constraints) and the wicked-garden-search skill (code context),
+    the wicked-garden-mem skill (decisions, constraints) and the wicked-garden-search skill (code context),
     plus session state from the history condenser.
 
     Args:

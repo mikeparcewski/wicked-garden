@@ -316,10 +316,10 @@ them after this fork returns; the council itself does not gate.
 
 ### 8. Store Decision Record
 
-Store the council outcome via wicked-brain:memory (store mode, if available):
+Store the council outcome via the wicked-garden-mem skill (store action, if available):
 
 ```
-Skill(skill="wicked-brain:memory", args="store \"Council: {topic} → {verdict_summary}\" --type decision --tags \"council,{topic_slug}\" --importance high")
+Skill(skill="wicked-garden-mem", args="store \"Council: {topic} → {verdict_summary}\" (kind=fact, about=[council, {topic_slug}])")
 ```
 
 ## Important Rules
@@ -333,9 +333,9 @@ Skill(skill="wicked-brain:memory", args="store \"Council: {topic} → {verdict_s
 ## Persistent Access
 
 The inline path above is the supported way to run a council. To persist or query
-council outcomes across sessions, use the brain decision record written in step 8
-(`wicked-brain:memory` store mode), then recall it with `wicked-brain:query` /
-`wicked-brain:search` (e.g. tag `council`).
+council outcomes across sessions, use the decision record written in step 8
+(`wicked-garden-mem` store action), then recall it with `wicked-garden-mem`
+recall / answer (e.g. tag `council`).
 
 > **Note (2026-06):** an earlier `daemon/council.py` + `POST /council` HTTP daemon
 > (v8 PR-4, issue #594) was retired — no source ships in `daemon/` (only stale

@@ -21,7 +21,7 @@ Leverage ecosystem tools:
 - **Search**: Use wicked-garden:search for PII detection
 - **Compliance**: Use compliance checker script
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track findings (see scripts/_event_schema.py).
-- **Memory**: Use wicked-brain:memory to recall privacy patterns
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall privacy patterns
 
 ## Your Focus
 

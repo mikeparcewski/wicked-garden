@@ -106,13 +106,13 @@ def _handle_context_limit(payload: dict) -> str:
     except Exception:
         pass
 
-    # S4: name the memory surface for the routed context backend (brain while
-    # the bridge is alive, estate memory.capture afterwards). Fail-open.
+    # Name the memory surface (estate memory.capture). Fail-open to the
+    # same wording.
     try:
         from _context_backend import memory_directive_target
         _mem_target = memory_directive_target()
     except Exception:
-        _mem_target = "wicked-brain:memory"
+        _mem_target = "the wicked-garden-mem skill (store action)"
 
     return json.dumps({
         "systemMessage": (

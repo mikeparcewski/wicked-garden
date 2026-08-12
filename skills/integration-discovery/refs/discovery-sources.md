@@ -92,7 +92,7 @@ Stake level: medium — informing user of choice.
 
 **Decision policy**: Low stakes → auto-decide silently. Medium stakes → auto-decide and inform. High stakes → always ask user. See [cli-detection.md](cli-detection.md) for full policy.
 
-**Preference storage**: After first selection, store in wicked-brain:memory under `cli-preference:{category}`.
+**Preference storage**: After first selection, store via the wicked-garden-mem skill (store action) under `cli-preference:{category}`.
 
 ---
 
@@ -190,10 +190,10 @@ Task: [description]
 - [ ] Note what's missing
 
 ### 2. CLI Tools
-- [ ] Check wicked-brain:memory for stored cli-preference:{category}
+- [ ] Check wicked-garden-mem (recall action) for stored cli-preference:{category}
 - [ ] If no preference, run `command -v` on priority-ordered tool list
 - [ ] Apply auto-decide vs ask policy based on stake level
-- [ ] Store selection in wicked-brain:memory after first decision
+- [ ] Store selection via wicked-garden-mem (store action) after first decision
 
 ### 3. Skills
 - [ ] Identify relevant skill families

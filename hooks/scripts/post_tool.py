@@ -33,14 +33,6 @@ from pathlib import Path
 _PLUGIN_ROOT = Path(os.environ.get("CLAUDE_PLUGIN_ROOT", Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(_PLUGIN_ROOT / "scripts"))
 
-def _resolve_brain_port():
-    try:
-        from _brain_port import resolve_port
-        return resolve_port()
-    except Exception:
-        return int(os.environ.get("WICKED_BRAIN_PORT", "4242"))
-
-
 # ---------------------------------------------------------------------------
 # Ops logger wrapper — fail-silent, never crashes the hook
 # ---------------------------------------------------------------------------
@@ -129,9 +121,10 @@ def _handle_write_edit(tool_input: dict) -> dict:
     if sync_msg:
         messages.append(sync_msg)
 
-    # 1. Mark file stale + re-index in brain
+    # 1. Mark file stale for the search index
+    # (wicked-estate keeps its own stores fresh through its indexer — no
+    # per-edit re-index call from the hook.)
     _mark_file_stale(file_path)
-    _brain_reindex_file(file_path)
 
     # 2. The QE threshold nudge was retired: it recommended test menus off a
     #    file-count heuristic (it once suggested unit tests for a README edit).
@@ -212,65 +205,6 @@ def _mark_file_stale(file_path: str) -> None:
             state.update(stale_files=stale)
     except Exception:
         pass
-
-
-def _brain_reindex_file(file_path: str) -> None:
-    """Re-index a changed file in the brain FTS5 index. Fails silently.
-
-    Reads the file content and POSTs it to the brain index API so the brain
-    stays current as files are edited during the session. Async-safe: uses
-    stdlib urllib with a short timeout.
-
-    S4: brain-route only. wicked-estate keeps its own stores fresh through
-    its indexer — a per-edit knowledge.write from a hook would append a new
-    node per edit (no stable id on that surface), so under estate routing
-    this is deliberately a no-op (same net effect as brain-absent today).
-    """
-    try:
-        from _context_backend import route
-        if route() != "brain":
-            return
-    except Exception:
-        return  # fail open — never block the hook on router import
-    try:
-        import urllib.request
-        p = Path(file_path)
-        if not p.exists() or not p.is_file():
-            return
-        # Only index text files the brain cares about
-        text_ext = {".md", ".txt", ".py", ".js", ".ts", ".jsx", ".tsx", ".sh",
-                    ".json", ".yaml", ".yml", ".toml", ".html", ".css", ".mjs"}
-        if p.suffix.lower() not in text_ext:
-            return
-        # Read content (cap at 50KB to avoid slow indexing on huge files)
-        content = p.read_text(encoding="utf-8", errors="replace")[:50000]
-        if not content.strip():
-            return
-        # Build a safe chunk ID from the file path
-        safe = file_path.lower().replace("/", "-").replace("\\", "-")
-        safe = re.sub(r"[^a-z0-9.-]", "-", safe)
-        safe = re.sub(r"-+", "-", safe).strip("-")
-        chunk_id = f"chunks/extracted/{safe}/chunk-001.md"
-
-        port = _resolve_brain_port()
-        payload = json.dumps({
-            "action": "index",
-            "params": {
-                "id": chunk_id,
-                "path": chunk_id,
-                "content": content,
-                "brain_id": "wicked-brain",
-            },
-        }).encode("utf-8")
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urllib.request.urlopen(req, timeout=2)
-    except Exception:
-        pass  # brain re-index is best-effort, never blocks the hook
 
 
 def _check_permission_failure(tool_response) -> str | None:
@@ -491,20 +425,19 @@ def _handle_read(tool_input: dict, tool_response=None) -> dict:
 # ---------------------------------------------------------------------------
 
 def _handle_skill(tool_input: dict) -> dict:
-    """Handle Skill PostToolUse: memory compliance reset + pull-model tracking.
+    """Handle Skill PostToolUse: memory compliance reset.
 
-    1. Reset memory_compliance_escalations when a wicked-brain:memory skill
-       call succeeds. (mem:store was removed in #603/#604; wicked-brain:memory
-       is the canonical memory API as of v9.)
-    2. Track wicked-brain:query/search calls for pull-model calibration (Issue #416).
+    Reset memory_compliance_escalations when a wicked-garden-mem skill call
+    succeeds — the canonical memory surface over wicked-estate (FOLD-1,
+    Phase 5-S7; it replaced the retired wicked-brain:memory skill).
     """
     skill = (tool_input.get("skill") or "").lower()
 
     # Memory compliance reset: zero the escalation counter when the model
-    # calls wicked-brain:memory, confirming it acted on the directive.
-    # Issue #608: exact match only — substring would false-positive on future
-    # skills like wicked-brain:memory-export, wicked-brain:memory-audit, etc.
-    if skill != "wicked-brain:memory":
+    # calls the mem skill, confirming it acted on the directive.
+    # Issue #608: exact match only — substring would false-positive on
+    # sibling skills (e.g. a hypothetical wicked-garden-mem-audit).
+    if skill != "wicked-garden-mem":
         return {"continue": True}
     try:
         from _session import SessionState

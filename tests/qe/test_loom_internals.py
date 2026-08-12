@@ -17,8 +17,9 @@ Key differences from the archived tests:
     (["npm", "install", "-g", "wicked-vault@latest"]); it does NOT route through
     wicked-testing, and it is not the old ["npx", "wicked-vault-install"] form
     (that bin only installs skills, not the binary)
-  - brain is STATUS_EXPERIMENTAL (bridge/deprecation period), so capability_ok=False
-    for brain rows; archived tests expected all peers capability_ok=True
+  - brain was REMOVED from the manifest at S7 (wicked-brain retired into
+    wicked-estate); the version_bin seam it exercised is covered with a
+    synthetic peer
   - imports are prefixed `loom.` (in-process package, not a top-level CLI module)
 
 sys.path setup: the root conftest.py inserts scripts/ at sys.path[0] before any
@@ -186,14 +187,27 @@ class CheckPeerTests(unittest.TestCase):
         self.assertIsNone(r["capability"])
         self.assertFalse(r["capability_ok"])
 
-    def test_brain_capability_is_experimental_not_wired(self):
-        """brain is STATUS_EXPERIMENTAL in the post-absorption manifest
-        (bridge/deprecation period).  Its capability_ok must be False —
-        the never-fake contract: a capability-gap is reported, not a silent wired."""
-        with patch.object(compose, "resolve_version_bin",
-                          return_value=["wicked-brain-server"]):
-            r = compose.check_peer("brain",
-                                   run=_runner(stdout="wicked-brain-server 0.14.0\n"))
+    def test_retired_brain_peer_is_unknown(self):
+        """S7: brain was removed from the manifest with wicked-brain's
+        retirement — it must behave exactly like any unknown peer (null
+        capability, capability_ok False), never a silent wired."""
+        r = compose.check_peer("brain")
+        self.assertIsNone(r["capability"])
+        self.assertFalse(r["capability_ok"])
+
+    def test_non_wired_status_is_never_capability_ok(self):
+        """The never-fake contract survives brain's removal: a peer whose
+        declared status is experimental must report capability_ok=False."""
+        synthetic = manifest.Peer(
+            name="synth", npm_package="wicked-synth", env_var="WICKED_SYNTH_BIN",
+            version_pin="1.0", install_cmd=["npm", "i", "-g", "wicked-synth"],
+            probe_cmd=["wicked-synth", "--version"],
+            status=manifest.STATUS_EXPERIMENTAL,
+        )
+        with patch.dict(manifest.PEERS, {"synth": synthetic}):
+            with patch.object(compose, "resolve_version_bin",
+                              return_value=["wicked-synth"]):
+                r = compose.check_peer("synth", run=_runner(stdout="1.2.3\n"))
         self.assertEqual(r["capability"], "experimental")
         self.assertFalse(r["capability_ok"])
         # Reachability is separate: resolved + good version = ok
@@ -234,7 +248,7 @@ class CheckAllTests(unittest.TestCase):
         with patch.object(compose, "resolve_version_bin", return_value=["x"]):
             rows = compose.check_all(run=_runner(stdout="9.9.9"))
         peer_names = {r["peer"] for r in rows}
-        self.assertEqual(peer_names, {"vault", "brain", "bus"})
+        self.assertEqual(peer_names, {"vault", "bus"})
 
     def test_all_rows_carry_capability(self):
         with patch.object(compose, "resolve_version_bin", return_value=["x"]):
@@ -242,14 +256,6 @@ class CheckAllTests(unittest.TestCase):
         for row in rows:
             self.assertIn("capability", row)
             self.assertIn("capability_ok", row)
-
-    def test_brain_row_capability_ok_is_false(self):
-        """brain is EXPERIMENTAL — capability_ok must be False in check_all output."""
-        with patch.object(compose, "resolve_version_bin", return_value=["x"]):
-            rows = compose.check_all(run=_runner(stdout="9.9.9"))
-        brain_row = next(r for r in rows if r["peer"] == "brain")
-        self.assertFalse(brain_row["capability_ok"])
-        self.assertEqual(brain_row["capability"], "experimental")
 
     def test_wired_peers_capability_ok_is_true(self):
         """vault and bus are STATUS_WIRED — capability_ok must be True."""
@@ -333,44 +339,56 @@ class ResolvePeerTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 class ResolveVersionBinTests(unittest.TestCase):
+    """The version_bin seam (probe binary != run package) is exercised with a
+    synthetic peer — the brain peer that used to carry it was removed at S7."""
+
+    _SYNTH = manifest.Peer(
+        name="synth", npm_package="wicked-synth", env_var="WICKED_SYNTH_BIN",
+        version_pin="1.0", install_cmd=["npm", "i", "-g", "wicked-synth"],
+        probe_cmd=["wicked-synth-server", "--version"],
+        version_bin="wicked-synth-server",
+    )
 
     def setUp(self):
         import os
-        for var in ("WICKED_VAULT_BIN", "WICKED_BRAIN_BIN"):
+        for var in ("WICKED_VAULT_BIN", "WICKED_SYNTH_BIN"):
             os.environ.pop(var, None)
+        self._peers_patch = patch.dict(manifest.PEERS, {"synth": self._SYNTH})
+        self._peers_patch.start()
 
     def tearDown(self):
         import os
-        for var in ("WICKED_VAULT_BIN", "WICKED_BRAIN_BIN"):
+        self._peers_patch.stop()
+        for var in ("WICKED_VAULT_BIN", "WICKED_SYNTH_BIN"):
             os.environ.pop(var, None)
 
-    def test_brain_resolves_server_via_path(self):
+    def test_distinct_version_bin_resolves_via_path(self):
         with patch.object(shutil, "which",
-                          return_value="/usr/local/bin/wicked-brain-server"):
-            self.assertEqual(resolve_mod.resolve_version_bin("brain"),
-                             ["/usr/local/bin/wicked-brain-server"])
+                          return_value="/usr/local/bin/wicked-synth-server"):
+            self.assertEqual(resolve_mod.resolve_version_bin("synth"),
+                             ["/usr/local/bin/wicked-synth-server"])
 
-    def test_brain_npx_fallback_uses_server_binary(self):
+    def test_distinct_version_bin_npx_fallback(self):
         with patch.object(shutil, "which", return_value=None):
-            self.assertEqual(resolve_mod.resolve_version_bin("brain"),
-                             ["npx", "wicked-brain-server"])
+            self.assertEqual(resolve_mod.resolve_version_bin("synth"),
+                             ["npx", "wicked-synth-server"])
 
     def test_same_binary_peer_uses_npm_package(self):
-        """vault/testing/bus: version_bin is empty → falls back to npm_package."""
+        """vault/bus: version_bin is empty → falls back to npm_package."""
         with patch.object(shutil, "which", return_value=None):
             self.assertEqual(resolve_mod.resolve_version_bin("vault"),
                              ["npx", "wicked-vault"])
 
     def test_killswitch_respected(self):
         import os
-        os.environ["WICKED_BRAIN_BIN"] = ""
-        self.assertIsNone(resolve_mod.resolve_version_bin("brain"))
+        os.environ["WICKED_SYNTH_BIN"] = ""
+        self.assertIsNone(resolve_mod.resolve_version_bin("synth"))
 
     def test_env_override_respected(self):
         import os
-        os.environ["WICKED_BRAIN_BIN"] = "/opt/custom/brain"
-        self.assertEqual(resolve_mod.resolve_version_bin("brain"),
-                         ["/opt/custom/brain"])
+        os.environ["WICKED_SYNTH_BIN"] = "/opt/custom/synth"
+        self.assertEqual(resolve_mod.resolve_version_bin("synth"),
+                         ["/opt/custom/synth"])
 
     def test_unknown_peer_returns_none(self):
         self.assertIsNone(resolve_mod.resolve_version_bin("nope"))
@@ -396,12 +414,10 @@ class ManifestTests(unittest.TestCase):
         self.assertTrue(vault.is_wired)
         self.assertEqual(vault.status, "wired")
 
-    def test_brain_is_experimental(self):
-        """brain must be STATUS_EXPERIMENTAL — bridge/deprecation period."""
-        brain = manifest.get("brain")
-        self.assertIsNotNone(brain)
-        self.assertEqual(brain.status, "experimental")
-        self.assertFalse(brain.is_wired)
+    def test_brain_removed_from_manifest(self):
+        """S7: wicked-brain retired — the brain peer must be gone."""
+        self.assertIsNone(manifest.get("brain"))
+        self.assertNotIn("brain", manifest.PEERS)
 
     def test_get_unknown_returns_none(self):
         self.assertIsNone(manifest.get("does-not-exist"))

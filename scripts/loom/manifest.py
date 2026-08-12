@@ -22,8 +22,9 @@ Peer status notes (post-rationalization):
   vault    — wired; binary ``wicked-vault``. A DIRECT infra peer published from
              its own repo (mikeparcewski/wicked-vault): self-contained, zero
              runtime deps, installed directly.
-  brain    — DEPRECATED (bridge period: garden now exposes equivalent surfaces
-             via wicked-memory + wicked-knowledge; use_loom check still passes)
+  brain    — REMOVED (S7): wicked-brain retired; memory/knowledge/search
+             consolidated into wicked-estate (agent surface: the garden mem/
+             search skill domains). No longer a peer to probe or install.
   bus      — wired; ``wicked-bus`` (Rust rewrite in progress; CLI interface
              stays identical so no manifest change needed on Rust cutover)
   testing  — REMOVED (Phase 6c): wicked-testing retired. Its skills ship
@@ -57,9 +58,9 @@ class Peer:
     version_pin: str        # MAJOR.MINOR floor, e.g. "0.3"
     install_cmd: list       # headless install command
     probe_cmd: list         # command to print the installed version
-    # The probe binary can legitimately differ from the install/run package:
-    # e.g. brain installs/runs as `wicked-brain` but reports its version via
-    # `wicked-brain-server`. Empty string means "same as npm_package".
+    # The probe binary can legitimately differ from the install/run package
+    # (a package may report its version via a differently-named server/CLI
+    # binary). Empty string means "same as npm_package".
     version_bin: str = ""
     # Declared capability readiness (the never-fake contract — see module
     # docstring). Distinct from runtime reachability. Defaults to "wired": every
@@ -87,8 +88,6 @@ class Peer:
 # Notes:
 #   - wicked-vault is a direct infra peer (mikeparcewski/wicked-vault):
 #     self-contained, installed directly.
-#   - wicked-brain is in the bridge-period deprecation path; marked
-#     experimental so gates never depend on it for new work.
 #   - wicked-bus Rust rewrite uses the same CLI interface; no manifest change.
 PEERS: dict = {
     "vault": Peer(
@@ -111,20 +110,6 @@ PEERS: dict = {
         install_cmd=["npm", "install", "-g", "wicked-vault@latest"],
         probe_cmd=["wicked-vault", "--version"],
         status=STATUS_WIRED,
-    ),
-    "brain": Peer(
-        name="brain",
-        npm_package="wicked-brain",
-        env_var="WICKED_BRAIN_BIN",
-        version_pin="0.14",
-        install_cmd=["npm", "install", "-g", "wicked-brain@latest"],
-        probe_cmd=["wicked-brain-server", "--version"],
-        # Version lives in the server binary, not the `wicked-brain` package.
-        version_bin="wicked-brain-server",
-        # DEPRECATED: bridge period — garden now exposes equivalent surfaces via
-        # wicked-memory + wicked-knowledge (wicked-estate MCP). New work must not
-        # depend on brain. Marked experimental so gates never require it.
-        status=STATUS_EXPERIMENTAL,
     ),
     "bus": Peer(
         name="bus",

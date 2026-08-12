@@ -12,7 +12,7 @@ fixes: "#523"
 
 Validates that 7 different scripts work together in a realistic workflow: create a project, register entities in the knowledge graph, create traceability links, manage artifact state transitions, run impact analysis, fan-out through smaht adapters, run the verification protocol, and synthesize consensus.
 
-Note: phase_scoring.py was removed in the v8.0.0 cleanup (cluster-A P0). Phase affinity ranking is now handled by wicked-brain's FTS5/BM25. Step 7 (phase enrichment) has been removed accordingly.
+Note: phase_scoring.py was removed in the v8.0.0 cleanup (cluster-A P0). Phase affinity ranking is now handled by the knowledge layer's retrieval (wicked-estate). Step 7 (phase enrichment) has been removed accordingly.
 
 Note: The search lifecycle scoring script was removed. Search-domain scoring is now
 handled by the smaht adapter fan-out (scripts/smaht/adapters/). Step 6 has been

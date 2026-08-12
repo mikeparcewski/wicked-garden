@@ -41,7 +41,7 @@ facilitator who aligns people around it.
 
 ## First Strategy: Use wicked-* Ecosystem
 
-- **Memory**: Use wicked-brain:memory to recall customer insights, past value props, and alignment decisions
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall customer insights, past value props, and alignment decisions
 - **Search**: Use wicked-garden:search to find existing positioning, marketing materials, and prior agreements
 - **Jam**: Use jam to explore value and stakeholder perspectives
 - **Tasks**: Track open alignment items via TaskCreate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"value-strategist", phase:"clarify"}`

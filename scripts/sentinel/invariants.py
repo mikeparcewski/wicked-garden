@@ -22,8 +22,11 @@ is an *invariant between two observable states* — never a command match:
   ------------------------  ----------------------  -------------------------
   done-claim has a verdict  sentinel verdict ledger ref advance / task done
   evidence is fresh         qe evidence ledger      mtime of modified files
-  learnings captured        brain memory dir        session activity
   playbooks current         repo-* skill dirs       commits since their mtime
+
+(S7 note: the "learnings captured" invariant was retired with wicked-brain —
+its observable was the brain memory dir, and the stop hook's auto-memorize
+drain now persists session facts to estate memory automatically.)
 
 Tiers: info (one line, ignorable) → **answer** (the agent must act or the skip
 is logged to the bus as `wicked.garden.sentinel.*` — the skip becomes evidence) →
@@ -293,52 +296,11 @@ def check_evidence_freshness(repo: Path) -> Optional[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Invariant 3+4+5 — session-end info tier (one line each, never blocking)
+# Session-end info tier (one line each, never blocking)
 # ---------------------------------------------------------------------------
-
-def _brain_memory_dir(repo: Path) -> Optional[Path]:
-    projects = Path.home() / ".wicked-brain" / "projects"
-    if not projects.is_dir():
-        return None
-    try:
-        for proj in projects.iterdir():
-            cfg = proj / "_meta" / "config.json"
-            if cfg.is_file():
-                try:
-                    src = json.loads(cfg.read_text(encoding="utf-8")).get("source_path", "")
-                    if src and Path(src).resolve() == repo.resolve():
-                        mem = proj / "memory"
-                        return mem if mem.is_dir() else None
-                except (json.JSONDecodeError, OSError):
-                    continue
-    except OSError:
-        return None
-    return None
-
-
-def check_session_capture(repo: Path, session_start_ts: float,
-                          activity_count: int) -> Optional[Dict[str, Any]]:
-    """Info-tier: a significant session (>= 10 tracked activities) that captured
-    zero brain memories. Only applies when the brain layer is present."""
-    if activity_count < 10:
-        return None
-    mem = _brain_memory_dir(repo)
-    if mem is None:
-        return None  # brain layer absent for this repo — not applicable
-    try:
-        wrote = any(p.stat().st_mtime >= session_start_ts
-                    for p in mem.glob("*.md"))
-    except OSError:
-        return None
-    if wrote:
-        return None
-    return {
-        "tier": "info",
-        "invariant": "session-capture",
-        "evidence": f"{activity_count} tracked activities this session, 0 memories captured",
-        "action": "Worth one `wicked-brain:memory` store (decision/gotcha) before you go?",
-    }
-
+# (S7: check_session_capture was retired with wicked-brain — its observable
+# was the brain memory dir, and the stop hook's auto-memorize drain persists
+# session facts to estate memory automatically.)
 
 def check_playbook_freshness(repo: Path) -> Optional[Dict[str, Any]]:
     """Info-tier: wicked-understanding playbooks exist but the repo has moved
@@ -378,13 +340,17 @@ def check_playbook_freshness(repo: Path) -> Optional[Dict[str, Any]]:
 
 def session_end_lines(cwd: Optional[Path], session_start_ts: float,
                       activity_count: int) -> List[str]:
-    """The Stop/SessionEnd bundle — info-tier lines only, each fail-open."""
+    """The Stop/SessionEnd bundle — info-tier lines only, each fail-open.
+
+    ``session_start_ts``/``activity_count`` are retained for call-shape
+    compatibility (the retired session-capture check consumed them).
+    """
+    del session_start_ts, activity_count  # no surviving check consumes these
     repo = repo_toplevel(cwd)
     if repo is None:
         return []
     lines: List[str] = []
-    for check in (lambda: check_session_capture(repo, session_start_ts, activity_count),
-                  lambda: check_playbook_freshness(repo)):
+    for check in (lambda: check_playbook_freshness(repo),):
         try:
             v = check()
         except Exception:  # noqa: BLE001
@@ -406,6 +372,6 @@ def render(violation: Dict[str, Any]) -> str:
 __all__ = [
     "repo_toplevel", "stamp_verdict", "verdict_for", "log_sentinel_event",
     "is_done_claim", "claim_tick",
-    "check_evidence_freshness", "check_session_capture",
+    "check_evidence_freshness",
     "check_playbook_freshness", "session_end_lines", "render",
 ]

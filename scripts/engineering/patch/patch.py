@@ -8,12 +8,8 @@ The --db symbol graph is translated from a wicked-estate store by estate_db.py
 symbol-level graph traversal.
 
 Usage:
-    # Plan with the full symbol graph (recommended; --db from estate_db.py)
+    # Plan with the full symbol graph (--db from estate_db.py)
     patch plan SYMBOL_ID --change add_field --db symbols.db
-
-    # Plan without --db (legacy fallback: only works while a wicked-brain
-    # server is running; otherwise pass --db)
-    patch plan SYMBOL_ID --change add_field
 
     # Add a field to an entity/class
     patch add-field SYMBOL_ID --name email --type String --column EMAIL --db symbols.db
@@ -37,8 +33,8 @@ from pathlib import Path
 from typing import Optional, List
 from datetime import datetime
 
-# Add patch dir for local imports (generators, safety) and scripts root for shared modules (_brain_port)
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # scripts/ — for _brain_port
+# Add patch dir for local imports (generators, safety) and scripts root for shared modules
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # scripts/
 sys.path.insert(0, str(Path(__file__).parent))                # scripts/engineering/patch/
 
 from generators import (
@@ -67,51 +63,12 @@ def _parse_version(v: str) -> tuple:
     return (0, 0, 0)
 
 
-def _brain_api(action: str, params: dict, port: Optional[int] = None) -> dict:
-    """Call wicked-brain API. Returns empty dict on failure.
-
-    Port is auto-discovered from project brain configs unless overridden.
-    """
-    import urllib.request
-    if port is None:
-        try:
-            from _brain_port import resolve_port
-            port = resolve_port()
-        except ImportError:
-            print("warning: _brain_port not found, falling back to port 4242", file=sys.stderr)
-            port = 4242
-    try:
-        payload = json.dumps({"action": action, "params": params}).encode()
-        req = urllib.request.Request(
-            f"http://localhost:{port}/api",
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            return json.loads(resp.read().decode())
-    except Exception:
-        return {}
-
-
 def _resolve_symbol_id(symbol_id: str, db_path: Optional[Path]) -> str:
-    """Resolve a partial symbol name to a full ID.
-
-    Tries brain's symbols API first (returns file_path::Name when LSP data
-    is available), then falls back to local SQLite if db_path is provided.
-    """
+    """Resolve a partial symbol name to a full ID via the local symbol DB
+    (translated from a wicked-estate store by estate_db.py)."""
     if not symbol_id or symbol_id.startswith("/") or "::" in symbol_id:
         return symbol_id
 
-    # Try brain symbols API — fetch up to 10 to find one with a real file_path
-    # (FTS results often have file_path=null for chunk-indexed entries; LSP-indexed
-    # entries have the actual path and appear later in the result list)
-    result = _brain_api("symbols", {"name": symbol_id, "limit": 10})
-    for r in result.get("results", []):
-        if r.get("file_path"):
-            return r["id"]  # format: "file_path::SymbolName"
-
-    # SQLite fallback
     if db_path:
         try:
             import sqlite3
@@ -143,8 +100,8 @@ def _require_db(args_db: Optional[str]) -> Optional[Path]:
 
     print(
         "Error: patch generation requires a local symbol database.\n"
-        "  Pass --db <path-to-symbol.db> to use a local SQLite symbol graph.\n"
-        "  The 'plan' command works without --db using wicked-brain's symbol API.",
+        "  Pass --db <path-to-symbol.db> to use a local SQLite symbol graph\n"
+        "  (build one from a wicked-estate store with estate_db.py).",
         file=sys.stderr,
     )
     return None
@@ -324,66 +281,16 @@ def format_patches(patch_set: PatchSet, verbose: bool = False) -> str:
     return "\n".join(lines)
 
 
-def _cmd_plan_brain(args) -> int:
-    """Show a brain-backed propagation plan (file-level, no local DB needed)."""
-    # Strip path prefix if user passed a full symbol ID
-    symbol_name = args.symbol_id.split("::")[-1] if "::" in args.symbol_id else args.symbol_id
-
-    sym_result = _brain_api("symbols", {"name": symbol_name, "limit": 5})
-    symbols = sym_result.get("results", [])
-
-    dep_result = _brain_api("dependents", {"name": symbol_name})
-    dep_files = dep_result.get("files", [])
-
-    if not symbols and not dep_files:
-        print(f"Error: '{symbol_name}' not found in brain index.", file=sys.stderr)
-        print("Index the codebase first, or pass --db <symbol.db> for local SQLite planning.", file=sys.stderr)
-        return 1
-
-    source = symbols[0] if symbols else {"name": symbol_name, "type": "unknown", "file_path": None}
-    change_type = args.change if args.change else "modify_field"
-
-    print("=" * 60)
-    print("PROPAGATION PLAN  [brain-backed, file-level]")
-    print("=" * 60)
-    print()
-    print(f"Source: {source.get('name', symbol_name)}")
-    print(f"  Type: {source.get('type', 'unknown')}")
-    file_path = source.get("file_path")
-    print(f"  File: {file_path or '(chunk-indexed — run ingest with LSP for exact location)'}")
-    print()
-
-    if dep_files:
-        print(f"Dependent Files ({len(dep_files)}):")
-        for f in dep_files[:15]:
-            print(f"  - {f}")
-        if len(dep_files) > 15:
-            print(f"  ... and {len(dep_files) - 15} more")
-    else:
-        print("No dependent files found in brain index.")
-    print()
-    print("Note: Pass --db <symbol.db> for symbol-level graph traversal and patch generation.")
-    print("=" * 60)
-
-    if args.json:
-        print("\n" + json.dumps({
-            "source": {
-                "name": source.get("name", symbol_name),
-                "type": source.get("type", "unknown"),
-                "file": file_path,
-            },
-            "change_type": change_type,
-            "files_affected": dep_files,
-            "planning_source": "brain",
-        }, indent=2))
-
-    return 0
-
-
 def cmd_plan(args):
     """Show propagation plan without generating patches."""
     if not args.db:
-        return _cmd_plan_brain(args)
+        print(
+            "Error: 'plan' requires a local symbol database.\n"
+            "  Pass --db <path-to-symbol.db> (build one from a wicked-estate "
+            "store with estate_db.py).",
+            file=sys.stderr,
+        )
+        return 1
 
     db_path = Path(args.db)
     if not db_path.exists():

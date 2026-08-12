@@ -104,7 +104,7 @@ export function writeContextMd(path, content, opts = {}) {
 /**
  * Assemble a reviewer context.md from non-prejudicial sources and write it
  * iff the content is clean. Used by the acceptance-testing skill when
- * wicked-brain (or any other upstream knowledge source) contributes cold
+ * The knowledge layer (or any other upstream knowledge source) contributes cold
  * domain knowledge before reviewer dispatch.
  *
  * If `brainKnowledge` is empty / undefined, no context.md is written and the

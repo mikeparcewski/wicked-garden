@@ -40,7 +40,7 @@ unfamiliar codebase. Typical outputs:
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Search**: Use wicked-garden:search to find symbols, imports, and patterns
-- **Memory**: Use wicked-brain:memory to recall past architecture decisions
+- **Memory**: Use the wicked-garden-mem skill (recall action) to recall past architecture decisions
 - **Native tasks**: Inspect current work via TaskCreate/TaskUpdate with
   `metadata={event_type, chain_id, source_agent, phase}`
 
@@ -57,7 +57,7 @@ find . -maxdepth 3 -type f | head -100
 
 Or use the search index (FTS5 over indexed code):
 ```
-wicked-brain:search "class |function |def |interface "
+Grep "class |function |def |interface "
 ```
 
 Identify:

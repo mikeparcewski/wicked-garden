@@ -127,14 +127,14 @@ They do not overlap; pick by target:
 
 | Action | What It Does |
 |--------|-------------|
-| `index` | Refresh both layers — brain (semantic) + codegraph (structural) incl. injected edges |
+| `index` | Refresh the estate code graph (static + injected edges) |
 | `blast-radius` | Dependencies and dependents of a symbol, including injected (string-keyed) links |
 | `lineage` | Trace data/reference flow from UI to DB (or reverse) |
 | `service-map` | Detect service architecture from infra files |
 | `hotspots` | Most-referenced symbols (find god-objects / coupling) |
 | `narrate` | Codebase orientation / architecture walkthrough (nested `codebase-narrator` skill) |
 
-> For open-ended symbol and concept search, prefer `wicked-brain:search` / `wicked-brain:query`; the search actions cover the structural + injected-relationship analysis the brain doesn't. The thin index-admin wrappers (`categories`/`coverage`/`sources`/`quality`/`validate`) were removed — they duplicated `wicked-brain` tooling.
+> For open-ended concept/memory search, prefer the `wicked-garden-mem` skill (recall/answer); the search actions cover the structural + injected-relationship analysis. The thin index-admin wrappers (`categories`/`coverage`/`sources`/`quality`/`validate`) were removed — they duplicated backend tooling.
 
 ## agentic — Agentic Architecture
 
@@ -163,7 +163,7 @@ They do not overlap; pick by target:
 
 ## smaht — Context Assembly
 
-`wicked-garden-smaht` — on-demand context assembly over wicked-brain and the search index. A pull-model skill — archetypes and subagents call it when they need a briefing, rather than pushing context onto every prompt.
+`wicked-garden-smaht` — on-demand context assembly over the wicked-estate knowledge layer and the search index. A pull-model skill — archetypes and subagents call it when they need a briefing, rather than pushing context onto every prompt.
 
 | Action | What It Does |
 |--------|-------------|

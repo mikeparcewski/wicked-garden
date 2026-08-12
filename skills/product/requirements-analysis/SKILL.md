@@ -122,13 +122,13 @@ Check:
 
 ```bash
 # Search for similar requirements (FTS5 over indexed docs + wiki)
-wicked-brain:search "user story"
+Skill(skill="wicked-garden-mem", args="recall \"user story\"")
 
 # Store requirements on the active clarify task via native TaskUpdate
 # TaskUpdate(taskId="{task_id}", description="{previous}\n\n## Requirements\n{user_stories}")
 
 # Recall past patterns
-Skill(skill="wicked-brain:memory", args="recall \"requirements for {feature_type}\"")
+Skill(skill="wicked-garden-mem", args="recall \"requirements for {feature_type}\"")
 ```
 
 ## Output Format

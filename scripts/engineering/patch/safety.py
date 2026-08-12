@@ -421,7 +421,7 @@ def run_safety_checks(
         if not git_result.passed:
             return False, results
 
-    # Freshness check — skipped when no db_path (brain-backed mode, no local db)
+    # Freshness check — skipped when no db_path (no local symbol db)
     if not force and db_path is not None:
         freshness_result = FreshnessChecker.check_freshness(db_path, max_age_hours)
         results.append(freshness_result)

@@ -260,9 +260,9 @@ def _handle_write_guard(tool_input: dict) -> str:
 
     TODO (Issue #329): When Claude Code supports updatedInput for PreToolUse hooks
     to redirect tool calls, change the MEMORY.md deny into an updatedInput redirect
-    that rewrites the Write/Edit call into a wicked-brain:memory invocation instead.
-    This would be less disruptive than a hard deny — the intent to persist data would
-    still succeed, just through the correct channel.
+    that rewrites the Write/Edit call into a wicked-garden-mem store invocation
+    instead. This would be less disruptive than a hard deny — the intent to persist
+    data would still succeed, just through the correct channel.
     """
     file_path = tool_input.get("file_path", "")
 
@@ -280,13 +280,13 @@ def _handle_write_guard(tool_input: dict) -> str:
     is_auto_memory = _AUTO_MEMORY_MARKER in file_path and "/memory/" in file_path
 
     if is_memory_md or is_auto_memory:
-        # S4: name the memory surface for the routed context backend (brain
-        # while the bridge is alive, estate memory.capture afterwards).
+        # Name the memory surface (estate memory.capture). Fail-open to the
+        # same wording.
         try:
             from _context_backend import memory_directive_target
             _mem_target = memory_directive_target()
         except Exception:
-            _mem_target = "wicked-brain:memory"
+            _mem_target = "the wicked-garden-mem skill (store action)"
         return _deny(
             "Do not write to MEMORY.md or the auto memory directory. "
             "This project uses wicked-garden memory for persistence. "
@@ -661,7 +661,7 @@ def _has_recent_bus_emit(project_id: str, window_sec: int) -> bool:
             since = int(_time.time()) - window_sec
             # LIKE escape: '_' and '%' in project_id would otherwise match
             # unrelated chains. Same idiom as scripts/crew/resume_projector.py
-            # — see brain memory "sqlite-like-wildcard-escape-gotcha".
+            # — see the stored memory "sqlite-like-wildcard-escape-gotcha".
             escaped = (
                 project_id
                 .replace("!", "!!")

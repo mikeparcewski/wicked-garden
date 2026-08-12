@@ -118,9 +118,9 @@ TaskUpdate(
 )
 ```
 
-### With wicked-brain
+### With the memory layer (wicked-estate)
 ```bash
-Skill(skill="wicked-brain:memory", args="recall \"compliance {framework}\"")
+Skill(skill="wicked-garden-mem", args="recall \"compliance {framework}\"")
 ```
 
 ### With the platform domain skill

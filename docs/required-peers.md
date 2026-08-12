@@ -37,10 +37,9 @@ of them.
 
 | Layer | What it unlocks | Skip it and… | Install |
 |-------|-----------------|--------------|---------|
-| **wicked-brain** | The memory layer — cross-session recall, cited search, `smaht:briefing`. Carries decisions/gotchas from session 1 to session 47. | structural search (`blast-radius`/`lineage`/`hotspots`, via wicked-estate) still works; you lose cross-session memory + semantic search. | `/plugin install wicked-brain` (npm `^0.18.0`) |
-| **wicked-estate** | The code-graph layer (ADR 0005) — `wicked-estate index` builds a 75-language static graph + injected edges (garden's archetype rules in `.wicked-estate-extractors/`); the estate MCP tools (`BlastRadius`/`Lineage`/`RankHotspots`) power `blast-radius`/`lineage`/`hotspots` and wicked-patch. Single binary, no external engine. | blast-radius/lineage/hotspots/wicked-patch degrade to text-search and **miss injected relationships**; the rest of the toolkit works. | resolve via `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin` (Rust binary; see the wicked-estate repo) |
+| **wicked-estate** | The memory/knowledge **and** code-graph layer — cross-session memory + cited knowledge recall (the `wicked-garden-mem` skill), plus the graph (ADR 0005): `wicked-estate index` builds a 75-language static graph + injected edges (garden's archetype rules in `.wicked-estate-extractors/`); the estate MCP tools (`BlastRadius`/`Lineage`/`RankHotspots`) power `blast-radius`/`lineage`/`hotspots` and wicked-patch. One binary pair, no external engine. | hooks fail open; you lose cross-session memory + knowledge recall, and blast-radius/lineage/hotspots/wicked-patch degrade to text-search that **misses injected relationships**; the rest of the toolkit works. | Install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or `~/.local/bin` (env overrides: `WICKED_ESTATE_BIN` / `WICKED_ESTATE_MCP_BIN`) |
 | **wicked-bus** | The audit-trail layer — append-only events recording what happened. | nothing breaks — emission is already fire-and-forget / fail-open; events just aren't recorded. | `/plugin install wicked-bus` (npm `2.3.0`) |
-| **wicked-understanding** | The repo-playbooks layer — analyzes the repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`/`scaffold`) that tell the agent *how to work in this repo*: the file that owns the bug, the wiring step, the test command, the gotcha. Pairs with brain — brain is the *what*, this is the *how* (`repo-analyst --enrich-from-brain` folds in design rationale). | the agent re-derives the method from scratch each task; the rest of the toolkit works. | `npx skills add mikeparcewski/wicked-understanding --all` (skills-standard; multi-CLI, no server, no lock-in) |
+| **wicked-understanding** | The repo-playbooks layer — analyzes the repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`/`scaffold`) that tell the agent *how to work in this repo*: the file that owns the bug, the wiring step, the test command, the gotcha. Pairs with the knowledge layer — estate is the *what*, this is the *how*. | the agent re-derives the method from scratch each task; the rest of the toolkit works. | `npx skills add mikeparcewski/wicked-understanding --all` (skills-standard; multi-CLI, no server, no lock-in) |
 
 The SessionStart bootstrap hook probes for all peers and **warns** (non-blocking)
 when one isn't resolvable — informational for the opt-in layers, a real flag for
@@ -51,7 +50,7 @@ the gate's two.
 - **The gate is the floor.** vault + loom are required because the toolkit's
   central promise — re-derived, fail-closed "done" — is meaningless without them.
   This is the one place we trade adoption for honesty on purpose.
-- **The layers are a toolkit, not a checklist.** Testing/brain/bus each add a
+- **The layers are a toolkit, not a checklist.** Testing/estate/bus each add a
   capability; none is a prerequisite for the others. Install the toolkit and reach
   for the layers you need. Breadth is the point of a toolkit — but breadth you can
   *adopt incrementally*, not a five-thing prerequisite wall.
