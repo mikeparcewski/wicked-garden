@@ -119,6 +119,15 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     # QE skill signals — fire-and-forget; consumed by ledger / dashboard tooling.
     "wicked.qe.scenario.authored",
     "wicked.qe.release.assessed",
+    # wicked-core production events — emitted by the engine, not by wicked-garden.
+    # These are catalogued in BUS_EVENT_MAP for subscriber discovery but have no
+    # projector handler in garden's daemon/projector.py (they're handled by crew/core).
+    "wicked.crew.task.dispatched",
+    "wicked.crew.task.completed",
+    "wicked.crew.run.requested",
+    "wicked.crew.run.launched",
+    "wicked.gate.eval.requested",
+    "wicked.gate.eval.responded",
 )
 
 # Reviewer values in gate-policy.json that are NOT subagent identifiers — they
