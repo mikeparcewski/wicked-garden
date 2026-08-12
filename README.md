@@ -61,7 +61,7 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 **One required peer, the rest opt-in.** The evidence gate is the floor we won't fake, so it needs one external peer — setup blocks without it:
 
 ```bash
-npx wicked-testing install     # installs wicked-vault (≥ 0.4.0), the honest-evidence backend the gate re-derives against
+npm i -g wicked-vault          # wicked-vault (≥ 0.4.0), the honest-evidence backend the gate re-derives against
 ```
 
 > The gate/resolve engine (formerly the separate `wicked-loom` package) is now **absorbed in-package** as of v12.27.0 (`scripts/loom/`) — nothing extra to install. The gate re-hashes recorded evidence and re-runs its verifier through that engine; a false "tests pass" is **rejected**, a missing backend **fails closed**.
@@ -69,10 +69,11 @@ npx wicked-testing install     # installs wicked-vault (≥ 0.4.0), the honest-e
 The rest of the kit is **opt-in layers** — add what you want, skip the rest and the toolkit still works:
 
 ```bash
-npx wicked-testing install     # the acceptance-testing layer (author ≠ executor ≠ reviewer)
 /plugin install wicked-brain   # the memory layer — cross-session recall + cited search (the "what")
 /plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
+
+> Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) needs no extra install — it ships **in-catalog** as the `qe` domain (`wicked-garden-qe`).
 
 Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-estate index <path>` + the estate MCP server) → powers `blast-radius` / `lineage` / `hotspots` / wicked-patch (ADR 0005 — no external codegraph engine, no Node version floor). Details: [`docs/required-peers.md`](docs/required-peers.md).
 
@@ -108,7 +109,7 @@ Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-es
 
 ## Requirements
 
-A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.4.0) plus opt-in layers (`wicked-testing` · `wicked-brain` · `wicked-bus`).
+A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.4.0) plus opt-in layers (`wicked-brain` · `wicked-bus`).
 
 ## License
 

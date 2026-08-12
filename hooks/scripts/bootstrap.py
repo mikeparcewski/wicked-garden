@@ -664,8 +664,8 @@ def _check_brain_dependency():
 def _check_vault_dependency():
     """Return a briefing note if wicked-vault is not resolvable, else None.
 
-    wicked-vault is a required peer (sibling to wicked-bus / wicked-brain /
-    wicked-testing): every archetype produces-gate re-derives against it via
+    wicked-vault is a required peer (sibling to wicked-bus / wicked-brain):
+    every archetype produces-gate re-derives against it via
     ``scripts/qe/vault_gate.py``. When it is absent those gates fail closed,
     so we surface a one-line install pointer at SessionStart.
 
@@ -773,8 +773,8 @@ def _check_loom_dependency():
 def _check_bus_dependency():
     """Return a briefing note if wicked-bus is not installed, else None.
 
-    wicked-bus is a required peer (sibling to wicked-brain / wicked-vault /
-    wicked-testing): the garden's archetype events flow through it. When it
+    wicked-bus is an opt-in layer (sibling to wicked-brain / wicked-vault —
+    see ADR 0003): the garden's archetype events flow through it. When it
     is absent, cross-plugin event wiring is silently dropped, so we surface a
     one-line install pointer at SessionStart.
 
@@ -1059,7 +1059,7 @@ def _suggest_commands_for_project() -> str | None:
 
         # Project-type-specific
         if has_tests:
-            suggestions.append("`/wicked-testing:plan` — generate test plan and scenarios")
+            suggestions.append("`wicked-garden-qe` skill, `plan` action — generate test plan and scenarios")
         if has_dockerfile or has_terraform:
             suggestions.append("`wicked-garden-platform` skill, `security` action — security review")
         if has_csv_data:
@@ -1168,105 +1168,9 @@ def _check_pre_flip_notice(state, today=None) -> None:
 
 
 # ---------------------------------------------------------------------------
-# #544 — wicked-testing peer-plugin probe (AC-1 through AC-6)
-# ---------------------------------------------------------------------------
-
-# Module-level list of blocking notices to inject into session briefing.
-# Populated by _probe_wicked_testing(); consumed by main() before building
-# the briefing. At most one entry per session (the probe runs once).
-_wt_blocking_notices: list = []
-
-
-def _probe_wicked_testing(state) -> None:
-    """Run the wicked-testing availability probe once per session.
-
-    Caches the result in SessionState.extras["wicked_testing_probe"] so
-    crew_command_gate() can read it without re-running the subprocess.
-
-    Session cache semantics:
-      - Probe runs exactly once at SessionStart (first call after fresh state).
-      - SessionState is cleared on session reset (session_ended path above),
-        so a new session always re-probes. No cross-session persistence.
-      - Re-entrant guard: if the probe key is already present, return early.
-
-    Fail-open boundary: exceptions that escape this function are caught by
-    the calling try/except in main() which returns {"continue": true}.
-    This matches every other probe in bootstrap.py.
-
-    CH-02 hardening: the exception handler logs actionable detail, NOT just
-    the bare exception string. crew_command_gate() closes the fail-open gap
-    at the crew layer by treating an absent probe key as missing.
-    """
-    try:
-        # Re-entrant guard: probe runs at most once per session.
-        extras = getattr(state, "extras", None) or {}
-        if "wicked_testing_probe" in extras:
-            return
-
-        # Import the probe from the scripts/ directory (already on sys.path
-        # from the top of bootstrap.py).
-        from _wicked_testing_probe import probe
-
-        result = probe(state)
-
-        missing = result["status"] != "ok"
-        new_extras = {**extras, "wicked_testing_probe": result}
-
-        if state is not None:
-            state.update(
-                wicked_testing_missing=missing,
-                extras=new_extras,
-            )
-
-        # Emit a blocking notice into the session briefing (once per session).
-        # crew_command_gate() only emits a pointer back, suppressing the full
-        # notice on repeat invocations within the same session (AC-2).
-        if result["status"] == "missing":
-            _wt_blocking_notices.append(
-                "[wicked-testing] wicked-testing is not installed.\n"
-                "wicked-testing required — run: npx wicked-testing install\n"
-                "Crew commands (start, execute, just-finish) are blocked until "
-                "wicked-testing is installed."
-            )
-        elif result["status"] == "out-of-range":
-            ver = result.get("version", "unknown")
-            pin = result.get("pin", "unknown")
-            _wt_blocking_notices.append(
-                f"[wicked-testing] wicked-testing {ver} does not satisfy required range {pin}.\n"
-                "wicked-testing required — run: npx wicked-testing install\n"
-                "Crew commands (start, execute, just-finish) are blocked until "
-                "the correct version is installed."
-            )
-        elif result["status"] == "error":
-            err = result.get("error", "unknown error")
-            _wt_blocking_notices.append(
-                f"[wicked-testing] probe error: {err}\n"
-                "Crew commands are blocked. If this is a transient error, "
-                "restart the session. Use WG_SKIP_WICKED_TESTING_CHECK=1 for "
-                "offline dev mode (CONTRIBUTING.md)."
-            )
-        # "ok" and "skipped" → silent (AC-6, AC-5)
-
-    except Exception as exc:
-        # CH-02 hardening: log actionable context so operators can diagnose.
-        # Include what failed and where (not just the bare exception string).
-        print(
-            f"[wicked-garden] wicked-testing probe failed: "
-            f"exception={exc!r} "
-            f"probe_module='_wicked_testing_probe' "
-            f"action='npx wicked-testing --version' "
-            f"note='crew_command_gate will treat absent probe key as missing'",
-            file=sys.stderr,
-        )
-        # Fail-open at this boundary: do NOT block bootstrap.
-        # crew_command_gate() is fail-closed for the absent-key case (CH-02).
-        if state is not None:
-            try:
-                state.update(wicked_testing_missing=False)
-            except Exception:
-                pass  # session-state write failure — acceptable
-
-
+# NOTE: the #544 wicked-testing peer-plugin probe used to live here. Removed
+# in Phase 6c (wicked-testing retirement): the qe domain ships in-catalog, so
+# there is no peer package to probe and the fail-closed premise is gone.
 # ---------------------------------------------------------------------------
 # Registry allowlist validation
 #
@@ -1469,13 +1373,6 @@ def main():
         # stderr INFO once per session post-flip.
         _check_pre_flip_notice(state)
 
-        # 2d. Probe wicked-testing availability (AC-1 through AC-6, #544).
-        # Runs once per session; result cached in SessionState.extras.
-        # Fail-open: any unhandled exception in _probe_wicked_testing() returns
-        # gracefully so bootstrap continues. The crew layer (crew_command_gate)
-        # is fail-closed — it treats an absent probe key as missing (CH-02).
-        _probe_wicked_testing(state)
-
         # 2e. CH-02 safeguard: scan for legacy qe-evaluator entries in reeval-log.jsonl
         # and amendments.jsonl. Advisory only — does NOT block session startup.
         # Emits a migration notice when legacy entries are found so the user is
@@ -1504,10 +1401,6 @@ def main():
         # 6b. Check search index staleness and auto-reindex if needed
         search_staleness_note = _check_search_staleness()
         mode_notes = []
-        # Inject wicked-testing blocking notices first (high-priority, AC-2).
-        # These were populated by _probe_wicked_testing() in step 2d above.
-        for _wt_notice in _wt_blocking_notices:
-            mode_notes.append(_wt_notice)
         # CH-02: inject legacy reeval-log migration notice when legacy entries are found.
         if _legacy_reeval_notice:
             mode_notes.append(_legacy_reeval_notice)

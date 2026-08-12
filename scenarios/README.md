@@ -5,7 +5,7 @@ This directory contains acceptance test scenarios for the wicked-garden plugin e
 ## Running Scenarios
 
 ```bash
-# Run scenarios via wicked-testing or wg-test dev tool
+# Run scenarios via the wicked-garden-qe skill or the wg-test dev tool
 /wg-test scenarios/crew
 
 # Specific scenario
@@ -21,7 +21,7 @@ Each scenario follows a standard structure with YAML frontmatter, setup steps, n
 
 ### Frontmatter: `execution: manual`
 
-Scenarios whose `## Steps` section consists entirely of `/wicked-garden:*` or `/wicked-testing:*` slash commands cannot be dispatched by a bash-only executor. These declare `execution: manual` in their frontmatter, which signals to `/wg-test` and `wicked-testing:execution` that the scenario needs a live Claude runtime to dispatch its slash commands. Such scenarios are reported as **MANUAL-ONLY** in summary tables — distinct from **SKIP** (tool missing) and **PASS/FAIL/PARTIAL** (actually executed). This keeps automation-coverage metrics honest.
+Scenarios whose `## Steps` section consists entirely of skill invocations (`wicked-garden-*`) cannot be dispatched by a bash-only executor. These declare `execution: manual` in their frontmatter, which signals to `/wg-test` and the `wicked-garden-qe` skill's `execute` action that the scenario needs a live Claude runtime to dispatch its slash commands. Such scenarios are reported as **MANUAL-ONLY** in summary tables — distinct from **SKIP** (tool missing) and **PASS/FAIL/PARTIAL** (actually executed). This keeps automation-coverage metrics honest.
 
 If you are authoring a new scenario whose Steps are entirely slash commands, add `execution: manual` to the frontmatter so it doesn't inflate the SKIP count during automated sweeps.
 

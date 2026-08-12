@@ -27,8 +27,10 @@ Translation rules (see the cutover plan's Ambiguities section):
     else the last phase — verbatim (so "hard:cutover-gate" lands on "cutover").
   - The last phase of a GATING archetype carries gate="produces:<first-produces>";
     gateless archetypes (triage/explore) carry gate=null on every phase.
-  - peers_required = ["vault","testing"] iff produces includes "test-report",
-    else ["vault"]. verifier_spec_ref is null (wired later, spec §9 / #887).
+  - peers_required = ["vault"] always: the evidence backend is the only peer a
+    flow needs. (QE is in-catalog since Phase 6c — the retired wicked-testing
+    peer used to be added for test-report flows.) verifier_spec_ref is null
+    (wired later, spec §9 / #887).
 """
 
 from __future__ import annotations
@@ -100,7 +102,9 @@ def compile_flow(archetype: str, *, flow_id: str,
             "produces": list(produces) if is_gate_phase else [],
         })
 
-    peers = ["vault", "testing"] if "test-report" in produces else ["vault"]
+    # Only the evidence backend is a peer. QE ships in-catalog (Phase 6c
+    # retired the wicked-testing peer), so test-report flows need no extra peer.
+    peers = ["vault"]
     return {
         "flow_id": flow_id,
         "phases": phases,

@@ -12,13 +12,13 @@ from . import ContextItem
 
 # Domain-to-specialist mapping for delegation hints. The plugin is skills-only:
 # each worker is a context:fork skill dispatched by name via Skill(...). Values
-# are (target, description). A ``wicked-garden-*`` target is invoked with the
-# Skill tool; a ``wicked-testing:*`` target is an external-plugin subagent
-# dispatched via Task(subagent_type=...) (QE lives in wicked-testing).
+# are (target, description). Every target is in-catalog (``wicked-garden-*``)
+# and invoked with the Skill tool — QE lives in-catalog too (the qe domain)
+# since Phase 6c retired wicked-testing.
 DOMAIN_HINTS = {
     "security": ("wicked-garden-platform-security-engineer", "Security review"),
     "architecture": ("wicked-garden-engineering-solution-architect", "Architecture analysis"),
-    "test": ("wicked-testing:test-strategist", "Test strategy"),
+    "test": ("wicked-garden-qe-test-strategist", "Test strategy"),
     "data": ("wicked-garden-data-engineer", "Data analysis"),
     "brainstorm": ("wicked-garden-jam-brainstorm-facilitator", "Brainstorming session"),
     "requirements": ("wicked-garden-product-requirements-analyst", "Requirements elicitation"),
@@ -36,7 +36,7 @@ def _dispatch_hint(target: str) -> str:
     """Render the invocation string for a delegation target.
 
     Fork skills (``wicked-garden-*``) are invoked with the Skill tool;
-    external-plugin subagents (``wicked-testing:*``) keep Task/subagent_type.
+    any non-catalog target (external plugin) keeps Task/subagent_type.
     """
     if target.startswith("wicked-garden-"):
         return f'Skill(skill="{target}", args="...")'

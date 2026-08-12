@@ -29,9 +29,14 @@ Add what you want. Each unlocks one capability; the rest of the toolkit (the gat
 the code graph, wicked-patch, the council, the rubric skill-refs) runs without any
 of them.
 
+> **Retired peer (Phase 6c):** `wicked-testing` used to be the acceptance-testing
+> layer here. It is retired — its writer/executor/**independent reviewer**
+> pipeline ships **in-catalog** as the `qe` domain (`wicked-garden-qe` + the
+> `wicked-garden-qe-*` specialists), and the acceptance *gate* concept lives in
+> wicked-crew's `/runs/:id/acceptance` route. Nothing to install.
+
 | Layer | What it unlocks | Skip it and… | Install |
 |-------|-----------------|--------------|---------|
-| **wicked-testing** | Evidence-gated acceptance testing with writer/executor/**independent reviewer** separation — no self-graded "it passed." | the produces-gate still works (via vault+loom); you just don't get the acceptance-testing tool. | `npx wicked-testing install` (npm `^0.3.0`) |
 | **wicked-brain** | The memory layer — cross-session recall, cited search, `smaht:briefing`. Carries decisions/gotchas from session 1 to session 47. | structural search (`blast-radius`/`lineage`/`hotspots`, via wicked-estate) still works; you lose cross-session memory + semantic search. | `/plugin install wicked-brain` (npm `^0.18.0`) |
 | **wicked-estate** | The code-graph layer (ADR 0005) — `wicked-estate index` builds a 75-language static graph + injected edges (garden's archetype rules in `.wicked-estate-extractors/`); the estate MCP tools (`BlastRadius`/`Lineage`/`RankHotspots`) power `blast-radius`/`lineage`/`hotspots` and wicked-patch. Single binary, no external engine. | blast-radius/lineage/hotspots/wicked-patch degrade to text-search and **miss injected relationships**; the rest of the toolkit works. | resolve via `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin` (Rust binary; see the wicked-estate repo) |
 | **wicked-bus** | The audit-trail layer — append-only events recording what happened. | nothing breaks — emission is already fire-and-forget / fail-open; events just aren't recorded. | `/plugin install wicked-bus` (npm `2.3.0`) |

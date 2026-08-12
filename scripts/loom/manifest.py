@@ -21,12 +21,14 @@ silently proceeds and never fakes a pass.  Capability is *data*, never invented.
 Peer status notes (post-rationalization):
   vault    — wired; binary ``wicked-vault``. A DIRECT infra peer published from
              its own repo (mikeparcewski/wicked-vault): self-contained, zero
-             runtime deps, installed directly — NOT routed through wicked-testing.
-  testing  — wired; ``wicked-testing`` (wicked-qe rename pending; bin stays)
+             runtime deps, installed directly.
   brain    — DEPRECATED (bridge period: garden now exposes equivalent surfaces
              via wicked-memory + wicked-knowledge; use_loom check still passes)
   bus      — wired; ``wicked-bus`` (Rust rewrite in progress; CLI interface
              stays identical so no manifest change needed on Rust cutover)
+  testing  — REMOVED (Phase 6c): wicked-testing retired. Its skills ship
+             in-catalog as the qe domain (wicked-garden-qe), so QE is no
+             longer a peer to probe or install.
 """
 
 from __future__ import annotations
@@ -84,7 +86,7 @@ class Peer:
 # Peer registry — post-rationalization state.
 # Notes:
 #   - wicked-vault is a direct infra peer (mikeparcewski/wicked-vault):
-#     self-contained, installed directly, not via wicked-testing.
+#     self-contained, installed directly.
 #   - wicked-brain is in the bridge-period deprecation path; marked
 #     experimental so gates never depend on it for new work.
 #   - wicked-bus Rust rewrite uses the same CLI interface; no manifest change.
@@ -99,7 +101,7 @@ PEERS: dict = {
         version_pin="0.4",
         # wicked-vault is a DIRECT infra peer, published from its own repo
         # (mikeparcewski/wicked-vault): self-contained, zero runtime deps. Install
-        # it directly — no routing through wicked-testing. ``npm i -g wicked-vault``
+        # it directly. ``npm i -g wicked-vault``
         # puts the ``wicked-vault`` binary on PATH, which is exactly what the
         # gate's concrete-install probe (vault_gate.vault_available →
         # ``shutil.which("wicked-vault")``) resolves. (The package also ships a
@@ -108,15 +110,6 @@ PEERS: dict = {
         # ``wicked-vault-install`` npm package for ``npx`` to resolve on its own.)
         install_cmd=["npm", "install", "-g", "wicked-vault@latest"],
         probe_cmd=["wicked-vault", "--version"],
-        status=STATUS_WIRED,
-    ),
-    "testing": Peer(
-        name="testing",
-        npm_package="wicked-testing",
-        env_var="WICKED_TESTING_BIN",
-        version_pin="0.3",
-        install_cmd=["npx", "wicked-testing", "install"],
-        probe_cmd=["wicked-testing", "--version"],
         status=STATUS_WIRED,
     ),
     "brain": Peer(

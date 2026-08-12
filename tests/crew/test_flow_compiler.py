@@ -58,9 +58,10 @@ class CompileFlowTests(unittest.TestCase):
         self.assertIsNotNone(fd["phases"][-1]["gate"])
         self.assertTrue(fd["phases"][-1]["gate"].startswith("produces:"))
 
-    def test_peers_required_includes_testing_when_test_report_produced(self):
-        self.assertIn("testing", fc.compile_flow("build", flow_id="b-1")["peers_required"])
-        self.assertNotIn("testing", fc.compile_flow("decide", flow_id="d-1")["peers_required"])
+    def test_peers_required_is_vault_only(self):
+        # Phase 6c: QE is in-catalog — no archetype adds a "testing" peer.
+        self.assertEqual(fc.compile_flow("build", flow_id="b-1")["peers_required"], ["vault"])
+        self.assertEqual(fc.compile_flow("decide", flow_id="d-1")["peers_required"], ["vault"])
 
     def test_verifier_spec_ref_is_null(self):
         self.assertIsNone(fc.compile_flow("build", flow_id="b-1")["verifier_spec_ref"])

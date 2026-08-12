@@ -93,13 +93,13 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Requirements clarity | Agent | wicked-garden:product:requirements-analyst |
 | Design guidance | Agent | wicked-garden:engineering:solution-architect |
 | Implementation | Agent | wicked-garden:crew:implementer |
-| Test strategy | Agent | wicked-testing:test-strategist |
+| Test strategy | Agent | wicked-garden-qe-test-strategist |
 | Track progress | MCP/Native | atlassian, TaskCreate/TaskUpdate |
 
 **Recommended flow**:
 1. Clarify requirements with requirements-analyst if vague
 2. Get design guidance from solution-architect
-3. Implement with crew:implementer; plan tests with wicked-testing:test-strategist
+3. Implement with crew:implementer; plan tests with wicked-garden-qe-test-strategist
 4. Track via native TaskCreate or issue tracker
 
 ---
@@ -169,7 +169,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 |------|-----------------|---------|
 | Test strategy | Agent | wicked-garden:crew:gate-adjudicator |
 | Test generation | Agent | wicked-garden:crew:implementer |
-| TDD guidance | Agent | wicked-testing:test-strategist |
+| TDD guidance | Agent | wicked-garden-qe-test-strategist |
 | Risk assessment | Agent | wicked-garden:platform:security-engineer |
 
 **Recommended flow**:
@@ -191,7 +191,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Docs | api-documentarian | engineering docs skill (inline) | confluence |
 | Data | data-engineer | data skill (inline) | warehouse |
 | Incident | platform incident (inline) | observability skill | observability |
-| Testing | wicked-testing:test-strategist | - | - |
+| Testing | wicked-garden-qe-test-strategist | - | - |
 
 ## When Capabilities Aren't Available
 

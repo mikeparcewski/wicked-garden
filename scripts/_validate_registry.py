@@ -26,7 +26,7 @@ Allowlists covered (when the source-of-truth file exists):
   matching context:fork SKILL.md or specialist alias).
 - Reviewer identifiers in ``.claude-plugin/gate-policy.json``
   ↔ fork-worker skills in ``skills/**/SKILL.md`` (frontmatter ``name`` /
-  legacy ``subagent_type``). External plugin reviewers (``wicked-testing:*``)
+  legacy ``subagent_type``). External plugin reviewers (``wicked-brain:*``)
   are recognised via a configurable allow-prefix list and reported as
   ``external`` (advisory), not ``missing``.
 - Bus event types in ``scripts/_bus.py::BUS_EVENT_MAP`` ↔ projector handlers
@@ -47,8 +47,8 @@ Categories:
 
 Out-of-scope (informational only, never elevated to ``missing``):
 
-- ``external``     — drop-in plugin reviewers (``wicked-testing:*``,
-                     ``wicked-brain:*``) that legitimately live in another
+- ``external``     — drop-in plugin reviewers (``wicked-brain:*``,
+                     ``wicked-bus:*``) that legitimately live in another
                      plugin. Surfaced for visibility but never failing.
 - ``skipped``      — a check skipped because its source-of-truth file is
                      missing on this checkout (e.g. ``daemon/projector.py``
@@ -78,7 +78,6 @@ _BLOCKING_CATEGORIES = frozenset({CAT_MISSING, CAT_MALFORMED, CAT_INVALID_ID})
 # Reviewer subagent_type prefixes that are EXPECTED to live outside this plugin.
 # Anything starting with one of these is downgraded from `missing` to `external`.
 _EXTERNAL_REVIEWER_PREFIXES: Tuple[str, ...] = (
-    "wicked-testing:",
     "wicked-brain:",
     "wicked-bus:",
 )
@@ -962,8 +961,8 @@ def format_briefing(
         - A short multi-line block otherwise.
 
     The default ``include_advisory=False`` keeps the briefing quiet during
-    normal operation: drop-in plugin references (`wicked-testing:*`,
-    `wicked-brain:*`) and known orphan handlers populate the advisory
+    normal operation: drop-in plugin references (`wicked-brain:*`)
+    and known orphan handlers populate the advisory
     bucket and would otherwise add 10-15 lines to every SessionStart.
     The CLI runner shows ALL findings unconditionally — this filter only
     affects the bootstrap surface.

@@ -118,9 +118,9 @@ const OWN: Tool[] = [
 /* BUNDLED peers off the shelf — capabilities garden hands you from wicked-* */
 const BUNDLED: Tool[] = [
   {
-    id: "testing", name: "testing", kind: "peer · wicked-testing", color: "var(--c-layer)",
+    id: "qe", name: "qe", kind: "in-catalog · qe domain", color: "var(--c-layer)",
     desc: "A full QE team for coding agents — runs the tests and records the evidence the gate re-derives against, with the runner kept separate from the judge.",
-    cmd: "claude plugins install wicked-testing", cmdLabel: "opt-in layer",
+    cmd: "wicked-garden-qe", cmdLabel: "in-catalog",
   },
   {
     id: "brain", name: "brain", kind: "peer · wicked-brain", color: "var(--c-solo)",

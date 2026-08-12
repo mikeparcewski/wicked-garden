@@ -22,12 +22,11 @@ Companion peers are set up alongside the toolkit — `/wicked-garden-core setup`
 
 ```bash
 npm i -g wicked-vault         # wicked-vault — REQUIRED: the evidence backend the gate re-derives against (self-contained infra peer, installed directly)
-npx wicked-testing install    # wicked-testing — opt-in: evidence-gated acceptance testing (author ≠ executor ≠ reviewer)
 /plugin install wicked-brain  # wicked-brain — opt-in: cross-session memory + search
 /plugin install wicked-bus    # wicked-bus — opt-in: event bridge
 ```
 
-The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-testing` installs locally via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
+The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-brain` and `wicked-bus` install as Claude Code plugins. Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) ships in-catalog as the `qe` domain — nothing to install. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
 
 ### Show the active mode (status line)
 
@@ -168,9 +167,9 @@ wicked-brain:search "auth flow"           # structural search across the brain
 
 ### "I need to write and run tests"
 
-```bash
-/wicked-testing:authoring "checkout flow"  # generate test scenarios
-/wicked-testing:execution                  # evidence-gated acceptance testing
+```
+wicked-garden-qe author "checkout flow"   # generate test scenarios (qe skill, author action)
+wicked-garden-qe execute                  # evidence-gated acceptance testing (execute action)
 ```
 
 ## How Skills Work
@@ -202,6 +201,6 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 ## Next Steps
 
 - [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
-- [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus
+- [Required Peers](required-peers.md) — wicked-vault, wicked-brain, wicked-bus
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
 - [Domains](domains.md) — browse the domain skills and their actions

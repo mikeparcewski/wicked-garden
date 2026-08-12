@@ -19,7 +19,7 @@ Work in wicked-garden is organized around **9 work-shape archetypes** — not a 
 
 - **New to wicked-garden?** Start with [Getting Started](getting-started.md).
 - **Want to understand how work is shaped?** Read [Archetypes](v11/archetypes.md).
-- **Setting up?** The [Required Peers](required-peers.md) — wicked-testing, wicked-vault, wicked-brain, wicked-bus, wicked-loom — are verified by `/wicked-garden-core setup`.
+- **Setting up?** The [Required Peers](required-peers.md) — wicked-vault, wicked-brain, wicked-bus — are verified by `/wicked-garden-core setup` (the loom engine ships in-package; the qe domain is in-catalog).
 - **Looking for domain expertise or a specific action?** Browse [Domains](domains.md).
 - **Want a build gate that runs without wicked-garden present?** See [The Compiler](compiler.md).
 

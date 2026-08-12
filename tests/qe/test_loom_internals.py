@@ -234,7 +234,7 @@ class CheckAllTests(unittest.TestCase):
         with patch.object(compose, "resolve_version_bin", return_value=["x"]):
             rows = compose.check_all(run=_runner(stdout="9.9.9"))
         peer_names = {r["peer"] for r in rows}
-        self.assertEqual(peer_names, {"vault", "testing", "brain", "bus"})
+        self.assertEqual(peer_names, {"vault", "brain", "bus"})
 
     def test_all_rows_carry_capability(self):
         with patch.object(compose, "resolve_version_bin", return_value=["x"]):
@@ -252,11 +252,11 @@ class CheckAllTests(unittest.TestCase):
         self.assertEqual(brain_row["capability"], "experimental")
 
     def test_wired_peers_capability_ok_is_true(self):
-        """vault, testing, bus are STATUS_WIRED — capability_ok must be True."""
+        """vault and bus are STATUS_WIRED — capability_ok must be True."""
         with patch.object(compose, "resolve_version_bin", return_value=["x"]):
             rows = compose.check_all(run=_runner(stdout="9.9.9"))
         for row in rows:
-            if row["peer"] in ("vault", "testing", "bus"):
+            if row["peer"] in ("vault", "bus"):
                 self.assertTrue(row["capability_ok"], f"{row['peer']} should be wired")
                 self.assertEqual(row["capability"], "wired")
 
@@ -269,7 +269,7 @@ class InstallPeerTests(unittest.TestCase):
 
     def test_install_vault_runs_direct_npm_global(self):
         """vault is a DIRECT infra peer: install_cmd installs wicked-vault
-        directly (npm i -g), never routing through wicked-testing."""
+        directly (npm i -g), never routing through another package."""
         calls = []
 
         def run(cmd, timeout=None):
@@ -278,7 +278,6 @@ class InstallPeerTests(unittest.TestCase):
 
         r = compose.install_peer("vault", run=run)
         self.assertEqual(calls, [["npm", "install", "-g", "wicked-vault@latest"]])
-        self.assertNotIn("wicked-testing", " ".join(calls[0]))
         self.assertEqual(r["status"], "installed")
 
     def test_install_unknown_peer_is_error(self):
@@ -299,14 +298,12 @@ class ResolvePeerTests(unittest.TestCase):
     def setUp(self):
         # Ensure env vars don't bleed between tests
         import os
-        for var in ("WICKED_VAULT_BIN", "WICKED_BRAIN_BIN",
-                    "WICKED_TESTING_BIN", "WICKED_BUS_BIN"):
+        for var in ("WICKED_VAULT_BIN", "WICKED_BRAIN_BIN", "WICKED_BUS_BIN"):
             os.environ.pop(var, None)
 
     def tearDown(self):
         import os
-        for var in ("WICKED_VAULT_BIN", "WICKED_BRAIN_BIN",
-                    "WICKED_TESTING_BIN", "WICKED_BUS_BIN"):
+        for var in ("WICKED_VAULT_BIN", "WICKED_BRAIN_BIN", "WICKED_BUS_BIN"):
             os.environ.pop(var, None)
 
     def test_env_var_override_wins(self):

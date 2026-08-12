@@ -58,8 +58,8 @@ export default function CapabilityGrid() {
           <p className="cg-family-lead">
             <span className="cg-family-em">One install bundles the family.</span> Every peer
             is an opt-in layer you adopt when you want it — the kit works without any of them.
-            The evidence backend the gate re-derives against rides inside <b>wicked-testing</b>,
-            not a separate install.
+            The evidence backend the gate re-derives against (<b>wicked-vault</b>) installs
+            directly; the QE pipeline ships in-catalog as the <b>qe</b> domain.
           </p>
           <div className="cg-family-strip">
             {PEERS.map((p) => (

@@ -18,38 +18,19 @@ uv run pytest tests/ -x
 
 ## Escape Hatches
 
-### WG_SKIP_WICKED_TESTING_CHECK
-
-**For offline CI and dev environments without npm access only.**
-
-When set to `1`, the SessionStart wicked-testing probe is bypassed:
-
-```bash
-export WG_SKIP_WICKED_TESTING_CHECK=1
-```
-
-Effect:
-- `wicked_testing_missing` is set to `false` — crew commands proceed normally.
-- The probe subprocess (`npx wicked-testing --version`) is never invoked.
-- A single warning is emitted to **stderr** (not to the Claude session briefing):
-  `WG_SKIP_WICKED_TESTING_CHECK is set — wicked-testing version check bypassed (offline dev mode). Do not use in production.`
-
-**When to use**: CI pipelines where npm is unavailable; local development on
-machines without Node.js installed; offline development sessions.
-
-**When NOT to use**: Production environments, any session where crew QE gates
-will actually run (the bypass skips the version check but wicked-testing agents
-will still fail if the package is absent).
-
-This escape hatch is a developer override. It does NOT appear in user-facing help,
-setup wizard output, or the README. It is not a supported production configuration.
+> **Historical note (Phase 6c):** the `WG_SKIP_WICKED_TESTING_CHECK` escape
+> hatch and the SessionStart wicked-testing probe it bypassed were removed
+> when wicked-testing retired — the qe domain ships in-catalog (the
+> `wicked-garden-qe` router + specialists), so there is no peer package to
+> probe. The acceptance gate concept now lives in wicked-crew's
+> `/runs/:id/acceptance` route.
 
 ### WICKED_VAULT_BIN
 
 **For offline CI and dev environments without the wicked-vault peer only.**
 
-wicked-vault (npm, ≥0.3, install `npx wicked-testing install`) is a required peer
-alongside wicked-loom/bus/brain/testing. The garden's produces-gates re-derive
+wicked-vault (npm, ≥0.4, install `npm i -g wicked-vault`) is a required peer
+alongside wicked-loom/bus/brain. The garden's produces-gates re-derive
 evidence through **wicked-loom** — `scripts/qe/vault_gate.py` shells `wicked-loom
 gate`, which in turn shells `wicked-vault cross-check`, so the vault is the backend
 loom re-runs the verifier against. loom resolves the vault; the concrete-install
@@ -62,8 +43,7 @@ The vault CLI is resolved in order:
 4. a local `node_modules/.bin/wicked-vault`
 5. `npx --yes wicked-vault`
 
-Setting `WICKED_VAULT_BIN=""` (set-but-empty) is the vault analogue of
-`WG_SKIP_WICKED_TESTING_CHECK`:
+Setting `WICKED_VAULT_BIN=""` (set-but-empty) disables vault resolution:
 
 ```bash
 export WICKED_VAULT_BIN=""
@@ -88,12 +68,8 @@ setup wizard output, or the README. It is not a supported production configurati
 
 ### Fail-open boundary
 
-The wicked-testing probe (`_wicked_testing_probe.probe()`) is called by
-`_probe_wicked_testing()` in `hooks/scripts/bootstrap.py` at SessionStart.
-Any exception that escapes the probe is caught by `_probe_wicked_testing()`
-which logs actionable detail to stderr and continues bootstrap (fail-open).
-
-**CH-02 close**: `crew_command_gate()` in `scripts/crew/_prerequisites.py`
-is fail-closed: if `session_state.extras["wicked_testing_probe"]` is absent
-(probe exception path), the gate treats this as missing rather than passing.
-This prevents silent unblocked crew runs when the probe fails silently.
+SessionStart probes in `hooks/scripts/bootstrap.py` (vault / bus / loom
+dependency checks) are fail-open: any exception is caught, logged to stderr
+with actionable detail, and bootstrap continues. Gates that *enforce*
+evidence are fail-closed at their own layer (`scripts/qe/vault_gate.py`),
+never at the probe.
