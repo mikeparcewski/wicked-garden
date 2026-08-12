@@ -9,6 +9,7 @@
     "start": "astro dev",
     "build": "astro build",
     "preview": "astro preview --host",
+    "test:e2e": "playwright test",
     "astro": "astro"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "wicked-web": "github:mikeparcewski/wicked-web#a3c18aabed02dc8c1696c9491f37b6714d002d19"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.0.0",
     "@types/node": "^25.9.2",
     "@types/react": "^19.0.0",
