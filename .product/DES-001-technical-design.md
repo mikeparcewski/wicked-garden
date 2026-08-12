@@ -182,9 +182,10 @@ wicked-patch is the deterministic multi-file transformation engine. It is expose
 
 ```
 Developer invokes patch action: /wicked-garden-engineering patch-plan OldName
-  → engineering-patch skill reads codegraph from wicked-brain:
-      .codegraph/codegraph.db (structural graph, tree-sitter)
-      + injected edges (bus producer→consumer, dispatch, capability)
+  → engineering-patch skill reads the wicked-estate graph (ADR 0005):
+      built by `wicked-estate index` (75-language tree-sitter, in-binary),
+      adapted to the patch schema via estate_db.py (.codegraph/estate.db)
+      + injected edges (bus producer→consumer, dispatch, capability, archetype)
   → computes full affected file set:
       direct references (grep-visible)
       + injected-edge references (not grep-visible)
@@ -203,7 +204,7 @@ Developer invokes apply: /wicked-garden-engineering apply <patch-file>
 
 New language support: `/wicked-garden-engineering new-generator` creates a generator for an additional language. Generators implement a documented interface; adding one requires no change to the patch core.
 
-wicked-patch and wicked-brain share the same codegraph database (`.codegraph/codegraph.db`). The `wicked-garden-search index` action refreshes both layers — brain (semantic) and codegraph (structural).
+wicked-patch and the `wicked-garden-search` actions read the same wicked-estate graph. The `wicked-garden-search index` action (`wicked-estate index <path>`) refreshes the static graph and re-applies the injected-edge rules in one pass (ADR 0005).
 
 ---
 
@@ -254,9 +255,9 @@ Per-session ephemeral shared state. Not persisted across process restarts. Used 
 
 wicked-bus integration. Emits events in 4-segment format (`wicked.<domain>.<noun>.<past-tense-verb>`). The bus provides at-least-once delivery, append-only event records, and FTS5 search via the wicked-bus backing store.
 
-### codegraph.db
+### estate graph
 
-Structural code graph built and maintained by wicked-brain at `.codegraph/codegraph.db`. Consumed by wicked-patch. The `search:index` action refreshes it.
+Structural code graph built and maintained by wicked-estate (`wicked-estate index <path>`; DB at `.wicked-estate/graph.db` by default, patch adapter DB at `.codegraph/estate.db`). Includes garden's injected archetype edges via `.wicked-estate-extractors/archetype.toml`. Consumed by wicked-patch and the search skill's actions. The `search:index` action refreshes it (ADR 0005).
 
 ---
 
@@ -304,6 +305,6 @@ Skills check for daemon availability before dispatching to it. If the daemon is 
 | wicked-testing | `scripts/qe/` (acceptance pipeline) | Installed peer; invoked by acceptance skills |
 | wicked-brain | `scripts/crew/`, search/smaht skills | Brain server on port 4243; auto-starts on skill invocation |
 | wicked-bus | `scripts/_bus.py` | Installed peer; event emit/consume |
-| codegraph | `.codegraph/codegraph.db` | Built by wicked-brain; consumed by patch skill |
+| wicked-estate | `wicked-estate index` / estate MCP tools | `WICKED_ESTATE_BIN` env → PATH → `~/.local/bin`; consumed by search + patch skills |
 
 All peers degrade gracefully on absence — except the evidence gate, which fails closed when vault or loom is unreachable. A transient peer outage never invents a pass.

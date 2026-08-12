@@ -94,8 +94,11 @@ Each domain is one consolidated skill that routes to its actions.
 
 > **Cross-session memory is the `wicked-garden-mem` domain** (wicked-estate is
 > the engine): `store` / `recall` / `answer` replace the retired
-> `wicked-brain:memory` / `wicked-brain:query` surface. Code search still rides
-> `wicked-brain:search` / `wicked-brain:graph` until the S5 estate retarget lands.
+> `wicked-brain:memory` / `wicked-brain:query` surface. Code/concept search
+> still rides `wicked-brain:search`; relationship graphs (blast-radius /
+> lineage / hotspots) live in the **wicked-estate MCP** (`BlastRadius` /
+> `Lineage` / `TraverseGraph` / `RankHotspots`, ADR 0005) — the
+> `wicked-garden-search` skill wraps them.
 
 ### Quick start
 

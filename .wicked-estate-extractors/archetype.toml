@@ -1,0 +1,62 @@
+# archetype.toml — wicked-garden's archetype → playbook injected edges, as
+# wicked-estate ExtraEdgeExtractor rules (ADR 0005; successor to the retired
+# .codegraph-extractors/archetype.mjs JS drop-in of ADR 0004).
+#
+# An archetype is wired to its playbook by NAMING CONVENTION
+# (.claude-plugin/archetypes.json key ↔ skills/archetype/refs/<name>.md),
+# never by a symbol reference — no grep or static call-graph can see it.
+# `wicked-estate index <repo>` auto-discovers this file and applies the rules
+# (estate PR mikeparcewski/wicked-estate#100; docs/extractor-sdk.md Part 2).
+#
+# Shape — two rules sharing node_scheme = "archetype" (the ADR-0005 retarget
+# inventory's shared-node_scheme model, adapted onto the literal file node):
+#   1. archetype-declare  — catalog file → synthetic archetype:{name} node
+#      (contains): the catalog declares the archetype.
+#   2. archetype-playbook — archetype:{name} → the LITERAL playbook file node
+#      (references): an archetype DEPENDS ON its playbook (change
+#      refs/<name>.md → the archetype's behavior changes). Direction matches
+#      estate's invariant (source = dependent, target = dependency) and the
+#      old archetype.mjs — blast-radius(playbook) surfaces the archetype and,
+#      transitively, the catalog. No direction flip.
+#
+# Semantic deltas vs archetype.mjs (flagged in the retarget inventory):
+#   (a) "skip if the playbook file is missing — flag, don't fabricate":
+#       preserved structurally. A references edge whose playbook file is not
+#       in the graph dangles, and estate's indexer prunes dangling edges. The
+#       archetype node still lands — queryable as declared-but-playbook-less —
+#       replacing the mjs's transient `skipped` counter with a persistent flag.
+#   (b) the mjs targeted the playbook's FILE node directly: preserved via
+#       target_kind = "file" (built for this port in estate PR #100), so the
+#       edge lands on the literal file node, not a synthetic stand-in.
+#
+# The pattern anchors on the catalog's stable 4-space indentation: archetype
+# names are the only keys at that depth mapping to objects ($detector_notes /
+# $hitl_levels entries at the same depth map to strings/arrays, not `{`).
+
+[[rule]]
+name      = "archetype-declare"
+file_glob = ".claude-plugin/archetypes.json"
+pattern   = '(?m)^ {4}"(?P<name>[a-z][a-z0-9_-]*)":\s*\{'
+
+[rule.emit_node]
+id_template   = "archetype:{name}"
+label_capture = "name"
+kind          = "other:archetype"
+node_scheme   = "archetype"
+
+[rule.emit_edge]
+kind               = "contains"
+target_id_template = "archetype:{name}"
+target_node_scheme = "archetype"
+
+[[rule]]
+name      = "archetype-playbook"
+file_glob = ".claude-plugin/archetypes.json"
+pattern   = '(?m)^ {4}"(?P<name>[a-z][a-z0-9_-]*)":\s*\{'
+
+[rule.emit_edge]
+kind               = "references"
+source_id_template = "archetype:{name}"
+source_node_scheme = "archetype"
+target_kind        = "file"
+target_id_template = "skills/archetype/refs/{name}.md"

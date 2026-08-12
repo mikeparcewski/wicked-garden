@@ -184,7 +184,7 @@ Compiler
   → emitted gate resolves wicked-vault via npx (no wicked-garden runtime required)
 
 wicked-patch
-  → reads codegraph.db (wicked-brain structural graph + injected edges)
+  → reads the wicked-estate graph (structural graph + injected edges, ADR 0005)
   → computes affected file set (including injected edges grep cannot see)
   → applies language-specific generator per file
   → produces deterministic multi-file change

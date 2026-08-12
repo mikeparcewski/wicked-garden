@@ -2,12 +2,12 @@
 name: wicked-garden-search
 user-invocable: true
 description: |
-  Code-intelligence search over wicked-brain's unified static + injected
-  code-relationship graph (ADR 0004). One skill, six routed actions:
-  index (build/refresh the semantic + structural layers), blast-radius
-  (impact analysis over dependents), lineage (data/dependency flow),
-  hotspots (most-referenced symbols), service-map (service architecture
-  from infra + code), and narrate (codebase orientation walkthrough).
+  Code-intelligence search over wicked-estate's unified static + injected
+  code-relationship graph (ADR 0005). One skill, six routed actions:
+  index (build/refresh the graph), blast-radius (impact analysis over
+  dependents), lineage (data/dependency flow), hotspots (most-central
+  symbols by PageRank), service-map (service architecture from infra +
+  code), and narrate (codebase orientation walkthrough).
 
   Use when: "index the codebase" / "build or refresh the code-intelligence
   index"; "what would break if I change X" / "blast radius of" / "impact
@@ -18,19 +18,21 @@ description: |
   "narrate this codebase". Replaces the former /wicked-garden:search:*
   commands (index, blast-radius, lineage, hotspots, service-map).
 
-  NOT for general code/concept search — use wicked-brain:search or
-  wicked-brain:query directly.
+  NOT for general code/concept search — use `wicked-brain:search` (semantic
+  layer) or the wicked-estate MCP's SearchEntity (symbol lookup) directly.
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---
 
-# wicked-garden:search — code-intelligence over the brain graph
+# wicked-garden:search — code-intelligence over the estate graph
 
-All actions delegate to **wicked-brain**, which owns the unified static +
-injected code-relationship graph as of ADR 0004. Garden no longer maintains
-its own graph; it consumes brain's. Garden contributes its proprietary
-**archetype** edges to brain's graph via the drop-in extractor
-`.codegraph-extractors/archetype.mjs` (discovered by brain's registry).
+All actions delegate to **wicked-estate**, which owns the unified static +
+injected code-relationship graph as of ADR 0005 (superseding the brain-homed
+graph of ADR 0004). Garden no longer maintains its own graph; it consumes
+estate's. Garden contributes its proprietary **archetype** edges to estate's
+graph via the drop-in TOML rules in
+`.wicked-estate-extractors/archetype.toml` (auto-discovered by
+`wicked-estate index`).
 
 ## Routing
 
@@ -39,64 +41,53 @@ its own graph; it consumes brain's. Garden contributes its proprietary
 | `index` | build/refresh the code-intelligence index | § Index / freshness |
 | `blast-radius` | "what breaks if I change X?" (dependents) | § Blast radius |
 | `lineage` | "where does this flow from / to?" (data flow) | § Lineage |
-| `hotspots` | most-referenced symbols, god-objects | [refs/hotspots.md](refs/hotspots.md) |
+| `hotspots` | most-central symbols, god-objects | [refs/hotspots.md](refs/hotspots.md) |
 | `service-map` | service architecture from infra + code | [refs/service-map.md](refs/service-map.md) |
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
 | `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
 
 ## Index / freshness (shared by every action)
 
-Two code-intelligence layers, both living in **wicked-brain** (ADR 0004):
+The graph lives in **wicked-estate** (ADR 0005): a 75-language tree-sitter
+static graph **plus** injected domain edges, built by the estate binary — no
+external engine, no Node version floor.
 
-- **semantic** (wicked-brain) — concept/symbol search, `wicked-brain:search`/`query`.
-- **structural** (codegraph graph, owned by brain) — `wicked-brain:graph`
-  (blast-radius/lineage) and the wicked-patch family.
-
-1. **Semantic layer** — invoke `/wicked-brain:ingest` with `<path>` (the brain
-   server's `--source` repo; incremental — only changed files re-ingest).
-
-2. **Structural layer** — one call rebuilds the codegraph static graph **and**
-   re-applies every injected-edge extractor (built-in bus/dispatch/capability +
-   any per-repo drop-ins under `.codegraph-extractors/`):
+1. **Build / refresh** — one command rebuilds the static graph **and**
+   re-applies every injected-edge rule (any per-repo TOML drop-ins under
+   `.wicked-estate-extractors/`, e.g. garden's archetype rules):
    ```bash
-   npx -y wicked-brain-call graph-index
+   wicked-estate index <path>        # DB defaults to .wicked-estate/graph.db
    ```
-   This replaces the old `codegraph index` + `inject_all.py` two-step — brain
-   runs the build and the extractors in a single pass, so the injected layer is
-   never left empty after a re-index. The result reports per-extractor counts,
-   `total_injected_edges`, and a `staleness` stamp.
+   Incremental — unchanged files are skipped; editing the extractor rules
+   forces a full re-extract automatically. (The estate MCP server serves the
+   same DB, so an index refresh is immediately visible to the MCP tools.)
 
-3. **Verify**:
-   ```bash
-   npx -y wicked-brain-call stats         # brain chunk/tag counts (semantic layer)
-   ```
-   and confirm `graph-index` reported `total_injected_edges > 0` on a repo with wiring.
+2. **Verify**: `wicked-estate stats` reports node/edge counts; a repo with
+   archetype wiring shows the injected edges (provenance
+   `extractor:archetype-declare` / `extractor:archetype-playbook`).
 
 **Notes**
-- Both layers are incremental/idempotent — safe to re-run.
-- Freshness is lazy by design (no file-watcher reindex). `graph-*` results
-  carry `commits_behind`/`indexed_at`; re-run `graph-index` when stale.
-- If codegraph isn't resolvable where brain runs, `graph-*` returns
-  `engine:"unavailable"` — install `@colbymchenry/codegraph` or set
-  `WICKED_CODEGRAPH_BIN`.
+- Indexing is incremental/idempotent — safe to re-run.
+- Freshness is lazy by design (no file-watcher reindex; `wicked-estate watch`
+  exists for opt-in). Estate reports **staleness** on queries and prints a
+  `STALENESS: N commit(s) since last index` marker — re-run `index` when stale.
+- Binary resolution: `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`
+  (`scripts/_estate_client.py` is the Python reach-shim for hooks).
 
 ## Resolving symbols + fallback ladder (shared by blast-radius and lineage)
 
-**Resolve the symbol to a graph node id.** Node ids are `file:<relpath>` for
-files, or `function:<hash>` etc. for symbols. For a file, use `file:<path>`
-directly. For a named symbol, find its id via brain:
-```bash
-npx -y wicked-brain-call symbols --query "<symbol>"     # or wicked-brain:lsp workspace-symbols
-```
+**Resolve the symbol.** Estate tools take symbol **names** directly (a file
+node's name is its repo-relative path, e.g. `scripts/_bus.py`). When a name is
+ambiguous or you need the node id, resolve it first with the estate MCP
+`SearchEntity` tool (`{"name": "<symbol>"}` → matches with ids and kinds).
 
 **Fallbacks** (in order):
-1. If a `graph-*` call returns `engine: "unavailable"`, codegraph isn't
-   installed where brain runs — install it (`npx @colbymchenry/codegraph`) or
-   set `WICKED_CODEGRAPH_BIN`, then re-run `graph-index`.
-2. If brain is unreachable, fall back to `wicked-brain:search` for semantic
-   neighbors, then Grep/Glob for literal refs — and **flag that injected
-   relationships will be MISSING** from the result (injected/string-keyed
-   links are invisible to grep).
+1. If the estate MCP server isn't connected, shell the CLI directly:
+   `wicked-estate blast-radius <name>` / `wicked-estate query <name>`
+   (resolve the binary via `WICKED_ESTATE_BIN` → PATH → `~/.local/bin`).
+2. If estate is unreachable entirely, fall back to Grep/Glob for literal
+   refs — and **flag that injected relationships will be MISSING** from the
+   result (injected/string-keyed links are invisible to grep).
 
 ## Blast radius — "what breaks if I change X?"
 
@@ -108,23 +99,22 @@ Analyze what would be affected if you changed a symbol — traces **dependents**
 > dependents graph). For **data-flow tracing** (UI field → DB column or
 > reverse), use the `lineage` action.
 
-**Arguments**: `symbol` (required — a file node like `src/app.py`, or a symbol
-name); `--depth` (optional traversal depth; brain default applies if omitted).
+**Arguments**: `symbol` (required — a file path like `src/app.py`, or a symbol
+name); `--depth` (optional traversal depth; estate default 8, max 24).
 
-1. **Ensure the graph is fresh** (§ Index / freshness): `npx -y wicked-brain-call graph-index`.
-   The result carries a `staleness` stamp; if `stale` is true after editing, re-run it.
-2. **Resolve the symbol to a node id** (§ Resolving symbols).
-3. **Query blast radius from brain** (static + injected dependents in one
-   answer — the authoritative layer):
-   ```bash
-   npx -y wicked-brain-call graph-blast-radius --node "file:<path-or-resolved-id>"
-   ```
+1. **Ensure the graph is fresh** (§ Index / freshness): `wicked-estate index <path>`.
+   Estate prints a `STALENESS` marker when commits have landed since the last
+   index; re-run after editing.
+2. **Resolve the symbol** (§ Resolving symbols).
+3. **Query blast radius from estate** (static + injected dependents in one
+   answer — the authoritative layer): call the estate MCP **`BlastRadius`**
+   tool with `{"symbol": "<name-or-path>", "depth": <n>}`.
    The `dependents` array includes relationships grep can't see: a command that
-   *dispatches* an agent (`injected:dispatch`), a consumer that *subscribes* to
-   an event (`injected:bus`), an agent that *declares* a capability
-   (`injected:capability`) — and archetype→playbook relationships via garden's
-   `.codegraph-extractors/archetype.mjs` (`injected:archetype`). Each result
-   carries a `staleness` stamp.
+   *dispatches* an agent, a consumer that *subscribes* to an event, an agent
+   that *declares* a capability — and archetype→playbook relationships via
+   garden's `.wicked-estate-extractors/archetype.toml` (provenance
+   `extractor:archetype-playbook`). Results carry confidence + provenance per
+   edge and an `unresolved_callers` count (potential missing dependents).
 4. **Fallbacks**: § Resolving symbols + fallback ladder.
 5. Report: **dependents** (static + injected, with provenance), total
    blast-radius count, files affected, and the graph's staleness.
@@ -144,35 +134,38 @@ depends on; upstream = what depends on it. Includes injected edges
 > **Scope**: `lineage` answers "where does this flow from / to?". For pure
 > "what breaks if I change X?" use the `blast-radius` action.
 
-**Arguments**: `symbol` (required — `file:<relpath>` or a resolved node id);
+**Arguments**: `symbol` (required — a file path or symbol name);
 `--direction` (optional, default `downstream`): `downstream` (dependencies),
 `upstream` (dependents), or `both`; `--depth` (optional traversal depth;
-brain default applies if omitted).
+estate default 8, max 24).
 
-1. **Ensure the graph is fresh** (§ Index / freshness): `npx -y wicked-brain-call graph-index`.
-2. **Resolve the symbol to a node id** (§ Resolving symbols).
-3. **Trace** via brain:
-   - **downstream** (what it depends on): `npx -y wicked-brain-call graph-lineage --node "<id>"` → `dependencies`.
-   - **upstream** (what depends on it): `npx -y wicked-brain-call graph-blast-radius --node "<id>"` → `dependents`.
-   - **both**: run both and present each direction.
-   Each result includes injected edges (e.g. a consumer reached via
-   `injected:bus`, an archetype via `injected:archetype`) and a `staleness` stamp.
+1. **Ensure the graph is fresh** (§ Index / freshness): `wicked-estate index <path>`.
+2. **Resolve the symbol** (§ Resolving symbols).
+3. **Trace** via the estate MCP:
+   - **downstream** (what it depends on): the **`Lineage`** tool with
+     `{"symbol": "<name>"}` → `dependencies`.
+   - **upstream** (what depends on it): the **`BlastRadius`** tool with
+     `{"symbol": "<name>"}` → `dependents`.
+   - **both**: run both and present each direction. (A bounded multi-hop walk
+     with edge-kind filters is available via the **`TraverseGraph`** tool.)
+   Each result includes injected edges (e.g. a consumer reached via a bus
+   rule, an archetype via `extractor:archetype-playbook`) with confidence +
+   provenance per edge.
 4. **Fallbacks**: § Resolving symbols + fallback ladder.
 5. Report each path (source → sink), file locations per step, provenance of
    injected hops, and gaps.
 
 **Examples**
 ```
-lineage file:scripts/_bus.py --direction upstream
+lineage scripts/_bus.py --direction upstream
 lineage User.email --direction both
 ```
 
-## Hotspots — most-referenced symbols
+## Hotspots — most-central symbols
 
-Rank symbols by incoming reference count to expose god-objects, coupling
-hotspots, and high-impact refactor targets. Reads the graph DB brain builds
-(`.codegraph/codegraph.db`), with a brain-search fallback.
-→ Full procedure: [refs/hotspots.md](refs/hotspots.md)
+Rank symbols by PageRank centrality to expose god-objects, coupling
+hotspots, and high-impact refactor targets — the estate MCP `RankHotspots`
+tool. → Full procedure: [refs/hotspots.md](refs/hotspots.md)
 
 ## Service map — detect the service architecture
 

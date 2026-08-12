@@ -74,7 +74,7 @@ npx wicked-testing install     # the acceptance-testing layer (author ≠ execut
 /plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 
-Optional, lights up the code graph: `npx @colbymchenry/codegraph` (Node ≥ 22.5) → powers `blast-radius` / `lineage` / `hotspots` / wicked-patch. Details: [`docs/required-peers.md`](docs/required-peers.md).
+Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-estate index <path>` + the estate MCP server) → powers `blast-radius` / `lineage` / `hotspots` / wicked-patch (ADR 0005 — no external codegraph engine, no Node version floor). Details: [`docs/required-peers.md`](docs/required-peers.md).
 
 ## Try it
 

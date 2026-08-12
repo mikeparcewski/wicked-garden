@@ -16,7 +16,7 @@ review-required: true
 |----|------|-----------|--------|------------|
 | RISK-001 | Archetype detection accuracy degrades for ambiguous or very short prompts | Medium | Medium | Detector returns confidence score; low-confidence prompts prompt for clarification. Multi-archetype output handles mixed-intent work. |
 | RISK-002 | wicked-loom/wicked-vault peer absent → evidence gate fails closed | High (setup) | Low (expected) | Failing closed is the intended behavior. `/wg-check` validates peers at setup; setup skill guides installation. |
-| RISK-003 | codegraph not built → blast-radius/lineage/wicked-patch unavailable | High (optional) | Medium | codegraph is explicitly opt-in; skills degrade gracefully to text-search when graph is absent. |
+| RISK-003 | wicked-estate graph not built → blast-radius/lineage/wicked-patch unavailable | High (optional) | Medium | wicked-estate is explicitly opt-in; skills degrade gracefully to text-search when the graph is absent (and flag that injected relationships are missing). |
 | RISK-004 | Plugin not loaded in `claude -p` non-interactive mode | Medium | High | Documented mitigation: user must add `--plugin-dir` via clis.toml override (garden#994 resolution). Long-term fix: persistent worker sessions (core#13). |
 | RISK-005 | Council seat (Antigravity/Codex) unavailable or returns garbage | Medium | Low | Council aggregation tolerates partial failures; the skill surfaces which seats failed. |
 | RISK-006 | Hook scripts fail on Windows without correct Python fallback | Low | High | All scripts use cross-platform patterns (tempfile.gettempdir, python fallback chain). CI must include Windows runner. |
@@ -30,7 +30,7 @@ review-required: true
 |----|-----------|
 | ASS-001 | The host harness (Claude Code, Codex, Cursor, …) handles all planning, parallelism, and LLM calls. wicked-garden does not re-implement harness capabilities. |
 | ASS-002 | Users install the required peers (`wicked-testing`/`wicked-vault`, `wicked-loom`) before using the evidence gate. The setup skill validates this. |
-| ASS-003 | The codegraph (`.codegraph/codegraph.db`) is built and up-to-date when blast-radius/lineage/wicked-patch are used. |
+| ASS-003 | The wicked-estate graph (`wicked-estate index <path>`) is built and up-to-date when blast-radius/lineage/wicked-patch are used. |
 | ASS-004 | Harness plugins are loaded in interactive mode; non-interactive (`claude -p`) mode requires explicit plugin-dir configuration. |
 | ASS-005 | The `WICKED_VAULT_ACTOR` environment variable is set to a meaningful, stable actor identity for hard-gate evidence recording (not OS `$USER`). |
 | ASS-006 | wicked-bus is optional; garden emits events fail-open when bus is unavailable. |
@@ -55,8 +55,8 @@ review-required: true
 | wicked-vault ≥ 0.4.0 | Runtime | Yes (for evidence gate) | Evidence backend. `0.4.0` introduced fail-closed `attest` on weak identity. |
 | wicked-loom | Runtime | Yes (for evidence gate) | Gate/resolve engine. Resolved via `WICKED_LOOM_BIN` → config → PATH → `npx`. |
 | wicked-testing | Runtime | Yes (for acceptance) | The acceptance pipeline is the standard gate mechanism. |
-| wicked-brain | Runtime | Optional | Cross-session memory + codegraph. Required for blast-radius, lineage, wicked-patch. |
+| wicked-brain | Runtime | Optional | Cross-session memory + semantic search. |
 | wicked-bus | Runtime | Optional | Event audit trail. Garden emits events fail-open without it. |
-| codegraph (`@colbymchenry/codegraph`) | Runtime | Optional | Static graph builder. Powers blast-radius/lineage/wicked-patch. |
+| wicked-estate | Runtime | Optional | Code-graph owner (ADR 0005): `wicked-estate index` + MCP tools. Powers blast-radius/lineage/hotspots/wicked-patch. Resolved via `WICKED_ESTATE_BIN` → PATH → `~/.local/bin`. |
 | Python ≥ 3.9 | Runtime | Yes | Required for all hook scripts and CLI tools. |
 | node.js ≥ 18 | Runtime | Yes | Required for npm peer installs and wicked-vault/loom. |

@@ -206,7 +206,7 @@ All skills, hooks, agents, and shell commands must work on macOS/Linux and Windo
 - Data lineage → the `wicked-garden-search` skill's `lineage` action
 - Fall back to Grep/Glob only when the index is unavailable.
 
-**Code-relationship graph lives in wicked-brain** (ADR 0004): blast-radius/lineage/callers are brain's `graph-*` actions + the `wicked-brain:graph` skill, backed by a codegraph static graph + injected edges (bus/dispatch/capability, and garden's archetype edges via the drop-in `.codegraph-extractors/archetype.mjs`). The `wicked-garden-search` skill's actions are thin wrappers over brain; garden's old in-repo `scripts/_codegraph.py` + `scripts/codegraph/*` are superseded. wicked-patch consumes the same `.codegraph/codegraph.db` brain builds.
+**Code-relationship graph lives in wicked-estate** (ADR 0005, superseding ADR 0004): blast-radius/lineage/callers are estate MCP tools (`BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`), backed by estate's 75-language tree-sitter static graph + injected edges (bus/dispatch/capability, and garden's archetype edges via the drop-in TOML rules in `.wicked-estate-extractors/archetype.toml`, applied by `wicked-estate index`). The `wicked-garden-search` skill's actions are thin wrappers over estate; the brain-era `graph-*` actions, `wicked-brain:graph`, and the `.codegraph-extractors/*.mjs` drop-ins are retired. wicked-patch reads the same estate graph (via `scripts/engineering/patch/estate_db.py`).
 
 ## AskUserQuestion Fallback (Dangerous Mode)
 

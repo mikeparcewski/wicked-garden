@@ -1,55 +1,37 @@
-# Hotspots — find the most-referenced symbols
+# Hotspots — find the most-central symbols
 
-Rank symbols by incoming reference count to expose god-objects, coupling
-hotspots, and high-impact refactor targets.
+Rank symbols by PageRank centrality over the code-relationship graph to expose
+god-objects, coupling hotspots, and high-impact refactor targets.
 
-**Arguments**: `--limit <n>` (optional): number of results (default 25).
+**Arguments**: `--limit <n>` (optional): number of results (default 20, max 200).
 
 ## Instructions
 
 1. **Freshness** — ensure the graph is current with the search skill's `index`
-   action (brain's `graph-index` builds the codegraph graph + injected edges
-   and reports a `staleness` stamp). The ranking below reads the graph DB it
-   produces; if it's stale, re-run the index.
-2. **Primary path — read the graph DB** brain built (`.codegraph/codegraph.db`, when present):
-   ```bash
-   python3 - <<'PY'
-   import sqlite3, pathlib
-   db = pathlib.Path(".codegraph/codegraph.db")
-   if not db.exists():
-       print("no index — run `search:index` first"); raise SystemExit
-   c = sqlite3.connect(str(db))
-   # incoming edges per target = how heavily referenced a symbol is.
-   # Exclude 'contains' (structural nesting, not a real reference) and self-loops.
-   rows = c.execute(
-     "SELECT target, COUNT(*) AS refs FROM edges "
-     "WHERE kind != 'contains' AND source != target "
-     "GROUP BY target ORDER BY refs DESC LIMIT 25").fetchall()
-   for tgt, n in rows:
-       node = c.execute("SELECT name, kind, file_path FROM nodes WHERE id=?", (tgt,)).fetchone()
-       label = (node[0] if node else tgt)
-       kind  = (node[1] if node else "?")
-       print(f"{n:4d}  {kind:10s} {label}")
-   c.close()
-   PY
-   ```
-   Report the ranked list. Call out anything with an unusually high count as a
-   likely god-object or coupling hotspot worth refactoring. Note that injected
-   edges (provenance LIKE `'injected:%'`) are included — a heavily-dispatched
-   agent or capability appears here too.
+   action (`wicked-estate index <path>` builds the static graph + injected
+   edges; estate prints a `STALENESS` marker when commits have landed since
+   the last index). The ranking below reads that graph.
+2. **Primary path — the estate MCP `RankHotspots` tool**: call it with
+   `{"limit": <n>}` (optionally `{"seeds": ["<symbol>", …]}` for a
+   personalized, subsystem-local ranking). PageRank over Calls+Imports edges —
+   strictly better than a raw incoming-edge count, because it weights a
+   reference by the centrality of the referrer.
 
-3. **Fallback — brain** (no `.codegraph` index):
-   ```bash
-   PORT="$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_brain_port.py" 2>/dev/null || echo 4242)"
-   curl -s -X POST "http://localhost:${PORT}/api" \
-     -H "Content-Type: application/json" \
-     -d '{"action":"search","params":{"query":"class function module export","limit":30}}'
-   ```
-   Tell the user codegraph gives a sharper, offline answer and suggest the
-   search skill's `index` action to build it.
+   Report the ranked list. Call out anything with an unusually high score as a
+   likely god-object or coupling hotspot worth refactoring. Injected edges are
+   part of the same graph — a heavily-dispatched agent or capability appears
+   here too.
 
-4. **If neither is available**: say so and suggest the search skill's `index`
-   action.
+3. **Fallback — the estate CLI** (MCP server not connected):
+   ```bash
+   wicked-estate rank        # same PageRank ranking, top-N to stdout
+   ```
+   (Resolve the binary via `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`.)
+
+4. **If estate is unavailable entirely**: say so and suggest the search
+   skill's `index` action after installing wicked-estate — and note that any
+   grep-based approximation misses injected relationships and referral
+   centrality.
 
 ## Example
 
