@@ -51,7 +51,7 @@ daemon/
 .githooks/
 .aider*
 memory/
-.codegraph-extractors/
+.wicked-estate-extractors/
 renovate.json
 uv.lock
 package-lock.json
