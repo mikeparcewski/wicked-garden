@@ -244,13 +244,20 @@ def main():
         if subject and _is_deliverable_task(subject):
             mem_type = _infer_mem_type(subject)
             task_label = f'"{subject}"' if subject else f"task {task_id}"
+            # S4: name the memory surface for the routed context backend
+            # (brain while the bridge is alive, estate memory.capture after).
+            try:
+                from _context_backend import memory_directive_target
+                _mem_target = memory_directive_target()
+            except Exception:
+                _mem_target = "wicked-brain:memory"
             if compliance_required:
                 escalation_prefix = (
                     "[ESCALATION] " if escalations >= _ESCALATION_THRESHOLD else ""
                 )
                 system_message = (
                     f"{escalation_prefix}[Memory] Task {task_label} completed. "
-                    f"REQUIRED: Call wicked-brain:memory with type={mem_type} "
+                    f"REQUIRED: Call {_mem_target} with type={mem_type} "
                     "to capture any decision, gotcha, or pattern from this work. "
                     "If genuinely nothing is worth storing, respond with 'No memory stored: <reason>'."
                 )
@@ -258,7 +265,7 @@ def main():
                 system_message = (
                     f"[Memory] Task {task_label} completed. "
                     "If this produced a decision, gotcha, or reusable pattern, "
-                    f"store it with wicked-brain:memory (type={mem_type})."
+                    f"store it with {_mem_target} (type={mem_type})."
                 )
 
         # Evidence nudge for crew tasks (Issue #253).

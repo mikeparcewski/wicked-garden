@@ -106,6 +106,14 @@ def _handle_context_limit(payload: dict) -> str:
     except Exception:
         pass
 
+    # S4: name the memory surface for the routed context backend (brain while
+    # the bridge is alive, estate memory.capture afterwards). Fail-open.
+    try:
+        from _context_backend import memory_directive_target
+        _mem_target = memory_directive_target()
+    except Exception:
+        _mem_target = "wicked-brain:memory"
+
     return json.dumps({
         "systemMessage": (
             "[Context Pressure] Context limit is approaching. Adapting behavior:\n"
@@ -113,7 +121,7 @@ def _handle_context_limit(payload: dict) -> str:
             "2. Prefer delegation to subagents via Task() over inline execution\n"
             "3. Keep responses concise — avoid large code dumps\n"
             "4. If in a crew project, consider completing the current phase before starting new work\n"
-            "5. Use wicked-brain:memory to save critical context before compaction"
+            f"5. Use {_mem_target} to save critical context before compaction"
         ),
         "continue": True,
     })

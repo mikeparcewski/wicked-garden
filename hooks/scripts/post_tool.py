@@ -220,7 +220,18 @@ def _brain_reindex_file(file_path: str) -> None:
     Reads the file content and POSTs it to the brain index API so the brain
     stays current as files are edited during the session. Async-safe: uses
     stdlib urllib with a short timeout.
+
+    S4: brain-route only. wicked-estate keeps its own stores fresh through
+    its indexer — a per-edit knowledge.write from a hook would append a new
+    node per edit (no stable id on that surface), so under estate routing
+    this is deliberately a no-op (same net effect as brain-absent today).
     """
+    try:
+        from _context_backend import route
+        if route() != "brain":
+            return
+    except Exception:
+        return  # fail open — never block the hook on router import
     try:
         import urllib.request
         p = Path(file_path)
