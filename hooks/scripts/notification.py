@@ -112,7 +112,7 @@ def _handle_context_limit(payload: dict) -> str:
         from _context_backend import memory_directive_target
         _mem_target = memory_directive_target()
     except Exception:
-        _mem_target = "the wicked-estate `memory.capture` tool"
+        _mem_target = "the wicked-garden-mem skill (store action)"
 
     return json.dumps({
         "systemMessage": (

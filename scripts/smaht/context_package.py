@@ -58,9 +58,9 @@ PLUGIN_SKILL_MAP = {
         "wicked-garden-mem (store action) — persist a decision or learning for future sessions",
     ],
     "search": [
-        "wicked-garden-search — find code symbols (functions, classes, methods)",
-        "wicked-garden-search (refs action) — find where a symbol is referenced",
+        "estate MCP SearchEntity tool — find code symbols (functions, classes, methods)",
         "wicked-garden-search (blast-radius action) — analyze what changing a symbol affects",
+        "wicked-garden-search (lineage action) — trace where a symbol's data flows from/to",
         "wicked-garden-mem (answer action) — cited answers from the knowledge store (PDF, markdown, Office)",
     ],
     "tasks": [

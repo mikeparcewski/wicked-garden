@@ -381,16 +381,23 @@ def health() -> bool:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def memory_directive_target() -> str:
-    """Skill/tool name that hooks should reference in memory-capture directives."""
-    return "the wicked-estate `memory.capture` tool"
+    """Skill name that hooks should reference in memory-capture directives.
+
+    Names the wicked-garden-mem skill (whose `store` action writes through
+    estate ``memory.capture``) rather than the raw MCP tool: the PostToolUse
+    memory-compliance reset watches for the mem skill, so the directive and
+    the reset must point at the same surface.
+    """
+    return "the wicked-garden-mem skill (store action)"
 
 
 def grounding_directive_lines() -> List[str]:
     """Numbered grounding steps for the Context Assembly directive."""
     return [
-        "1. Ground in the knowledge layer via the wicked-garden-search skill "
-        "(wicked-estate knowledge + memory recall) — concepts, symbols, files, "
-        "and past decisions, with source attribution.",
+        "1. Ground in the knowledge layer via the wicked-garden-mem skill "
+        "(recall/answer over wicked-estate knowledge + memory) — concepts, "
+        "files, and past decisions, with source attribution; use the estate "
+        "MCP SearchEntity tool for symbol lookup.",
         "2. Open the cited sources with Read before answering; do not answer "
         "from recall snippets alone.",
     ]

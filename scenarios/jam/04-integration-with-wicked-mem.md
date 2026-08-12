@@ -1,13 +1,13 @@
 ---
 name: integration-with-wicked-garden-mem
 title: Jam Integration with wicked-garden-mem Recall
-description: Test brainstorming with context recall and insight storage via the wicked-garden-mem skill (estate engine; replaced the retired wicked-garden-mem)
+description: Test brainstorming with context recall and insight storage via the wicked-garden-mem skill (estate engine; replaced the retired wicked-brain memory skill)
 type: integration
 difficulty: intermediate
 estimated_minutes: 15
 ---
 
-# Jam Integration with the memory layer Memory Recall
+# Jam Integration with Memory Recall (wicked-garden-mem)
 
 This scenario tests wicked-jam's integration with the memory layer for recalling prior context before sessions and storing insights afterward.
 
@@ -15,7 +15,7 @@ This scenario tests wicked-jam's integration with the memory layer for recalling
 
 ## Setup
 
-Requires wicked-jam plugin installed and the memory layer plugin installed and running:
+Requires wicked-jam installed and the memory layer (wicked-estate) reachable:
 
 ```bash
 # Verify the memory layer is running

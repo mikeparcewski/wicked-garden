@@ -286,7 +286,7 @@ def _handle_write_guard(tool_input: dict) -> str:
             from _context_backend import memory_directive_target
             _mem_target = memory_directive_target()
         except Exception:
-            _mem_target = "the wicked-estate `memory.capture` tool"
+            _mem_target = "the wicked-garden-mem skill (store action)"
         return _deny(
             "Do not write to MEMORY.md or the auto memory directory. "
             "This project uses wicked-garden memory for persistence. "

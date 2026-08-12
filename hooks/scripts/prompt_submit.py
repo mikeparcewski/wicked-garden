@@ -729,9 +729,10 @@ def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=
         grounding = grounding_directive_lines()
     except Exception:
         grounding = [
-            "1. Ground in the knowledge layer via the wicked-garden-search skill "
-            "(wicked-estate knowledge + memory recall) — concepts, symbols, files, "
-            "and past decisions, with source attribution.",
+            "1. Ground in the knowledge layer via the wicked-garden-mem skill "
+            "(recall/answer over wicked-estate knowledge + memory) — concepts, "
+            "files, and past decisions, with source attribution; use the estate "
+            "MCP SearchEntity tool for symbol lookup.",
             "2. Open the cited sources with Read before answering; do not answer "
             "from recall snippets alone.",
         ]

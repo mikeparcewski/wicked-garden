@@ -234,16 +234,17 @@ def main():
         system_message = ""
         if subject and _is_deliverable_task(subject):
             task_label = f'"{subject}"' if subject else f"task {task_id}"
-            # Name the memory surface (estate memory.capture; the
-            # wicked-garden-mem skill is its agent surface). Fail-open to the
-            # same wording. `type=` was retired-brain vocabulary; estate's
+            # Name the memory surface (the wicked-garden-mem skill; its
+            # store action writes through estate memory.capture — the same
+            # surface the PostToolUse compliance reset watches). Fail-open to
+            # the same wording. `type=` was retired-brain vocabulary; estate's
             # memory.capture takes kind/tier/scope/content instead, so no
             # type clause is suffixed (Copilot review, #1044).
             try:
                 from _context_backend import memory_directive_target
                 _mem_target = memory_directive_target()
             except Exception:
-                _mem_target = "the wicked-estate `memory.capture` tool"
+                _mem_target = "the wicked-garden-mem skill (store action)"
             if compliance_required:
                 escalation_prefix = (
                     "[ESCALATION] " if escalations >= _ESCALATION_THRESHOLD else ""

@@ -35,7 +35,7 @@ EOF
 ```bash
 echo '{"subject": "build: implement auth service", "task_id": "t1", "status": "completed", "project_id": "test-proj"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'memory.capture' in msg else 'MISSING'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'wicked-garden-mem' in msg else 'MISSING'); print('NO_ESCALATION' if '[ESCALATION]' not in msg else 'ESCALATION_FOUND')"
 ```
 
 **Expected**:
@@ -49,7 +49,7 @@ NO_ESCALATION
 ```bash
 echo '{"subject": "fix: resolve race condition in queue processor", "task_id": "t2", "status": "completed", "project_id": "test-proj"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'memory.capture' in msg else 'MISSING')"
+  | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('MEMSTORE' if 'wicked-garden-mem' in msg else 'MISSING')"
 ```
 
 **Expected**: `MEMSTORE`
@@ -84,7 +84,7 @@ EOF
 for subject in "test: write unit tests for queue" "review: security audit of auth" "document: API reference v2" "configure: set up CI pipeline" "analyze: performance bottlenecks"; do
   result=$(echo "{\"subject\": \"${subject}\", \"task_id\": \"tx\", \"status\": \"completed\", \"project_id\": \"test-proj\"}" \
     | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py" \
-    | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'memory.capture' in d.get('systemMessage','') else 'MISSING')")
+    | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); print('OK' if 'wicked-garden-mem' in d.get('systemMessage','') else 'MISSING')")
   echo "${subject}: ${result}"
 done
 ```
@@ -102,7 +102,7 @@ EOF
 output=$(echo '{"subject": "build: standalone work", "task_id": "t9", "status": "completed"}' \
   | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/task_completed.py")
 
-echo "${output}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and 'memory.capture' in msg else 'NO_NUDGE')"
+echo "${output}" | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "import sys,json; d=json.load(sys.stdin); msg=d.get('systemMessage',''); print('SOFT_NUDGE' if msg and '[ESCALATION]' not in msg and 'wicked-garden-mem' in msg else 'NO_NUDGE')"
 ```
 
 **Expected**: `SOFT_NUDGE`
@@ -120,7 +120,7 @@ not enforce compliance.
 
 ## Success Criteria
 
-- [ ] Build task directive contains "memory.capture"
+- [ ] Build task directive contains "wicked-garden-mem"
 - [ ] Escalation prefix logic ("[ESCALATION]") present in task_completed.py source
 - [ ] Extended keywords (test, review, document, configure, analyze) trigger directive
 - [ ] Hook emits soft nudge (no escalation prefix) when memory_compliance_required=False

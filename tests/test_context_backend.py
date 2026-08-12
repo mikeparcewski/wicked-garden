@@ -388,14 +388,17 @@ def test_staleness_note_empty_estate_store_points_at_ingest(monkeypatch):
     assert note is not None and "empty" in note
 
 
-def test_memory_directive_target_is_estate_worded():
-    assert "memory.capture" in cb.memory_directive_target()
-    assert "brain" not in cb.memory_directive_target()
+def test_memory_directive_target_names_the_mem_skill():
+    """The directive must name the same surface the PostToolUse compliance
+    reset watches (the wicked-garden-mem skill), not the raw MCP tool."""
+    target = cb.memory_directive_target()
+    assert "wicked-garden-mem" in target
+    assert "brain" not in target
 
 
 def test_grounding_lines_are_estate_worded():
     lines = cb.grounding_directive_lines()
-    assert any("wicked-garden-search" in line for line in lines)
+    assert any("wicked-garden-mem" in line for line in lines)
     assert not any("wicked-brain" in line for line in lines)
 
 
