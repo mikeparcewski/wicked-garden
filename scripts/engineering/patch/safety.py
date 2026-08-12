@@ -175,8 +175,10 @@ class FreshnessChecker:
 
             conn.close()
 
-            # Calculate age
-            age = datetime.now() - index_time
+            # Calculate age. indexed_at is written tz-aware (UTC) by estate_db.py;
+            # naive-vs-aware subtraction raises, so anchor "now" in the same zone.
+            now = datetime.now(index_time.tzinfo) if index_time.tzinfo else datetime.now()
+            age = now - index_time
             age_hours = age.total_seconds() / 3600
 
             if age_hours > max_age_hours:

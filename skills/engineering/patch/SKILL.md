@@ -158,11 +158,21 @@ per-language type mappings, and SQL dialect support (PostgreSQL / Oracle / MySQL
 SQL Server, auto-detected or via `--dialect`) are tabulated in
 [refs/output-samples.md](refs/output-samples.md#language--type-reference).
 
-## Integration with wicked-garden-search
+## Building the symbol database (wicked-estate)
 
-wicked-patch reads from the symbol database that the `wicked-garden-search`
-skill builds: run its `index` action first (with `--derive-all`), then patch
-sub-actions use the graph for propagation.
+wicked-patch reads a `--db` translated from the wicked-estate code graph
+(ADR 0005). Build the store, then translate it:
+
+```bash
+wicked-estate index . --db .codegraph/estate.db   # or reuse a crew-materialized store
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/estate_db.py" \
+  [--estate-db .codegraph/estate.db] [--out .wicked/patch-symbols.db]
+```
+
+`estate_db.py` auto-discovers the store (`$WICKED_ESTATE_DB`, then
+`.codegraph/estate.db`, then `.wicked-estate/graph.db`); pass the resulting
+`--db .wicked/patch-symbols.db` to the patch sub-actions. Symbol ids keep the
+patch-native `file::Name` scheme (e.g. `src/app.py::Order`).
 
 ## Safety Features
 
