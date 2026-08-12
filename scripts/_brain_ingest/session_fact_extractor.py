@@ -31,11 +31,13 @@ stdlib-only. Fails open — returns [] on any I/O or parse error.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
 import sys
 import uuid
+from collections import deque
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -206,6 +208,136 @@ def _iter_task_records(session_id: str) -> Iterable[dict]:
     yield from _iter_task_records_direct(session_id)
 
 
+# --- Transcript source (starvation fix, task #76) ---------------------------
+#
+# Native task records turned out to be a starved source: TaskCreate/TaskUpdate
+# files exist for almost no session, so `wicked.garden.fact.extracted` was
+# never emitted (zero events in a 54MB live bus DB). The transcript the Stop
+# hook already receives on stdin is the real conversation record — run the
+# same patterns over its recent turns.
+
+_TRANSCRIPT_TAIL_LINES = 400   # per-turn Stop scans the recent window; earlier
+                               # turns were scanned by earlier Stops.
+_TRANSCRIPT_MAX_TEXT = 8000    # cap a single message's text (defensive)
+
+
+def _message_text(entry: dict) -> str:
+    """Text of one transcript JSONL entry (user/assistant), '' otherwise."""
+    if not isinstance(entry, dict) or entry.get("type") not in ("user", "assistant"):
+        return ""
+    message = entry.get("message")
+    if not isinstance(message, dict):
+        return ""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content[:_TRANSCRIPT_MAX_TEXT]
+    if isinstance(content, list):
+        parts = [
+            b.get("text", "") for b in content
+            if isinstance(b, dict) and b.get("type") == "text"
+        ]
+        return "\n".join(p for p in parts if p)[:_TRANSCRIPT_MAX_TEXT]
+    return ""
+
+
+def _iter_transcript_texts(transcript_path: str) -> Iterable[str]:
+    """Yield user/assistant text blocks from the transcript JSONL tail."""
+    try:
+        path = Path(transcript_path)
+        if not path.is_file():
+            return
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            tail = deque(fh, maxlen=_TRANSCRIPT_TAIL_LINES)
+    except OSError:
+        return
+    for line in tail:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        text = _message_text(entry)
+        if text:
+            yield text
+
+
+def extract_transcript_facts(transcript_path: str, limit: int = 10) -> list:
+    """Extract facts from the session transcript's recent turns.
+
+    Same patterns and dedup as the task source; `source` is marked
+    "transcript" so consumers can tell the two apart. Fails open.
+    """
+    if not transcript_path or limit <= 0:
+        return []
+    facts: list = []
+    seen: set = set()
+    try:
+        for text in _iter_transcript_texts(transcript_path):
+            for fact in _extract_from_text(text, task_id="transcript"):
+                fact.source = "transcript"
+                key = fact.content.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                facts.append(fact)
+                if len(facts) >= limit:
+                    return facts
+    except Exception as exc:  # pragma: no cover - defensive fail-open
+        print(f"[wicked-mem] transcript fact extraction error: {exc}", file=sys.stderr)
+    return facts
+
+
+# --- Per-session emitted ledger ----------------------------------------------
+#
+# Stop fires every turn and the transcript is cumulative, so without a ledger
+# the same fact would be re-emitted each turn. One small JSON file per session
+# records the content hashes already emitted; the consumer's global
+# content-hash dedup remains the cross-session guard.
+
+def _emitted_ledger_path(session_id: str) -> Path:
+    override = os.environ.get("WICKED_MEM_LEDGER_DIR")
+    base = Path(override) if override else (
+        Path.home() / ".something-wicked" / "wicked-garden" / "local" / "wicked-mem"
+    )
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", session_id or "default")[:80]
+    return base / "emitted" / f"{safe}.json"
+
+
+def _fact_hash(content: str) -> str:
+    """Same normalization as scripts/mem/auto_memorize.content_hash."""
+    normalized = re.sub(r"\s+", " ", str(content or "").strip()).lower()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def filter_unemitted(facts: list, session_id: str) -> list:
+    """Facts whose content this session has not emitted yet. Fails open (all)."""
+    try:
+        raw = _emitted_ledger_path(session_id).read_text(encoding="utf-8")
+        emitted = set(json.loads(raw))
+    except (OSError, ValueError):
+        emitted = set()
+    return [f for f in facts if _fact_hash(f.content) not in emitted]
+
+
+def mark_emitted(facts: list, session_id: str) -> None:
+    """Record facts as emitted for this session. Fails open."""
+    if not facts:
+        return
+    path = _emitted_ledger_path(session_id)
+    try:
+        emitted = set(json.loads(path.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        emitted = set()
+    emitted.update(_fact_hash(f.content) for f in facts)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(sorted(emitted)), encoding="utf-8")
+    except OSError:
+        pass
+
+
 def _extract_from_text(text: str, task_id: str) -> list:
     """Extract facts from a text block (task subject + description)."""
     if not text:
@@ -237,8 +369,17 @@ def _extract_from_text(text: str, task_id: str) -> list:
     return facts[:5]
 
 
-def extract_session_facts(session_id: str, limit: int = 10) -> list:
-    """Extract session-level facts from native task records.
+def extract_session_facts(
+    session_id: str,
+    limit: int = 10,
+    transcript_path: Optional[str] = None,
+) -> list:
+    """Extract session-level facts from native task records + the transcript.
+
+    Task records come first (structured, higher precision); the transcript
+    tail (when a path is provided) fills the remaining budget — that source
+    is what actually feeds the pipeline in practice, since native task files
+    exist for almost no session (the auto-memorize starvation, task #76).
 
     Returns a list of SessionFact objects (up to `limit`), deduplicated by
     lowercased content. Fails open — returns [] on any error.
@@ -272,6 +413,14 @@ def extract_session_facts(session_id: str, limit: int = 10) -> list:
     except Exception as exc:  # pragma: no cover - defensive fail-open
         print(f"[wicked-mem] session fact extraction error: {exc}", file=sys.stderr)
         return facts
+
+    if transcript_path and len(facts) < limit:
+        for fact in extract_transcript_facts(transcript_path, limit - len(facts)):
+            key = fact.content.lower()
+            if key in seen:
+                continue
+            seen.add(key)
+            facts.append(fact)
 
     return facts
 
