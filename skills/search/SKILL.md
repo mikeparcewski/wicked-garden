@@ -18,8 +18,8 @@ description: |
   "narrate this codebase". Replaces the former /wicked-garden:search:*
   commands (index, blast-radius, lineage, hotspots, service-map).
 
-  NOT for general code/concept search — use the wicked-estate MCP's
-  SearchEntity / SemanticSearch tools directly.
+  NOT for general code/concept search — use `wicked-brain:search` (semantic
+  layer) or the wicked-estate MCP's SearchEntity (symbol lookup) directly.
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---

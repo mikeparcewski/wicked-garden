@@ -42,7 +42,7 @@ Three additional peers are opt-in:
 | Peer | npm Package | Required Version | Role |
 |------|-------------|-----------------|------|
 | wicked-testing | `wicked-testing` | `^0.8.0` | Acceptance testing gate; also installs wicked-vault as a transitive dependency |
-| wicked-brain | `wicked-brain` | `^0.18.0` | Cross-session memory, code graph, semantic search |
+| wicked-brain | `wicked-brain` | `^0.18.0` | Cross-session memory, semantic search (the code graph moved to wicked-estate, ADR 0005) |
 | wicked-bus | `wicked-bus` | `^2.0.0` | Event audit trail, append-only event store, FTS5 search |
 
 wicked-understanding (repo playbooks from HEAD) and wicked-estate (structural code intelligence — the code graph, ADR 0005) are additional optional integrations.
