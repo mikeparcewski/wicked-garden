@@ -142,6 +142,11 @@ def test_workflow_skill_terms_exist_in_crew_contract():
     if crew_root is None:
         pytest.skip("no wicked-crew checkout (set WICKED_CREW_ROOT to enable)")
     sources = _crew_contract_sources(crew_root)
+    assert sources, (
+        f"crew checkout resolved at {crew_root} but no contract source is "
+        f"readable — looked for "
+        f"{' and '.join(str(r) for r in _CREW_CONTRACT_RELPATHS)}."
+    )
     combined = "\n".join(p.read_text(encoding="utf-8") for p in sources)
     gone = [term for term in _CREW_CONTRACT_TERMS if term not in combined]
     assert not gone, (
