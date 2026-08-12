@@ -379,6 +379,41 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "qe.release",
         "description": "Release readiness verdict assessed against ledger evidence window",
     },
+    # wicked-core production events — emitted by the engine (cli_runner.rs + bus.rs).
+    # These are cross-domain events that garden consumers (mem/search) may subscribe to.
+    # Source constants: TASK_DISPATCHED, TASK_COMPLETED (cli_runner.rs);
+    #                   RUN_REQUESTED, RUN_LAUNCHED (bus.rs);
+    #                   GATE_EVAL_REQUESTED, GATE_EVAL_RESPONDED (cli_runner.rs).
+    "wicked.crew.task.dispatched": {
+        "domain": "wicked-core",
+        "subdomain": "crew.task",
+        "description": "A workflow unit has been dispatched to a CLI seat for execution (bus-as-truth handoff)",
+    },
+    "wicked.crew.task.completed": {
+        "domain": "wicked-core",
+        "subdomain": "crew.task",
+        "description": "A dispatched workflow unit has completed; carries verdict and captured output",
+    },
+    "wicked.crew.run.requested": {
+        "domain": "wicked-core",
+        "subdomain": "crew.run",
+        "description": "A new governed run has been requested via the bus (durable intent record)",
+    },
+    "wicked.crew.run.launched": {
+        "domain": "wicked-core",
+        "subdomain": "crew.run",
+        "description": "A requested run has been accepted and launched by the engine",
+    },
+    "wicked.gate.eval.requested": {
+        "domain": "wicked-core",
+        "subdomain": "gate.eval",
+        "description": "Gate evaluation published to the bus; the governed evaluator daemon is expected to respond (evaluator≠creator bus path)",
+    },
+    "wicked.gate.eval.responded": {
+        "domain": "wicked-core",
+        "subdomain": "gate.eval",
+        "description": "Governed evaluator daemon responded to a gate eval request (verdict carried in payload)",
+    },
 }
 
 # Payload deny-list — these fields must NEVER appear in bus payloads.

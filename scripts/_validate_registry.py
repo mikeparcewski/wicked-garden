@@ -119,6 +119,15 @@ _AUDIT_MARKER_EVENTS: Tuple[str, ...] = (
     # QE skill signals — fire-and-forget; consumed by ledger / dashboard tooling.
     "wicked.qe.scenario.authored",
     "wicked.qe.release.assessed",
+    # wicked-core production events — emitted by the engine, not by wicked-garden.
+    # These are catalogued in BUS_EVENT_MAP for subscriber discovery but have no
+    # projector handler in garden's daemon/projector.py (they're handled by crew/core).
+    "wicked.crew.task.dispatched",
+    "wicked.crew.task.completed",
+    "wicked.crew.run.requested",
+    "wicked.crew.run.launched",
+    "wicked.gate.eval.requested",
+    "wicked.gate.eval.responded",
 )
 
 # Reviewer values in gate-policy.json that are NOT subagent identifiers — they
@@ -749,8 +758,25 @@ def check_bus_handlers(plugin_root: Path) -> List[Dict[str, Any]]:
         )
         return findings
 
+    # 4-segment format: wicked.<domain>.<noun>.<past-tense-verb>
+    _segment_re = re.compile(r"^wicked\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$")
+    sorted_events = sorted(event_keys)
+    for evt in sorted_events:
+        if not _segment_re.match(evt):
+            findings.append(
+                {
+                    "category": CAT_MALFORMED,
+                    "check": "bus.event_format",
+                    "target": evt,
+                    "detail": (
+                        "event key does not follow the canonical 4-segment format "
+                        "wicked.<domain>.<noun>.<past-tense-verb> (SPEC: WICKED_GARDEN_BUS_EVENTS.md)"
+                    ),
+                }
+            )
+
     audit_marker = set(_AUDIT_MARKER_EVENTS)
-    for evt in sorted(event_keys):
+    for evt in sorted_events:
         if evt in audit_marker:
             continue
         if evt in handler_keys:
