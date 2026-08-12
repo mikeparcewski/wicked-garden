@@ -53,7 +53,7 @@ python scripts/_validate_registry.py
   `phases, gate_policy, bus_handlers, skill_refs`.
 - The output ends with `OK` and the exit status is `0`.
 - Any `external` findings (drop-in plugin reviewers like
-  `wicked-testing:risk-assessor`) are listed but do NOT cause failure.
+  `some-plugin:risk-assessor`) are listed but do NOT cause failure.
 
 ### Step 2: Confirm machine-readable output
 

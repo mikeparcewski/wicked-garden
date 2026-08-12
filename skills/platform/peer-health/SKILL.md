@@ -1,7 +1,7 @@
 ---
 name: wicked-garden-platform-peer-health
 description: |
-  Run a health check on all wicked-* peer tools (wicked-vault, wicked-testing,
+  Run a health check on all wicked-* peer tools (wicked-vault,
   wicked-brain, wicked-bus). Reports reachability, version vs. pin, and
   declared capability status for each peer. The replacement for
   `npx wicked-loom doctor` after Phase B absorption — peer-resolution now runs
@@ -20,7 +20,7 @@ Check reachability and version health of wicked-* peer tools.
 
 ## Arguments
 
-- `--peer <name>` — check a single peer (vault, testing, brain, bus)
+- `--peer <name>` — check a single peer (vault, brain, bus)
 - `--strict` — exit non-zero if any peer has capability-gap (status != wired)
 - `--json` — emit raw JSON rows instead of the formatted table
 

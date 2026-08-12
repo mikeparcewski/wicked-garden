@@ -91,30 +91,6 @@ export const PROJECTS: Project[] = [
 
   // ── The layers ─────────────────────────────────────────────────
   {
-    id: "wicked-testing",
-    short: "testing",
-    role: "layer",
-    kicker: "QE pipeline",
-    tagline: "Verdicts your agent can't fake.",
-    outcome: "green means green — test verdicts you can trust",
-    blurb:
-      "A complete QE team for your AI CLI: a Writer → Executor → Reviewer pipeline with hard-enforced separation. The reviewer reads cold evidence and never sees the executor's context, so the agent can't grade its own homework.",
-    points: [
-      "40 specialist skills · 8 Tier-1 workflow skills (5 orchestrator surfaces: plan, authoring, execution, review, insight)",
-      "Independent verdicts — reviewer never sees executor context",
-      "SQLite ledger with a plain-English oracle",
-    ],
-    uses: [
-      "acceptance runs the author can't influence",
-      "flake hunts and mutation audits on suspicious suites",
-      "asking your test history questions in plain English",
-    ],
-    install: "npx wicked-testing install",
-    repo: `${GH}/wicked-testing`,
-    badges: ["MIT", "npm", "5 CLIs"],
-    featured: true,
-  },
-  {
     id: "wicked-brain",
     short: "brain",
     role: "layer",
@@ -210,7 +186,7 @@ export const TOUR: TourStop[] = [
       "A Writer → Executor → Reviewer pipeline with enforced separation — the reviewer reads cold evidence and never sees the executor's context, re-deriving each verdict from evidence instead of trusting it. 40 specialist skills, one SQLite ledger, a plain-English oracle.",
     unlock: "green means green",
     plant: "optin",
-    tools: ["wicked-testing"],
+    tools: ["wicked-garden"],
   },
   {
     stop: 3,

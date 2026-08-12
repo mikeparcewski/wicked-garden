@@ -265,9 +265,10 @@ export const CONDITIONS: Condition[] = [
 
 /* ── The shelf: the opt-in wicked-* peers garden integrates with ───────────
    HONEST: every peer here is an opt-in layer — the kit works without any of
-   them. The evidence backend the gate re-derives against (wicked-vault) rides
-   inside wicked-testing; it is NOT a separate install. The gate/resolve engine
-   (loom) is ABSORBED in-package as of v12.27.0 — also NOT a peer you install. */
+   them. The evidence backend the gate re-derives against (wicked-vault) is a
+   self-contained infra peer installed directly. The gate/resolve engine
+   (loom) is ABSORBED in-package as of v12.27.0 — NOT a peer you install. The
+   QE pipeline is IN-CATALOG (the qe domain) since Phase 6c — also not a peer. */
 export interface Peer {
   id: string;
   name: string;
@@ -279,15 +280,6 @@ export interface Peer {
 }
 
 export const PEERS: Peer[] = [
-  {
-    id: "testing",
-    name: "wicked-testing",
-    tier: "opt-in",
-    hue: "layer",
-    gives: "A full QE team for coding agents — runs the tests and records the evidence the gate re-derives against, with the runner kept separate from the judge so a verdict is re-derived, not trusted.",
-    cmd: "npx wicked-testing install",
-    cmdLabel: "opt-in layer",
-  },
   {
     id: "brain",
     name: "wicked-brain",

@@ -2,7 +2,7 @@
 
 Apply this inline. Generate testable acceptance criteria from requirements/design.
 `product:acceptance` **defines criteria** (what done looks like); to **run** tests
-against them, use `/wicked-testing:execution`. (For full requirements-graph AC nodes,
+against them, use the `wicked-garden-qe` skill's `execute` action. (For full requirements-graph AC nodes,
 see the `acceptance-criteria` skill.)
 
 ## Process
@@ -29,7 +29,7 @@ Apply parameters: `--story US-ID`, `--feature name`, `--format gherkin|table|mar
 **QE Handoff Notes**: {special considerations}
 ```
 
-## Optional: `--scenarios` (wicked-testing tie-in)
+## Optional: `--scenarios` (qe tie-in)
 
 When `--scenarios` is passed, convert each story's AC into wicked-scenarios stubs.
 
@@ -73,7 +73,7 @@ timeout: 60
 
 ## Handoff
 
-AC feed into `/wicked-testing:plan` (generate scenarios, create cases, validate
+AC feed into the `wicked-garden-qe` skill's `plan` action (generate scenarios, create cases, validate
 coverage). Persist via `TaskCreate`/`TaskUpdate` with `metadata={event_type:"task",
 chain_id:"{project}.clarify", source_agent:"requirements-analyst", phase:"clarify"}`
 for traceability.

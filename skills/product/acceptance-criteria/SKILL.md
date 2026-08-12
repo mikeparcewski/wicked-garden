@@ -140,7 +140,7 @@ Acceptance criteria feed directly into test scenarios:
 /wicked-garden:product:acceptance phases/design/
 
 # Generate test scenarios from AC
-/wicked-testing:plan
+wicked-garden-qe plan
 ```
 
 **Flow**:

@@ -180,7 +180,7 @@ They do not overlap; pick by target:
 
 An archetype playbook (`skills/archetype/refs/{archetype}.md`) doesn't hardcode a domain pipeline — it reaches for whatever expertise the work needs:
 
-- A `build` reaches for `engineering` to implement and review, `search` to ground changes, and `wicked-testing` for evidence.
+- A `build` reaches for `engineering` to implement and review, `search` to ground changes, and `qe` for evidence.
 - A `review` reaches for engineering `review`, platform `security`, and agentic `review` depending on the target.
 - An `explore` reaches for `jam` to diverge across perspectives.
 - A `specify` reaches for product `elicit` and product `acceptance`.

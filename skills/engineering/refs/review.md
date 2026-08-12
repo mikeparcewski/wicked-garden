@@ -132,7 +132,7 @@ severity: "Critical|High"
 ## Cross-specialist referrals
 
 - Security deep-dive → `wicked-garden:platform:security-engineer`
-- Testing strategy → `wicked-testing:test-strategist`
+- Testing strategy → `wicked-garden-qe-test-strategist`
 - Architecture / structural trade-offs → the `wicked-garden-engineering-solution-architect` fork skill
 - Frontend specifics (React hooks, CSS, a11y), backend specifics (DB, API design,
   queues): handled inline — apply the relevant checklist from this skill's refs.

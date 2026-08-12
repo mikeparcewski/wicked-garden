@@ -1,6 +1,6 @@
 # ADR 0003 — Two required peers (the gate), three opt-in layers
 
-- **Status:** Accepted — executed.
+- **Status:** Accepted — executed. *(Historical note, Phase 6c: `wicked-testing` has since retired as a peer — its skills ship in-catalog as the `qe` domain and the acceptance gate lives in wicked-crew. The opt-in-layer reasoning below is preserved as written.)*
 - **Date:** 2026-06-09
 - **Supersedes:** the v12 stance in `docs/required-peers.md` ("five peers are required infrastructure").
 

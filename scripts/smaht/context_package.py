@@ -67,8 +67,8 @@ PLUGIN_SKILL_MAP = {
         "TaskCreate/TaskUpdate/TaskList/TaskGet — native Claude Code task tools; metadata validated by PreToolUse",
     ],
     "testing": [
-        "/wicked-testing:authoring — generate test scenarios with edge cases",
-        "/wicked-testing:plan — generate comprehensive test plan",
+        "wicked-garden-qe author — generate test scenarios with edge cases",
+        "wicked-garden-qe plan — generate comprehensive test plan",
     ],
     "engineering": [
         "wicked-garden-engineering (review action) — code review with senior engineering perspective",

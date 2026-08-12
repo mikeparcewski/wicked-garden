@@ -34,10 +34,10 @@ peer-resolution engine is built into wicked-garden (scripts/loom/) — nothing t
 for loom. Run vault install and show a progress line:
 
 ```bash
-npx wicked-testing install
+npm i -g wicked-vault
 ```
 
-On failure: display the raw error and note "you can install wicked-vault manually via `npx wicked-testing install` and re-run the wicked-garden-core skill's `install` action to retry." Continue to step 3 regardless — step 5 will surface what's still missing.
+On failure: display the raw error and note "you can install wicked-vault manually via `npm i -g wicked-vault` and re-run the wicked-garden-core skill's `install` action to retry." Continue to step 3 regardless — step 5 will surface what's still missing.
 
 ### 3. Pick optional layers and solo beds
 
@@ -56,7 +56,6 @@ Q1 — multi-select, header "Layers":
 "Which optional layers do you want to add?"
 
 Options (multiSelect: true):
-- label: "wicked-testing", description: "QE pipeline — verdicts your agent can't fake · author ≠ executor ≠ reviewer"
 - label: "wicked-brain", description: "Persistent memory — cross-session recall, cited search, code graph"
 - label: "wicked-understanding", description: "Repo playbooks from HEAD — the repo's 'how,' always current"
 - label: "wicked-bus", description: "Local event bus — one SQLite file, no broker, no daemon, no ports"
@@ -83,7 +82,6 @@ Run in the order listed. Show a ✓ or ✗ line per tool as each completes.
 
 | Tool | Method |
 |---|---|
-| wicked-testing | `npx wicked-testing install` |
 | wicked-brain | Claude Code slash command — display `/plugin install wicked-brain`, ask user to run it, then verify by checking if the plugin dir exists under `~/.claude/plugins/wicked-brain` |
 | wicked-understanding | `npx skills add mikeparcewski/wicked-understanding --all` |
 | wicked-bus | Claude Code slash command — display `/plugin install wicked-bus`, ask user to run it, then verify under `~/.claude/plugins/wicked-bus` |

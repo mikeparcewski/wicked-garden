@@ -40,8 +40,8 @@ TASK_REF_RE = re.compile(
     r'subagent_type\s*=\s*"(wicked-garden:[a-z][a-z0-9-]*:[a-z][a-z0-9-]*)"'
 )
 # Skill-dispatch references in skill bodies. Only the plugin's own dash-form
-# names are checked; sibling-plugin refs (wicked-brain:*, wicked-testing:*)
-# are other repos' surfaces.
+# names are checked; sibling-plugin refs (wicked-brain:*) are other repos'
+# surfaces.
 SKILL_REF_RE = re.compile(
     r"Skill\(skill=[\"'](wicked-garden-[a-z0-9]+(?:-[a-z0-9]+)*)[\"']"
 )

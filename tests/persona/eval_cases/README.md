@@ -56,7 +56,7 @@ These are NOT run by `pytest` (no `test_` prefix, and they require API calls).
 To execute the full model-graded eval, a human runs:
 
 ```bash
-# Pseudocode — wire to your preferred runner (Claude API / wicked-testing evals).
+# Pseudocode — wire to your preferred runner (Claude API / wicked-garden-qe evals).
 # Each arm is one Claude call; the grader is one more. ~3 calls/case.
 python3 tests/persona/eval_cases/run_lift_eval.py        # (not provided — user-gated)
 ```

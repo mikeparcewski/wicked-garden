@@ -35,7 +35,7 @@ jobs:
         # globally-installed vault now satisfies their peer requirement (the
         # GREEN-BUT-HOLLOW fix). The install must succeed: if it fails, the
         # trust spine cannot be exercised and the build is meaningless.
-        run: npm i -g wicked-vault wicked-loom wicked-testing
+        run: npm i -g wicked-vault wicked-loom
 
       - name: Run v11 test suite (incl. tests/e2e/ — real-surface gate + resilience)
         # WICKED_REQUIRE_E2E=1 turns a SKIP of the trust-spine ProveEndToEnd

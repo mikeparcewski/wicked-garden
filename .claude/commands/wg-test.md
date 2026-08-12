@@ -51,7 +51,7 @@ Also check whether the plugin runtime actually loaded:
 echo "CLAUDE_PLUGIN_ROOT=${CLAUDE_PLUGIN_ROOT:-NOT_SET}"
 ```
 
-If `CLAUDE_PLUGIN_ROOT` is not set, the plugin commands (like `/wicked-testing:execution`) are NOT registered as invokable skills — even if the command files exist on disk. This is normal when running in environments where the plugin marketplace isn't active (e.g., Claude Code on the web). The inline execution fallback in Step 5 handles this case.
+If `CLAUDE_PLUGIN_ROOT` is not set, the plugin skills (like `wicked-garden-qe`) are NOT registered as invokable skills — even if the command files exist on disk. This is normal when running in environments where the plugin marketplace isn't active (e.g., Claude Code on the web). The inline execution fallback in Step 5 handles this case.
 
 ### 3. Scenario Discovery
 
@@ -115,23 +115,23 @@ Use the tier detected in Step 4 to select the execution path. Try Tier 1 first; 
 
 **Tier 1 — Skill delegation (plugin loaded OR skills registered):**
 
-Delegate to `/wicked-testing:execution` (primary) via the Skill tool.
+Delegate to the `wicked-garden-qe` skill's `execute` action (primary) via the Skill tool.
 
-**Primary — wicked-testing execution (full pipeline):**
+**Primary — qe execute (full pipeline):**
 
 Single scenario:
 ```
 Skill(
-  skill="wicked-testing:execution",
-  args="scenarios/${domain}/${scenario_file}"
+  skill="wicked-garden-qe",
+  args="execute scenarios/${domain}/${scenario_file}"
 )
 ```
 
 All scenarios for a domain (`--all`):
 ```
 Skill(
-  skill="wicked-testing:execution",
-  args="scenarios/${domain}/ --all"
+  skill="wicked-garden-qe",
+  args="execute scenarios/${domain}/ --all"
 )
 ```
 
@@ -139,8 +139,8 @@ All scenarios (`--all`) — run sequentially; the glob already yields the full r
 ```
 for each scenario_file in scenarios/${domain}/*.md (excluding README.md):
   Skill(
-    skill="wicked-testing:execution",
-    args="${scenario_file}"
+    skill="wicked-garden-qe",
+    args="execute ${scenario_file}"
   )
 ```
 
@@ -161,7 +161,7 @@ For each scenario file:
 5. **Execute Setup** — find the `## Setup` section, extract its fenced code block, run via Bash
 6. **Execute Steps** — for each `### Step N:` section:
    - Extract the fenced code block
-   - **If the code block contains a slash command (`/wicked-garden:*` or `/wicked-testing:*`)**:
+   - **If the code block contains a skill invocation (`wicked-garden-*`, including `wicked-garden-qe`)**:
      - In a tagged scenario this path never runs (Step 3 short-circuited).
      - In an **untagged hybrid** scenario: dispatch via the Skill tool when available; if Skill is unavailable, record the step as **MANUAL-ONLY** (do NOT mark FAIL or SKIP).
    - If a CLI dependency is not available, record the step as **SKIPPED**
@@ -264,18 +264,18 @@ Each batch debug log captures:
 
 After testing completes with failures:
 
-**Primary path:** wicked-testing execution produces structured verdicts (`task_verdicts`, `acceptance_criteria_verdicts`, `failure_analysis`). Invoke report:
+**Primary path:** qe execute produces structured verdicts (`task_verdicts`, `acceptance_criteria_verdicts`, `failure_analysis`). Invoke report:
 ```
 Skill(
-  skill="wicked-testing:insight",
-  args="--auto"
+  skill="wicked-garden-qe",
+  args="insight --auto"
 )
 ```
 
 **Inline fallback path:** Inline execution produces simple exit codes (0/1/2) and markdown output, NOT structured verdicts. The `insight` command requires structured fields, so issue filing is **not available** in this degradation path. Instead, display:
 ```
-Failures detected (exit code 1). Automatic issue filing requires wicked-testing
-for structured test verdicts. File manually: gh issue create --title "test(<domain>): ..." --label bug
+Failures detected (exit code 1). Automatic issue filing requires the qe
+pipeline for structured test verdicts. File manually: gh issue create --title "test(<domain>): ..." --label bug
 ```
 
 **Neither available:** No testing occurred, no issue filing.
@@ -495,5 +495,5 @@ This command (`/wg-test`) is a dev-tool wrapper that adds only:
 - Pipeline detection and degradation fallback
 
 Testing intelligence is owned by:
-- **wicked-testing plugin** — execution pipeline, evidence protocol, assertions, issue filing
+- **qe domain (`wicked-garden-qe`)** — execution pipeline, evidence protocol, assertions, issue filing
 - **skill-creator** — skill quality assessment, standards validation, and improvement suggestions

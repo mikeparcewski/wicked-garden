@@ -87,7 +87,7 @@ method." Absent? Discover it the usual way — and consider
 ### test
 
 1. The rigor picked in plan governs which tests get written.
-2. Use `wicked-testing:authoring` to generate tests when the rigor is
+2. Use the `wicked-garden-qe` skill's `author` action to generate tests when the rigor is
    medium or high.
 3. **Tests must actually fail when the code is wrong.** The
    test-code-quality-auditor exists for a reason — assertion-free

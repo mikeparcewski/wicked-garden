@@ -140,8 +140,8 @@ the evaluator is not the agent that did the work, recorded as a
 tamper-evident attestation (`--with-attestations`). Self-graded "done"
 cannot clear a hard gate.
 
-This makes **wicked-vault** a required peer alongside wicked-bus,
-wicked-brain, and wicked-testing — on npm, `>= 0.3`.
+This makes **wicked-vault** a required peer alongside wicked-bus and
+wicked-brain — on npm, `>= 0.4`.
 
 ## What replaces propose-process
 

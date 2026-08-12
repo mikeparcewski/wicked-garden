@@ -128,5 +128,5 @@ profile/plan/review/receipt files, and a deferred-items log. Exact tree in
 - [refs/recon-synthesis.md](refs/recon-synthesis.md) — recon wave, fit-matrix, relevance tiers, the single checkpoint question, scratch-dir layout
 - [refs/fan-out.md](refs/fan-out.md) — parallel implementer wave + the **implementer brief template**, impact analysis, in-scope cleanup
 - [refs/independent-verification.md](refs/independent-verification.md) — the verifier wave + the **verifier brief template**, isolation, over-claim kills, PASS/FAIL/PARTIAL
-- [refs/receipts-and-evidence.md](refs/receipts-and-evidence.md) — verbatim receipts, prove/vault/wicked-testing composition, honest GAP/PARTIAL/ALREADY-COVERED marking
+- [refs/receipts-and-evidence.md](refs/receipts-and-evidence.md) — verbatim receipts, prove/vault/qe composition, honest GAP/PARTIAL/ALREADY-COVERED marking
 - [refs/ship-discipline.md](refs/ship-discipline.md) — branch-per-unit, conventional commits, CI-green gate, independent review + resolve, clean merge tree, tag-driven release

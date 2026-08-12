@@ -216,16 +216,16 @@ go = {
     'score': 0.84,
     'reviewer': 'qe-orchestrator',
     'reviewers_dispatched': [
-        'wicked-testing:testability-reviewer',
-        'wicked-testing:test-strategist',
-        'wicked-testing:risk-assessor',
+        'wicked-garden-qe-testability-reviewer',
+        'wicked-garden-qe-test-strategist',
+        'wicked-garden-qe-risk-assessor',
     ],
     'dispatch_mode': 'parallel',
     'serial_reason': None,
     'per_reviewer_verdicts': [
-        {'reviewer': 'wicked-testing:testability-reviewer', 'verdict': 'APPROVE', 'score': 0.86, 'summary': 'design is testable'},
-        {'reviewer': 'wicked-testing:test-strategist',     'verdict': 'APPROVE', 'score': 0.82, 'summary': 'scenarios cover ACs'},
-        {'reviewer': 'wicked-testing:risk-assessor',       'verdict': 'APPROVE', 'score': 0.84, 'summary': 'risk acceptable'},
+        {'reviewer': 'wicked-garden-qe-testability-reviewer', 'verdict': 'APPROVE', 'score': 0.86, 'summary': 'design is testable'},
+        {'reviewer': 'wicked-garden-qe-test-strategist',     'verdict': 'APPROVE', 'score': 0.82, 'summary': 'scenarios cover ACs'},
+        {'reviewer': 'wicked-garden-qe-risk-assessor',       'verdict': 'APPROVE', 'score': 0.84, 'summary': 'risk acceptable'},
     ],
     'findings': [],
     'conditions': [],
@@ -251,7 +251,7 @@ if go['dispatch_mode'] == 'serial':
     assert go.get('serial_reason'), 'serial dispatch missing serial_reason'
 verdicts = go['per_reviewer_verdicts']
 assert len(verdicts) == 3, f'strategy gate must batch 3 reviewers, got {len(verdicts)}'
-expected = {'wicked-testing:testability-reviewer','wicked-testing:test-strategist','wicked-testing:risk-assessor'}
+expected = {'wicked-garden-qe-testability-reviewer','wicked-garden-qe-test-strategist','wicked-garden-qe-risk-assessor'}
 got = {v['reviewer'] for v in verdicts}
 assert got == expected, f'reviewer set mismatch: expected {expected}, got {got}'
 # APPROVE invariant: empty conditions + blockers + score >= 0.70

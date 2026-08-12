@@ -12,7 +12,7 @@ can't re-derive it, it isn't proven — it's a claim, and claims are rejected.
 | `/wicked-garden-prove <claim> --by "<cmd>" [--verifier ...]` | The one-line receipt: runs the command, freezes its real exit code as wicked-vault evidence, gates by **re-running** the verifier. Exit 0 only on a re-derived PASS; **fail-closed** (exit 3) when the backend is down — never a vacuous pass. Works on **interim** artifacts too (prove a produce the moment it exists). |
 | `/wicked-garden-prove ... --with-attestations` | Hard gates (review / incident / migrate). Stays REJECT (`UNATTESTED`) until an **independent** evaluator runs `wicked-vault attest <id> --opinion pass`. The doer's own evidence cannot satisfy it — that is the anti-self-grade point. |
 | `wicked-vault attest <id> --opinion pass --evaluator <who>` | The independent sign-off itself. Fails closed on `evaluator == creator` and on weak/ambient identity (record under an explicit `--actor`, default `garden-prove`). |
-| `wicked-testing:*` verdicts (writer → executor → reviewer, isolated) | When the unit needs a full evidence-gated acceptance verdict rather than a single command receipt. The reviewer is isolated from execution — same independence principle as the verify wave. |
+| `wicked-garden-qe` acceptance verdicts (writer → executor → reviewer, isolated) | When the unit needs a full evidence-gated acceptance verdict rather than a single command receipt. The reviewer is isolated from execution — same independence principle as the verify wave. |
 
 This is the **Sentinel rule** made concrete: a done-claim needs a *re-derived
 verdict*, not a self-report. `/wicked-garden-prove` is the verb you reach for by
