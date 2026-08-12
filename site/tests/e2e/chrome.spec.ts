@@ -35,8 +35,11 @@ test('ecosystem dropdown opens on click and closes on Escape', async ({ page }) 
   await btn.click();
   await expect(menu).toBeVisible();
   await expect(btn).toHaveAttribute('aria-expanded', 'true');
-  await expect(menu.getByRole('link', { name: /garden/ })).toBeVisible();
-  await expect(menu.getByRole('link', { name: /crew/ })).toBeVisible();
+  // The 61396e4 chrome groups the menu by the four planes; assert the plane
+  // groups and the unambiguous site links (several labels mention "crew").
+  await expect(menu.locator('.dropdown-plane')).toHaveCount(4);
+  await expect(menu.locator('a[href="https://wg.wickedagile.com"]')).toBeVisible();
+  await expect(menu.locator('a[href="https://wc.wickedagile.com"]')).toBeVisible();
 
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();

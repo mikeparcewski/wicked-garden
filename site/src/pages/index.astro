@@ -1,7 +1,19 @@
 ---
+/**
+ * index.astro — wicked-garden (wg.wickedagile.com), the CAPABILITY deep-dive.
+ *
+ * Wave-2 rebuild. Garden is the capability plane of the wicked platform — THE
+ * catalog agents act through: the toolkit for what a coding agent can't do
+ * alone, where "done" is re-derived from evidence, never asserted. The retired
+ * wicked-testing site's story (the wall, the 40-specialist fleet) now lives
+ * here as the qe domain bands (#qe / #fleet) — wt.wickedagile.com redirects
+ * to #qe. Chrome (Base/Topbar/Footer/SameGarden + plane tokens) comes from
+ * wicked-web pinned at 61396e4 (the four-plane platform story).
+ */
 import Base from "wicked-web/layouts/Base.astro";
 import Topbar from "wicked-web/components/Topbar.astro";
 import Footer from "wicked-web/components/Footer.astro";
+import SameGarden from "wicked-web/components/SameGarden.astro";
 import "../styles/global.css";
 import "../styles/site.css";
 import CopyChip from "../components/react/CopyChip.tsx";
@@ -9,14 +21,17 @@ import HeroStamp from "../components/react/HeroStamp.tsx";
 import Toolbox from "../components/react/Toolbox.tsx";
 import ProveGate from "../components/react/ProveGate.tsx";
 import CapabilityGrid from "../components/react/CapabilityGrid.tsx";
+import QeWall from "../components/react/QeWall.tsx";
+import QeFleet from "../components/react/QeFleet.tsx";
+import ExtendPack from "../components/react/ExtendPack.tsx";
 import InstallBench from "../components/react/InstallBench.tsx";
 
 const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
 ---
 
 <Base
-  title="wicked-garden — the toolkit for what your coding agent can't do alone"
-  description="wicked-garden is the toolkit for what your coding agent can't do alone — 'done' re-derived from evidence, never asserted. A wicked-* peer. Local-first, MIT."
+  title="wicked-garden — the capability plane: the catalog agents act through"
+  description="wicked-garden is the capability plane of the wicked platform — THE catalog: the toolkit for what your coding agent can't do alone, where 'done' is re-derived from evidence, never asserted. 141 skills across 14 domains, the absorbed 40-specialist QE fleet and its acceptance wall, estate-backed memory and graph refactors, multi-model councils — and an open naming contract to ship your own domain pack. Local-first, MIT."
   bodyClass="has-grain"
   favicon={favicon}
 >
@@ -29,15 +44,16 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
         <div class="gd-hero-grid">
           <div class="gd-hero-pitch">
             <p class="rise kicker" style="animation-delay:.05s">
-              the toolkit · open-source · MIT
+              the capability plane · the catalog · MIT
             </p>
             <h1 class="gd-hero-h1">
               <span class="rise block" style="animation-delay:.12s">The tools your coding agent</span>
               <span class="rise block gd-hero-h1-2" style="animation-delay:.2s">can’t build alone.</span>
             </h1>
             <p class="rise gd-hero-sub" style="animation-delay:.3s">
-              Your harness already plans, swarms, and ships. wicked-garden refuses to wrestle it
-              and fills only the gaps a planner-executor can’t fill alone — starting with the one
+              Your harness already plans, swarms, and ships. wicked-garden is the
+              capability plane it acts through — the catalog that fills only the gaps a
+              planner-executor can’t fill alone, starting with the one
               that matters most: <span class="gd-hero-em">done is re-derived from evidence, never asserted.</span>
             </p>
             <div class="rise gd-hero-install" style="animation-delay:.42s">
@@ -46,8 +62,9 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
               <p class="gd-hero-install-note">interactive · picks your products across CLIs · direct install below</p>
             </div>
             <ul class="rise gd-hero-stats" style="animation-delay:.5s">
-              <li><b>94</b> skills</li>
-              <li><b>12</b> domains</li>
+              <li><b>141</b> skills</li>
+              <li><b>14</b> domains</li>
+              <li><b>40</b> QE specialists</li>
               <li><b>10</b> work-shapes</li>
               <li><b>MIT</b> · local-first</li>
             </ul>
@@ -74,9 +91,29 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
       <CapabilityGrid client:load />
     </section>
 
+    <!-- ── THE QE WALL (absorbed from the retired wicked-testing site) ──── -->
+    <section id="qe" class="gd-section">
+      <QeWall client:load />
+    </section>
+
+    <!-- ── THE QE FLEET (40 specialists, tabbed by surface) ─────────────── -->
+    <section id="fleet" class="gd-section gd-band">
+      <QeFleet client:load />
+    </section>
+
+    <!-- ── BUILD ON IT (the extension pitch) ────────────────────────────── -->
+    <section id="extend" class="gd-section">
+      <ExtendPack client:load />
+    </section>
+
     <!-- ── THE BENCH (install) ──────────────────────────────────────────── -->
-    <section id="install" class="gd-section">
+    <section id="install" class="gd-section gd-band">
       <InstallBench client:load />
+    </section>
+
+    <!-- ── THE PLATFORM MAP (shared chrome — you are here: capability) ──── -->
+    <section id="platform-map" class="gd-map-section">
+      <SameGarden current="wicked-garden" />
     </section>
 
   </main>

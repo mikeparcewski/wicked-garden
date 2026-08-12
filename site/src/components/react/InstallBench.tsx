@@ -15,7 +15,7 @@ export default function InstallBench() {
   return (
     <div className="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
       <Reveal>
-        <p className="kicker">04 / the bench</p>
+        <p className="kicker">07 / the bench</p>
         <h2 className="ib-h2">One command. The whole loadout.</h2>
         <p className="ib-intro">
           The family installer is the fastest way in — one interactive command that picks
@@ -49,7 +49,7 @@ export default function InstallBench() {
             </div>
           ))}
         </div>
-        <p className="ib-foot">MIT · open-source · v12.27.0 · local-first — nothing leaves your machine.</p>
+        <p className="ib-foot">MIT · open-source · v12.29.1 · local-first — nothing leaves your machine.</p>
       </Reveal>
     </div>
   );
