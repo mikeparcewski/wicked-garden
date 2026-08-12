@@ -388,7 +388,9 @@ def test_floor_never_overwrites_existing_statement(tmp_path, monkeypatch):
 
 def test_source_slice_decompresses_zstd_blobs(tmp_path):
     import json as J, sqlite3
-    from compression import zstd
+    zstd = pytest.importorskip(
+        "compression.zstd", reason="stdlib compression.zstd requires Python 3.14+"
+    )
     db = tmp_path / "estate-z.db"
     c = sqlite3.connect(db)
     c.executescript("""

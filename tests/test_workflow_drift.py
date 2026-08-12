@@ -14,8 +14,11 @@ file itself):
      name (``WorkflowDef``), not to a dead local file.
   4. When a wicked-crew checkout is resolvable (WICKED_CREW_ROOT env, or the
      ``../wicked-crew`` sibling), the contract terms the skill leans on must
-     still exist in crew's ``WorkflowDef``/``PhaseDef`` source. Skipped —
-     never vacuously passed — when crew isn't present (graceful-degradation
+     still exist in crew's ``WorkflowDef``/``PhaseDef`` source — the shared
+     contract package ``packages/crew-api-types/index.d.ts`` (canonical since
+     crew 1c60078d, the one-API-two-skins work), falling back to the legacy
+     ``packages/crew/src/core/types.ts`` it superseded. Skipped — never
+     vacuously passed — when crew isn't present (graceful-degradation
      doctrine: a peer's absence must not fail garden CI).
 """
 
@@ -42,6 +45,15 @@ _CREW_CONTRACT_TERMS = ("WorkflowDef", "PhaseDef", "depends_on", "gate_type", "s
 # not repo data files — exempt from the existence check by design.
 _RUNTIME_ARTIFACTS = {"conditions-manifest.json"}
 
+# Where crew's workflows-as-data contract may live, most canonical first:
+# the shared contract package (crew 1c60078d+), then the engine-internal
+# types module it superseded (now a re-export shim). Probing both keeps this
+# guard working whichever location is canonical in a given crew checkout.
+_CREW_CONTRACT_RELPATHS = (
+    Path("packages") / "crew-api-types" / "index.d.ts",
+    Path("packages") / "crew" / "src" / "core" / "types.ts",
+)
+
 
 def _skill_text() -> str:
     assert _WORKFLOW_SKILL.exists(), "skills/workflow/SKILL.md is missing"
@@ -54,9 +66,15 @@ def _resolve_crew_root() -> Path | None:
     candidates = [Path(env)] if env else []
     candidates.append(_REPO_ROOT.parent / "wicked-crew")
     for cand in candidates:
-        if (cand / "packages" / "crew" / "src" / "core" / "types.ts").is_file():
+        if any((cand / rel).is_file() for rel in _CREW_CONTRACT_RELPATHS):
             return cand
     return None
+
+
+def _crew_contract_sources(crew_root: Path) -> list[Path]:
+    """Contract files present in this checkout, contract package first."""
+    return [crew_root / rel for rel in _CREW_CONTRACT_RELPATHS
+            if (crew_root / rel).is_file()]
 
 
 def test_workflow_skill_data_file_references_exist():
@@ -112,17 +130,24 @@ def test_workflow_skill_anchors_to_crew_workflows_as_data():
 
 
 def test_workflow_skill_terms_exist_in_crew_contract():
-    """Cross-check against crew's types.ts when a checkout is resolvable."""
+    """Cross-check against crew's contract source when a checkout is resolvable.
+
+    The contract moved from ``packages/crew/src/core/types.ts`` to the shared
+    contract package ``packages/crew-api-types/index.d.ts`` (crew 1c60078d+).
+    Every present candidate is searched — contract package first — so the
+    guard keeps working whichever location a given crew checkout treats as
+    canonical.
+    """
     crew_root = _resolve_crew_root()
     if crew_root is None:
         pytest.skip("no wicked-crew checkout (set WICKED_CREW_ROOT to enable)")
-    types_ts = (crew_root / "packages" / "crew" / "src" / "core" / "types.ts").read_text(
-        encoding="utf-8"
-    )
-    gone = [term for term in _CREW_CONTRACT_TERMS if term not in types_ts]
+    sources = _crew_contract_sources(crew_root)
+    combined = "\n".join(p.read_text(encoding="utf-8") for p in sources)
+    gone = [term for term in _CREW_CONTRACT_TERMS if term not in combined]
     assert not gone, (
         f"crew's workflow contract no longer defines {gone} "
-        f"(checked {crew_root}/packages/crew/src/core/types.ts) — "
-        "skills/workflow/SKILL.md documents these terms and must be updated "
-        "with the contract."
+        f"(checked: {', '.join(str(p) for p in sources)}; the contract lives "
+        f"in {' or, failing that, '.join(str(r) for r in _CREW_CONTRACT_RELPATHS)} "
+        f"under the crew root) — skills/workflow/SKILL.md documents these "
+        "terms and must be updated with the contract."
     )

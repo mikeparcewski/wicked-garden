@@ -65,7 +65,10 @@ crew's `WorkflowDef` (id + ordered `PhaseDef[]` with `gate`, `depends_on`,
 > **Drift-guard**: `tests/test_workflow_drift.py` pins this skill to the
 > engine's data — verdict vocabulary to `scripts/_event_schema.py` and the
 > contract terms to crew's `WorkflowDef` (when a wicked-crew checkout is
-> resolvable). Update this reference and the data together, never one side.
+> resolvable; canonical source is the `wicked-crew-api-types` contract package,
+> `packages/crew-api-types/index.d.ts`, with the legacy
+> `packages/crew/src/core/types.ts` as fallback). Update this reference and
+> the data together, never one side.
 
 ### Phase Summary
 
