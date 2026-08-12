@@ -749,6 +749,22 @@ def check_bus_handlers(plugin_root: Path) -> List[Dict[str, Any]]:
         )
         return findings
 
+    # 4-segment format: wicked.<domain>.<noun>.<past-tense-verb>
+    _segment_re = re.compile(r"^wicked\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*\.[a-z][a-z0-9_-]*$")
+    for evt in sorted(event_keys):
+        if not _segment_re.match(evt):
+            findings.append(
+                {
+                    "category": CAT_MALFORMED,
+                    "check": "bus.event_format",
+                    "target": evt,
+                    "detail": (
+                        "event key does not follow the canonical 4-segment format "
+                        "wicked.<domain>.<noun>.<verb> (SPEC: WICKED_GARDEN_BUS_EVENTS.md)"
+                    ),
+                }
+            )
+
     audit_marker = set(_AUDIT_MARKER_EVENTS)
     for evt in sorted(event_keys):
         if evt in audit_marker:
