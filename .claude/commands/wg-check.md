@@ -40,49 +40,8 @@ if ! python3 -m json.tool ".claude-plugin/plugin.json" > /dev/null 2>&1; then
   echo "ERROR: Invalid JSON in plugin.json"
 fi
 
-# Validate wicked_testing_version field exists and is a valid semver range
-python3 -c "
-import json, re, sys
-data = json.load(open('.claude-plugin/plugin.json'))
-field = data.get('wicked_testing_version')
-if field is None:
-    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.2.0\")')
-    sys.exit(1)
-if not isinstance(field, str):
-    print(f'ERROR: plugin.json wicked_testing_version must be a string, got {type(field).__name__}')
-    sys.exit(1)
-# Accept caret, tilde, exact, X-ranges, comparison operators, hyphen ranges, and logical-or (||)
-semver_range = re.compile(
-    r'^'
-    r'(\|\||\s*&&\s*)?'  # allow combining operators
-    r'(\s*'
-    r'([~^]?[0-9*x]+(\.[0-9*x]+){0,2}(-[A-Za-z0-9.-]+)?(\+[A-Za-z0-9.-]+)?'  # caret/tilde/exact/X-range
-    r'|[<>]=?\s*[0-9]+(\.[0-9]+){0,2}(-[A-Za-z0-9.-]+)?'  # comparison range
-    r'|\*'  # wildcard any
-    r')'
-    r'\s*(\|\|\s*[~^]?[0-9*x]+(\.[0-9*x]+){0,2}(-[A-Za-z0-9.-]+)?)*'  # or-clauses
-    r')+\$'
-)
-if not semver_range.match(field.strip()):
-    print(f'ERROR: plugin.json wicked_testing_version \"{field}\" is not a valid semver range (accepted forms: ^1.0.0, ~1.2, 1.x, >=1.0.0, 1.0.0 - 2.0.0, *)')
-    sys.exit(1)
-print(f'OK: wicked_testing_version = \"{field}\"')
-" 2>/dev/null || python -c "
-import json, re, sys
-data = json.load(open('.claude-plugin/plugin.json'))
-field = data.get('wicked_testing_version')
-if field is None:
-    print('ERROR: plugin.json missing required field: wicked_testing_version (expected a semver range string, e.g. \"^0.2.0\")')
-    sys.exit(1)
-if not isinstance(field, str):
-    print('ERROR: plugin.json wicked_testing_version must be a string')
-    sys.exit(1)
-semver_range = re.compile(r'^[~^]?[0-9*xX]+(\.[0-9*xX]+){0,2}(-[A-Za-z0-9.-]+)?(\+[A-Za-z0-9.-]+)?(\s*\|\|\s*[~^]?[0-9*xX]+(\.[0-9*xX]+){0,2}(-[A-Za-z0-9.-]+)?)*\$|^[<>]=?\s*[0-9]+(\.[0-9]+){0,2}(-[A-Za-z0-9.-]+)?(\s*\|\|\s*[<>]=?\s*[0-9]+(\.[0-9]+){0,2}(-[A-Za-z0-9.-]+)?)*\$|^\*\$')
-if not semver_range.match(field.strip()):
-    print('ERROR: plugin.json wicked_testing_version is not a valid semver range')
-    sys.exit(1)
-print('OK: wicked_testing_version = \"' + field + '\"')
-"
+# (Phase 6c: the wicked_testing_version pin validation was removed — the
+# wicked-testing peer retired; the qe domain ships in-catalog.)
 ```
 
 ### 2. JSON Validity
@@ -994,7 +953,6 @@ a short "TODO: implement" body) and replace it in the follow-up.
 |-------|--------|
 | plugin.json | ✓/✗ |
 | Version (semver) | ✓/✗ |
-| wicked_testing_version (semver range) | ✓/✗ |
 | JSON validity | ✓/✗ |
 | Skills ≤200 lines | ✓/✗ |
 | Agent line counts (#664) | ✓/⚠/✗ |
