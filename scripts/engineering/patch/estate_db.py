@@ -179,7 +179,8 @@ def build_patch_db(estate_db: Path, out_db: Path) -> Dict[str, int]:
             f"estate store not found: {estate_db}; build one with"
             f" `wicked-estate index <repo> --db {estate_db}`"
         )
-    src = sqlite3.connect(f"file:{estate_db}?mode=ro", uri=True)
+    # POSIX separators keep the sqlite URI valid on Windows paths too.
+    src = sqlite3.connect(f"file:{estate_db.as_posix()}?mode=ro", uri=True)
     src.row_factory = sqlite3.Row
     try:
         _probe_schema(src, estate_db)
