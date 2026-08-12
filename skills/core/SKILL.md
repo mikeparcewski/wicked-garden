@@ -87,6 +87,7 @@ Each domain is one consolidated skill that routes to its actions.
 | `wicked-garden-persona` | Define and invoke named personas to perform work with a specific lens | as · define · list |
 | `wicked-garden-platform` | Security, infrastructure, compliance, CI/CD, incidents, traces, and plugin diagnostics | security · compliance · incident · health |
 | `wicked-garden-product` | Requirements, customer feedback, strategy, UX, accessibility, and design review | elicit · acceptance · analyze · strategy · ux-review |
+| `wicked-garden-qe` | Evidence-gated quality engineering: strategy, scenario authoring, execution, independent verdicts, ledger insight, and the 3-agent acceptance pipeline | setup · plan · author · execute · review · insight · accept |
 | `wicked-garden-search` | Structural code search, lineage, blast-radius, and codebase intelligence | blast-radius · lineage · hotspots · service-map · index |
 | `wicked-garden-smaht` | On-demand context assembly + session briefing from brain, search, and the event log | briefing · state · events-import · intent |
 
@@ -111,8 +112,8 @@ Each domain is one consolidated skill that routes to its actions.
    discipline, and cost band (steering, not a fixed pipeline).
 2. **smaht** assembles context on demand (pull-model) from brain, search, and
    the unified event log — there is no per-prompt push.
-3. **Specialist domains** (engineering, platform, product, data, agentic, jam,
-   search) provide deep expertise the harness routes into.
+3. **Specialist domains** (engineering, platform, product, qe, data, agentic,
+   jam, search) provide deep expertise the harness routes into.
 4. **`wicked-garden-prove`** re-derives an archetype's "done" through the
    evidence gate rather than trusting a "tests pass" claim.
 5. **State** persists across sessions via wicked-brain memory, search indexes,

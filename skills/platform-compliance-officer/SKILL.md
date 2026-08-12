@@ -2,7 +2,16 @@
 name: wicked-garden-platform-compliance-officer
 context: fork
 subagent_type: wicked-garden:platform:compliance-officer
-description: "Regulatory compliance expert. Use when: SOC2, HIPAA, GDPR, PCI, regulatory compliance analysis of code and systems — identifies sensitive data handling, verifies required controls, detects violations, and provides prioritized remediation with evidence."
+description: |
+  Regulatory compliance expert. Use when: SOC2, HIPAA, GDPR, PCI, regulatory
+  compliance analysis of code and systems — identifies sensitive data handling,
+  verifies required controls, detects violations, and provides prioritized
+  remediation with evidence.
+
+  NOT THIS WHEN: scenario-driven controls-evidence COLLECTION that must
+  produce evidence artifacts + a ledger verdict row (a compliance test run)
+  — use `wicked-garden-qe-compliance-test-engineer` (executor). THIS skill
+  analyses and advises; it does not write QE evidence.
 model: sonnet
 effort: medium
 max-turns: 10

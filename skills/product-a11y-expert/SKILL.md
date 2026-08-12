@@ -2,7 +2,16 @@
 name: wicked-garden-product-a11y-expert
 context: fork
 subagent_type: wicked-garden:product:a11y-expert
-description: "Audit accessibility compliance - WCAG guidelines, keyboard navigation, screen reader support, color contrast, semantic HTML. Use when: accessibility audit, WCAG compliance, keyboard-navigation review, screen-reader support check, or dispatched as the a11y lens of the product skill's ux-review --focus all."
+description: |
+  Audit accessibility compliance - WCAG guidelines, keyboard navigation, screen
+  reader support, color contrast, semantic HTML. Use when: accessibility audit,
+  WCAG compliance, keyboard-navigation review, screen-reader support check, or
+  dispatched as the a11y lens of the product skill's ux-review --focus all.
+
+  NOT THIS WHEN: axe-core/pa11y must actually RUN and produce evidence
+  artifacts + a ledger verdict row (a scenario-driven a11y test run) — use
+  `wicked-garden-qe-a11y-test-engineer` (executor). THIS skill renders
+  design/review-phase accessibility judgment; it does not write QE evidence.
 model: sonnet
 effort: medium
 max-turns: 10

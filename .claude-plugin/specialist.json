@@ -23,7 +23,7 @@
     {
       "name": "qe",
       "role": "quality-engineering",
-      "description": "Quality Engineering specialist powered by wicked-testing peer plugin. Crew dispatches QE agents by their wicked-testing:* subagent_type names. Covers test strategy, scenario generation, testability review, semantic alignment, risk assessment, test automation, and shift-left quality practices. Requires wicked-testing ^0.2 installed.",
+      "description": "Quality Engineering specialist — in-catalog qe domain (Phase 6b). Crew dispatches QE workers by their wicked-garden-qe-* skill names (router: wicked-garden-qe). Covers test strategy, scenario generation, testability review, semantic alignment, risk assessment, test automation, evidence-gated acceptance testing, and shift-left quality practices.",
       "enhances": ["clarify", "design", "qe", "build", "review", "operate", "*"]
     },
     {
