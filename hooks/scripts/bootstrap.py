@@ -773,8 +773,8 @@ def _check_loom_dependency():
 def _check_bus_dependency():
     """Return a briefing note if wicked-bus is not installed, else None.
 
-    wicked-bus is a required peer (sibling to wicked-brain / wicked-vault):
-    the garden's archetype events flow through it. When it
+    wicked-bus is an opt-in layer (sibling to wicked-brain / wicked-vault —
+    see ADR 0003): the garden's archetype events flow through it. When it
     is absent, cross-plugin event wiring is silently dropped, so we surface a
     one-line install pointer at SessionStart.
 
