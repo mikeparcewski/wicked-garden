@@ -1130,8 +1130,11 @@ def _scan_for_legacy_reeval_entries() -> str | None:
     """
     try:
         import getpass
+        import re
         import tempfile
-        _user = getpass.getuser()
+        _raw_user = getpass.getuser()
+        # Strip path separators and other unsafe chars (e.g. DOMAIN\user on Windows)
+        _user = re.sub(r"[^\w.-]", "_", _raw_user)
         _stamp = Path(tempfile.gettempdir()) / f"wicked-garden-ch02-clean-{_user}.stamp"
         # Cache hit: if stamp is < 24h old the tree was clean on last scan
         if _stamp.exists() and (time.time() - _stamp.stat().st_mtime) < 86400:
