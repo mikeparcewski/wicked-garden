@@ -36,12 +36,22 @@ _ENV = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(_REPO)}
 
 
 class BootstrapEndToEndTests(unittest.TestCase):
+    def setUp(self):
+        # Isolated HOME so no other test's capability-registry state bleeds in
+        # (the regression tested by test_bootstrap_emits_no_unknown_capability_warnings
+        # is ordering-sensitive if the real HOME is shared — garden#1062).
+        self._home = configured_home()
+
+    def tearDown(self):
+        self._home.cleanup()
+
     def _run_bootstrap(self):
         payload = json.dumps({"hook_event_name": "SessionStart",
                               "cwd": str(_REPO), "session_id": "e2e-boot"})
+        env = {**_ENV, "HOME": self._home.name}
         return subprocess.run([sys.executable, str(_INVOKE), "bootstrap"],
                               input=payload, capture_output=True, text=True,
-                              env=_ENV, cwd=str(_REPO), timeout=30)
+                              env=env, cwd=str(_REPO), timeout=30)
 
     def test_bootstrap_returns_valid_json_and_does_not_crash(self):
         proc = self._run_bootstrap()
