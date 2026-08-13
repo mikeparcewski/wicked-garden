@@ -17,7 +17,7 @@
 
 ## The premise
 
-Coding agents grew up. Claude Code, Codex, Cursor, Antigravity, Aider, OpenCode, Gemini CLI, Zed/ACP — they're not autocomplete anymore. They plan. They parallelize. And each has *strong opinions* about how it likes to work.
+Coding agents grew up. Claude Code, Codex, Cursor, Antigravity, Aider, OpenCode, Zed/ACP — they're not autocomplete anymore. They plan. They parallelize. And each has *strong opinions* about how it likes to work.
 
 Most plugins try to boss them around — re-implement planning, impose a workflow, make the agent dance. You end up fighting your own tools.
 
@@ -32,7 +32,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
 | forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → the mem domain over wicked-estate |
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
-| asks *itself* for a second opinion | convenes a **real multi-model panel** (Gemini / Codex / …) → the jam skill's `council` action |
+| asks *itself* for a second opinion | convenes a **real multi-model panel** (Antigravity / Codex / …) → the jam skill's `council` action |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
 | grades its own homework | author ≠ executor ≠ reviewer → evidence-gated testing |
 
