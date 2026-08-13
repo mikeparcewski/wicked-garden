@@ -1129,8 +1129,10 @@ def _scan_for_legacy_reeval_entries() -> str | None:
     or None when the tree is clean or unreadable.
     """
     try:
+        import getpass
         import tempfile
-        _stamp = Path(tempfile.gettempdir()) / "wicked-garden-ch02-clean.stamp"
+        _user = getpass.getuser()
+        _stamp = Path(tempfile.gettempdir()) / f"wicked-garden-ch02-clean-{_user}.stamp"
         # Cache hit: if stamp is < 24h old the tree was clean on last scan
         if _stamp.exists() and (time.time() - _stamp.stat().st_mtime) < 86400:
             return None
