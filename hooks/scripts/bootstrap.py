@@ -169,6 +169,9 @@ def _probe_plugin_readiness():
             for org_dir in cache_dir.iterdir():
                 if not org_dir.is_dir():
                     continue
+                # Skip leftover temp dirs from partial plugin installations
+                if org_dir.name.startswith("temp_subdir"):
+                    continue
                 for plugin_dir in org_dir.iterdir():
                     if not plugin_dir.is_dir():
                         continue
@@ -1119,10 +1122,24 @@ def _scan_for_legacy_reeval_entries() -> str | None:
     Light scan — greps for literal strings; does not parse full JSON.
     Fails open — any exception returns None so session is never blocked.
 
+    Result is cached for 24h in a stamp file so the expensive rglob (which
+    traverses tens of thousands of project files) only runs once per day.
+
     Returns a formatted migration notice string when legacy entries are found,
     or None when the tree is clean or unreadable.
     """
     try:
+        import getpass
+        import re
+        import tempfile
+        _raw_user = getpass.getuser()
+        # Strip path separators and other unsafe chars (e.g. DOMAIN\user on Windows)
+        _user = re.sub(r"[^\w.-]", "_", _raw_user)
+        _stamp = Path(tempfile.gettempdir()) / f"wicked-garden-ch02-clean-{_user}.stamp"
+        # Cache hit: if stamp is < 24h old the tree was clean on last scan
+        if _stamp.exists() and (time.time() - _stamp.stat().st_mtime) < 86400:
+            return None
+
         projects_root = Path.home() / ".something-wicked" / "wicked-garden" / "projects"
         if not projects_root.exists():
             return None
@@ -1147,6 +1164,11 @@ def _scan_for_legacy_reeval_entries() -> str | None:
                 continue
 
         if not dirty_files:
+            # Write clean stamp so the next 24h of bootstraps skip this scan
+            try:
+                _stamp.touch()
+            except OSError:
+                pass
             return None
 
         file_list = "\n".join(f"  - {f}" for f in dirty_files[:10])
