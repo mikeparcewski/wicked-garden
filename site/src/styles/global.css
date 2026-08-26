@@ -112,10 +112,10 @@
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
-    /* scroll-snap-type is NOT set here. It lives in exactly one place, site.css, next to the
-       .gd-section rule that creates the snap points and the ≤1023px block that turns both off
-       together. Declaring it in two files means the winner depends on stylesheet order, which
-       is how this site ended up on `mandatory` in the first place. */
+    /* scroll-snap-type is NOT set here. site.css owns it end to end: it enables snapping next
+       to the .gd-section rule that creates the snap points, and disables it again in that
+       file's ≤1023px block. Declaring it here too meant the winner depended on stylesheet
+       order, which is how this site ended up on `mandatory` in the first place. */
     background-color: var(--canvas);
   }
 

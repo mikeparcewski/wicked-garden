@@ -25,16 +25,26 @@ for (const vp of VIEWPORTS) {
   test(`the platform band fits ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto('/');
+    // Measure only once webfonts have settled. Before they swap, text is laid out in the
+    // fallback face and the band can measure SHORTER than it finally renders -- which would pass
+    // this test on a page that does not actually fit. It did not reproduce locally (delta 0),
+    // but it is a race, and a size check that can silently pass early is worse than no check.
+    await page.evaluate(() => document.fonts.ready);
 
     const band = page.locator('.same-garden');
     await expect(band).toHaveCount(1);
 
     // The topbar is position:fixed and overlays the page, so the height a section actually gets
-    // is the viewport minus the bar. Measure it rather than hardcoding the token value.
+    // is the viewport minus the bar. Measure it rather than hardcoding the token value -- and
+    // fail loudly if it cannot be found. Falling back to 0 would make `usable` the whole
+    // viewport, quietly LOOSENING this assertion by 64px on a markup change in wicked-web.
     const barH = await page.evaluate(() => {
-      const bar = document.querySelector('.topbar, header[class*="topbar"]');
+      const bar =
+        document.getElementById('themeBtn')?.closest('header, .topbar') ??
+        document.querySelector('.topbar, header[class*="topbar"]');
       return bar ? Math.round(bar.getBoundingClientRect().height) : 0;
     });
+    expect(barH, 'could not find the topbar to measure — selector has drifted').toBeGreaterThan(0);
     const usable = vp.height - barH;
 
     const h = await band.evaluate((el) => Math.round(el.getBoundingClientRect().height));
@@ -53,6 +63,7 @@ test('a band that fits is still a snap target', async ({ page }) => {
   // which happened once already: the cut-off was left at 690px after the band shrank to 574px.
   await page.setViewportSize({ width: 1280, height: 660 });
   await page.goto('/');
+  await page.evaluate(() => document.fonts.ready);
   const snap = await page.evaluate(
     () => getComputedStyle(document.querySelector('.same-garden')!).scrollSnapAlign.split(' ')[0],
   );
