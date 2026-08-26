@@ -42,12 +42,16 @@ for (const vp of VIEWPORTS) {
       const bar =
         document.getElementById('themeBtn')?.closest('header, .topbar') ??
         document.querySelector('.topbar, header[class*="topbar"]');
-      return bar ? Math.round(bar.getBoundingClientRect().height) : 0;
+      // ceil, not round. A 64.4px bar rounds DOWN to 64, which overstates usable height by
+      // 0.4px and lets that much overflow through undetected. Both roundings in this file are
+      // deliberately in the direction that makes the assertion STRICTER, never looser.
+      return bar ? Math.ceil(bar.getBoundingClientRect().height) : 0;
     });
     expect(barH, 'could not find the topbar to measure — selector has drifted').toBeGreaterThan(0);
     const usable = vp.height - barH;
 
-    const h = await band.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+    // ceil for the same reason: rounding the band DOWN would hide sub-pixel overflow.
+    const h = await band.evaluate((el) => Math.ceil(el.getBoundingClientRect().height));
 
     expect(
       h,
