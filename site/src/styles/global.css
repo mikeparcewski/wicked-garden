@@ -112,10 +112,10 @@
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
-    /* proximity, never mandatory — see the long note in site.css. Under
-       `mandatory` the browser refuses to rest between snap points, which makes
-       the lower half of any over-tall section unreachable by wheel. */
-    scroll-snap-type: y proximity;
+    /* scroll-snap-type is NOT set here. It lives in exactly one place, site.css, next to the
+       .gd-section rule that creates the snap points and the ≤1023px block that turns both off
+       together. Declaring it in two files means the winner depends on stylesheet order, which
+       is how this site ended up on `mandatory` in the first place. */
     background-color: var(--canvas);
   }
 

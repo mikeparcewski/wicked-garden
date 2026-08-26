@@ -23,7 +23,10 @@
    MOBILE/tablet (≤1023px): snap is dropped and min-height released, so
    overflowing content flows naturally, top-aligned, and is never trapped.
    Reduced-motion is honored globally in global.css — no smooth-scroll is
-   added here. */
+   added here.
+   This is the ONLY place scroll-snap-type is declared. It was previously also set in
+   global.css; two declarations meant the winner depended on stylesheet order, which is
+   exactly how this site ended up on `mandatory`. Keep it here, beside the snap points. */
 html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
 .gd-section {
   min-height: 100svh;
