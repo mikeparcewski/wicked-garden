@@ -112,7 +112,10 @@
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
-    scroll-snap-type: y mandatory;
+    /* proximity, never mandatory — see the long note in site.css. Under
+       `mandatory` the browser refuses to rest between snap points, which makes
+       the lower half of any over-tall section unreachable by wheel. */
+    scroll-snap-type: y proximity;
     background-color: var(--canvas);
   }
 

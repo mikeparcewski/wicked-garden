@@ -7,15 +7,24 @@
 ============================================================================ */
 
 /* ── Scroll-lock to section + per-section viewport sizing ──────────────────
-   DESKTOP (≥1024px): mandatory y-snap — one section per screen. Each section
-   is 100svh with `scroll-snap-align:start`; `justify-content:safe center`
-   top-aligns any section taller than the viewport instead of clipping it, and
-   `scroll-padding-top:var(--topbar-h)` offsets the fixed topbar so anchored
-   sections aren't hidden under it. MOBILE/tablet (≤1023px): snap is dropped
-   and min-height released, so overflowing content flows naturally, top-aligned,
-   and is never trapped. Reduced-motion is honored globally in global.css — no
-   smooth-scroll is added here. */
-html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
+   DESKTOP (≥1024px): PROXIMITY y-snap — one section per screen when the
+   section fits, but the browser is still allowed to come to rest between snap
+   points. It must be `proximity`, never `mandatory`: under `mandatory` the
+   viewport is always pulled onto a snap point, so the lower half of any
+   section taller than the viewport is unreachable by wheel scrolling — you
+   physically cannot stop on it (wicked-studio#132). Sections here are sized to
+   fit 1440x700, but content is not a fixed quantity (a longer string, a
+   different font fallback, a zoom level) and `proximity` degrades gracefully
+   when one grows past the fold instead of trapping the reader.
+   Each section is 100svh with `scroll-snap-align:start`;
+   `justify-content:safe center` top-aligns any section taller than the
+   viewport instead of clipping it, and `scroll-padding-top:var(--topbar-h)`
+   offsets the fixed topbar so anchored sections aren't hidden under it.
+   MOBILE/tablet (≤1023px): snap is dropped and min-height released, so
+   overflowing content flows naturally, top-aligned, and is never trapped.
+   Reduced-motion is honored globally in global.css — no smooth-scroll is
+   added here. */
+html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
 .gd-section {
   min-height: 100svh;
   scroll-snap-align: start;
@@ -31,9 +40,11 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 /* ── Section rhythm ─────────────────────────────────────────────────────── */
 .gd-section {
   position: relative;
-  padding-block: clamp(1.75rem, 4vh, 2.75rem);
+  /* vh-scaled so a 700px laptop viewport gets a tighter band than a 900px one.
+     Was a flat clamp(1.75rem, 4vh, 2.75rem) = 28px top+bottom at 1440x700. */
+  padding-block: clamp(1.15rem, 3.2vh, 2.75rem);
 }
-.gd-hero { padding-block: clamp(2.5rem, 6vh, 4.5rem); padding-top: calc(var(--topbar-h) + clamp(2rem, 5vh, 4rem)); }
+.gd-hero { padding-block: clamp(2rem, 5vh, 4.5rem); padding-top: calc(var(--topbar-h) + clamp(1.5rem, 4vh, 4rem)); }
 /* Alternating band rhythm: the .gd-band sections (toolbox, toolkit) are the
    even bands. TRANSLUCENT overlay (black mixed with transparent) so the fixed
    grain/trellis body art shows through — never an opaque canvas fill. Base
@@ -58,8 +69,8 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   line-height: 1.5; color: var(--muted);
 }
 /* .ib (install) is not viewport-constrained — keep its header generous */
-.ib-h2 { font-size: clamp(1.9rem, 4.6vw, 3.4rem); margin-top: 1rem; }
-.ib-intro { margin-top: 1.15rem; font-size: clamp(1rem, 1.5vw, 1.12rem); line-height: 1.62; }
+.ib-h2 { font-size: clamp(1.9rem, 4.6vw, 3.4rem); margin-top: clamp(0.7rem, 1.6vh, 1rem); }
+.ib-intro { margin-top: clamp(0.85rem, 2vh, 1.15rem); font-size: clamp(1rem, 1.5vw, 1.12rem); line-height: 1.62; }
 .gd-hero-em { color: var(--ink); font-weight: 600; }
 
 /* ============================================================================
@@ -72,7 +83,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 }
 .gd-hero-demo { min-width: 0; width: 100%; max-width: 420px; justify-self: end; }
 .gd-hero-h1 {
-  margin-top: 1.4rem;
+  margin-top: clamp(0.9rem, 2vh, 1.4rem);
   font-family: var(--font-display);
   font-weight: 900; font-stretch: 122%;
   font-size: clamp(2.1rem, 5.6vw, 4.2rem);
@@ -80,10 +91,10 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 }
 .gd-hero-h1-2 { color: var(--muted); }
 .gd-hero-sub {
-  margin-top: 1.6rem; max-width: 46ch;
+  margin-top: clamp(1rem, 2.3vh, 1.6rem); max-width: 46ch;
   font-size: clamp(1rem, 1.6vw, 1.15rem); line-height: 1.6; color: var(--muted);
 }
-.gd-hero-install { margin-top: 2.1rem; max-width: 30rem; }
+.gd-hero-install { margin-top: clamp(1.3rem, 3vh, 2.1rem); max-width: 30rem; }
 .gd-hero-install-label {
   margin-bottom: 0.5rem; font-family: var(--font-mono);
   font-size: 0.6rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted);
@@ -92,7 +103,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   margin-top: 0.5rem; font-family: var(--font-mono); font-size: 0.62rem; color: var(--muted);
 }
 .gd-hero-stats {
-  margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem;
+  margin-top: clamp(1.15rem, 2.8vh, 2rem); display: flex; flex-wrap: wrap; gap: 0.6rem 1.6rem;
   list-style: none; padding: 0;
 }
 .gd-hero-stats li {
@@ -693,14 +704,14 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
    THE BENCH (install)
 ============================================================================ */
 .ib-primary {
-  margin-top: 2.2rem; border-radius: 16px; padding: 18px 18px;
+  margin-top: clamp(1.5rem, 3.4vh, 2.2rem); border-radius: 16px; padding: 16px 18px;
   border: 1px solid var(--accent); background: color-mix(in oklab, var(--accent) 8%, transparent);
 }
 .ib-primary-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
 .ib-primary-num { font-family: var(--font-mono); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); }
 .ib-primary-label { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); }
 .ib-primary-note { margin-top: 8px; font-family: var(--font-mono); font-size: 0.62rem; color: var(--muted); }
-.ib-or { margin-top: 2rem; font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+.ib-or { margin-top: clamp(1.35rem, 3vh, 2rem); font-family: var(--font-mono); font-size: 0.62rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
 .ib-direct { margin-top: 0.9rem; display: flex; flex-direction: column; gap: 12px; }
 .ib-step {
   border-radius: 14px; padding: 14px 16px;
@@ -709,7 +720,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .ib-step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 9px; }
 .ib-step-num { font-family: var(--font-mono); font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em; color: var(--muted); }
 .ib-step-label { font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--c-floor); }
-.ib-foot { margin-top: 1.6rem; font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.03em; color: var(--muted); }
+.ib-foot { margin-top: clamp(1rem, 2.3vh, 1.6rem); font-family: var(--font-mono); font-size: 0.66rem; letter-spacing: 0.03em; color: var(--muted); }
 
 /* ============================================================================
    RESPONSIVE
@@ -776,10 +787,18 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 ============================================================================ */
 .qw-kicker { color: var(--c-qe); }
 .qw-em { color: var(--ink); font-weight: 600; }
+/* This section carries the most content of any band (head + report card +
+   3-role stage + wall legend + footnote). At 1440x700 it measured 885px —
+   185px past the fold. Everything below is tuned to bring it back onto one
+   laptop screen; re-measure at 1440x700 before loosening any of it.
+   The intro runs wider here than the shared 74ch so it lands in 3 lines
+   instead of 4 — 24px of the budget. */
+.qw-intro { max-width: 108ch; font-size: clamp(0.88rem, 1.25vw, 0.95rem); line-height: 1.45; }
+.qw-h2 { font-size: clamp(1.5rem, 3vw, 2.1rem); }
 
 /* the self-grading grid: report card beside the problem statement */
 .qw-grid {
-  margin-top: 1rem;
+  margin-top: clamp(0.5rem, 1.2vh, 1rem);
   display: grid; grid-template-columns: minmax(260px, 420px) minmax(0, 1fr);
   gap: clamp(18px, 3vw, 44px); align-items: center;
 }
@@ -788,7 +807,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   font-size: clamp(1.1rem, 2vw, 1.5rem); line-height: 1.1; letter-spacing: -0.015em;
   max-width: 24ch;
 }
-.qw-gap-copy p { margin-top: 0.8rem; font-size: 0.9rem; line-height: 1.55; color: var(--muted); max-width: 52ch; }
+.qw-gap-copy p { margin-top: 0.7rem; font-size: 0.88rem; line-height: 1.5; color: var(--muted); max-width: 52ch; }
 .qw-gap-copy em { font-style: normal; color: var(--c-qe); }
 .qw-kick { color: var(--ink); font-weight: 600; }
 
@@ -796,7 +815,7 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .qw-fig {
   position: relative; overflow: hidden;
   border: 1px solid var(--hairline-strong); border-radius: 16px;
-  padding: 16px 18px 14px;
+  padding: 10px 15px 9px;
   background:
     radial-gradient(ellipse 78% 70% at 50% -10%, color-mix(in oklab, var(--c-qe) 12%, transparent), transparent 70%),
     color-mix(in oklab, var(--canvas-2) 90%, transparent);
@@ -805,12 +824,12 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--muted);
-  border-bottom: 1px solid var(--hairline); padding-bottom: 10px;
+  border-bottom: 1px solid var(--hairline); padding-bottom: 6px;
 }
-.qw-grades { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.qw-grades { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 .qw-cell {
   position: relative; min-width: 0; text-align: center;
-  border: 1px solid var(--hairline); border-radius: 12px; padding: 14px 8px 12px;
+  border: 1px solid var(--hairline); border-radius: 12px; padding: 8px 8px 7px;
   background: color-mix(in oklab, var(--surface) 60%, transparent);
 }
 .qw-cell--rev { border-color: color-mix(in oklab, var(--c-qe) 38%, var(--hairline-strong)); }
@@ -819,14 +838,14 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   text-transform: uppercase; color: var(--muted);
 }
 .qw-mark {
-  margin-top: 8px; font-family: var(--font-display); font-weight: 900; font-stretch: 118%;
-  font-size: clamp(1.7rem, 3.6vw, 2.4rem); line-height: 1; letter-spacing: -0.03em;
+  margin-top: 5px; font-family: var(--font-display); font-weight: 900; font-stretch: 118%;
+  font-size: clamp(1.35rem, 2.8vw, 1.6rem); line-height: 1; letter-spacing: -0.03em;
   color: var(--accent);
   transition: color 0.4s var(--ease-out-expo);
 }
 .qw-mark--rev { color: var(--muted); }
 .qw-fig[data-revealed="true"] .qw-mark--rev { color: var(--c-solo); }
-.qw-sub { margin-top: 6px; font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; color: var(--muted); }
+.qw-sub { margin-top: 4px; font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.04em; color: var(--muted); }
 .qw-stamp {
   position: absolute; top: 8px; right: 8px;
   font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.12em; text-transform: uppercase;
@@ -838,37 +857,37 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .qw-cell--rev .qw-stamp { color: var(--c-solo); border-color: color-mix(in oklab, var(--c-solo) 55%, transparent); }
 .qw-fig[data-revealed="true"] .qw-stamp { opacity: 1; transform: rotate(-7deg) scale(1); }
 .qw-delta {
-  margin-top: 14px; text-align: center;
-  font-family: var(--font-mono); font-size: 0.6rem; letter-spacing: 0.06em; text-transform: uppercase;
+  margin-top: 8px; text-align: center; line-height: 1.3;
+  font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--muted); opacity: 0; transition: opacity 0.5s var(--ease-out-expo);
 }
 .qw-fig[data-revealed="true"] .qw-delta { opacity: 1; }
 .qw-delta b {
   margin-right: 5px; font-family: var(--font-display); font-weight: 900; font-stretch: 122%;
-  font-size: 1.3rem; letter-spacing: -0.02em; color: var(--c-solo);
+  font-size: 0.95rem; letter-spacing: -0.02em; color: var(--c-solo);
 }
 .qw-btn {
-  margin-top: 12px; width: 100%; cursor: pointer;
+  margin-top: 7px; width: 100%; cursor: pointer;
   font-family: var(--font-mono); font-size: 0.7rem; letter-spacing: 0.04em;
   color: var(--on-accent); background: var(--c-qe);
-  border: 1px solid var(--c-qe); border-radius: 999px; padding: 8px 18px;
+  border: 1px solid var(--c-qe); border-radius: 999px; padding: 6px 18px;
   transition: filter 0.2s, transform 0.18s var(--ease-out-expo);
 }
 .qw-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
 .qw-btn:focus-visible { outline: 2px solid var(--c-qe); outline-offset: 2px; }
-.qw-note { margin-top: 8px; text-align: center; font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.04em; color: var(--muted); }
+.qw-note { margin-top: 5px; text-align: center; font-family: var(--font-mono); font-size: 0.52rem; letter-spacing: 0.04em; color: var(--muted); }
 
 /* ── the three-role acceptance stage + the wall ───────────────────────────── */
 .qw-stage {
-  position: relative; margin-top: clamp(1rem, 2.5vh, 1.6rem);
+  position: relative; margin-top: clamp(0.5rem, 1.2vh, 1.6rem);
   display: grid; grid-template-columns: 1fr 1fr 3px 1fr;
   gap: clamp(10px, 1.6vw, 20px); align-items: stretch;
 }
 .qw-role {
-  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  display: flex; flex-direction: column; gap: 5px; min-width: 0;
   text-align: left; cursor: pointer;
   border: 1px solid var(--hairline-strong); border-radius: 14px;
-  padding: 13px 14px 12px;
+  padding: 10px 13px 10px;
   background: color-mix(in oklab, var(--surface) 70%, transparent);
   transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
 }
@@ -880,16 +899,16 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 }
 .qw-role-name {
   font-family: var(--font-display); font-weight: 900; font-stretch: 116%;
-  font-size: 1.16rem; letter-spacing: -0.01em; color: var(--ink);
+  font-size: 1.04rem; letter-spacing: -0.01em; color: var(--ink);
 }
 .qw-role--reviewer .qw-role-name { color: var(--c-qe); }
-.qw-role-tools { display: flex; flex-wrap: wrap; gap: 4px; }
+.qw-role-tools { display: flex; flex-wrap: wrap; gap: 3px; }
 .qw-role-tool {
   font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.02em; color: var(--c-qe);
   border: 1px solid color-mix(in oklab, var(--c-qe) 26%, var(--hairline-strong));
   border-radius: 5px; padding: 2px 7px;
 }
-.qw-role p { margin-top: auto; font-size: 0.74rem; line-height: 1.5; color: var(--muted); }
+.qw-role p { margin-top: auto; font-size: 0.73rem; line-height: 1.45; color: var(--muted); }
 .qw-role.is-lit {
   border-color: color-mix(in oklab, var(--c-qe) 62%, var(--hairline-strong));
   background: color-mix(in oklab, var(--c-qe) 7%, var(--surface));
@@ -900,7 +919,9 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 
 /* the wall itself — the dashed plane-green barrier before the reviewer */
 .qw-wall {
-  position: relative; align-self: stretch; min-height: 150px; cursor: pointer;
+  /* min-height must stay BELOW the natural role-card height, or the wall (not
+     the content) becomes what sets the stage row's height. */
+  position: relative; align-self: stretch; min-height: 110px; cursor: pointer;
   background: repeating-linear-gradient(to bottom, var(--c-qe) 0 8px, transparent 8px 17px);
   border-radius: 2px; opacity: 0.85;
 }
@@ -908,9 +929,12 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
   position: absolute; top: 50%; left: 50%;
   transform: translate(-50%, -50%) rotate(180deg);
   writing-mode: vertical-rl; white-space: nowrap;
-  font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.16em;
+  /* letter-spacing + padding are sized so the vertical tag stays SHORTER than
+     the wall it sits on (the wall is stage-row height, ~125px at 1440x700) —
+     at 0.16em/8px it ran 139px and poked out of both ends of the wall. */
+  font-family: var(--font-mono); font-size: 0.56rem; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--on-accent);
-  background: var(--c-qe); padding: 8px 4px; border-radius: 4px;
+  background: var(--c-qe); padding: 5px 4px; border-radius: 4px;
 }
 
 /* the evidence channel — chips crossing / bouncing off the wall.
@@ -957,15 +981,15 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 /* ── the wall legend — what crosses vs what is bounced ────────────────────── */
 .qw-legend {
   display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
-  margin-top: clamp(0.9rem, 2vh, 1.4rem);
+  margin-top: clamp(0.45rem, 1.1vh, 1.4rem);
 }
 .qw-leg {
   border: 1px solid var(--hairline-strong); border-radius: 12px;
-  padding: 12px 16px; background: color-mix(in oklab, var(--surface) 55%, transparent);
+  padding: 9px 14px; background: color-mix(in oklab, var(--surface) 55%, transparent);
 }
 .qw-leg--pass { border-color: color-mix(in oklab, var(--c-qe) 36%, var(--hairline-strong)); }
 .qw-leg-h {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px; margin-bottom: 7px;
   font-family: var(--font-mono); font-size: 0.58rem; letter-spacing: 0.1em;
   text-transform: uppercase; color: var(--muted);
 }
@@ -975,19 +999,19 @@ html { scroll-snap-type: y mandatory; scroll-padding-top: var(--topbar-h); }
 .qw-leg-items { display: flex; flex-wrap: wrap; gap: 6px 8px; }
 .qw-leg-items span {
   font-family: var(--font-mono); font-size: 0.64rem; color: var(--ink);
-  border: 1px solid var(--hairline); border-radius: 6px; padding: 3px 9px;
+  border: 1px solid var(--hairline); border-radius: 6px; padding: 2px 8px;
   background: color-mix(in oklab, var(--surface) 50%, transparent);
 }
 .qw-leg--block .qw-leg-items span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--hairline-strong); }
 .qw-leg-items code { color: var(--c-qe); font-size: 0.95em; }
 
 .qw-foot {
-  margin-top: clamp(0.8rem, 1.8vh, 1.2rem);
+  margin-top: clamp(0.4rem, 1vh, 1.2rem);
   display: flex; align-items: center; gap: 18px; flex-wrap: wrap;
 }
 .qw-foot p {
   flex: 1 1 380px; min-width: 280px;
-  font-family: var(--font-mono); font-size: 0.68rem; line-height: 1.6; color: var(--muted);
+  font-family: var(--font-mono); font-size: 0.66rem; line-height: 1.5; color: var(--muted);
 }
 .qw-foot code {
   font-size: 0.9em; color: var(--c-qe);
