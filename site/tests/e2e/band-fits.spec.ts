@@ -29,7 +29,7 @@ for (const vp of VIEWPORTS) {
     // fallback face and the band can measure SHORTER than it finally renders -- which would pass
     // this test on a page that does not actually fit. It did not reproduce locally (delta 0),
     // but it is a race, and a size check that can silently pass early is worse than no check.
-    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(async () => { await document.fonts.ready; });
 
     const band = page.locator('.same-garden');
     await expect(band).toHaveCount(1);
@@ -67,7 +67,7 @@ test('a band that fits is still a snap target', async ({ page }) => {
   // which happened once already: the cut-off was left at 690px after the band shrank to 574px.
   await page.setViewportSize({ width: 1280, height: 660 });
   await page.goto('/');
-  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(async () => { await document.fonts.ready; });
 
   // Assert the band exists before reading style off it, like the viewport loop above does. A bare
   // querySelector(...)! throws an unhelpful null error if the band has not rendered, which reads
