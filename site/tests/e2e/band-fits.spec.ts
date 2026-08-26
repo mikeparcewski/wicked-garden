@@ -68,8 +68,15 @@ test('a band that fits is still a snap target', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 660 });
   await page.goto('/');
   await page.evaluate(() => document.fonts.ready);
-  const snap = await page.evaluate(
-    () => getComputedStyle(document.querySelector('.same-garden')!).scrollSnapAlign.split(' ')[0],
+
+  // Assert the band exists before reading style off it, like the viewport loop above does. A bare
+  // querySelector(...)! throws an unhelpful null error if the band has not rendered, which reads
+  // as a broken test rather than a missing section.
+  const band = page.locator('.same-garden');
+  await expect(band).toHaveCount(1);
+
+  const snap = await band.evaluate(
+    (el) => getComputedStyle(el).scrollSnapAlign.split(' ')[0],
   );
   expect(snap).toBe('start');
 });
