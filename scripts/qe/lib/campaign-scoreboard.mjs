@@ -34,6 +34,10 @@
  *     ('qe-runner/executor-claim', anything matching /executor/i or
  *     /test-designer/i, or 'self') are never accepted as grades — each one
  *     is reported as a `self_grade_attempt` violation instead;
+ *   - the manifest's verdict block NEVER sources a grade (grades are born in
+ *     ledger `verdicts` rows only — the manifest is executor-authored); a
+ *     non-executor reviewer identity inside it is reported as a
+ *     `manifest_verdict_impersonation` violation;
  *   - a non-INCONCLUSIVE grade on a bundle that fails validation is reported
  *     as `graded_invalid_bundle` (the SCHEMA-CONTRACT rule: schema-fail
  *     grades INCONCLUSIVE, never PASS/FAIL).
@@ -307,9 +311,20 @@ export async function buildScoreboard({
     const graded = rowVerdicts.find((v) => !isExecutorIdentity(v.reviewer)) ?? null;
     let grade = graded?.verdict ?? null;
     let gradeSource = graded ? "verdicts-row" : null;
-    if (!grade && manifest?.verdict && !isExecutorIdentity(manifest.verdict.reviewer)) {
-      grade = manifest.verdict.value;
-      gradeSource = "manifest";
+    // A ledger `verdicts` row is the ONLY place a campaign grade is born
+    // (refs/campaign-grading.md § grading loop). The manifest's verdict block
+    // is executor territory — the executor authors manifest.json — so a
+    // non-executor reviewer identity inside it is impersonation, never a
+    // grade source: flag it, don't grade from it.
+    if (manifest?.verdict && !isExecutorIdentity(manifest.verdict.reviewer)) {
+      violations.push({
+        kind: "manifest_verdict_impersonation",
+        id,
+        run_id: run.id,
+        detail:
+          `manifest verdict block claims reviewer '${manifest.verdict.reviewer}' — the manifest is ` +
+          "executor-authored and only carries the executor claim; grades are born in verdicts rows only",
+      });
     }
     if (!grade) {
       grade = "UNGRADED";

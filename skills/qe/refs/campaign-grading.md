@@ -135,10 +135,13 @@ Row shape — **verbatim** the campaign-proven contract, four keys, no more:
 
 - `id` — stable scenario identity (ledger `scenarios.name`; TH-6's stable
   scenario_ids make flake history accrue here across re-runs).
-- `grade` — the isolated reviewer's verdict of record. The glue **refuses**
-  executor identities (`qe-runner/executor-claim`, `*executor*`,
-  `*test-designer*`) as grade sources and reports each such verdicts row as
-  a `self_grade_attempt` violation; a run without a reviewer verdict shows
+- `grade` — the isolated reviewer's verdict of record, **born in a ledger
+  `verdicts` row and nowhere else**. The glue **refuses** executor identities
+  (`qe-runner/executor-claim`, `*executor*`, `*test-designer*`) as grade
+  sources and reports each such verdicts row as a `self_grade_attempt`
+  violation; the executor-authored manifest verdict block never sources a
+  grade either (a non-executor reviewer identity in it is reported as
+  `manifest_verdict_impersonation`); a run without a reviewer verdict shows
   `UNGRADED` (which blocks certification) rather than inheriting the claim.
 - `executor_claim` — the claim as text beside the grade (from manifest-2.1
   `scenario_evidence.status` — the field the ledger contract itself marks
