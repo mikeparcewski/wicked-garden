@@ -20,7 +20,10 @@ god-objects, coupling hotspots, and high-impact refactor targets.
    Report the ranked list. Call out anything with an unusually high score as a
    likely god-object or coupling hotspot worth refactoring. Injected edges are
    part of the same graph — a heavily-dispatched agent or capability appears
-   here too.
+   here too. File and Import nodes are **excluded** from the ranking
+   (symbol-level hotspots only — files never appear, however many File→File
+   import edges they carry); injected non-file nodes (agents, capabilities,
+   archetypes) still rank.
 
 3. **Fallback — the estate CLI** (MCP server not connected):
    ```bash

@@ -70,6 +70,10 @@ Brain's memory types map onto estate kinds as follows (used by
 | gotcha | `fact` | `semantic` |
 | discovery | `episode` | `episodic` |
 
+Memory/knowledge content that quotes an estate SymbolId minted before the
+2026-08 id-scheme migration may be dangling — when a cited SymbolId fails to
+resolve in the graph, fall back to the estate MCP `SearchEntity` tool by name.
+
 ## Store resolution (which DB answers)
 
 The estate MCP binary resolves its domain stores per-process:

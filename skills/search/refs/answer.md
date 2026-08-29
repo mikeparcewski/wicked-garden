@@ -37,6 +37,11 @@ narrow the memory side; default `""` = everything); `--budget <tokens>`
    End with a `Sources:` list — every distinct `source` / scope used, so
    the reader can verify each claim.
 
+   When a returned item quotes an estate **SymbolId that no longer resolves**
+   in the graph (ids minted before the 2026-08 id-scheme migration may be
+   dangling), fall back to the estate MCP `SearchEntity` tool by bare name to
+   find the symbol's current node.
+
 4. **Handle the miss honestly.** If nothing relevant came back (estate logs
    the miss), say the record doesn't answer this — offer to `ingest` the
    relevant document or fall back to code search. NEVER pad a thin result
