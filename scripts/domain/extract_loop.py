@@ -244,6 +244,45 @@ class _DirectStore:
         return ""
 
 
+def _annotation_preflight(db: str) -> None:
+    """Cheap id-scheme migration pre-flight (fail-open, warning only). Estate's
+    2026-08 id-scheme migration ("2": type-nested method/field SymbolIds) re-mints
+    definition ids on the forced full re-extract; annotation rows written under the
+    old scheme keep their OLD node_sym sids and orphan silently. Signature: a sampled
+    annotation node_sym no longer resolves to a live node. Warn LOUDLY before this
+    pass writes new annotations next to orphaned ones — but never block: garden is
+    fail-open, and a partially-orphaned store is still valid to (re-)extract into."""
+    try:
+        import sqlite3
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            total, orphaned = con.execute(
+                "SELECT count(*), COALESCE(sum(CASE WHEN n.symbol IS NULL THEN 1 ELSE 0 END), 0) "
+                "FROM (SELECT DISTINCT node_sym FROM annotations LIMIT 500) a "
+                "LEFT JOIN nodes n ON n.symbol = a.node_sym"
+            ).fetchone()
+            if not total or not orphaned:
+                return
+            # id_scheme meta is written per-repo ('repo:<label>:id_scheme') or bare.
+            schemes = ", ".join(
+                f"{k}={v}" for k, v in con.execute(
+                    "SELECT k, v FROM meta WHERE k = 'id_scheme' OR k LIKE '%:id_scheme'")
+            ) or "no id_scheme meta key"
+            print(
+                f"[extract-loop] WARNING: {orphaned}/{total} sampled annotation node_syms no longer "
+                f"exist in nodes ({schemes}) — the estate id-scheme migration signature. Prior "
+                "business_rule/risk annotations + node_semantics keyed to old method/field ids are "
+                "ORPHANED. Required order: `wicked-estate index <repo>` with the new binary → re-run "
+                "this extract loop → `wicked-core domain-graph`. Proceeding fail-open; this pass "
+                "writes against CURRENT ids only.",
+                file=sys.stderr,
+            )
+        finally:
+            con.close()
+    except Exception:
+        pass  # no annotations table / missing DB / locked store — pre-flight is best-effort
+
+
 def _density_batch(members: list[dict], store, base_batch: int) -> int:
     """Density-adaptive batch size (planner idea, deterministic form): thin wrappers pack
     bigger batches, dense logic packs smaller — clamped 4..64."""
@@ -259,6 +298,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         project_dir: Path | None = None, cluster_offset: int = 0) -> int:
     if not db:
         raise RuntimeError("--db / $WICKED_ESTATE_DB is required but was not provided")
+    _annotation_preflight(db)
     estate = _clients.estate_client(db=db, project_dir=project_dir)
     core = _clients.core_client(project_dir=project_dir)
     if core is None:

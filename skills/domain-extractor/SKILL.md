@@ -53,6 +53,10 @@ driver, not the loop. Your whole job:
 2. **Watch stderr** (`coverage=… unaccounted=… processed=…`). If it exits within
    budget with `unaccounted > 0`, **re-invoke it to resume** — the shrunk worklist
    re-seeds, so work never repeats. Stop when `unaccounted` hits 0 or stops shrinking.
+   A `WARNING: … annotation node_syms no longer exist` line is the estate
+   id-scheme migration signature — prior annotations are orphaned; see the
+   migration section in [../domain/SKILL.md](../domain/SKILL.md) for the
+   required re-run order.
 3. **Never hand-annotate or assert** a rule the harness RISK-flagged. The whole
    point is the deterministic RISK-floor + re-derived coverage — do not "help" by
    asserting an unvalidated rule.

@@ -63,7 +63,9 @@ external engine, no Node version floor.
    forces a full re-extract automatically. (The estate MCP server serves the
    same DB, so an index refresh is immediately visible to the MCP tools.)
 
-2. **Verify**: `wicked-estate stats` reports node/edge counts; a repo with
+2. **Verify**: `wicked-estate stats` reports node/edge counts plus an
+   `unresolved=N` token (call/import references no resolver could bind — a
+   resolver-health signal, not an error count); a repo with
    archetype wiring shows the injected edges (provenance
    `extractor:archetype-declare` / `extractor:archetype-playbook`).
 
@@ -102,6 +104,9 @@ Analyze what would be affected if you changed a symbol — traces **dependents**
 
 **Arguments**: `symbol` (required — a file path like `src/app.py`, or a symbol
 name); `--depth` (optional traversal depth; estate default 8, max 24).
+Starting from a **file path** returns its **importer files** as dependents
+(File→File import edges), so `blast-radius scripts/_bus.py` answers "which
+files import this file" — no longer an empty "no resolved dependents".
 
 1. **Ensure the graph is fresh** (§ Index / freshness): `wicked-estate index <path>`.
    Estate prints a `STALENESS` marker when commits have landed since the last
@@ -115,7 +120,10 @@ name); `--depth` (optional traversal depth; estate default 8, max 24).
    that *declares* a capability — and archetype→playbook relationships via
    garden's `.wicked-estate-extractors/archetype.toml` (provenance
    `extractor:archetype-playbook`). Results carry confidence + provenance per
-   edge and an `unresolved_callers` count (potential missing dependents).
+   edge and an `unresolved_callers` count — reference sites **no resolver could
+   bind** (repeat call sites of an already-bound relationship are NOT counted,
+   so `0` is a legitimate value for a fully-resolved hot symbol; counts are
+   much lower than under the pre-2026-08 over-counting definition).
 4. **Fallbacks**: § Resolving symbols + fallback ladder.
 5. Report: **dependents** (static + injected, with provenance), total
    blast-radius count, files affected, and the graph's staleness.

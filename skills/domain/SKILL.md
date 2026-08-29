@@ -132,6 +132,58 @@ input — the "skill-supplied extractor" seam). And the real end-to-end run need
 fully-annotated, INDEXED store (coverage == 1.0) to clear core's fail-closed gate
 — that store-seeding step is the end-to-end milestone (core#28), not this slice.
 
+## Estate id-scheme migration (2026-08) — when the pipeline must be re-run
+
+Estate id-scheme **"2"** nests method/field SymbolIds under their enclosing type
+(`<module>/Repo#save().` instead of `<module>/save().`). The first
+`wicked-estate index` per repo under a new-scheme binary hits the `id_scheme`
+meta mismatch and performs a **forced full re-extract** that re-mints every
+definition id — and the pipeline's outputs (`business_rule`/`risk` annotations +
+`node_semantics` written by `scripts/domain/extract_loop.py`) stay keyed to the
+OLD ids. Method/field-keyed rows **orphan**; module-level (top-level function /
+file) rows survive. Annotations are documented loss, not re-keyed.
+
+**Re-runs are required** for every repo that carries domain annotations, after
+its first index under the new binary — in exactly this order:
+
+1. `wicked-estate index <repo>` with the new binary (the loud full re-extract).
+2. Re-run the extraction loop: `python3 scripts/domain/extract_loop.py --db "<store>" …`
+   (it re-seeds from `wicked-core coverage`'s `unaccounted_nodes`, so orphaned
+   nodes simply reappear as unaccounted; the loop's pre-flight also warns when it
+   detects orphaned annotations before writing).
+3. Rebuild the domain graph: `wicked-core domain-graph` (coverage-gates
+   fail-closed against the re-annotated store).
+
+Previously emitted `requirements_graph.json` / domain-model documents embedding
+old-scheme SymbolIds are stale until step 3 completes.
+
+**Quantify the damage first (operators)** — how many annotation rows would
+orphan (method/field-keyed) vs survive (still-live node), against any store:
+
+```sql
+-- rows whose node no longer exists (orphaned) vs rows still keyed to a live node
+SELECT (n.symbol IS NULL) AS orphaned, count(*) AS rows
+FROM annotations a LEFT JOIN nodes n ON n.symbol = a.node_sym
+GROUP BY orphaned;
+
+-- pre-migration estimate on an OLD-scheme store: rows keyed to a definition
+-- nested inside a type (its id re-mints → orphans) vs module-level rows (id
+-- unchanged → survive). Old flat ids don't encode nesting, so containment is
+-- derived from byte spans: a Type-kinded node in the same file encloses it.
+SELECT EXISTS (
+         SELECT 1 FROM nodes t
+         WHERE t.file = n.file AND t.symbol != n.symbol
+           AND t.kind IN ('"class"','"struct"','"enum"','"trait"','"interface"',
+                          '"module"','"namespace"','"type_alias"','"type"')
+           AND json_extract(t.data,'$.location.span.start_byte')
+               <= json_extract(n.data,'$.location.span.start_byte')
+           AND json_extract(t.data,'$.location.span.end_byte')
+               >= json_extract(n.data,'$.location.span.end_byte')
+       ) AS would_orphan, count(*) AS rows
+FROM annotations a JOIN nodes n ON n.symbol = a.node_sym
+GROUP BY would_orphan;
+```
+
 ## Ground in the repo's method first
 
 Before extracting, check for **wicked-understanding** repo playbooks (the
