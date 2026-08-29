@@ -3,16 +3,18 @@ name: wicked-garden-qe
 user-invocable: true
 description: |
   Consolidated quality-engineering domain skill: evidence-gated testing from
-  strategy to verdict. Seven actions — setup (per-project init), plan (test
+  strategy to verdict. Eight actions — setup (per-project init), plan (test
   strategy, risk, testability, AC quality), author (scenarios, test code,
-  fixtures), execute (run scenarios/suites, capture evidence), review
-  (independent verdicts on evidence, spec alignment, test-suite quality),
-  insight (ledger stats, flake detection, coverage archaeology), accept
-  (the 3-agent writer→executor→reviewer acceptance pipeline that eliminates
-  self-grading).
+  fixtures), campaign (three-lens repo recon → dependency-ordered scenario
+  ladder per campaign-recon format v1), execute (run scenarios/suites,
+  capture evidence), review (independent verdicts on evidence, spec
+  alignment, test-suite quality), insight (ledger stats, flake detection,
+  coverage archaeology), accept (the 3-agent writer→executor→reviewer
+  acceptance pipeline that eliminates self-grading).
 
   Use when: "what should I test", "test strategy", "write tests", "author
-  scenarios", "run the test", "capture evidence", "prove it works",
+  scenarios", "qe campaign", "test the whole app", "capability inventory",
+  "campaign plan", "run the test", "capture evidence", "prove it works",
   "acceptance test", "verify it works", "did it pass", "judge the evidence",
   "verdict", "is this test suite any good", "flake rate", "has this passed
   recently", "coverage gaps", "release readiness", "initialize testing".
@@ -42,6 +44,7 @@ dual-read `resolveLedgerRoot`.
 | Initialize QE for this project / `ERR_NO_CONFIG` | § setup |
 | What to test, risk matrix, testability, AC quality | § plan |
 | Write scenarios, test code, fixtures, test data | § author |
+| Campaign a whole repo: recon → capability inventory → scenario ladder | § campaign |
 | Run a scenario/suite, capture evidence, record the run | § execute |
 | Independent verdict, spec-vs-code alignment, suite quality | § review |
 | Ledger stats, flake rate, coverage gaps, history | § insight |
@@ -83,6 +86,19 @@ scaffolds `.wicked-qe/` and registers a project record).
    `wicked-garden-qe-{test-automation-engineer | acceptance-test-writer |
    test-data-manager | contract-testing-engineer}` per the playbook's table.
 
+## campaign — repo recon + generated scenario ladder
+
+1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign.md")` — full playbook.
+2. Three-lens recon (estate code graph when the target is indexed, docs
+   recall via `wicked-garden-mem`, live probe incl. committed endpoint
+   manifests) → a plan CONFORMING to
+   `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` (v1 — never a
+   parallel format), assembled + validated fail-closed by
+   `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py`, persisted as a
+   ledger `strategies` row + scenario-format v1 files. Unindexed targets
+   degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
+   enter `proposed`, pending human review.
+
 ## execute — run + capture evidence
 
 1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/execute.md")` — full playbook.
@@ -114,6 +130,13 @@ scaffolds `.wicked-qe/` and registers a project record).
    public manifest lands at `.wicked-qe/evidence/<run-id>/manifest.json`.
 
 ## Fork workers (dispatch with the Skill tool)
+
+**Dispatch guard (mandatory):** resolve every specialist through
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" <name>`
+before the Skill call — it asserts the resolved worker is a shipped
+`wicked-garden-qe-*` skill and BLOCKS retired `wicked-testing-*` /
+`wicked-brain-*` names at dispatch with a clear error naming the garden
+replacement. Never work around a block; fix the caller.
 
 Pipeline: `wicked-garden-qe-acceptance-test-{writer, executor, reviewer}` ·
 `wicked-garden-qe-scenario-executor` · `wicked-garden-qe-test-designer`
