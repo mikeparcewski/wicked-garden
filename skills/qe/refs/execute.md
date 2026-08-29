@@ -51,7 +51,13 @@ in `../../qe-test-designer/SKILL.md`.
 ### Dispatch block (executable)
 
 Every id in the tables above is a forked worker skill (`context: fork`) —
-invoke it with the Skill tool so it runs in an isolated context:
+invoke it with the Skill tool so it runs in an isolated context.
+
+**Dispatch guard (TH-7):** resolve the specialist first —
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" <name>` —
+which asserts it is a shipped `wicked-garden-qe-*` worker and BLOCKS retired
+`wicked-testing-*` names at dispatch with a clear error naming the garden
+replacement (exit 2). Never dispatch a name the guard refused.
 
 ```
 Skill(
