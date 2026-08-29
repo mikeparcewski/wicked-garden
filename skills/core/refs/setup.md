@@ -96,7 +96,7 @@ npx wicked-vault --version 2>/dev/null || echo "MISSING"
 ```
 
 - `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
-- Version string (e.g. `0.3.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
+- Version string → compare it against the enforced peer floor **≥ 0.5.0** <!-- vault-floor --> (single source: `scripts/loom/manifest.py` `version_pin`, lockstep with plugin.json `wicked_vault_version`). **Below the floor** (e.g. `0.4.5`) → tell the user to upgrade: "wicked-vault {version} is below the enforced floor 0.5.0 — the peer registry will refuse it. Upgrade: `npm i -g wicked-vault@latest`." At or above (e.g. `0.6.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
 
 ### 2.7 Verify wicked-bus (Recommended — audit-trail layer)
 
@@ -308,7 +308,7 @@ wicked-garden is ready!
 Storage:         Local (DomainStore)
 wicked-estate:   {"ready (binary present)" or "MISSING — memory/context layer degraded"}
 wicked-bus:      {"ready (skills installed)" or "MISSING — install required"}
-wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
+wicked-vault:    {version e.g. "0.6.0 — ready" or "MISSING — install required" or "{version} — below the 0.5.0 floor, upgrade required"}
 loom engine:     {"ready (internal — scripts/loom/)" or "MISSING — garden installation problem"}
 Onboarding:      {Full | Quick scout | Skipped}
 Directories:     {paths onboarded}

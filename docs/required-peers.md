@@ -1,27 +1,61 @@
-# Peers — two required, three opt-in
+# Peers — one required, the rest opt-in
 
 Wicked Garden is a **curated toolkit**, and like any toolkit you can use the
 parts you want. Only one thing is non-negotiable: the **evidence gate**. A gate
 that can't re-derive its own evidence is the single thing the toolkit refuses to
-fake — so its two peers are required. Everything else is an **opt-in layer**:
+fake — so its backend peer is required. Everything else is an **opt-in layer**:
 install it for the capability it unlocks, skip it and the rest of the kit still
 works.
 
 > **History:** v12 briefly made all five peers required infrastructure. That
 > maximized the honesty guarantee and minimized adoption — you couldn't try the
 > toolkit without standing up five things first. We walked it back: the gate
-> stays required (that's the floor), the other three became opt-in layers.
+> stays required (that's the floor), the rest became opt-in layers. The gate
+> *engine* (loom) was then absorbed into wicked-garden itself (v12.27.0,
+> `scripts/loom/`), which took the required-peer count from two to one.
 
-## Required — the evidence gate (setup blocks without these)
+## Required — the evidence gate (setup blocks without this)
 
 | Peer | What it does | Install |
 |------|--------------|---------|
-| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npx wicked-vault-install` (npm; pinned `^0.3.0`). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
-| **wicked-loom** | The gate engine garden drives: peer resolution (`loom resolve`), synchronous fail-closed evidence gating (`loom gate`), and the flow runtime (`loom flow run/status/resume`). It is the *sole* re-derivation engine — without it the produces-gate fails closed. | `npx wicked-loom` (npm; pinned `^0.2.0`). Resolved via `WICKED_LOOM_BIN` → config → `PATH` → `node_modules` → `npx wicked-loom`; `WICKED_LOOM_BIN=""` is the kill-switch. |
+| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npm i -g wicked-vault` — puts the `wicked-vault` binary on PATH (optionally run `wicked-vault-install` afterwards to copy the vault skills into your AI CLIs). Enforced floor: **≥ 0.5.0** <!-- vault-floor --> (on 0.4.x or older, upgrade with `npm i -g wicked-vault@latest` — the gate's peer registry refuses a below-floor vault). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
 
 The core skill's `setup` action (`/wicked-garden-core setup`) **blocks** without
-these two — a toolkit whose headline is "done is re-derived, not asserted"
-cannot ship the gate as optional.
+it — a toolkit whose headline is "done is re-derived, not asserted" cannot ship
+the gate as optional.
+
+### Where the vault floor lives (single source)
+
+The floor is **enforced** by the loom peer registry:
+`scripts/loom/manifest.py` (`PEERS["vault"].version_pin`, a MAJOR.MINOR floor),
+kept in lockstep with `plugin.json`'s `wicked_vault_version`. Those two are the
+single source of truth; every doc restatement of the number is tagged with a
+`<!-- vault-floor -->` marker (README's bash-comment restatement can't carry an
+HTML comment, so grep the number too). **To bump the floor:** change
+`manifest.py` + `plugin.json`, then
+`grep -rn "vault-floor\|0\.5\.0" README.md CONTRIBUTING.md docs/ skills/` and
+update every tagged restatement in the same commit.
+
+## The built-in gate engine (loom) — nothing to install
+
+The gate/resolve engine garden drives — peer resolution (`loom resolve`),
+synchronous fail-closed evidence gating (`loom gate`), peer health
+(`loom doctor`) — is **absorbed into wicked-garden** as `scripts/loom/` and
+dispatched in-process by `scripts/_loom.py` (Phase B of the ecosystem
+rationalization). It is the *sole* re-derivation engine — without it the
+produces-gate fails closed — and it ships inside every garden install, so a
+missing internal loom module means a broken garden install, not a missing peer.
+The old `loom flow run/status/resume` runtime is retired — that job moved to
+wicked-crew.
+
+> **Decision (recon OQ-4, 2026-08-29):** the standalone `wicked-loom` npm
+> package (published at 0.4.0, not deprecated) is **not a sanctioned install
+> path** for garden users — do not install it. This doc used to pin it
+> `^0.2.0`; the pin is deleted rather than bumped, because the engine ships
+> in-package. `WICKED_LOOM_BIN` remains a debugging escape hatch only (it
+> points the dispatcher at an external loom binary; set-but-empty is the
+> kill-switch), and `WICKED_LOOM_CUTOVER=off` is the emergency disable — both
+> fail closed, never open.
 
 ## Opt-in layers (setup recommends; never blocks)
 
@@ -43,23 +77,24 @@ of them.
 
 The SessionStart bootstrap hook probes for all peers and **warns** (non-blocking)
 when one isn't resolvable — informational for the opt-in layers, a real flag for
-the gate's two.
+the gate's vault.
 
 ## The stance: gate required, layers optional, runtime resilient
 
-- **The gate is the floor.** vault + loom are required because the toolkit's
-  central promise — re-derived, fail-closed "done" — is meaningless without them.
-  This is the one place we trade adoption for honesty on purpose.
-- **The layers are a toolkit, not a checklist.** Testing/estate/bus each add a
-  capability; none is a prerequisite for the others. Install the toolkit and reach
-  for the layers you need. Breadth is the point of a toolkit — but breadth you can
-  *adopt incrementally*, not a five-thing prerequisite wall.
+- **The gate is the floor.** The vault is required (and the loom engine is
+  built-in) because the toolkit's central promise — re-derived, fail-closed
+  "done" — is meaningless without them. This is the one place we trade adoption
+  for honesty on purpose.
+- **The layers are a toolkit, not a checklist.** Estate/bus/understanding each
+  add a capability; none is a prerequisite for the others. Install the toolkit
+  and reach for the layers you need. Breadth is the point of a toolkit — but
+  breadth you can *adopt incrementally*, not a five-thing prerequisite wall.
 - **Resilient at runtime.** Even the required gate degrades cleanly: a transient
   outage never crashes a session, and the kill-switches (`WICKED_VAULT_BIN=""`,
   `WICKED_LOOM_CUTOVER=off`) disable cleanly and **fail closed** — they never let a
   gate treat missing evidence as a pass. `WICKED_LOOM_CUTOVER=off` is an emergency
-  disable (e.g. a wedged `npx`): gating pauses and fails closed until loom is
-  restored, rather than thrashing.
+  disable (e.g. a wedged environment): gating pauses and fails closed until the
+  engine is restored, rather than thrashing.
 
 The line is simple: **fake-able honesty is worse than no honesty**, so the gate is
 required. Everything else earns its place by being useful when you reach for it —
