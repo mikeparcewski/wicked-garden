@@ -135,7 +135,7 @@ export const PROJECTS: Project[] = [
       "an audit trail of what every agent did",
       "local event-driven automation, zero infra",
     ],
-    install: "npm i wicked-bus",
+    install: "npm i -g wicked-bus && npx wicked-bus-install",
     repo: `${GH}/wicked-bus`,
     badges: ["MIT", "npm", "no server"],
   },

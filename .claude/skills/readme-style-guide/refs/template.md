@@ -21,8 +21,9 @@ Annotated template for Wicked Garden plugin READMEs. Replace placeholders and re
 ## Quick Start
 
 ```bash
-# Install
-claude plugins add something-wicked/wicked-{name}
+# Install (two steps: add the marketplace, then install the plugin)
+claude plugins marketplace add something-wicked/wicked-{name}
+claude plugins install wicked-{name}
 
 # {Label: first win — simplest useful command}
 /wicked-garden:{domain}-{command} {example args}

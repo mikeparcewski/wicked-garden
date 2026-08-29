@@ -54,7 +54,13 @@ No universal pipeline to obey. A hook reads each prompt's *shape* and that decid
 ## Install
 
 ```bash
-/plugin install wicked-garden      # in Claude Code
+claude plugins marketplace add mikeparcewski/wicked-garden
+claude plugins install wicked-garden
+```
+
+Then, in a Claude Code session:
+
+```bash
 /wicked-garden-core setup          # verifies peers; blocks only on the one the gate needs
 ```
 
@@ -71,7 +77,7 @@ The rest of the kit is **opt-in layers** — add what you want, skip the rest an
 ```bash
 # wicked-estate — the memory/knowledge layer (cross-session recall + cited search, the "what"):
 #   install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or ~/.local/bin
-/plugin install wicked-bus     # the audit-trail layer (fire-and-forget; fail-open without it)
+npm i -g wicked-bus && npx wicked-bus-install   # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 
 > Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) needs no extra install — it ships **in-catalog** as the `qe` domain (`wicked-garden-qe`).

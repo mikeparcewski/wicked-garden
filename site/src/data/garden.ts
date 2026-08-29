@@ -443,7 +443,7 @@ export const PEERS: Peer[] = [
     tier: "opt-in",
     hue: "layer",
     gives: "A local-first SQLite event bus — the audit trail of what every tool did. At-least-once delivery, no server, no infra.",
-    cmd: "npm i wicked-bus",
+    cmd: "npm i -g wicked-bus && npx wicked-bus-install",
     cmdLabel: "opt-in layer",
   },
   {
@@ -452,7 +452,7 @@ export const PEERS: Peer[] = [
     tier: "opt-in",
     hue: "creation",
     gives: "Describe it, watch it build in the browser, export HTML / PDF / PPTX / video — the visual surface off the same shelf.",
-    cmd: "claude plugins install wicked-interactive",
+    cmd: "claude plugins marketplace add mikeparcewski/wicked-interactive && claude plugins install wicked-interactive",
     cmdLabel: "opt-in layer",
   },
 ];

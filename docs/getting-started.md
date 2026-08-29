@@ -11,7 +11,8 @@ This guide gets it installed and shows five ways to start your first session.
 ## Installation
 
 ```bash
-claude plugins add mikeparcewski/wicked-garden
+claude plugins marketplace add mikeparcewski/wicked-garden
+claude plugins install wicked-garden
 ```
 
 No API keys, no external services, no cloud — everything runs locally.
@@ -23,10 +24,10 @@ Companion peers are set up alongside the toolkit — `/wicked-garden-core setup`
 ```bash
 npm i -g wicked-vault         # wicked-vault — REQUIRED: the evidence backend the gate re-derives against (self-contained infra peer, installed directly)
 # wicked-estate — opt-in: cross-session memory + knowledge (install the Rust binaries onto PATH or ~/.local/bin)
-/plugin install wicked-bus    # wicked-bus — opt-in: event bridge
+npm i -g wicked-bus && npx wicked-bus-install    # wicked-bus — opt-in: event bridge
 ```
 
-The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-bus` installs as a Claude Code plugin; `wicked-estate` is a Rust binary pair on PATH or ~/.local/bin. Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) ships in-catalog as the `qe` domain — nothing to install. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
+The gate/resolve engine (**wicked-loom**) ships inside wicked-garden (`scripts/loom/`) — nothing to install for it. `wicked-vault` is a self-contained infra peer (its own package, zero runtime deps) installed directly via npm; `wicked-bus` installs from npm (`npx wicked-bus-install` copies its skills into your AI CLIs); `wicked-estate` is a Rust binary pair on PATH or ~/.local/bin. Evidence-gated acceptance testing (author ≠ executor ≠ reviewer) ships in-catalog as the `qe` domain — nothing to install. Gates re-derive "done" through that built-in loom engine — which re-runs the verifier via wicked-vault — and fail closed if the vault is unavailable; a claim is never self-asserted.
 
 ### Show the active mode (status line)
 

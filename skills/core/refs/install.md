@@ -84,10 +84,10 @@ Run in the order listed. Show a ✓ or ✗ line per tool as each completes.
 |---|---|
 | wicked-estate | Install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or `~/.local/bin` (see the wicked-estate README — cargo install or a release download), then verify with the §2.5b presence probe in refs/setup.md |
 | wicked-understanding | `npx skills add mikeparcewski/wicked-understanding --all` |
-| wicked-bus | Claude Code slash command — display `/plugin install wicked-bus`, ask user to run it, then verify under `~/.claude/plugins/wicked-bus` |
+| wicked-bus | `npm i -g wicked-bus && npx wicked-bus-install` (the installer copies the bus skills into detected AI CLIs), then verify skills under `~/.claude/skills/wicked-bus-*` |
 | wicked-interactive | `claude plugins marketplace add mikeparcewski/wicked-interactive && claude plugins install wicked-interactive` |
 
-For any tool where the user must run a slash command, clearly display the command, pause, and wait for confirmation before marking it done.
+For any tool where the user must run a command themselves, clearly display the command, pause, and wait for confirmation before marking it done.
 
 ### 5. Verify peer health
 
