@@ -1,0 +1,29 @@
+{
+  "name": "@wicked-garden/qe-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Model-free qe campaign executor runtime (ADR 0006, TH-4): an agent AUTHORS a deterministic spec, this runner EXECUTES it headless and records redacted evidence into the wicked-ledger shape under .wicked-qe/. No LLM calls, ever.",
+  "main": "src/index.mjs",
+  "exports": {
+    ".": "./src/index.mjs",
+    "./redact": "./src/redact.mjs",
+    "./lint": "./src/lint.mjs",
+    "./asserts": "./src/asserts.mjs"
+  },
+  "bin": {
+    "qe-run": "bin/qe-run.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\"",
+    "lint-spec": "node bin/qe-run.mjs --lint-only",
+    "smoke": "node bin/qe-run.mjs specs/s1-smoke.spec.json"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "playwright": "^1.62.1",
+    "wicked-ledger": "^0.3.0"
+  }
+}
