@@ -83,16 +83,17 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    the old shape.
 3. Land + deploy expand. Don't combine with backfill.
 4. Record the **shape-change** as re-derivable evidence (vault present;
-   **wicked-vault ≥ 0.4.0**):
+   **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase migrate --claim shape-change
    --kind schema-state --source "<migration-applied verification>"
    --criteria "<the post-condition>" --verifier exit_code_eq:0
    --actor "${WICKED_VAULT_ACTOR:-garden-prove}" --run`. The **`--actor`**
-   is mandatory because `cutover` is a hard gate: vault ≥ 0.4.0 refuses an
-   `attest` over weak/ambient-identity evidence, so without an explicit
-   actor the independent attestation fails closed and cutover can never be
-   gated PASS. The `--run` captures the real exit code now and the gate
-   re-runs it later — a claim you can't re-derive is not evidence.
+   is mandatory because `cutover` is a hard gate: the vault refuses an
+   `attest` over weak/ambient-identity evidence (fail-closed since 0.4.0),
+   so without an explicit actor the independent attestation fails closed
+   and cutover can never be gated PASS. The `--run` captures the real exit
+   code now and the gate re-runs it later — a claim you can't re-derive is
+   not evidence.
 
 ### backfill
 
@@ -109,7 +110,8 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    --criteria "rollback exercised and succeeded" --verifier exit_code_eq:0
    --actor "${WICKED_VAULT_ACTOR:-garden-prove}" --run`.
    The **`--actor`** keeps the rollback proof attestable by an independent
-   reviewer under vault ≥ 0.4.0 (the hard cutover gate needs it). The
+   reviewer (the vault refuses weak identities since 0.4.0; the hard
+   cutover gate needs it). The
    `--run` captures the drill's real exit code now; the gate re-runs
    it at cutover. A rollback path you can't re-derive is not a rollback
    path. No vault → fall back to `evidence_tracker.py claim`.

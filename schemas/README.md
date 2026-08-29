@@ -16,6 +16,18 @@ This catches silent regressions — if a script's output shape changes (missing 
 | `health_probe.json` | `health_probe.py --health-check` | Health status (healthy/degraded/unhealthy), violation list with severity, summary counts |
 | `plugin_status.json` | `plugin_status.py --health-check` | Plugin metadata (name, version, status), component counts (domains, commands, agents, skills, hooks) |
 
+## Standalone contract schemas (`*.schema.json`)
+
+Not observability output contracts — these are versioned data-format contracts
+that other tooling validates against directly (the assertion runner finds no
+matching script for them and reports a script-missing row; that mismatch is
+cosmetic and pre-dates them):
+
+| Schema | Format it defines | Version field | Validated by |
+|--------|-------------------|---------------|--------------|
+| `wicked-pack.schema.json` | Third-party skill-pack manifest (`wicked-pack.json`) | `spec` (currently 1) | `npx wicked-garden pack check <dir>` (`scripts/pack/check.py`) |
+| `campaign-recon.schema.json` | qe campaign recon + plan artifact (capability inventory, environment-manifest ref, dependency-ordered scenario ladder with pass criteria and claim ceilings — ADR 0006) | `spec` (currently 1) | `tests/qe/test_campaign_recon_schema.py` (fixture round-trip + nonconforming rejection). The sibling evidence contract (`scenario_evidence` + `claim_level`) is owned by wicked-ledger (manifest 2.1). |
+
 ## Usage
 
 ```bash
