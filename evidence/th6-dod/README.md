@@ -29,15 +29,15 @@ campaign S11 proved missing (honest deny, "no QE ledger").
 | # | File | What it proves |
 |---|---|---|
 | 00 | `00-daemon-ready-line.txt` | isolated daemon env (port 7906, scratch db/bus, stub off, qe gate events armed) |
-| 01 | `01-acceptance-deny.json` | **the S11 honest-deny leg**: `requirement.declared:true (phases:["test"])`, `gate.satisfied:false`, reason `no QE ledger at <fixture>/.wicked-qe — (missing ⇒ deny)`. Note the CLEAN absolute path — crew#348's fix visible (S11 showed a concatenated path) |
+| 01 | `01-acceptance-deny.jsonl` | **the S11 honest-deny leg**: `requirement.declared:true (phases:["test"])`, `gate.satisfied:false`, reason `no QE ledger at <fixture>/.wicked-qe — (missing ⇒ deny)`. Note the CLEAN absolute path — crew#348's fix visible (S11 showed a concatenated path) |
 | 02 | `02-qe-run-1.json` | runner executes `specs/th6-acceptance-dod.spec.json` against the daemon: claim PASS 4/4, evidence + manifest written via wicked-ledger into the fixture repo, `scenario_evidence_emitted:true`, gate seam cmd printed |
 | 03 | `03-qe-run-2.json` | second execution of the SAME spec — new run id, **same scenario row** |
 | 04 | `04-flake-history.json` | TH-6 AC "flake history accrues per scenario_id": ONE `scenarios` row (`crew-acceptance-gate.th6-dod`), TWO `runs` rows under it |
 | 05 | `05-manifest-run2.json` | manifest **2.1.0** with the full `scenario_evidence` block: 8-key campaign shape, `claim_level: machinery-verified`, legs (`studio-home-ui: certified`, `daemon-state-cross-check: machinery-verified`), honest-cap floor respected |
 | 06 | `06-gate-pass.json` | `gate.mjs --verdict PASS` (exit 0): `manifest_validation {ran:true, ok:true}` (TH-5 validate-before-grade), `verdicts` row written, `wicked.qe.gate.passed` + `wicked.qe.deploy.completed` emitted to the ISOLATED bus |
-| 07 | `07-acceptance-satisfied.json` | **THE DoD**: same run id as 01 now returns `gate.satisfied:true`, `verdict:"PASS"`, reason cites the verdict row; `busEvent.eventType:"wicked.qe.gate.passed"` (4-segment grammar) observed by the daemon's opt-in subscription |
+| 07 | `07-acceptance-satisfied.jsonl` | **THE DoD**: same run id as 01 now returns `gate.satisfied:true`, `verdict:"PASS"`, reason cites the verdict row; `busEvent.eventType:"wicked.qe.gate.passed"` (4-segment grammar) observed by the daemon's opt-in subscription |
 | 08 | `08-host-run-terminal.json` | host run brought to a terminal state (`cancelled` — see finding below) |
-| 09 | `09-acceptance-after-terminal.json` | acceptance still resolves satisfied for the terminal-state run — the ledger stays the system of record |
+| 09 | `09-acceptance-after-terminal.jsonl` | acceptance still resolves satisfied for the terminal-state run — the ledger stays the system of record |
 | 10 | `10-verdicts-rows.json` | the `verdicts` row as stored (reviewer `wicked-garden-qe-gate`, FK to the qe run) |
 | — | `qe-evidence-bundle-8d49b3fe/` | the graded run's full redacted bundle: manifest.json (2.1), wire/console/steps/result.json, 1440x700 screenshot of studio home live against the isolated daemon. The spec's fake bearer credential appears NOWHERE (grep clean; `[REDACTED:field:Authorization]` marker present) |
 
