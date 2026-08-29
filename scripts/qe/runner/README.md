@@ -102,7 +102,8 @@ semantics):
 .wicked-qe/
   projects/ scenarios/ runs/      # DomainStore rows (dual-write JSON+SQLite)
   evidence/<run-id>/
-    manifest.json                 # ledger manifest 2.0.0, sha256-bound artifacts
+    manifest.json                 # ledger manifest (2.0.0; 2.1 with scenario_evidence
+                                  #   + claim_level once the ledger floor is >= 2.1 — XC-4)
     wire.json console.json steps.json result.json
     <name>.png                    # 1440x700 screenshots
     [video, trace.zip]            # only with --video / --trace
@@ -111,8 +112,44 @@ semantics):
 The runner writes **evidence, never verdicts of record**: no `verdicts` row
 is created, and the manifest's verdict block carries the executor claim under
 `reviewer: "qe-runner/executor-claim"`.
-TODO(TH-6): wire runs into gate.mjs / the accept trio so
-`GET /runs/:id/acceptance` re-derives acceptance from these rows.
+
+## TH-6: verdicts, gate events, and the crew acceptance gate
+
+The wiring that makes the evidence COUNT (proven end-to-end in the lane's
+`evidence/th6-dod/` transcript — the S11 honest-deny leg flipping to
+satisfied on real campaign evidence):
+
+1. **Stable scenario_ids.** The `scenarios` row is looked up by
+   (project, `scenario.id`) and reused across re-runs — every re-run appends
+   a `runs` row under the SAME scenario_id, so flake history and impact
+   selection accrue per scenario (qe-flaky-test-hunter's 14d windows come
+   free). Name scenario ids `<capability-id>.<slug>` (e.g.
+   `crew-acceptance-gate.th6-dod`) and never rename them casually.
+2. **Grading** is the qe accept trio's job (TH-10) — the runner's claim is
+   input, never the verdict.
+3. **Recording + announcing**: the graded verdict goes through
+   `scripts/qe/lib/gate.mjs` (same cwd / `WICKED_QE_LEDGER_DIR` as the run —
+   the gate resolves the SAME ledger root as this writer, TH-2 semantics):
+   it validates the bundle's manifest against the ledger contract first
+   (nonconforming ⇒ recorded as INCONCLUSIVE, deny-dominates, TH-5), writes
+   the `verdicts` row keyed by this runner's run_id, and emits the
+   `wicked.qe.gate.passed|failed|conditional` bus events (stable 8-field
+   wire contract). The CLI result's `gate.cmd` field prints the exact
+   command.
+4. **Acceptance**: crew's `GET /runs/:id/acceptance` re-derives the gate from
+   the newest `verdicts` row in the repo's ledger — deny-dominates; a clean
+   PASS row flips it to `satisfied: true`, citing the verdict.
+
+When the installed wicked-ledger supports manifest 2.1 (TH-5), the bundle
+also carries the campaign `scenario_evidence` block: the proven 8-key shape
+plus first-class `claim_level` (`certified | machinery-verified | skipped`).
+The spec plans the ceiling — optional `scenario.claim_level` (default
+`machinery-verified`, the conservative floor) and `scenario.legs` for
+disclosed per-leg caps; the lint enforces the honest-cap invariant (the
+scenario claim is never stronger than its weakest leg) and rejects `skipped`
+as a planned level (outcome-only). On a pre-2.1 ledger floor the block is
+withheld and the CLI result says so (`scenario_evidence_emitted: false`) —
+never silently mangled.
 
 The ledger emits fire-and-forget `wicked.test.*` bus events on row writes;
 set `WICKED_BUS_DATA_DIR` (and point any daemon at `--bus-db`) when running

@@ -28,10 +28,23 @@
  * wicked-ledger is resolved from the TARGET repo (cwd), not from the plugin
  * dir — the plugin ships no node_modules. Resolution: bare import (global /
  * hoisted install) → the repo's node_modules (ESM entry via package.json).
+ *
+ * TH-6 gate wiring:
+ *   - The ledger root honors `WICKED_QE_LEDGER_DIR` with the same TH-2
+ *     semantics as crew's acceptance reader and the qe-runner's writer
+ *     (absolute pins exactly; relative joins cwd) — the verdict row MUST
+ *     land in the same store the runner wrote its runs row to, or crew's
+ *     `GET /runs/:id/acceptance` re-derives from a store that never saw it.
+ *   - When the evidence bundle carries a `manifest.json` and the resolved
+ *     wicked-ledger exports `validateManifest` (manifest 2.1, TH-5), the
+ *     bundle is validated BEFORE the verdict is recorded: a nonconforming
+ *     bundle downgrades the recorded verdict to SYSTEM_ERROR (stored as
+ *     INCONCLUSIVE — deny-dominates; schema-fail is never a PASS). Bundles
+ *     without a manifest (legacy evidence dirs) skip validation unchanged.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
@@ -73,6 +86,70 @@ async function resolveLedgerModule(cwd) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Resolve the ledger root the gate writes to (TH-6). MUST mirror the TH-2
+ * semantics shared by crew's `qeLedgerRoot` (packages/crew/src/qe/ledger.ts)
+ * and the qe-runner's `resolveLedgerRoot` (scripts/qe/runner/src/evidence.mjs):
+ * an explicit `WICKED_QE_LEDGER_DIR` pins the root exactly — absolute values
+ * ARE the root, relative values join the base dir; otherwise the ledger
+ * package's own dual-read resolution (`.wicked-qe`, legacy `.wicked-testing`).
+ * Exported for tests.
+ */
+export function resolveGateLedgerRoot(baseDir, env, ledger) {
+  const override = env.WICKED_QE_LEDGER_DIR?.trim();
+  if (override !== undefined && override !== "") {
+    return isAbsolute(override) ? override : join(baseDir, override);
+  }
+  return typeof ledger?.resolveLedgerRoot === "function"
+    ? ledger.resolveLedgerRoot(baseDir)
+    : join(baseDir, ".wicked-qe");
+}
+
+/**
+ * Validate the bundle's evidence manifest against the ledger contract before
+ * grading (TH-5 rule, wired here per TH-6). Pure decision helper — no exits,
+ * no writes. Exported for tests.
+ *
+ * @returns {{ ran: boolean, ok?: boolean, violations?: Array,
+ *             verdict: string, verdictSummary: string, note?: string }}
+ *   `verdict`/`verdictSummary` are the (possibly downgraded) values to record:
+ *   a nonconforming or unparseable manifest downgrades PASS/FAIL/CONDITIONAL
+ *   to SYSTEM_ERROR (stored as INCONCLUSIVE — deny-dominates). A missing
+ *   manifest (legacy evidence dir) or a ledger without `validateManifest`
+ *   (pre-2.1 floor) skips validation with a note, never a downgrade.
+ */
+export function validateManifestForGate({ evidencePath, ledger, verdict, verdictSummary }) {
+  const manifestPath = join(evidencePath, "manifest.json");
+  if (!existsSync(manifestPath)) {
+    return { ran: false, verdict, verdictSummary, note: "no manifest.json in evidence dir — validation skipped (legacy bundle)" };
+  }
+  if (typeof ledger?.validateManifest !== "function") {
+    return { ran: false, verdict, verdictSummary, note: "resolved wicked-ledger exports no validateManifest (pre-2.1 floor) — validation skipped" };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(manifestPath, "utf8"));
+  } catch (e) {
+    return {
+      ran: true,
+      ok: false,
+      violations: [{ field: "(manifest.json)", message: `unparseable: ${e.message}` }],
+      verdict: "SYSTEM_ERROR",
+      verdictSummary: `manifest.json is unparseable (${e.message}) — verdict downgraded to INCONCLUSIVE per TH-5 (schema-fail is never graded); original verdict ${verdict}: ${verdictSummary}`,
+    };
+  }
+  const res = ledger.validateManifest(parsed);
+  if (res.ok) return { ran: true, ok: true, violations: [], verdict, verdictSummary };
+  const detail = res.violations.map((v) => `${v.field}: ${v.message}`).join("; ");
+  return {
+    ran: true,
+    ok: false,
+    violations: res.violations,
+    verdict: "SYSTEM_ERROR",
+    verdictSummary: `evidence manifest violates the ledger contract (${detail}) — verdict downgraded to INCONCLUSIVE per TH-5 (schema-fail is never graded); original verdict ${verdict}: ${verdictSummary}`,
+  };
 }
 
 // Gate verdicts → domain store verdict enum.
@@ -196,9 +273,7 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     );
     process.exit(3);
   }
-  const ledgerRoot = typeof ledger.resolveLedgerRoot === "function"
-    ? ledger.resolveLedgerRoot(process.cwd())
-    : join(process.cwd(), ".wicked-qe");
+  const ledgerRoot = resolveGateLedgerRoot(process.cwd(), process.env, ledger);
   const evidencePath = join(ledgerRoot, "evidence", runId);
   if (!existsSync(evidencePath)) {
     process.stderr.write(
@@ -206,6 +281,20 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     );
     process.exit(3);
   }
+
+  // 2b. Validate the bundle's manifest against the ledger contract BEFORE
+  //     grading (TH-5 rule, wired per TH-6): a nonconforming bundle downgrades
+  //     the recorded verdict to SYSTEM_ERROR → INCONCLUSIVE (deny-dominates).
+  //     Legacy bundles (no manifest.json) and pre-2.1 ledgers skip with a note.
+  const validation = validateManifestForGate({ evidencePath, ledger, verdict, verdictSummary });
+  const manifestValidation = {
+    ran: validation.ran,
+    ...(validation.ran ? { ok: validation.ok, violations: validation.violations } : {}),
+    ...(validation.note ? { note: validation.note } : {}),
+    ...(validation.verdict !== verdict ? { downgraded_from: verdict } : {}),
+  };
+  verdict = validation.verdict;
+  verdictSummary = validation.verdictSummary;
 
   // 3. Count scenarios from evidence (best-effort)
   const { scenario_count, passed_count, failed_count } = countScenarios(evidencePath);
@@ -297,7 +386,9 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     }
   }
 
-  // 8. Output canonical result JSON to stdout
+  // 8. Output canonical result JSON to stdout. `manifest_validation` is
+  //    additive stdout detail (TH-6) — the 8-field BUS payload above is the
+  //    wire contract and stays untouched.
   const output = {
     run_id: runId,
     project_id: projectId,
@@ -307,6 +398,7 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     passed_count,
     failed_count,
     evidence_path: evidencePath,
+    manifest_validation: manifestValidation,
   };
   process.stdout.write(JSON.stringify(output) + "\n");
 

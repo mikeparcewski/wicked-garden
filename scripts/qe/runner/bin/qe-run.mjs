@@ -17,8 +17,12 @@
  */
 
 import { parseArgs } from "node:util";
+import { fileURLToPath } from "node:url";
 import { loadSpec, SpecError } from "../src/spec.mjs";
 import { runSpec } from "../src/runner.mjs";
+
+/** Absolute path of the qe gate CLI (TH-6 seam hint printed with the result). */
+const GATE_MJS = fileURLToPath(new URL("../../lib/gate.mjs", import.meta.url));
 
 const { values, positionals } = parseArgs({
   options: {
@@ -71,6 +75,15 @@ try {
         evidence_dir: result.evidenceDir,
         manifest: result.manifestPath,
         preflight_hits: result.preflight.length,
+        scenario_evidence_emitted: result.scenarioEvidenceEmitted,
+        // TH-6 seam: after the qe accept trio grades this bundle, record the
+        // verdict of record + emit the wicked.qe.gate.* events with this
+        // command (same cwd / WICKED_QE_LEDGER_DIR as this run used).
+        gate: {
+          project_id: result.projectId,
+          scenario_id: result.scenarioId,
+          cmd: `node ${JSON.stringify(GATE_MJS)} --project-id ${JSON.stringify(result.projectId)} --run-id ${JSON.stringify(result.runId)} --verdict <PASS|FAIL|CONDITIONAL|SYSTEM_ERROR> --verdict-summary "<graded summary>"`,
+        },
       },
       null,
       2,

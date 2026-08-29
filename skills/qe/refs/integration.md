@@ -129,6 +129,34 @@ the emit is a no-op; the qe domain's own SQLite ledger is always written.
 > STABLE wire contract (wicked-crew's acceptance route folds them) — never
 > rename them.
 
+### Campaign → acceptance wiring (TH-6)
+
+The full evidence path from a qe campaign scenario to crew's deny-dominates
+acceptance gate — zero new gate or persistence code:
+
+1. **Execute**: the model-free runner (`scripts/qe/runner`) executes the
+   agent-authored spec and writes redacted evidence through wicked-ledger —
+   a reused `scenarios` row (stable scenario_id = `<capability-id>.<slug>`,
+   looked up by name so re-runs accrue flake history), a `runs` row per
+   execution, and the evidence bundle + manifest under
+   `.wicked-qe/evidence/<run-id>/`. The runner claims; it never grades.
+2. **Grade**: the qe `accept` trio reviews the bundle (reviewer sees evidence
+   paths only). The reviewer validates the manifest against the ledger
+   contract BEFORE grading — a nonconforming bundle grades INCONCLUSIVE
+   (TH-5).
+3. **Record + announce**: the graded verdict goes through `gate.mjs`, run
+   with the SAME cwd / `WICKED_QE_LEDGER_DIR` the runner used (the gate
+   resolves the identical ledger root — an env pin is honored with TH-2
+   semantics: absolute is the root, relative joins cwd). gate.mjs re-checks
+   the manifest contract as a deny-dominates backstop (schema-fail records
+   INCONCLUSIVE, never the graded verdict), writes the `verdicts` row keyed
+   by the runner's run_id, and emits `wicked.qe.gate.*`.
+4. **Re-derive**: crew's `GET /runs/:id/acceptance` reads the repo ledger's
+   newest verdict row — a clean PASS flips it to `satisfied: true`, citing
+   the verdict; everything else denies with its own reason. The bus events
+   only add freshness (`--qe-gate-events`); the ledger stays the system of
+   record.
+
 ### Payload shape (common fields)
 
 All events include:
