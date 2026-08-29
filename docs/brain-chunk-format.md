@@ -1,5 +1,13 @@
 # Brain Chunk Format — Cross-CLI Reference
 
+> **RETIRED (2026-08, Phase 5-S7).** wicked-brain is retired and `~/.wicked-brain`
+> is a **frozen archive — never write to it** (and never delete it). This format
+> reference is preserved because the chunks written under it were migrated
+> zero-loss into **wicked-estate** and keep `wicked-brain://…` source URIs there.
+> **Do not write new chunks in this format.** To store knowledge or memories
+> today, use wicked-garden's `mem` domain (`wicked-garden-mem` `store`/`ingest`)
+> over wicked-estate. Everything below is historical reference only.
+
 This document defines the wicked-brain chunk format so any CLI (Claude Code, Codex, Gemini, Copilot) can write chunks that integrate into the shared knowledge graph.
 
 ## Chunk File Structure
