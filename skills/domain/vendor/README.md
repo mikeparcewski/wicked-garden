@@ -24,8 +24,8 @@ is history, not the contract.
 ## Two versions, deliberately
 
 The **bundle** `VERSION` bumps when ANY schema in the owner's 4-file bundle
-changes (the 1.0.0→1.1.0 bump was a coverage-schema change — this file was
-untouched). The **contract version** a document carries (`metadata.schema_version`,
+changes (the 1.0.0→1.1.0 bump added `conformance-rules.schema.json` to the
+bundle — this file was untouched). The **contract version** a document carries (`metadata.schema_version`,
 const-pinned by the schema, matching the `$id` segment) is independent — the
 schemas document that independence themselves. Documents emitted here still carry
 `schema_version: "1.0.0"`.

@@ -53,7 +53,7 @@ def pinned_version() -> str:
     own ``metadata.schema_version`` const (== its ``$id`` version segment).
     Deliberately NOT the vendored bundle ``VERSION`` file — that tracks the
     owner's whole 4-schema bundle and moves when ANY sibling schema changes
-    (1.0.0→1.1.0 was a coverage-schema change; this schema stayed 1.0.0)."""
+    (1.0.0→1.1.0 added conformance-rules.schema.json; this schema stayed 1.0.0)."""
     schema = load_schema()
     return schema["properties"]["metadata"]["properties"]["schema_version"]["const"]
 
