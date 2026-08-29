@@ -1,5 +1,7 @@
 # wicked-loom — Expand Phase, Plan A (compose skeleton) — Implementation Plan
 
+<!-- historical-doc -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up the `wicked-loom` standalone package with its `compose` surface — peer manifest, the runtime resolution ladder, version-check, and install orchestration — publishable as `wicked-loom@0.1.0` and runnable as `npx wicked-loom`, with garden untouched.

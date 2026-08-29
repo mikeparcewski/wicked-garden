@@ -1,5 +1,7 @@
 # Codegraph → Brain, Phase 1a: Graph Core — Implementation Plan
 
+<!-- historical-doc -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `wicked-brain` answer code-relationship queries (blast-radius, callers, lineage) from a codegraph-built static graph it owns — with zero `wicked-garden` dependency.

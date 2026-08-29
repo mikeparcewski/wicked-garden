@@ -6,7 +6,7 @@
    All claims code-grounded against the wicked-garden repo (skills/**,
    .claude-plugin/plugin.json v12.29.1): 141 SKILL.md across 14 domain groups,
    40 qe-* specialist fork skills + the 3-agent acceptance pipeline (absorbed
-   from the retired wicked-testing plugin in Phase 6b/6c), the estate-backed
+   from the retired wicked-testing plugin in Phase 6b/6c), the estate-backed // historical
    mem + search + patch stack, and the open {vendor}-{domain}-{role} naming
    contract. Honest status only — MIT, local-first.
 ============================================================================ */
@@ -287,7 +287,7 @@ export const CONDITIONS: Condition[] = [
 ];
 
 /* ============================================================================
-   THE QE DOMAIN — absorbed from the retired wicked-testing plugin (Phase 6b/6c).
+   THE QE DOMAIN — absorbed from the retired wicked-testing plugin (Phase 6b/6c). // historical
    The wall story now lives here: the agent that runs the tests is never the
    one that grades them. All data below is grounded against skills/qe*:
    - 40 qe-* specialist fork skills, each `context: fork`

@@ -1,7 +1,7 @@
 # Answer — cited synthesis from the estate stores
 
 The user-facing "ask the record" verb (supersedes the retired
-`wicked-brain:query`). Produce a **grounded, cited** answer from what the
+`wicked-brain:query`). Produce a **grounded, cited** answer from what the <!-- historical -->
 knowledge + memory stores actually contain — never from model memory alone.
 This is the agent-side application of estate's embedded method card
 `skill://cited-answer/SKILL.md` (DEC-R: the engine ranks, you write the

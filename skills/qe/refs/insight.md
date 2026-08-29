@@ -4,7 +4,7 @@ archetype_relevance: ["review", "ship", "incident"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     the retired wicked-testing plugin's `insight` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `insight` orchestrator). Loaded on demand <!-- historical -->
      via Read() from the router's `insight` action — not a skill. -->
 
 

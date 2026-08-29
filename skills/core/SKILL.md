@@ -94,7 +94,7 @@ Each domain is one consolidated skill that routes to its actions.
 
 > **Cross-session memory + knowledge is the `wicked-garden-mem` domain**
 > (wicked-estate is the engine): `store` / `recall` / `answer` / `ingest`
-> replace the retired wicked-brain skill cluster. Relationship graphs
+> replace the retired wicked-brain skill cluster. Relationship graphs <!-- historical -->
 > (blast-radius / lineage / hotspots) live in the **wicked-estate MCP**
 > (`BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`, ADR 0005) —
 > the `wicked-garden-search` skill wraps them; symbol lookup is the estate

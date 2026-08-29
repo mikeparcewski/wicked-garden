@@ -34,7 +34,7 @@ Rules of thumb:
 
 ### Brain-migrated memories
 
-The wicked-brain retirement (Phase 5-S7) migrated brain memories into estate
+The wicked-brain retirement (Phase 5-S7) migrated brain memories into estate <!-- historical -->
 under leaf scopes shaped `brain:<project>/doc:<id>`. They are ordinary
 memories: the default `scope_prefix: ""` recall reaches them, and a
 `scope_prefix: "brain:<project>"` targets just that legacy subtree (useful

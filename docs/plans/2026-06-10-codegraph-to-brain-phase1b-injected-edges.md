@@ -1,5 +1,7 @@
 # Codegraph → Brain, Phase 1b: Injected Edges + Extractor Registry — Plan
 
+<!-- historical-doc -->
+
 > **For agentic workers:** executed via subagent-driven-development against the wicked-brain repo (branch `feat/codegraph-graph-core`, same as Phase 1a). Builds on Phase 1a's `codegraph-client`/`codegraph-index`.
 
 **Goal:** Materialize wicked-ecosystem **injected edges** (grep-/static-invisible, string-wired relationships) into the codegraph graph so blast-radius/lineage traverse them — with a pluggable registry so brain ships generic extractors and any plugin can drop in proprietary ones (Decision D3). **Zero garden dependency.**

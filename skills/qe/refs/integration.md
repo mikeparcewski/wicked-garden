@@ -20,7 +20,7 @@ separate agent or command component types.
 - Specialist worker skills: `wicked-garden-qe-<role>` (context:fork), e.g.
   `wicked-garden-qe-test-strategist`
 
-The retired wicked-testing package's `wicked-testing:<name>` colon namespace is
+The retired wicked-testing package's `wicked-testing:<name>` colon namespace is <!-- historical -->
 gone (Phase 6c); this contract maps its former surfaces to the in-catalog names.
 
 ---
@@ -50,7 +50,7 @@ is not a breaking change.
 ## 3. Core Worker Skills (Tier 1 — stable dispatch names)
 
 Consumers (notably the crew gate) dispatch these forked worker skills by their
-dash-form names (Phase 6c: the former `wicked-testing:<role>` dispatch strings
+dash-form names (Phase 6c: the former `wicked-testing:<role>` dispatch strings <!-- historical -->
 map 1:1 to `wicked-garden-qe-<role>`). This list is frozen; renames require
 a major version.
 
@@ -92,7 +92,7 @@ the emit is a no-op; the qe domain's own SQLite ledger is always written.
     `test` in `wicked.test.run.completed`. This is the compact routing token baked
     into the type string.
   - The **`domain` payload field / SQLite column** is the qe toolchain's
-    domain stamp: **`qe`** (was `wicked-testing` pre-6c). It never uses the
+    domain stamp: **`qe`** (was `wicked-testing` pre-6c). It never uses the <!-- historical -->
     type-string token `test`.
   - So a completed run emits type `wicked.test.run.completed` with `domain: qe`.
 - `subdomain` scopes by functional area (`ledger`, `scenario`, `testrun`, `verdict`, `evidence`)
@@ -122,7 +122,7 @@ the emit is a no-op; the qe domain's own SQLite ledger is always written.
 | `wicked.qe.deploy.completed` | the qe gate CLI on PASS only | `run_id`, `project_id` |
 
 > **Gate emitter (Phase 6c):** the `wicked-qe gate` binary retired with the
-> wicked-testing package. The gate-announcement CLI now ships in-catalog:
+> wicked-testing package. The gate-announcement CLI now ships in-catalog: <!-- historical -->
 > `node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" --project-id <id>
 > --run-id <id> --verdict <PASS|FAIL|CONDITIONAL|SYSTEM_ERROR>
 > --verdict-summary "<text>"`. Event types and the 8-field payload are a

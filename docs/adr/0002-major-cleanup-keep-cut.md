@@ -31,13 +31,13 @@ This is grounded in a full hands-on pass: every domain was invoked and judged ag
 | code-graph (codegraph + injected-edge extractors) → `search:blast-radius`, `search:lineage` | **output + tokens** — finds injected relationships grep can't; impact in one query vs. reading many files |
 | wicked-patch (`rename`/`add-field`/`remove`/`apply`) — once wired to the graph DB | **easier + output** — deterministic multi-file refactor |
 | `jam:council` / multi-model | **output** — real external-model perspective the agent can't produce alone |
-| `jam:brainstorm` / `revisit` (the wicked-brain decision-memory loop) | **output** — longitudinal decision/outcome memory |
+| `jam:brainstorm` / `revisit` (the wicked-brain decision-memory loop) | **output** — longitudinal decision/outcome memory | <!-- historical -->
 | `smaht:briefing` | **tokens** — one event-store query replaces stitching git+memory+tasks |
 | `data:ontology` | **output** — real RDF-vocabulary engine (beats free-recall) |
 | `persona:as` (built-in personas) + `persona:list` | **output** — hand-authored constraints/memories measurably steer; cheap discovery |
 | `platform:security` (now drives real `gitleaks`/`semgrep`) | **output** — real SAST/secrets, not grep-guessing |
 | `platform:toolchain` | **tokens/easier** — fast deterministic CLI inventory |
-| wicked-testing integration (`acceptance`/`run`/`plan`/`review`) | **output** — evidence-gated testing backbone |
+| wicked-testing integration (`acceptance`/`run`/`plan`/`review`) | **output** — evidence-gated testing backbone | <!-- historical -->
 | archetype **gate** + actionable steering (emits the `prove` one-liner) | **output** — turns the principle into a reflex |
 | Core plumbing: `setup`, `where-am-i`, `help`, `intent`, `reset`, `classify`, hooks | load-bearing |
 
@@ -47,7 +47,7 @@ These are `Task(subagent)` rubric-wrappers: a checklist the agent already applie
 
 | Domain | Collapse | Note |
 |---|---|---|
-| product | ✅ **EXECUTED — all 12** (`a11y`,`ux`,`ux-review`,`elicit`,`strategy`,`mockup`,`screenshot`,`analyze`,`synthesize`,`listen`,`align`,`acceptance`) | The pattern. Each rubric is now `skills/product/refs/<name>.md`, loaded inline. **Kept dispatch** only for the genuine multi-lens cases: `ux-review --focus all` (4 lenses) and `strategy --focus all` (2 lenses). Removed the dispatch-only agents `ux-analyst`, `user-voice`, `mockup-generator`; kept the rest (still referenced). `acceptance --scenarios` wicked-testing tie-in preserved in the ref. |
+| product | ✅ **EXECUTED — all 12** (`a11y`,`ux`,`ux-review`,`elicit`,`strategy`,`mockup`,`screenshot`,`analyze`,`synthesize`,`listen`,`align`,`acceptance`) | The pattern. Each rubric is now `skills/product/refs/<name>.md`, loaded inline. **Kept dispatch** only for the genuine multi-lens cases: `ux-review --focus all` (4 lenses) and `strategy --focus all` (2 lenses). Removed the dispatch-only agents `ux-analyst`, `user-voice`, `mockup-generator`; kept the rest (still referenced). `acceptance --scenarios` wicked-testing tie-in preserved in the ref. | <!-- historical -->
 | engineering | `debug`, `plan`, `arch`, `review`, `docs` | `debug` duplicates `superpowers:systematic-debugging` (collapse to a pointer); rest collapse with R1–R6 preserved as a ref. |
 | platform | `compliance`, `audit`, `incident`, `health`, `traces`, `actions`, `gh`, `infra` | keep `security` + `toolchain`. Collapse the SOC2/HIPAA audit checklist into a ref. |
 | data | `analyze`, `data`, `pipeline`, `ml` | keep `ontology`. |

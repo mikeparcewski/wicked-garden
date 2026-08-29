@@ -1,5 +1,7 @@
 # North-Star Spec — `wicked-loom`: extracting the orchestration runtime
 
+<!-- historical-doc -->
+
 - **Date:** 2026-06-08
 - **Status:** Design (approved shape; pending written-spec review → implementation plan)
 - **Author:** brainstormed with Mike Parcewski

@@ -4,7 +4,7 @@ archetype_relevance: ["build", "ship", "review"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     the retired wicked-testing plugin's `execution` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `execution` orchestrator). Loaded on demand <!-- historical -->
      via Read() from the router's `execute` action — not a skill. -->
 
 
@@ -152,7 +152,7 @@ SKIP with reason `trust-level-insufficient`.
 ## Helper resolution (`{WT_LIB}`)
 
 `{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
-in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!-- historical -->
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash

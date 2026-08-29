@@ -31,7 +31,7 @@ session benefits without re-running classification on every turn.
 
 ## Routing model (council-is-the-router)
 
-This skill **is the session router**. The former wicked-signals product (a
+This skill **is the session router**. The former wicked-signals product (a <!-- historical -->
 separate text-in / intent-out classifier) was archived because intent /
 work-shape classification is a native model capability — the router is just a
 model reading the prompt with full tool access (`allowed-tools: ["*"]`), which

@@ -90,6 +90,10 @@ export const PROJECTS: Project[] = [
   },
 
   // ── The layers ─────────────────────────────────────────────────
+  // historical: the wicked-brain card below predates the 2026-08
+  // retirement (brain consolidated into wicked-estate; agent surface =
+  // garden's mem/search skills). Kept as a record; this array is not
+  // rendered (only ROLES/STATS are imported, by og.astro).
   {
     id: "wicked-brain",
     short: "brain",
@@ -116,6 +120,7 @@ export const PROJECTS: Project[] = [
     badges: ["MIT", "npm", "local-first"],
     featured: true,
   },
+  // /historical
   {
     id: "wicked-bus",
     short: "bus",
@@ -196,7 +201,7 @@ export const TOUR: TourStop[] = [
       "Persistent, searchable knowledge from plain markdown and SQLite full-text search. No vector DB, no embeddings — session 47 picks up exactly where session 1 left off, and you can read every byte. Every claim traces back to a file you can open, diff, and git-commit.",
     unlock: "now it remembers",
     plant: "optin",
-    tools: ["wicked-brain"],
+    tools: ["wicked-brain"], // historical
   },
   {
     stop: 4,

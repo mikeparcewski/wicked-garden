@@ -14,7 +14,7 @@ Work in wicked-garden is organized around **9 work-shape archetypes** — not a 
 | [Required Peers](required-peers.md) | The five required peer plugins and the install/runtime stance |
 | [The Compiler](compiler.md) | `/wicked-garden-prove compile` — emit a self-contained vault-backed gate into any repo |
 | [Extending the Catalog](extending.md) | Ship a third-party pack — `{vendor}-{domain}-{role}` skills, the `wicked-pack.json` manifest, the shipped conformance gate, install + crew routing |
-| [Brain Chunk Format](brain-chunk-format.md) | Historical: how content was chunked for the retired wicked-brain index (the migrated chunks in wicked-estate keep this shape) |
+| [Brain Chunk Format](brain-chunk-format.md) | Historical: how content was chunked for the retired wicked-brain index (the migrated chunks in wicked-estate keep this shape) | <!-- historical -->
 
 ## Quick Links
 

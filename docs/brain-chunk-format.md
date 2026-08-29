@@ -1,5 +1,6 @@
 # Brain Chunk Format — Cross-CLI Reference
 
+<!-- historical-doc -->
 > **RETIRED (2026-08, Phase 5-S7).** wicked-brain is retired and `~/.wicked-brain`
 > is a **frozen archive — never write to it** (and never delete it). This format
 > reference is preserved because the chunks written under it were migrated

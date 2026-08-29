@@ -4,7 +4,7 @@
 - **Date:** 2026-08-29
 - **Context owners:** wicked-garden (capability) + wicked-crew/wicked-core (control) + wicked-ledger/wicked-vault (evidence) + wicked-studio (surface)
 - **Relates to:** garden `skills/qe/` (the qe domain), `scripts/qe/lib/gate.mjs` (the `wicked.qe.gate.*` wire contract), `schemas/` (contract-schema home); core `src/campaign.rs` + DES-CAMPAIGN-001 (the Campaign DAG scheduler); crew `GET /runs/:id/acceptance` (the deny-dominates gate); ledger `docs/SCHEMA-CONTRACT.md` (evidence-manifest versioning). (Cross-repo references are paths in those repos, not links.)
-- **Origin:** 2026-08 test-harness recon (RECON-TEST-HARNESS test-R3); precedent in `scratch/TARGET-ARCHITECTURE.md` Phase 6 (wicked-testing dissolution).
+- **Origin:** 2026-08 test-harness recon (RECON-TEST-HARNESS test-R3); precedent in `scratch/TARGET-ARCHITECTURE.md` Phase 6 (wicked-testing dissolution). <!-- historical -->
 
 ## Context
 
@@ -16,7 +16,7 @@ land evidence where an acceptance gate can re-derive it. The question this ADR s
 is *where that harness lives*.
 
 The tempting answer — a new standalone product ("interactive test harness",
-"wicked-harness") — has already been tried and unwound once. **wicked-testing was
+"wicked-harness") — has already been tried and unwound once. **wicked-testing was <!-- historical -->
 retired in 2026-08 (Phase 6) INTO exactly the planes below**, at real cost: npm
 deprecation at 0.11.0, install-surface migration, the `wicked.qe.*` event rebrand,
 repo archival, site redirects. Its 40 specialists and the acceptance trio became
@@ -31,7 +31,7 @@ existing planes, under the name **"qe campaign"**.
 
 | Concern | Plane | Home | Rationale |
 |---|---|---|---|
-| **Executor runtime** (model-free browser/API runner, vendored Playwright, wire-capture/read-back helpers — TH-4) | **Capability** | **wicked-garden**, `scripts/qe/runner` inside the qe domain | The executor is a tool any control plane invokes, like the rest of the qe pipeline (accept trio, gate.mjs) already in garden. Crew runs *governed workers*; it does not own domain tooling. Precedent: wicked-testing's executor skills landed in garden, only the gate landed in crew. |
+| **Executor runtime** (model-free browser/API runner, vendored Playwright, wire-capture/read-back helpers — TH-4) | **Capability** | **wicked-garden**, `scripts/qe/runner` inside the qe domain | The executor is a tool any control plane invokes, like the rest of the qe pipeline (accept trio, gate.mjs) already in garden. Crew runs *governed workers*; it does not own domain tooling. Precedent: wicked-testing's executor skills landed in garden, only the gate landed in crew. | <!-- historical -->
 | **Recon + generation** (estate-seeded capability inventory, scenario ladder — TH-7) | **Capability** | wicked-garden qe domain (`campaign` action) | Skill work: reads estate's graph + mem/search, emits scenario format v1 — never a parallel format. |
 | **Schemas** (TH-5) | **Capability + Evidence** (two owners, deliberately) | `campaign-recon.schema.json` → **wicked-garden/schemas/** (sits beside assert_contracts.json, health_probe.json, wicked-pack.schema.json); scenario-evidence shape + `claim_level` enum (certified \| machinery-verified \| skipped) → **wicked-ledger manifest 2.1** via SCHEMA-CONTRACT.md | The recon artifact is a capability contract; the evidence shape is the system of record's contract. A single home would create the parallel-format drift the qe domain forbids. Reviewer validates against the ledger's schema before grading; schema-fail = INCONCLUSIVE. |
 | **Scheduler** (durable parallel DAG over scenarios — TH-9) | **Control** | **wicked-core** `src/campaign.rs` (`launch_campaign`/`resume_campaign`, already built per DES-CAMPAIGN-001), exposed through **wicked-crew** `POST/GET /api/v1/campaigns` + WS passthrough of the Campaign* events | The scheduler exists; the work is exposure, not construction. Garden gets no scheduler. Governance (evaluator≠creator, deny-dominates, HITL gates) is crew's job by design. |
@@ -43,7 +43,7 @@ existing planes, under the name **"qe campaign"**.
 - **"qe campaign"** — the garden action a user invokes (extends the existing qe domain vocabulary).
 - **"Campaigns"** — the studio surface.
 - **`CampaignDef` / Campaign*** — wicked-core's terms, unchanged; core owns them via DES-CAMPAIGN-001.
-- **Avoid** "interactive test harness" (collides with the wicked-interactive product) and any revival of the retired "wicked-testing" name.
+- **Avoid** "interactive test harness" (collides with the wicked-interactive product) and any revival of the retired "wicked-testing" name. <!-- historical -->
 
 ## Consequences
 

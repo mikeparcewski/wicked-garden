@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-08-11
 - **Supersedes:** [ADR 0004](0004-code-graph-moves-to-wicked-brain.md) **in full** — the graph's
-  home moves from `wicked-brain` to `wicked-estate`. Also **retires the engine choice** carried
+  home moves from `wicked-brain` to `wicked-estate`. Also **retires the engine choice** carried <!-- historical -->
   forward from [ADR 0001](0001-code-relationship-graph-engine.md): `@colbymchenry/codegraph` is
   replaced by estate's own 75-language tree-sitter extractor. What ADR 0001/0004 got right — a real
   relationship graph with **injected edges** as the load-bearing idea — stands; only the home and
@@ -18,17 +18,17 @@
 
 ## Context
 
-ADR 0004 homed the code-relationship graph in `wicked-brain`: brain shelled `@colbymchenry/codegraph`
+ADR 0004 homed the code-relationship graph in `wicked-brain`: brain shelled `@colbymchenry/codegraph` <!-- historical -->
 to build a per-repo `.codegraph/codegraph.db`, read it back over `graph-*` server actions + a
-`wicked-brain:graph` skill, and let plugins contribute proprietary injected edges through a drop-in
+`wicked-brain:graph` skill, and let plugins contribute proprietary injected edges through a drop-in <!-- historical -->
 registry (`<repo>/.codegraph-extractors/*.mjs`). Garden became a consumer: `skills/search/SKILL.md`,
 `skills/search/refs/hotspots.md`, and `wicked-patch` (`scripts/engineering/patch/codegraph_db.py`)
 all target that brain surface, and garden ships `.codegraph-extractors/archetype.mjs` as its drop-in.
 
 Two facts have since changed the ground under ADR 0004:
 
-1. **The brain graph is gone.** ADR 0004's implementation is stripped from the current wicked-brain
-   working tree — there is no `wicked-brain-graph` skill, no `@colbymchenry/codegraph` dependency,
+1. **The brain graph is gone.** ADR 0004's implementation is stripped from the current wicked-brain <!-- historical -->
+   working tree — there is no `wicked-brain-graph` skill, no `@colbymchenry/codegraph` dependency, <!-- historical -->
    and no `graph-*` server action. Every garden call-site above therefore points at a **surface that
    no longer exists** — an already-dangling contract, not a live coupling.
 
@@ -74,11 +74,11 @@ cross-repo overlay the brain never had). There is no code to move — only garde
 
 | | 0004 (brain) | 0005 (estate) |
 |---|---|---|
-| Home of the graph + queries | wicked-brain | **wicked-estate** |
+| Home of the graph + queries | wicked-brain | **wicked-estate** | <!-- historical -->
 | Static engine | `@colbymchenry/codegraph` peer (Node ≥ 22.5) | **estate `wicked-estate-extract`** — 75-language tree-sitter, in-binary |
 | Injected edges | per-repo JS drop-ins `<repo>/.codegraph-extractors/*.mjs` | **`ExtraEdgeExtractor` TOML rules** (`.wicked-estate-extractors/<name>.toml`, `extra_edge.rs`) |
 | Cross-repo / cross-store edges | none | **`wicked-estate-overlay` `XedgeStore`** (`xedge.db`) |
-| blast-radius / lineage owner | brain `graph-*` actions + `wicked-brain:graph` skill | **estate MCP tools `BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`** |
+| blast-radius / lineage owner | brain `graph-*` actions + `wicked-brain:graph` skill | **estate MCP tools `BlastRadius` / `Lineage` / `TraverseGraph` / `RankHotspots`** | <!-- historical -->
 | Graph DB | `<repo>/.codegraph/codegraph.db` (codegraph-native SQLite) | **estate index DB** (`wicked-estate index <path>`; queried via MCP, not read raw) |
 | wicked-patch symbol source | reads `.codegraph/codegraph.db` directly | **estate graph** (via MCP / an estate export) |
 | Injected-edge direction | `source = dependent, target = producer/playbook`; blast-radius = dependents | **unchanged in spirit** — estate invariant is `source = dependent, target = dependency`, blast-radius = dependents (`xedge.rs` header; estate `CLAUDE.md`). The archetype rule ports **without a direction flip.** |
@@ -98,7 +98,7 @@ cross-repo overlay the brain never had). There is no code to move — only garde
 ## Consequences
 
 - **The dangling contracts get a real target.** Every garden call-site that today references a
-  retired brain surface (`graph-index`, `graph-blast-radius`, `graph-lineage`, `wicked-brain:graph`,
+  retired brain surface (`graph-index`, `graph-blast-radius`, `graph-lineage`, `wicked-brain:graph`, <!-- historical -->
   raw `.codegraph/codegraph.db` reads) maps to a live estate MCP tool or the estate graph. The exact
   mapping is [`0005-retarget-inventory.md`](0005-retarget-inventory.md).
 - **Any repo** gets relationship-graph knowledge by running the wicked-estate MCP server — no garden

@@ -9,7 +9,7 @@ import {
 } from "../../data/garden";
 
 /* ============================================================================
-   THE WALL — the qe domain's one idea, absorbed from the retired wicked-testing
+   THE WALL — the qe domain's one idea, absorbed from the retired wicked-testing // historical
    site: the agent that runs the tests is never the one that grades them.
    Two mechanics carried over:
    1. the reveal-reviewer flip — a self-graded PASS sent to an independent
@@ -104,7 +104,7 @@ export default function QeWall() {
         <p className="kicker qw-kicker">04 / the qe domain · absorbed fleet</p>
         <h2 className="qw-h2">No agent grades its own homework.</h2>
         <p className="qw-intro">
-          The retired wicked-testing plugin lives on here as the{" "}
+          The retired wicked-testing plugin lives on here as the{" "}{/* historical */}
           <span className="qw-em">qe domain</span> — and it brought its wall.
           The 3-agent acceptance pipeline gives each role its own tool boundary;
           the reviewer reads <span className="qw-em">cold evidence files only</span>{" "}
