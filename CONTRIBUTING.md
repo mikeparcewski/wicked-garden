@@ -32,9 +32,10 @@ uv run pytest tests/ -x
 wicked-vault (npm, ≥ 0.5.0 <!-- vault-floor -->, install `npm i -g wicked-vault`)
 is the one required peer (the loom engine is built into the garden; bus is an
 opt-in layer). The garden's produces-gates re-derive
-evidence through **wicked-loom** — `scripts/qe/vault_gate.py` shells `wicked-loom
-gate`, which in turn shells `wicked-vault cross-check`, so the vault is the backend
-loom re-runs the verifier against. loom resolves the vault; the concrete-install
+evidence through the built-in loom engine — `scripts/qe/vault_gate.py` runs
+`loom gate` in-process (`scripts/_loom.py` → `scripts/loom/`), which shells
+`wicked-vault cross-check`, so the vault is the backend loom re-runs the
+verifier against. loom resolves the vault; the concrete-install
 probe (`vault_available`) and the `WICKED_VAULT_BIN` kill-switch below still apply.
 The vault CLI is resolved in order:
 

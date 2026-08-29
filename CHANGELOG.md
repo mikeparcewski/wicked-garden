@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Changed
-- **Peer-floor and manifest truth pass (recon DT-13).** One consistent vault-floor story: every doc restatement now says **≥ 0.5.0** — the floor `scripts/loom/manifest.py` (`version_pin="0.5"`) and `plugin.json` (`wicked_vault_version ^0.5.0`) have enforced since 12.31.0 — replacing the stale `≥ 0.4.0` (README, CONTRIBUTING, `skills/archetype/refs/{review,incident,migrate,modernize,specify}.md`) and `^0.3.0` (`docs/required-peers.md`) claims. manifest.py + plugin.json are declared the single source; restatements carry a greppable `<!-- vault-floor -->` marker, and `docs/required-peers.md` documents the bump procedure. `skills/core/refs/setup.md` now checks the probed vault version against the floor and tells a below-floor (e.g. 0.4.x) user to upgrade via `npm i -g wicked-vault@latest`.
+- **Peer-floor and manifest truth pass (recon DT-13).** One consistent vault-floor story: every doc restatement now says **≥ 0.5.0** — the floor `scripts/loom/manifest.py` (`version_pin="0.5"`) and `plugin.json` (`wicked_vault_version ^0.5.0`) have carried since 12.31.0 (checked by the peer registry's health probe: `loom doctor` reports a below-floor vault as `drift` and exits non-zero) — replacing the stale `≥ 0.4.0` (README, CONTRIBUTING, `skills/archetype/refs/{review,incident,migrate,modernize,specify}.md`) and `^0.3.0` (`docs/required-peers.md`) claims. manifest.py + plugin.json are declared the single source; restatements carry a greppable `<!-- vault-floor -->` marker, and `docs/required-peers.md` documents the bump procedure. `skills/core/refs/setup.md` now checks the probed vault version against the floor and tells a below-floor (e.g. 0.4.x) user to upgrade via `npm i -g wicked-vault@latest`.
 - **`docs/required-peers.md` rewritten to the shipped truth.** The vault install command is now the working `npm i -g wicked-vault` form (was `npx wicked-vault-install`, which E404s on a fresh machine — no npm package of that name exists; it's a bin of `wicked-vault`). The loom row no longer presents a required external peer pinned `^0.2.0`: the engine has been absorbed in-package (`scripts/loom/`, dispatched in-process by `scripts/_loom.py`) since 12.27.0. **Decision (recon OQ-4):** the standalone `wicked-loom` npm package (0.4.0, not deprecated) is not a sanctioned install path — the pin is deleted, not bumped; `WICKED_LOOM_BIN` stays a debugging escape hatch.
 - **`.claude-plugin/plugin.json`: deleted the retired `wicked_brain_version` pin** (`^0.18.0` — wicked-brain retired 2026-08, Phase 5-S7; nothing reads the key). The `wicked_ledger_version ^0.2.0` pin is deliberately untouched here — it moves with the coordinated wicked-ledger 2.1 floor-bump wave.
 - **`.claude-plugin/marketplace.json`: retired-layers copy fixed** — "testing/brain/bus are opt-in layers" → estate/bus are the opt-in layers; wicked-testing and wicked-brain are retired (QE ships in-catalog as the `qe` domain; memory lives in wicked-estate).
@@ -43,8 +43,7 @@
 ### Changed
 - Site: version-free kicker chip — npm is the version authority (#1018).
 - CI: notify wicked-installer on release tags (#1030).
-- Deprecations: `phase_manager.py` and `archetypes_v11.py` marked deprecated (#1012).
-- DoD bookkeeping: L2-004 / L3-002 / L3-007..010 evidence checked off against the 12.29.1 release (#1011–#1015); shared deps updated to v19.2.8 (#1008).
+- DoD bookkeeping: L3-009/L3-010 evidence checked off against the 12.29.1 release (#1015); shared deps updated to v19.2.8 (#1008).
 
 ## [12.29.1] — 2026-07-21
 

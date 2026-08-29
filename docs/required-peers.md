@@ -18,7 +18,7 @@ works.
 
 | Peer | What it does | Install |
 |------|--------------|---------|
-| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npm i -g wicked-vault` — puts the `wicked-vault` binary on PATH (optionally run `wicked-vault-install` afterwards to copy the vault skills into your AI CLIs). Enforced floor: **≥ 0.5.0** <!-- vault-floor --> (on 0.4.x or older, upgrade with `npm i -g wicked-vault@latest` — the gate's peer registry refuses a below-floor vault). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
+| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npm i -g wicked-vault` — puts the `wicked-vault` binary on PATH (optionally run `wicked-vault-install` afterwards to copy the vault skills into your AI CLIs). Declared floor: **≥ 0.5.0** <!-- vault-floor --> (on 0.4.x or older, upgrade with `npm i -g wicked-vault@latest` — the peer registry's health probe, `loom doctor` / the peer-health command, reports a below-floor vault as `drift` and fails its check). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
 
 The core skill's `setup` action (`/wicked-garden-core setup`) **blocks** without
 it — a toolkit whose headline is "done is re-derived, not asserted" cannot ship
@@ -26,9 +26,11 @@ the gate as optional.
 
 ### Where the vault floor lives (single source)
 
-The floor is **enforced** by the loom peer registry:
+The floor is **declared** by the loom peer registry —
 `scripts/loom/manifest.py` (`PEERS["vault"].version_pin`, a MAJOR.MINOR floor),
-kept in lockstep with `plugin.json`'s `wicked_vault_version`. Those two are the
+kept in lockstep with `plugin.json`'s `wicked_vault_version` — and **checked**
+by its health probe (`loom doctor` reports a below-floor peer as `drift`,
+ok=false, and exits non-zero). Those two are the
 single source of truth; every doc restatement of the number is tagged with a
 `<!-- vault-floor -->` marker (README's bash-comment restatement can't carry an
 HTML comment, so grep the number too). **To bump the floor:** change
