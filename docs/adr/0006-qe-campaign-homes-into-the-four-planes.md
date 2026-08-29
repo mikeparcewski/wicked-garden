@@ -1,3 +1,9 @@
+---
+id: wicked-garden-adr-0006
+title: "The test harness homes into the four planes as "qe campaign" — no new product"
+status: active
+date: 2026-08-29
+---
 # ADR 0006 — The test harness homes into the four planes as "qe campaign" — no new product
 
 - **Status:** Accepted

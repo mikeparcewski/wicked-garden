@@ -1,3 +1,10 @@
+---
+id: wicked-garden-adr-0004
+title: "Move the code-relationship graph to wicked-brain (inverts ADR 0001's homing)"
+status: superseded
+date: 2026-06-10
+supersedes: [wicked-garden-adr-0001]
+---
 # ADR 0004 — Move the code-relationship graph to wicked-brain (inverts ADR 0001's homing)
 
 <!-- historical-doc -->

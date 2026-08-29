@@ -1,3 +1,10 @@
+---
+id: wicked-garden-adr-0005
+title: "Re-home the code-relationship graph to wicked-estate (supersedes ADR 0004)"
+status: active
+date: 2026-08-11
+supersedes: [wicked-garden-adr-0004]
+---
 # ADR 0005 — Re-home the code-relationship graph to wicked-estate (supersedes ADR 0004)
 
 - **Status:** Accepted
@@ -13,7 +20,7 @@
   estate `docs/adr/ADR-001-graph-schema.md` (graph schema),
   estate `docs/extractor-sdk.md`, estate `CLAUDE.md`. (Cross-repo references are given as
   paths, not links — they resolve in the `wicked-estate` repo, not this one.)
-- **Retarget checklist:** [`0005-retarget-inventory.md`](0005-retarget-inventory.md) — the actionable
+- **Retarget checklist:** [`0007-retarget-inventory.md`](0007-retarget-inventory.md) *(renumbered from 0005, 2026-08-29)* — the actionable
   call-site → estate mapping that Stage S5 executes.
 
 ## Context
@@ -100,7 +107,7 @@ cross-repo overlay the brain never had). There is no code to move — only garde
 - **The dangling contracts get a real target.** Every garden call-site that today references a
   retired brain surface (`graph-index`, `graph-blast-radius`, `graph-lineage`, `wicked-brain:graph`, <!-- historical -->
   raw `.codegraph/codegraph.db` reads) maps to a live estate MCP tool or the estate graph. The exact
-  mapping is [`0005-retarget-inventory.md`](0005-retarget-inventory.md).
+  mapping is [`0007-retarget-inventory.md`](0007-retarget-inventory.md) *(renumbered from 0005, 2026-08-29)*.
 - **Any repo** gets relationship-graph knowledge by running the wicked-estate MCP server — no garden
   required and, unlike ADR 0004, **no external codegraph peer / Node version floor** either.
 - **Garden's archetype extractor is re-authored, not dropped.** `.codegraph-extractors/archetype.mjs`
@@ -118,7 +125,7 @@ cross-repo overlay the brain never had). There is no code to move — only garde
 
 ## Implementation
 
-- **This PR (Stage S0):** ADR 0005 + [`0005-retarget-inventory.md`](0005-retarget-inventory.md); mark
+- **This PR (Stage S0):** ADR 0005 + [`0007-retarget-inventory.md`](0007-retarget-inventory.md) *(renumbered from 0005, 2026-08-29)*; mark
   ADR 0004 superseded (its Status banner). No consumer code touched.
 - **Stage S5 (later):** execute the retarget inventory — repoint `skills/search/*` to estate MCP
   tools, repoint `scripts/engineering/patch/codegraph_db.py` to the estate graph, author the archetype
