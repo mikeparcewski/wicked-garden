@@ -1,0 +1,56 @@
+{
+  "spec_version": "1.0",
+  "_doctrine": "TH-6 DoD scenario: ONE small real browser journey against an ISOLATED crew daemon (never 7701/real state). Its evidence bundle is the 'real campaign evidence' that flips crew's GET /runs/:id/acceptance from the S11 honest deny to satisfied, once the accept trio grades it and scripts/qe/lib/gate.mjs records the verdict + emits wicked.qe.gate.*. Stable scenario id: re-runs append runs rows under the same scenarios row, so flake history accrues (TH-6 AC).",
+  "_env": {
+    "QE_DOD_BASE_URL": "isolated crew daemon base URL (default http://127.0.0.1:7906)",
+    "QE_DOD_CREW_DB": "REQUIRED — absolute path to the isolated daemon's --db sqlite file (proves the run hit the isolated state, not ~/.wicked-crew)"
+  },
+  "scenario": {
+    "id": "crew-acceptance-gate.th6-dod",
+    "name": "TH-6 DoD — studio home loads over the isolated daemon, WS connects, daemon health read back; evidence feeds the acceptance-gate flip",
+    "project": "wicked-crew-studio",
+    "claim_level": "machinery-verified",
+    "legs": [
+      { "leg": "studio-home-ui", "claim_level": "certified" },
+      {
+        "leg": "daemon-state-cross-check",
+        "claim_level": "machinery-verified",
+        "reason": "health + isolated-db checks run over REST readBack and direct sqlite — machinery cross-checks, not user journeys (the acceptance endpoint itself is API-only by design, campaign S11)"
+      }
+    ]
+  },
+  "target": {
+    "kind": "browser",
+    "base_url": "${env:QE_DOD_BASE_URL:-http://127.0.0.1:7906}",
+    "redact": {
+      "patterns": ["th6-fake-cred-[a-z0-9]{8,}"]
+    }
+  },
+  "capture": {
+    "websocket": true,
+    "wire": [
+      { "id": "api-traffic", "match": { "url_contains": "/api/v1/" }, "body": false },
+      { "id": "health", "match": { "url_suffix": "/api/v1/health" }, "body": true }
+    ]
+  },
+  "steps": [
+    { "action": "goto", "path": "/" },
+    { "action": "waitFor", "selector": "[data-testid=\"connection-dot\"]", "timeout_ms": 15000 },
+    { "action": "waitFor", "selector": "[data-testid=\"connection-dot\"][data-state=\"connected\"]", "timeout_ms": 15000 },
+    { "action": "screenshot", "name": "th6-home-connected" },
+    {
+      "action": "readBack",
+      "id": "health-readback",
+      "path": "/api/v1/health",
+      "headers": {
+        "Authorization": "Bearer th6-fake-cred-deadbeef01"
+      }
+    }
+  ],
+  "assertions": [
+    { "id": "ws-connected", "type": "ws", "min_count": 1 },
+    { "id": "health-content", "type": "readBack", "capture": "health-readback", "status": 200, "json_path": "body.status", "equals": "ok" },
+    { "id": "health-version-content", "type": "readBack", "capture": "health-readback", "json_path": "body.version", "matches": "^\\d+\\.\\d+\\.\\d+" },
+    { "id": "daemon-db-isolated", "type": "dbAssert", "db": "${env:QE_DOD_CREW_DB}", "sql": "SELECT v FROM meta WHERE k='graph_version'", "expect": { "rows": 1 } }
+  ]
+}

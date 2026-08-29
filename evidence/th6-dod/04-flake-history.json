@@ -1,0 +1,27 @@
+{
+  "note": "TH-6 AC: stable scenario_id — re-runs append runs rows under ONE scenarios row, so flake history accrues per scenario_id",
+  "scenario_rows": [
+    {
+      "id": "3b8f8cb0-507d-4c53-942a-05ec82d66d5f",
+      "name": "crew-acceptance-gate.th6-dod",
+      "project_id": "aa4be380-f87c-4ef1-b896-b8c894ab4f62",
+      "format_version": "1.0"
+    }
+  ],
+  "runs_under_scenario": [
+    {
+      "id": "8d49b3fe-ecba-4012-9e63-4d82184d5d47",
+      "scenario_id": "3b8f8cb0-507d-4c53-942a-05ec82d66d5f",
+      "status": "passed",
+      "started_at": "2026-08-29T21:40:40.851Z"
+    },
+    {
+      "id": "849791d8-b5fe-4656-853a-12a04a761d65",
+      "scenario_id": "3b8f8cb0-507d-4c53-942a-05ec82d66d5f",
+      "status": "passed",
+      "started_at": "2026-08-29T21:40:19.923Z"
+    }
+  ],
+  "run_count": 2,
+  "pass_count": 2
+}

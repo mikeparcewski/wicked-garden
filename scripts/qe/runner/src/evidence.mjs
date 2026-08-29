@@ -13,10 +13,23 @@
  * The runner writes EVIDENCE, not verdicts of record: no `verdicts` row is
  * created here. The manifest's verdict block carries the EXECUTOR CLAIM
  * (reviewer: "qe-runner/executor-claim") so the bundle is shape-conformant;
- * grading stays with the qe accept trio (TH-10), and run/verdict wiring into
- * gate.mjs + crew acceptance is TH-6.
- * TODO(TH-6): emit stable scenario_ids + verdict rows through the accept
- * trio / gate.mjs so `GET /runs/:id/acceptance` re-derives from these rows.
+ * grading stays with the qe accept trio (TH-10).
+ *
+ * TH-6 gate wiring (the seam this module feeds):
+ *   - scenario_ids are STABLE: the `scenarios` row is looked up by
+ *     (project, spec.scenario.id) and reused across re-runs, so every re-run
+ *     appends a `runs` row under the SAME scenario_id — flake history and
+ *     impact selection accrue per scenario (qe-flaky-test-hunter's 14d
+ *     windows come free).
+ *   - the graded verdict is recorded by `scripts/qe/lib/gate.mjs` (invoked
+ *     by the accept trio / campaign action AFTER grading, with the same
+ *     `WICKED_QE_LEDGER_DIR`/cwd this writer used): a `verdicts` row keyed by
+ *     this module's run_id + the `wicked.qe.gate.*` bus events. crew's
+ *     `GET /runs/:id/acceptance` then re-derives "done" from those rows.
+ *   - when the installed wicked-ledger supports manifest 2.1 (TH-5), the
+ *     bundle carries the campaign `scenario_evidence` block with first-class
+ *     `claim_level`; on a pre-2.1 ledger floor the block is withheld (never
+ *     silently mangled) and the result notes it.
  */
 
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
@@ -34,6 +47,71 @@ const require = createRequire(import.meta.url);
 const RUNNER_VERSION = JSON.parse(
   readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
+
+/**
+ * Describe one executed step for the scenario_evidence `ui_steps` narrative
+ * (manifest 2.1). Selector/path/name only — NEVER step values (a `fill`
+ * value could be a credential; the narrative must stay redaction-safe).
+ */
+function describeStep(specStep, logEntry) {
+  const s = specStep ?? {};
+  const what =
+    s.selector ?? s.path ?? s.name ?? s.capture ?? s.key ?? s.id ?? "";
+  const outcome = logEntry.ok === false ? ` [FAILED: ${logEntry.error ?? "?"}]` : "";
+  return `${logEntry.index}. ${logEntry.action}${what ? ` ${what}` : ""}${outcome}`;
+}
+
+/**
+ * Build the manifest-2.1 `scenario_evidence` block (TH-5 shape, TH-6 wiring)
+ * from the run's already-collected material. Pure — exported for tests.
+ *
+ * claim_level comes from the SPEC (the agent-authored plan): optional
+ * `scenario.claim_level` (default "machinery-verified" — the conservative
+ * floor; the runner cannot know a spec covers the real user journey) and
+ * optional `scenario.legs` for disclosed per-leg ceilings. The lint enforces
+ * the enum + the honest-cap invariant (scenario claim never stronger than
+ * the weakest leg) before execution; wicked-ledger's buildManifest validates
+ * it again at write time (fail loud).
+ */
+export function buildScenarioEvidence({ spec, claim, claimReason, stepLog, assertionResults, captures }) {
+  const steps = spec.steps ?? [];
+  const ui_steps = stepLog.map((e) => describeStep(steps[e.index], e));
+  const screenshots = stepLog
+    .filter((e) => e.detail?.screenshot)
+    .map((e) => e.detail.screenshot);
+
+  const wireCounts = Object.fromEntries(
+    Object.entries(captures.wire ?? {}).map(([id, c]) => [id, c.responses.length]),
+  );
+  const wire_evidence = {
+    artifact: "wire.json",
+    capture_counts: wireCounts,
+    websocket_connections: (captures.websockets ?? []).length,
+    readbacks: Object.keys(captures.readbacks ?? {}),
+  };
+
+  const dbResults = assertionResults.filter((r) => r.type === "dbAssert");
+  const stateProofs = assertionResults
+    .filter((r) => r.type === "readBack" || r.type === "dbAssert" || r.type === "cliCrossCheck")
+    .map((r) => `${r.type} ${r.id}: ${r.ok ? "ok" : `FAILED (${(r.failures ?? []).join("; ").slice(0, 200)})`}`);
+
+  return {
+    scenario: spec.scenario.id,
+    status: claim,
+    claim_level: spec.scenario.claim_level ?? "machinery-verified",
+    ui_steps,
+    ...(screenshots.length > 0 ? { screenshots } : {}),
+    wire_evidence,
+    ...(dbResults.length > 0
+      ? { db_evidence: { assertions: dbResults.map((r) => ({ id: r.id, ok: r.ok })) } }
+      : {}),
+    ...(stateProofs.length > 0 ? { terminal_state_proof: stateProofs.join(" · ") } : {}),
+    notes: claimReason,
+    ...(Array.isArray(spec.scenario.legs) && spec.scenario.legs.length > 0
+      ? { legs: spec.scenario.legs }
+      : {}),
+  };
+}
 
 /**
  * Resolve the ledger root. Mirrors crew's TH-2 semantics: an explicit
@@ -165,9 +243,47 @@ export function writeEvidence(opts) {
   // Screenshots were streamed into evidenceDir by the runner already (they
   // are pixel data — see redact.mjs limitation note).
 
-  // ---- 4. Ledger rows + manifest -------------------------------------------
+  // ---- 3b. scenario_evidence block (manifest 2.1, TH-5/TH-6) ---------------
+  // Built AFTER the claim is final, redacted like every other artifact, and
+  // withheld in favor of a minimal quarantine block when the preflight hit —
+  // ui_steps / terminal_state_proof derive from captured material and must
+  // never carry what the artifacts themselves were quarantined for.
+  const manifestMod = require("wicked-ledger/manifest");
   const { createDomainStore } = require("wicked-ledger");
-  const { buildManifest } = require("wicked-ledger/manifest");
+  const { buildManifest } = manifestMod;
+  // Pre-2.1 ledgers have no CLAIM_LEVELS export and silently drop unknown
+  // buildManifest options — detect, and withhold the block rather than
+  // pretending it was emitted (truth rule).
+  const ledgerSupports21 = Array.isArray(manifestMod.CLAIM_LEVELS);
+  let scenarioEvidence = null;
+  if (ledgerSupports21) {
+    if (preflight.length > 0) {
+      scenarioEvidence = {
+        scenario: spec.scenario.id,
+        status: claim,
+        claim_level: "skipped",
+        notes:
+          "evidence quarantined by secret-scan preflight (TH-19) — scenario_evidence content withheld, deny-dominates",
+      };
+    } else {
+      scenarioEvidence = redactDeep(
+        buildScenarioEvidence({ spec, claim, claimReason, stepLog, assertionResults, captures }),
+        redactOpts,
+      );
+      const seHits = scanForSecrets(JSON.stringify(scenarioEvidence), extraPatterns);
+      if (seHits.length > 0) {
+        scenarioEvidence = {
+          scenario: spec.scenario.id,
+          status: claim,
+          claim_level: "skipped",
+          notes:
+            "scenario_evidence quarantined by secret-scan preflight (TH-19) — content withheld, deny-dominates",
+        };
+      }
+    }
+  }
+
+  // ---- 4. Ledger rows + manifest -------------------------------------------
   const store = createDomainStore({ root: ledgerRoot });
 
   const projectName = spec.scenario.project;
@@ -207,13 +323,26 @@ export function writeEvidence(opts) {
     verdictRecord: {
       verdict: claim,
       reviewer: "qe-runner/executor-claim",
-      reason: `${claimReason} [executor claim — grading via qe accept trio (TH-10); gate wiring TH-6]`,
+      reason: `${claimReason} [executor claim — grading via qe accept trio (TH-10); verdict of record via scripts/qe/lib/gate.mjs (TH-6)]`,
       created_at: run.finished_at,
     },
     evidenceDir,
     qeVersion: RUNNER_VERSION,
     cli: "qe-runner",
+    ...(scenarioEvidence !== null ? { scenarioEvidence } : {}),
   });
 
-  return { runId: run.id, evidenceDir, manifestPath, claim, claimReason, preflight, projectId: project.id, scenarioId: scenario.id };
+  return {
+    runId: run.id,
+    evidenceDir,
+    manifestPath,
+    claim,
+    claimReason,
+    preflight,
+    projectId: project.id,
+    scenarioId: scenario.id,
+    // truth marker: false on a pre-2.1 ledger floor (block withheld, never
+    // silently dropped by an older buildManifest)
+    scenarioEvidenceEmitted: scenarioEvidence !== null,
+  };
 }

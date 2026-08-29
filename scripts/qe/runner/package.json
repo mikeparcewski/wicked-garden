@@ -24,6 +24,6 @@
   },
   "dependencies": {
     "playwright": "^1.62.1",
-    "wicked-ledger": "^0.3.0"
+    "wicked-ledger": "^0.4.0"
   }
 }

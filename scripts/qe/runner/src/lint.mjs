@@ -43,6 +43,15 @@ export const ASSERTION_TYPES = new Set([
   "cliCrossCheck",
 ]);
 
+/**
+ * Claim levels a spec may PLAN (TH-5/TH-6): mirrors wicked-ledger
+ * lib/manifest.mjs CLAIM_LEVELS minus "skipped", which is outcome-only —
+ * a plan that schedules a skipped leg is a plan not to test. Duplicated
+ * deliberately: "./lint" is exported dependency-free.
+ */
+export const PLANNABLE_CLAIM_LEVELS = new Set(["certified", "machinery-verified"]);
+const CLAIM_RANK = { certified: 2, "machinery-verified": 1 };
+
 const FORBIDDEN_ACTIONS = new Set(["sleep", "delay", "pause", "wait", "waitForTimeout"]);
 const FORBIDDEN_KEYS = /^(sleep|delay|wait|pause)_?ms$/i;
 
@@ -73,6 +82,38 @@ export function lintSpec(spec) {
   if (!spec.scenario || typeof spec.scenario.name !== "string" || !spec.scenario.name) err("scenario.name is required");
   if (!spec.scenario || typeof spec.scenario.project !== "string" || !spec.scenario.project) err("scenario.project is required");
   if (!spec.target || typeof spec.target.base_url !== "string" || !spec.target.base_url) err("target.base_url is required");
+
+  // TH-6: planned claim ceilings for the manifest-2.1 scenario_evidence block.
+  const claimLevel = spec.scenario?.claim_level;
+  if (claimLevel !== undefined && !PLANNABLE_CLAIM_LEVELS.has(claimLevel)) {
+    err(`scenario.claim_level must be one of ${[...PLANNABLE_CLAIM_LEVELS].join("|")} ("skipped" is outcome-only) — got ${JSON.stringify(claimLevel)}`);
+  }
+  const legs = spec.scenario?.legs;
+  if (legs !== undefined) {
+    if (!Array.isArray(legs) || legs.length === 0) {
+      err("scenario.legs must be a non-empty array when present");
+    } else {
+      let weakest = Infinity;
+      legs.forEach((l, i) => {
+        const where = `scenario.legs[${i}]`;
+        if (!l || typeof l !== "object" || typeof l.leg !== "string" || !l.leg) {
+          err(`${where}: requires a non-empty "leg" name`);
+          return;
+        }
+        if (!PLANNABLE_CLAIM_LEVELS.has(l.claim_level)) {
+          err(`${where}: claim_level must be one of ${[...PLANNABLE_CLAIM_LEVELS].join("|")} — got ${JSON.stringify(l.claim_level)}`);
+          return;
+        }
+        weakest = Math.min(weakest, CLAIM_RANK[l.claim_level]);
+      });
+      // Honest-cap invariant (certify the journey, not the proxy): the
+      // scenario-level claim can never be STRONGER than its weakest leg.
+      const overall = CLAIM_RANK[claimLevel ?? "machinery-verified"];
+      if (Number.isFinite(weakest) && overall !== undefined && overall > weakest) {
+        err(`scenario.claim_level "${claimLevel}" is stronger than the weakest leg — cap it at the legs' floor (certify the journey, not the proxy)`);
+      }
+    }
+  }
 
   // Non-configurable defaults: reject configuration attempts loudly rather
   // than ignoring them (silent ignoring teaches specs to lie).

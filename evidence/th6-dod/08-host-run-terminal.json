@@ -1,0 +1,13 @@
+{
+ "status": "cancelled",
+ "units": [
+  [
+   "campaign-exec",
+   "done"
+  ],
+  [
+   "test",
+   "rejected"
+  ]
+ ]
+}

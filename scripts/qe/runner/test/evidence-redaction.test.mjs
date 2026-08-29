@@ -11,6 +11,9 @@ import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
 
 // Isolate the ledger's fire-and-forget bus emissions from the user's real
 // wicked-bus store — MUST be set before any DomainStore write.
@@ -87,11 +90,15 @@ test("a captured bearer token never reaches any written artifact", () => {
   assert.ok(wire.includes("[REDACTED:"));
 });
 
-test("evidence dir + ledger layout: .wicked-qe/evidence/<run-id>/ with manifest 2.0.0", () => {
+test("evidence dir + ledger layout: .wicked-qe/evidence/<run-id>/ with the installed ledger's manifest version", () => {
   const { repoRoot, out } = writeToTmp();
   assert.ok(out.evidenceDir.startsWith(join(repoRoot, ".wicked-qe", "evidence")));
   const manifest = JSON.parse(readFileSync(out.manifestPath, "utf8"));
-  assert.equal(manifest.manifest_version, "2.0.0");
+  // Floor-agnostic (TH-6): 2.0.0 on the published ledger, 2.1.0 once XC-4
+  // bumps the floor — pin the MAJOR, mirror the installed contract exactly.
+  const { MANIFEST_VERSION } = require("wicked-ledger/manifest");
+  assert.match(manifest.manifest_version, /^2\.\d+\.\d+$/);
+  assert.equal(manifest.manifest_version, MANIFEST_VERSION);
   assert.equal(manifest.run_id, out.runId);
   assert.equal(manifest.status, "passed");
   assert.equal(manifest.verdict.reviewer, "qe-runner/executor-claim");
