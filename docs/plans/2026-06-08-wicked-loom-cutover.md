@@ -1,5 +1,7 @@
 # wicked-loom — Cutover Phase (garden-side strangler migration) — Implementation Plan
 
+<!-- historical-doc -->
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Cut wicked-garden's in-process runtime over to the shipped `wicked-loom` CLI, **one surface at a time, lowest-risk first** — `resolve` → `gate` → `flow` — then add `wicked-loom` as the 5th required peer and introduce the garden archetype→flow-definition compiler (the §3.1 seam). Each cutover ships behind a **contract test** asserting the loom-shelled path produces results IDENTICAL to the in-process path it replaces (the strangler safety net), and stays **fail-soft during transition** (loom unresolvable → fall back to the still-present in-process code; gates still fail **closed**). The old in-process code is LEFT IN PLACE behind the shim — rollback is trivial. Deleting it is the **contract** phase (a later plan).

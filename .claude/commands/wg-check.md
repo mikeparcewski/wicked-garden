@@ -41,7 +41,7 @@ if ! python3 -m json.tool ".claude-plugin/plugin.json" > /dev/null 2>&1; then
 fi
 
 # (Phase 6c: the wicked_testing_version pin validation was removed — the
-# wicked-testing peer retired; the qe domain ships in-catalog.)
+# wicked-testing peer retired; the qe domain ships in-catalog.) # historical
 ```
 
 ### 2. JSON Validity

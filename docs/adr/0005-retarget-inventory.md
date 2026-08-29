@@ -1,5 +1,7 @@
 # ADR 0005 — Retarget inventory (brain graph surface → wicked-estate)
 
+<!-- historical-doc -->
+
 Companion to [ADR 0005](0005-code-graph-re-homes-to-wicked-estate.md). This is the **actionable
 checklist Stage S5 executes.** Every garden call-site that references wicked-brain's (now-retired)
 code-graph surface is listed with: source `file:line`, what it calls today, the estate replacement

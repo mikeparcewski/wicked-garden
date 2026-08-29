@@ -65,7 +65,7 @@ Add what you want. Each unlocks one capability; the rest of the toolkit (the gat
 the code graph, wicked-patch, the council, the rubric skill-refs) runs without any
 of them.
 
-> **Retired peer (Phase 6c):** `wicked-testing` used to be the acceptance-testing
+> **Retired peer (Phase 6c):** `wicked-testing` used to be the acceptance-testing <!-- historical -->
 > layer here. It is retired — its writer/executor/**independent reviewer**
 > pipeline ships **in-catalog** as the `qe` domain (`wicked-garden-qe` + the
 > `wicked-garden-qe-*` specialists), and the acceptance *gate* concept lives in
@@ -75,7 +75,7 @@ of them.
 |-------|-----------------|--------------|---------|
 | **wicked-estate** | The memory/knowledge **and** code-graph layer — cross-session memory + cited knowledge recall (the `wicked-garden-mem` skill), plus the graph (ADR 0005): `wicked-estate index` builds a 75-language static graph + injected edges (garden's archetype rules in `.wicked-estate-extractors/`); the estate MCP tools (`BlastRadius`/`Lineage`/`RankHotspots`) power `blast-radius`/`lineage`/`hotspots` and wicked-patch. One binary pair, no external engine. | hooks fail open; you lose cross-session memory + knowledge recall, and blast-radius/lineage/hotspots/wicked-patch degrade to text-search that **misses injected relationships**; the rest of the toolkit works. | Install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or `~/.local/bin` (env overrides: `WICKED_ESTATE_BIN` / `WICKED_ESTATE_MCP_BIN`) |
 | **wicked-bus** | The audit-trail layer — append-only events recording what happened. | nothing breaks — emission is already fire-and-forget / fail-open; events just aren't recorded. | `npm i -g wicked-bus && npx wicked-bus-install` (npm `2.3.2`) |
-| **wicked-understanding** | The repo-playbooks layer — analyzes the repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`/`scaffold`) that tell the agent *how to work in this repo*: the file that owns the bug, the wiring step, the test command, the gotcha. Pairs with the knowledge layer — estate is the *what*, this is the *how*. | the agent re-derives the method from scratch each task; the rest of the toolkit works. | `npx skills add mikeparcewski/wicked-understanding --all` (skills-standard; multi-CLI, no server, no lock-in) |
+| **wicked-understanding** *(retired 2026-08 — repo archived, absorbed into wicked-garden)* | The repo-playbooks layer it provided — analyzes the repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`/`scaffold`) that tell the agent *how to work in this repo*: the file that owns the bug, the wiring step, the test command, the gotcha. Pairs with the knowledge layer — estate is the *what*, this is the *how*. | the agent re-derives the method from scratch each task; the rest of the toolkit works. | Nothing to install — retired; row kept as a record <!-- historical --> |
 
 The SessionStart bootstrap hook probes for all peers and **warns** (non-blocking)
 when one isn't resolvable — informational for the opt-in layers, a real flag for

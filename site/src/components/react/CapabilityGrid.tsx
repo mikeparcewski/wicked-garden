@@ -56,7 +56,7 @@ export default function CapabilityGrid() {
           surface — <span className="cg-em">{G.skills} skills</span> across{" "}
           <span className="cg-em">{G.domains} domains</span>, including the{" "}
           <span className="cg-em">{G.qeSpecialists}-specialist QE fleet</span>{" "}
-          absorbed from the retired wicked-testing plugin — all reading the same
+          absorbed from the retired wicked-testing plugin — all reading the same{/* historical */}{" "}
           evidence-first discipline. Everything below is real and in the repo today.
         </p>
       </Reveal>

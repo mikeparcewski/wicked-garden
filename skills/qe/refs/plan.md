@@ -4,7 +4,7 @@ archetype_relevance: ["specify", "build"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     the retired wicked-testing plugin's `plan` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `plan` orchestrator). Loaded on demand <!-- historical -->
      via Read() from the router's `plan` action — not a skill. -->
 
 

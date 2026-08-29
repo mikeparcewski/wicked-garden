@@ -1,5 +1,7 @@
 # ADR 0004 — Move the code-relationship graph to wicked-brain (inverts ADR 0001's homing)
 
+<!-- historical-doc -->
+
 - **Status:** Superseded by [ADR 0005](0005-code-graph-re-homes-to-wicked-estate.md) (2026-08-11) — the
   graph's **home moved from wicked-brain to wicked-estate** (which independently built a more capable
   graph: 75-language tree-sitter extractor, `ExtraEdgeExtractor` TOML injected edges, cross-repo

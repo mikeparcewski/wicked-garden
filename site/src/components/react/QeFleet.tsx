@@ -4,7 +4,7 @@ import { QE_SPECIALISTS, QE_SURFACES, type Surface } from "../../data/garden";
 
 /* ============================================================================
    THE FLEET — the 40 qe-* specialist fork skills, tabbed by orchestrator
-   surface. Mechanic absorbed from the retired wicked-testing site: [data-surf]
+   surface. Mechanic absorbed from the retired wicked-testing site: [data-surf] // historical
    filter tabs that auto-cycle through the five surfaces until the visitor
    clicks one — then they're driving. Reduced motion: no auto-cycle.
    Every name is a real skills/qe-* dir; every specialist ships context: fork.

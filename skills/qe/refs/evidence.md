@@ -1,6 +1,6 @@
 # Evidence Store Layout
 
-> Ported from the retired wicked-testing package's docs/EVIDENCE.md (Phase 6c).
+> Ported from the retired wicked-testing package's docs/EVIDENCE.md (Phase 6c). <!-- historical -->
 
 Evidence is the qe domain's **proof of work**: the artifacts a test produced
 (screenshots, logs, curl output, stack traces) plus a manifest that names the
@@ -151,7 +151,7 @@ Formal JSON Schema: [`schemas/evidence.json`](../schemas/evidence.json)
 ## 4. Retention
 
 Default retention: **unbounded** (evidence is cheap; deletion is a human
-decision). Pruning is manual — the retired wicked-testing CLI's `prune`
+decision). Pruning is manual — the retired wicked-testing CLI's `prune` <!-- historical -->
 command did not survive the fold. Inspect candidates before deleting, and
 always keep FAIL evidence for post-mortems:
 

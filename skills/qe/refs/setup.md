@@ -4,7 +4,7 @@ archetype_relevance: ["*"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     the retired wicked-testing plugin's `setup` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `setup` orchestrator). Loaded on demand <!-- historical -->
      via Read() from the router's `setup` action — not a skill. -->
 
 

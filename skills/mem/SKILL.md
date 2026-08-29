@@ -17,7 +17,7 @@ description: |
   stored"; "forget this" / "erase that scope"; "consolidate memories";
   "ingest this file/pdf/directory" / "add this document to the knowledge
   base"; "capture what we learned" / session teardown. Replaces the retired
-  wicked-brain memory/review/forget/ingest/session-teardown skill cluster —
+  brain product's memory/review/forget/ingest/session-teardown skill cluster —
   wicked-estate is the engine, this is the agent surface.
 phase_relevance: ["*"]
 archetype_relevance: ["*"]

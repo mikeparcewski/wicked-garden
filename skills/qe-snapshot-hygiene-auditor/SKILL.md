@@ -266,7 +266,7 @@ VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-snapshot-hygiene-auditor RU
 ## Helper resolution (`{WT_LIB}`)
 
 `{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
-in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!-- historical -->
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash

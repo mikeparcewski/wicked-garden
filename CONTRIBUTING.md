@@ -19,8 +19,8 @@ uv run pytest tests/ -x
 ## Escape Hatches
 
 > **Historical note (Phase 6c):** the `WG_SKIP_WICKED_TESTING_CHECK` escape
-> hatch and the SessionStart wicked-testing probe it bypassed were removed
-> when wicked-testing retired — the qe domain ships in-catalog (the
+> hatch and the SessionStart wicked-testing probe it bypassed were removed <!-- historical -->
+> when wicked-testing retired — the qe domain ships in-catalog (the <!-- historical -->
 > `wicked-garden-qe` router + specialists), so there is no peer package to
 > probe. The acceptance gate concept now lives in wicked-crew's
 > `/runs/:id/acceptance` route.

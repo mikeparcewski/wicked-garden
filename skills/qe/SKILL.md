@@ -30,7 +30,7 @@ archetype_relevance: ["*"]
 Evidence-gated testing as a domain: strategy → authoring → execution →
 independent verdict, with a read-only ledger lens. Verdicts are re-derived
 from captured evidence — never self-asserted by the agent that ran the work.
-Absorbed from the retired wicked-testing plugin in Phase 6b; Phase 6c renamed
+Absorbed from the retired wicked-testing plugin in Phase 6b; Phase 6c renamed <!-- historical -->
 the on-disk data contract to `.wicked-qe/` (config, evidence dirs, SQLite
 ledger) — legacy `.wicked-testing/` roots still resolve via wicked-ledger's
 dual-read `resolveLedgerRoot`.
@@ -156,7 +156,7 @@ AC quality ↔ `product-requirements-analyst`; AI-feature probes ↔
   (`npm i --no-save wicked-ledger`).
 - **`{WT_LIB}` helpers**: specialist playbooks reference helper modules that
   ship in-catalog at `${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/` (ported from the
-  retired wicked-testing package in Phase 6c) — resolve
+  retired wicked-testing package in Phase 6c) — resolve <!-- historical -->
   `WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"`.
 
 ## Integration with wicked-crew

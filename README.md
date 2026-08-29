@@ -58,6 +58,9 @@ claude plugins marketplace add mikeparcewski/wicked-garden
 claude plugins install wicked-garden
 ```
 
+Or use the family installer — [`npx wicked-installer`](https://www.npmjs.com/package/wicked-installer)
+installs/updates the whole wicked-\* family (garden, its peers, and the rest).
+
 Then, in a Claude Code session:
 
 ```bash

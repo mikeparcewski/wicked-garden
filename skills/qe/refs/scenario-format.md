@@ -1,6 +1,6 @@
 # Scenario Format — qe v1
 
-> Ported from the retired wicked-testing package's SCENARIO-FORMAT.md (Phase 6c).
+> Ported from the retired wicked-testing package's SCENARIO-FORMAT.md (Phase 6c). <!-- historical -->
 
 qe scenarios are self-contained markdown files that both humans and AI agents can execute and review. Each scenario is a complete specification: what to test, how to test it, and what success looks like.
 

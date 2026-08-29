@@ -9,8 +9,8 @@ SymbolId string.
 
 **Canonical source (the LIVE OWNER):**
 `wicked-core/crates/wicked-governance/schemas/` — the governance schema bundle
-was re-homed there (AW-2 / arch-R10, 2026-08) out of the retired **wicked-brain**
-repo. `wicked-brain/schemas/` remains on disk as a frozen read-only archive; it
+was re-homed there (AW-2 / arch-R10, 2026-08) out of the retired **wicked-brain** <!-- historical -->
+repo. `wicked-brain/schemas/` remains on disk as a frozen read-only archive; it <!-- historical -->
 is history, not the contract.
 
 | | |

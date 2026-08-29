@@ -229,7 +229,7 @@ gh issue create --label bug --title "<surface>: <one-line>" --body "<location> |
 
 ## Knowledge & memory (wicked-estate via the mem/search domains)
 
-wicked-brain retired at Phase 5-S7 — wicked-estate is the engine; the garden `mem`/`search` skills are the agent surface. `~/.wicked-brain` remains on disk as a frozen archive (never write to it).
+wicked-brain retired at Phase 5-S7 — wicked-estate is the engine; the garden `mem`/`search` skills are the agent surface. `~/.wicked-brain` remains on disk as a frozen archive (never write to it). <!-- historical -->
 
 - Use `wicked-garden-mem` `recall`/`answer` instead of Grep/Glob/Agent(Explore) for any open-ended search or conceptual question.
 - Use `wicked-garden-mem` `store` to capture non-obvious decisions, patterns, gotchas.

@@ -94,7 +94,7 @@ if args.strict:
 but `experimental` or `planned` (not trusted for gating). The gate only
 trusts `wired` peers — anything else yields a `capability-gap` verdict.
 
-**wicked-brain** was retired at S7 and removed from the peer manifest:
+**wicked-brain** was retired at S7 and removed from the peer manifest: <!-- historical -->
 garden exposes its surfaces via wicked-estate (the wicked-garden-mem/search
 skill domains). It is not a peer to probe, install, or gate on.
 

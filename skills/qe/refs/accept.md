@@ -4,7 +4,7 @@ archetype_relevance: ["build", "review", "ship"]
 ---
 
 <!-- Action ref of the `wicked-garden-qe` router (Phase 6b port of
-     the retired wicked-testing plugin's `acceptance-testing` orchestrator). Loaded on demand
+     the retired wicked-testing plugin's `acceptance-testing` orchestrator). Loaded on demand <!-- historical -->
      via Read() from the router's `accept` action — not a skill. -->
 
 
@@ -460,7 +460,7 @@ lists the failures.
 ## Helper resolution (`{WT_LIB}`)
 
 `{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship
-in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package
+in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!-- historical -->
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
