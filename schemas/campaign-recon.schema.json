@@ -1,0 +1,221 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/campaign-recon.schema.json",
+  "title": "campaign-recon.json — qe campaign recon + plan artifact (format v1)",
+  "description": "Machine-readable campaign plan: the contract between a qe campaign's scan stage (recon) and its execute stage (ADR 0006 'qe campaign homes into the four planes'). Formalizes the three lenses of the proven hand-built shape (studio-campaign-recon.json, 2026-08 studio E2E campaign): a capability inventory with file:line citations, a reference to the generated environment manifest (the fail-closed preflight input), and a dependency-ordered scenario ladder whose rungs carry pass criteria (terminal state + artifact + consumer state) and per-rung claim ceilings. Scenario BODIES live as scenario-format v1 markdown files (skills/qe/refs/scenario-format.md) — this artifact orders and binds them; it never replaces that format. The sibling evidence contract (scenario_evidence + claim_level) is owned by wicked-ledger (manifest 2.1, docs/SCHEMA-CONTRACT.md there), deliberately a different owner.",
+  "type": "object",
+  "required": ["spec", "target", "sources", "capabilities", "environment_manifest", "scenarios"],
+  "additionalProperties": false,
+  "properties": {
+    "spec": {
+      "const": 1,
+      "description": "Campaign-recon format version. Currently 1. Bumps move through garden's release train (same discipline as wicked-pack.schema.json's spec field)."
+    },
+    "name": {
+      "type": "string",
+      "description": "Optional human-readable campaign name (e.g. 'studio-e2e-2026-08')."
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "ISO-8601 timestamp the recon artifact was produced."
+    },
+    "target": {
+      "type": "object",
+      "required": ["repo"],
+      "additionalProperties": false,
+      "properties": {
+        "repo": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Target repository — a local path or owner/name."
+        },
+        "ref": {
+          "type": "string",
+          "description": "Git ref or sha the recon was performed against. Selector/route claims are only as fresh as this ref — executors must verify against the BUILT artifact actually served, never source recon alone."
+        },
+        "surface_url": {
+          "type": "string",
+          "description": "Base URL of the live app probed during recon, if any (e.g. 'http://127.0.0.1:7701/')."
+        }
+      }
+    },
+    "sources": {
+      "type": "object",
+      "required": ["estate"],
+      "additionalProperties": false,
+      "description": "Where the inventory came from. Honest-degradation marker: recon on a repo without an estate graph MUST say estate:'unindexed' and rely on docs+probe only — never silently substitute.",
+      "properties": {
+        "estate": {
+          "type": "string",
+          "enum": ["indexed", "unindexed"],
+          "description": "'indexed' = capability inventory seeded from estate's code graph (route/handler/component nodes, injected edges). 'unindexed' = graph unavailable; inventory is docs+probe-derived and coverage claims must say so."
+        },
+        "docs_recall": {
+          "type": "boolean",
+          "description": "True when mem/search docs recall contributed entries."
+        },
+        "live_probe": {
+          "type": "boolean",
+          "description": "True when live-app probing (health endpoints, DOM landmarks) contributed entries."
+        }
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Capability inventory (surface-inventory lens): one entry per user-facing capability of the target.",
+      "items": { "$ref": "#/$defs/capability" }
+    },
+    "environment_manifest": {
+      "type": "object",
+      "required": ["ref"],
+      "additionalProperties": false,
+      "description": "Reference to the campaign's environment manifest (binary resolution paths, ports, isolated state dirs, forbidden fabrication flags, artifact identity, platform_support). The manifest is its own generated artifact enforced by the fail-closed preflight stage — this is a reference, never an inline copy.",
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path (relative to this artifact) or identifier of the environment manifest."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$",
+          "description": "Optional lowercase hex SHA-256 of the referenced manifest, pinning the exact preflight contract this plan was generated against."
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Dependency-ordered scenario ladder (test-plan lens). Producers MUST emit topological order: every id named in a rung's deps appears EARLIER in this array, and never references an unknown id. JSON Schema cannot express that invariant — validators enforce it as an extra-invariant check (see tests/qe/test_campaign_recon_schema.py).",
+      "items": { "$ref": "#/$defs/rung" }
+    }
+  },
+  "$defs": {
+    "citation": {
+      "type": "string",
+      "pattern": "^.+:.+$",
+      "description": "file:line citation backing a recon claim, e.g. 'client.ts:304' or 'HealthRailSection.tsx:21-27,100'."
+    },
+    "capability": {
+      "type": "object",
+      "required": ["id", "surface", "apis", "test_shape", "needs"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "description": "Stable kebab-case capability id. Rungs bind to it via capability_ids; ledger scenario ids derive from capability-id + slug so flake history accrues across re-runs."
+        },
+        "surface": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What the user sees/touches — component, page, affordance (e.g. 'Projects CRUD — /projects (ProjectsPage), NewProjectModal')."
+        },
+        "apis": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The endpoints/events behind the surface, with file:line citations inline (e.g. 'POST/GET /projects (client.ts:560-578)')."
+        },
+        "test_shape": {
+          "type": "string",
+          "minLength": 1,
+          "description": "What a PASS looks like — rendered state + wire evidence (e.g. 'PASS = new project card on /projects; wire = 200 {project}')."
+        },
+        "needs": {
+          "type": "string",
+          "description": "Preconditions: daemons, ports, fixtures, prior capabilities."
+        },
+        "citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/citation" },
+          "description": "First-class file:line citations backing this entry (in addition to any inline in apis/test_shape)."
+        },
+        "source": {
+          "type": "string",
+          "enum": ["estate", "docs", "probe", "human"],
+          "description": "Primary origin of this entry: estate code graph, docs recall, live probe, or human input."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["verified", "proposed"],
+          "description": "Doc/site-derived claims enter as 'proposed' pending human confirmation; only code-graph- or probe-verified entries are 'verified'."
+        }
+      }
+    },
+    "claim_ceiling": {
+      "type": "string",
+      "enum": ["certified", "machinery-verified"],
+      "description": "The strongest claim_level a PASS on this rung may assert, per wicked-ledger's manifest-2.1 claim_level enum (certified | machinery-verified | skipped). 'skipped' is an outcome-only level, never a plannable ceiling. A rung whose user journey is API-substituted caps at 'machinery-verified' — certify the user journey, not the proxy."
+    },
+    "pass_criteria": {
+      "type": "object",
+      "required": ["terminal_state", "artifact", "consumer_state"],
+      "additionalProperties": false,
+      "description": "The three proofs a PASS requires (launch ≠ done): a terminal state reached, an artifact produced, and a consumer observing that state. All three are mandatory for every rung.",
+      "properties": {
+        "terminal_state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The terminal state that must be reached and how it is proven (e.g. 'run status completed in the durable event log, not just a 200 on launch')."
+        },
+        "artifact": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The artifact that must exist as evidence (e.g. 'evidence bundle JSON downloaded; row present in a later GET /projects')."
+        },
+        "consumer_state": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The downstream consumer state that must reflect the change (e.g. 'dashboard route renders the project after a hard reload')."
+        }
+      }
+    },
+    "rung": {
+      "type": "object",
+      "required": ["id", "category", "deps", "pass_criteria", "claim_ceiling"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
+          "description": "Scenario id, unique within the campaign (e.g. 'S11', 'projects-crud-ui')."
+        },
+        "title": {
+          "type": "string",
+          "description": "Human-readable rung title."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["api", "ui", "desktop"],
+          "description": "Execution surface of the rung — the campaign-plan taxonomy. NOTE: this is not the scenario-format v1 category enum (api|browser|perf|infra|security|a11y|cli|equivalence); the rung's scenario file keeps its own format category, and 'ui' rungs typically bind 'browser' scenarios."
+        },
+        "capability_ids": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Capability inventory ids this rung certifies."
+        },
+        "deps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ids of rungs that must PASS before this one runs. May be empty. Every entry MUST name a rung that appears earlier in scenarios[]."
+        },
+        "pass_criteria": { "$ref": "#/$defs/pass_criteria" },
+        "claim_ceiling": { "$ref": "#/$defs/claim_ceiling" },
+        "scenario_path": {
+          "type": "string",
+          "description": "Path to the persisted scenario-format v1 markdown file this rung executes (relative to the campaign root). The plan binds scenarios; it never inlines them."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["proposed", "confirmed"],
+          "description": "Doc-derived rungs enter as 'proposed' (pending human review, per the incident-to-scenario pending-review pattern); 'confirmed' rungs are executable."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free-text execution notes (disclosed substitutions, known drift, timing)."
+        }
+      }
+    }
+  }
+}
