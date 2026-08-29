@@ -8,10 +8,10 @@ Part of the Wicked Garden marketplace:
 
 ```bash
 # First, add the wicked-garden marketplace (one-time setup)
-claude marketplace add wickedagile/wicked-garden
+claude plugins marketplace add mikeparcewski/wicked-garden
 
 # Then install the plugin
-claude plugin install {{name}}@wicked-garden
+claude plugins install {{name}}@wicked-garden
 ```
 
 ## Usage

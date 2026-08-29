@@ -100,7 +100,7 @@ npx wicked-vault --version 2>/dev/null || echo "MISSING"
 
 ### 2.7 Verify wicked-bus (Recommended — audit-trail layer)
 
-wicked-bus installs as a **Claude Code plugin** (not an npx CLI), so verify by presence rather than a version probe.
+wicked-bus installs from npm (`npm i -g wicked-bus`), and `npx wicked-bus-install` copies its skills into detected AI CLIs, so verify by presence of those skills rather than a version probe.
 
 ```bash
 sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
@@ -129,8 +129,8 @@ print("READY" if installed else "MISSING")
 PY
 ```
 
-- `MISSING` → **recommended, not blocking.** wicked-bus is the audit-trail layer; event emission is already fire-and-forget / fail-open, so the toolkit runs fine without it (events just aren't recorded). Show "wicked-bus isn't installed — the cross-session audit trail will be empty until you add it." **INTERACTIVE mode**: AskUserQuestion header "wicked-bus (optional layer)", options "Install now" = "Run: /plugin install wicked-bus" / "Skip" = "Continue without the audit trail". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: instruct the user to run `/plugin install wicked-bus` (a Claude Code slash command), then re-run the presence check and confirm `READY`. If skipped: continue setup.
-- `READY` → show "wicked-bus — ready (plugin installed)."
+- `MISSING` → **recommended, not blocking.** wicked-bus is the audit-trail layer; event emission is already fire-and-forget / fail-open, so the toolkit runs fine without it (events just aren't recorded). Show "wicked-bus isn't installed — the cross-session audit trail will be empty until you add it." **INTERACTIVE mode**: AskUserQuestion header "wicked-bus (optional layer)", options "Install now" = "Run: npm i -g wicked-bus && npx wicked-bus-install" / "Skip" = "Continue without the audit trail". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: run `npm i -g wicked-bus && npx wicked-bus-install` (terminal commands — the installer copies the bus skills into `~/.claude/skills/`), then re-run the presence check and confirm `READY`. If skipped: continue setup.
+- `READY` → show "wicked-bus — ready (skills installed)."
 
 ### 2.7b Verify loom peer-resolution engine (internal — no external install needed)
 
@@ -307,7 +307,7 @@ wicked-garden is ready!
 
 Storage:         Local (DomainStore)
 wicked-estate:   {"ready (binary present)" or "MISSING — memory/context layer degraded"}
-wicked-bus:      {"ready (plugin installed)" or "MISSING — install required"}
+wicked-bus:      {"ready (skills installed)" or "MISSING — install required"}
 wicked-vault:    {version e.g. "0.3.0 — ready" or "MISSING — install required"}
 loom engine:     {"ready (internal — scripts/loom/)" or "MISSING — garden installation problem"}
 Onboarding:      {Full | Quick scout | Skipped}
