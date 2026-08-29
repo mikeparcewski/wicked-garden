@@ -1,0 +1,61 @@
+{
+  "spec_version": "1.0",
+  "_doctrine": "Rescued campaign scenario S1 (estate-review/review-artifacts/campaign-exec/s1.js) rewritten as a runner spec. The agent AUTHORED this file; the model-free runner EXECUTES it. Cold start, chrome, WS, health rail — against an ISOLATED crew daemon (never 7701/real state).",
+  "_env": {
+    "QE_SMOKE_BASE_URL": "isolated crew daemon base URL (default http://127.0.0.1:7899)",
+    "QE_SMOKE_CREW_DB": "REQUIRED — absolute path to the isolated daemon's --db sqlite file (for the dbAssert cross-check)"
+  },
+  "scenario": {
+    "id": "studio-s1-smoke",
+    "name": "S1 — cold start, chrome, WS connect, health rail (setup smoke)",
+    "project": "wicked-crew-studio"
+  },
+  "target": {
+    "kind": "browser",
+    "base_url": "${env:QE_SMOKE_BASE_URL:-http://127.0.0.1:7899}",
+    "redact": {
+      "fields": ["x-demo-badge"],
+      "patterns": ["qe-smoke-extra-[a-z0-9]{8,}"]
+    }
+  },
+  "capture": {
+    "websocket": true,
+    "wire": [
+      { "id": "health", "match": { "url_suffix": "/api/v1/health" }, "body": true },
+      { "id": "roster", "match": { "url_suffix": "/api/v1/roster" }, "body": false }
+    ]
+  },
+  "steps": [
+    { "action": "goto", "path": "/" },
+    { "action": "waitFor", "selector": "[data-testid=\"connection-dot\"]", "timeout_ms": 15000 },
+    { "action": "waitFor", "selector": "[data-testid=\"connection-dot\"][data-state=\"connected\"]", "timeout_ms": 15000 },
+    { "action": "screenshot", "name": "S1-home-board" },
+    { "action": "click", "selector": "[data-testid=\"rail-health-toggle\"]" },
+    { "action": "waitFor", "selector": "[data-testid=\"rail-health-section\"][data-open=\"true\"]", "timeout_ms": 5000 },
+    { "action": "waitForText", "selector": "[data-testid=\"rail-health-section\"]", "contains": "API server", "not_contains": "checking", "timeout_ms": 10000 },
+    { "action": "waitFor", "selector": "[data-testid=\"rail-seat-row\"]", "timeout_ms": 10000 },
+    { "action": "screenshot", "name": "S1-health-rail-expanded" },
+    { "action": "click", "selector": "[data-testid=\"rail-health-toggle\"]" },
+    { "action": "waitFor", "selector": "[data-testid=\"rail-health-section\"][data-open=\"false\"]", "timeout_ms": 5000 },
+    { "action": "click", "selector": "[data-testid=\"rail-health-toggle\"]" },
+    { "action": "expectNewWire", "capture": "health", "timeout_ms": 10000 },
+    { "action": "screenshot", "name": "S1-health-rail-reexpanded" },
+    {
+      "action": "readBack",
+      "id": "health-readback",
+      "path": "/api/v1/health",
+      "headers": {
+        "Authorization": "Bearer qe-smoke-fake-credential-DO-NOT-PERSIST-00112233",
+        "X-Demo-Api-Token": "smoke-fake-token-abcdef123456"
+      }
+    }
+  ],
+  "assertions": [
+    { "id": "health-status-and-body", "type": "wire", "capture": "health", "min_count": 1, "status": 200, "json_path": "body.status", "equals": "ok" },
+    { "id": "health-version-content", "type": "wire", "capture": "health", "json_path": "body.version", "matches": "^\\d+\\.\\d+\\.\\d+" },
+    { "id": "ws-connected", "type": "ws", "min_count": 1 },
+    { "id": "health-rail-renders-api-row", "type": "pageText", "selector": "[data-testid=\"rail-health-section\"]", "contains": "API server" },
+    { "id": "readback-health-content", "type": "readBack", "capture": "health-readback", "status": 200, "json_path": "body.status", "equals": "ok" },
+    { "id": "daemon-db-graph-version", "type": "dbAssert", "db": "${env:QE_SMOKE_CREW_DB}", "sql": "SELECT v FROM meta WHERE k='graph_version'", "expect": { "rows": 1, "value": "0" } }
+  ]
+}

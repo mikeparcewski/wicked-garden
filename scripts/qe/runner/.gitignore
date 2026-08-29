@@ -1,0 +1,6 @@
+# Runner package is installed in place (npm install inside this dir).
+node_modules/
+# Local runs write evidence into the target repo's .wicked-qe/, but keep any
+# accidental local output out of the tree too.
+.wicked-qe/
+test-output/

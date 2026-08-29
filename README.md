@@ -67,7 +67,7 @@ Then, in a Claude Code session:
 **One required peer, the rest opt-in.** The evidence gate is the floor we won't fake, so it needs one external peer — setup blocks without it:
 
 ```bash
-npm i -g wicked-vault          # wicked-vault (≥ 0.5.0), the honest-evidence backend the gate re-derives against
+npm i -g wicked-vault          # wicked-vault (≥ 0.4.0), the honest-evidence backend the gate re-derives against
 ```
 
 > The gate/resolve engine (formerly the separate `wicked-loom` package) is now **absorbed in-package** as of v12.27.0 (`scripts/loom/`) — nothing extra to install. The gate re-hashes recorded evidence and re-runs its verifier through that engine; a false "tests pass" is **rejected**, a missing backend **fails closed**.
@@ -133,7 +133,7 @@ Full author guide: [`docs/extending.md`](docs/extending.md).
 
 ## Requirements
 
-A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.5.0) plus opt-in layers (`wicked-estate` · `wicked-bus`).
+A coding-agent harness ([Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) ≥ 1.0 for the plugin surface; the peers + compiled gate are harness-agnostic) · Python 3.9+ (stdlib-only hooks) · Node + `npx` · the gate's one required peer (`wicked-vault` ≥ 0.4.0) plus opt-in layers (`wicked-estate` · `wicked-bus`).
 
 ## License
 

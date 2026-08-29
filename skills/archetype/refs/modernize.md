@@ -141,15 +141,14 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
 2. Harden the result with `code-modernization:modernize-harden` (security/CVEs,
    error handling) before it carries traffic.
 3. Record the parity proof as re-derivable evidence (vault present; **wicked-vault
-   ≥ 0.5.0** <!-- vault-floor -->):
+   ≥ 0.4.0**):
    `wicked-vault record --scope <scope> --phase modernize --claim parity-proof
    --kind differential --source "<the differential harness command>"
    --criteria "old(input) == new(input) on seeded data" --verifier exit_code_eq:0
    --actor "${WICKED_VAULT_ACTOR:-garden-prove}" --run`. The **`--actor`** is
-   mandatory because `cutover` is a hard gate: the vault refuses an `attest`
-   over weak/ambient-identity evidence (fail-closed since 0.4.0), so without an
-   explicit actor the independent attestation fails closed and cutover can
-   never be gated PASS. The
+   mandatory because `cutover` is a hard gate: vault ≥ 0.4.0 refuses an `attest`
+   over weak/ambient-identity evidence, so without an explicit actor the
+   independent attestation fails closed and cutover can never be gated PASS. The
    `--run` captures the real exit code now and the gate re-runs it later — a claim
    you can't re-derive is not evidence. No vault → fall back to
    `evidence_tracker.py claim`.

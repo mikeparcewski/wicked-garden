@@ -451,9 +451,9 @@ export const PEERS: Peer[] = [
     name: "wicked-interactive",
     tier: "opt-in",
     hue: "creation",
-    gives: "The foundation's document engine — storage, version lineage, HTML / PDF / PPTX / video rendering. Crew spawns and proxies it; you depend on it, you don't visit it.",
+    gives: "Describe it, watch it build in the browser, export HTML / PDF / PPTX / video — the visual surface off the same shelf.",
     cmd: "claude plugins marketplace add mikeparcewski/wicked-interactive && claude plugins install wicked-interactive",
-    cmdLabel: "document engine",
+    cmdLabel: "opt-in layer",
   },
 ];
 
