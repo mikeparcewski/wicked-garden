@@ -1,0 +1,15 @@
+{
+  "scenario": "crew-acceptance-gate.th6-dod",
+  "run_id": "8d49b3fe-ecba-4012-9e63-4d82184d5d47",
+  "claim": "PASS",
+  "claim_reason": "4/4 assertions passed",
+  "evidence_dir": "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave3/th6-fixture-repo/.wicked-qe/evidence/8d49b3fe-ecba-4012-9e63-4d82184d5d47",
+  "manifest": "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave3/th6-fixture-repo/.wicked-qe/evidence/8d49b3fe-ecba-4012-9e63-4d82184d5d47/manifest.json",
+  "preflight_hits": 0,
+  "scenario_evidence_emitted": true,
+  "gate": {
+    "project_id": "aa4be380-f87c-4ef1-b896-b8c894ab4f62",
+    "scenario_id": "3b8f8cb0-507d-4c53-942a-05ec82d66d5f",
+    "cmd": "node \"/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave3/wicked-garden-th6/scripts/qe/lib/gate.mjs\" --project-id \"aa4be380-f87c-4ef1-b896-b8c894ab4f62\" --run-id \"8d49b3fe-ecba-4012-9e63-4d82184d5d47\" --verdict <PASS|FAIL|CONDITIONAL|SYSTEM_ERROR> --verdict-summary \"<graded summary>\""
+  }
+}

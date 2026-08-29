@@ -1,0 +1,58 @@
+{
+ "manifest_version": "2.1.0",
+ "status": "passed",
+ "verdict": {
+  "value": "PASS",
+  "reviewer": "qe-runner/executor-claim",
+  "reason": "4/4 assertions passed [executor claim \u2014 grading via qe accept trio (TH-10); verdict of record via scripts/qe/lib/gate.mjs (TH-6)]",
+  "recorded_at": "2026-08-29T21:40:46.384Z"
+ },
+ "scenario_evidence": {
+  "scenario": "crew-acceptance-gate.th6-dod",
+  "status": "PASS",
+  "claim_level": "machinery-verified",
+  "ui_steps": [
+   "0. goto /",
+   "1. waitFor [data-testid=\"connection-dot\"]",
+   "2. waitFor [data-testid=\"connection-dot\"][data-state=\"connected\"]",
+   "3. screenshot th6-home-connected",
+   "4. readBack /api/v1/health"
+  ],
+  "screenshots": [
+   "th6-home-connected.png"
+  ],
+  "wire_evidence": {
+   "artifact": "wire.json",
+   "capture_counts": {
+    "api-traffic": 9,
+    "health": 0
+   },
+   "websocket_connections": 1,
+   "readbacks": [
+    "health-readback"
+   ]
+  },
+  "db_evidence": {
+   "assertions": [
+    {
+     "id": "daemon-db-isolated",
+     "ok": true
+    }
+   ]
+  },
+  "terminal_state_proof": "readBack health-content: ok \u00b7 readBack health-version-content: ok \u00b7 dbAssert daemon-db-isolated: ok",
+  "notes": "4/4 assertions passed",
+  "legs": [
+   {
+    "leg": "studio-home-ui",
+    "claim_level": "certified"
+   },
+   {
+    "leg": "daemon-state-cross-check",
+    "claim_level": "machinery-verified",
+    "reason": "health + isolated-db checks run over REST readBack and direct sqlite \u2014 machinery cross-checks, not user journeys (the acceptance endpoint itself is API-only by design, campaign S11)"
+   }
+  ]
+ },
+ "artifact_count": 5
+}

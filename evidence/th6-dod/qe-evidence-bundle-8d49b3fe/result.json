@@ -1,0 +1,75 @@
+{
+  "scenario": {
+    "id": "crew-acceptance-gate.th6-dod",
+    "name": "TH-6 DoD — studio home loads over the isolated daemon, WS connects, daemon health read back; evidence feeds the acceptance-gate flip",
+    "project": "wicked-crew-studio",
+    "claim_level": "machinery-verified",
+    "legs": [
+      {
+        "leg": "studio-home-ui",
+        "claim_level": "certified"
+      },
+      {
+        "leg": "daemon-state-cross-check",
+        "claim_level": "machinery-verified",
+        "reason": "health + isolated-db checks run over REST readBack and direct sqlite — machinery cross-checks, not user journeys (the acceptance endpoint itself is API-only by design, campaign S11)"
+      }
+    ]
+  },
+  "target": {
+    "base_url": "http://127.0.0.1:7906",
+    "kind": "browser"
+  },
+  "executor": {
+    "name": "qe-runner",
+    "version": "0.1.0",
+    "model_free": true
+  },
+  "assertions": [
+    {
+      "id": "ws-connected",
+      "type": "ws",
+      "ok": true,
+      "detail": {
+        "count": 1
+      },
+      "failures": []
+    },
+    {
+      "id": "health-content",
+      "type": "readBack",
+      "ok": true,
+      "detail": {
+        "status": 200
+      },
+      "failures": []
+    },
+    {
+      "id": "health-version-content",
+      "type": "readBack",
+      "ok": true,
+      "detail": {
+        "status": 200
+      },
+      "failures": []
+    },
+    {
+      "id": "daemon-db-isolated",
+      "type": "dbAssert",
+      "ok": true,
+      "detail": {
+        "rows": 1
+      },
+      "failures": []
+    }
+  ],
+  "run_error": null,
+  "executor_claim": {
+    "value": "PASS",
+    "reason": "4/4 assertions passed"
+  },
+  "redaction": {
+    "applied": true,
+    "preflight_hits": []
+  }
+}

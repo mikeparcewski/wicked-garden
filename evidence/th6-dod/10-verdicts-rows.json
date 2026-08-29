@@ -1,0 +1,16 @@
+[
+  {
+    "id": "d456d2b6-9a69-418f-a99d-8c6007eb02eb",
+    "run_id": "8d49b3fe-ecba-4012-9e63-4d82184d5d47",
+    "verdict": "PASS",
+    "evidence_path": "/private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave3/th6-fixture-repo/.wicked-qe/evidence/8d49b3fe-ecba-4012-9e63-4d82184d5d47",
+    "reviewer": "wicked-garden-qe-gate",
+    "reason": "TH-6 DoD graded PASS: 4/4 assertions verified against the evidence bundle (WS connect, health readBack content, isolated-db cross-check); manifest 2.1 validated against the ledger contract before grading; claim_level machinery-verified per legs (studio-home-ui certified, cross-checks machinery)",
+    "equivalence_json": null,
+    "created_at": "2026-08-29T21:41:57.312Z",
+    "updated_at": "2026-08-29T21:41:57.312Z",
+    "deleted": 0,
+    "deleted_at": null,
+    "vault_payload_sha": null
+  }
+]

@@ -1,0 +1,80 @@
+{
+  "wire": {
+    "api-traffic": {
+      "responses": [
+        {
+          "url": "http://127.0.0.1:7906/api/v1/repos",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.131Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/projects",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.133Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/repos",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.135Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/settings",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.138Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/runs",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.139Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/runs/8295c087-f6a1-4d7f-afef-6f045368e22e/gate",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.140Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/projects",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.141Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/settings",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.142Z"
+        },
+        {
+          "url": "http://127.0.0.1:7906/api/v1/settings",
+          "status": 200,
+          "at": "2026-08-29T21:40:45.142Z"
+        }
+      ]
+    },
+    "health": {
+      "responses": []
+    }
+  },
+  "websockets": [
+    {
+      "url": "ws://127.0.0.1:7906/ws",
+      "opened_at": "2026-08-29T21:40:45.134Z"
+    }
+  ],
+  "ws_first_frame": "{\"type\":\"heartbeat\"}",
+  "readbacks": {
+    "health-readback": {
+      "id": "health-readback",
+      "url": "http://127.0.0.1:7906/api/v1/health",
+      "method": "GET",
+      "request_headers": {
+        "Authorization": "[REDACTED:field:Authorization]"
+      },
+      "status": 200,
+      "body": {
+        "status": "ok",
+        "version": "0.7.0",
+        "ping": "ok"
+      },
+      "at": "2026-08-29T21:40:45.419Z"
+    }
+  }
+}

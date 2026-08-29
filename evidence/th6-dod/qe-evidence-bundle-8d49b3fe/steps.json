@@ -1,0 +1,48 @@
+{
+  "steps": [
+    {
+      "index": 0,
+      "action": "goto",
+      "started_at": "2026-08-29T21:40:44.899Z",
+      "ok": true,
+      "detail": {},
+      "finished_at": "2026-08-29T21:40:45.085Z"
+    },
+    {
+      "index": 1,
+      "action": "waitFor",
+      "started_at": "2026-08-29T21:40:45.085Z",
+      "ok": true,
+      "detail": {},
+      "finished_at": "2026-08-29T21:40:45.141Z"
+    },
+    {
+      "index": 2,
+      "action": "waitFor",
+      "started_at": "2026-08-29T21:40:45.141Z",
+      "ok": true,
+      "detail": {},
+      "finished_at": "2026-08-29T21:40:45.152Z"
+    },
+    {
+      "index": 3,
+      "action": "screenshot",
+      "started_at": "2026-08-29T21:40:45.152Z",
+      "ok": true,
+      "detail": {
+        "screenshot": "th6-home-connected.png"
+      },
+      "finished_at": "2026-08-29T21:40:45.419Z"
+    },
+    {
+      "index": 4,
+      "action": "readBack",
+      "started_at": "2026-08-29T21:40:45.419Z",
+      "ok": true,
+      "detail": {
+        "status": 200
+      },
+      "finished_at": "2026-08-29T21:40:45.431Z"
+    }
+  ]
+}

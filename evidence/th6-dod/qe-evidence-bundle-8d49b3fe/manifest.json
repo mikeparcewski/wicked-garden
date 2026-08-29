@@ -1,0 +1,113 @@
+{
+  "manifest_version": "2.1.0",
+  "run_id": "8d49b3fe-ecba-4012-9e63-4d82184d5d47",
+  "project_id": "aa4be380-f87c-4ef1-b896-b8c894ab4f62",
+  "scenario_id": "3b8f8cb0-507d-4c53-942a-05ec82d66d5f",
+  "scenario_name": "crew-acceptance-gate.th6-dod",
+  "scenario_path": "specs/th6-acceptance-dod.spec.json",
+  "started_at": "2026-08-29T21:40:40.851Z",
+  "finished_at": "2026-08-29T21:40:46.384Z",
+  "duration_ms": 5533,
+  "status": "passed",
+  "verdict": {
+    "value": "PASS",
+    "reviewer": "qe-runner/executor-claim",
+    "reason": "4/4 assertions passed [executor claim — grading via qe accept trio (TH-10); verdict of record via scripts/qe/lib/gate.mjs (TH-6)]",
+    "recorded_at": "2026-08-29T21:40:46.384Z"
+  },
+  "environment": {
+    "os": "darwin 25.5.0",
+    "node": "26.0.0",
+    "cli": "qe-runner",
+    "qe_version": "0.1.0"
+  },
+  "artifacts": [
+    {
+      "name": "console.json",
+      "kind": "misc",
+      "path": "console.json",
+      "bytes": 21,
+      "sha256": "f141c0f49223d0e83456b28fcf2bb523d80a22c263508f63a6e41245457cd142",
+      "captured_at": "2026-08-29T21:40:46.392Z"
+    },
+    {
+      "name": "result.json",
+      "kind": "misc",
+      "path": "result.json",
+      "bytes": 1704,
+      "sha256": "e6661c863891a8a01aecb678991709f9b74366fe417b7d98470c62a532b99aa0",
+      "captured_at": "2026-08-29T21:40:46.397Z"
+    },
+    {
+      "name": "steps.json",
+      "kind": "misc",
+      "path": "steps.json",
+      "bytes": 1064,
+      "sha256": "f2ce4665fb85bff3e0b113ed5f53db0e44e67cd1e1a8e4e9f6b32b75eea2a585",
+      "captured_at": "2026-08-29T21:40:46.394Z"
+    },
+    {
+      "name": "th6-home-connected.png",
+      "kind": "screenshot",
+      "path": "th6-home-connected.png",
+      "bytes": 46745,
+      "sha256": "b88610d5efadb85cedf9bb51725fcfeba475247f30a3ad4d9d1add86930047eb",
+      "captured_at": "2026-08-29T21:40:45.419Z"
+    },
+    {
+      "name": "wire.json",
+      "kind": "misc",
+      "path": "wire.json",
+      "bytes": 2050,
+      "sha256": "839a4f505b6d1e68210a492ae6f8ce384cf3c92d5d1c86ae850a7a35369fc636",
+      "captured_at": "2026-08-29T21:40:46.389Z"
+    }
+  ],
+  "scenario_evidence": {
+    "scenario": "crew-acceptance-gate.th6-dod",
+    "status": "PASS",
+    "claim_level": "machinery-verified",
+    "ui_steps": [
+      "0. goto /",
+      "1. waitFor [data-testid=\"connection-dot\"]",
+      "2. waitFor [data-testid=\"connection-dot\"][data-state=\"connected\"]",
+      "3. screenshot th6-home-connected",
+      "4. readBack /api/v1/health"
+    ],
+    "screenshots": [
+      "th6-home-connected.png"
+    ],
+    "wire_evidence": {
+      "artifact": "wire.json",
+      "capture_counts": {
+        "api-traffic": 9,
+        "health": 0
+      },
+      "websocket_connections": 1,
+      "readbacks": [
+        "health-readback"
+      ]
+    },
+    "db_evidence": {
+      "assertions": [
+        {
+          "id": "daemon-db-isolated",
+          "ok": true
+        }
+      ]
+    },
+    "terminal_state_proof": "readBack health-content: ok · readBack health-version-content: ok · dbAssert daemon-db-isolated: ok",
+    "notes": "4/4 assertions passed",
+    "legs": [
+      {
+        "leg": "studio-home-ui",
+        "claim_level": "certified"
+      },
+      {
+        "leg": "daemon-state-cross-check",
+        "claim_level": "machinery-verified",
+        "reason": "health + isolated-db checks run over REST readBack and direct sqlite — machinery cross-checks, not user journeys (the acceptance endpoint itself is API-only by design, campaign S11)"
+      }
+    ]
+  }
+}
