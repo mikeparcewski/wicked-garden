@@ -40,7 +40,6 @@ from typing import Any
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_PATH = _REPO_ROOT / "skills" / "domain" / "vendor" / "domain-model.schema.json"
-VERSION_PATH = _REPO_ROOT / "skills" / "domain" / "vendor" / "VERSION"
 
 
 @lru_cache(maxsize=1)
@@ -50,7 +49,13 @@ def load_schema() -> dict[str, Any]:
 
 @lru_cache(maxsize=1)
 def pinned_version() -> str:
-    return VERSION_PATH.read_text(encoding="utf-8").strip()
+    """The schema CONTRACT version a document must carry: the vendored schema's
+    own ``metadata.schema_version`` const (== its ``$id`` version segment).
+    Deliberately NOT the vendored bundle ``VERSION`` file — that tracks the
+    owner's whole 4-schema bundle and moves when ANY sibling schema changes
+    (1.0.0→1.1.0 was a coverage-schema change; this schema stayed 1.0.0)."""
+    schema = load_schema()
+    return schema["properties"]["metadata"]["properties"]["schema_version"]["const"]
 
 
 # --- stdlib draft-07 subset validator ---------------------------------------
