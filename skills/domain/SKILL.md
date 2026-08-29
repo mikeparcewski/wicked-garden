@@ -33,10 +33,9 @@ build / migrate / review / specify / explore consume the same model. Understandi
 a codebase's domain is upstream of building, porting, reviewing, or governing it.
 
 **The contract in one line:** the only thing that crosses repo lines is a
-document that validates against the domain-model schema, contract version `1.0.0`
-(vendored at `vendor/domain-model.schema.json` from the wicked-core-owned bundle,
-`wicked-core/crates/wicked-governance/schemas/`) plus an estate `SymbolId` string. Garden
-STEERS (annotates the estate store + cross-checks the built document), core
+document validating against the domain-model schema `1.0.0` (vendored at
+`vendor/domain-model.schema.json`, owner: `wicked-core/crates/wicked-governance/schemas/`)
+plus an estate `SymbolId` string. Garden STEERS (annotates the estate store + cross-checks the built document), core
 BUILDS (`wicked-core domain-graph` reads the store, builds the requirements graph,
 and coverage-gates fail-closed), estate GROUNDS (owns SymbolId identity + the
 graph), crew GOVERNS (drives the run). The peer CLIs are shelled via
