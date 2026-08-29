@@ -68,6 +68,30 @@ If you see prejudicial content in `context.md`, flag it as `CONTEXT_CONTAMINATIO
 and render `INCONCLUSIVE` — the orchestrator built the context wrong. This is a
 safety check, not a normal path.
 
+## Campaign Bundles (evidence-manifest 2.1) — Validate Before Grading
+
+When the evidence directory contains a `manifest.json` (a qe campaign bundle
+— see the qe skill's `refs/campaign-grading.md`), two extra duties apply:
+
+1. **Validate before grading.** The orchestrator ran the deterministic
+   preflight, but re-check the structural floor yourself from the file you
+   Read: `manifest_version` major must be `2`; when a `scenario_evidence`
+   block is present it must carry the required trio (`scenario`, `status`,
+   `claim_level`), `claim_level` must be one of
+   `certified | machinery-verified | skipped`, and the scenario-level
+   `claim_level` may never be STRONGER than the weakest leg in `legs[]`
+   (certify the journey, not the proxy). Nonconformant → render
+   `INCONCLUSIVE`, never PASS or FAIL (wicked-ledger SCHEMA-CONTRACT rule).
+2. **Treat the executor claim as a claim.** `scenario_evidence.status` (and
+   any `executor_claim` in `result.json`) is the EXECUTOR'S CLAIM — weigh it
+   as data, re-derive your verdict from the artifacts, and contradict the
+   claim when the evidence doesn't support it.
+3. **Classify every non-PASS verdict.** Begin your verdict reason with
+   exactly one tag: `[scenario-defect]` (the scenario/spec/environment is
+   wrong — fix lane re-authors and re-runs) or `[product-finding]` (the
+   product is wrong — mirrored to a GH issue + ledger task; the campaign
+   does not expand). An untagged non-PASS blocks campaign certification.
+
 ## Why Independent Review Matters
 
 When the executor self-grades:

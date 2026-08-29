@@ -59,6 +59,18 @@ See `../../qe-acceptance-test-reviewer/SKILL.md` for the reviewer's isolation an
 Tests tagged `@requires-enforcement: claude-code` validate the hard tier.
 Tests without that tag validate the skill's dispatch contract (valid everywhere).
 
+## Campaign grading (qe campaign, TH-10)
+
+A campaign's evidence bundles grade through THIS pipeline's reviewer — same
+isolation, same verdict write — orchestrated per
+[refs/campaign-grading.md](campaign-grading.md): validate-before-grading
+against the wicked-ledger manifest-2.1 contract (schema-fail = INCONCLUSIVE),
+the `{id, grade, executor_claim, evidence_ok}` scoreboard assembled by
+`scripts/qe/lib/campaign-scoreboard.mjs` (which structurally refuses executor
+identities as grade sources), and the scenario-defect vs product-finding fork
+that keeps certification terminating. Campaign verdicts never take the
+dev-loop fast path.
+
 ## Usage
 
 ```
