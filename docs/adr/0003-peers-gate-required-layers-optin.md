@@ -1,3 +1,9 @@
+---
+id: wicked-garden-adr-0003
+title: "Two required peers (the gate), three opt-in layers"
+status: active
+date: 2026-06-09
+---
 # ADR 0003 — Two required peers (the gate), three opt-in layers
 
 - **Status:** Accepted — executed. *(Historical note, Phase 6c: `wicked-testing` has since retired as a peer — its skills ship in-catalog as the `qe` domain and the acceptance gate lives in wicked-crew. The opt-in-layer reasoning below is preserved as written.)* <!-- historical -->

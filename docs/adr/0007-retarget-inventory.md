@@ -1,4 +1,15 @@
-# ADR 0005 — Retarget inventory (brain graph surface → wicked-estate)
+---
+id: wicked-garden-adr-0007
+title: "Retarget inventory (brain graph surface → wicked-estate)"
+status: retired
+date: 2026-08-11
+---
+# ADR 0007 — Retarget inventory (brain graph surface → wicked-estate)
+
+> **Renumbered 2026-08-29 (was ADR 0005)** — this companion checklist shared the number
+> of [ADR 0005](0005-code-graph-re-homes-to-wicked-estate.md), the decision it executes
+> (AW-12 / arch-R12 duplicate-number fix). Content below is unchanged. **Status: retired**
+> — Stage S5 executed this inventory; line numbers reference the garden HEAD of its day.
 
 <!-- historical-doc -->
 

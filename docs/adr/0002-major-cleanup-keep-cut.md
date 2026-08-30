@@ -1,3 +1,9 @@
+---
+id: wicked-garden-adr-0002
+title: "Major cleanup: collapse rubric-wrappers to skills; keep only what the agent actually uses"
+status: active
+date: 2026-06-09
+---
 # ADR 0002 — Major cleanup: collapse rubric-wrappers to skills; keep only what the agent actually uses
 
 - **Status:** Accepted — **fully executed**. All domains collapsed (product #910; engineering #911; platform #912; data+delivery #913; agentic+jam+persona+smaht #914), orphan agents purged via `scripts/ci/find_orphan_agents.py`, and `components.json` re-derived via `scripts/ci/sync_components.py`. End state: 90 commands, 40 agents (from 56), 71 skills.
