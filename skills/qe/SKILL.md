@@ -143,8 +143,8 @@ scaffolds `.wicked-qe/` and registers a project record).
 **Dispatch guard (mandatory):** resolve every specialist through
 `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" <name>`
 before the Skill call — it asserts the resolved worker is a shipped
-`wicked-garden-qe-*` skill and BLOCKS retired `wicked-testing-*` /
-`wicked-brain-*` names at dispatch with a clear error naming the garden
+`wicked-garden-qe-*` skill and BLOCKS retired `wicked-testing-*` / <!-- historical -->
+`wicked-brain-*` names at dispatch with a clear error naming the garden <!-- historical -->
 replacement. Never work around a block; fix the caller.
 
 Pipeline: `wicked-garden-qe-acceptance-test-{writer, executor, reviewer}` ·
