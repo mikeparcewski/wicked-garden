@@ -23,6 +23,7 @@ The 6 checks:
     4. semantic_review   — delegates to scripts.qe.semantic_review (#444)
     5. skip_log          — unresolved skip-reeval entries (audit_skip_log.py)
     6. outgov_pattern    — pattern-conformance rules from WICKED_OUTGOV_RULES_DIR
+                           (a graph-derived dir with content-hash provenance, AW-16)
 
 Usage (as a module):
     from platform.guard_pipeline import run_pipeline
@@ -46,6 +47,7 @@ surfaces them as findings, not blockers.  Engineering review owns final calls.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -138,15 +140,22 @@ class CheckResult:
     findings: List[Finding] = field(default_factory=list)
     duration_ms: int = 0
     note: Optional[str] = None  # short human reason (e.g. "no changed files")
+    # Optional structured side-channel (e.g. outgov_pattern records the rules
+    # dir's content hash + provenance verdict here so a stale dir is detectable
+    # from the persisted report). Omitted from to_dict() when unset.
+    meta: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d: Dict[str, Any] = {
             "name": self.name,
             "status": self.status,
             "duration_ms": self.duration_ms,
             "note": self.note,
             "findings": [f.to_dict() for f in self.findings],
         }
+        if self.meta:
+            d["meta"] = self.meta
+        return d
 
 
 @dataclass
@@ -969,17 +978,36 @@ def check_skip_log(
 
 
 # ---------------------------------------------------------------------------
-# Check 6: Output governance — pattern conformance (garden#983)
+# Check 6: Output governance — pattern conformance (garden#983, AW-16)
 # ---------------------------------------------------------------------------
 #
 # Reads Pattern-type conformance rules from WICKED_OUTGOV_RULES_DIR/rules/*.json
 # and surfaces them as findings so Claude can evaluate the session's output.
 #
+# Single source of per-turn truth (arch-R14): the estate graph. The rules dir
+# is NOT an independent rulebook — it is a materialized view generated FROM the
+# graph, and it carries content-hash provenance so a stale or hand-edited dir
+# is detectable:
+#
+#   * <WICKED_OUTGOV_RULES_DIR>/provenance.json records the content hash the
+#     generator computed over rules/*.json (recipe: compute_rules_content_hash).
+#   * This check recomputes the hash, compares, and records BOTH the computed
+#     hash and the provenance verdict (verified|stale|missing|unverifiable) in
+#     the CheckResult meta — so the persisted report always says which rule
+#     bytes were consumed.
+#   * A mismatch surfaces one WARN finding (regenerate from the graph) and the
+#     rules are STILL surfaced — advisory, fail-open, never a block.
+#
 # Requires: WICKED_OUTGOV_RULES_DIR points to a directory containing a rules/
-# subdir with *.json conformance-rule bundles (wicked_governance schema).
-# WG_OUTGOV=off (default) → skip silently.  Always fails open.
+# subdir with *.json conformance-rule bundles (wicked_governance schema) —
+# the same canonical layout `wicked-core rules ingest`/`rules fanout` consume.
+# WG_OUTGOV defaults to `warn` (default-on advisory, AW-16); WG_OUTGOV=off is
+# the per-repo opt-out (P-5).  Always fails open: a missing dir, a stale dir,
+# or a broken bundle can only reduce findings, never block the session.
 
 _OUTGOV_RULES_DIR_ENV = "WICKED_OUTGOV_RULES_DIR"
+_OUTGOV_PROVENANCE_FILE = "provenance.json"
+_OUTGOV_PROVENANCE_VERSION = "1"
 _OUTGOV_SEV_MAP = {
     "critical": SEVERITY_BLOCK,
     "error": SEVERITY_WARN,
@@ -1028,6 +1056,56 @@ def _load_pattern_rules(rules_dir: Path, deadline: float = float("inf")) -> List
     return rules
 
 
+def compute_rules_content_hash(rules_dir: Path) -> str:
+    """Deterministic content hash over the *.json rule bundles under *rules_dir*.
+
+    Recipe (the provenance contract — generator and consumer MUST both use this
+    exact function, or stamp with `guard_pipeline.py hash --stamp`):
+    sha256 over, for each *.json file sorted by filename,
+    `<filename utf-8> NUL <file bytes> NUL`. Filenames participate so a renamed
+    bundle changes the hash; sort order makes creation order irrelevant.
+
+    Raises OSError if a bundle cannot be read — the caller decides whether that
+    makes provenance "unverifiable" (it never blocks anything).
+    """
+    h = hashlib.sha256()
+    for path in sorted(rules_dir.glob("*.json"), key=lambda p: p.name):
+        h.update(path.name.encode("utf-8"))
+        h.update(b"\x00")
+        h.update(path.read_bytes())
+        h.update(b"\x00")
+    return "sha256:" + h.hexdigest()
+
+
+def write_rules_provenance(base_dir: Path, *, source: str = "") -> Dict[str, Any]:
+    """Stamp <base_dir>/provenance.json with the content hash of <base_dir>/rules.
+
+    Generator-side helper (also exposed as the `hash --stamp` CLI): whatever
+    materializes the rules dir FROM the graph calls this last, so the consumer
+    (check_outgov_pattern) can detect staleness. Returns the written document.
+    """
+    doc: Dict[str, Any] = {
+        "provenance_version": _OUTGOV_PROVENANCE_VERSION,
+        "source": source,
+        "generated_at": int(time.time()),
+        "content_hash": compute_rules_content_hash(base_dir / "rules"),
+    }
+    (base_dir / _OUTGOV_PROVENANCE_FILE).write_text(
+        json.dumps(doc, indent=2) + "\n", encoding="utf-8"
+    )
+    return doc
+
+
+def _read_recorded_provenance(base_dir: Path) -> Optional[Dict[str, Any]]:
+    """Read <base_dir>/provenance.json.  None when absent or unparseable."""
+    path = base_dir / _OUTGOV_PROVENANCE_FILE
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, ValueError):
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
 def check_outgov_pattern(
     files: List[str],
     *,
@@ -1036,17 +1114,21 @@ def check_outgov_pattern(
 ) -> CheckResult:
     """Surface applicable pattern-conformance rules from WICKED_OUTGOV_RULES_DIR.
 
-    Reads *.json rule bundles from the rules/ subdirectory and emits one
-    finding per rule so Claude can evaluate the session's output for conformance.
-    WG_OUTGOV=off (default) → skip.  Always fails open.
+    Reads *.json rule bundles from the rules/ subdirectory (a graph-derived
+    materialized view — arch-R14) and emits one finding per rule so Claude can
+    evaluate the session's output for conformance. Verifies + records the dir's
+    content-hash provenance in `result.meta` so a stale dir is detectable.
+    WG_OUTGOV defaults to `warn` (AW-16); WG_OUTGOV=off opts out.
+    Always fails open — advisory findings only, never a block.
     """
     t0 = time.monotonic()
     deadline = t0 + budget_seconds
     result = CheckResult(name="outgov_pattern", status="ok")
 
-    if os.environ.get("WG_OUTGOV", "off").strip().lower() not in ("warn", "strict"):
+    mode = os.environ.get("WG_OUTGOV", "warn").strip().lower()
+    if mode not in ("warn", "strict"):
         result.status = "skip"
-        result.note = "WG_OUTGOV=off"
+        result.note = f"WG_OUTGOV={mode or 'off'}"
         result.duration_ms = int((time.monotonic() - t0) * 1000)
         return result
 
@@ -1060,9 +1142,48 @@ def check_outgov_pattern(
     rules_dir = Path(rules_env) / "rules"
     if not rules_dir.is_dir():
         result.status = "skip"
-        result.note = f"rules dir not found: {rules_dir}"
+        result.note = f"rules dir not found: {rules_dir} (fail-open: advisory skipped, no block)"
         result.duration_ms = int((time.monotonic() - t0) * 1000)
         return result
+
+    # Content-hash provenance (AW-16): recompute, compare with the recorded
+    # hash, and persist both so the report says exactly which rule bytes were
+    # consumed. Every branch is fail-open — the rules are surfaced regardless.
+    meta: Dict[str, Any] = {}
+    try:
+        actual_hash: Optional[str] = compute_rules_content_hash(rules_dir)
+    except Exception as exc:
+        actual_hash = None
+        meta["hash_error"] = f"{type(exc).__name__}: {str(exc)[:120]}"
+    meta["rules_content_hash"] = actual_hash
+    recorded = _read_recorded_provenance(Path(rules_env))
+    if recorded is None:
+        meta["provenance"] = "missing"
+    else:
+        if recorded.get("source"):
+            meta["provenance_source"] = recorded.get("source")
+        if recorded.get("generated_at") is not None:
+            meta["generated_at"] = recorded.get("generated_at")
+        recorded_hash = recorded.get("content_hash")
+        if actual_hash is None or not isinstance(recorded_hash, str) or not recorded_hash:
+            meta["provenance"] = "unverifiable"
+        elif recorded_hash == actual_hash:
+            meta["provenance"] = "verified"
+        else:
+            meta["provenance"] = "stale"
+            meta["recorded_content_hash"] = recorded_hash
+            result.findings.append(Finding(
+                check="outgov_pattern",
+                rule_id="outgov-provenance-stale",
+                severity=SEVERITY_WARN,
+                message=(
+                    "rules dir content does not match its recorded provenance hash "
+                    f"(recorded {recorded_hash[:23]}…, actual {actual_hash[:23]}…) — the "
+                    "graph-derived dir is stale or hand-edited; regenerate it from the graph "
+                    "(advisory: the rules below are still surfaced, fail-open)"
+                ),
+            ))
+    result.meta = meta
 
     try:
         pattern_rules = _load_pattern_rules(rules_dir, deadline=deadline)
@@ -1077,9 +1198,10 @@ def check_outgov_pattern(
         result.duration_ms = int((time.monotonic() - t0) * 1000)
         return result
 
+    pre_rule_findings = len(result.findings)  # e.g. a provenance-stale warning
     for rule in pattern_rules:
         if time.monotonic() > deadline:
-            surfaced = len(result.findings)
+            surfaced = len(result.findings) - pre_rule_findings
             result.note = (
                 f"budget exhausted; {surfaced} of {len(pattern_rules)} rules surfaced (fail-open)"
             )
@@ -1318,13 +1440,37 @@ def _main_cli(argv: List[str]) -> int:
     import argparse
 
     ap = argparse.ArgumentParser(description="Run the guard pipeline")
-    ap.add_argument("command", choices=["run"])
+    ap.add_argument("command", choices=["run", "hash"])
     ap.add_argument("--profile", default=None, help="scalpel|standard|deep")
     ap.add_argument("--project-dir", default=None)
     ap.add_argument("--complexity", type=int, default=3)
     ap.add_argument("--emit-bus", action="store_true")
     ap.add_argument("--write-briefing", action="store_true")
+    ap.add_argument("--rules-dir", default=None,
+                    help="hash: the WICKED_OUTGOV_RULES_DIR base (contains rules/)")
+    ap.add_argument("--stamp", action="store_true",
+                    help="hash: also write <rules-dir>/provenance.json")
+    ap.add_argument("--source", default="",
+                    help="hash --stamp: provenance source label (e.g. the graph db / manifest ref)")
     args = ap.parse_args(argv)
+
+    if args.command == "hash":
+        # Generator-side provenance stamping — the exact recipe the consumer
+        # (check_outgov_pattern) verifies. Fail-loud here: a generator that
+        # cannot hash what it wrote must not stamp it as verified.
+        if not args.rules_dir:
+            sys.stderr.write("hash requires --rules-dir\n")
+            return 2
+        base = Path(args.rules_dir)
+        if not (base / "rules").is_dir():
+            sys.stderr.write(f"no rules/ subdir under {base}\n")
+            return 2
+        if args.stamp:
+            doc = write_rules_provenance(base, source=args.source)
+        else:
+            doc = {"content_hash": compute_rules_content_hash(base / "rules")}
+        sys.stdout.write(json.dumps(doc, indent=2) + "\n")
+        return 0
 
     project_dir = Path(args.project_dir) if args.project_dir else None
     report = run_pipeline(

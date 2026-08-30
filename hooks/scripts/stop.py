@@ -56,17 +56,25 @@ def _session_dir(subdir: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Output governance — per-turn policy compliance advisory (garden#984)
+# Output governance — per-turn policy compliance advisory (garden#984, AW-16)
 # ---------------------------------------------------------------------------
 #
 # When WG_OUTGOV=warn|strict, returns a systemMessage asking Claude to recall
-# Policy-type conformance rules from the estate graph and evaluate this turn's
-# output.  WG_OUTGOV=off (default) → skip silently.  Always fails open.
+# applicable conformance rules from the estate graph via `rules.recall` — THE
+# single per-turn rule source (arch-R14) — and evaluate this turn's output.
+#
+# Default is `warn` (default-on advisory, AW-16 after the AW-13 seed corpus).
+# Set WG_OUTGOV=off to opt a repo out (P-5 per-repo noise-budget escape hatch;
+# see docs/outgov-per-turn.md). Any unrecognized value is treated as off.
+#
+# Two-tier doctrine (TARGET-ARCHITECTURE contract 3): this hook is fail-open
+# ADVISORY — it never blocks, even at `strict` (strict only strengthens the
+# wording). Fail-closed enforcement lives in the crew/core gates, never here.
 
 def _check_outgov_compliance(_input_data: dict) -> list:
-    """Per-turn policy compliance advisory when WG_OUTGOV is enabled."""
+    """Per-turn policy compliance advisory unless WG_OUTGOV is off."""
     try:
-        mode = os.environ.get("WG_OUTGOV", "off").strip().lower()
+        mode = os.environ.get("WG_OUTGOV", "warn").strip().lower()
         if mode not in ("warn", "strict"):
             return []
         deny_hint = (
@@ -76,11 +84,13 @@ def _check_outgov_compliance(_input_data: dict) -> list:
             else ""
         )
         return [
-            "[Output Governance] Evaluate this turn's output against applicable policy rules. "
-            "If the estate MCP is connected: use estate tools to list nodes with kind=Rule "
-            "and rule_type=Policy, identify applicable rules, and report any violations with "
-            "rule ID, severity, and a brief explanation. "
-            "If estate is unavailable: skip silently." + deny_hint
+            "[Output Governance] Evaluate this turn's output against applicable conformance rules. "
+            "If the estate MCP is connected: call the `rules.recall` tool with "
+            '{"rule_type": "policy"} — the single per-turn rule source (severity-ordered, '
+            "graph-backed; add language/layer facets if the turn is scoped) — identify applicable "
+            "rules, and report any violations with rule ID, severity, and a brief explanation. "
+            "This is advisory only. "
+            "If estate or `rules.recall` is unavailable: skip silently." + deny_hint
         ]
     except Exception:
         return []
