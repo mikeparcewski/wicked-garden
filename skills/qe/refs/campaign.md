@@ -24,6 +24,14 @@ proposed as a HITL gate, approve/amend/reject), confirmed plans run through
 § execute / the model-free runner (`scripts/qe/runner`), grades come from
 § accept, and the acceptance gate re-derives "done" from ledger evidence
 (ADR 0006 separation of duties).
+Execution, grading, and gating are NOT this action's job: confirmed plans
+run through § execute / the model-free runner (`scripts/qe/runner`), grades
+come from § accept, and the acceptance gate re-derives "done" from ledger
+evidence (ADR 0006 separation of duties). Flaky verdicts at that gate follow
+[refs/campaign-flake-policy.md](campaign-flake-policy.md) (TH-21): bounded
+diagnostic re-runs with BOTH verdicts recorded, a hunter-owned quarantine
+lane (owner + deadline), quarantined scenarios excluded-with-reason — never
+silently dropped, never retried-to-green.
 
 ## Usage
 
@@ -214,4 +222,5 @@ the caller; do not work around the guard.
 - `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py` — assembler/validator
 - `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py` — dispatch guard
 - [refs/scenario-format.md](scenario-format.md) · [refs/execute.md](execute.md) ·
-  [refs/accept.md](accept.md) · ADR 0006 (`docs/adr/`)
+  [refs/accept.md](accept.md) · [refs/campaign-flake-policy.md](campaign-flake-policy.md) ·
+  ADR 0006 (`docs/adr/`)
