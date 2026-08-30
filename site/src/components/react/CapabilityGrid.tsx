@@ -6,7 +6,7 @@ import { DOMAINS, PEERS, HUE_VAR, G, type Domain } from "../../data/garden";
    Every chip shown is a real skill or routed action in the repo (skills/<dir>/).
    Honest counts: 141 SKILL.md folded into 14 domain groups (routers, routed
    actions, and fork workers), 40 of them the absorbed qe specialist fleet —
-   all verified against skills/** at v12.29.1.
+   all verified against skills/** at v12.31.0.
    The qe card leads the grid and deep-links to the wall band below (#qe).
    Folds in the "one install bundles the wicked-* family" point as a compact
    strip at the foot — every peer is an opt-in layer; the kit works without
