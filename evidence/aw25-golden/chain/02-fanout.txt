@@ -1,0 +1,6 @@
+rules fanout: 2 conformance rules + 1 policies from /private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/wicked-garden-aw25/evidence/aw25-golden/ruleset
+  enforcement [crew-api] http://127.0.0.1:7907/api/v1 — PENDING (crew API)
+  discovery   /private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/discovery.db — VERIFIED
+  knowledge   /private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/aw25-run/work-final/stores/knowledge.db — VERIFIED
+  manifest → /private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/wicked-garden-aw25/evidence/aw25-golden/chain/02-fanout-manifest.json
+  enforcement lane is PENDING: POST /private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/wicked-garden-aw25/evidence/aw25-golden/chain/02-fanout-manifest.json.crew-payload.json to http://127.0.0.1:7907/api/v1/governance/policies and http://127.0.0.1:7907/api/v1/governance/rules, then verify via GET http://127.0.0.1:7907/api/v1/governance/rules/preview

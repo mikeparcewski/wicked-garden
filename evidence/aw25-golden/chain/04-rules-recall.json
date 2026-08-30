@@ -1,0 +1,22 @@
+{
+  "returned": 1,
+  "rules": [
+    {
+      "confidence": 1.0,
+      "id": "POL-2500",
+      "provenance": {
+        "ref": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#POL-2500",
+        "source": "markdown",
+        "source_kinds": [
+          "doc"
+        ]
+      },
+      "retired": false,
+      "rule_type": "policy",
+      "severity": "critical",
+      "statement": "The literal marker token AW25-GOLDEN-DENY-ME must never appear in a governed unit's evaluated context \u2014 tool calls, unit intent, or produced output (wiki URI: wiki://aw25-golden#POL-2500). The token exists solely to prove the deny path of the wiki pipeline end to end; any occurrence in governed work is a deliberate trip of the golden-path acceptance scenario, and the gate must refuse it.",
+      "targets": {}
+    }
+  ],
+  "total": 1
+}

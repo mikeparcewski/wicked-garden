@@ -1,0 +1,55 @@
+{
+  "session": {
+    "archive_note": null,
+    "archived_at": null,
+    "attempt": 0,
+    "clis": [
+      "claude"
+    ],
+    "collection_scope": "wicked-agent/d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd/shared",
+    "entity_mode": "shared",
+    "extra_write_roots": [],
+    "human_confirm": "none",
+    "id": "d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd",
+    "problem": "AW-25 golden-path acceptance canary: the token AW25-GOLDEN-DENY-ME is deliberately planted in this intent so the platform's deterministic governance gate (wiki rule POL-2500) evaluates and denies this unit AFTER your reply \u2014 that denial is the expected, correct outcome and is not your job. Do not use tools. Reply with a short paragraph (3-5 sentences, at least 250 characters) explaining why a guardrails pipeline should prove its own deny path with evidence.",
+    "project_graph": null,
+    "repo_ref": null,
+    "status": "failed",
+    "unit_ix": 0,
+    "workdir": null,
+    "workflow_id": "chat",
+    "project_id": null
+  },
+  "units": [
+    {
+      "allowed_skills": [],
+      "assigned_cli": "claude",
+      "assigned_invocation": "claude -p --plugin-dir /Users/michael.parcewski/.claude/plugins/wicked-garden {PROMPT}",
+      "collection_scope": "wicked-agent/d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd/shared",
+      "conformance_ref": "3a151ecfe8fefd0039d6d3d68807b92fffcd740d302a0a575537980f168396b6",
+      "council_task_ref": null,
+      "denial_reason": "Governance DENIED unit 1 (claude) \u2014 decision=deny, policies: [POL-2500], criteria: AW-25 golden path: the canary marker token is deny-on-sight in governed phases. Violates wiki rule POL-2500 (wiki URI: wiki://aw25-golden#POL-2500; digest-bearing provenance ref aw25-golden.md@<git blob sha>#POL-2500 is stamped on the ingested rule twin and returned by rules.recall).",
+      "description": "explore \u2014 AW-25 golden-path acceptance canary: the token AW25-GOLDEN-DENY-ME is deliberately planted in this intent so the platform's deterministic governance gate (wiki rule POL-2500) evaluates and denies this unit AFTER your reply \u2014 that denial is the expected, correct outcome and is not your job. Do not use tools. Reply with a short paragraph (3-5 sentences, at least 250 characters) explaining why a guardrails pipeline should prove its own deny path with evidence.",
+      "gate": "auto",
+      "id": "d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd:explore",
+      "ord": 1,
+      "phase_ref": "wf-d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd:unit-1",
+      "phase_status": "rejected",
+      "required_deliverables": [],
+      "role": "neutral",
+      "routing": {
+        "agreement_pct": 100,
+        "dissent": 0,
+        "method": "council",
+        "returned": 1,
+        "seated": 1,
+        "winner": "claude"
+      },
+      "session_id": "d8a3da04-f8ee-4047-aeb6-a18f2bdbfdcd",
+      "skill_ref": null,
+      "stage": "recon",
+      "status": "rejected",
+      "validator": null
+    }
+  ]
+}
