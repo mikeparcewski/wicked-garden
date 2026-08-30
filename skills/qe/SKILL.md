@@ -6,7 +6,7 @@ description: |
   strategy to verdict. Nine actions — setup (per-project init), plan (test
   strategy, risk, testability, AC quality), author (scenarios, test code,
   fixtures), campaign (three-lens repo recon → dependency-ordered scenario
-  ladder per campaign-recon format v1), intake (plan proposed as a crew HITL
+  ladder per campaign-recon format v2), intake (plan proposed as a crew HITL
   gate — approve/amend/reject), execute (run scenarios/suites, capture
   evidence), review (independent verdicts, spec alignment, suite quality),
   insight (ledger stats, flake detection, coverage archaeology), accept
@@ -32,10 +32,8 @@ archetype_relevance: ["*"]
 Evidence-gated testing as a domain: strategy → authoring → execution →
 independent verdict, with a read-only ledger lens. Verdicts are re-derived
 from captured evidence — never self-asserted by the agent that ran the work.
-Absorbed from the retired wicked-testing plugin in Phase 6b; Phase 6c renamed <!-- historical -->
-the on-disk data contract to `.wicked-qe/` (config, evidence dirs, SQLite
-ledger) — legacy `.wicked-testing/` roots still resolve via wicked-ledger's
-dual-read `resolveLedgerRoot`.
+Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- historical -->
+`.wicked-testing/` roots still resolve via wicked-ledger's dual-read.
 
 ## Routing
 
@@ -93,10 +91,10 @@ scaffolds `.wicked-qe/` and registers a project record).
 2. Three-lens recon (estate code graph when the target is indexed, docs
    recall via `wicked-garden-mem`, live probe incl. committed endpoint
    manifests) → a plan CONFORMING to
-   `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` (v1 — never a
-   parallel format), assembled + validated fail-closed by
-   `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py`, persisted as a
-   ledger `strategies` row + scenario-format v1 files. Unindexed targets
+   `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` (v2; spec:1
+   plans still validate — never a parallel format), assembled + validated
+   fail-closed by `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py`,
+   persisted as a ledger `strategies` row + scenario-format v1.1 files. Unindexed targets
    degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
    enter `proposed`, pending human review.
 

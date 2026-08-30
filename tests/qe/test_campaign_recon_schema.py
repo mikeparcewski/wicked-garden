@@ -1,4 +1,4 @@
-"""campaign-recon.schema.json has teeth (TH-5 / RECON-TEST-HARNESS test-R5).
+"""campaign-recon.schema.json has teeth (TH-5 / test-R5; v2 bump TH-16+TH-22).
 
 Validates the versioned qe-campaign plan contract in schemas/ using the
 repo's own stdlib draft-07 subset validator (no jsonschema — the repo is
@@ -6,6 +6,10 @@ stdlib+pytest only): a conforming plan passes clean, and every class of
 nonconforming plan is rejected with a specific error. Also enforces the one
 invariant JSON Schema cannot express — the scenario ladder is
 dependency-ordered (deps reference only EARLIER rungs, never unknown ids).
+
+Format v2 (TH-16 + TH-22, ONE shared bump): rungs gain the optional
+`isolation` annotation and spec becomes `enum: [1, 2]` — every v1 plan
+stays valid (backward compat is proven here, not asserted).
 
 Disjoint-build discipline: imports only the shared schema-layer validator
 (domain.validate_domain_model._validate is import-safe — module scope is
@@ -53,7 +57,7 @@ def ladder_order_errors(doc):
 def conforming_plan():
     """Minimal-but-real plan modeled on the proven studio campaign shape."""
     return {
-        "spec": 1,
+        "spec": 2,
         "name": "studio-e2e-smoke",
         "generated_at": "2026-08-29T12:00:00Z",
         "target": {
@@ -91,6 +95,7 @@ def conforming_plan():
                     "consumer_state": "health rail renders real seat rows",
                 },
                 "claim_ceiling": "certified",
+                "isolation": "stateless",
                 "scenario_path": "scenarios/s1-cold-start.md",
                 "status": "confirmed",
             },
@@ -105,21 +110,31 @@ def conforming_plan():
                     "consumer_state": "dashboard route renders the project",
                 },
                 "claim_ceiling": "machinery-verified",
+                "isolation": "shares-state",
                 "notes": "API-substituted modal submit (disclosed)",
             },
         ],
     }
 
 
+def v1_plan():
+    """A pre-bump plan exactly as TH-5 shipped it: spec 1, no isolation."""
+    doc = conforming_plan()
+    doc["spec"] = 1
+    for rung in doc["scenarios"]:
+        rung.pop("isolation", None)
+    return doc
+
+
 # --- the schema file itself ---------------------------------------------------
 
 
-def test_schema_is_draft07_and_versioned_v1():
+def test_schema_is_draft07_and_versioned():
     schema = load_schema()
     assert schema["$schema"].startswith("http://json-schema.org/draft-07")
     assert schema["$id"].endswith("schemas/campaign-recon.schema.json")
-    # format v1 is pinned as a const, wicked-pack.schema.json style
-    assert schema["properties"]["spec"]["const"] == 1
+    # ONE shared bump for TH-16 + TH-22: v2 current, v1 still accepted
+    assert schema["properties"]["spec"]["enum"] == [1, 2]
     assert "spec" in schema["required"]
 
 
@@ -138,6 +153,12 @@ def test_schema_encodes_the_contract_enums():
         "artifact",
         "consumer_state",
     ]
+    # v2: the per-rung isolation annotation (TH-22) — optional, closed enum,
+    # default (shares-state) documented rather than schema-defaulted
+    isolation = rung["properties"]["isolation"]
+    assert isolation["enum"] == ["shares-state", "exclusive", "stateless"]
+    assert "isolation" not in rung["required"]
+    assert "shares-state" in isolation["description"]  # the documented default
 
 
 # --- a conforming plan passes clean -------------------------------------------
@@ -145,6 +166,13 @@ def test_schema_encodes_the_contract_enums():
 
 def test_conforming_plan_validates_clean():
     doc = conforming_plan()
+    assert schema_errors(doc) == []
+    assert ladder_order_errors(doc) == []
+
+
+def test_v1_plan_still_validates_clean():
+    # backward compat is proven, not asserted: the pre-bump shape passes v2
+    doc = v1_plan()
     assert schema_errors(doc) == []
     assert ladder_order_errors(doc) == []
 
@@ -164,8 +192,16 @@ def test_missing_required_top_level_field_rejected():
 
 
 def test_wrong_spec_version_rejected():
-    errs = _mutated(lambda d: d.__setitem__("spec", 2))
-    assert any("const" in e for e in errs)
+    errs = _mutated(lambda d: d.__setitem__("spec", 3))
+    assert any("is not one of [1, 2]" in e for e in errs)
+
+
+def test_bad_isolation_value_rejected():
+    errs = _mutated(lambda d: d["scenarios"][0].__setitem__("isolation", "solo"))
+    assert any(
+        "is not one of ['shares-state', 'exclusive', 'stateless']" in e
+        for e in errs
+    )
 
 
 def test_bad_scenario_category_rejected():

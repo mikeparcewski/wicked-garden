@@ -5,8 +5,10 @@ Two AC halves:
 1. **A generated three-lens plan validates against the schema.** The
    assembler merges estate + docs + probe lenses (probe seeded from a crew
    endpoint-manifest fixture) into a plan that conforms to
-   schemas/campaign-recon.schema.json v1 — verified against the SCHEMA
-   ITSELF via the repo's stdlib draft-07 validator, never a re-statement.
+   schemas/campaign-recon.schema.json (format v2 — the TH-16+TH-22 shared
+   bump: desktop stub-eligibility + per-rung isolation) — verified against
+   the SCHEMA ITSELF via the repo's stdlib draft-07 validator, never a
+   re-statement.
    Honesty invariants are fail-closed: unindexed degradation is derived,
    doc-derived claims are forced PROPOSED, confirmed rungs cannot certify
    proposed capabilities, persistence refuses a nonconforming plan.
@@ -101,6 +103,7 @@ def ladder():
                 "consumer_state": "created project present in a later GET /projects",
             },
             "claim_ceiling": "machinery-verified",
+            "isolation": "stateless",
         },
         {
             "id": "S2",
@@ -165,6 +168,25 @@ def test_generated_three_lens_plan_validates_against_the_schema():
     assert errors == []
     # and the glue's own full gate (schema + ladder + honesty) agrees
     assert cp.plan_errors(plan) == []
+
+
+def test_assembled_plan_is_spec_2_and_v1_input_still_validates():
+    plan = three_lens_plan()
+    assert plan["spec"] == cp.CURRENT_SPEC == 2
+    # a pre-bump plan (spec 1, no isolation anywhere) still passes the gate
+    v1 = three_lens_plan()
+    v1["spec"] = 1
+    for rung in v1["scenarios"]:
+        rung.pop("isolation", None)
+    assert cp.plan_errors(v1) == []
+
+
+def test_isolation_requires_spec_2_fail_closed():
+    plan = three_lens_plan()
+    plan["spec"] = 1
+    # S1 carries isolation: a spec-1 plan with it is a versioning error
+    errs = cp.plan_errors(plan)
+    assert any("'isolation' requires campaign-recon spec 2" in e for e in errs)
 
 
 def test_three_lenses_are_reflected_in_sources_and_provenance():
@@ -232,11 +254,16 @@ def test_persist_writes_plan_and_v1_stubs_fail_closed(tmp_path):
     stubs = {Path(p).name: Path(p).read_text(encoding="utf-8") for p in written["scenarios"]}
     assert len(stubs) == 3
     for text in stubs.values():
-        assert 'version: "1.0"' in text
+        assert 'version: "1.1"' in text
         assert "category: " in text
         assert "assertions:" in text
-    # ui rung → browser category; proposed rung → pending-review status
+        assert "isolation: " in text  # TH-22: every stub is explicit
+    # rung-declared isolation is carried into the stub…
+    assert "isolation: stateless" in stubs["crew-campaign-smoke-s1.md"]
+    # …and an undeclared rung gets the conservative documented default
     s3_text = stubs["crew-campaign-smoke-s3.md"]
+    assert "isolation: shares-state" in s3_text
+    # ui rung → browser category; proposed rung → pending-review status
     assert "category: browser" in s3_text
     assert "status: pending-review" in s3_text
     for rung in persisted["scenarios"]:
@@ -250,11 +277,20 @@ def test_persist_writes_plan_and_v1_stubs_fail_closed(tmp_path):
     assert not out.exists()
 
 
-def test_desktop_rungs_have_no_v1_stub_yet():
+def test_desktop_rungs_are_stub_eligible_with_tier_guidance():
+    # scenario-format v1.1 (TH-16): desktop maps to its own category; the
+    # stub carries the honest tier guidance (T0 PTY now, T2 reviewer-graded)
     plan = three_lens_plan()
     rung = dict(plan["scenarios"][0], id="D1", category="desktop", deps=[])
-    with pytest.raises(cp.CampaignPlanError, match="TH-15"):
-        cp.scenario_stub_markdown(rung, plan)
+    text = cp.scenario_stub_markdown(rung, plan)
+    assert "category: desktop" in text
+    assert 'version: "1.1"' in text
+    assert "PTY" in text and "1022B" in text
+    assert "reviewer" in text  # T2 is never self-graded
+    # an unmapped category still fails closed rather than guessing
+    bad = dict(rung, category="hologram")
+    with pytest.raises(cp.CampaignPlanError, match="no scenario-format"):
+        cp.scenario_stub_markdown(bad, plan)
 
 
 def test_endpoint_manifest_conversion_rejects_garbage():

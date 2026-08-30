@@ -1,8 +1,15 @@
-# Scenario Format — qe v1
+# Scenario Format — qe v1 (current: v1.1)
 
 > Ported from the retired wicked-testing package's SCENARIO-FORMAT.md (Phase 6c). <!-- historical -->
 
 qe scenarios are self-contained markdown files that both humans and AI agents can execute and review. Each scenario is a complete specification: what to test, how to test it, and what success looks like.
+
+**Version history** — one shared bump (TH-16 + TH-22), never two:
+
+| Format version | Changes |
+|---|---|
+| `"1.0"` | Original ported format |
+| `"1.1"` | Adds the `desktop` category (tiered T0–T3, see [Desktop tiers](#desktop-tiers-category-desktop)) and the optional `isolation` frontmatter field (`shares-state` \| `exclusive` \| `stateless`, see [Isolation](#isolation--parallel-execution)). Purely additive: every valid v1.0 file is a valid v1.1 file. A scenario using `category: desktop` or `isolation:` MUST declare `version: "1.1"`. |
 
 ## Format Overview
 
@@ -13,9 +20,10 @@ Every scenario is a `.md` file with YAML frontmatter followed by a markdown body
 name: scenario-name          # Required. Unique identifier (slug format)
 description: |               # Required. What this scenario tests
   One or more lines describing the scenario's purpose.
-version: "1.0"               # Required. Scenario format version
-category: api                # Required. api|browser|perf|infra|security|a11y|cli|equivalence
+version: "1.1"               # Required. Scenario format version ("1.0" files stay valid)
+category: api                # Required. api|browser|perf|infra|security|a11y|cli|equivalence|desktop
 tags: [smoke, auth]          # Optional. List of tags for filtering
+isolation: shares-state      # Optional (v1.1). shares-state|exclusive|stateless — default shares-state
 tools:
   required: [curl]           # Required CLIs — scenario SKIPs if missing
   optional: [hurl]           # Optional CLIs — used if available, ignored if not
@@ -39,9 +47,10 @@ assertions:                  # Required. High-level acceptance criteria
 |-------|----------|-------------|
 | `name` | Yes | Unique slug identifier (lowercase, hyphens OK) |
 | `description` | Yes | Human-readable description of what is tested |
-| `version` | Yes | Scenario format version (`"1.0"` for v1) |
+| `version` | Yes | Scenario format version — `"1.1"` current; `"1.0"` still valid (v1.1 is additive) |
 | `category` | Yes | Test category — determines default tool priority |
 | `tags` | No | Array of string tags for filtering |
+| `isolation` | No | v1.1. Shared-state isolation class: `shares-state` (default when absent) \| `exclusive` \| `stateless` — see [Isolation](#isolation--parallel-execution) |
 | `tools.required` | No | CLIs that must be present — steps using them SKIP if absent |
 | `tools.optional` | No | CLIs used if present; degraded gracefully if absent |
 | `timeout` | No | Per-step timeout in seconds (default: 120) |
@@ -62,6 +71,54 @@ assertions:                  # Required. High-level acceptance criteria
 | `a11y` | pa11y | WCAG compliance, accessibility violations |
 | `cli` | bash | CLI command behavior, exit codes |
 | `equivalence` | diff, jq, pixelmatch | Baseline-match: output reproduces a captured baseline within tolerance (golden-master / contract / reconciliation / perceptual) |
+| `desktop` | crew PTY (T0), playwright `_electron` (T1), computer-use (T2) | v1.1. Native/desktop surfaces — terminal/TUI apps, Electron apps, OS-level UI — executed per the tier ladder below |
+
+## Desktop tiers (category: desktop)
+
+Desktop testing is tiered **honestly** — each tier states what it can prove
+today, and the deferred tier is deferred in writing (test-R15):
+
+| Tier | Substrate | Status | Boundary |
+|---|---|---|---|
+| **T0** | Terminal / CLI / TUI through wicked-crew's **governed PTY** | ✅ Works now — campaign-proven (2026-08 studio campaign, PTY scenario PASS) | Deterministic steps; evidence = transcript + exit codes. **Pass FILE PATHS through PTY prompts, never scenario bodies** — prompts over 1022 bytes are silently discarded (the canonical PTY line-limit trap). |
+| **T1** | Playwright's `_electron` launcher, same evidence capture as the browser executor (`scripts/qe/runner`) | 🟡 Defined, cheap to wire **when a target exists** — no in-house Electron target exists today, so the tier has no first customer yet | Deterministic specs; standard runner evidence (screenshots, wire, console). |
+| **T2** | Computer-use lane (screenshot + input against a real desktop) | 🟠 Exploratory only, **macOS first** | Never deterministic, never self-graded: evidence = screen recordings + accessibility-tree dumps, and the verdict ALWAYS comes from the independent reviewer (the qe accept trio) — an executor claim from this tier is never accepted as-is. Declare platform support in the environment manifest: OS permission grants cannot be scripted, and macOS carries the codesign-SIGKILL class of native-module issues. |
+| **T3** | Deterministic native automation (XCUITest / WinAppDriver class) | ⛔ **Deferred — in writing.** | Not planned: no substrate in the house stack, no customer scenario needs it, and the flake profile is the worst of any tier. A rung that would need T3 stays `proposed` in its campaign plan rather than pretending another tier covers it. |
+
+Desktop work never delays the API+browser MVP — T0 is the only tier a
+campaign may rely on today.
+
+## Isolation & parallel execution
+
+The `isolation` field (v1.1) declares what the scenario does to **shared
+target state**, so a campaign scheduler can decide what may run in parallel
+(test-R24). Scenarios in the proven studio campaign were dependency-ordered
+precisely because they mutate one daemon's state — projects, repos, and runs
+accumulate. Parallel scheduling without this annotation reintroduces the
+classic e2e race.
+
+| Value | Meaning | Scheduling consequence |
+|---|---|---|
+| `shares-state` | **Default when absent** — the scenario is assumed to mutate state shared with other scenarios in the same target instance. The default is conservative on purpose: a missing annotation never grants parallelism. | Never runs concurrently with any other scenario against the same target instance. |
+| `exclusive` | Needs sole access to the entire target environment (daemon kill/restart, migration, recovery scenarios). | Serialized against everything — via DAG serialization edges, or given its own per-node isolated profile (fresh `WICKED_HOME` / `--db` / `--bus-db`, the campaign runbook's proven recipe). |
+| `stateless` | Touches no shared mutable state, or **namespaces every fixture it creates** (unique project/repo names — see fixture namespacing below). | Safe to parallelize with other `stateless` scenarios against the same instance. |
+
+**Fixture namespacing (the `stateless` contract):** the model-free runner
+provides `QE_FIXTURE_NS` — a per-run unique namespace value — to spec
+interpolation by default (caller-set wins; the campaign mapper sets one per
+node). A `stateless` scenario embeds it in every fixture name it creates,
+e.g. `"name": "proj-${env:QE_FIXTURE_NS}"`. See
+`scripts/qe/runner/README.md`.
+
+**How the campaign plan consumes it:** the scenario's `isolation` value is
+copied onto its campaign-plan rung (`schemas/campaign-recon.schema.json`
+format v2, `rung.isolation`) — the PLAN is what the crew-side
+scenario→CampaignNode mapping (TH-9) reads, never scenario markdown. The
+mapping schedules `stateless` nodes in parallel, serializes `shares-state`
+nodes per target instance, and gives `exclusive` nodes serialization edges
+or their own isolated profile. **Until that mapping actually consumes the
+annotation, campaigns MUST run with `max_concurrency: 1`** — correct, just
+slow; the constraint is explicit, never accidental.
 
 ## Body Format
 
@@ -286,7 +343,9 @@ A valid scenario file MUST:
 4. Each step must have at least one fenced code block
 5. `name` must be a slug (lowercase, hyphens, no spaces)
 6. `category` must be one of the documented values
-7. `version` must be a quoted string (e.g. `"1.0"`)
+7. `version` must be a quoted string — `"1.0"` or `"1.1"`
+8. `isolation`, when present, must be `shares-state`, `exclusive`, or `stateless`
+9. A scenario using `category: desktop` or `isolation:` must declare `version: "1.1"`
 
 ## Naming Conventions
 
