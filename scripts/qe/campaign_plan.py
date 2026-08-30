@@ -323,7 +323,7 @@ def capabilities_from_endpoint_manifest(
 
 
 # --------------------------------------------------------------------------
-# generation — scenario-format v1 stubs (never a parallel format)
+# generation — scenario-format v1.1 stubs (never a parallel format)
 # --------------------------------------------------------------------------
 
 def _slug(text: str) -> str:
@@ -331,7 +331,7 @@ def _slug(text: str) -> str:
 
 
 def scenario_stub_markdown(rung: dict, plan: dict) -> str:
-    """A scenario-format v1 markdown stub for one rung.
+    """A scenario-format v1.1 markdown stub for one rung.
 
     The stub carries the rung's pass criteria as assertions and the
     provenance frontmatter of the pending-review pattern. The authoring

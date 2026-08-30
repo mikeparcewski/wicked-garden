@@ -209,7 +209,7 @@
         },
         "scenario_path": {
           "type": "string",
-          "description": "Path to the persisted scenario-format v1 markdown file this rung executes (relative to the campaign root). The plan binds scenarios; it never inlines them."
+          "description": "Path to the persisted scenario-format markdown file (v1.0 or v1.1) this rung executes (relative to the campaign root). The plan binds scenarios; it never inlines them."
         },
         "status": {
           "type": "string",
