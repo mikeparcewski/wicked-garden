@@ -53,6 +53,24 @@
  * 'certified' or 'not-certified' — never pending. See
  * skills/qe/refs/campaign-grading.md for the full playbook.
  *
+ * Flaky-verdict policy at the gate (TH-21, always on — ./flake-policy.mjs,
+ * playbook: skills/qe/refs/campaign-flake-policy.md):
+ *   - an ACTIVE quarantine record (a ledger tasks row by the flaky-test-
+ *     hunter: `quarantined: true`, scenario binding, cause from the fixed
+ *     taxonomy, owner, unexpired `quarantine_expires`) excludes the
+ *     scenario's rows from the certification calculus WITH REASON — the rows
+ *     stay on the scoreboard, the exclusion rides `certification.excluded`
+ *     and `certification.gate_summary`; invalid or expired records are NOT
+ *     honored (fail closed) and are reported under `flake_policy.quarantine`;
+ *   - mixed graded outcomes for one scenario inside the campaign are a
+ *     `flake_signal` blocker (both verdicts recorded — a diagnostic re-run
+ *     never flips the gate); more than 1 + MAX_DIAGNOSTIC_RERUNS runs of one
+ *     scenario is a `rerun_bound_exceeded` violation; a `--runs` selection
+ *     that shows PASS while omitting a same-window deny-graded sibling run is
+ *     a `pass_laundering_risk` violation;
+ *   - `flake_policy.history` carries the full-ledger verdict tally per
+ *     signaled/quarantined scenario id (TH-6's flake history, consumed here).
+ *
  * Usage (from the target repo's root):
  *   node campaign-scoreboard.mjs [--repo-root <dir>] [--ledger-root <dir>]
  *        [--runs id,id,…] [--scenario-prefix <p>] [--json] [--out <file>]
@@ -76,6 +94,17 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+
+import {
+  MAX_DIAGNOSTIC_RERUNS,
+  FLAKE_TAXONOMY,
+  DENY_GRADES,
+  loadQuarantineState,
+  detectFlakeSignals,
+  checkRerunBounds,
+  findLaunderingRisks,
+  buildGateSummary,
+} from "./flake-policy.mjs";
 
 // --- constants ---------------------------------------------------------------
 
@@ -262,10 +291,19 @@ export async function buildScoreboard({
   const ledgerMod = await resolveLedgerModule(repoRoot, env);
   const validatorAvailable = typeof ledgerMod?.validateManifest === "function";
 
+  // Flaky-verdict policy at the gate (TH-21): quarantine records are the
+  // hunter's ledger tasks rows, consumed fail-closed (invalid/expired = not
+  // honored — the scenario stays in the gate, loudly).
+  const scenarioNameById = new Map([...scenarios].map(([sid, s]) => [sid, s.name ?? sid]));
+  const quarantine = loadQuarantineState(loadRows(root, "tasks"), { scenarioNameById });
+  const quarantineByScenario = new Map(quarantine.active.map((r) => [r.scenario, r]));
+
   const rows = [];
   const violations = [];
   const findings = { scenario_defects: [], product_findings: [], unclassified: [] };
   const detail = []; // per-row provenance (kept OUTSIDE the 4-key rows)
+  const gatedRowsByScenario = new Map(); // id -> [{grade, run_id}] over NON-quarantined rows
+  const excludedByScenario = new Map(); // id -> exclusion entry (quarantined rows)
 
   let selectedRuns = runs;
   if (Array.isArray(runIds) && runIds.length) {
@@ -345,9 +383,37 @@ export async function buildScoreboard({
       });
     }
 
-    // the fork: classify every graded non-PASS
+    // TH-21: an ACTIVE quarantine (owner+deadline, hunter taxonomy) takes the
+    // scenario OUT of the certification calculus — excluded-with-reason,
+    // never silently dropped: the row stays on the scoreboard, the exclusion
+    // rides certification.excluded + gate_summary. Structural violations
+    // (self-grade, impersonation, graded_invalid_bundle) are NEVER excused
+    // by quarantine — they are cheating, not flakiness.
+    const qRecord = quarantineByScenario.get(id) ?? null;
+    if (qRecord) {
+      let entry = excludedByScenario.get(id);
+      if (!entry) {
+        entry = {
+          id,
+          task_id: qRecord.task_id,
+          cause: qRecord.cause,
+          owner: qRecord.owner,
+          deadline: qRecord.deadline,
+          reason: qRecord.reason,
+          observed_grades: [],
+        };
+        excludedByScenario.set(id, entry);
+      }
+      entry.observed_grades.push(grade);
+    } else {
+      if (!gatedRowsByScenario.has(id)) gatedRowsByScenario.set(id, []);
+      gatedRowsByScenario.get(id).push({ grade, run_id: run.id });
+    }
+
+    // the fork: classify every graded non-PASS (quarantined rows skip the
+    // fork — the quarantine record IS their classification)
     const reason = graded?.reason ?? "";
-    if (NON_PASS_NEEDING_CLASSIFICATION.has(grade)) {
+    if (!qRecord && NON_PASS_NEEDING_CLASSIFICATION.has(grade)) {
       const m = CLASSIFICATION_RE.exec(reason);
       const rest = reason.replace(CLASSIFICATION_RE, "").trim();
       if (m && m[1].toLowerCase() === "scenario-defect") {
@@ -397,37 +463,116 @@ export async function buildScoreboard({
       evidence_dir: evidenceDir,
       grade_source: gradeSource,
       reviewer: graded?.reviewer ?? null,
+      excluded_by_quarantine: qRecord?.task_id ?? null,
       validator: validation.validator ?? (validatorAvailable ? "wicked-ledger" : "unavailable"),
       validation_violations: validation.violations ?? [],
     });
   }
 
-  const summary = { total: rows.length, PASS: 0, FAIL: 0, PARTIAL: 0, CONDITIONAL: 0, INCONCLUSIVE: 0, UNGRADED: 0, other: 0, evidence_ok: 0 };
+  // --- TH-21 flake policy over the assembled rows -----------------------------
+  // grade resolution for ANY ledger run (same rule as the row loop: newest
+  // non-executor verdicts row) — used by the laundering guard and history.
+  const gradeForRun = (runId) => {
+    const vs = (verdictsByRun.get(runId) ?? []).sort((a, b) =>
+      String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""))
+    );
+    return vs.find((v) => !isExecutorIdentity(v.reviewer))?.verdict ?? null;
+  };
+  const historyForScenarioName = (name) => {
+    const counts = { runs: 0, PASS: 0, deny: 0, INCONCLUSIVE: 0, ungraded: 0, other: 0 };
+    for (const run of runs) {
+      if ((scenarioNameById.get(run.scenario_id) ?? run.scenario_id) !== name) continue;
+      counts.runs += 1;
+      const g = gradeForRun(run.id);
+      if (!g) counts.ungraded += 1;
+      else if (g === "PASS") counts.PASS += 1;
+      else if (DENY_GRADES.has(g)) counts.deny += 1;
+      else if (g === "INCONCLUSIVE") counts.INCONCLUSIVE += 1;
+      else counts.other += 1;
+    }
+    return counts;
+  };
+
+  const flakeSignals = detectFlakeSignals(gatedRowsByScenario);
+  violations.push(...checkRerunBounds(gatedRowsByScenario));
+  violations.push(
+    ...findLaunderingRisks({
+      allRuns: runs,
+      selectedRunIds: new Set(named.map((n) => n.run.id)),
+      gradeForRun,
+      scenarioNameById,
+      visibleGradesById: new Map(
+        [...gatedRowsByScenario].map(([id, rs]) => [id, rs.map((r) => r.grade)])
+      ),
+    })
+  );
+
+  const exclusions = [...excludedByScenario.values()];
+  // TH-6's flake history per stable scenario_id, consumed at the gate:
+  // every signaled or quarantined scenario carries its full-ledger tally.
+  const flakeHistory = {};
+  for (const name of new Set([...flakeSignals.map((s) => s.id), ...exclusions.map((e) => e.id)])) {
+    flakeHistory[name] = historyForScenarioName(name);
+  }
+
+  const excludedIds = new Set(excludedByScenario.keys());
+  const gatedRows = rows.filter((r) => !excludedIds.has(r.id));
+
+  const summary = { total: rows.length, PASS: 0, FAIL: 0, PARTIAL: 0, CONDITIONAL: 0, INCONCLUSIVE: 0, UNGRADED: 0, other: 0, evidence_ok: 0, excluded: rows.length - gatedRows.length };
   for (const r of rows) {
     if (r.grade in summary) summary[r.grade] += 1;
     else summary.other += 1;
     if (r.evidence_ok) summary.evidence_ok += 1;
   }
 
-  // Certification TERMINATES: exactly one of two dispositions, derived, never pending.
+  // Certification TERMINATES: exactly one of two dispositions, derived, never
+  // pending. Row-level blockers count GATED rows only — quarantined rows are
+  // excluded-with-reason (TH-21), never silently dropped; violations always
+  // block regardless of quarantine.
   const blockers = [];
   if (rows.length === 0) blockers.push("no scoreboard rows (nothing executed)");
-  if (summary.UNGRADED > 0) blockers.push(`${summary.UNGRADED} row(s) UNGRADED (no isolated-reviewer verdict)`);
-  const nonPass = rows.filter((r) => r.grade !== "PASS" && r.grade !== "UNGRADED").length;
+  else if (gatedRows.length === 0) blockers.push("all rows excluded by quarantine — nothing gated (a fully-quarantined campaign cannot certify)");
+  const ungraded = gatedRows.filter((r) => r.grade === "UNGRADED").length;
+  if (ungraded > 0) blockers.push(`${ungraded} row(s) UNGRADED (no isolated-reviewer verdict)`);
+  const nonPass = gatedRows.filter((r) => r.grade !== "PASS" && r.grade !== "UNGRADED").length;
   if (nonPass > 0) blockers.push(`${nonPass} row(s) graded non-PASS`);
-  const badEvidence = rows.filter((r) => !r.evidence_ok).length;
+  const badEvidence = gatedRows.filter((r) => !r.evidence_ok).length;
   if (badEvidence > 0) blockers.push(`${badEvidence} row(s) with evidence_ok=false`);
   if (violations.length > 0) blockers.push(`${violations.length} violation(s): ${[...new Set(violations.map((v) => v.kind))].join(", ")}`);
   if (findings.unclassified.length > 0) blockers.push(`${findings.unclassified.length} unclassified non-PASS row(s)`);
+  for (const signal of flakeSignals) {
+    blockers.push(`flake signal on ${signal.id} (${signal.grades.join("/")}) — ${signal.action}`);
+  }
 
+  const disposition = blockers.length === 0 ? "certified" : "not-certified";
   return {
     scoreboard: rows,
     summary,
     findings,
     violations,
     certification: {
-      disposition: blockers.length === 0 ? "certified" : "not-certified",
+      disposition,
       blockers,
+      // TH-21: excluded-with-reason — visible wherever the disposition is.
+      excluded: exclusions,
+      gate_summary: buildGateSummary({
+        disposition,
+        gatedTotal: gatedRows.length,
+        gatedPass: gatedRows.filter((r) => r.grade === "PASS").length,
+        blockers,
+        excluded: exclusions,
+      }),
+    },
+    flake_policy: {
+      max_diagnostic_reruns: MAX_DIAGNOSTIC_RERUNS,
+      taxonomy: [...FLAKE_TAXONOMY],
+      quarantine: {
+        active: quarantine.active,
+        invalid: quarantine.invalid,
+        expired: quarantine.expired,
+      },
+      flake_signals: flakeSignals,
+      history: flakeHistory,
     },
     validator: validatorAvailable ? "wicked-ledger" : "unavailable",
     manifest_floor: "2.1",
@@ -517,6 +662,10 @@ if (IS_MAIN) {
           ),
           `  certification: ${envelope.certification.disposition}` +
             (envelope.certification.blockers.length ? ` (${envelope.certification.blockers.join(" · ")})` : ""),
+          ...envelope.certification.excluded.map(
+            (e) =>
+              `  excluded-with-reason: ${e.id} (cause=${e.cause}; owner=${e.owner}; deadline=${e.deadline}) — ${e.reason}`
+          ),
         ].join("\n");
     if (values.out) writeFileSync(values.out, JSON.stringify(envelope, null, 2) + "\n", "utf8");
     process.stdout.write(text + "\n");

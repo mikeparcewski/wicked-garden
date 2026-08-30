@@ -44,6 +44,7 @@ Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- hist
 | Write scenarios, test code, fixtures, test data | § author |
 | Campaign a whole repo: recon → capability inventory → scenario ladder | § campaign |
 | Confirm/refine a campaign plan at a human gate; annotation intake | § intake |
+| Flaky campaign verdict: diagnostic re-run, quarantine, gate exclusions | § campaign (flake policy) |
 | Run a scenario/suite, capture evidence, record the run | § execute |
 | Independent verdict, spec-vs-code alignment, suite quality | § review |
 | Ledger stats, flake rate, coverage gaps, history | § insight |
@@ -97,6 +98,12 @@ scaffolds `.wicked-qe/` and registers a project record).
    persisted as a ledger `strategies` row + scenario-format v1.1 files. Unindexed targets
    degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
    enter `proposed`, pending human review.
+3. Flaky verdicts at the campaign gate:
+   `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign-flake-policy.md")` —
+   bounded diagnostic re-runs (BOTH verdicts recorded, never best-of-N), the
+   hunter-owned quarantine lane (owner + deadline via the flake taxonomy),
+   and quarantined scenarios excluded-with-reason in the scoreboard and
+   acceptance payload (TH-21).
 
 ## intake — propose the campaign plan as a human gate (TH-12)
 

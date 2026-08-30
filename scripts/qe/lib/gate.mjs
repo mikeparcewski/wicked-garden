@@ -21,7 +21,8 @@
  *   node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
  *     --project-id <id> --run-id <id> --verdict <PASS|FAIL|CONDITIONAL|SYSTEM_ERROR> \
  *     --verdict-summary "<text>" [--rationale-ref <path>] [--council-run-id <id>]
- *     [--mode gate|event|manual|crew_integration] [--dry-run]
+ *     [--mode gate|event|manual|crew_integration] [--exclusions-from <scoreboard.json>]
+ *     [--dry-run]
  *
  * Exit codes: 0 PASS · 1 FAIL · 2 CONDITIONAL · 3 SYSTEM_ERROR / invalid.
  *
@@ -41,6 +42,17 @@
  *     bundle downgrades the recorded verdict to SYSTEM_ERROR (stored as
  *     INCONCLUSIVE — deny-dominates; schema-fail is never a PASS). Bundles
  *     without a manifest (legacy evidence dirs) skip validation unchanged.
+ *
+ * TH-21 flake policy (excluded-with-reason in the acceptance payload):
+ *   - `--exclusions-from <scoreboard.json>` reads the campaign scoreboard
+ *     envelope (campaign-scoreboard.mjs --out) and appends the canonical
+ *     `quarantined excluded-with-reason (…)` clause — id, cause, owner,
+ *     deadline, reason per exclusion — to the verdict summary, so the
+ *     exclusions reach the verdicts row AND the wicked.qe.gate.* event's
+ *     `verdict_summary` (the 8-field wire contract is untouched — the clause
+ *     rides the existing field). Fail-closed: an unreadable envelope or an
+ *     exclusion missing id/reason/owner/deadline exits 3 — an exclusion
+ *     without a reason never reaches the acceptance payload.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -50,6 +62,8 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+
+import { buildExclusionsClause } from "./flake-policy.mjs";
 
 // --- wicked-ledger resolution (cwd-anchored; mirrors wicked-vault's bus.mjs) ---
 
@@ -235,13 +249,52 @@ function countScenarios(evidencePath) {
 }
 
 /** Run the gate command. See the module header for the contract. */
-export async function runGate({ projectId, runId, verdict, verdictSummary, rationaleRef, councilRunId, mode, dryRun = false }) {
+export async function runGate({ projectId, runId, verdict, verdictSummary, rationaleRef, councilRunId, mode, dryRun = false, exclusionsFrom = null }) {
   // 1. Validate verdict enum before touching anything
   if (!VALID_GATE_VERDICTS.includes(verdict)) {
     process.stderr.write(
       JSON.stringify({ error: "INVALID_VERDICT", verdict, valid: VALID_GATE_VERDICTS }) + "\n"
     );
     process.exit(3);
+  }
+
+  // 1a. TH-21: fold quarantine exclusions into the verdict summary —
+  //     excluded-with-reason in the acceptance payload, fail-closed. This
+  //     runs BEFORE manifest validation so a downgrade's "original verdict"
+  //     echo still carries the exclusions.
+  if (exclusionsFrom) {
+    let envelope;
+    try {
+      envelope = JSON.parse(readFileSync(exclusionsFrom, "utf8"));
+    } catch (e) {
+      process.stderr.write(
+        JSON.stringify({ error: "EXCLUSIONS_SOURCE_UNREADABLE", path: exclusionsFrom, detail: e.message }) + "\n"
+      );
+      process.exit(3);
+    }
+    const cert = envelope?.certification;
+    if (!cert || typeof cert !== "object" || !Array.isArray(cert.excluded)) {
+      process.stderr.write(
+        JSON.stringify({
+          error: "EXCLUSIONS_SOURCE_INVALID",
+          path: exclusionsFrom,
+          detail: "not a campaign scoreboard envelope (certification.excluded missing) — build it with campaign-scoreboard.mjs --out",
+        }) + "\n"
+      );
+      process.exit(3);
+    }
+    const built = buildExclusionsClause(cert.excluded);
+    if (!built.ok) {
+      process.stderr.write(
+        JSON.stringify({
+          error: "EXCLUSION_MISSING_REASON",
+          detail: "exclusions ALWAYS carry reasons — refusing to record a gate verdict over incomplete exclusions",
+          problems: built.problems,
+        }) + "\n"
+      );
+      process.exit(3);
+    }
+    if (built.clause) verdictSummary = `${verdictSummary} | ${built.clause}`;
   }
 
   // 1b. Reject a runId that could escape the evidence directory.
@@ -425,6 +478,10 @@ Optional:
   --rationale-ref <path>    Path to rationale document
   --council-run-id <id>     Council session ID (for CONDITIONAL verdicts)
   --mode <mode>             Trigger mode: gate | event | manual | crew_integration (default: gate)
+  --exclusions-from <path>  Campaign scoreboard envelope (campaign-scoreboard.mjs --out);
+                            appends the quarantined excluded-with-reason clause to the
+                            verdict summary (TH-21). Refuses exclusions missing
+                            id/reason/owner/deadline (exit 3)
   --dry-run                 Validate and print result without writing to store or emitting events
   -h, --help                Show this help
 
@@ -456,6 +513,7 @@ if (isMain()) {
         "rationale-ref":    { type: "string" },
         "council-run-id":   { type: "string" },
         "mode":             { type: "string" },
+        "exclusions-from":  { type: "string" },
         "dry-run":          { type: "boolean" },
         "help":             { type: "boolean", short: "h" },
       },
@@ -500,6 +558,7 @@ if (isMain()) {
     councilRunId:  values["council-run-id"],
     mode:          values["mode"],
     dryRun:        values["dry-run"] ?? false,
+    exclusionsFrom: values["exclusions-from"] ?? null,
   }).catch((err) => {
     process.stderr.write(`qe gate: fatal: ${err.message}\n`);
     process.exit(3);

@@ -118,6 +118,25 @@ This is what makes **certification terminate**: findings leave the campaign
 (mirrored out), defects loop boundedly, and nothing expands the ladder
 mid-flight. A finding's GH issue URL goes into the tasks-row body once filed.
 
+## Flaky verdicts at the gate (TH-21)
+
+When a rung's verdict contradicts its flake history (or flips inside the
+campaign), do NOT re-grade, re-run-until-green, or hand-wave a CONDITIONAL —
+`Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign-flake-policy.md")` and
+follow it. The short form:
+
+- **Diagnostic re-runs are bounded (≤ 2 per rung) and BOTH verdicts are
+  recorded** — new runs+verdicts rows under the same scenario id, never a
+  replacement. Mixed outcomes = a `flake_signal` blocker naming
+  `wicked-garden-qe-flaky-test-hunter`; the gate is never best-of-N.
+- **Quarantine is the hunter's call** (owner + deadline + taxonomy cause, as
+  a ledger tasks row); the scoreboard consumes the record fail-closed —
+  invalid or expired records are not honored.
+- **Quarantined scenarios are excluded-with-reason**, visible in
+  `certification.excluded`, `certification.gate_summary`, and — via
+  `gate.mjs --exclusions-from scoreboard.json` — the acceptance payload's
+  `verdict_summary`. Never silently dropped; violations are never excused.
+
 ## Scoreboard (assembly, not judgment)
 
 Deterministic glue — run it after grading; it never grades:
@@ -153,9 +172,14 @@ Row shape — **verbatim** the campaign-proven contract, four keys, no more:
   `graded_invalid_bundle` violation.
 
 The envelope around the rows carries `findings` (the fork's three buckets),
-`violations`, and `certification.disposition` — always `certified` or
-`not-certified`, never pending: certified ⇔ every row is PASS with
-`evidence_ok=true`, zero violations, zero UNGRADED, zero unclassified.
+`violations`, `flake_policy` (quarantine state, flake signals, per-scenario
+history — TH-21), and `certification` — `disposition` is always `certified`
+or `not-certified`, never pending: certified ⇔ every GATED row is PASS with
+`evidence_ok=true`, zero violations, zero UNGRADED, zero unclassified, zero
+flake signals. Quarantined rows sit outside the gate calculus but on the
+board, itemized in `certification.excluded` (id, cause, owner, deadline,
+reason) and embedded in `certification.gate_summary` — the line to hand
+`gate.mjs` as `--verdict-summary`, alongside `--exclusions-from`.
 `--mirror-tasks` writes the product-finding `tasks` rows (idempotent by
 title; exit 7 if the ledger store is unreachable — mirroring is not optional
 before campaign teardown).

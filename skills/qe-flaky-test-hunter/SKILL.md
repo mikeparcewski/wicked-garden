@@ -181,6 +181,11 @@ store.create("tasks", {
     cause,
     proposed_fix: proposedFix,
     quarantined,
+    // Both REQUIRED when quarantined — the campaign gate consumes this row
+    // fail-closed (qe refs/campaign-flake-policy.md): a quarantine record
+    // missing owner or deadline is NOT honored and the scenario keeps
+    // denying the campaign.
+    owner: quarantined ? quarantineOwner : null,
     quarantine_expires: quarantined ? quarantineExpiresIso : null,
     fix_eta_days: fixEtaDays,
     total_runs_14d: totalRuns,
@@ -200,6 +205,16 @@ Quarantine only when **both** hold:
 Otherwise force root-cause work. Every quarantine entry carries an
 owner, a fix deadline, and an expiration; expired quarantines auto-open
 as `status: "open"` tasks in the next run.
+
+**Your tasks row IS the machine contract the campaign gate consumes**
+(TH-21 — the qe skill's `refs/campaign-flake-policy.md`): the scoreboard
+honors a quarantine only when the row's JSON body carries `quarantined:
+true`, a resolvable `scenario_id` (or `scenario_name`), a `cause` from the
+§ 3 taxonomy, a non-empty `owner`, and an unexpired `quarantine_expires`.
+Anything less is reported as an INVALID quarantine and NOT honored — the
+scenario keeps denying the campaign. Honored quarantines surface as
+**excluded-with-reason** in the campaign scoreboard and acceptance payload,
+never as silent drops.
 
 ## 7. Failure modes
 
