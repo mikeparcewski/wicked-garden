@@ -184,9 +184,12 @@ against an isolated profile so nothing touches the real bus.
 
 ## Redaction (TH-19 — MVP-hard)
 
-Runs inside the executor **before any manifest/artifact write** (and therefore
-before any future vault `record` — vault immutability makes leaks permanent,
-TH-17):
+Runs inside the executor **before any manifest/artifact write** — and
+therefore before any vault `record`: the TH-17 vault seam
+(`scripts/qe/lib/vault-evidence.mjs`) **asserts this ordering in code**. Its
+only vault-write path refuses a bundle without this executor's redaction
+marker (`result.json` → `redaction.applied`) or with any residual
+secret-scan hit, because vault immutability makes leaks permanent.
 
 1. **Field-name scrub** — any captured header/field matching
    `authorization`, `cookie` (incl. Set-Cookie), `token`, `secret`, `passw*`,
@@ -206,6 +209,21 @@ only persisted artifacts are scrubbed.
 **Known limitation (phase 2):** screenshots are pixel data — a secret rendered
 on-screen is not caught by the scrub. Prefer unauthenticated/demo targets or
 mask on the target side until per-target screenshot masking exists.
+
+## Vault-backed integrity (TH-17 — downstream of this runner)
+
+After grading, a bundle this runner wrote can be frozen into wicked-vault and
+the reviewer's grade appended as an opinion attestation — see
+`../lib/vault-evidence.mjs` (record / attest / rederive) and `../lib/gate.mjs
+--vault-record`. The vault payload is `manifest.json` (content-addressed; it
+binds every artifact's sha256), so a campaign PASS re-derives months later.
+**Release dependency:** the flow needs the wicked-vault manifest-2.1 twin
+(`validateManifest` + `CLAIM_LEVELS`) — on wicked-vault main, **unreleased**
+(npm 0.6.0 predates it and its vendored schema rejects 2.1 bundles). Until
+the next wicked-vault release, set `WICKED_QE_VAULT_PKG` to a local checkout
+of wicked-vault main (or `npm link` one); a pre-2.1 vault is refused
+fail-closed. The `th17-vault-evidence` tests skip with that exact message
+when no 2.1 vault is resolvable.
 
 ## Tests
 

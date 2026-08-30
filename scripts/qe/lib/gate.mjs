@@ -53,6 +53,30 @@
  *     rides the existing field). Fail-closed: an unreadable envelope or an
  *     exclusion missing id/reason/owner/deadline exits 3 — an exclusion
  *     without a reason never reaches the acceptance payload.
+ *
+ * TH-17 vault-backed evidence integrity (./vault-evidence.mjs):
+ *   - `--vault-record` freezes the (already-redacted) evidence bundle into
+ *     wicked-vault — a content-addressed manifest payload binding every
+ *     artifact hash — and appends the FINAL verdict as the reviewer's
+ *     opinion attestation; the verdicts row then carries `vault_payload_sha`
+ *     (ledger migration 003; DomainStore emits wicked.test.evidence.captured
+ *     alongside the verdict event when the field is present).
+ *   - `--vault-entry <id>` links a bundle vaulted earlier in the pipeline
+ *     instead of recording: the entry is RE-DERIVED first (fail-closed on
+ *     tamper), then attested the same way.
+ *   - ORDERING LAW: the vault write path structurally refuses a bundle
+ *     without the executor's TH-19 redaction marker or with any residual
+ *     secret-scan hit — redaction runs before any vault write, asserted in
+ *     code (vault-evidence.mjs), because vault immutability makes leaks
+ *     permanent. Any vault refusal aborts the gate (exit 3): no verdict
+ *     row, no events.
+ *   - A bundle that failed manifest validation (downgraded above) is NOT
+ *     vaulted — the downgraded INCONCLUSIVE verdict records with
+ *     `vault: {skipped}` instead (never freeze a nonconforming bundle).
+ *   - Release dependency: needs the wicked-vault manifest-2.1 twin —
+ *     UNRELEASED (npm 0.6.0 predates it). Until the next wicked-vault
+ *     release, `WICKED_QE_VAULT_PKG` must point at a local checkout of
+ *     wicked-vault main; a pre-2.1 vault is refused fail-closed.
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -64,6 +88,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
 import { buildExclusionsClause } from "./flake-policy.mjs";
+import { resolveVaultModule, applyVaultIntegrity, VaultEvidenceError } from "./vault-evidence.mjs";
 
 // --- wicked-ledger resolution (cwd-anchored; mirrors wicked-vault's bus.mjs) ---
 
@@ -249,11 +274,21 @@ function countScenarios(evidencePath) {
 }
 
 /** Run the gate command. See the module header for the contract. */
-export async function runGate({ projectId, runId, verdict, verdictSummary, rationaleRef, councilRunId, mode, dryRun = false, exclusionsFrom = null }) {
+export async function runGate({ projectId, runId, verdict, verdictSummary, rationaleRef, councilRunId, mode, dryRun = false, exclusionsFrom = null, vaultRecord = false, vaultEntry = null, vaultActor = null, vaultEvaluator = null }) {
   // 1. Validate verdict enum before touching anything
   if (!VALID_GATE_VERDICTS.includes(verdict)) {
     process.stderr.write(
       JSON.stringify({ error: "INVALID_VERDICT", verdict, valid: VALID_GATE_VERDICTS }) + "\n"
+    );
+    process.exit(3);
+  }
+
+  // 1a'. --vault-record and --vault-entry are mutually exclusive: record
+  //      freezes a NEW entry; entry links an existing one. Both at once is
+  //      ambiguous — refuse rather than guess.
+  if (vaultRecord && vaultEntry) {
+    process.stderr.write(
+      JSON.stringify({ error: "VAULT_OPTIONS_CONFLICT", detail: "--vault-record and --vault-entry are mutually exclusive" }) + "\n"
     );
     process.exit(3);
   }
@@ -335,6 +370,23 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     process.exit(3);
   }
 
+  // 2c. TH-17: resolve wicked-vault up front when vault integrity was asked
+  //     for — fail fast (exit 3) on an unresolvable or pre-2.1 vault, BEFORE
+  //     anything is written anywhere. The refusal message carries the release
+  //     dependency (the manifest-2.1 twin is unreleased; npm 0.6.0 predates it).
+  const wantsVault = Boolean(vaultRecord || vaultEntry);
+  let vaultModule = null;
+  if (wantsVault) {
+    const resolved = await resolveVaultModule({ cwd: process.cwd() });
+    if (!resolved.ok) {
+      process.stderr.write(
+        JSON.stringify({ error: "VAULT_UNAVAILABLE", detail: resolved.reason, pre21: resolved.pre21 ?? false }) + "\n"
+      );
+      process.exit(3);
+    }
+    vaultModule = resolved.vault;
+  }
+
   // 2b. Validate the bundle's manifest against the ledger contract BEFORE
   //     grading (TH-5 rule, wired per TH-6): a nonconforming bundle downgrades
   //     the recorded verdict to SYSTEM_ERROR → INCONCLUSIVE (deny-dominates).
@@ -362,6 +414,7 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
   //    JSON-only phantom verdict AND still fire gate/deploy events. Guard:
   //    confirm the run exists BEFORE recording or emitting anything.
   let store = null;
+  let vaultInfo = wantsVault && dryRun ? { skipped: true, reason: "dry-run" } : null;
   if (!dryRun) {
     try {
       store = ledger.createDomainStore({ root: ledgerRoot });
@@ -381,17 +434,65 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
       process.exit(3);
     }
 
+    // TH-17: vault-backed integrity BEFORE the verdict row. Ordering is the
+    // contract: (a) a bundle that failed manifest validation is never vaulted
+    // — the downgraded verdict records without a vault link; (b) any vault
+    // refusal (missing TH-19 redaction marker, residual secret-scan hit,
+    // tamper on --vault-entry, self-grade) aborts the gate — exit 3, no
+    // verdict row, no events.
+    if (wantsVault) {
+      if (validation.ran && validation.ok === false) {
+        vaultInfo = { skipped: true, reason: "bundle failed manifest validation — a nonconforming bundle is never vaulted" };
+      } else {
+        try {
+          const r = applyVaultIntegrity({
+            vault: vaultModule,
+            evidenceDir: evidencePath,
+            repoRoot: process.cwd(),
+            vaultEntry,
+            verdict,
+            verdictSummary,
+            actor: vaultActor ?? undefined,
+            evaluator: vaultEvaluator ?? "wicked-garden-qe-gate",
+          });
+          vaultInfo = {
+            entry_id: r.entryId,
+            payload_sha256: r.payloadSha256,
+            attestation_id: r.attestationId,
+            opinion: r.opinion,
+          };
+        } catch (err) {
+          const code = err instanceof VaultEvidenceError ? err.code : "VAULT_SYSTEM_ERROR";
+          process.stderr.write(
+            JSON.stringify({
+              error: code,
+              detail: err.message,
+              ...(err.detail?.hits ? { hits: err.detail.hits } : {}),
+              ...(err.detail?.mismatches ? { mismatches: err.detail.mismatches } : {}),
+            }) + "\n"
+          );
+          try { store.close(); } catch { /* ignore close errors */ }
+          process.exit(3);
+        }
+      }
+    }
+
     try {
       const storeVerdict = VERDICT_TO_STORE_MAP[verdict] ?? "INCONCLUSIVE";
       const meta = {};
       if (rationaleRef) meta.rationale_ref = rationaleRef;
       if (councilRunId) meta.council_run_id = councilRunId;
+      if (vaultInfo?.entry_id) meta.vault_entry_id = vaultInfo.entry_id;
+      if (vaultInfo?.attestation_id) meta.vault_attestation_id = vaultInfo.attestation_id;
       store.create("verdicts", {
         run_id: runId,
         verdict: storeVerdict,
         evidence_path: evidencePath,
         reviewer: "wicked-garden-qe-gate",
         reason: verdictSummary,
+        // TH-17: content address of the vaulted bundle (ledger migration 003).
+        // Presence makes DomainStore emit wicked.test.evidence.captured too.
+        ...(vaultInfo?.payload_sha256 ? { vault_payload_sha: vaultInfo.payload_sha256 } : {}),
         ...(Object.keys(meta).length ? { equivalence_json: JSON.stringify(meta) } : {}),
       });
     } catch (err) {
@@ -452,6 +553,7 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     failed_count,
     evidence_path: evidencePath,
     manifest_validation: manifestValidation,
+    ...(vaultInfo ? { vault: vaultInfo } : {}),
   };
   process.stdout.write(JSON.stringify(output) + "\n");
 
@@ -482,6 +584,17 @@ Optional:
                             appends the quarantined excluded-with-reason clause to the
                             verdict summary (TH-21). Refuses exclusions missing
                             id/reason/owner/deadline (exit 3)
+  --vault-record            TH-17: freeze the evidence bundle into wicked-vault
+                            (content-addressed) and attest the verdict as the reviewer's
+                            opinion; the verdicts row carries vault_payload_sha. REFUSES
+                            unredacted bundles (TH-19 ordering) — exit 3, nothing recorded.
+                            Needs the wicked-vault manifest-2.1 twin (unreleased; set
+                            WICKED_QE_VAULT_PKG to a wicked-vault main checkout until then)
+  --vault-entry <id>        TH-17: link an already-vaulted bundle instead of recording;
+                            re-derived fail-closed before the verdict is recorded
+  --vault-actor <id>        Recording (worker) identity for --vault-record (default: qe-runner)
+  --vault-evaluator <id>    Attesting (reviewer) identity (default: wicked-garden-qe-gate);
+                            must differ from the recording actor (self-grade is refused)
   --dry-run                 Validate and print result without writing to store or emitting events
   -h, --help                Show this help
 
@@ -514,6 +627,10 @@ if (isMain()) {
         "council-run-id":   { type: "string" },
         "mode":             { type: "string" },
         "exclusions-from":  { type: "string" },
+        "vault-record":     { type: "boolean" },
+        "vault-entry":      { type: "string" },
+        "vault-actor":      { type: "string" },
+        "vault-evaluator":  { type: "string" },
         "dry-run":          { type: "boolean" },
         "help":             { type: "boolean", short: "h" },
       },
@@ -559,6 +676,10 @@ if (isMain()) {
     mode:          values["mode"],
     dryRun:        values["dry-run"] ?? false,
     exclusionsFrom: values["exclusions-from"] ?? null,
+    vaultRecord:   values["vault-record"] ?? false,
+    vaultEntry:    values["vault-entry"] ?? null,
+    vaultActor:    values["vault-actor"] ?? null,
+    vaultEvaluator: values["vault-evaluator"] ?? null,
   }).catch((err) => {
     process.stderr.write(`qe gate: fatal: ${err.message}\n`);
     process.exit(3);

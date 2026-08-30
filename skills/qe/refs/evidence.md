@@ -236,3 +236,48 @@ deliberately checks required fields + known-field types and does **not** reject
 unknown keys, so it already follows this same additive contract; the published
 `additionalProperties: false` is retained purely to keep the producer's own
 output honest.
+
+---
+
+## 8. Vault-Backed Integrity (TH-17, optional hardening)
+
+A bundle's `sha256` fields make tampering *detectable by a diligent reader*;
+routing the bundle through **wicked-vault** makes it *tamper-evident by
+construction* — content-addressed, criteria-frozen, re-derivable months later
+with one command, with grades as an append-only attestation chain:
+
+```bash
+# freeze (payload = manifest.json — it binds every artifact hash)
+node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+  record --evidence-dir .wicked-qe/evidence/<run-id> --json
+
+# append the reviewer grade as an opinion attestation (pass|reject|unclear)
+node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+  attest --entry <entry-id> --verdict PASS --evaluator <reviewer-id>
+
+# months later: re-derive everything (vault hashes + every artifact on disk)
+node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+  rederive --entry <entry-id>       # exit 0 intact · 1 ANY divergence · 3 error
+```
+
+Or in one move at the gate: `gate.mjs --vault-record` (see
+[campaign-grading.md](campaign-grading.md)) — the ledger `verdicts` row then
+carries `vault_payload_sha` (migration 003) and DomainStore emits
+`wicked.test.evidence.captured` alongside the verdict event.
+
+Rules, all fail-closed:
+
+1. **Redaction before vault, asserted in code.** The only vault-write path
+   refuses a bundle without the executor's TH-19 redaction marker
+   (`result.json` → `redaction.applied`) or with any residual secret-scan
+   hit. Vault payloads are immutable — a leaked credential would be
+   permanent, so the pipeline refuses rather than trusts.
+2. **Nonconforming bundles are never frozen** — the vault validates the
+   manifest against its 2.1 twin before recording.
+3. **Grades are opinions, not re-derivable facts**: `attest` appends, never
+   edits; the vault refuses a self-grade (evaluator = recording actor) and
+   a grade over a tampered artifact.
+4. **Release dependency**: needs the wicked-vault manifest-2.1 twin —
+   on wicked-vault main, **unreleased** (npm 0.6.0 predates it). Until the
+   next wicked-vault release, set `WICKED_QE_VAULT_PKG` to a local checkout
+   of wicked-vault main; a pre-2.1 vault is refused with that message.
