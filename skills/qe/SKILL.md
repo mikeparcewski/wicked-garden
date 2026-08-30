@@ -45,6 +45,9 @@ Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- hist
 | Campaign a whole repo: recon → capability inventory → scenario ladder | § campaign |
 | Confirm/refine a campaign plan at a human gate; annotation intake | § intake |
 | Flaky campaign verdict / quarantine / gate exclusions | § campaign |
+| Break-it degradation scenarios per external dependency | § campaign |
+| Re-run a campaign; diff verdicts vs the prior run | § campaign |
+| Wire campaign CI (PR deterministic subset / governed nightly) | § campaign |
 | Run a scenario/suite, capture evidence, record the run | § execute |
 | Independent verdict, spec-vs-code alignment, suite quality | § review |
 | Ledger stats, flake rate, coverage gaps, history | § insight |
@@ -99,6 +102,15 @@ scaffolds `.wicked-qe/` and registers a project record).
    degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
    enter `proposed`, pending human review.
 3. Flaky verdicts (TH-21): `refs/campaign-flake-policy.md` — bounded re-runs both-recorded; quarantine (owner+deadline); excluded-with-reason everywhere.
+4. Degradation rungs (TH-23): `refs/campaign-degradation.md` — for every
+   DECLARED external dependency, `scripts/qe/campaign_degradation.py`
+   generates a break-it scenario whose pass bar is honest error naming +
+   zero crashes + recovery (never a generic 500, never a fake success).
+5. Rerun + diff (TH-23): `scripts/qe/lib/campaign-rerun.mjs --strategy
+   <campaign-dir>` — verdict diffs vs the prior run from ledger history
+   (regression/fixed/still-failing/…); regressions and ungraded reruns
+   exit 1. CI assembly (PR = deterministic subset; nightly = governed,
+   budget-capped, flake-policied): `refs/campaign-ci.md`.
 
 ## intake — propose the campaign plan as a human gate (TH-12)
 
