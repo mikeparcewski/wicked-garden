@@ -1,0 +1,53 @@
+{
+  "spec": 2,
+  "name": "aw25-golden-path",
+  "generated_at": "2026-08-30T00:00:00Z",
+  "target": {
+    "repo": "wicked-garden",
+    "ref": "feat/aw25-golden-path"
+  },
+  "sources": {
+    "estate": "unindexed",
+    "docs_recall": false,
+    "live_probe": true
+  },
+  "capabilities": [
+    {
+      "id": "wiki-pipeline-golden-path",
+      "surface": "The wiki/governance pipeline itself: seed doc -> rules ingest/fanout -> rules.recall (installed estate MCP) -> governed-run gate denial -> ConformanceClaim in the acceptance payload",
+      "apis": "wicked-core rules ingest/fanout (wicked-core src/bin/wicked-core.rs:333-349); estate MCP rules.recall (wicked-estate crates/wicked-estate-retrieve/src/rules_recall.rs:116); crew POST /api/v1/governance/policies + /rules (wicked-crew packages/crew/src/api/routes.ts:1519-1530); gate decide + recall-to-obligation (wicked-core src/execute.rs:135, crates/wicked-governance/src/engine.rs:224); GET /api/v1/runs/:id/acceptance conformance section (wicked-crew packages/crew/src/qe/conformance.ts:1)",
+      "test_shape": "PASS = run.sh exit 0: fanout manifest records 3 lanes; rules.recall returns POL-2500 with provenance ref aw25-golden.md@<blob sha>#POL-2500; the governed run reaches a terminal state with a run-scoped deny claim naming POL-2500 whose text cites wiki://aw25-golden#POL-2500; GET /runs/:id/acceptance shows conformance.denied=true, guardrailed=false, summary citing POL-2500",
+      "needs": "isolated crew daemon (79xx port, scratch --db/--bus-db, WICKED_CREW_PROJECT_GRAPH_ROOT + WICKED_ESTATE_REPO_GRAPH_ROOT pinned); wicked-core binary with the rules subcommands (main >= #310); crew build with the acceptance conformance section (main >= #359); installed wicked-estate-mcp >= 0.15.1; a signed-in claude seat for the canary worker",
+      "citations": [
+        "wicked-core/src/execute.rs:135",
+        "wicked-crew/packages/crew/src/qe/conformance.ts:1",
+        "wicked-estate/crates/wicked-estate-retrieve/src/rules_recall.rs:116"
+      ],
+      "source": "probe",
+      "status": "verified"
+    }
+  ],
+  "environment_manifest": {
+    "ref": "run.sh"
+  },
+  "scenarios": [
+    {
+      "id": "aw25-golden-path",
+      "title": "AW-25 golden path: the wiki pipeline's own evidence-gated proof (arch-R21)",
+      "category": "api",
+      "capability_ids": [
+        "wiki-pipeline-golden-path"
+      ],
+      "deps": [],
+      "pass_criteria": {
+        "terminal_state": "the governed canary run reaches failed/completed/cancelled (never left executing or awaiting_human)",
+        "artifact": "numbered evidence chain 00-07 written by run.sh: fanout manifest + crew payload, rules.recall response with provenance citation, run-scoped deny claim, acceptance payload",
+        "consumer_state": "GET /runs/:id/acceptance re-derives the denial: conformance.denied=true, deny claim policyIds=[POL-2500] with the wiki URI in its cited statement, guardrailed=false"
+      },
+      "claim_ceiling": "machinery-verified",
+      "isolation": "exclusive",
+      "scenario_path": "../../scenarios/qe/aw25-golden-path.md",
+      "status": "confirmed"
+    }
+  ]
+}

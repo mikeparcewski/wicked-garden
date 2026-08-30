@@ -1,0 +1,1 @@
+rules ingest: registered 1 policies + 2 conformance rules (+ 1 RuleSets / 2 memberships + 4 schema nodes) from /private/tmp/claude-501/-Users-michael-parcewski-Projects-wicked/f5d30481-90ff-4c55-9faa-abdb54e1619c/scratchpad/wave5/wicked-garden-aw25/evidence/aw25-golden/ruleset

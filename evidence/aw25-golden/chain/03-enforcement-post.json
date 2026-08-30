@@ -1,0 +1,54 @@
+{
+  "posted_policies": [
+    {
+      "id": "POL-2500",
+      "status": 200
+    }
+  ],
+  "posted_rules": [
+    {
+      "id": "POL-2500",
+      "status": 200
+    },
+    {
+      "id": "PAT-2501",
+      "status": 200
+    }
+  ],
+  "rules_preview_after": {
+    "rules": [
+      {
+        "id": "POL-2500",
+        "rule_type": "policy",
+        "statement": "The literal marker token AW25-GOLDEN-DENY-ME must never appear in a governed unit's evaluated context \u2014 tool calls, unit intent, or produced output (wiki URI: wiki://aw25-golden#POL-2500). The token exists solely to prove the deny path of the wiki pipeline end to end; any occurrence in governed work is a deliberate trip of the golden-path acceptance scenario, and the gate must refuse it.",
+        "severity": "critical",
+        "confidence": 1,
+        "targets": {},
+        "provenance": {
+          "source": "markdown",
+          "ref": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#POL-2500",
+          "source_kinds": [
+            "doc"
+          ]
+        },
+        "retired": false
+      },
+      {
+        "id": "PAT-2501",
+        "rule_type": "pattern",
+        "statement": "The golden-path scenario (wicked-garden evidence/aw25-golden + scenarios/qe/aw25-golden-path.md) is re-run after any change to rules ingest, fan-out, rules.recall, the gate hook, or the acceptance conformance section \u2014 the wiki pipeline's own \"it works\" stays evidence-gated, never asserted (wiki URI: wiki://aw25-golden#PAT-2501).",
+        "severity": "info",
+        "confidence": 1,
+        "targets": {},
+        "provenance": {
+          "source": "markdown",
+          "ref": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#PAT-2501",
+          "source_kinds": [
+            "doc"
+          ]
+        },
+        "retired": false
+      }
+    ]
+  }
+}

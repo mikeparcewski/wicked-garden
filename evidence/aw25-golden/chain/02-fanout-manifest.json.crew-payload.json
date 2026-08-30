@@ -1,0 +1,58 @@
+{
+  "policies": [
+    {
+      "applies_to": [
+        "explore",
+        "build",
+        "unit-1",
+        "unit-2",
+        "unit-3"
+      ],
+      "criteria": "AW-25 golden path: the canary marker token is deny-on-sight in governed phases. Violates wiki rule POL-2500 (wiki URI: wiki://aw25-golden#POL-2500; digest-bearing provenance ref aw25-golden.md@<git blob sha>#POL-2500 is stamped on the ingested rule twin and returned by rules.recall).",
+      "effect": "deny",
+      "id": "POL-2500",
+      "kind": "policy",
+      "obligations": [],
+      "retired": false,
+      "rule": "Deny any governed unit context (tool call, unit intent, or produced output) containing the AW-25 golden-path marker token; the doctrine twin is conformance rule POL-2500 (wiki://aw25-golden#POL-2500) in evidence/aw25-golden/ruleset/aw25-golden.md.",
+      "severity": "high",
+      "trigger": {
+        "contains": "AW25-GOLDEN-DENY-ME"
+      }
+    }
+  ],
+  "rules": [
+    {
+      "confidence": 1.0,
+      "id": "POL-2500",
+      "provenance": {
+        "ref": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#POL-2500",
+        "source": "markdown",
+        "source_kinds": [
+          "doc"
+        ]
+      },
+      "retired": false,
+      "rule_type": "policy",
+      "severity": "critical",
+      "statement": "The literal marker token AW25-GOLDEN-DENY-ME must never appear in a governed unit's evaluated context — tool calls, unit intent, or produced output (wiki URI: wiki://aw25-golden#POL-2500). The token exists solely to prove the deny path of the wiki pipeline end to end; any occurrence in governed work is a deliberate trip of the golden-path acceptance scenario, and the gate must refuse it.",
+      "targets": {}
+    },
+    {
+      "confidence": 1.0,
+      "id": "PAT-2501",
+      "provenance": {
+        "ref": "aw25-golden.md@50a95cac052431d430b9e8aa803d2ec6b7ab030f#PAT-2501",
+        "source": "markdown",
+        "source_kinds": [
+          "doc"
+        ]
+      },
+      "retired": false,
+      "rule_type": "pattern",
+      "severity": "info",
+      "statement": "The golden-path scenario (wicked-garden evidence/aw25-golden + scenarios/qe/aw25-golden-path.md) is re-run after any change to rules ingest, fan-out, rules.recall, the gate hook, or the acceptance conformance section — the wiki pipeline's own \"it works\" stays evidence-gated, never asserted (wiki URI: wiki://aw25-golden#PAT-2501).",
+      "targets": {}
+    }
+  ]
+}

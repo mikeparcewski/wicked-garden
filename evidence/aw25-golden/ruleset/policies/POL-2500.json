@@ -1,0 +1,11 @@
+{
+  "id": "POL-2500",
+  "kind": "policy",
+  "applies_to": ["explore", "build", "unit-1", "unit-2", "unit-3"],
+  "effect": "deny",
+  "trigger": { "contains": "AW25-GOLDEN-DENY-ME" },
+  "obligations": [],
+  "criteria": "AW-25 golden path: the canary marker token is deny-on-sight in governed phases. Violates wiki rule POL-2500 (wiki URI: wiki://aw25-golden#POL-2500; digest-bearing provenance ref aw25-golden.md@<git blob sha>#POL-2500 is stamped on the ingested rule twin and returned by rules.recall).",
+  "severity": "high",
+  "rule": "Deny any governed unit context (tool call, unit intent, or produced output) containing the AW-25 golden-path marker token; the doctrine twin is conformance rule POL-2500 (wiki://aw25-golden#POL-2500) in evidence/aw25-golden/ruleset/aw25-golden.md."
+}
