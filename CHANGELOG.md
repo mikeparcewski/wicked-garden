@@ -22,6 +22,17 @@
 - **Site: the wicked-interactive card tells the document-engine story** (recon DT-12) — wicked-interactive moved planes rather than retiring: it is the foundation's document engine (storage, version lineage, HTML/PDF/PPTX/video rendering) that wicked-crew spawns and proxies, not a standalone visual builder. Install command unchanged (two-step marketplace add + install).
 - **Backfilled the 12.30.0 and 12.31.0 changelog entries below** (recon DT-17) — the previous release entry was 12.29.1 while npm shipped 12.31.0; the vault-direct-peer entry that sat under [Unreleased] shipped in 12.31.0 and now lives there.
 
+## [12.32.0] — 2026-08-30
+
+### Added
+- **qe campaign suite complete**: recon+generation w/ dispatch guard, intake propose-as-gate, accept-trio grading, flaky-verdict quarantine, degradation scenarios, campaign rerun+diff, CI recipes (PR subset / governed nightly), vault-backed evidence integrity (content-addressed, redaction-first), AW-25 golden-path evidence chain, dogfood corpus wiring.
+- **Per-turn rules source**: stop.py names `rules.recall` as THE per-turn source; guard_pipeline consumes a graph-derived rules dir with content-hash provenance; `WG_OUTGOV` defaults to advisory `warn`.
+- **Architecture-wiki pointers** in the mem/search/conformance skills (`knowledge.recall {"scope_prefix":"wiki:"}` + estate `rules.recall`).
+
+### Changed
+- Site version stamp injected at build from the plugin manifest (DT-7 — can never re-stale).
+- campaign-recon schema v2: `desktop` category tiers + `isolation` annotation in one bump.
+
 ## [12.31.0] — 2026-08-25
 
 ### Changed
