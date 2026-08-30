@@ -49,7 +49,9 @@ export default function InstallBench() {
             </div>
           ))}
         </div>
-        <p className="ib-foot">MIT · open-source · v12.29.1 · local-first — nothing leaves your machine.</p>
+        {/* Version stamp injected at build time from .claude-plugin/plugin.json
+            via astro.config.mjs (vite define) — never hardcode it here. (DT-7) */}
+        <p className="ib-foot">MIT · open-source · v{__WICKED_GARDEN_VERSION__} · local-first — nothing leaves your machine.</p>
       </Reveal>
     </div>
   );
