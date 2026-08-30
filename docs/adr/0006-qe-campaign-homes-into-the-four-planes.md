@@ -50,7 +50,9 @@ existing planes, under the name **"qe campaign"**.
 1. **This ADR is the anti-scope-creep anchor.** Every TH task cites its plane
    assignment from the table above: TH-4 (executor) → garden; TH-5 (schemas) → garden
    + wicked-ledger; TH-6 (gate wiring) → garden qe (gate.mjs emit) + ledger + crew acceptance; TH-7 (recon/
-   generation) → garden; TH-9 (scheduler exposure) → wicked-core-ts + crew; TH-14
+   generation) → garden; TH-9 (scheduler exposure) → wicked-core-ts + crew; TH-12
+   (intake: plan proposed as a HITL gate) → garden `campaign_intake` glue over crew's
+   existing gate wire (elicitation follow-on = crew#358); TH-14
    (scoreboard) → studio. A TH task proposing a new package outside these homes is
    out of contract and needs a superseding ADR.
 2. **No new install surface.** The campaign arrives with `wicked-garden` (capability),
