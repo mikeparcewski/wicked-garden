@@ -65,7 +65,7 @@ jobs:
       # (e.g. the claude CLI), authenticating from repo secrets. Deterministic
       # tool nodes need no seat.
       - name: Install seats
-        run: echo "<EDIT: install + authenticate worker CLIs from secrets>"
+        run: 'echo "<EDIT: install + authenticate worker CLIs from secrets>"'
 
       # <EDIT>: build the target, then boot the ISOLATED crew daemon that will
       # schedule the campaign DAG (durable, budget-supervised):
@@ -73,7 +73,7 @@ jobs:
       #     --db "$RUNNER_TEMP/core.db" --bus-db "$RUNNER_TEMP/bus.db" &
       #   until curl -sf "$CREW_API/health"; do sleep 1; done
       - name: Boot isolated crew daemon
-        run: echo "<EDIT: boot crew on $CREW_PORT with scratch --db/--bus-db>"
+        run: 'echo "<EDIT: boot crew on $CREW_PORT with scratch --db/--bus-db>"'
 
       # Launch the persisted strategy as a campaign: deterministic rungs as
       # `tool` nodes running their committed spec/scenario BY FILE PATH (the

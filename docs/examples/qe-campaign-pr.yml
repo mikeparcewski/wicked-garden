@@ -33,6 +33,7 @@ jobs:
       # with scratch state dirs — never a shared/staging instance.
       QE_TARGET_PORT: "7941"
       WICKED_QE_LEDGER_DIR: ${{ github.workspace }}/.wicked-qe
+      CAMPAIGN_DIR: .wicked-qe/campaigns/<name> # <EDIT>: the committed campaign dir
     steps:
       - uses: actions/checkout@v4
 
@@ -53,7 +54,7 @@ jobs:
       #     --db "$RUNNER_TEMP/core.db" --bus-db "$RUNNER_TEMP/bus.db" &
       #   until curl -sf "http://127.0.0.1:$QE_TARGET_PORT/api/v1/health"; do sleep 1; done
       - name: Boot isolated target
-        run: echo "<EDIT: boot the target on port $QE_TARGET_PORT with scratch state>"
+        run: 'echo "<EDIT: boot the target on port $QE_TARGET_PORT with scratch state>"'
 
       # Lint first (exit 4 = spec rejected), then execute. A spec's non-zero
       # exit fails the PR — that IS the deterministic tripwire.
@@ -61,7 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          specs=(.wicked-qe/campaigns/<name>/specs/*.spec.json)
+          specs=("$CAMPAIGN_DIR"/specs/*.spec.json)
           if [ "${#specs[@]}" -eq 0 ]; then
             echo "no committed specs found — the subset must never be silently empty" >&2
             exit 1
