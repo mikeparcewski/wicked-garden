@@ -35,12 +35,14 @@ whether the artifact or diff actually violates each applicable rule.
 
 - The artifact or diff to evaluate (from the guard report or explicitly provided)
 - The list of applicable Pattern rules (from the guard `outgov_pattern` findings,
-  or by querying estate with kind=Rule, rule_type=Pattern)
+  or via the estate MCP `rules.recall` tool with `{"rule_type": "pattern"}` — the
+  single rule source, arch-R14)
 
 ## Process
 
-1. **Load rules**: if rules are not already in context, use estate tools to list
-   NodeKind::Rule nodes filtered to rule_type=Pattern. Each rule has:
+1. **Load rules**: if rules are not already in context, call the estate MCP
+   `rules.recall` tool with `{"rule_type": "pattern"}` (severity-ordered; add
+   language/layer/framework facets to narrow). Each rule has:
    `id` (PAT-NNN), `statement` (the pattern text), `severity`, `targets`
    (language/layer/framework facets — absent = wildcard).
 
