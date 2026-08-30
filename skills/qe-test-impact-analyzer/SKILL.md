@@ -7,9 +7,10 @@ max-turns: 10
 allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Tier-2 specialist — answers "given this diff, which tests must I run?"
-  Consumes git diff, call-graph signal, and historical coverage from the
-  DomainStore ledger to rank existing scenarios by probability of catching
-  a regression in the change. The answer to the #1 question every CI
+  Consumes git diff, the estate capability graph (changed-since/BlastRadius
+  over endpoint + affordance nodes), call-graph signal, and historical
+  coverage from the DomainStore ledger to rank existing scenarios by
+  probability of catching a regression in the change. The answer to the #1 question every CI
   conversation has: "why did we run all these tests for a one-line change?"
 
   Use when: test impact analysis, TIA, selective testing, "which tests
@@ -51,6 +52,37 @@ top 40 would have caught it at 1/50th the cost."
   scenario, which files did its runs touch? Captured under
   `evidence/<run-id>/coverage.json` when an executor writes it. Older runs
   may not have it — that's fine; the ranker degrades gracefully.
+- **Estate capability graph (preferred graph signal)** — when the target
+  repo is indexed in wicked-estate, its TH-15 extractor rule packs mint
+  capability nodes that carry their declaring file:
+  `.wicked-estate-extractors/endpoints.toml` (wicked-crew) turns fastify
+  route registrations into `http-endpoint` nodes (kind `other:endpoint`,
+  ids like `endpoint:get:/api/v1/runs/:id/gate`), and
+  `.wicked-estate-extractors/affordances.toml` (wicked-studio) turns
+  `data-testid` declarations into `ui-affordance` nodes (kind
+  `other:affordance`, ids like `affordance:run-card`, dynamic testids
+  normalised to `affordance:seat-signin-*` exactly as the committed
+  testid-inventory.json does). One query answers "which capabilities
+  changed":
+
+  ```bash
+  # capability nodes in the diff = entries whose kind is
+  # {"other":"endpoint"} or {"other":"affordance"}
+  wicked-estate changed-since "${DIFF_REF}" --json \
+    > "${EVIDENCE_DIR}/changed-symbols.json"
+  ```
+
+  The reverse question — "who serves this capability" — is BlastRadius:
+  `wicked-estate blast-radius "/runs/:id/gate"` (or an affordance label like
+  `"action-preview"`) returns the declaring file(s). Probe availability
+  first, fail-open:
+  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_estate_client.py" health`
+  (db resolution mirrors the client: `WICKED_ESTATE_DB` >
+  `./.wicked-estate/graph.db` > the binary's default). **Honest
+  degradation, same rule as the campaign action's Lens 1:** estate
+  unreachable or the repo unindexed → contribute ZERO capability signal,
+  drop the term, renormalize, and say so in the ranking reasons — never
+  silently substitute grep output as graph signal.
 - **Call-graph (optional)** — if `tree-sitter`, `ast-grep`, or language
   servers (`tsserver`, `pyright`) are on PATH, the agent builds a local
   reverse-dependency map for the diff. Best-effort; the agent falls back
@@ -98,6 +130,26 @@ EOF
 
 # 5. For each scenario with a recent PASS, read evidence/<run-id>/coverage.json
 # (if present) and build the file-touched set.
+
+# 6. Changed capabilities (estate-indexed repos only; skip honestly otherwise).
+# Filter changed-symbols.json down to the capability node kinds and record
+# {id, label, file} rows — the "which capabilities changed" answer that
+# scenario selection keys on.
+python3 - "$EVIDENCE_DIR" <<'PY'
+import json, sys, os
+ev = sys.argv[1]
+path = os.path.join(ev, "changed-symbols.json")
+caps = []
+if os.path.exists(path):
+    for row in json.load(open(path)):
+        kind = row.get("kind")
+        tag = kind.get("other") if isinstance(kind, dict) else None
+        if tag in ("endpoint", "affordance"):
+            caps.append({"kind": tag, "label": row.get("name"),
+                         "file": row.get("file", "")})
+json.dump(caps, open(os.path.join(ev, "changed-capabilities.json"), "w"),
+          indent=2)
+PY
 ```
 
 ## 3. Scoring — impact × exposure
@@ -106,10 +158,26 @@ Each scenario gets a score in `[0, 1]`:
 
 ```
 score = 0.50 * direct_file_overlap        # scenario touched a changed file
-      + 0.25 * call_graph_reach           # call-graph reachable from the diff
+      + 0.25 * graph_reach                # max(capability_overlap, call_graph_reach)
       + 0.15 * path_prefix_similarity     # same package / folder as the diff
       + 0.10 * recent_flake_penalty       # 1.0 if scenario has flaked this week, else 0.5
 ```
+
+`graph_reach = max(capability_overlap, call_graph_reach)`:
+
+- **capability_overlap** (estate term, preferred) — 1.0 when the scenario
+  references a capability in `changed-capabilities.json`: an API scenario
+  naming an endpoint path (`/api/v1/runs/:id/gate`) whose `endpoint:` node
+  is in the changed set, or a browser scenario whose body / bound
+  deterministic spec drives a `data-testid` whose `affordance:` node is in
+  the changed set (match dynamic nodes like `seat-signin-*` by glob).
+  Extract candidate references by scanning the scenario body and spec for
+  `data-testid` selectors and `/api/…` paths — the references are data the
+  scenario already carries, only the CHANGED set comes from the graph.
+- **call_graph_reach** (local fallback) — the pre-estate signal from
+  tree-sitter / ast-grep / language servers, unchanged.
+
+Neither available: drop the term and renormalize (see Failure modes).
 
 Weights are tunable via `.wicked-qe/config.json`'s `tia.weights` map;
 they default to the above. Agent reads the config once and respects
@@ -123,6 +191,8 @@ Write under `.wicked-qe/evidence/<run_id>/`:
 |------------------------------|---------------|----------------------------------------------------------------|
 | `changed-files.txt`          | `log`         | One path per line                                              |
 | `diff-stat.txt`              | `log`         | `git diff --stat` output                                       |
+| `changed-symbols.json`       | `misc`        | `wicked-estate changed-since --json` (estate-indexed repos)    |
+| `changed-capabilities.json`  | `misc`        | Endpoint/affordance nodes in the diff — "which capabilities changed" (empty array when estate degraded) |
 | `scenarios.json`             | `misc`        | Scenario registry snapshot at analysis time                    |
 | `coverage-history.json`      | `coverage`    | Per-scenario evidence-path lookups                             |
 | `impact-ranking.json`        | `misc`        | Ranked scenarios with score + reasons[]                        |
@@ -139,6 +209,7 @@ Write under `.wicked-qe/evidence/<run_id>/`:
     "score": 0.87,
     "reasons": [
       "direct_overlap: {WT_LIB}/auth.mjs (scenario ran this file)",
+      "capability: endpoint:post:/api/v1/open changed (packages/crew/src/api/routes.ts in diff); scenario drives POST /api/v1/open",
       "call_graph: acceptance-test-writer transitively imports {WT_LIB}/auth.mjs",
       "path_prefix: both under lib/"
     ],
@@ -188,8 +259,14 @@ the top N and the scenario-executor / acceptance pipeline produces verdicts.
 - Stale coverage: if all scenarios' coverage files are > 90 days old, set
   confidence: "low" and print a loud warning — but still produce a ranking.
   Path-prefix similarity is the fallback; better than nothing.
-- Call-graph tool missing: note in the ranking reasons that call-graph was
-  skipped. `score` drops the `0.25 * call_graph_reach` term, renormalized.
+- Estate degraded (binary missing, db unindexed, `changed-since` non-zero
+  exit): write `changed-capabilities.json` as `[]`, note "estate: degraded"
+  in the ranking reasons, and let `graph_reach` fall back to
+  `call_graph_reach` alone. Never substitute grep output as capability
+  signal (same honesty rule as the campaign action's Lens 1).
+- Call-graph tool ALSO missing: note in the ranking reasons that graph
+  signal was skipped entirely. `score` drops the `0.25 * graph_reach`
+  term, renormalized.
 
 ## 7. Integration
 
@@ -206,6 +283,13 @@ the top N and the scenario-executor / acceptance pipeline produces verdicts.
 - `wicked-ledger` domain-store — table allowlist, parameter binding
 - `wicked-ledger` oracle-queries — query catalog
 - [`../qe/refs/execute.md`](../qe/refs/execute.md) — `--selective` flag
+- [`../qe/refs/campaign.md`](../qe/refs/campaign.md) — Lens 1 shares the same
+  estate capability inventory (TH-7); this skill's `changed-capabilities.json`
+  is the change-scoped slice of it
+- wicked-estate `docs/extractor-sdk.md` Part 2 — the ExtraEdgeExtractor rule
+  format behind the TH-15 packs (`.wicked-estate-extractors/endpoints.toml`
+  in wicked-crew, `.wicked-estate-extractors/affordances.toml` in
+  wicked-studio)
 - [`../qe-coverage-archaeologist/SKILL.md`](../qe-coverage-archaeologist/SKILL.md) — sibling; covers the inverse (untested code), not affected tests
 
 ## Helper resolution (`{WT_LIB}`)
