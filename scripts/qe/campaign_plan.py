@@ -5,8 +5,9 @@ Deterministic helpers behind the `campaign` action of the `wicked-garden-qe`
 router (`skills/qe/refs/campaign.md`). The agent performs the three-lens
 recon (estate graph, docs recall, live probe); THIS module is the honest
 assembler: it merges the lenses into a campaign plan that CONFORMS to
-`schemas/campaign-recon.schema.json` (format v1) — never a parallel format —
-and persists it plus scenario-format v1 stubs.
+`schemas/campaign-recon.schema.json` (format v2; spec:1 plans still
+validate — never a parallel format) and persists it plus scenario-format
+v1.1 stubs.
 
 Honesty rules enforced here, fail-closed (never by prose alone):
 
@@ -21,6 +22,9 @@ Honesty rules enforced here, fail-closed (never by prose alone):
   (the invariant JSON Schema cannot express).
 - **rung↔capability binding resolves** — every `capability_ids` entry names a
   real inventory entry.
+- **`isolation` is versioned** — the per-rung isolation annotation
+  (shares-state | exclusive | stateless, TH-22) requires spec 2; a spec:1
+  plan carrying it is rejected rather than silently reinterpreted.
 
 Cross-platform: pure stdlib (json/pathlib/argparse), no shell.
 """
@@ -44,11 +48,21 @@ from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA_PATH = _REPO_ROOT / "schemas" / "campaign-recon.schema.json"
 
-#: campaign-plan rung category → scenario-format v1 category. `desktop` is
-#: deliberately absent: scenario-format v1 has no desktop category yet
-#: (TH-15); a desktop rung cannot get a generated stub and stays `proposed`
-#: unless a hand-authored scenario file is bound.
-CATEGORY_MAP = {"api": "api", "ui": "browser"}
+#: campaign-plan rung category → scenario-format category. As of
+#: scenario-format v1.1 (TH-16 + TH-22, one shared bump) `desktop` maps too —
+#: desktop stubs execute per the tier ladder in refs/scenario-format.md
+#: (T0 crew-governed PTY now; T2 computer-use is exploratory and ALWAYS
+#: reviewer-graded; T3 deferred in writing).
+CATEGORY_MAP = {"api": "api", "ui": "browser", "desktop": "desktop"}
+
+#: campaign-recon format version this assembler emits. spec:1 plans (no rung
+#: `isolation`) remain valid inputs; `isolation` requires spec 2.
+CURRENT_SPEC = 2
+
+#: rung/scenario isolation classes (TH-22) and the documented default: a
+#: missing annotation NEVER grants parallelism.
+ISOLATION_VALUES = ("shares-state", "exclusive", "stateless")
+DEFAULT_ISOLATION = "shares-state"
 
 PLAN_FILENAME = "campaign-recon.json"
 SCENARIO_DIRNAME = "scenarios"
@@ -90,6 +104,25 @@ def ladder_errors(doc: dict) -> list[str]:
                 )
         if isinstance(rid, str):
             seen.add(rid)
+    return errors
+
+
+def version_errors(doc: dict) -> list[str]:
+    """Format-version invariants (TH-16 + TH-22 shared bump).
+
+    `isolation` is a spec-2 field: a spec:1 plan carrying it is a versioning
+    error, not something to reinterpret silently. (The enum itself is the
+    schema layer's job.)
+    """
+    errors: list[str] = []
+    if doc.get("spec") == 1:
+        for i, rung in enumerate(doc.get("scenarios", []) or []):
+            if isinstance(rung, dict) and "isolation" in rung:
+                errors.append(
+                    f"scenarios[{i}] ({rung.get('id')}): 'isolation' requires "
+                    "campaign-recon spec 2 — bump the plan's spec (v1 plans "
+                    "without isolation remain valid)"
+                )
     return errors
 
 
@@ -153,6 +186,7 @@ def plan_errors(doc: Any) -> list[str]:
     if isinstance(doc, dict):
         errors += ladder_errors(doc)
         errors += honesty_errors(doc)
+        errors += version_errors(doc)
     return errors
 
 
@@ -210,7 +244,7 @@ def assemble_plan(
             rung["status"] = "proposed" if proposed else "confirmed"
         rungs.append(rung)
 
-    plan: dict[str, Any] = {"spec": 1}
+    plan: dict[str, Any] = {"spec": CURRENT_SPEC}
     if name:
         plan["name"] = name
     plan["generated_at"] = generated_at or (
@@ -308,8 +342,14 @@ def scenario_stub_markdown(rung: dict, plan: dict) -> str:
     if category is None:
         raise CampaignPlanError(
             f"rung {rung.get('id')!r}: category {rung.get('category')!r} has "
-            "no scenario-format v1 category (desktop lands with TH-15) — "
-            "bind a hand-authored scenario_path instead"
+            "no scenario-format category mapping — bind a hand-authored "
+            "scenario_path instead"
+        )
+    isolation = rung.get("isolation", DEFAULT_ISOLATION)
+    if isolation not in ISOLATION_VALUES:
+        raise CampaignPlanError(
+            f"rung {rung.get('id')!r}: isolation {isolation!r} is not one of "
+            f"{'|'.join(ISOLATION_VALUES)}"
         )
     plan_name = plan.get("name") or "campaign"
     name = _slug(f"{plan_name}-{rung['id']}")
@@ -326,9 +366,13 @@ def scenario_stub_markdown(rung: dict, plan: dict) -> str:
         f"  {title}",
         f"  Certifies capabilities: {caps}. Claim ceiling: "
         f"{rung['claim_ceiling']}.",
-        'version: "1.0"',
+        'version: "1.1"',
         f"category: {category}",
         "tags: [qe-campaign]",
+        # TH-22: explicit isolation in every stub — the rung's declared class,
+        # else the conservative default (a missing annotation never grants
+        # parallelism).
+        f"isolation: {isolation}",
         f"status: {status}",
         "source: campaign-plan",
         f"authored_at: {plan.get('generated_at', '')}",
@@ -346,7 +390,11 @@ def scenario_stub_markdown(rung: dict, plan: dict) -> str:
         "1. TODO(campaign author): replace this placeholder with concrete,",
         "   deterministic steps that prove A1-A3. Browser rungs: author a",
         "   runner spec (scripts/qe/runner) and invoke it here; API rungs:",
-        "   curl/hurl with content-bearing assertions.",
+        "   curl/hurl with content-bearing assertions; desktop rungs: T0",
+        "   crew-governed PTY only today (pass FILE PATHS, never scenario",
+        "   bodies — the 1022B PTY line limit silently discards longer",
+        "   prompts); T2 computer-use is exploratory and ALWAYS graded by",
+        "   the independent reviewer (see refs/scenario-format.md tiers).",
         "2. `exit 1` — the stub fails until authored (never a silent PASS).",
         "",
         "## Evidence expected",
@@ -362,7 +410,7 @@ def scenario_stub_markdown(rung: dict, plan: dict) -> str:
 def persist_plan(plan: dict, out_dir: Path, write_stubs: bool = True) -> dict:
     """Fail-closed persistence: validate, write stubs, bind, re-validate.
 
-    Writes `<out_dir>/campaign-recon.json` plus scenario-format v1 stubs
+    Writes `<out_dir>/campaign-recon.json` plus scenario-format v1.1 stubs
     under `<out_dir>/scenarios/` for every stub-eligible rung that has no
     `scenario_path` yet. Raises CampaignPlanError (writing nothing) when the
     plan does not conform.
@@ -370,7 +418,7 @@ def persist_plan(plan: dict, out_dir: Path, write_stubs: bool = True) -> dict:
     errors = plan_errors(plan)
     if errors:
         raise CampaignPlanError(
-            "plan does not conform to campaign-recon format v1:\n"
+            "plan does not conform to the campaign-recon format:\n"
             + "\n".join(errors)
         )
     out_dir = Path(out_dir)
@@ -429,7 +477,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_val = sub.add_parser(
-        "validate", help="validate a plan against campaign-recon format v1"
+        "validate",
+        help="validate a plan against the campaign-recon format (spec 1 or 2)",
     )
     p_val.add_argument("plan", type=Path)
 

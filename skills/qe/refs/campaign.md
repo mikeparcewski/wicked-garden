@@ -13,9 +13,10 @@ archetype_relevance: ["specify", "build", "ship", "review"]
 Turns a target repo into a machine-readable, dependency-ordered campaign
 plan: a capability inventory derived from three lenses, bound to a scenario
 ladder that CONFORMS to `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json`
-(format v1) — **never a parallel format**. Scenario bodies stay
-scenario-format v1 markdown ([refs/scenario-format.md](scenario-format.md));
-the plan orders and binds them, it never replaces that format.
+(format v2; spec:1 plans still validate) — **never a parallel format**.
+Scenario bodies stay scenario-format markdown (v1.1 —
+[refs/scenario-format.md](scenario-format.md)); the plan orders and binds
+them, it never replaces that format.
 
 Execution, grading, and gating are NOT this action's job: the human
 confirmation leg is § intake ([refs/intake.md](intake.md) — the plan
@@ -115,8 +116,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py" validate <plan.json>
 
 Rules the validator enforces beyond the JSON schema: ladder order (deps
 reference EARLIER rungs only), rung→capability binding resolves, doc-derived
-= proposed, no estate-sourced entries in an `unindexed` plan, and
-`confirmed` rungs never certify still-proposed capabilities.
+= proposed, no estate-sourced entries in an `unindexed` plan, `confirmed`
+rungs never certify still-proposed capabilities, and `isolation` requires
+spec 2 (v1 plans without it remain valid).
 
 ### Rung design (the ladder)
 
@@ -127,14 +129,46 @@ reference EARLIER rungs only), rung→capability binding resolves, doc-derived
 - `claim_ceiling`: a rung whose user journey is API-substituted caps at
   `machinery-verified` — certify the user journey, not the proxy.
 - `category`: `api` | `ui` | `desktop` (plan taxonomy). Generated stubs map
-  `api`→`api`, `ui`→`browser`; `desktop` has no scenario-format v1 category
-  yet (TH-15) — desktop rungs stay `proposed` or bind hand-authored files.
+  `api`→`api`, `ui`→`browser`, `desktop`→`desktop` (scenario-format v1.1).
+  Desktop rungs are tiered HONESTLY — see the tier ladder in
+  [refs/scenario-format.md](scenario-format.md#desktop-tiers-category-desktop):
+  T0 crew-governed PTY is the only tier a campaign may rely on today
+  (campaign-proven; pass FILE PATHS through PTY prompts, never bodies —
+  1022B limit); T1 `_electron` waits for a target; T2 computer-use is
+  exploratory and ALWAYS reviewer-graded; T3 is deferred in writing.
+- `isolation` (spec 2, optional): `shares-state` (default when absent —
+  conservative on purpose) | `exclusive` | `stateless`. Copy the scenario
+  file's `isolation` frontmatter onto its rung — the PLAN is what the
+  scheduler mapping consumes, never scenario markdown.
+
+### Isolation & parallel execution (TH-22)
+
+The proven campaign ladder was dependency-ordered because scenarios mutate
+ONE daemon's shared state (projects, repos, runs accumulate). The moment a
+campaign runs as a parallel DAG (wicked-core's scheduler via crew's
+`/api/v1/campaigns`, TH-9), unannotated parallelism = the classic e2e race.
+
+- The rung's `isolation` value is the machine-consumed annotation. TH-9's
+  scenario→CampaignNode mapping reads it from `campaign-recon.json`:
+  `stateless` nodes may run in parallel against one target instance;
+  `shares-state` nodes are serialized per target instance; `exclusive`
+  nodes get DAG serialization edges OR a per-node isolated profile (fresh
+  `WICKED_HOME` / `--db` / `--bus-db` — the campaign runbook's proven
+  recipe).
+- **Until that mapping consumes the annotation, campaigns MUST run with
+  `max_concurrency: 1`** — correct, just slow; the constraint is explicit,
+  never accidental.
+- Fixture namespacing is the `stateless` contract: the runner provides a
+  per-run `QE_FIXTURE_NS` default for spec interpolation (the mapper sets
+  one per node); stateless scenarios embed it in every fixture name they
+  create (`scripts/qe/runner/README.md`).
 
 ## Persistence
 
 - **Plan + stubs**: `persist_plan` writes `campaign-recon.json` and
-  scenario-format v1 stubs under `.wicked-qe/campaigns/<name>/scenarios/`
-  (stubs fail until authored — never a silent PASS).
+  scenario-format v1.1 stubs under `.wicked-qe/campaigns/<name>/scenarios/`
+  (stubs fail until authored — never a silent PASS; every stub carries an
+  explicit `isolation:` line, defaulting to `shares-state`).
 - **Ledger**: record the campaign as a `strategies` row (body = the plan
   JSON) and each rung as a `scenarios` row via wicked-ledger's DomainStore —
   stable scenario id = capability-id + slug so flake history accrues across

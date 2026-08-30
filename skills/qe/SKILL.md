@@ -11,6 +11,11 @@ description: |
   evidence), review (independent verdicts, spec alignment, suite quality),
   insight (ledger stats, flake detection, coverage archaeology), accept
   (the isolated 3-agent pipeline that eliminates self-grading).
+  ladder per campaign-recon format v2), execute (run scenarios/suites,
+  capture evidence), review (independent verdicts on evidence, spec
+  alignment, test-suite quality), insight (ledger stats, flake detection,
+  coverage archaeology), accept (the 3-agent writer→executor→reviewer
+  acceptance pipeline that eliminates self-grading).
 
   Use when: "what should I test", "test strategy", "write tests", "author
   scenarios", "qe campaign", "test the whole app", "capability inventory",
@@ -93,10 +98,10 @@ scaffolds `.wicked-qe/` and registers a project record).
 2. Three-lens recon (estate code graph when the target is indexed, docs
    recall via `wicked-garden-mem`, live probe incl. committed endpoint
    manifests) → a plan CONFORMING to
-   `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` (v1 — never a
-   parallel format), assembled + validated fail-closed by
-   `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py`, persisted as a
-   ledger `strategies` row + scenario-format v1 files. Unindexed targets
+   `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` (v2; spec:1
+   plans still validate — never a parallel format), assembled + validated
+   fail-closed by `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py`,
+   persisted as a ledger `strategies` row + scenario-format v1.1 files. Unindexed targets
    degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
    enter `proposed`, pending human review.
 

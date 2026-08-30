@@ -76,8 +76,35 @@ configure them:
 
 `${env:NAME}` / `${env:NAME:-fallback}` interpolation keeps committed specs
 portable across isolated daemons; an unset variable without a fallback is a
-fail-closed lint error. See `specs/s1-smoke.spec.json` — the rescued campaign
+fail-closed lint error (exception: `QE_FIXTURE_NS`, which the runner
+defaults — see below). See `specs/s1-smoke.spec.json` — the rescued campaign
 S1 rewritten onto this package — for a complete example.
+
+### Fixture namespacing — the parallel-isolation default (TH-22)
+
+Campaign scenarios historically mutate ONE shared daemon's state (projects,
+repos, runs accumulate — the reason the proven studio ladder was
+dependency-ordered). The moment a campaign scheduler runs nodes in
+parallel, unnamespaced fixtures race. The runner's default:
+
+- **`QE_FIXTURE_NS`** is always available to spec interpolation. A
+  caller-set value wins (the campaign mapper sets one per node); otherwise
+  the runner generates a per-run unique value (`qe-<seed>-<time>-<entropy>`)
+  and prints it in the CLI result as `fixture_ns`.
+- **The convention:** every fixture a spec creates embeds it in the name —
+  `"name": "proj-${env:QE_FIXTURE_NS}"`. That is what lets a scenario
+  declare `isolation: stateless` (scenario-format v1.1) and run in parallel
+  with other stateless nodes against the same instance.
+- The isolation classes (`shares-state` — the default when absent —
+  `exclusive`, `stateless`) live on the scenario frontmatter AND the
+  campaign-plan rung (`campaign-recon.schema.json` format v2); the PLAN
+  rung is what the crew-side scenario→CampaignNode mapping consumes.
+  `exclusive` nodes need DAG serialization edges or a per-node isolated
+  profile (fresh `WICKED_HOME` / `--db` / `--bus-db`). **Until that mapping
+  consumes the annotation, campaigns MUST run `max_concurrency: 1`** —
+  correct, just slow; the constraint is explicit, never accidental.
+- The namespace value feeds fixture NAMES only — it never changes what the
+  runner does; the runner stays model-free and deterministic.
 
 ### The four generalized helpers (importable from `src/index.mjs`)
 

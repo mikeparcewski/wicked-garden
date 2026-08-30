@@ -12,6 +12,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { lintSpec } from "./lint.mjs";
 
 const ENV_OPEN = "${env:";
@@ -72,12 +73,40 @@ export class SpecError extends Error {
   }
 }
 
+/**
+ * Per-run fixture namespace (TH-22 — the `stateless` isolation contract).
+ *
+ * Parallel campaign nodes against ONE target instance must not race on
+ * fixture names (the classic e2e failure: project-creating scenarios collide
+ * in one daemon). The convention: specs embed `${env:QE_FIXTURE_NS}` in every
+ * fixture name they create (e.g. `"name": "proj-${env:QE_FIXTURE_NS}"`).
+ * A caller-set QE_FIXTURE_NS always wins — the campaign mapper sets one per
+ * node; this helper only fills the default so a lone run is namespaced too.
+ * The value is an input to fixture NAMES, never to runner behavior — the
+ * runner stays deterministic in what it does.
+ */
+export function fixtureNamespace(seed, env = process.env) {
+  const set = env.QE_FIXTURE_NS;
+  if (set !== undefined && set !== "") return set;
+  const slug = String(seed ?? "spec")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 24) || "spec";
+  return `qe-${slug}-${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
+}
+
 export function loadSpec(path, env = process.env) {
   let raw;
   try {
     raw = JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
     throw new SpecError([`cannot read/parse spec ${path}: ${e.message}`]);
+  }
+  // TH-22 fixture-namespacing default: fill QE_FIXTURE_NS for interpolation
+  // when the launcher didn't pin one (caller-set always wins).
+  if (env.QE_FIXTURE_NS === undefined || env.QE_FIXTURE_NS === "") {
+    env = { ...env, QE_FIXTURE_NS: fixtureNamespace(raw?.scenario?.id, env) };
   }
   const missing = [];
   const spec = interpolate(raw, env, missing);

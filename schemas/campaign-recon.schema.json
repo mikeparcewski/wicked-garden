@@ -1,15 +1,15 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/campaign-recon.schema.json",
-  "title": "campaign-recon.json — qe campaign recon + plan artifact (format v1)",
-  "description": "Machine-readable campaign plan: the contract between a qe campaign's scan stage (recon) and its execute stage (ADR 0006 'qe campaign homes into the four planes'). Formalizes the three lenses of the proven hand-built shape (studio-campaign-recon.json, 2026-08 studio E2E campaign): a capability inventory with file:line citations, a reference to the generated environment manifest (the fail-closed preflight input), and a dependency-ordered scenario ladder whose rungs carry pass criteria (terminal state + artifact + consumer state) and per-rung claim ceilings. Scenario BODIES live as scenario-format v1 markdown files (skills/qe/refs/scenario-format.md) — this artifact orders and binds them; it never replaces that format. The sibling evidence contract (scenario_evidence + claim_level) is owned by wicked-ledger (manifest 2.1, docs/SCHEMA-CONTRACT.md there), deliberately a different owner.",
+  "title": "campaign-recon.json — qe campaign recon + plan artifact (format v2)",
+  "description": "Machine-readable campaign plan: the contract between a qe campaign's scan stage (recon) and its execute stage (ADR 0006 'qe campaign homes into the four planes'). Formalizes the three lenses of the proven hand-built shape (studio-campaign-recon.json, 2026-08 studio E2E campaign): a capability inventory with file:line citations, a reference to the generated environment manifest (the fail-closed preflight input), and a dependency-ordered scenario ladder whose rungs carry pass criteria (terminal state + artifact + consumer state) and per-rung claim ceilings. Scenario BODIES live as scenario-format markdown files (skills/qe/refs/scenario-format.md) — this artifact orders and binds them; it never replaces that format. The sibling evidence contract (scenario_evidence + claim_level) is owned by wicked-ledger (manifest 2.1, docs/SCHEMA-CONTRACT.md there), deliberately a different owner. Format v2 (TH-16 + TH-22, ONE shared bump): rungs gain the optional 'isolation' annotation (shares-state | exclusive | stateless) consumed by the crew-side scenario→CampaignNode mapping (TH-9), and 'desktop' rungs become stub-eligible because scenario-format v1.1 adds the desktop category (tiered T0–T3). spec:1 plans remain valid — every v2 addition is optional, and 'isolation' requires spec 2 (extra-invariant check in scripts/qe/campaign_plan.py).",
   "type": "object",
   "required": ["spec", "target", "sources", "capabilities", "environment_manifest", "scenarios"],
   "additionalProperties": false,
   "properties": {
     "spec": {
-      "const": 1,
-      "description": "Campaign-recon format version. Currently 1. Bumps move through garden's release train (same discipline as wicked-pack.schema.json's spec field)."
+      "enum": [1, 2],
+      "description": "Campaign-recon format version. 1 = original (no rung isolation; desktop rungs were not stub-eligible). 2 = the TH-16 + TH-22 shared bump: adds the optional per-rung 'isolation' annotation and desktop stub-eligibility (scenario-format v1.1). Backward compat: v1 plans still validate; a rung carrying 'isolation' requires spec 2 — enforced as an extra-invariant check (scripts/qe/campaign_plan.py), like ladder order. Bumps move through garden's release train (same discipline as wicked-pack.schema.json's spec field)."
     },
     "name": {
       "type": "string",
@@ -188,7 +188,7 @@
         "category": {
           "type": "string",
           "enum": ["api", "ui", "desktop"],
-          "description": "Execution surface of the rung — the campaign-plan taxonomy. NOTE: this is not the scenario-format v1 category enum (api|browser|perf|infra|security|a11y|cli|equivalence); the rung's scenario file keeps its own format category, and 'ui' rungs typically bind 'browser' scenarios."
+          "description": "Execution surface of the rung — the campaign-plan taxonomy. NOTE: this is not the scenario-format category enum (api|browser|perf|infra|security|a11y|cli|equivalence, plus desktop as of scenario-format v1.1); the rung's scenario file keeps its own format category. Generated stubs map api→api, ui→browser, desktop→desktop. Desktop rungs execute per the tier ladder in skills/qe/refs/scenario-format.md: T0 crew-governed PTY (proven now), T1 playwright _electron (when a target exists), T2 computer-use exploratory (ALWAYS reviewer-graded, macOS first), T3 deterministic native automation (deferred in writing)."
         },
         "capability_ids": {
           "type": "array",
@@ -202,6 +202,11 @@
         },
         "pass_criteria": { "$ref": "#/$defs/pass_criteria" },
         "claim_ceiling": { "$ref": "#/$defs/claim_ceiling" },
+        "isolation": {
+          "type": "string",
+          "enum": ["shares-state", "exclusive", "stateless"],
+          "description": "Shared-state isolation class of this rung — the machine-consumed annotation for TH-9's scenario→CampaignNode mapping when the campaign runs as a parallel DAG (wicked-core campaign.rs via crew POST/GET /api/v1/campaigns). Absent = 'shares-state', the conservative default: an unannotated rung is assumed to mutate state shared with other rungs in the same target instance (the proven campaign reality — projects, repos, and runs accumulate in one daemon) and must never run concurrently with another rung against that instance. 'stateless' = the rung touches no shared mutable state OR namespaces every fixture it creates (unique project/repo names via QE_FIXTURE_NS — the runner's fixture-namespacing default, scripts/qe/runner/README.md); safe to parallelize with other stateless rungs against the same instance. 'exclusive' = the rung needs sole access to the entire target environment (daemon kill/restart, migration, recovery rungs); the mapping MUST either add DAG serialization edges or give the node its own isolated profile (fresh WICKED_HOME / --db / --bus-db — the campaign runbook's proven recipe). Requires spec 2. Until a scheduler mapping actually consumes this annotation, campaigns MUST run with max_concurrency: 1 — correct, just slow; the constraint is explicit, never accidental."
+        },
         "scenario_path": {
           "type": "string",
           "description": "Path to the persisted scenario-format v1 markdown file this rung executes (relative to the campaign root). The plan binds scenarios; it never inlines them."

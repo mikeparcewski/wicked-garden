@@ -18,7 +18,7 @@
 
 import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
-import { loadSpec, SpecError } from "../src/spec.mjs";
+import { fixtureNamespace, loadSpec, SpecError } from "../src/spec.mjs";
 import { runSpec } from "../src/runner.mjs";
 
 /** Absolute path of the qe gate CLI (TH-6 seam hint printed with the result). */
@@ -40,9 +40,15 @@ if (!specPath) {
   process.exit(3);
 }
 
+// TH-22: fixture-namespacing default — a per-run unique QE_FIXTURE_NS for
+// spec interpolation unless the launcher (e.g. the campaign mapper, one per
+// node) already pinned one. Printed with the result for traceability.
+const runEnv = { ...process.env };
+runEnv.QE_FIXTURE_NS = fixtureNamespace(specPath, runEnv);
+
 let spec;
 try {
-  spec = loadSpec(specPath);
+  spec = loadSpec(specPath, runEnv);
 } catch (e) {
   if (e instanceof SpecError) {
     console.error(`SPEC REJECTED (${specPath}):`);
@@ -54,7 +60,7 @@ try {
 }
 
 if (values["lint-only"]) {
-  console.log(JSON.stringify({ lint: "ok", spec: specPath, scenario: spec.scenario.id }));
+  console.log(JSON.stringify({ lint: "ok", spec: specPath, scenario: spec.scenario.id, fixture_ns: runEnv.QE_FIXTURE_NS }));
   process.exit(0);
 }
 
@@ -72,6 +78,7 @@ try {
         run_id: result.runId,
         claim: result.claim,
         claim_reason: result.claimReason,
+        fixture_ns: runEnv.QE_FIXTURE_NS,
         evidence_dir: result.evidenceDir,
         manifest: result.manifestPath,
         preflight_hits: result.preflight.length,
