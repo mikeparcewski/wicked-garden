@@ -45,6 +45,7 @@ Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- hist
 | Campaign a whole repo: recon → capability inventory → scenario ladder | § campaign |
 | Confirm/refine a campaign plan at a human gate; annotation intake | § intake |
 | Flaky campaign verdict / quarantine / gate exclusions | § campaign |
+| Degradation scenarios / campaign rerun+diff / campaign CI wiring | § campaign |
 | Run a scenario/suite, capture evidence, record the run | § execute |
 | Independent verdict, spec-vs-code alignment, suite quality | § review |
 | Ledger stats, flake rate, coverage gaps, history | § insight |
@@ -89,16 +90,15 @@ scaffolds `.wicked-qe/` and registers a project record).
 ## campaign — repo recon + generated scenario ladder
 
 1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign.md")` — full playbook.
-2. Three-lens recon (estate code graph when the target is indexed, docs
-   recall via `wicked-garden-mem`, live probe incl. committed endpoint
-   manifests) → a plan CONFORMING to
-   `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` (v2; spec:1
-   plans still validate — never a parallel format), assembled + validated
-   fail-closed by `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py`,
-   persisted as a ledger `strategies` row + scenario-format v1.1 files. Unindexed targets
-   degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
-   enter `proposed`, pending human review.
+2. Three-lens recon (estate graph when indexed, docs recall via
+   `wicked-garden-mem`, live probe incl. committed endpoint manifests) → a plan
+   CONFORMING to `schemas/campaign-recon.schema.json` (v2; spec:1 still valid —
+   never a parallel format), assembled fail-closed by `scripts/qe/campaign_plan.py`,
+   persisted as a ledger `strategies` row + scenario v1.1 files. Unindexed degrades
+   honestly; doc-derived claims enter `proposed` pending review.
 3. Flaky verdicts (TH-21): `refs/campaign-flake-policy.md` — bounded re-runs both-recorded; quarantine (owner+deadline); excluded-with-reason everywhere.
+4. Degradation (TH-23): `refs/campaign-degradation.md` — break-it scenarios per declared dependency; pass bar = honest error naming, zero crashes, recovery.
+5. Rerun+diff (TH-23): `campaign-rerun.mjs --strategy <dir>` — ledger verdict diffs, regressions exit 1; CI assembly: `refs/campaign-ci.md`.
 
 ## intake — propose the campaign plan as a human gate (TH-12)
 

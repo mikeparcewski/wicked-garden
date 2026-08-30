@@ -1,0 +1,136 @@
+# qe campaign — nightly lane: the FULL GOVERNED campaign (TH-23 / test-R19b).
+#
+# RECIPE, not turnkey: copy into the TARGET repo's .github/workflows/ and edit
+# the <angle-bracket> placeholders. Full doctrine: wicked-garden
+# skills/qe/refs/campaign-ci.md.
+#
+# This lane spends real seats and real tokens — which is exactly why every
+# ceiling below is pinned EXPLICITLY (TH-20: a config drift must never mean
+# "unbounded"), the flake policy runs at the gate (TH-21: excluded-with-reason,
+# never retried-to-green), and the output that matters is the RERUN DIFF
+# against the prior nightly — not a green checkmark.
+
+name: qe-campaign-nightly
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # nightly; pick an off-peak minute, not :00
+  workflow_dispatch: {} # operator re-run with the same caps
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qe-campaign-nightly
+  cancel-in-progress: false # a governed campaign is not restartable mid-flight for free
+
+jobs:
+  governed-campaign:
+    runs-on: ubuntu-latest
+    # A notch above WICKED_CAMPAIGN_BUDGET_SECS (4 h): the job must die even
+    # if the supervisor cannot.
+    timeout-minutes: 265
+    env:
+      # ── TH-20 budget knobs (crew's campaign supervisor enforces these;
+      #    documented in wicked-crew docs/campaign-budgets.md) ──────────────
+      WICKED_CAMPAIGN_BUDGET_SECS: "14400" # campaign wall-clock ceiling (4 h)
+      WICKED_CAMPAIGN_NODE_TIMEOUT_SECS: "1800" # per-node ceiling (30 min)
+      WICKED_UNIT_TIMEOUT_SECS: "900" # engine per-unit pin (campaign-proven)
+      WICKED_CAMPAIGN_MAX_NODES: "25" # fail-closed nightly node cap
+      WICKED_CAMPAIGN_MAX_COST_USD: "20" # opt-in cost ceiling
+      WICKED_CAMPAIGN_KILL_POLICY: "kill-running"
+      # ── Isolation (TH-8): the job's own daemon, scratch state ────────────
+      CREW_PORT: "7942"
+      CREW_API: "http://127.0.0.1:7942/api/v1"
+      WICKED_QE_LEDGER_DIR: ${{ github.workspace }}/.wicked-qe
+      CAMPAIGN_DIR: .wicked-qe/campaigns/<name>
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # ── Ledger continuity: the rerun diff consumes HISTORY (TH-6). An
+      #    evicted cache degrades to a `new` baseline — visibly, never wrongly.
+      - name: Restore qe ledger history
+        uses: actions/cache@v4
+        with:
+          path: .wicked-qe
+          key: qe-ledger-${{ github.run_id }}
+          restore-keys: |
+            qe-ledger-
+
+      # <EDIT>: install the governed seats this campaign's agent nodes use
+      # (e.g. the claude CLI), authenticating from repo secrets. Deterministic
+      # tool nodes need no seat.
+      - name: Install seats
+        run: 'echo "<EDIT: install + authenticate worker CLIs from secrets>"'
+
+      # <EDIT>: build the target, then boot the ISOLATED crew daemon that will
+      # schedule the campaign DAG (durable, budget-supervised):
+      #   node packages/crew/dist/cli/index.js serve --port "$CREW_PORT" \
+      #     --db "$RUNNER_TEMP/core.db" --bus-db "$RUNNER_TEMP/bus.db" &
+      #   until curl -sf "$CREW_API/health"; do sleep 1; done
+      - name: Boot isolated crew daemon
+        run: 'echo "<EDIT: boot crew on $CREW_PORT with scratch --db/--bus-db>"'
+
+      # Launch the persisted strategy as a campaign: deterministic rungs as
+      # `tool` nodes running their committed spec/scenario BY FILE PATH (the
+      # 1022-byte rule — never inline a scenario body), exploratory rungs as
+      # `agent` nodes. Then poll to a terminal state.
+      - name: Launch + await campaign
+        run: |
+          set -euo pipefail
+          # <EDIT>: build the scenarios[] payload from $CAMPAIGN_DIR/campaign-recon.json
+          # (rung ids + deps map 1:1; tool.cmd points at each committed file).
+          curl -sf -X POST "$CREW_API/campaigns" -H 'content-type: application/json' \
+            -d @"$CAMPAIGN_DIR/launch-body.json" -o launch.json
+          ID=$(node -p "JSON.parse(require('fs').readFileSync('launch.json','utf8')).campaignId")
+          echo "campaign=$ID"
+          while :; do
+            STATUS=$(curl -sf "$CREW_API/campaigns/$ID" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).campaign.status")
+            echo "status=$STATUS"
+            case "$STATUS" in
+              completed|failed|cancelled) break ;;
+            esac
+            sleep 30
+          done
+
+      # Grading is the accept trio's job (TH-10) — executor claims are never
+      # verdicts of record. <EDIT>: dispatch the qe accept pipeline over the
+      # evidence dirs (isolated reviewer sees evidence paths only), then
+      # assemble the scoreboard and record the gate verdict WITH the TH-21
+      # exclusions attached.
+      - name: Grade + gate (flake-policied)
+        run: |
+          set -euo pipefail
+          echo "<EDIT: run the qe accept trio over the campaign's evidence>"
+          node scripts/qe/lib/campaign-scoreboard.mjs --json --out scoreboard.json
+          node scripts/qe/lib/gate.mjs \
+            --project-id <project> --run-id "<campaign-run-id>" \
+            --verdict "<from scoreboard certification>" \
+            --verdict-summary "nightly qe campaign" \
+            --mode event --exclusions-from scoreboard.json
+
+      # THE output: verdict diffs vs the prior nightly. regression /
+      # ungraded-current / (with --require-rerun) not-rerun all exit 1.
+      - name: Rerun diff vs prior nightly
+        run: |
+          set -euo pipefail
+          SINCE=$(date -u -d "-24 hours" +%Y-%m-%dT%H:%M:%SZ)
+          node scripts/qe/lib/campaign-rerun.mjs \
+            --strategy "$CAMPAIGN_DIR" \
+            --since "$SINCE" --require-rerun --json --out rerun-diff.json
+
+      - name: Upload evidence + diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qe-nightly-${{ github.run_number }}
+          path: |
+            .wicked-qe/evidence/
+            scoreboard.json
+            rerun-diff.json
+          if-no-files-found: warn
+          retention-days: 30

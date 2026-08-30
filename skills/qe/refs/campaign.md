@@ -188,6 +188,49 @@ campaign runs as a parallel DAG (wicked-core's scheduler via crew's
   § intake ([refs/intake.md](intake.md)): the whole plan proposed as a HITL
   gate on the campaign's governed crew run.
 
+## Degradation rungs — break-it scenarios per external dependency (TH-23)
+
+The campaign's proven negative pattern (S19 estate-binary-absent, S20
+daemon-kill — both PASSED because the consumer told the truth), generalized:
+for every DECLARED external dependency of the target,
+`${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py` generates a
+break-it capability + rung + scenario stub whose pass bar is **honest error
+naming + zero crashes + recovery** — distinct honest answers for distinct
+absent states, never a generic 500, never a fake success. `augment` appends
+them to an existing plan fail-closed (degradation rungs are
+`isolation: exclusive`, so spec-1 plans are refused without an explicit
+bump). Full playbook + the external-deps declaration format:
+[refs/campaign-degradation.md](campaign-degradation.md).
+
+## Rerun — verdict diffs vs the prior run (TH-23)
+
+A campaign rerun reuses the PERSISTED strategy and its committed
+deterministic specs; the diff half consumes the ledger's run history (the
+runs + verdicts rows accruing under stable scenario ids, TH-6):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-rerun.mjs" \
+  --strategy <campaign-dir | campaign-recon.json> \
+  [--since <ISO-8601>] [--require-rerun] [--json] [--out <file>]
+```
+
+Per-scenario deltas: `regression` (PASS → deny — exit 1) · `fixed` ·
+`still-failing` · `unchanged-pass` · `new` · `not-rerun` (loud; exit 1 under
+`--require-rerun`) · `ungraded-current` (blocks — grade through the accept
+trio first, never diff an executor claim). Grades follow the scoreboard's
+rule: newest NON-executor verdicts row only (TH-10), INCONCLUSIVE denies.
+
+## CI assembly — PR subset + governed nightly (TH-23)
+
+The GH Actions recipe lives at [refs/campaign-ci.md](campaign-ci.md) with
+copyable workflows in `${CLAUDE_PLUGIN_ROOT}/docs/examples/`: **PR** runs
+the deterministic subset only (runner specs, executor claims, zero tokens);
+**nightly** runs the full governed campaign through crew's
+`/api/v1/campaigns` — budget-capped (TH-20 knobs pinned explicitly),
+flake-policied at the gate (TH-21), graded by the accept trio, ending in the
+rerun diff above. The first dogfood corpus is wicked-crew's own e2e suite
+folded into scenario format (`wicked-crew/e2e/campaign/`).
+
 ## Dispatch guard (mandatory for every qe dispatch)
 
 Before ANY `Skill(...)` dispatch from this action (and the other qe
@@ -223,6 +266,9 @@ the caller; do not work around the guard.
 - `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` — the contract
 - `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py` — assembler/validator
 - `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py` — dispatch guard
+- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py` — degradation generator
+- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-rerun.mjs` — rerun verdict diffs
 - [refs/scenario-format.md](scenario-format.md) · [refs/execute.md](execute.md) ·
   [refs/accept.md](accept.md) · [refs/campaign-flake-policy.md](campaign-flake-policy.md) ·
-  ADR 0006 (`docs/adr/`)
+  [refs/campaign-degradation.md](campaign-degradation.md) ·
+  [refs/campaign-ci.md](campaign-ci.md) · ADR 0006 (`docs/adr/`)
