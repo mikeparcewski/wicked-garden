@@ -184,11 +184,52 @@ reason) and embedded in `certification.gate_summary` — the line to hand
 title; exit 7 if the ledger store is unreachable — mirroring is not optional
 before campaign teardown).
 
+## Vault-backed integrity (TH-17) — freeze the PASS so it re-derives later
+
+A graded campaign bundle can be made tamper-evident: content-addressed in
+wicked-vault, with the reviewer's grade as an **append-only opinion
+attestation** instead of only a mutable row field. Run it AT the gate:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
+  --project-id <id> --run-id <id> --verdict PASS \
+  --verdict-summary "<certification.gate_summary>" --vault-record
+```
+
+- **What freezes:** the bundle's `manifest.json` bytes (it binds every
+  artifact's sha256 — one content address covers the whole bundle). The
+  verdicts row then carries `vault_payload_sha` (ledger migration 003) and
+  the entry/attestation ids in `equivalence_json`; DomainStore emits
+  `wicked.test.evidence.captured` alongside the verdict event.
+- **The grade as opinion:** PASS→`pass`, FAIL→`reject`, anything else→
+  `unclear` — appended via vault `attest` (evaluator defaults to
+  `wicked-garden-qe-gate`; the vault refuses a self-grade where evaluator
+  equals the recording actor).
+- **ORDERING LAW (enforced in code, `scripts/qe/lib/vault-evidence.mjs`):**
+  redaction (TH-19) runs before ANY vault write. The vault seam refuses a
+  bundle without the executor's redaction marker, or with any residual
+  secret-scan hit — exit 3, no verdict row, no events. Vault immutability
+  makes a leaked credential permanent; there is no exported path around the
+  gate. A bundle that failed manifest validation is never vaulted either
+  (the downgraded INCONCLUSIVE records with `vault: {skipped}`).
+- **Re-derive months later** (deny on ANY changed byte — exit 1):
+
+  ```bash
+  node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+    rederive --entry <entry-id> --json
+  ```
+
+- **Release dependency:** needs the wicked-vault **manifest-2.1 twin**
+  (`validateManifest` + `CLAIM_LEVELS`) — merged on wicked-vault main,
+  **unreleased** (npm 0.6.0 predates it). Until the next wicked-vault
+  release, set `WICKED_QE_VAULT_PKG` to a local checkout of wicked-vault
+  main; a pre-2.1 vault is refused fail-closed, never silently degraded.
+
 ## Wiring context
 
 - Gate announcement (`wicked.qe.gate.*`) and the crew acceptance flip are
   TH-6's seam (`scripts/qe/lib/gate.mjs`); this playbook produces the graded
   verdicts rows that seam re-derives from.
 - Evidence redaction ran INSIDE the executor before anything here sees a
-  byte (TH-19); vault attestation (TH-17) comes after grading, ordered
-  behind redaction.
+  byte (TH-19); the vault record + attestation (TH-17, above) comes after
+  grading, ordered behind redaction — asserted in code, not by convention.
