@@ -47,11 +47,7 @@ graph via the drop-in TOML rules in
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
 | `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
 
-For "what's the doctrine / which rules apply" questions: the **architecture
-wiki** is in the same stores — doctrine via `answer` over
-`knowledge.recall {"scope_prefix": "wiki:"}`, enforceable conformance rules
-via the estate MCP `rules.recall` tool (severity-ordered, source-doc-cited).
-Operator lifecycle: wicked-core `crates/wicked-governance/WIKI.md`.
+Doctrine / which-rules-apply: the **architecture wiki** is in the same stores — `knowledge.recall {"scope_prefix": "wiki:"}` + estate MCP `rules.recall` (cited); lifecycle: wicked-core `crates/wicked-governance/WIKI.md`.
 
 ## Index / freshness (shared by every action)
 
