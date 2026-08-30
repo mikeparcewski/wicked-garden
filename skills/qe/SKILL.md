@@ -98,12 +98,10 @@ scaffolds `.wicked-qe/` and registers a project record).
    persisted as a ledger `strategies` row + scenario-format v1.1 files. Unindexed targets
    degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
    enter `proposed`, pending human review.
-3. Flaky verdicts at the campaign gate:
+3. Flaky verdicts at the campaign gate (TH-21):
    `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign-flake-policy.md")` —
-   bounded diagnostic re-runs (BOTH verdicts recorded, never best-of-N), the
-   hunter-owned quarantine lane (owner + deadline via the flake taxonomy),
-   and quarantined scenarios excluded-with-reason in the scoreboard and
-   acceptance payload (TH-21).
+   bounded re-runs (both verdicts recorded), hunter-owned quarantine
+   (owner + deadline), quarantined = excluded-with-reason everywhere.
 
 ## intake — propose the campaign plan as a human gate (TH-12)
 
