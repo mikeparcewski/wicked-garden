@@ -6,16 +6,11 @@ description: |
   strategy to verdict. Nine actions — setup (per-project init), plan (test
   strategy, risk, testability, AC quality), author (scenarios, test code,
   fixtures), campaign (three-lens repo recon → dependency-ordered scenario
-  ladder per campaign-recon format v1), intake (plan proposed as a crew HITL
+  ladder per campaign-recon format v2), intake (plan proposed as a crew HITL
   gate — approve/amend/reject), execute (run scenarios/suites, capture
   evidence), review (independent verdicts, spec alignment, suite quality),
   insight (ledger stats, flake detection, coverage archaeology), accept
   (the isolated 3-agent pipeline that eliminates self-grading).
-  ladder per campaign-recon format v2), execute (run scenarios/suites,
-  capture evidence), review (independent verdicts on evidence, spec
-  alignment, test-suite quality), insight (ledger stats, flake detection,
-  coverage archaeology), accept (the 3-agent writer→executor→reviewer
-  acceptance pipeline that eliminates self-grading).
 
   Use when: "what should I test", "test strategy", "write tests", "author
   scenarios", "qe campaign", "test the whole app", "capability inventory",
@@ -37,10 +32,8 @@ archetype_relevance: ["*"]
 Evidence-gated testing as a domain: strategy → authoring → execution →
 independent verdict, with a read-only ledger lens. Verdicts are re-derived
 from captured evidence — never self-asserted by the agent that ran the work.
-Absorbed from the retired wicked-testing plugin in Phase 6b; Phase 6c renamed <!-- historical -->
-the on-disk data contract to `.wicked-qe/` (config, evidence dirs, SQLite
-ledger) — legacy `.wicked-testing/` roots still resolve via wicked-ledger's
-dual-read `resolveLedgerRoot`.
+Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- historical -->
+`.wicked-testing/` roots still resolve via wicked-ledger's dual-read.
 
 ## Routing
 
