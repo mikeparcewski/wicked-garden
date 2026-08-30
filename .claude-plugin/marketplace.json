@@ -1,15 +1,1 @@
-{
-  "name": "wicked-garden",
-  "owner": {
-    "name": "Mike Parcewski"
-  },
-  "plugins": [
-    {
-      "name": "wicked-garden",
-      "source": "./",
-      "description": "Your coding agent already plans and swarms \u2014 Wicked Garden is the curated toolkit for what it can't: proof-not-claims gates, code links grep can't see, deterministic refactor, cross-session memory, real multi-model second opinions. Don't fight the harness; fill its gaps. The gate needs wicked-vault (a self-contained infra peer, installed directly) and re-derives through garden's built-in engine; estate/bus are opt-in layers (wicked-testing and wicked-brain are retired \u2014 QE ships in-catalog as the qe domain, memory lives in wicked-estate).",
-      "version": "12.31.0"
-    }
-  ],
-  "version": "12.31.0"
-}
+{"name": "wicked-garden", "owner": {"name": "Mike Parcewski"}, "plugins": [{"name": "wicked-garden", "source": "./", "description": "Your coding agent already plans and swarms \u2014 Wicked Garden is the curated toolkit for what it can't: proof-not-claims gates, code links grep can't see, deterministic refactor, cross-session memory, real multi-model second opinions. Don't fight the harness; fill its gaps. The gate needs wicked-vault (a self-contained infra peer, installed directly) and re-derives through garden's built-in engine; estate/bus are opt-in layers (wicked-testing and wicked-brain are retired \u2014 QE ships in-catalog as the qe domain, memory lives in wicked-estate).", "version": "12.32.0"}], "version": "12.32.0"}
