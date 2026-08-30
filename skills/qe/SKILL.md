@@ -3,14 +3,14 @@ name: wicked-garden-qe
 user-invocable: true
 description: |
   Consolidated quality-engineering domain skill: evidence-gated testing from
-  strategy to verdict. Eight actions — setup (per-project init), plan (test
+  strategy to verdict. Nine actions — setup (per-project init), plan (test
   strategy, risk, testability, AC quality), author (scenarios, test code,
   fixtures), campaign (three-lens repo recon → dependency-ordered scenario
-  ladder per campaign-recon format v1), execute (run scenarios/suites,
-  capture evidence), review (independent verdicts on evidence, spec
-  alignment, test-suite quality), insight (ledger stats, flake detection,
-  coverage archaeology), accept (the 3-agent writer→executor→reviewer
-  acceptance pipeline that eliminates self-grading).
+  ladder per campaign-recon format v1), intake (plan proposed as a crew HITL
+  gate — approve/amend/reject), execute (run scenarios/suites, capture
+  evidence), review (independent verdicts, spec alignment, suite quality),
+  insight (ledger stats, flake detection, coverage archaeology), accept
+  (the isolated 3-agent pipeline that eliminates self-grading).
 
   Use when: "what should I test", "test strategy", "write tests", "author
   scenarios", "qe campaign", "test the whole app", "capability inventory",
@@ -45,6 +45,7 @@ dual-read `resolveLedgerRoot`.
 | What to test, risk matrix, testability, AC quality | § plan |
 | Write scenarios, test code, fixtures, test data | § author |
 | Campaign a whole repo: recon → capability inventory → scenario ladder | § campaign |
+| Confirm/refine a campaign plan at a human gate; annotation intake | § intake |
 | Run a scenario/suite, capture evidence, record the run | § execute |
 | Independent verdict, spec-vs-code alignment, suite quality | § review |
 | Ledger stats, flake rate, coverage gaps, history | § insight |
@@ -98,6 +99,14 @@ scaffolds `.wicked-qe/` and registers a project record).
    ledger `strategies` row + scenario-format v1 files. Unindexed targets
    degrade honestly (`sources.estate: "unindexed"`); doc-derived claims
    enter `proposed`, pending human review.
+
+## intake — propose the campaign plan as a human gate (TH-12)
+
+1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/intake.md")` — full playbook.
+2. V1 = **propose-as-gate** over crew's campaign-proven UI+REST gate wire
+   (`${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_intake.py`): approve runs the
+   confirmed set, amend = the scenario-edit channel, reject cancels.
+   Annotations → PROPOSED entries. Elicitation = v2 (wicked-crew#358).
 
 ## execute — run + capture evidence
 

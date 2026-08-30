@@ -17,10 +17,12 @@ ladder that CONFORMS to `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.jso
 scenario-format v1 markdown ([refs/scenario-format.md](scenario-format.md));
 the plan orders and binds them, it never replaces that format.
 
-Execution, grading, and gating are NOT this action's job: confirmed plans
-run through § execute / the model-free runner (`scripts/qe/runner`), grades
-come from § accept, and the acceptance gate re-derives "done" from ledger
-evidence (ADR 0006 separation of duties).
+Execution, grading, and gating are NOT this action's job: the human
+confirmation leg is § intake ([refs/intake.md](intake.md) — the plan
+proposed as a HITL gate, approve/amend/reject), confirmed plans run through
+§ execute / the model-free runner (`scripts/qe/runner`), grades come from
+§ accept, and the acceptance gate re-derives "done" from ledger evidence
+(ADR 0006 separation of duties).
 
 ## Usage
 
@@ -140,7 +142,9 @@ reference EARLIER rungs only), rung→capability binding resolves, doc-derived
   frontmatter until a human confirms.
 - Doc-derived (proposed) rungs surface to the human as a review list —
   approve flips capability + rung to `verified`/`confirmed`; reject deletes
-  the rung; amend edits then re-validates.
+  the rung; amend edits then re-validates. The wire for that review is
+  § intake ([refs/intake.md](intake.md)): the whole plan proposed as a HITL
+  gate on the campaign's governed crew run.
 
 ## Dispatch guard (mandatory for every qe dispatch)
 
