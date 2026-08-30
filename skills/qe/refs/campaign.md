@@ -195,6 +195,7 @@ actions), resolve the specialist through the guard — it asserts the resolved
 worker is a garden `wicked-garden-qe-*` skill that ships in the catalog and
 BLOCKS retired surfaces with a clear error (never a silent rewrite):
 
+<!-- historical: the dispatch-guard demo deliberately names a retired specialist to show the block -->
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" wicked-garden-qe-scenario-executor
 # → wicked-garden-qe-scenario-executor          (exit 0)
@@ -202,8 +203,9 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" wicked-garden-qe
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" wicked-testing-a11y-test-engineer
 # → dispatch guard: BLOCKED retired specialist ... (exit 2)
 ```
+<!-- /historical -->
 
-`wicked-testing-*` resolution is blocked at dispatch (wicked-testing retired
+`wicked-testing-*` resolution is blocked at dispatch (wicked-testing retired <!-- historical -->
 2026-08, Phase 6) — the error names the `wicked-garden-qe-*` replacement.
 If a retired name reaches you (stale playbook, stale installed agent), fix
 the caller; do not work around the guard.
