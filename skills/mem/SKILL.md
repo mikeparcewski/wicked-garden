@@ -88,13 +88,15 @@ and score; present the top hits and cite `memory_id`/scope when the user
 needs provenance. For a synthesized, citation-bearing answer use the
 `answer` action instead.
 
-**Architecture-wiki doctrine** lives in the knowledge store under `wiki:`
-scopes (e.g. `wiki:architecture` — planes, storage doctrine, event grammar,
-ADR rationale): recall it with `knowledge.recall` /
+**Steering doctrine** (the governance rules, 7 steering types) lives in the
+knowledge store under `wiki:` scopes (a historical prefix — e.g.
+`wiki:architecture`: planes, storage doctrine, event grammar, ADR
+rationale): recall it with `knowledge.recall` /
 `{"scope_prefix": "wiki:"}` via `answer`, and recall the *enforceable* rules
 behind it with the estate MCP `rules.recall` tool (faceted, severity-ordered,
-each hit citing its source doc). Authoring/seeding/retiring the wiki is
-operator work — see wicked-core's `crates/wicked-governance/WIKI.md`.
+each hit citing its source doc). Managing steering (import / chat / edit /
+retire) is operator work — see `crates/wicked-governance/STEERING.md`
+in wicked-core.
 
 ## Review / Maintain
 

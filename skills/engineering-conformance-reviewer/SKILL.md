@@ -45,10 +45,11 @@ whether the artifact or diff actually violates each applicable rule.
    language/layer/framework facets to narrow). Each rule has:
    `id` (PAT-NNN), `statement` (the pattern text), `severity`, `targets`
    (language/layer/framework facets — absent = wildcard), and a provenance
-   ref (`<doc>@<blob sha>#<RULE-ID>`) — the architecture-wiki doc that minted
-   the rule; cite it in findings so a reviewer can read the doctrine behind
-   the verdict. (Rules are authored as wiki docs, never written by agents —
-   the lifecycle is wicked-core's `crates/wicked-governance/WIKI.md`.)
+   ref (`<doc>@<blob sha>#<RULE-ID>`) — the Steering doc that minted the
+   rule; cite it in findings so a reviewer can read the doctrine behind the
+   verdict. (Steering rules are authored by doc PR or through crew's
+   governed UI/chat surface — never via this MCP, which stays read-only;
+   the lifecycle is wicked-core's `crates/wicked-governance/STEERING.md`.)
 
 2. **Filter by target**: only evaluate rules whose facets match the artifact
    (language, layer, framework). Absent facets match everything.

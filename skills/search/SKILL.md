@@ -47,7 +47,7 @@ graph via the drop-in TOML rules in
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
 | `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
 
-Doctrine / which-rules-apply: the **architecture wiki** is in the same stores — `knowledge.recall {"scope_prefix": "wiki:"}` + estate MCP `rules.recall` (cited); lifecycle: wicked-core `crates/wicked-governance/WIKI.md`.
+Doctrine / which-rules-apply: **Steering** (the governance rules, 7 steering types) is in the same stores — `knowledge.recall {"scope_prefix": "wiki:"}` (historical prefix) + estate MCP `rules.recall` (cited, read-only); management: wicked-core `crates/wicked-governance/STEERING.md`.
 
 ## Index / freshness (shared by every action)
 
