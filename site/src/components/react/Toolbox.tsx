@@ -168,7 +168,7 @@ export default function Toolbox() {
         <p className="tb-intro">
           Your harness plans, swarms, and ships. These are the six things a
           planner-executor genuinely can’t do on its own — and they’re a sample:{" "}
-          the full catalog runs to 141 skills across 14 domains. It plays itself; click any tool to pin it.
+          the full catalog runs to 142 skills across 14 domains. It plays itself; click any tool to pin it.
         </p>
       </Reveal>
 
