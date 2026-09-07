@@ -64,7 +64,7 @@ The dogfood findings were patches on a foundation that was wrong-shaped.
 
 ## The reframe
 
-Instead of one pipeline + a rigor dial, v11 has **9 archetypes**, each
+Instead of one pipeline + a rigor dial, v11 has **10 archetypes**, each
 with its own:
 
 - **Phase shape** — the actual phase order for that kind of work.
@@ -86,6 +86,7 @@ The archetypes:
 | incident  | triage → investigate → mitigate → resolve → followup    | mitigation / RCA / followup    | hard:mitigate         |
 | build     | plan → implement → test → review                        | shipped code / test report     | discrete:review       |
 | migrate   | plan → expand → backfill → cutover → contract           | shape change / rollback proof  | hard:cutover          |
+| modernize | discover → extract → blueprint → transform → parity → cutover | modernization blueprint / parity proof | hard:cutover-gate |
 
 Each archetype is self-contained. Phase names are NOT shared across
 archetypes — `plan` in `build` is not `plan` in `migrate`. We
@@ -188,12 +189,12 @@ See `CHANGELOG.md` v11.0.0 for the comprehensive list. Headlines:
 
 ## How to extend
 
-Adding a 10th archetype:
+Adding an 11th archetype:
 
 1. Add an entry to `.claude-plugin/archetypes.json`. Declare phases,
    produces, HITL, signals, etc.
 2. Write `skills/archetype/refs/{name}.md` — the playbook for the
-   archetype, ~70-100 lines, following the template of the existing 9.
+   archetype, ~70-100 lines, following the template of the existing 10.
 3. Register the new work-shape in `skills/archetype/SKILL.md` — add it to the
    dispatch table so `/wicked-garden-archetype {name}` loads its playbook. (The
    plugin is skills-only: there is no per-archetype command file; the archetype

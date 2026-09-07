@@ -2,16 +2,16 @@
 
 Detailed guides for getting the most out of wicked-garden.
 
-Work in wicked-garden is organized around **9 work-shape archetypes** — not a fixed pipeline. Each prompt classifies into one or more archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate); each owns its own phase shape, produces contract, and HITL discipline.
+Work in wicked-garden is organized around **10 work-shape archetypes** — not a fixed pipeline. Each prompt classifies into one or more archetypes (triage, explore, specify, decide, ship, review, incident, build, migrate, modernize); each owns its own phase shape, produces contract, and HITL discipline.
 
 ## Guides
 
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](getting-started.md) | Installation, required peers, first session, common workflows |
-| [Archetypes](v11/archetypes.md) | The 9 work-shape archetypes — why the universal pipeline went away |
-| [Domains](domains.md) | The 10 domain skills archetypes invoke for expertise |
-| [Required Peers](required-peers.md) | The five required peer plugins and the install/runtime stance |
+| [Archetypes](v11/archetypes.md) | The 10 work-shape archetypes — why the universal pipeline went away |
+| [Domains](domains.md) | The 9 domain skills archetypes invoke for expertise |
+| [Required Peers](required-peers.md) | The one required peer (plus the opt-in layers) and the install/runtime stance |
 | [The Compiler](compiler.md) | `/wicked-garden-prove compile` — emit a self-contained vault-backed gate into any repo |
 | [Extending the Catalog](extending.md) | Ship a third-party pack — `{vendor}-{domain}-{role}` skills, the `wicked-pack.json` manifest, the shipped conformance gate, install + crew routing |
 | [Output Governance (Per-Turn)](outgov-per-turn.md) | The advisory hook lane — `WG_OUTGOV` modes (default `warn`), `rules.recall` as the single per-turn rule source, content-hash provenance for the graph-derived rules dir |
