@@ -118,19 +118,23 @@ depends on, and what would break** — that is the input to phase 4.
 
 ## Phase 4 — capture: memories AND policies as proposals
 
-Turn understanding into two kinds of durable, reviewable record via the estate
+Turn understanding into two kinds of reviewable record via the estate
 MCP **`proposal.submit`** tool (inert queue; a PERMITTED safe write even under
 `--readonly`). Full contract, payloads, facets, and derivation heuristics:
-[refs/capture-proposals.md](refs/capture-proposals.md). The essentials:
+[refs/capture-proposals.md](refs/capture-proposals.md). The essentials — use the
+enum values EXACTLY as written (an out-of-enum `tier` or `severity` is rejected
+when the proposal is approved, so the learning is lost):
 
 - **Memory** — what is *true* about this repo. `kind_type: "memory"`,
-  `payload: {"content": "<1–3 sentences>", "tier": "semantic"|"procedural"}`,
+  `payload: {"content": "<1–3 sentences>", "tier": <one of working|episodic|semantic|procedural|archival>}`
+  — for a repo learning use `"semantic"` (a fact/decision) or `"procedural"`
+  (a how-to/convention); NEVER invent a tier like `"durable"`.
   `facets: {"repo": "<name>", "project": "<name>"}`.
 - **Policy** — what *should hold*. `kind_type: "policy:<type>"` where `<type>` ∈
   architecture · development · security · testing · operations · compliance ·
-  design-ux; `payload: {"rule": "<imperative>", "severity":
-  "info"|"warn"|"error"|"critical"}`, `facets: {"repo": "<name>", "project":
-  "<name>", "language": "<lang>"}`.
+  design-ux; `payload: {"rule": "<imperative>", "severity": <one of info|warn|error|critical>}`
+  — the middle band is `"warn"`, not `"warning"`. `facets: {"repo": "<name>",
+  "project": "<name>", "language": "<lang>"}`.
 - **Never pass `provenance`** — the server stamps it from `WICKED_RUN_*`. Passing
   it is at best ignored; treat provenance as not yours to set.
 - Derive **both** per target where the 2×2 warrants it: the memory records the
