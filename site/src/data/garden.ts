@@ -4,7 +4,7 @@
    what agents act through. The toolkit for what a coding agent can't do alone.
    The soul: "done is re-derived from evidence, never asserted."
    All claims code-grounded against the wicked-garden repo (skills/**,
-   .claude-plugin/plugin.json v12.31.0): 141 SKILL.md across 14 domain groups,
+   .claude-plugin/plugin.json v12.32.0): 142 SKILL.md across 14 domain groups,
    40 qe-* specialist fork skills + the 3-agent acceptance pipeline (absorbed
    from the retired wicked-testing plugin in Phase 6b/6c), the estate-backed // historical
    mem + search + patch stack, and the open {vendor}-{domain}-{role} naming
@@ -113,10 +113,10 @@ export const TOOLS: Tool[] = [
   {
     id: "council",
     name: "council",
-    kind: "multi-model panel",
+    kind: "multi-model router · panel",
     hue: "solo",
-    gap: "asks itself for a second opinion",
-    fill: "Convenes a real panel of independent external models (Antigravity · Codex · …) — a second opinion that isn’t the model grading itself.",
+    gap: "asks itself for a second opinion — and routes on a hunch",
+    fill: "The multi-model council IS the router: a real panel of independent external models (Antigravity · Codex · …) that classifies the work and returns a second opinion the model can’t grade itself. It absorbed the retired wicked-signals — routing is the council’s job now.",
     cmd: "wicked-garden-jam",
     cmdLabel: "garden skill · council",
   },
@@ -133,21 +133,21 @@ export const TOOLS: Tool[] = [
   {
     id: "mem",
     name: "mem",
-    kind: "estate-backed memory",
+    kind: "estate-backed memory · propose",
     hue: "solo",
-    gap: "forgets everything when the session ends",
-    fill: "Cross-session memory + knowledge on wicked-estate — store decisions, ingest documents (vision-parsed PDFs included), and get cited answers back from the record.",
+    gap: "forgets the session — and asserts what it ‘learned’ as fact",
+    fill: "Cross-session memory + knowledge on wicked-estate — store decisions, ingest documents (vision-parsed PDFs included), get cited answers back. It’s also the propose surface: agents submit captured memories and derived policies as inert proposals a human promotes — never asserted as fact.",
     cmd: "wicked-garden-mem",
-    cmdLabel: "garden skill · store / recall / answer",
+    cmdLabel: "garden skill · store / recall / answer / propose",
   },
 ];
 
 /* ── The wider surface — the 14 domains the toolbox samples from ─────────────
    Every chip below is a real skill or routed action in the repo (skills/<dir>/).
-   Counts are honest: 141 SKILL.md under skills/** folded into these 14 domain
+   Counts are honest: 142 SKILL.md under skills/** folded into these 14 domain
    groups (per-domain routers, routed actions, and fork workers), 10 work-shapes
-   — verified against skills/** at v12.31.0 (141 SKILL.md on disk; the 14
-   domain counts below sum to 141; 40 qe-* specialist dirs). This is an
+   — verified against skills/** at v12.32.0 (142 SKILL.md on disk; the 14
+   domain counts below sum to 142; 40 qe-* specialist dirs). This is an
    editorial verification claim — re-verify by hand on a version bump; the
    RENDERED version stamp itself is build-time injected and never stales. */
 export interface Domain {
@@ -172,7 +172,7 @@ export const DOMAINS: Domain[] = [
     id: "product",
     name: "product & UX",
     hue: "creation",
-    blurb: "Vague ask → SMART criteria, UX & a11y review, mockups, visual direction, user-signal synthesis.",
+    blurb: "Vague ask → SMART criteria that land in estate’s requirements graph — the forward source of truth; plus UX & a11y review, mockups, visual direction, user-signal synthesis.",
     count: 25,
     cmds: ["requirements-analysis", "acceptance-criteria", "ux-review", "accessibility", "mockup", "strategy"],
   },
@@ -220,7 +220,7 @@ export const DOMAINS: Domain[] = [
     id: "domain",
     name: "domain modeling",
     hue: "creation",
-    blurb: "Extract the domain from the codebase — testable business rules with confidence + provenance, on estate's graph.",
+    blurb: "Extract the domain from the codebase — testable business rules with confidence + provenance, projected onto estate's graph as the forward source of truth.",
     count: 4,
     cmds: ["domain", "domain-extractor", "domain-coverage", "domain-modeler"],
   },
@@ -228,15 +228,15 @@ export const DOMAINS: Domain[] = [
     id: "mem",
     name: "memory & knowledge",
     hue: "solo",
-    blurb: "Estate-backed memory — store / recall / cited answers; document ingest (binary docs via vision); session capture.",
-    count: 3,
-    cmds: ["store", "recall", "answer", "ingest", "capture"],
+    blurb: "Estate-backed memory — store / recall / cited answers; ingest and session capture; plus repo-learn, which derives memories and policies as inert estate proposals. Agents propose; humans promote.",
+    count: 4,
+    cmds: ["store", "recall", "answer", "ingest", "capture", "repo-learn"],
   },
   {
     id: "jam",
     name: "multi-model",
     hue: "solo",
-    blurb: "A second opinion that isn’t self-grading — an independent external-model panel and facilitator.",
+    blurb: "The multi-model council IS the router — an independent external-model panel that classifies the work and returns a second opinion that isn’t self-grading. It absorbed the retired wicked-signals.",
     count: 3,
     cmds: ["council", "brainstorm", "multi-model"],
   },
@@ -479,7 +479,7 @@ export const G = {
   ownTools: TOOLS.length,
   peers: PEERS.length,
   domains: DOMAINS.length,   // 14
-  skills: 141,               // real SKILL.md count under skills/**
+  skills: 142,               // real SKILL.md count under skills/**
   qeSpecialists: QE_SPECIALISTS.length, // 40
   workShapes: 10,
 };
