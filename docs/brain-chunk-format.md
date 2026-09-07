@@ -9,7 +9,7 @@
 > today, use wicked-garden's `mem` domain (`wicked-garden-mem` `store`/`ingest`)
 > over wicked-estate. Everything below is historical reference only.
 
-This document defines the wicked-brain chunk format so any CLI (Claude Code, Codex, Gemini, Copilot) can write chunks that integrate into the shared knowledge graph.
+This document defines the wicked-brain chunk format so any CLI (Claude Code, Antigravity, Codex, OpenCode, Pi) can write chunks that integrate into the shared knowledge graph.
 
 ## Chunk File Structure
 

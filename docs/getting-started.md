@@ -50,7 +50,7 @@ fail-soft (degrades to `🌱 wg │ idle`), and never blocks a render.
 
 ## Your First Session
 
-There is no fixed pipeline. Work is organized around **9 work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, and `migrate`. Each archetype owns its own phase shape, what it produces, and how much human-in-the-loop discipline it demands. After installing, you can invoke any skill immediately. Here are five ways to start:
+There is no fixed pipeline. Work is organized around **10 work-shape archetypes** — `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, `migrate`, and `modernize`. Each archetype owns its own phase shape, what it produces, and how much human-in-the-loop discipline it demands. After installing, you can invoke any skill immediately. Here are five ways to start:
 
 ### 1. Just Describe What You Want
 
@@ -73,7 +73,7 @@ When you already know the shape of the work, skip auto-routing and call the arch
 /wicked-garden-archetype decide "Redis vs Postgres for session storage"
 ```
 
-All nine are available: `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, `migrate`. Gates re-derive "done" through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable; sign-off is evidence-backed, never self-asserted.
+All ten are available: `triage`, `explore`, `specify`, `decide`, `ship`, `review`, `incident`, `build`, `migrate`, `modernize`. Gates re-derive "done" through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable; sign-off is evidence-backed, never self-asserted.
 
 ### 3. Use a Domain Skill Directly
 
@@ -201,7 +201,7 @@ Your data is stored locally in `~/.something-wicked/wicked-garden/` as JSON file
 
 ## Next Steps
 
-- [Archetypes](v11/archetypes.md) — the 9 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
+- [Archetypes](v11/archetypes.md) — the 10 work-shapes: phases, produces, human-in-the-loop (HITL) discipline, cost bands
 - [Required Peers](required-peers.md) — wicked-vault, wicked-estate, wicked-bus
 - [Compiler](compiler.md) — emit a standalone, vault-backed build gate into any repo
 - [Domains](domains.md) — browse the domain skills and their actions
