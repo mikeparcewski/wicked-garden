@@ -33,14 +33,16 @@ never swallow.
 
 `policy:` must be suffixed with exactly one: `architecture` · `development` ·
 `security` · `testing` · `operations` · `compliance` · `design-ux`. These are the
-estate/steering steering types — pick the one the rule governs, not a freeform tag.
+estate/steering types — pick the one the rule governs, not a freeform tag.
 
 ## Memory payload + facets
 
 ```json
-kind_type: "memory"
-payload:   { "content": "<1–3 self-contained sentences>", "tier": "semantic" }
-facets:    { "repo": "<repo-name>", "project": "<project-name>" }
+{
+  "kind_type": "memory",
+  "payload": { "content": "<1–3 self-contained sentences>", "tier": "semantic" },
+  "facets": { "repo": "<repo-name>", "project": "<project-name>" }
+}
 ```
 
 - `content` — distilled, self-contained: the *why* and *what* a future session
@@ -57,9 +59,11 @@ facets:    { "repo": "<repo-name>", "project": "<project-name>" }
 ## Policy payload + facets
 
 ```json
-kind_type: "policy:architecture"
-payload:   { "rule": "<imperative statement of what must hold>", "severity": "error" }
-facets:    { "repo": "<repo-name>", "project": "<project-name>", "language": "<lang>" }
+{
+  "kind_type": "policy:architecture",
+  "payload": { "rule": "<imperative statement of what must hold>", "severity": "error" },
+  "facets": { "repo": "<repo-name>", "project": "<project-name>", "language": "<lang>" }
+}
 ```
 
 - `rule` — an imperative the code should satisfy, phrased so a reviewer can judge

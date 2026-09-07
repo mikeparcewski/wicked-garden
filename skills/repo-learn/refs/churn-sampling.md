@@ -144,12 +144,17 @@ at the subsystem level. You can run file-level and rollup both and present each.
 PowerShell. `git log` itself is cross-platform; only the counting pipe isn't.
 Feed git's output to a stdlib Python counter (per the repo's cross-platform rule):
 
+Save the counter below as `churn_count.py`, then pipe git's output through it —
+NOT `python3 -` (in a pipe, stdin is git's output, so `-` would try to run that
+output as the program):
+
 ```bash
 git log --since="12.months" --no-renames --name-only --pretty=format: --max-count=2000 -- . \
-  | python3 - 40 2>/dev/null || git log --since="12.months" --no-renames --name-only --pretty=format: --max-count=2000 -- . | python - 40
+  | python3 churn_count.py 40 2>/dev/null \
+  || git log --since="12.months" --no-renames --name-only --pretty=format: --max-count=2000 -- . | python churn_count.py 40
 ```
 
-with this counter on stdin (save as a scratch file or inline via `-c`):
+with this counter saved as `churn_count.py`:
 
 ```python
 import sys, collections, re
