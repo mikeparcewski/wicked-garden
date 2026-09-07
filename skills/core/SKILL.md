@@ -89,6 +89,7 @@ Each domain is one consolidated skill that routes to its actions.
 | `wicked-garden-platform` | Security, infrastructure, compliance, CI/CD, incidents, traces, and plugin diagnostics | security · compliance · incident · health |
 | `wicked-garden-product` | Requirements, customer feedback, strategy, UX, accessibility, and design review | elicit · acceptance · analyze · strategy · ux-review |
 | `wicked-garden-qe` | Evidence-gated quality engineering: strategy, scenario authoring, execution, independent verdicts, ledger insight, and the 3-agent acceptance pipeline | setup · plan · author · execute · review · insight · accept |
+| `wicked-garden-repo-learn` | Learn an unfamiliar repo (churn → hotspots → read the load-bearing intersection) and capture BOTH memories and policies as inert estate proposals a human reviews | churn · hotspots · read · capture |
 | `wicked-garden-search` | Structural code search, lineage, blast-radius, and codebase intelligence | blast-radius · lineage · hotspots · service-map · index |
 | `wicked-garden-smaht` | On-demand context assembly + session briefing from the knowledge layer, search, and the event log | briefing · state · events-import · intent |
 
