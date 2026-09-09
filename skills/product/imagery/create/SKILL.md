@@ -34,7 +34,7 @@ AI-powered image generation from text prompts. Supports multiple providers throu
 
 ```bash
 # Check which providers are available
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" detect
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" detect
 ```
 
 The provider abstraction selects the best available provider automatically. A specific provider can be forced when needed.
@@ -74,12 +74,12 @@ For detailed prompt engineering techniques, see [refs/prompt-engineering.md](ref
 
 ```bash
 # Basic generation (auto-detects best available provider)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" generate \
   --prompt "Your crafted prompt" \
   --output ./output/v1.png
 
 # Use a specific provider
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/imagery/scripts/provider.py" generate \
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" generate \
   --prompt "Your crafted prompt" \
   --provider openai \
   --output ./output/v1.png

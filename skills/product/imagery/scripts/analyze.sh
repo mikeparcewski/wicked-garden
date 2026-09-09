@@ -19,5 +19,5 @@ if [ -z "$IMAGE" ]; then
 fi
 
 echo "Image analysis for '$IMAGE' should be performed by reading the file directly."
-echo "See: skills/imagery/review/SKILL.md"
+echo "See: skills/product/imagery/review/SKILL.md"
 exit 0

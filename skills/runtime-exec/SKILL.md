@@ -21,7 +21,8 @@ or `py -3` based on what's available and handles macOS, Linux, and Windows
 in one call. Bare `python3` is not available on Windows.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/some/script.py"
+# <path/to/script.py> is a placeholder for the script to run
+sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" <path/to/script.py>
 ```
 
 The detection logic below is reference material for skills that need a

@@ -50,22 +50,13 @@ PLUGIN_PATH_RE = re.compile(
     r"\$\{CLAUDE_PLUGIN_ROOT\}/([A-Za-z0-9_./{}-]+\.(?:md|py|json|sh|mjs))"
 )
 
-# Pre-existing dangling paths that predate the skills-only conversion — they
-# are documentation placeholders or already-filed staleness, not conversion
-# regressions. Keep this list tight; anything new here is a real failure.
-KNOWN_DANGLING_PATHS = {
-    # Doc example placeholder ("some/script.py") in the runtime-exec skill.
-    "scripts/some/script.py",
-    # Pre-existing stale pointer in the user-story guide (predates v12.25).
-    "scripts/user-story-template.sh",
-    # Pre-existing stale pointer: imagery moved under skills/product/ but its
-    # sub-skills still reference the old skills/imagery/ location.
-    "skills/imagery/scripts/provider.py",
-    # Pre-existing stale pointers (v12.21 cleanup): the requirements templates
-    # directory was cut but the output-format ref still documents it.
-    "templates/requirements-minimal.md",
-    "templates/requirements-full.md",
-}
+# Dangling paths this suite deliberately tolerates. Emptied by #1111: the five
+# pre-existing entries (the imagery provider.py path left behind by the move
+# under skills/product/, the two requirements templates cut in v12.21, the
+# never-shipped user-story generator script, and the runtime-exec doc
+# placeholder) were fixed at the source, so any of them dangling again is a
+# real failure. Anything added here hides a broken skill body — fix the body.
+KNOWN_DANGLING_PATHS: set[str] = set()
 
 
 def _skill_md_files() -> list[Path]:
