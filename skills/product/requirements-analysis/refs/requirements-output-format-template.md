@@ -226,19 +226,19 @@ Requirements should be saved to:
 
 ## Templates
 
-### Quick Start Template
-```bash
-# Copy minimal template for new requirements
-cp "${CLAUDE_PLUGIN_ROOT}/templates/requirements-minimal.md" \
-   requirements.md
-```
+Both skeletons live in this document — there is no separate `templates/`
+directory to copy from (it was cut in v12.21). Start a new document by copying
+the fenced markdown block from the matching section above and filling in the
+`{placeholders}`:
 
-### Full Template
-```bash
-# Copy full template for comprehensive analysis
-cp "${CLAUDE_PLUGIN_ROOT}/templates/requirements-full.md" \
-   requirements.md
-```
+- **Quick start** — the **Minimal Output Format** section, for smaller
+  features or rapid analysis (3-5 core stories, out of scope, open questions).
+- **Full** — the **Standard Output Structure** section, for a comprehensive
+  analysis (personas, functional + non-functional requirements, scope,
+  dependencies, risks, traceability).
+
+Save the result where **Output Delivery** says (`requirements.md`, or
+`phases/requirements/analysis.md` inside a project workflow).
 
 ## Resources
 

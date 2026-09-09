@@ -1,6 +1,7 @@
 #!/bin/bash
 # edit.sh - Delegates to provider.py for multi-provider image editing
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)}"
+# skills/product/imagery/scripts/ -> plugin root is four levels up.
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "$0")/../../../.." && pwd)}"
 
 IMAGE="$1"
 PROMPT="$2"
@@ -11,4 +12,4 @@ if [ -z "$IMAGE" ] || [ -z "$PROMPT" ]; then
   exit 1
 fi
 
-python3 "${PLUGIN_ROOT}/skills/imagery/scripts/provider.py" edit --image "$IMAGE" --prompt "$PROMPT" --output "$OUT_FILE"
+python3 "${PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" edit --image "$IMAGE" --prompt "$PROMPT" --output "$OUT_FILE"

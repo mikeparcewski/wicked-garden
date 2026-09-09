@@ -291,6 +291,8 @@ Use this template when creating new user stories:
 
 ## Resources
 
-- Domain-specific examples: `skills/requirements-analysis/refs/story-examples/`
-- Generate template: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/user-story-template.sh"`
+- Domain-specific examples: `requirements-example-auth.md` and
+  `requirements-example-export-integration.md` in this skill's `refs/`
+- New-story skeleton: copy the fenced block in the **Template for New Stories**
+  section above (there is no generator script)
 - Validate against INVEST criteria checklist above

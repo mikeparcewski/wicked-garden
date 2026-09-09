@@ -32,7 +32,9 @@ is portable by directory copy.
 
 ## 2. `manifest.json` Schema (public)
 
-Formal JSON Schema: [`schemas/evidence.json`](../schemas/evidence.json)
+Formal JSON Schema: `schemas/evidence.json`, shipped in the `wicked-vault` npm
+package (not vendored in this plugin — resolve it locally with
+`ls "$(npm root -g)/wicked-vault/schemas/evidence.json"`).
 
 ```jsonc
 {
