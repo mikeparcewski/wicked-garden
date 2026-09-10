@@ -18,21 +18,34 @@
  * Options:
  *   --claude-home <dir>   Config dir to target (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude)
  *                         — install/update/status
- *   --dry-run             Print what would be copied/synced, write nothing, never run uv
+ *   --dry-run             Print what would be copied/synced, write nothing, spawn nothing
  *                         — install/update only (status is read-only and rejects it)
  *
  * --claude-home / --dry-run belong to install/update/status only; given with any other
  * command (`--dry-run pack check`, `--version --dry-run`) they are a usage error rather
  * than being silently ignored while the command runs for real. Pack verbs own their flags.
  *
- * Exit codes: 0 ok · 1 install/status failure (refused symlink, copy error, uv sync failed)
- *             · 2 usage (unknown command/option, bad --claude-home value, CLAUDE_CONFIG_DIR
- *             set but naming no directory, install-only flag on another command).
+ * How a copy lands (stage → verify → atomic swap): the plugin is copied into a staging
+ * directory this run creates — `plugins/.staging-wicked-garden-<pid>-<hex>` — so no
+ * pre-existing symlink can ever be written through; the staged tree is lstat-walked
+ * (no symlinks, realpath-contained), then swapped into `plugins/wicked-garden` with
+ * rename(2); a previous copy is moved to `plugins/.old-wicked-garden-<pid>-<hex>` and
+ * removed once the swap succeeded (restored if it fails). Those two transient names are
+ * NOT plugins — a leftover after an interrupted install is safe to delete (status lists them).
+ *
+ * Exit codes: 0 ok · 1 install/status failure (refused symlink, copy/swap error, unreadable
+ *             manifest, uv sync failed) · 2 usage (unknown command/option, bad --claude-home
+ *             value, CLAUDE_CONFIG_DIR set but naming no directory, install-only flag on
+ *             another command).
  */
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
-import { join, dirname, resolve, sep } from "node:path";
+import {
+  closeSync, constants, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync,
+  readdirSync, readFileSync, realpathSync, renameSync, rmSync,
+} from "node:fs";
+import { join, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
+import { randomBytes } from "node:crypto";
 import { execSync, spawnSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,6 +56,10 @@ const PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BU
 const SKIP         = [/__pycache__/, /\.pyc$/, /\.pyo$/, /\.DS_Store$/];
 // Dev-only subdirs within scripts/ — not needed at runtime
 const SCRIPTS_DEV  = ["ci", "wg"];
+
+// Transient names used during a swap. Never treated as plugins; safe to delete if left over.
+const STAGING_PREFIX = ".staging-wicked-garden-";
+const OLD_PREFIX     = ".old-wicked-garden-";
 
 const REGISTER_NOTE =
   "copied (unregistered). Claude Code loads plugins through its marketplace registry — " +
@@ -76,14 +93,15 @@ function findBin(name) {
 
 class UsageError extends Error {}
 
-// A value-taking flag never swallows the next option: `--claude-home --dry-run`
-// is a missing value, not a directory called "--dry-run".
+// A value-taking flag never swallows an option, in either form: `--claude-home --dry-run`,
+// `--claude-home=--dry-run` and `--claude-home=-x` are errors, as are empty/blank values.
+// A directory whose name really starts with "-" is written `./-x` or as an absolute path.
 function claudeHomeValue(value, form) {
   if (value === undefined || value.trim() === "") {
     throw new UsageError(`${form} requires a directory`);
   }
-  if (form === "--claude-home" && value.startsWith("-")) {
-    throw new UsageError(`--claude-home requires a directory (got option "${value}"); use --claude-home=<dir> or an absolute path for a directory whose name starts with "-"`);
+  if (value.trim().startsWith("-")) {
+    throw new UsageError(`${form} requires a directory (got option-like value "${value}"); write ./${value} or an absolute path for a directory whose name starts with "-"`);
   }
   return value;
 }
@@ -115,12 +133,11 @@ function parseArgs(argv) {
 // Target resolution — the same rule as wicked-installer (install-claude.ts) so
 // both tools land in the same config dirs:
 //   1. --claude-home flags are the full set (trusted; created if absent);
-//   2. CLAUDE_CONFIG_DIR is authoritative and exclusive when set — it may list
-//      several dirs, split on the platform list separator + ','. Set but naming
-//      no directory (e.g. ":,", blanks) is an error, never a silent ~/.claude;
-//      the empty string counts as unset (the ${CLAUDE_CONFIG_DIR:-~/.claude}
-//      convention the shipped Python already follows);
-//   3. otherwise ~/.claude.
+//   2. CLAUDE_CONFIG_DIR is authoritative and exclusive when PRESENT in the
+//      environment — it may list several dirs, split on the platform list
+//      separator + ','. Present but naming no directory ("" / ":,", blanks) is an
+//      error, never a silent ~/.claude;
+//   3. only when the key is absent: ~/.claude.
 // ---------------------------------------------------------------------------
 
 function expandHome(value) {
@@ -138,7 +155,7 @@ function resolveClaudeHomes(claudeHomes, env = process.env) {
   if (claudeHomes.length > 0) {
     dirs = claudeHomes;
     origin = "--claude-home";
-  } else if (env.CLAUDE_CONFIG_DIR !== undefined && env.CLAUDE_CONFIG_DIR !== "") {
+  } else if ("CLAUDE_CONFIG_DIR" in env) {
     dirs = splitConfigDirValue(env.CLAUDE_CONFIG_DIR);
     origin = "CLAUDE_CONFIG_DIR";
     if (dirs.length === 0) {
@@ -154,36 +171,95 @@ function resolveClaudeHomes(claudeHomes, env = process.env) {
     const dir = resolve(expandHome(raw));
     if (seen.has(dir)) continue;
     seen.add(dir);
-    out.push({ dir, dest: join(dir, "plugins", "wicked-garden"), origin });
+    out.push({ dir, pluginsDir: join(dir, "plugins"), dest: join(dir, "plugins", "wicked-garden"), origin });
   }
   return out;
 }
 
 // ---------------------------------------------------------------------------
 // Symlink containment. The config dir itself may be a symlink (dotfiles-managed
-// ~/.claude is common and we never create it when it exists); the components we
-// OWN under it — plugins/, plugins/wicked-garden, .claude-plugin/, the manifest —
-// are never followed: a symlink there is refused, and after a copy the
-// destination's realpath must still resolve inside the config dir's realpath.
+// ~/.claude is common and we never create it when it exists). Under it we never
+// write into a pre-existing tree: the copy goes into a staging dir THIS run
+// created (nothing can be planted inside it), is lstat-walked, and is swapped in
+// with rename(2). plugins/ and plugins/wicked-garden themselves are refused when
+// symlinked, and manifests are opened O_NOFOLLOW. Residual (documented, same
+// discipline as crew's v3.5): a parent directory swapped between our verify and
+// our use — the window between lstat/realpath and the following syscall.
 // ---------------------------------------------------------------------------
 
+function lstatOrNull(p) {
+  try { return lstatSync(p); } catch (err) { if (err.code === "ENOENT") return null; throw err; }
+}
+
 function isSymlink(p) {
-  try { return lstatSync(p).isSymbolicLink(); } catch { return false; }
+  const st = lstatOrNull(p);
+  return st !== null && st.isSymbolicLink();
 }
 
-function ownedPaths(home, dest) {
-  return [join(home, "plugins"), dest, join(dest, ".claude-plugin"), join(dest, ".claude-plugin", "plugin.json")];
+// Both sides are realpaths. path.relative() must neither climb out nor be absolute;
+// Windows paths are case-insensitive and realpath may re-case the drive letter.
+function isContained(rootReal, targetReal) {
+  const norm = (p) => (process.platform === "win32" ? p.toLowerCase() : p);
+  const rel = relative(norm(rootReal), norm(targetReal));
+  return rel === "" || (rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel));
 }
 
-function findSymlink(home, dest) {
-  return ownedPaths(home, dest).find(isSymlink);
+function assertContained(root, target, what) {
+  const rootReal = realpathSync(root);
+  const targetReal = realpathSync(target);
+  if (!isContained(rootReal, targetReal)) {
+    throw new Error(`refusing: ${what} ${target} resolves to ${targetReal}, outside ${rootReal}`);
+  }
 }
 
-function assertContained(home, dest) {
-  const realHome = realpathSync(home);
-  const realDest = realpathSync(dest);
-  if (realDest !== realHome && !realDest.startsWith(realHome + sep)) {
-    throw new Error(`refusing: ${dest} resolves to ${realDest}, outside ${realHome}`);
+// Walk a tree with lstat: no symlink anywhere, every directory realpath-contained in root.
+function verifyTree(root) {
+  const rootReal = realpathSync(root);
+  const stack = [root];
+  let entries = 0;
+  while (stack.length > 0) {
+    const dir = stack.pop();
+    for (const name of readdirSync(dir)) {
+      const p = join(dir, name);
+      const st = lstatSync(p);
+      if (st.isSymbolicLink()) throw new Error(`refusing: ${p} is a symlink (wicked-garden never follows symlinks under plugins/)`);
+      entries += 1;
+      if (st.isDirectory()) {
+        if (!isContained(rootReal, realpathSync(p))) throw new Error(`refusing: ${p} escapes ${rootReal}`);
+        stack.push(p);
+      }
+    }
+  }
+  return entries;
+}
+
+// Read a file without following a symlink at the final component: O_NOFOLLOW where
+// the platform has it (POSIX), lstat-then-read on win32 (TOCTOU residual, see above).
+function readNoFollow(p) {
+  if (constants.O_NOFOLLOW !== undefined) {
+    const fd = openSync(p, constants.O_RDONLY | constants.O_NOFOLLOW);
+    try {
+      if (!fstatSync(fd).isFile()) throw new Error(`${p} is not a regular file`);
+      return readFileSync(fd, "utf8");
+    } finally {
+      closeSync(fd);
+    }
+  }
+  const st = lstatSync(p);
+  if (st.isSymbolicLink()) throw new Error(`${p} is a symlink`);
+  if (!st.isFile()) throw new Error(`${p} is not a regular file`);
+  return readFileSync(p, "utf8");
+}
+
+function transientName(prefix) {
+  return `${prefix}${process.pid}-${randomBytes(4).toString("hex")}`;
+}
+
+function leftoverTransients(pluginsDir) {
+  try {
+    return readdirSync(pluginsDir).filter(n => n.startsWith(STAGING_PREFIX) || n.startsWith(OLD_PREFIX)).map(n => join(pluginsDir, n));
+  } catch {
+    return [];
   }
 }
 
@@ -194,44 +270,87 @@ function planCopies() {
   };
 }
 
+// Stage → verify → swap for one config dir. On any failure the staging dir is removed
+// and a previous copy is left (or put back) exactly where it was.
+function stageAndSwap({ dir: home, pluginsDir, dest }, { dirs, files }) {
+  mkdirSync(pluginsDir, { recursive: true });
+  assertContained(home, pluginsDir, "plugins dir");
+  const staging = join(pluginsDir, transientName(STAGING_PREFIX));
+  mkdirSync(staging); // not recursive: must not pre-exist (EEXIST is a failure, not a reuse)
+  console.log(`  staging: ${staging}`);
+  try {
+    for (const d of dirs) {
+      process.stdout.write(`  ${d}/... `);
+      cpSync(join(__dirname, d), join(staging, d), { recursive: true, force: true, filter: (s) => !skip(s) });
+      console.log("done");
+    }
+    for (const f of files) {
+      cpSync(join(__dirname, f), join(staging, f), { force: true });
+    }
+    const entries = verifyTree(staging);
+    assertContained(home, staging, "staging dir");
+
+    const finalSt = lstatOrNull(dest);
+    if (finalSt && finalSt.isSymbolicLink()) {
+      throw new Error(`refusing to install: ${dest} is a symlink (wicked-garden never follows symlinks under plugins/)`);
+    }
+    let old;
+    if (finalSt) {
+      old = join(pluginsDir, transientName(OLD_PREFIX));
+      renameSync(dest, old);
+    }
+    try {
+      renameSync(staging, dest);
+    } catch (err) {
+      if (old) { try { renameSync(old, dest); } catch { /* previous copy could not be restored; reported below */ } }
+      throw err;
+    }
+    if (old) rmSync(old, { recursive: true, force: true });
+    console.log(`  swapped ${entries} entries into ${dest}${old ? " (previous copy replaced)" : ""}`);
+  } catch (err) {
+    rmSync(staging, { recursive: true, force: true });
+    throw err;
+  }
+
+  // Post-swap re-verify: the tree we just installed, in place (see the residual note above).
+  verifyTree(dest);
+  assertContained(home, dest, "plugin dir");
+  const installed = JSON.parse(readNoFollow(join(dest, ".claude-plugin", "plugin.json")));
+  if (installed.version !== pkg.version) {
+    throw new Error(`post-install verification failed: ${dest} reports version ${installed.version}, expected ${pkg.version}`);
+  }
+}
+
 async function cmdInstall(homes, { dryRun }) {
-  const uv = findBin("uv");
-  const { dirs, files } = planCopies();
+  const plan = planCopies();
   const tag = dryRun ? "[dry-run] " : "";
   const uvFailures = [];
 
   // Refuse up front, before anything is written anywhere.
-  for (const { dir: home, dest } of homes) {
-    const link = findSymlink(home, dest);
+  for (const { pluginsDir, dest } of homes) {
+    const link = [pluginsDir, dest].find(isSymlink);
     if (link) throw new Error(`refusing to install: ${link} is a symlink (wicked-garden never follows symlinks under plugins/)`);
   }
 
-  for (const { dir: home, dest, origin } of homes) {
+  // Dry-run spawns nothing — not even the `command -v uv` probe — so uv is resolved
+  // only once we are actually going to sync.
+  const uv = dryRun ? undefined : findBin("uv");
+
+  for (const home of homes) {
+    const { dir, pluginsDir, dest, origin } = home;
     const isUpdate = existsSync(dest);
     console.log(`${tag}${isUpdate ? "Updating" : "Installing"} wicked-garden v${pkg.version} ${isUpdate ? "at" : "to"} ${dest}`);
-    console.log(`  config dir: ${home} (${origin})`);
+    console.log(`  config dir: ${dir} (${origin})`);
 
     if (dryRun) {
-      for (const dir of dirs)   console.log(`  would copy ${dir}/ -> ${join(dest, dir)}`);
-      for (const file of files) console.log(`  would copy ${file} -> ${join(dest, file)}`);
-      console.log(uv
-        ? `  would run: uv sync --quiet (cwd ${dest})`
-        : "  uv not found — would skip Python deps (the wicked-garden-core setup action retries)");
+      console.log(`  would stage into ${join(pluginsDir, `${STAGING_PREFIX}<pid>-<hex>`)} and swap it into ${dest}`);
+      for (const d of plan.dirs)  console.log(`  would copy ${d}/ -> ${join(dest, d)}`);
+      for (const f of plan.files) console.log(`  would copy ${f} -> ${join(dest, f)}`);
+      console.log(`  would run: uv sync --quiet (cwd ${dest}) if uv is on PATH — not probed in dry-run`);
       continue;
     }
 
-    mkdirSync(dest, { recursive: true });
-    assertContained(home, dest);
-
-    for (const dir of dirs) {
-      process.stdout.write(`  ${dir}/... `);
-      cpSync(join(__dirname, dir), join(dest, dir), { recursive: true, force: true, filter: (s) => !skip(s) });
-      console.log("done");
-    }
-    for (const file of files) {
-      cpSync(join(__dirname, file), join(dest, file), { force: true });
-    }
-    assertContained(home, dest);
+    stageAndSwap(home, plan);
 
     // Sync Python deps via uv if available. A failure is reported, never swallowed:
     // the copy stays usable and the wicked-garden-core setup action retries the sync,
@@ -269,14 +388,18 @@ async function cmdInstall(homes, { dryRun }) {
 }
 
 function cmdStatus(homes) {
-  let refused = 0;
-  for (const { dir: home, dest, origin } of homes) {
+  let failures = 0;
+  for (const { dir: home, pluginsDir, dest, origin } of homes) {
     console.log(`config dir: ${home} (${origin})`);
-    const link = findSymlink(home, dest);
+    const manifest = join(dest, ".claude-plugin", "plugin.json");
+    const link = [pluginsDir, dest, join(dest, ".claude-plugin"), manifest].find(isSymlink);
     if (link) {
       console.error(`  refused: ${link} is a symlink (wicked-garden never follows symlinks under plugins/)`);
-      refused += 1;
+      failures += 1;
       continue;
+    }
+    for (const t of leftoverTransients(pluginsDir)) {
+      console.log(`  leftover transient dir from an interrupted install (not a plugin; safe to delete): ${t}`);
     }
     if (!existsSync(dest)) {
       console.log("  wicked-garden: not installed");
@@ -284,18 +407,21 @@ function cmdStatus(homes) {
       console.log(`  Run: npx wicked-garden@${pkg.version} install${hint}`);
       continue;
     }
+    let installed;
     try {
-      const installed = JSON.parse(readFileSync(join(dest, ".claude-plugin", "plugin.json"), "utf8"));
-      const upToDate  = installed.version === pkg.version;
-      console.log("  wicked-garden: installed (copy)");
-      console.log(`  path:    ${dest}`);
-      console.log(`  version: ${installed.version}${upToDate ? "" : ` (package: ${pkg.version} — run install to update)`}`);
-    } catch {
-      console.log(`  wicked-garden: installed at ${dest} (plugin.json unreadable)`);
+      installed = JSON.parse(readNoFollow(manifest));
+    } catch (err) {
+      console.error(`  error: cannot read ${manifest}: ${err.code ? `${err.code}: ` : ""}${err.message} — re-run install to repair the copy`);
+      failures += 1;
+      continue;
     }
+    const upToDate = installed.version === pkg.version;
+    console.log("  wicked-garden: installed (copy)");
+    console.log(`  path:    ${dest}`);
+    console.log(`  version: ${installed.version}${upToDate ? "" : ` (package: ${pkg.version} — run install to update)`}`);
     console.log("  registration: owned by wicked-installer — `npx wicked-installer status` reports Claude Code's registry state");
   }
-  return refused > 0 ? 1 : 0;
+  return failures > 0 ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -389,8 +515,10 @@ function usage() {
     "",
     "Options:",
     "  --claude-home <dir>   Config dir to target (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude) — install/update/status",
-    "  --dry-run             Print what would be copied/synced, write nothing, never run uv — install/update only",
+    "  --dry-run             Print what would be copied/synced, write nothing, spawn nothing — install/update only",
     "",
+    "The copy is staged in plugins/.staging-wicked-garden-<pid>-<hex> and swapped in atomically",
+    "(a previous copy passes through plugins/.old-wicked-garden-<pid>-<hex>); neither is a plugin.",
     "The copy is unregistered — `npx wicked-installer install wicked-garden` registers it with Claude Code.",
   ].join("\n");
 }

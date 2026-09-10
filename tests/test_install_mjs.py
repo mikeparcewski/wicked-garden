@@ -6,10 +6,16 @@ so ``uv`` can never be found (nothing syncs, nothing downloads) and node is
 invoked by absolute path. The operator's config dirs are never touched.
 
 Target resolution mirrors wicked-installer's ``install-claude.ts``:
-``--claude-home`` flags are the full set → ``CLAUDE_CONFIG_DIR`` (authoritative;
-may list several dirs, split on the platform list separator + ',') → ``~/.claude``.
-Registration is the installer's job (wicked-installer#18): the copy is reported
-as unregistered and the note points at ``npx wicked-installer install wicked-garden``.
+``--claude-home`` flags are the full set → ``CLAUDE_CONFIG_DIR`` (authoritative
+whenever the key is PRESENT; may list several dirs, split on the platform list
+separator + ',') → ``~/.claude`` only when the key is absent.
+
+A copy lands stage → verify → atomic swap: it is written into a staging dir
+the run creates (``plugins/.staging-wicked-garden-<pid>-<hex>``), lstat-walked,
+then rename(2)'d over ``plugins/wicked-garden`` (a previous copy passes through
+``plugins/.old-wicked-garden-<pid>-<hex>``). Registration is the installer's job
+(wicked-installer#18): the copy is reported as unregistered and the note points
+at ``npx wicked-installer install wicked-garden``.
 """
 
 from __future__ import annotations
@@ -27,6 +33,7 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _INSTALL_MJS = _REPO_ROOT / "install.mjs"
+_SPAWN_GUARD = _REPO_ROOT / "tests" / "fixtures" / "spawn_guard.cjs"
 _NODE = shutil.which("node")
 _PKG_VERSION = json.loads((_REPO_ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 
@@ -36,7 +43,11 @@ _REGISTER_NOTE = (
 )
 
 pytestmark = pytest.mark.skipif(_NODE is None, reason="node not on PATH")
-posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks / sh sentinel")
+posix_only = pytest.mark.skipif(sys.platform == "win32", reason="POSIX symlinks / sh sentinel / chmod")
+not_root = pytest.mark.skipif(
+    sys.platform == "win32" or getattr(os, "geteuid", lambda: 1)() == 0,
+    reason="permission denials do not apply to root",
+)
 
 
 class Sandbox:
@@ -75,9 +86,9 @@ class Sandbox:
         env.update(extra)
         return env
 
-    def run(self, *args: str, **extra_env: str) -> subprocess.CompletedProcess[str]:
+    def run(self, *args: str, node_flags: tuple[str, ...] = (), **extra_env: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [_NODE, str(_INSTALL_MJS), *args],
+            [_NODE, *node_flags, str(_INSTALL_MJS), *args],
             cwd=str(self.root),
             env=self.env(**extra_env),
             capture_output=True,
@@ -94,9 +105,19 @@ def dest_of(config_dir: Path) -> Path:
     return config_dir / "plugins" / "wicked-garden"
 
 
+def manifest_of(config_dir: Path) -> Path:
+    return dest_of(config_dir) / ".claude-plugin" / "plugin.json"
+
+
 def installed_version(config_dir: Path) -> str:
-    manifest = dest_of(config_dir) / ".claude-plugin" / "plugin.json"
-    return json.loads(manifest.read_text(encoding="utf-8"))["version"]
+    return json.loads(manifest_of(config_dir).read_text(encoding="utf-8"))["version"]
+
+
+def transients(config_dir: Path) -> list[str]:
+    plugins = config_dir / "plugins"
+    if not plugins.exists():
+        return []
+    return sorted(p.name for p in plugins.iterdir() if p.name.startswith((".staging-wicked-garden-", ".old-wicked-garden-")))
 
 
 def tree(root: Path) -> dict[str, str]:
@@ -123,7 +144,7 @@ def sandbox(tmp_path: Path) -> Sandbox:
 # --- target resolution ------------------------------------------------------
 
 
-def test_default_target_is_home_dot_claude(sandbox: Sandbox) -> None:
+def test_default_target_is_home_dot_claude_when_key_absent(sandbox: Sandbox) -> None:
     res = sandbox.run("install")
     assert res.returncode == 0, res.stderr
     default_dir = sandbox.home / ".claude"
@@ -139,6 +160,7 @@ def test_default_target_is_home_dot_claude(sandbox: Sandbox) -> None:
     # uv was unreachable, so the copy never synced
     assert "uv sync" not in res.stdout
     assert not (dest / ".venv").exists()
+    assert transients(default_dir) == [], "staging/old dirs never outlive a successful install"
 
 
 def test_claude_config_dir_wins_over_home(sandbox: Sandbox) -> None:
@@ -182,6 +204,58 @@ def test_tilde_expands_against_the_sandbox_home(sandbox: Sandbox) -> None:
     assert f"config dir: {sandbox.home / 'cfg'} (CLAUDE_CONFIG_DIR)" in res.stdout
 
 
+# --- CLAUDE_CONFIG_DIR fail-closed -----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", f"{os.pathsep},", "   ", " , ", ",", f"{os.pathsep}{os.pathsep}"],
+    ids=["empty", "seps", "blank", "blank-entries", "comma", "pathseps"],
+)
+def test_claude_config_dir_present_but_naming_no_dir_fails_closed(sandbox: Sandbox, value: str) -> None:
+    for argv in (["install"], ["install", "--dry-run"], ["status"]):
+        res = sandbox.run(*argv, CLAUDE_CONFIG_DIR=value)
+        assert res.returncode == 2, (argv, res.stderr)
+        assert res.stdout == ""
+        assert "CLAUDE_CONFIG_DIR is set but names no directory" in res.stderr
+    assert not (sandbox.home / ".claude").exists(), "must never fall back to ~/.claude"
+
+
+# --- option consumption -----------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["install", "--claude-home", "--dry-run"],
+        ["install", "--claude-home", "--x"],
+        ["install", "--claude-home", "-v"],
+        ["install", "--claude-home", "   "],
+        ["install", "--claude-home"],
+        ["install", "--claude-home=--dry-run"],
+        ["install", "--claude-home=-x"],
+        ["install", "--claude-home=   "],
+        ["install", "--claude-home="],
+    ],
+    ids=["space-long", "space-unknown-long", "space-short", "space-blank", "space-missing",
+         "eq-long", "eq-short", "eq-blank", "eq-empty"],
+)
+def test_claude_home_rejects_option_like_and_blank_values_in_both_forms(sandbox: Sandbox, argv: list[str]) -> None:
+    res = sandbox.run(*argv)
+    assert res.returncode == 2
+    assert res.stdout == ""
+    assert "requires a directory" in res.stderr
+    for stray in ("--dry-run", "--x", "-v", "-x"):
+        assert not (sandbox.root / stray).exists(), "an option must never become a directory"
+    assert not (sandbox.home / ".claude").exists()
+
+
+def test_claude_home_accepts_a_dash_dir_when_spelled_as_a_path(sandbox: Sandbox) -> None:
+    res = sandbox.run("install", "--dry-run", "--claude-home", "./-x")
+    assert res.returncode == 0, res.stderr
+    assert f"config dir: {sandbox.root / '-x'} (--claude-home)" in res.stdout
+
+
 # --- dry-run ----------------------------------------------------------------
 
 
@@ -195,13 +269,55 @@ def test_dry_run_prints_the_plan_and_writes_nothing(sandbox: Sandbox, argv: list
     res = sandbox.run(*argv, CLAUDE_CONFIG_DIR=str(cfg))
     assert res.returncode == 0, res.stderr
     assert f"[dry-run] Installing wicked-garden v{_PKG_VERSION} to {dest_of(cfg)}" in res.stdout
+    assert "would stage into" in res.stdout and ".staging-wicked-garden-" in res.stdout
     for planned in (".claude-plugin/", "hooks/", "scripts/", "skills/", "schemas/", "pyproject.toml"):
         assert f"would copy {planned}" in res.stdout
-    assert "uv not found — would skip Python deps" in res.stdout
+    assert "would run: uv sync --quiet" in res.stdout and "not probed in dry-run" in res.stdout
     assert "[dry-run] Nothing was written" in res.stdout
     assert not cfg.exists(), "dry-run must not create the config dir"
     assert not (sandbox.home / ".claude").exists()
     assert _REGISTER_NOTE not in res.stdout, "nothing was copied, so no copy note"
+
+
+def test_dry_run_spawns_no_child_process(sandbox: Sandbox) -> None:
+    """Count child-process attempts directly: every child_process entry point is intercepted
+    by the preload and logged; dry-run must leave the log absent."""
+    guard = ("--require", str(_SPAWN_GUARD))
+    log = sandbox.root / "spawn-guard.log"
+
+    # positive control: the guard is live — `pack check` probes for python via execSync
+    control = sandbox.run("pack", "check", ".", node_flags=guard, SPAWN_GUARD_LOG=str(log))
+    assert control.returncode != 0
+    attempts = log.read_text(encoding="utf-8").split()
+    assert attempts and set(attempts) <= {"execSync"}, attempts
+    log.unlink()
+
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", "--dry-run", node_flags=guard, SPAWN_GUARD_LOG=str(log), CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 0, res.stderr
+    assert not log.exists(), "dry-run must not attempt a single child process (not even the uv probe)"
+    assert "spawn-guard" not in res.stderr
+    assert "would copy skills/" in res.stdout and "would run: uv sync --quiet" in res.stdout
+    assert not cfg.exists()
+
+
+@posix_only
+def test_dry_run_leaves_the_tree_byte_identical_and_spawns_nothing(sandbox: Sandbox) -> None:
+    marker = sandbox.sentinel_uv()
+    cfg = sandbox.cfg("cfg")
+    (cfg / "plugins" / "other").mkdir(parents=True)
+    (cfg / "plugins" / "other" / "x.txt").write_text("keep me", encoding="utf-8")
+    (cfg / "settings.json").write_text("{}", encoding="utf-8")
+    before = tree(cfg)
+
+    res = sandbox.run("install", "--dry-run", CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 0, res.stderr
+    assert "would run: uv sync --quiet" in res.stdout
+    assert not marker.exists(), "uv is never spawned (nor probed) in dry-run"
+    assert tree(cfg) == before
+    assert not dest_of(cfg).exists()
+    assert transients(cfg) == []
+    assert not (sandbox.home / ".claude").exists()
 
 
 # --- status -----------------------------------------------------------------
@@ -222,7 +338,7 @@ def test_status_reports_per_config_dir(sandbox: Sandbox) -> None:
     assert "registration: owned by wicked-installer" in res.stdout
 
     # a stale copy is flagged against the package version
-    manifest = dest_of(a) / ".claude-plugin" / "plugin.json"
+    manifest = manifest_of(a)
     data = json.loads(manifest.read_text(encoding="utf-8"))
     data["version"] = "0.0.1"
     manifest.write_text(json.dumps(data), encoding="utf-8")
@@ -238,13 +354,50 @@ def test_status_hint_reproduces_an_explicit_claude_home(sandbox: Sandbox) -> Non
     assert f'Run: npx wicked-garden@{_PKG_VERSION} install --claude-home "{cfg}"' in res.stdout
 
 
+def test_status_reports_a_corrupt_manifest_and_exits_non_zero(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    assert sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+    manifest_of(cfg).write_text("{not json", encoding="utf-8")
+    res = sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 1
+    assert f"error: cannot read {manifest_of(cfg)}" in res.stderr
+    assert "JSON" in res.stderr, "the parse failure is named"
+    assert "re-run install to repair" in res.stderr
+    assert "installed (copy)" not in res.stdout
+
+
+@not_root
+def test_status_reports_an_unreadable_manifest_and_exits_non_zero(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    assert sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+    manifest = manifest_of(cfg)
+    manifest.chmod(0)
+    try:
+        res = sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg))
+    finally:
+        manifest.chmod(0o644)
+    assert res.returncode == 1
+    assert f"error: cannot read {manifest}" in res.stderr
+    assert "EACCES" in res.stderr
+
+
+def test_status_lists_leftover_transient_dirs(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    leftover = cfg / "plugins" / ".staging-wicked-garden-4242-deadbeef"
+    leftover.mkdir(parents=True)
+    res = sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 0, res.stderr
+    assert f"leftover transient dir from an interrupted install (not a plugin; safe to delete): {leftover}" in res.stdout
+    assert "wicked-garden: not installed" in res.stdout
+
+
 # --- argument handling ------------------------------------------------------
 
 
 @pytest.mark.parametrize(
     "argv",
-    [["install", "--bogus"], ["install", "--claude-home"], ["install", "extra"], ["install", "--claude-home="]],
-    ids=["unknown-option", "missing-dir", "stray-positional", "empty-dir"],
+    [["install", "--bogus"], ["install", "extra"]],
+    ids=["unknown-option", "stray-positional"],
 )
 def test_usage_errors_exit_2_and_write_nothing(sandbox: Sandbox, argv: list[str]) -> None:
     cfg = sandbox.cfg("cfg")
@@ -300,6 +453,7 @@ def test_help_prints_usage_on_stdout(sandbox: Sandbox, flag: str) -> None:
     assert res.stdout.startswith(f"wicked-garden v{_PKG_VERSION}")
     assert "Usage:" in res.stdout
     assert "--dry-run" in res.stdout and "install/update only" in res.stdout
+    assert ".staging-wicked-garden-" in res.stdout and ".old-wicked-garden-" in res.stdout
     assert not (sandbox.home / ".claude").exists()
 
 
@@ -310,51 +464,6 @@ def test_version_and_pack_usage_are_unchanged(sandbox: Sandbox) -> None:
     assert res.returncode == 0
     assert "Usage: npx wicked-garden pack <verb>" in res.stdout
     assert not (sandbox.home / ".claude").exists()
-
-
-# --- option consumption -----------------------------------------------------
-
-
-@pytest.mark.parametrize("value", ["--dry-run", "-v", "   "], ids=["long-option", "short-option", "blank"])
-def test_claude_home_never_swallows_an_option(sandbox: Sandbox, value: str) -> None:
-    res = sandbox.run("install", "--claude-home", value)
-    assert res.returncode == 2
-    assert res.stdout == ""
-    assert "--claude-home requires a directory" in res.stderr
-    assert not (sandbox.root / "--dry-run").exists(), "the option must not become a directory"
-    assert not (sandbox.home / ".claude").exists()
-    assert not (sandbox.root / "-v").exists()
-
-
-def test_claude_home_equals_form_accepts_a_dir_named_like_an_option(sandbox: Sandbox) -> None:
-    # the explicit `=` form is unambiguous, so a dir literally called "-x" is allowed there
-    res = sandbox.run("install", "--dry-run", f"--claude-home={sandbox.root / '-x'}")
-    assert res.returncode == 0, res.stderr
-    assert f"config dir: {sandbox.root / '-x'} (--claude-home)" in res.stdout
-
-
-# --- CLAUDE_CONFIG_DIR fail-closed -----------------------------------------
-
-
-@pytest.mark.parametrize(
-    "value",
-    [f"{os.pathsep},", "   ", " , ", ",", f"{os.pathsep}{os.pathsep}"],
-    ids=["seps", "blank", "blank-entries", "comma", "pathseps"],
-)
-def test_malformed_claude_config_dir_fails_closed(sandbox: Sandbox, value: str) -> None:
-    for argv in (["install"], ["install", "--dry-run"], ["status"]):
-        res = sandbox.run(*argv, CLAUDE_CONFIG_DIR=value)
-        assert res.returncode == 2, (argv, res.stderr)
-        assert res.stdout == ""
-        assert "CLAUDE_CONFIG_DIR is set but names no directory" in res.stderr
-    assert not (sandbox.home / ".claude").exists(), "must never fall back to ~/.claude"
-
-
-def test_empty_claude_config_dir_counts_as_unset(sandbox: Sandbox) -> None:
-    # ${CLAUDE_CONFIG_DIR:-~/.claude}: the empty string is the shell's "unset"
-    res = sandbox.run("install", "--dry-run", CLAUDE_CONFIG_DIR="")
-    assert res.returncode == 0, res.stderr
-    assert f"config dir: {sandbox.home / '.claude'} (default)" in res.stdout
 
 
 # --- symlink containment ----------------------------------------------------
@@ -377,6 +486,7 @@ def test_symlinked_owned_path_is_refused_by_install(sandbox: Sandbox, owned: str
     assert "Installing" not in res.stdout, "refusal happens before any copy starts"
     assert list(elsewhere.iterdir()) == [], "nothing may be written through the link"
     assert os.path.islink(link)
+    assert transients(cfg) == []
 
 
 @posix_only
@@ -389,28 +499,63 @@ def test_symlinked_config_dir_itself_is_allowed_and_contained(sandbox: Sandbox) 
     res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg))
     assert res.returncode == 0, res.stderr
     assert installed_version(real) == _PKG_VERSION
+    assert transients(real) == []
 
 
 @posix_only
-def test_symlinked_manifest_is_refused_by_status_and_install(sandbox: Sandbox) -> None:
+def test_preexisting_tree_symlinks_are_never_followed_or_written_through(sandbox: Sandbox) -> None:
     cfg = sandbox.cfg("cfg")
     assert sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
-    manifest = dest_of(cfg) / ".claude-plugin" / "plugin.json"
-    fake = sandbox.root / "fake.json"
-    fake.write_text(json.dumps({"version": "9.9.9"}), encoding="utf-8")
-    manifest.unlink()
-    os.symlink(fake, manifest)
+    dest = dest_of(cfg)
 
-    res = sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg))
-    assert res.returncode == 1
-    assert "refused" in res.stderr and "symlink" in res.stderr and str(manifest) in res.stderr
-    assert "9.9.9" not in res.stdout, "a symlinked manifest is never read"
-    assert "installed (copy)" not in res.stdout
+    # plant: a symlinked top-level file, a symlinked top-level dir, a nested symlinked file
+    victim_file = sandbox.root / "victim.md"
+    victim_file.write_text("victim", encoding="utf-8")
+    victim_dir = sandbox.root / "victim-dir"
+    victim_dir.mkdir()
+    nested_victim = sandbox.root / "nested-victim.json"
+    nested_victim.write_text('{"version":"9.9.9"}', encoding="utf-8")
+    (dest / "README.md").unlink()
+    os.symlink(victim_file, dest / "README.md")
+    shutil.rmtree(dest / "skills")
+    os.symlink(victim_dir, dest / "skills", target_is_directory=True)
+    manifest_of(cfg).unlink()
+    os.symlink(nested_victim, manifest_of(cfg))
 
+    # status refuses to read through the planted manifest link …
+    st = sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg))
+    assert st.returncode == 1 and "refused" in st.stderr and "symlink" in st.stderr
+    assert "9.9.9" not in st.stdout
+
+    # … and install replaces the whole tree via staging without touching any link target
     res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 0, res.stderr
+    assert "Updating" in res.stdout and "previous copy replaced" in res.stdout
+    assert victim_file.read_text(encoding="utf-8") == "victim"
+    assert list(victim_dir.iterdir()) == []
+    assert json.loads(nested_victim.read_text(encoding="utf-8")) == {"version": "9.9.9"}
+    assert not (dest / "README.md").is_symlink() and (dest / "README.md").read_bytes() == (_REPO_ROOT / "README.md").read_bytes()
+    assert not (dest / "skills").is_symlink() and any((dest / "skills").iterdir())
+    assert not manifest_of(cfg).is_symlink() and installed_version(cfg) == _PKG_VERSION
+    assert transients(cfg) == []
+    assert sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+
+
+@not_root
+def test_failed_install_leaves_the_previous_copy_intact(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    assert sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+    before = tree(dest_of(cfg))
+    plugins = cfg / "plugins"
+    plugins.chmod(0o555)  # staging dir cannot be created -> the install must fail before touching the copy
+    try:
+        res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg))
+    finally:
+        plugins.chmod(0o755)
     assert res.returncode == 1
-    assert "refusing to install" in res.stderr
-    assert json.loads(fake.read_text(encoding="utf-8")) == {"version": "9.9.9"}, "never written through"
+    assert res.stderr.startswith("Error:") and "EACCES" in res.stderr
+    assert tree(dest_of(cfg)) == before
+    assert transients(cfg) == []
 
 
 # --- uv failure surfaced ----------------------------------------------------
@@ -432,7 +577,7 @@ def test_uv_sync_failure_is_surfaced_not_swallowed(sandbox: Sandbox) -> None:
     assert marker.read_text(encoding="utf-8").splitlines() == ["uv sync --quiet"]
 
 
-# --- idempotence / dry-run byte-identical -----------------------------------
+# --- idempotence ------------------------------------------------------------
 
 
 def test_repeat_install_is_idempotent(sandbox: Sandbox) -> None:
@@ -444,24 +589,7 @@ def test_repeat_install_is_idempotent(sandbox: Sandbox) -> None:
 
     second = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg))
     assert second.returncode == 0, second.stderr
-    assert "Updating wicked-garden" in second.stdout
+    assert "Updating wicked-garden" in second.stdout and "previous copy replaced" in second.stdout
     assert tree(dest_of(cfg)) == before
     assert installed_version(cfg) == _PKG_VERSION
-
-
-@posix_only
-def test_dry_run_leaves_the_tree_byte_identical_and_spawns_nothing(sandbox: Sandbox) -> None:
-    marker = sandbox.sentinel_uv()
-    cfg = sandbox.cfg("cfg")
-    (cfg / "plugins" / "other").mkdir(parents=True)
-    (cfg / "plugins" / "other" / "x.txt").write_text("keep me", encoding="utf-8")
-    (cfg / "settings.json").write_text("{}", encoding="utf-8")
-    before = tree(cfg)
-
-    res = sandbox.run("install", "--dry-run", CLAUDE_CONFIG_DIR=str(cfg))
-    assert res.returncode == 0, res.stderr
-    assert "would run: uv sync --quiet" in res.stdout, "uv is detected on PATH…"
-    assert not marker.exists(), "…but never spawned"
-    assert tree(cfg) == before
-    assert not dest_of(cfg).exists()
-    assert not (sandbox.home / ".claude").exists()
+    assert sorted(p.name for p in (cfg / "plugins").iterdir()) == ["wicked-garden"]
