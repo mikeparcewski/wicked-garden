@@ -21,10 +21,12 @@
  *   --dry-run             Print what would be copied/synced, write nothing, never run uv
  *                         — install/update only (status is read-only and rejects it)
  *
- * Unknown commands, unknown options and stray arguments exit 2 with usage on stderr.
+ * Exit codes: 0 ok · 1 install/status failure (refused symlink, copy error, uv sync failed)
+ *             · 2 usage (unknown command/option, bad --claude-home value, CLAUDE_CONFIG_DIR
+ *             set but naming no directory).
  */
-import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join, dirname, resolve } from "node:path";
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { join, dirname, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execSync, spawnSync } from "node:child_process";
@@ -70,6 +72,18 @@ function findBin(name) {
 
 class UsageError extends Error {}
 
+// A value-taking flag never swallows the next option: `--claude-home --dry-run`
+// is a missing value, not a directory called "--dry-run".
+function claudeHomeValue(value, form) {
+  if (value === undefined || value.trim() === "") {
+    throw new UsageError(`${form} requires a directory`);
+  }
+  if (form === "--claude-home" && value.startsWith("-")) {
+    throw new UsageError(`--claude-home requires a directory (got option "${value}"); use --claude-home=<dir> or an absolute path for a directory whose name starts with "-"`);
+  }
+  return value;
+}
+
 function parseArgs(argv) {
   const opts = { cmd: undefined, rest: [], claudeHomes: [], dryRun: false };
   for (let i = 0; i < argv.length; i++) {
@@ -78,14 +92,10 @@ function parseArgs(argv) {
     if (arg === "--dry-run") {
       opts.dryRun = true;
     } else if (arg === "--claude-home") {
-      const value = argv[i + 1];
-      if (value === undefined || value === "") throw new UsageError("--claude-home requires a directory");
-      opts.claudeHomes.push(value);
+      opts.claudeHomes.push(claudeHomeValue(argv[i + 1], "--claude-home"));
       i += 1;
     } else if (arg.startsWith("--claude-home=")) {
-      const value = arg.slice("--claude-home=".length);
-      if (!value) throw new UsageError("--claude-home requires a directory");
-      opts.claudeHomes.push(value);
+      opts.claudeHomes.push(claudeHomeValue(arg.slice("--claude-home=".length), "--claude-home="));
     } else if (opts.cmd === undefined) {
       opts.cmd = arg; // includes --version / -v / --help / -h, dispatched below
     } else if (arg.startsWith("-")) {
@@ -102,7 +112,10 @@ function parseArgs(argv) {
 // both tools land in the same config dirs:
 //   1. --claude-home flags are the full set (trusted; created if absent);
 //   2. CLAUDE_CONFIG_DIR is authoritative and exclusive when set — it may list
-//      several dirs, split on the platform list separator + ',';
+//      several dirs, split on the platform list separator + ','. Set but naming
+//      no directory (e.g. ":,", blanks) is an error, never a silent ~/.claude;
+//      the empty string counts as unset (the ${CLAUDE_CONFIG_DIR:-~/.claude}
+//      convention the shipped Python already follows);
 //   3. otherwise ~/.claude.
 // ---------------------------------------------------------------------------
 
@@ -116,16 +129,18 @@ function splitConfigDirValue(value) {
 }
 
 function resolveClaudeHomes(claudeHomes, env = process.env) {
-  let dirs = [];
-  let origin = "default";
+  let dirs;
+  let origin;
   if (claudeHomes.length > 0) {
     dirs = claudeHomes;
     origin = "--claude-home";
-  } else if (env.CLAUDE_CONFIG_DIR && env.CLAUDE_CONFIG_DIR.trim()) {
+  } else if (env.CLAUDE_CONFIG_DIR !== undefined && env.CLAUDE_CONFIG_DIR !== "") {
     dirs = splitConfigDirValue(env.CLAUDE_CONFIG_DIR);
     origin = "CLAUDE_CONFIG_DIR";
-  }
-  if (dirs.length === 0) {
+    if (dirs.length === 0) {
+      throw new UsageError(`CLAUDE_CONFIG_DIR is set but names no directory (value: ${JSON.stringify(env.CLAUDE_CONFIG_DIR)}); unset it or point it at a config dir`);
+    }
+  } else {
     dirs = [join(homedir(), ".claude")];
     origin = "default";
   }
@@ -140,6 +155,34 @@ function resolveClaudeHomes(claudeHomes, env = process.env) {
   return out;
 }
 
+// ---------------------------------------------------------------------------
+// Symlink containment. The config dir itself may be a symlink (dotfiles-managed
+// ~/.claude is common and we never create it when it exists); the components we
+// OWN under it — plugins/, plugins/wicked-garden, .claude-plugin/, the manifest —
+// are never followed: a symlink there is refused, and after a copy the
+// destination's realpath must still resolve inside the config dir's realpath.
+// ---------------------------------------------------------------------------
+
+function isSymlink(p) {
+  try { return lstatSync(p).isSymbolicLink(); } catch { return false; }
+}
+
+function ownedPaths(home, dest) {
+  return [join(home, "plugins"), dest, join(dest, ".claude-plugin"), join(dest, ".claude-plugin", "plugin.json")];
+}
+
+function findSymlink(home, dest) {
+  return ownedPaths(home, dest).find(isSymlink);
+}
+
+function assertContained(home, dest) {
+  const realHome = realpathSync(home);
+  const realDest = realpathSync(dest);
+  if (realDest !== realHome && !realDest.startsWith(realHome + sep)) {
+    throw new Error(`refusing: ${dest} resolves to ${realDest}, outside ${realHome}`);
+  }
+}
+
 function planCopies() {
   return {
     dirs:  PLUGIN_DIRS.filter(d => existsSync(join(__dirname, d))),
@@ -151,6 +194,13 @@ async function cmdInstall(homes, { dryRun }) {
   const uv = findBin("uv");
   const { dirs, files } = planCopies();
   const tag = dryRun ? "[dry-run] " : "";
+  const uvFailures = [];
+
+  // Refuse up front, before anything is written anywhere.
+  for (const { dir: home, dest } of homes) {
+    const link = findSymlink(home, dest);
+    if (link) throw new Error(`refusing to install: ${link} is a symlink (wicked-garden never follows symlinks under plugins/)`);
+  }
 
   for (const { dir: home, dest, origin } of homes) {
     const isUpdate = existsSync(dest);
@@ -167,6 +217,7 @@ async function cmdInstall(homes, { dryRun }) {
     }
 
     mkdirSync(dest, { recursive: true });
+    assertContained(home, dest);
 
     for (const dir of dirs) {
       process.stdout.write(`  ${dir}/... `);
@@ -176,15 +227,21 @@ async function cmdInstall(homes, { dryRun }) {
     for (const file of files) {
       cpSync(join(__dirname, file), join(dest, file), { force: true });
     }
+    assertContained(home, dest);
 
-    // Sync Python deps via uv if available (setup will retry if this is skipped)
+    // Sync Python deps via uv if available. A failure is reported, never swallowed:
+    // the copy stays usable and the wicked-garden-core setup action retries the sync,
+    // but this run does not claim success.
     if (uv) {
       process.stdout.write("  Python deps (uv sync)... ");
       try {
         execSync(`"${uv}" sync --quiet`, { cwd: dest, stdio: "pipe" });
         console.log("done");
-      } catch {
-        console.log("skipped — the wicked-garden-core setup action will retry");
+      } catch (err) {
+        console.log("FAILED");
+        const detail = String(err.stderr || err.message || "").trim().split("\n").slice(-3).join(" | ");
+        console.error(`WARNING: uv sync failed in ${dest}${detail ? `: ${detail}` : ""}`);
+        uvFailures.push(dest);
       }
     }
 
@@ -192,8 +249,15 @@ async function cmdInstall(homes, { dryRun }) {
   }
 
   const n = homes.length;
+  const dirsWord = `${n} config dir${n === 1 ? "" : "s"}`;
   if (dryRun) {
-    console.log(`\n[dry-run] Nothing was written. wicked-garden v${pkg.version} would be copied into ${n} config dir${n === 1 ? "" : "s"}.`);
+    console.log(`\n[dry-run] Nothing was written. wicked-garden v${pkg.version} would be copied into ${dirsWord}.`);
+    return;
+  }
+  if (uvFailures.length > 0) {
+    console.error(`\nwicked-garden v${pkg.version} copied (unregistered) into ${dirsWord}, but Python deps FAILED to sync in ${uvFailures.length} of them — fix the uv error above and re-run install, or let the wicked-garden-core setup action retry.`);
+    console.error("Registration is still the installer's job: `npx wicked-installer install wicked-garden`.");
+    process.exitCode = 1;
     return;
   }
   console.log(`\nwicked-garden v${pkg.version} ${REGISTER_NOTE}`);
@@ -201,8 +265,15 @@ async function cmdInstall(homes, { dryRun }) {
 }
 
 function cmdStatus(homes) {
+  let refused = 0;
   for (const { dir: home, dest, origin } of homes) {
     console.log(`config dir: ${home} (${origin})`);
+    const link = findSymlink(home, dest);
+    if (link) {
+      console.error(`  refused: ${link} is a symlink (wicked-garden never follows symlinks under plugins/)`);
+      refused += 1;
+      continue;
+    }
     if (!existsSync(dest)) {
       console.log("  wicked-garden: not installed");
       const hint = origin === "--claude-home" ? ` --claude-home "${home}"` : "";
@@ -220,6 +291,7 @@ function cmdStatus(homes) {
     }
     console.log("  registration: owned by wicked-installer — `npx wicked-installer status` reports Claude Code's registry state");
   }
+  return refused > 0 ? 1 : 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -319,12 +391,16 @@ function usage() {
   ].join("\n");
 }
 
+const TARGETED = new Set(["install", "update", undefined, "status"]);
+
 let opts;
+let homes;
 try {
   opts = parseArgs(process.argv.slice(2));
   if (opts.cmd === "status" && opts.dryRun) {
     throw new UsageError("--dry-run applies to install/update only (status is read-only)");
   }
+  if (TARGETED.has(opts.cmd)) homes = resolveClaudeHomes(opts.claudeHomes);
 } catch (err) {
   if (!(err instanceof UsageError)) throw err;
   console.error(`Error: ${err.message}\n`);
@@ -336,11 +412,11 @@ switch (opts.cmd) {
   case "install":
   case "update":
   case undefined:
-    cmdInstall(resolveClaudeHomes(opts.claudeHomes), { dryRun: opts.dryRun })
+    cmdInstall(homes, { dryRun: opts.dryRun })
       .catch(err => { console.error("Error:", err.message); process.exit(1); });
     break;
   case "status":
-    cmdStatus(resolveClaudeHomes(opts.claudeHomes));
+    process.exitCode = cmdStatus(homes);
     break;
   case "pack":
     process.exit(cmdPack(opts.rest));
