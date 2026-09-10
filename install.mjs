@@ -1,17 +1,25 @@
 #!/usr/bin/env node
 /**
  * wicked-garden installer
- * Copies plugin files to ~/.claude/plugins/wicked-garden/ and optionally syncs Python deps.
+ * Copies plugin files to <config-dir>/plugins/wicked-garden/ and optionally syncs Python deps.
+ *
+ * The copy is UNREGISTERED: Claude Code loads plugins through its marketplace
+ * registry, and registration is wicked-installer's job — run
+ * `npx wicked-installer install wicked-garden` afterwards (wicked-installer#18).
  *
  * Usage:
- *   npx wicked-garden install         Install or update the plugin
- *   npx wicked-garden update          Same as install
- *   npx wicked-garden status          Show current install state
- *   npx wicked-garden pack <verb>     Third-party pack tooling (check/register/list/…)
- *   npx wicked-garden --version       Print version
+ *   npx wicked-garden install [options]   Install or update the plugin copy
+ *   npx wicked-garden update  [options]   Same as install
+ *   npx wicked-garden status  [options]   Show the install state per config dir
+ *   npx wicked-garden pack <verb>         Third-party pack tooling (check/register/list/…)
+ *   npx wicked-garden --version           Print version
+ *
+ * Options (install/update/status):
+ *   --claude-home <dir>   Config dir to install into (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude)
+ *   --dry-run             Print what would be copied/synced, write nothing, never run uv
  */
 import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execSync, spawnSync } from "node:child_process";
@@ -24,6 +32,10 @@ const PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BU
 const SKIP         = [/__pycache__/, /\.pyc$/, /\.pyo$/, /\.DS_Store$/];
 // Dev-only subdirs within scripts/ — not needed at runtime
 const SCRIPTS_DEV  = ["ci", "wg"];
+
+const REGISTER_NOTE =
+  "copied (unregistered). Claude Code loads plugins through its marketplace registry — " +
+  "run `npx wicked-installer install wicked-garden` to register it in the active config dir.";
 
 function skip(src) {
   if (SKIP.some(p => p.test(src))) return true;
@@ -45,61 +57,163 @@ function findBin(name) {
   }
 }
 
-async function cmdInstall() {
-  const dest      = join(homedir(), ".claude", "plugins", "wicked-garden");
-  const isUpdate  = existsSync(dest);
+// ---------------------------------------------------------------------------
+// Argument parsing. Flags are accepted before or after the command
+// (`npx wicked-garden --dry-run`, `npx wicked-garden install --dry-run`);
+// `pack` verbs own their flags, so everything after `pack` passes through verbatim.
+// ---------------------------------------------------------------------------
 
-  console.log(isUpdate
-    ? `Updating wicked-garden v${pkg.version} at ${dest}...`
-    : `Installing wicked-garden v${pkg.version} to ${dest}...`
-  );
+class UsageError extends Error {}
 
-  mkdirSync(dest, { recursive: true });
-
-  for (const dir of PLUGIN_DIRS) {
-    const src = join(__dirname, dir);
-    if (!existsSync(src)) continue;
-    process.stdout.write(`  ${dir}/... `);
-    cpSync(src, join(dest, dir), { recursive: true, force: true, filter: (s) => !skip(s) });
-    console.log("done");
-  }
-
-  for (const file of PLUGIN_FILES) {
-    const src = join(__dirname, file);
-    if (existsSync(src)) cpSync(src, join(dest, file), { force: true });
-  }
-
-  // Sync Python deps via uv if available (setup will retry if this is skipped)
-  const uv = findBin("uv");
-  if (uv) {
-    process.stdout.write("  Python deps (uv sync)... ");
-    try {
-      execSync(`"${uv}" sync --quiet`, { cwd: dest, stdio: "pipe" });
-      console.log("done");
-    } catch {
-      console.log("skipped — the wicked-garden-core setup action will retry");
+function parseArgs(argv) {
+  const opts = { cmd: undefined, rest: [], claudeHomes: [], dryRun: false };
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (opts.cmd === "pack") { opts.rest.push(arg); continue; }
+    if (arg === "--dry-run") {
+      opts.dryRun = true;
+    } else if (arg === "--claude-home") {
+      const value = argv[i + 1];
+      if (value === undefined || value === "") throw new UsageError("--claude-home requires a directory");
+      opts.claudeHomes.push(value);
+      i += 1;
+    } else if (arg.startsWith("--claude-home=")) {
+      const value = arg.slice("--claude-home=".length);
+      if (!value) throw new UsageError("--claude-home requires a directory");
+      opts.claudeHomes.push(value);
+    } else if (opts.cmd === undefined) {
+      opts.cmd = arg; // includes --version / -v / --help, dispatched below
+    } else if (arg.startsWith("-")) {
+      throw new UsageError(`unknown option: ${arg}`);
+    } else {
+      throw new UsageError(`unexpected argument: ${arg}`);
     }
   }
-
-  console.log(`\nwicked-garden v${pkg.version} ${isUpdate ? "updated" : "installed"}.`);
-  console.log('Next: in Claude Code, ask for "wicked-garden setup" (the wicked-garden-core skill) to complete configuration.');
+  return opts;
 }
 
-function cmdStatus() {
-  const dest = join(homedir(), ".claude", "plugins", "wicked-garden");
-  if (!existsSync(dest)) {
-    console.log("wicked-garden: not installed");
-    console.log(`  Run: npx wicked-garden@${pkg.version} install`);
+// ---------------------------------------------------------------------------
+// Target resolution — the same rule as wicked-installer (install-claude.ts) so
+// both tools land in the same config dirs:
+//   1. --claude-home flags are the full set (trusted; created if absent);
+//   2. CLAUDE_CONFIG_DIR is authoritative and exclusive when set — it may list
+//      several dirs, split on the platform list separator + ',';
+//   3. otherwise ~/.claude.
+// ---------------------------------------------------------------------------
+
+function expandHome(value) {
+  return value.replace(/^~(?=$|[/\\])/, () => homedir());
+}
+
+// ';'+',' on Windows so a bare ':' can never shatter a C:\ path; ':'+',' elsewhere.
+function splitConfigDirValue(value) {
+  return value.split(process.platform === "win32" ? /[;,]/ : /[:,]/).map(p => p.trim()).filter(Boolean);
+}
+
+function resolveClaudeHomes(claudeHomes, env = process.env) {
+  let dirs = [];
+  let origin = "default";
+  if (claudeHomes.length > 0) {
+    dirs = claudeHomes;
+    origin = "--claude-home";
+  } else if (env.CLAUDE_CONFIG_DIR && env.CLAUDE_CONFIG_DIR.trim()) {
+    dirs = splitConfigDirValue(env.CLAUDE_CONFIG_DIR);
+    origin = "CLAUDE_CONFIG_DIR";
+  }
+  if (dirs.length === 0) {
+    dirs = [join(homedir(), ".claude")];
+    origin = "default";
+  }
+  const out = [];
+  const seen = new Set();
+  for (const raw of dirs) {
+    const dir = resolve(expandHome(raw));
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    out.push({ dir, dest: join(dir, "plugins", "wicked-garden"), origin });
+  }
+  return out;
+}
+
+function planCopies() {
+  return {
+    dirs:  PLUGIN_DIRS.filter(d => existsSync(join(__dirname, d))),
+    files: PLUGIN_FILES.filter(f => existsSync(join(__dirname, f))),
+  };
+}
+
+async function cmdInstall(homes, { dryRun }) {
+  const uv = findBin("uv");
+  const { dirs, files } = planCopies();
+  const tag = dryRun ? "[dry-run] " : "";
+
+  for (const { dir: home, dest, origin } of homes) {
+    const isUpdate = existsSync(dest);
+    console.log(`${tag}${isUpdate ? "Updating" : "Installing"} wicked-garden v${pkg.version} ${isUpdate ? "at" : "to"} ${dest}`);
+    console.log(`  config dir: ${home} (${origin})`);
+
+    if (dryRun) {
+      for (const dir of dirs)   console.log(`  would copy ${dir}/ -> ${join(dest, dir)}`);
+      for (const file of files) console.log(`  would copy ${file} -> ${join(dest, file)}`);
+      console.log(uv
+        ? `  would run: uv sync --quiet (cwd ${dest})`
+        : "  uv not found — would skip Python deps (the wicked-garden-core setup action retries)");
+      continue;
+    }
+
+    mkdirSync(dest, { recursive: true });
+
+    for (const dir of dirs) {
+      process.stdout.write(`  ${dir}/... `);
+      cpSync(join(__dirname, dir), join(dest, dir), { recursive: true, force: true, filter: (s) => !skip(s) });
+      console.log("done");
+    }
+    for (const file of files) {
+      cpSync(join(__dirname, file), join(dest, file), { force: true });
+    }
+
+    // Sync Python deps via uv if available (setup will retry if this is skipped)
+    if (uv) {
+      process.stdout.write("  Python deps (uv sync)... ");
+      try {
+        execSync(`"${uv}" sync --quiet`, { cwd: dest, stdio: "pipe" });
+        console.log("done");
+      } catch {
+        console.log("skipped — the wicked-garden-core setup action will retry");
+      }
+    }
+
+    console.log(`  ${REGISTER_NOTE}`);
+  }
+
+  const n = homes.length;
+  if (dryRun) {
+    console.log(`\n[dry-run] Nothing was written. wicked-garden v${pkg.version} would be copied into ${n} config dir${n === 1 ? "" : "s"}.`);
     return;
   }
-  try {
-    const installed = JSON.parse(readFileSync(join(dest, ".claude-plugin", "plugin.json"), "utf8"));
-    const upToDate  = installed.version === pkg.version;
-    console.log(`wicked-garden: installed`);
-    console.log(`  path:    ${dest}`);
-    console.log(`  version: ${installed.version}${upToDate ? "" : ` (package: ${pkg.version} — run install to update)`}`);
-  } catch {
-    console.log(`wicked-garden: installed at ${dest} (plugin.json unreadable)`);
+  console.log(`\nwicked-garden v${pkg.version} ${REGISTER_NOTE}`);
+  console.log('Then, in Claude Code, ask for "wicked-garden setup" (the wicked-garden-core skill) to complete configuration.');
+}
+
+function cmdStatus(homes) {
+  for (const { dir: home, dest, origin } of homes) {
+    console.log(`config dir: ${home} (${origin})`);
+    if (!existsSync(dest)) {
+      console.log("  wicked-garden: not installed");
+      const hint = origin === "--claude-home" ? ` --claude-home "${home}"` : "";
+      console.log(`  Run: npx wicked-garden@${pkg.version} install${hint}`);
+      continue;
+    }
+    try {
+      const installed = JSON.parse(readFileSync(join(dest, ".claude-plugin", "plugin.json"), "utf8"));
+      const upToDate  = installed.version === pkg.version;
+      console.log("  wicked-garden: installed (copy)");
+      console.log(`  path:    ${dest}`);
+      console.log(`  version: ${installed.version}${upToDate ? "" : ` (package: ${pkg.version} — run install to update)`}`);
+    } catch {
+      console.log(`  wicked-garden: installed at ${dest} (plugin.json unreadable)`);
+    }
+    console.log("  registration: owned by wicked-installer — `npx wicked-installer status` reports Claude Code's registry state");
   }
 }
 
@@ -181,31 +295,51 @@ function cmdPack(argv) {
   }
 }
 
-const cmd = process.argv[2];
-switch (cmd) {
+function usage() {
+  return [
+    `wicked-garden v${pkg.version}`,
+    "",
+    "Usage:",
+    "  npx wicked-garden install [options]   Install or update the plugin copy",
+    "  npx wicked-garden status  [options]   Show the install state per config dir",
+    "  npx wicked-garden pack <verb>         Third-party pack tooling (check/register/list/floors/install)",
+    "  npx wicked-garden --version           Show version",
+    "",
+    "Options:",
+    "  --claude-home <dir>   Config dir to install into (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude)",
+    "  --dry-run             Print what would be copied/synced, write nothing, never run uv",
+    "",
+    "The copy is unregistered — `npx wicked-installer install wicked-garden` registers it with Claude Code.",
+  ].join("\n");
+}
+
+let opts;
+try {
+  opts = parseArgs(process.argv.slice(2));
+} catch (err) {
+  if (!(err instanceof UsageError)) throw err;
+  console.error(`Error: ${err.message}\n`);
+  console.error(usage());
+  process.exit(2);
+}
+
+switch (opts.cmd) {
   case "install":
   case "update":
   case undefined:
-    cmdInstall().catch(err => { console.error("Error:", err.message); process.exit(1); });
+    cmdInstall(resolveClaudeHomes(opts.claudeHomes), { dryRun: opts.dryRun })
+      .catch(err => { console.error("Error:", err.message); process.exit(1); });
     break;
   case "status":
-    cmdStatus();
+    cmdStatus(resolveClaudeHomes(opts.claudeHomes));
     break;
   case "pack":
-    process.exit(cmdPack(process.argv.slice(3)));
+    process.exit(cmdPack(opts.rest));
     break;
   case "--version":
   case "-v":
     console.log(pkg.version);
     break;
   default:
-    console.log([
-      `wicked-garden v${pkg.version}`,
-      "",
-      "Usage:",
-      "  npx wicked-garden install         Install or update the plugin",
-      "  npx wicked-garden status          Show current install state",
-      "  npx wicked-garden pack <verb>     Third-party pack tooling (check/register/list/floors/install)",
-      "  npx wicked-garden --version       Show version",
-    ].join("\n"));
+    console.log(usage());
 }
