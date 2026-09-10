@@ -13,10 +13,15 @@
  *   npx wicked-garden status  [options]   Show the install state per config dir
  *   npx wicked-garden pack <verb>         Third-party pack tooling (check/register/list/…)
  *   npx wicked-garden --version           Print version
+ *   npx wicked-garden --help              Print usage
  *
- * Options (install/update/status):
- *   --claude-home <dir>   Config dir to install into (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude)
+ * Options:
+ *   --claude-home <dir>   Config dir to target (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude)
+ *                         — install/update/status
  *   --dry-run             Print what would be copied/synced, write nothing, never run uv
+ *                         — install/update only (status is read-only and rejects it)
+ *
+ * Unknown commands, unknown options and stray arguments exit 2 with usage on stderr.
  */
 import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
@@ -82,7 +87,7 @@ function parseArgs(argv) {
       if (!value) throw new UsageError("--claude-home requires a directory");
       opts.claudeHomes.push(value);
     } else if (opts.cmd === undefined) {
-      opts.cmd = arg; // includes --version / -v / --help, dispatched below
+      opts.cmd = arg; // includes --version / -v / --help / -h, dispatched below
     } else if (arg.startsWith("-")) {
       throw new UsageError(`unknown option: ${arg}`);
     } else {
@@ -300,14 +305,15 @@ function usage() {
     `wicked-garden v${pkg.version}`,
     "",
     "Usage:",
-    "  npx wicked-garden install [options]   Install or update the plugin copy",
-    "  npx wicked-garden status  [options]   Show the install state per config dir",
+    "  npx wicked-garden install [options]   Install or update the plugin copy (`update` is an alias)",
+    "  npx wicked-garden status  [options]   Show the install state per config dir (read-only)",
     "  npx wicked-garden pack <verb>         Third-party pack tooling (check/register/list/floors/install)",
     "  npx wicked-garden --version           Show version",
+    "  npx wicked-garden --help              Show this usage",
     "",
     "Options:",
-    "  --claude-home <dir>   Config dir to install into (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude)",
-    "  --dry-run             Print what would be copied/synced, write nothing, never run uv",
+    "  --claude-home <dir>   Config dir to target (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude) — install/update/status",
+    "  --dry-run             Print what would be copied/synced, write nothing, never run uv — install/update only",
     "",
     "The copy is unregistered — `npx wicked-installer install wicked-garden` registers it with Claude Code.",
   ].join("\n");
@@ -316,6 +322,9 @@ function usage() {
 let opts;
 try {
   opts = parseArgs(process.argv.slice(2));
+  if (opts.cmd === "status" && opts.dryRun) {
+    throw new UsageError("--dry-run applies to install/update only (status is read-only)");
+  }
 } catch (err) {
   if (!(err instanceof UsageError)) throw err;
   console.error(`Error: ${err.message}\n`);
@@ -340,6 +349,14 @@ switch (opts.cmd) {
   case "-v":
     console.log(pkg.version);
     break;
-  default:
+  case "--help":
+  case "-h":
     console.log(usage());
+    break;
+  default: {
+    const what = opts.cmd.startsWith("-") ? "unknown option" : "unknown command";
+    console.error(`Error: ${what}: ${opts.cmd}\n`);
+    console.error(usage());
+    process.exit(2);
+  }
 }

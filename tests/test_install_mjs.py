@@ -221,6 +221,38 @@ def test_usage_errors_exit_2_and_write_nothing(sandbox: Sandbox, argv: list[str]
     assert not cfg.exists()
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [["foo"], ["--bogus"], ["-x"], ["status", "--dry-run"]],
+    ids=["unknown-command", "unknown-option", "unknown-short-option", "dry-run-on-status"],
+)
+def test_unknown_commands_exit_2_with_usage_on_stderr(sandbox: Sandbox, argv: list[str]) -> None:
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run(*argv, CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 2
+    assert res.stdout == "", "errors never go to stdout"
+    assert res.stderr.startswith("Error: ")
+    assert "Usage:" in res.stderr
+    assert not cfg.exists()
+
+
+def test_dry_run_on_status_names_the_rule(sandbox: Sandbox) -> None:
+    res = sandbox.run("status", "--dry-run")
+    assert res.returncode == 2
+    assert "--dry-run applies to install/update only (status is read-only)" in res.stderr
+
+
+@pytest.mark.parametrize("flag", ["--help", "-h"])
+def test_help_prints_usage_on_stdout(sandbox: Sandbox, flag: str) -> None:
+    res = sandbox.run(flag)
+    assert res.returncode == 0, res.stderr
+    assert res.stderr == ""
+    assert res.stdout.startswith(f"wicked-garden v{_PKG_VERSION}")
+    assert "Usage:" in res.stdout
+    assert "--dry-run" in res.stdout and "install/update only" in res.stdout
+    assert not (sandbox.home / ".claude").exists()
+
+
 def test_version_and_pack_usage_are_unchanged(sandbox: Sandbox) -> None:
     res = sandbox.run("--version")
     assert res.returncode == 0 and res.stdout.strip() == _PKG_VERSION
