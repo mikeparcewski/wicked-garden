@@ -21,9 +21,13 @@
  *   --dry-run             Print what would be copied/synced, write nothing, never run uv
  *                         — install/update only (status is read-only and rejects it)
  *
+ * --claude-home / --dry-run belong to install/update/status only; given with any other
+ * command (`--dry-run pack check`, `--version --dry-run`) they are a usage error rather
+ * than being silently ignored while the command runs for real. Pack verbs own their flags.
+ *
  * Exit codes: 0 ok · 1 install/status failure (refused symlink, copy error, uv sync failed)
  *             · 2 usage (unknown command/option, bad --claude-home value, CLAUDE_CONFIG_DIR
- *             set but naming no directory).
+ *             set but naming no directory, install-only flag on another command).
  */
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
 import { join, dirname, resolve, sep } from "node:path";
@@ -397,6 +401,10 @@ let opts;
 let homes;
 try {
   opts = parseArgs(process.argv.slice(2));
+  if (!TARGETED.has(opts.cmd) && (opts.dryRun || opts.claudeHomes.length > 0)) {
+    const given = [opts.dryRun && "--dry-run", opts.claudeHomes.length > 0 && "--claude-home"].filter(Boolean).join(" / ");
+    throw new UsageError(`${given} applies to install/update/status only, not to \`${opts.cmd}\`${opts.cmd === "pack" ? " (pack verbs own their flags — place them after the verb)" : ""}`);
+  }
   if (opts.cmd === "status" && opts.dryRun) {
     throw new UsageError("--dry-run applies to install/update only (status is read-only)");
   }

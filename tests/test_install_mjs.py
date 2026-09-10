@@ -270,6 +270,22 @@ def test_unknown_commands_exit_2_with_usage_on_stderr(sandbox: Sandbox, argv: li
     assert not cfg.exists()
 
 
+@pytest.mark.parametrize(
+    "argv",
+    [["--dry-run", "pack", "check", "."], ["--claude-home", "x", "pack", "list"], ["--version", "--dry-run"], ["--dry-run", "--help"]],
+    ids=["dry-run-before-pack", "claude-home-before-pack", "version", "help"],
+)
+def test_install_only_flags_are_rejected_for_other_commands(sandbox: Sandbox, argv: list[str]) -> None:
+    # never "accepted and ignored" while the command runs for real (a pack check would run un-dry)
+    res = sandbox.run(*argv)
+    assert res.returncode == 2
+    assert res.stdout == ""
+    assert "applies to install/update/status only" in res.stderr
+    if "pack" in argv:
+        assert "pack verbs own their flags" in res.stderr
+    assert not (sandbox.home / ".claude").exists()
+
+
 def test_dry_run_on_status_names_the_rule(sandbox: Sandbox) -> None:
     res = sandbox.run("status", "--dry-run")
     assert res.returncode == 2
