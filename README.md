@@ -61,6 +61,14 @@ claude plugins install wicked-garden
 Or use the family installer — [`npx wicked-installer`](https://www.npmjs.com/package/wicked-installer)
 installs/updates the whole wicked-\* family (garden, its peers, and the rest).
 
+> `npx wicked-garden install` makes a bare, **unregistered** copy under `<config-dir>/plugins/wicked-garden`
+> (honours `CLAUDE_CONFIG_DIR` / `--claude-home`, `--dry-run`); registration is
+> `npx wicked-installer install wicked-garden`. The copy is staged in `plugins/.staging-wicked-garden-<pid>-<hex>`
+> and swapped in atomically; a previous copy passes through `plugins/.old-wicked-garden-<pid>-<hex>` and is removed only
+> after the installed tree verified (a tree that fails verification is set aside as `plugins/.failed-wicked-garden-<pid>-<hex>`
+> and the previous copy is put back). Those transient dirs are **not plugins**; a leftover after an interrupted install is
+> safe to delete (`status` lists them).
+
 Then, in a Claude Code session:
 
 ```bash
