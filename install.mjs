@@ -29,14 +29,19 @@
  * directory this run creates — `plugins/.staging-wicked-garden-<pid>-<hex>` — so no
  * pre-existing symlink can ever be written through; the staged tree is lstat-walked
  * (no symlinks, realpath-contained), then swapped into `plugins/wicked-garden` with
- * rename(2); a previous copy is moved to `plugins/.old-wicked-garden-<pid>-<hex>` and
- * removed once the swap succeeded (restored if it fails). Those two transient names are
- * NOT plugins — a leftover after an interrupted install is safe to delete (status lists them).
+ * rename(2); a previous copy is moved to `plugins/.old-wicked-garden-<pid>-<hex>` and is
+ * removed ONLY after the installed tree passed post-swap verification (walk, containment,
+ * manifest parse, version) — if that fails, the failed tree goes to
+ * `plugins/.failed-wicked-garden-<pid>-<hex>`, the previous copy is renamed back and
+ * re-verified, and the run exits 1 naming the failed check. Those three transient names
+ * are NOT plugins — a leftover after an interrupted install is safe to delete (status lists them).
  *
- * Exit codes: 0 ok · 1 install/status failure (refused symlink, copy/swap error, unreadable
- *             manifest, uv sync failed) · 2 usage (unknown command/option, bad --claude-home
- *             value, CLAUDE_CONFIG_DIR set but naming no directory, install-only flag on
- *             another command).
+ * Exit codes: 0 ok · 1 install/status failure (refused symlink, copy/swap error, failed
+ *             verification with the previous copy restored, unreadable manifest, uv sync
+ *             failed) · 2 usage (unknown command/option, bad --claude-home value,
+ *             CLAUDE_CONFIG_DIR set but naming no directory, install-only flag on another
+ *             command) · 3 ROLLBACK FAILED (a previous copy could not be put back — the
+ *             diagnostic names where the previous and the failed trees were left).
  */
 import {
   closeSync, constants, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync,
@@ -60,6 +65,17 @@ const SCRIPTS_DEV  = ["ci", "wg"];
 // Transient names used during a swap. Never treated as plugins; safe to delete if left over.
 const STAGING_PREFIX = ".staging-wicked-garden-";
 const OLD_PREFIX     = ".old-wicked-garden-";
+const FAILED_PREFIX  = ".failed-wicked-garden-";
+const TRANSIENT_PREFIXES = [STAGING_PREFIX, OLD_PREFIX, FAILED_PREFIX];
+
+// Test-only fault injection (tests/test_install_mjs.py): `rollback-restore` makes the
+// rename that puts a previous copy back fail, to prove the ROLLBACK FAILED path. The
+// variable is never set in production and no other value has any effect.
+const INSTALL_FAULT = process.env.WICKED_GARDEN_INSTALL_FAULT;
+
+class RollbackFailed extends Error {
+  constructor(message) { super(message); this.exitCode = 3; }
+}
 
 const REGISTER_NOTE =
   "copied (unregistered). Claude Code loads plugins through its marketplace registry — " +
@@ -96,11 +112,13 @@ class UsageError extends Error {}
 // A value-taking flag never swallows an option, in either form: `--claude-home --dry-run`,
 // `--claude-home=--dry-run` and `--claude-home=-x` are errors, as are empty/blank values.
 // A directory whose name really starts with "-" is written `./-x` or as an absolute path.
-function claudeHomeValue(value, form) {
-  if (value === undefined || value.trim() === "") {
+// The value is trimmed once and the TRIMMED value is what gets validated and used.
+function claudeHomeValue(raw, form) {
+  const value = raw === undefined ? "" : raw.trim();
+  if (value === "") {
     throw new UsageError(`${form} requires a directory`);
   }
-  if (value.trim().startsWith("-")) {
+  if (value.startsWith("-")) {
     throw new UsageError(`${form} requires a directory (got option-like value "${value}"); write ./${value} or an absolute path for a directory whose name starts with "-"`);
   }
   return value;
@@ -257,10 +275,53 @@ function transientName(prefix) {
 
 function leftoverTransients(pluginsDir) {
   try {
-    return readdirSync(pluginsDir).filter(n => n.startsWith(STAGING_PREFIX) || n.startsWith(OLD_PREFIX)).map(n => join(pluginsDir, n));
+    return readdirSync(pluginsDir).filter(n => TRANSIENT_PREFIXES.some(p => n.startsWith(p))).map(n => join(pluginsDir, n));
   } catch {
     return [];
   }
+}
+
+// The four post-swap checks, each named in its failure so a diagnostic can cite it.
+// `expectVersion === null` verifies a restored (possibly older) copy without pinning it.
+function verifyInstalledTree(home, dest, expectVersion) {
+  try { verifyTree(dest); } catch (err) { throw new Error(`tree walk: ${err.message}`); }
+  try { assertContained(home, dest, "plugin dir"); } catch (err) { throw new Error(`containment: ${err.message}`); }
+  let installed;
+  try {
+    installed = JSON.parse(readNoFollow(join(dest, ".claude-plugin", "plugin.json")));
+  } catch (err) {
+    throw new Error(`manifest parse: ${join(dest, ".claude-plugin", "plugin.json")}: ${err.message}`);
+  }
+  if (expectVersion !== null && installed.version !== expectVersion) {
+    throw new Error(`version check: ${dest} reports ${installed.version}, expected ${expectVersion}`);
+  }
+  return installed;
+}
+
+// Post-swap verification failed: move the failed tree aside, put the previous copy back,
+// verify it, and report. Anything going wrong in here is a ROLLBACK FAILED — printed with
+// both locations, never swallowed.
+function rollback(home, pluginsDir, dest, old, cause) {
+  const failed = join(pluginsDir, transientName(FAILED_PREFIX));
+  let failedAt = dest;
+  let previousAt = old;
+  try {
+    renameSync(dest, failed);
+    failedAt = failed;
+    if (old) {
+      if (INSTALL_FAULT === "rollback-restore") throw new Error("injected fault: rollback-restore");
+      renameSync(old, dest);
+      previousAt = dest;
+      verifyInstalledTree(home, dest, null);
+    }
+    rmSync(failed, { recursive: true, force: true });
+    failedAt = null;
+  } catch (rbErr) {
+    throw new RollbackFailed(
+      `ROLLBACK FAILED: previous install left at ${previousAt ?? "(none existed)"}, failed install at ${failedAt ?? "(removed)"}` +
+      ` — verification failure: ${cause.message}; rollback error: ${rbErr.message}`);
+  }
+  throw new Error(`post-install verification failed (${cause.message}); ${old ? `previous install restored at ${dest}` : `no previous install existed, so ${dest} is now absent`}`);
 }
 
 function planCopies() {
@@ -270,14 +331,16 @@ function planCopies() {
   };
 }
 
-// Stage → verify → swap for one config dir. On any failure the staging dir is removed
-// and a previous copy is left (or put back) exactly where it was.
+// Stage → verify → swap → verify → discard old, for one config dir. The previous copy is
+// discarded only after the installed tree passed verification; on any failure before that
+// the staging dir is removed and the previous copy is left (or put back) where it was.
 function stageAndSwap({ dir: home, pluginsDir, dest }, { dirs, files }) {
   mkdirSync(pluginsDir, { recursive: true });
   assertContained(home, pluginsDir, "plugins dir");
   const staging = join(pluginsDir, transientName(STAGING_PREFIX));
   mkdirSync(staging); // not recursive: must not pre-exist (EEXIST is a failure, not a reuse)
   console.log(`  staging: ${staging}`);
+  let old;
   try {
     for (const d of dirs) {
       process.stdout.write(`  ${d}/... `);
@@ -294,7 +357,6 @@ function stageAndSwap({ dir: home, pluginsDir, dest }, { dirs, files }) {
     if (finalSt && finalSt.isSymbolicLink()) {
       throw new Error(`refusing to install: ${dest} is a symlink (wicked-garden never follows symlinks under plugins/)`);
     }
-    let old;
     if (finalSt) {
       old = join(pluginsDir, transientName(OLD_PREFIX));
       renameSync(dest, old);
@@ -302,23 +364,30 @@ function stageAndSwap({ dir: home, pluginsDir, dest }, { dirs, files }) {
     try {
       renameSync(staging, dest);
     } catch (err) {
-      if (old) { try { renameSync(old, dest); } catch { /* previous copy could not be restored; reported below */ } }
+      if (old) {
+        try {
+          renameSync(old, dest);
+        } catch (rbErr) {
+          throw new RollbackFailed(`ROLLBACK FAILED: previous install left at ${old}, ${dest} is absent — swap error: ${err.message}; rollback error: ${rbErr.message}`);
+        }
+      }
       throw err;
     }
-    if (old) rmSync(old, { recursive: true, force: true });
-    console.log(`  swapped ${entries} entries into ${dest}${old ? " (previous copy replaced)" : ""}`);
+    console.log(`  swapped ${entries} entries into ${dest}`);
   } catch (err) {
     rmSync(staging, { recursive: true, force: true });
     throw err;
   }
 
-  // Post-swap re-verify: the tree we just installed, in place (see the residual note above).
-  verifyTree(dest);
-  assertContained(home, dest, "plugin dir");
-  const installed = JSON.parse(readNoFollow(join(dest, ".claude-plugin", "plugin.json")));
-  if (installed.version !== pkg.version) {
-    throw new Error(`post-install verification failed: ${dest} reports version ${installed.version}, expected ${pkg.version}`);
+  // Post-swap verification of the tree we just installed, in place (see the residual note
+  // above) — BEFORE the previous copy is discarded, so a failure can still be rolled back.
+  try {
+    verifyInstalledTree(home, dest, pkg.version);
+  } catch (verifyErr) {
+    rollback(home, pluginsDir, dest, old, verifyErr); // always throws
   }
+  if (old) rmSync(old, { recursive: true, force: true });
+  console.log(`  verified${old ? " (previous copy replaced)" : ""}`);
 }
 
 async function cmdInstall(homes, { dryRun }) {
@@ -357,12 +426,14 @@ async function cmdInstall(homes, { dryRun }) {
     // but this run does not claim success.
     if (uv) {
       process.stdout.write("  Python deps (uv sync)... ");
-      try {
-        execSync(`"${uv}" sync --quiet`, { cwd: dest, stdio: "pipe" });
+      // argv array, no shell: the resolved uv path is never re-parsed by a shell.
+      const res = spawnSync(uv, ["sync", "--quiet"], { cwd: dest, stdio: "pipe", encoding: "utf8" });
+      if (!res.error && res.status === 0) {
         console.log("done");
-      } catch (err) {
+      } else {
         console.log("FAILED");
-        const detail = String(err.stderr || err.message || "").trim().split("\n").slice(-3).join(" | ");
+        const raw = res.error ? res.error.message : `${res.stderr || ""}${res.status === null ? ` (signal ${res.signal})` : ` (exit ${res.status})`}`;
+        const detail = raw.trim().split("\n").slice(-3).join(" | ");
         console.error(`WARNING: uv sync failed in ${dest}${detail ? `: ${detail}` : ""}`);
         uvFailures.push(dest);
       }
@@ -517,8 +588,9 @@ function usage() {
     "  --claude-home <dir>   Config dir to target (repeatable; default: $CLAUDE_CONFIG_DIR or ~/.claude) — install/update/status",
     "  --dry-run             Print what would be copied/synced, write nothing, spawn nothing — install/update only",
     "",
-    "The copy is staged in plugins/.staging-wicked-garden-<pid>-<hex> and swapped in atomically",
-    "(a previous copy passes through plugins/.old-wicked-garden-<pid>-<hex>); neither is a plugin.",
+    "The copy is staged in plugins/.staging-wicked-garden-<pid>-<hex> and swapped in atomically; a previous",
+    "copy passes through plugins/.old-wicked-garden-<pid>-<hex> (a tree that fails verification through",
+    "plugins/.failed-wicked-garden-<pid>-<hex>). None of the three is a plugin; leftovers are safe to delete.",
     "The copy is unregistered — `npx wicked-installer install wicked-garden` registers it with Claude Code.",
   ].join("\n");
 }
@@ -549,7 +621,7 @@ switch (opts.cmd) {
   case "update":
   case undefined:
     cmdInstall(homes, { dryRun: opts.dryRun })
-      .catch(err => { console.error("Error:", err.message); process.exit(1); });
+      .catch(err => { console.error("Error:", err.message); process.exit(err.exitCode ?? 1); });
     break;
   case "status":
     process.exitCode = cmdStatus(homes);

@@ -86,9 +86,10 @@ class Sandbox:
         env.update(extra)
         return env
 
-    def run(self, *args: str, node_flags: tuple[str, ...] = (), **extra_env: str) -> subprocess.CompletedProcess[str]:
+    def run(self, *args: str, node_flags: tuple[str, ...] = (), script: Path = _INSTALL_MJS,
+            **extra_env: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            [_NODE, *node_flags, str(_INSTALL_MJS), *args],
+            [_NODE, *node_flags, str(script), *args],
             cwd=str(self.root),
             env=self.env(**extra_env),
             capture_output=True,
@@ -117,7 +118,30 @@ def transients(config_dir: Path) -> list[str]:
     plugins = config_dir / "plugins"
     if not plugins.exists():
         return []
-    return sorted(p.name for p in plugins.iterdir() if p.name.startswith((".staging-wicked-garden-", ".old-wicked-garden-")))
+    return sorted(p.name for p in plugins.iterdir()
+                  if p.name.startswith((".staging-wicked-garden-", ".old-wicked-garden-", ".failed-wicked-garden-")))
+
+
+_PLUGIN_DIRS = [".claude-plugin", "hooks", "scripts", "skills", "schemas"]
+_PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BUS_EVENTS.md", "pyproject.toml"]
+
+
+def doctored_package(root: Path, manifest_version: str = "0.0.0-doctored") -> Path:
+    """A copy of the shippable package whose plugin.json version disagrees with package.json,
+    so ONLY the post-swap version check fails — a real failure after `staging -> dest`, no hook."""
+    pkg = root / "doctored-package"
+    pkg.mkdir()
+    shutil.copy2(_REPO_ROOT / "install.mjs", pkg / "install.mjs")
+    shutil.copy2(_REPO_ROOT / "package.json", pkg / "package.json")
+    for d in _PLUGIN_DIRS:
+        shutil.copytree(_REPO_ROOT / d, pkg / d, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for f in _PLUGIN_FILES:
+        shutil.copy2(_REPO_ROOT / f, pkg / f)
+    manifest = pkg / ".claude-plugin" / "plugin.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    data["version"] = manifest_version
+    manifest.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    return pkg / "install.mjs"
 
 
 def tree(root: Path) -> dict[str, str]:
@@ -248,6 +272,15 @@ def test_claude_home_rejects_option_like_and_blank_values_in_both_forms(sandbox:
     for stray in ("--dry-run", "--x", "-v", "-x"):
         assert not (sandbox.root / stray).exists(), "an option must never become a directory"
     assert not (sandbox.home / ".claude").exists()
+
+
+def test_claude_home_value_is_trimmed_once_and_used_trimmed(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", "--dry-run", "--claude-home", f"  {cfg}  ", f"--claude-home=\t{cfg}2 ")
+    assert res.returncode == 0, res.stderr
+    assert f"config dir: {cfg} (--claude-home)" in res.stdout
+    assert f"config dir: {cfg}2 (--claude-home)" in res.stdout
+    assert f"config dir:   {cfg}" not in res.stdout, "no whitespace-named directory is ever targeted"
 
 
 def test_claude_home_accepts_a_dash_dir_when_spelled_as_a_path(sandbox: Sandbox) -> None:
@@ -593,3 +626,63 @@ def test_repeat_install_is_idempotent(sandbox: Sandbox) -> None:
     assert tree(dest_of(cfg)) == before
     assert installed_version(cfg) == _PKG_VERSION
     assert sorted(p.name for p in (cfg / "plugins").iterdir()) == ["wicked-garden"]
+
+
+# --- post-swap verification + rollback --------------------------------------
+
+
+def test_failed_post_swap_verification_restores_the_previous_copy_byte_for_byte(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    assert sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+    before = tree(dest_of(cfg))
+
+    res = sandbox.run("install", script=doctored_package(sandbox.root), CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 1
+    assert "swapped" in res.stdout, "the failure is injected AFTER staging -> dest"
+    assert "post-install verification failed" in res.stderr
+    assert "version check:" in res.stderr and "0.0.0-doctored" in res.stderr
+    assert f"previous install restored at {dest_of(cfg)}" in res.stderr
+    assert "ROLLBACK FAILED" not in res.stderr
+    assert tree(dest_of(cfg)) == before, "previous good install restored byte-for-byte"
+    assert installed_version(cfg) == _PKG_VERSION
+    assert transients(cfg) == [], "no .staging/.old/.failed leftovers"
+    assert sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+
+
+def test_failed_post_swap_verification_with_no_previous_copy_leaves_nothing(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", script=doctored_package(sandbox.root), CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 1
+    assert "post-install verification failed" in res.stderr and "version check:" in res.stderr
+    assert "no previous install existed" in res.stderr
+    assert not dest_of(cfg).exists()
+    assert transients(cfg) == []
+
+
+def test_rollback_failure_is_explicit_and_leaves_both_trees(sandbox: Sandbox) -> None:
+    cfg = sandbox.cfg("cfg")
+    assert sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg)).returncode == 0
+    before = tree(dest_of(cfg))
+
+    res = sandbox.run(
+        "install", script=doctored_package(sandbox.root),
+        CLAUDE_CONFIG_DIR=str(cfg), WICKED_GARDEN_INSTALL_FAULT="rollback-restore",
+    )
+    assert res.returncode == 3, res.stderr
+    plugins = cfg / "plugins"
+    left = transients(cfg)
+    olds = [n for n in left if n.startswith(".old-wicked-garden-")]
+    faileds = [n for n in left if n.startswith(".failed-wicked-garden-")]
+    assert len(olds) == 1 and len(faileds) == 1, left
+    assert f"ROLLBACK FAILED: previous install left at {plugins / olds[0]}, failed install at {plugins / faileds[0]}" in res.stderr
+    assert "verification failure: version check:" in res.stderr
+    assert "rollback error: injected fault: rollback-restore" in res.stderr
+    assert not dest_of(cfg).exists(), "the failed tree is not left active"
+    assert tree(plugins / olds[0]) == before, "the previous install is intact where the diagnostic says"
+    assert json.loads((plugins / faileds[0] / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"] == "0.0.0-doctored"
+
+    st = sandbox.run("status", CLAUDE_CONFIG_DIR=str(cfg))
+    assert st.returncode == 0
+    for name in left:
+        assert f"leftover transient dir from an interrupted install (not a plugin; safe to delete): {plugins / name}" in st.stdout
+    assert "wicked-garden: not installed" in st.stdout
