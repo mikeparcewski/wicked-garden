@@ -160,6 +160,10 @@ Skill(
   args="""Review the produced tests named in the PLAN below against the qe
 `review` playbook's "Reviewing produced tests" rules. Re-derive every claim.
 
+## Mode
+MODE: produced-test — grade per the auditor's §9 produced-test verdict
+(`PASS` reachable), not its §5 audit.
+
 ## PLAN
 {path to the PLAN carrying the execution table}
 

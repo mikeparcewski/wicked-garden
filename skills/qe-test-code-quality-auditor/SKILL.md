@@ -56,6 +56,12 @@ Relative paths in this skill are relative to the directory that contains this SK
     `P0`, `P1`, `P2`; default `P2` (include everything).
   - `top_n:` findings in the remediation list; default 30.
 - **`run_id`** — UUID of the current `runs` row; defines `EVIDENCE_DIR`.
+- **`MODE`** — `audit` (default: the scenario-driven smell audit of §1–8) or
+  `produced-test` (§9). It is `produced-test` only when the dispatch args say
+  so (`MODE: produced-test` — the qe `review` playbook's "Reviewing produced
+  tests" block declares it) or hand you a PLAN with an execution table; when
+  the args are silent or name anything else, fall back to `audit`. The `PASS`
+  branch in §5 exists only in `produced-test` mode.
 - **`.wicked-qe/config.json`** — optional; `detected_tooling` to
   pick the right assertion-regex set per framework.
 - **`.wicked-qe/evidence/<run_id>/context.md`** — optional rules,
@@ -211,6 +217,9 @@ top-n.csv` columns: `file,line,rule,severity,snippet,fix_hint`.
 const p0 = findings.filter(f => f.severity === "P0");
 const p1 = findings.filter(f => f.severity === "P1");
 const p2 = findings.filter(f => f.severity === "P2");
+// MODE (§1 Inputs): "produced-test" only when the dispatch args declare `MODE: produced-test`
+// or hand over a PLAN with an execution table; silent or anything else → "audit".
+const MODE = (ARGS_MODE === "produced-test" || PLAN_HAS_EXECUTION_TABLE) ? "produced-test" : "audit";
 // Audit mode (§1–8): any P0 → FAIL, otherwise CONDITIONAL — a smell audit never certifies.
 // Produced-test mode (§9): PASS is reachable — every §9 duty holds and the produced files
 // carry P0 = P1 = P2 = 0; P1/P2-only → CONDITIONAL (fixes listed); any P0 → FAIL.
@@ -303,10 +312,10 @@ VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-test-code-quality-auditor R
 
 ## 9. Produced-test review (a PLAN + the tests it claims)
 
-When the qe `review` action dispatches you with a PLAN that carries an
-execution table (the `author` output — the review phase of a governed
-test-authoring run), the detectors above run on the produced files AND these
-duties apply. The verdict is re-derived from the files, never copied from the
+When the qe `review` action dispatches you in `produced-test` mode (`MODE:
+produced-test` in the args — §1) with a PLAN that carries an execution table
+(the `author` output — the review phase of a governed test-authoring run), the
+detectors above run on the produced files AND these duties apply. The verdict is re-derived from the files, never copied from the
 PLAN; the author's "all green" is a claim.
 
 1. **`covered` rows are opened at their `file:line`** — the test exists, its
