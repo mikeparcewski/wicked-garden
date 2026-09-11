@@ -12,6 +12,11 @@
  *   npx wicked-garden update  [options]   Same as install
  *   npx wicked-garden status  [options]   Show the install state per config dir
  *   npx wicked-garden pack <verb>         Third-party pack tooling (check/register/list/…)
+ *   npx wicked-garden run <path> [args]   Launcher: run a plugin-root-relative script (delegates
+ *   npx wicked-garden python <path|-|-c>  to scripts/wicked-garden.mjs — root resolution
+ *   npx wicked-garden path <path>         WICKED_GARDEN_ROOT → CLAUDE_PLUGIN_ROOT → this package,
+ *   npx wicked-garden root                interpreter ladder .venv → uv → python3 → python → py -3;
+ *   npx wicked-garden doctor              this is how portable skill text reaches scripts/)
  *   npx wicked-garden --version           Print version
  *   npx wicked-garden --help              Print usage
  *
@@ -57,7 +62,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
 
 const PLUGIN_DIRS  = [".claude-plugin", "hooks", "scripts", "skills", "schemas"];
-const PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BUS_EVENTS.md", "pyproject.toml"];
+// uv.lock rides along so the copy's `uv sync` (and the launcher's `uv run --frozen`) resolve
+// the same pins the release was tested with.
+const PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BUS_EVENTS.md", "pyproject.toml", "uv.lock"];
 const SKIP         = [/__pycache__/, /\.pyc$/, /\.pyo$/, /\.DS_Store$/];
 // Dev-only subdirs within scripts/ — not needed at runtime
 const SCRIPTS_DEV  = ["ci", "wg"];
@@ -109,6 +116,11 @@ function findBin(name) {
 
 class UsageError extends Error {}
 
+// Launcher verbs — delegated verbatim to scripts/wicked-garden.mjs (the single implementation;
+// scripts/wicked-garden and scripts/wicked-garden.cmd are its PATH twins for crew snapshots).
+// Like `pack`, they own their flags: everything after the verb passes through untouched.
+const LAUNCHER_VERBS = new Set(["run", "python", "path", "root", "doctor"]);
+
 // A value-taking flag never swallows an option, in either form: `--claude-home --dry-run`,
 // `--claude-home=--dry-run` and `--claude-home=-x` are errors, as are empty/blank values.
 // A directory whose name really starts with "-" is written `./-x` or as an absolute path.
@@ -128,7 +140,7 @@ function parseArgs(argv) {
   const opts = { cmd: undefined, rest: [], claudeHomes: [], dryRun: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
-    if (opts.cmd === "pack") { opts.rest.push(arg); continue; }
+    if (opts.cmd === "pack" || LAUNCHER_VERBS.has(opts.cmd)) { opts.rest.push(arg); continue; }
     if (arg === "--dry-run") {
       opts.dryRun = true;
     } else if (arg === "--claude-home") {
@@ -581,6 +593,11 @@ function usage() {
     "  npx wicked-garden install [options]   Install or update the plugin copy (`update` is an alias)",
     "  npx wicked-garden status  [options]   Show the install state per config dir (read-only)",
     "  npx wicked-garden pack <verb>         Third-party pack tooling (check/register/list/floors/install)",
+    "  npx wicked-garden run <path> [args]   Launcher: run a plugin-root-relative script (.py/.mjs/.js/.sh)",
+    "  npx wicked-garden python <path|-|-c>  Launcher: force the python interpreter (stdin / -c pass through)",
+    "  npx wicked-garden path <path>         Launcher: print the absolute path under the plugin root",
+    "  npx wicked-garden root                Launcher: print the resolved plugin root",
+    "  npx wicked-garden doctor              Launcher: JSON report (root, source, python, node, uv)",
     "  npx wicked-garden --version           Show version",
     "  npx wicked-garden --help              Show this usage",
     "",
@@ -629,6 +646,15 @@ switch (opts.cmd) {
   case "pack":
     process.exit(cmdPack(opts.rest));
     break;
+  case "run":
+  case "python":
+  case "path":
+  case "root":
+  case "doctor": {
+    const { main: launcherMain } = await import("./scripts/wicked-garden.mjs");
+    process.exit(launcherMain([opts.cmd, ...opts.rest]));
+    break;
+  }
   case "--version":
   case "-v":
     console.log(pkg.version);

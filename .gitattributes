@@ -1,0 +1,2 @@
+# Windows command twins must keep CRLF line endings; everything else stays LF.
+*.cmd text eol=crlf
