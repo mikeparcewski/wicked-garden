@@ -10,6 +10,8 @@ archetype_relevance: ["*"]
 
 # GitLab CLI Power Utilities
 
+Skill-local scripts (`scripts/glab_ops.py`) are stdlib-only and run base-directory-relative with `python3` (`py -3` on Windows).
+
 Intelligent wrappers and patterns for GitLab CLI operations.
 
 ## When to Use

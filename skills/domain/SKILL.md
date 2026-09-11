@@ -67,8 +67,8 @@ estate is the sole writer of graph structure.
 | Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
 | Threat-model the extracted model before build | domain-coverage (`wicked-garden-domain-coverage`) | pre-build threat list / RISK-flag reasons |
 
-Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by loading its skill in a
-fork context. Run order for a full extraction: **extractor → translator → antagonist**. Each is independently invocable.
+Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by loading its skill in a fork context; where
+no fork/Task is available, open the worker's SKILL.md and follow it inline. Run order for a full extraction: **extractor → translator → antagonist**. Each is independently invocable.
 
 ## The document this skill emits
 

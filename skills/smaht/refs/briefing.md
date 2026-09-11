@@ -142,13 +142,13 @@ named via `--project`) carries an optional `affected_repos` list in its
 the `Detected stack:` line. The helper script below is fail-open: it
 prints NOTHING when the field is missing, empty, or malformed, so this
 block stays silent on every legacy project. The full DAG / worktrees /
-cross-repo evidence workflow lives in the monorepo sibling plugin (a
-separate plugin, not a skill of this catalog — see `docs/v9/sibling-plugin-monorepo.md`).
+cross-repo evidence workflow lives in the `wicked-garden-monorepo` <!-- not-a-skill -->
+sibling plugin (a separate plugin, not a skill of this catalog — see `docs/v9/sibling-plugin-monorepo.md`).
 
 _The `affected_repos` helper was removed in v11. Multi-repo coordination
 was tied to the v6 universal pipeline's process-plan.json schema, which
 the v11 archetype catalog superseded. Future cross-repo orchestration
-work belongs in the monorepo sibling plugin._
+work belongs in the `wicked-garden-monorepo` sibling plugin (not a skill of this catalog)._ <!-- not-a-skill -->
 
 Format (when non-empty):
 

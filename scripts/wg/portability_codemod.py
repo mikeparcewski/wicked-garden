@@ -4,8 +4,10 @@
 Dev tooling (scripts/wg/ is excluded from the npm package and from crew's bundle closure).
 It applies design W4 §6.1 to every text file under skills/ and reports every rewrite and
 every target it could not resolve, so the ~10 % that needs a human is a list, not a hunt.
-The lint that judges the result is tests/test_skill_portability.py; both read the shared
-rules fixture tests/portability_rules.json (runtime block, fallback sentences).
+The lint that judges the result is tests/test_skill_portability.py; both read the same data —
+the CANONICAL parity fixture tests/portability_rules.json (vendored from wicked-crew: shared
+regexes + fence semantics) and garden's additions in tests/portability_rules.garden.json
+(runtime block, fallback sentences, bare-span regexes, codemod knobs).
 
 Usage:
   python3 scripts/wg/portability_codemod.py --dry-run [--report FILE]   report, write nothing
@@ -56,14 +58,22 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS = REPO / "skills"
-RULES = json.loads((REPO / "tests" / "portability_rules.json").read_text(encoding="utf-8"))
+# Two rule files, both data: the CANONICAL parity fixture (vendored byte-for-byte from wicked-crew —
+# shared regexes + fence semantics) and garden's own additions (runtime block, fallback sentences,
+# bare-span regexes, codemod knobs). See tests/test_skill_portability.py.
+CANON = json.loads((REPO / "tests" / "portability_rules.json").read_text(encoding="utf-8"))
+RULES = json.loads((REPO / "tests" / "portability_rules.garden.json").read_text(encoding="utf-8"))
 RUNTIME_BLOCK = RULES["launcher"]["runtime_block"]
 FORK_SENTENCE = RULES["fallbacks"]["fork_worker_sentence"]
 DISPATCH_SENTENCE = RULES["fallbacks"]["dispatch_sentence"]
-DISPATCH_TRIGGER = RULES["fallbacks"]["dispatch_trigger"]
-LAUNCHER_RE = re.compile(RULES["regex"]["launcher_call"])
-FENCE_RE = re.compile(RULES["regex"]["fence"])
-SHELL_FENCES = {lang.lower() for lang in RULES["shell_fence_languages"]}
+DISPATCH_RE = re.compile(RULES["fallbacks"]["dispatch_trigger_regex"])  # single- AND multi-line `Skill(` … `skill=`
+LAUNCHER_RE = re.compile(CANON["regex"]["launcher_call"])
+BARE_SPAN_RE = re.compile(RULES["regex"]["bare_script_span"])
+BARE_LINE_RE = re.compile(RULES["regex"]["bare_script_line"])
+FENCE_RE = re.compile(CANON["regex"]["fence_line"])
+# the codemod rewrites MORE than the lint judges: yaml/yml fences too (CI templates carry shell
+# `run:` lines) — rewriting toward the launcher is always safe
+SHELL_FENCES = {lang.lower() for lang in CANON["fences"]["shell_langs"]} | {l.lower() for l in RULES["codemod"]["shell_langs_extra"]}
 
 VAR = r"\$\{CLAUDE_PLUGIN_ROOT\}"
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
@@ -71,7 +81,7 @@ NAME_DECL_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
 CONTEXT_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 SKIP_NAMES = {"__pycache__", ".DS_Store"}
 BASE_DIR_NOTE = " (relative to this skill's base directory)"
-LAUNCHER_PREFIX_BY_FILE = {"skills/qe/refs/campaign-ci.md": "npx wicked-garden@12"}
+LAUNCHER_PREFIX_BY_FILE = RULES["codemod"]["launcher_prefix_by_file"]
 
 
 @dataclass
@@ -320,11 +330,17 @@ class FileRewriter:
         line = re.sub(rf'"{VAR}/((?:scripts|schemas|docs|hooks)/[^"]+)"', r'"$(wicked-garden path \1)"', line)
         # backticked
         line = re.sub(rf"`{VAR}/([^`\s]+)`", lambda m: self.prose_ref(m.group(1)), line)
-        # bare (not followed by a quote/backtick opener); inside an open code span → path only
+        # bare (not followed by a quote/backtick opener); inside an open code span → path only,
+        # and when that span goes on with ARGUMENTS it is a command: emit the launcher form (a
+        # cwd-relative `scripts/x.py <args>` is an instruction no host can execute)
         def bare_repl(m: re.Match[str]) -> str:
             inside_span = line[: m.start()].count("`") % 2 == 1
             target = m.group(1).rstrip(".")
             trailer = "." if m.group(1).endswith(".") else ""
+            if inside_span:
+                rest_of_span = line[m.end():].split("`", 1)[0]
+                if rest_of_span.strip() and re.search(r"\.(?:py|mjs|js|cjs|sh)$", target):
+                    return self.launcher_or_local("python3", target) + trailer
             return self.prose_ref(target, inline_code=inside_span) + trailer
 
         line = re.sub(rf"{VAR}/([^\s`\"')\],]+)", bare_repl, line)
@@ -385,6 +401,34 @@ class FileRewriter:
                 return f"{plain} (`{name}`)"
             return f"`{name}`"
         return f"the `{name}` skill's `{rest}`"
+
+    def pass_bare_spans(self, line: str, shell_ctx: bool, in_fence: bool, prev_nonblank: str) -> str:
+        """A bare `scripts/<x>.py <args>` code span, or a shell-fence line that starts with such a
+        path (and is not the continuation of a `\\` command), has no interpreter at all — no host
+        can run it. Skill-local scripts get `python3 <rel>`; plugin scripts the launcher form."""
+        old = line
+
+        def form(p: str) -> str | None:
+            if self.skill and (self.skill / p).exists():
+                return f"python3 {p}"
+            if (REPO / p).exists():
+                return f"{self.launcher_prefix} run {p}"
+            return None
+
+        if not in_fence:
+            def span_repl(m: re.Match[str]) -> str:
+                f = form(m.group(1))
+                return f"`{f}{m.group(2)}`" if f else m.group(0)
+
+            line = BARE_SPAN_RE.sub(span_repl, line)
+        elif shell_ctx and not prev_nonblank.rstrip().endswith("\\"):
+            m = BARE_LINE_RE.match(line)
+            if m:
+                f = form(m.group(2))
+                if f:
+                    line = f"{m.group(1)}{f}{m.group(3) or ''}"
+        self.change("cwd-script", old, line)
+        return line
 
     def pass_cwd(self, line: str, shell_ctx: bool) -> str:
         if not shell_ctx:
@@ -452,14 +496,19 @@ class FileRewriter:
         for idx in self.retarget_inline_python_openers(lines):
             self.lineno = idx + 1
             self.change("command", 'python3 -c "', lines[idx])
+        prev_nonblank = ""
         for i, line in enumerate(lines, 1):
             self.lineno = i
             fm = FENCE_RE.match(line)
-            if fm and fence_marker is None:
-                fence_marker, fence_is_shell = fm.group(1), fm.group(2).lower() in SHELL_FENCES
-            elif fm and fence_marker is not None and fm.group(1) == fence_marker and fm.group(2) == "":
+            if fm and fence_marker is None and (fm.group(1) or fm.group(2)):
+                run = fm.group(1) or fm.group(2)
+                fence_marker, fence_is_shell = run, (fm.group(3) or "").lower() in SHELL_FENCES
+                in_fence = False
+            elif fence_marker is not None and re.match(r"^\s*" + re.escape(fence_marker[0]) + "{" + str(len(fence_marker)) + r",}\s*$", line):
                 fence_marker = None
-            in_fence = fence_marker is not None
+                in_fence = False
+            else:
+                in_fence = fence_marker is not None
             shell_ctx = self.path.suffix == ".sh" or (self.is_md and (not in_fence or fence_is_shell))
             if "${CLAUDE_PLUGIN_ROOT}" in line:
                 line, cont_launcher = self.pass_commands(line, cont_launcher)
@@ -478,9 +527,13 @@ class FileRewriter:
             if "../" in line:
                 line = self.pass_relative(line)
             line = self.pass_cwd(line, shell_ctx)
+            if self.is_md and ("scripts/" in line or "hooks/" in line):
+                line = self.pass_bare_spans(line, shell_ctx, in_fence, prev_nonblank)
             if self.is_md and i > fm_end and "/wicked-garden:" in line:
                 line = self.pass_slash(line)
             out.append(line)
+            if line.strip():
+                prev_nonblank = line
         self.ensure_import_os(out)
         return "\n".join(out)
 
@@ -519,7 +572,7 @@ def insert_runtime_block(text: str) -> str:
     # A router that also dispatches workers gets the dispatch-fallback sentence as the
     # block's last line (one paragraph of "how this skill reaches things off-Claude")
     # instead of a separate paragraph — the non-fork SKILL.md line cap is tight.
-    if DISPATCH_TRIGGER in text and DISPATCH_SENTENCE not in text:
+    if DISPATCH_RE.search(text) and DISPATCH_SENTENCE not in text:
         block = block + [DISPATCH_SENTENCE]
     if idx is None:
         while lines and lines[-1] == "":
@@ -543,19 +596,36 @@ def insert_fork_sentence(text: str) -> str:
     return "\n".join(lines[:at] + insert + lines[at:])
 
 
+def first_dispatch_line(lines: list[str]) -> int | None:
+    """Index of the first `Skill(skill=` line, or of a `Skill(` opener whose next non-blank
+    line starts with `skill=` (the multi-line dispatch block)."""
+    for i, l in enumerate(lines):
+        if re.search(r"Skill\(\s*skill=", l):
+            return i
+        if re.search(r"Skill\(\s*$", l):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            if j < len(lines) and lines[j].lstrip().startswith("skill="):
+                return i
+    return None
+
+
 def insert_dispatch_sentence(text: str) -> str:
-    if DISPATCH_TRIGGER not in text or DISPATCH_SENTENCE in text:
+    if not DISPATCH_RE.search(text) or DISPATCH_SENTENCE in text:
         return text
     lines = text.split("\n")
-    first = next(i for i, l in enumerate(lines) if DISPATCH_TRIGGER in l)
+    first = first_dispatch_line(lines)
+    if first is None:
+        return text
     # if inside a fence, back up to its opener
     fence_marker = None
     opener = None
     for i in range(first + 1):
         fm = FENCE_RE.match(lines[i])
-        if fm and fence_marker is None:
-            fence_marker, opener = fm.group(1), i
-        elif fm and fence_marker is not None and fm.group(1) == fence_marker and fm.group(2) == "":
+        if fm and fence_marker is None and (fm.group(1) or fm.group(2)):
+            fence_marker, opener = (fm.group(1) or fm.group(2)), i
+        elif fence_marker is not None and re.match(r"^\s*" + re.escape(fence_marker[0]) + "{" + str(len(fence_marker)) + r",}\s*$", lines[i]):
             fence_marker, opener = None, None
     at = opener if fence_marker is not None and opener is not None else first
     indent = re.match(r"\s*", lines[at]).group(0)

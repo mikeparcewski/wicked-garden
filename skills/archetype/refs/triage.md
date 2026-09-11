@@ -23,7 +23,7 @@ agent picks up the playbook from there.
 1. **Read the prompt.** What is the user actually asking for? When the
    prompt is empty, run the detector against the conversation context
    instead.
-2. **Run the detector.** Call `scripts/crew/archetypes_v11.py detect` with
+2. **Run the detector.** Call `wicked-garden run scripts/crew/archetypes_v11.py detect` with
    the prompt and any known signals.
 3. **Inspect the matches.**
    - Single high-confidence match (≥ 0.7): hand off to that archetype's

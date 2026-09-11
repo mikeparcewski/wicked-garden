@@ -59,13 +59,13 @@ PLUGIN_PATH_RE = re.compile(
 # CI-template spelling `npx wicked-garden@12 run …`); the target may sit on the
 # next line after a trailing `\`, and `python -c …` / `python -` carry no path.
 # Every path target must exist. The two template mentions inside the standard
-# `## Runtime` block (exact text in tests/portability_rules.json) are not calls.
+# `## Runtime` block (exact text in tests/portability_rules.garden.json) are not calls.
 LAUNCHER_CALL_RE = re.compile(
     r"(?<![A-Za-z0-9_-])(?:npx\s+)?wicked-garden(?:@[A-Za-z0-9_.^~-]+)?\s+"
     r"(run|python|path)(?:[ \t]+(\S+))?"
 )
 _RUNTIME_BLOCK_LINES = set(
-    json.loads((REPO / "tests" / "portability_rules.json").read_text(encoding="utf-8"))
+    json.loads((REPO / "tests" / "portability_rules.garden.json").read_text(encoding="utf-8"))
     ["launcher"]["runtime_block"].split("\n")
 )
 

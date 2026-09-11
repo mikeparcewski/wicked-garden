@@ -59,6 +59,8 @@ which asserts it is a shipped `wicked-garden-qe-*` worker and BLOCKS retired
 `wicked-testing-*` names at dispatch with a clear error naming the garden <!-- historical -->
 replacement (exit 2). Never dispatch a name the guard refused.
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(
   skill="wicked-garden-qe-scenario-executor",

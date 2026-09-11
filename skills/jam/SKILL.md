@@ -20,6 +20,11 @@ Generate diverse perspectives through structured focus group sessions.
 This is the single entry point for the jam domain — route the user's request
 to one of the sub-actions below.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Routing
 
 | Sub-action | When | How it runs |
@@ -97,7 +102,7 @@ Structured evaluation tool that uses real external LLM CLIs — registry-driven
 (20+ CLIs: Codex, Gemini, Copilot, OpenCode, Pi, Aider, Goose, Amp, Droid, …;
 see `scripts/jam/agentic_cli_registry.py`) — to get genuinely independent
 model perspectives. Installed CLIs are detected AND usability-probed via
-`scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured /
+`wicked-garden run scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured /
 daemon-down CLIs are excluded). When fewer than 2 usable external CLIs are
 present, council seats are filled with forked subagent seats so deliberation
 always happens. Unlike brainstorm (free-form creative exploration), council is

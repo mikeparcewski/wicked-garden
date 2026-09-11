@@ -79,6 +79,8 @@ If preferences is empty, use: "No specific preferences — communicate clearly a
 Invoke the `wicked-garden-persona-agent` skill (it runs in a forked context),
 passing the fully-formatted persona profile + task as args:
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```python
 Skill(
     skill="wicked-garden-persona-agent",

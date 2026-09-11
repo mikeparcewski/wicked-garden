@@ -15,6 +15,8 @@ archetype_relevance: ["*"]
 
 # GitHub CLI Power Utilities
 
+Skill-local scripts (`scripts/gh_ops.py`) are stdlib-only and run base-directory-relative with `python3` (`py -3` on Windows).
+
 Intelligent wrappers and patterns for GitHub CLI that go beyond basic commands.
 
 ## When to Use

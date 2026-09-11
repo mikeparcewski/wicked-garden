@@ -16,6 +16,8 @@ phase_relevance: ["build", "review", "operate"]
 archetype_relevance: ["*"]
 ---
 
+Skill-local scripts (`scripts/workflow_gen.py`) are stdlib-only and run base-directory-relative with `python3` (`py -3` on Windows).
+
 # GitHub Actions Workflow Writing
 
 Write production-ready GitHub Actions workflows with security and performance built in.

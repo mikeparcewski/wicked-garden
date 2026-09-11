@@ -54,6 +54,8 @@ invoke it with the Skill tool so it runs in an isolated context. For the
 reviewer this is isolation-critical: the forked context is what guarantees
 it never sees the executor's history.
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(
   skill="wicked-garden-qe-acceptance-test-reviewer",

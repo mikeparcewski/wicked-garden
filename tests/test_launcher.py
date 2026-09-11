@@ -434,6 +434,9 @@ def test_windows_path_building_via_pure_functions(sandbox: Sandbox) -> None:
         "  cacheXdg: m.cacheDir({XDG_CACHE_HOME: '/xdg'}, 'linux', '/home/x'),"
         "  uvEnv: m.uvProjectEnvironment('C:\\\\snap\\\\000002', 'C:\\\\Users\\\\x\\\\AppData\\\\Local\\\\wicked-garden\\\\cache', 'win32'),"
         "  kinds: ['scripts\\\\x.py', 'scripts/x.mjs', 'a.js', 'b.cjs', 'c.sh', 'd.json'].map(m.interpreterKindFor),"
+        "  shim: m.spawnPlan(['C:\\\\py\\\\python.bat', 'x.py', 'a b', 'q\"r'], 'win32'),"
+        "  exe: m.spawnPlan(['C:\\\\py\\\\python.exe', 'x.py'], 'win32'),"
+        "  posix: m.spawnPlan(['/usr/bin/python3', 'x.py', 'a b'], 'linux'),"
         " };"
         " console.log(JSON.stringify(out)); })"
     )
@@ -449,6 +452,32 @@ def test_windows_path_building_via_pure_functions(sandbox: Sandbox) -> None:
     assert out["uvEnv"].startswith("C:\\Users\\x\\AppData\\Local\\wicked-garden\\cache\\venvs\\")
     assert not out["uvEnv"].startswith("C:\\snap")
     assert out["kinds"] == ["python", "node", "node", "node", "sh", None]
+    # .cmd/.bat shims cannot be spawned shell-less on Node >= 20 (CVE-2024-27980): cmd.exe wraps them
+    assert out["shim"]["file"] == "cmd.exe"
+    assert out["shim"]["args"][:3] == ["/d", "/s", "/c"]
+    assert out["shim"]["args"][3] == '""C:\\py\\python.bat" "x.py" "a b" "q""r""'
+    assert out["shim"]["windowsVerbatimArguments"] is True
+    assert out["exe"] == {"file": "C:\\py\\python.exe", "args": ["x.py"], "windowsVerbatimArguments": False}
+    assert out["posix"] == {"file": "/usr/bin/python3", "args": ["x.py", "a b"], "windowsVerbatimArguments": False}
+
+
+@posix_only
+def test_sh_twin_works_through_a_symlink(sandbox: Sandbox, tmp_path: Path) -> None:
+    root = make_root(tmp_path / "root")
+    bindir = tmp_path / "userbin"
+    bindir.mkdir()
+    link = bindir / "wicked-garden"
+    link.symlink_to(SH_TWIN)
+    sandbox.bin.joinpath("readlink").symlink_to(shutil.which("readlink"))
+    res = subprocess.run([str(link), "root"], env=sandbox.env(WICKED_GARDEN_ROOT=str(root)),
+                         capture_output=True, text=True, timeout=60)
+    assert res.returncode == 0, res.stderr
+    assert Path(res.stdout.strip()).resolve() == root.resolve()
+    # without readlink on PATH the twin degrades to $0 (documented) — but never to a raw stack trace
+    sandbox.bin.joinpath("readlink").unlink()
+    res = subprocess.run([str(link), "root"], env=sandbox.env(WICKED_GARDEN_ROOT=str(root)),
+                         capture_output=True, text=True, timeout=60)
+    assert res.returncode != 0
 
 
 def test_install_mjs_bin_delegates_the_launcher_verbs(sandbox: Sandbox, tmp_path: Path) -> None:

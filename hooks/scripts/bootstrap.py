@@ -1212,7 +1212,12 @@ def main():
             with open(env_file, "a") as f:
                 f.write(f'export CLAUDE_PLUGIN_ROOT="{plugin_root}"\n')
                 f.write(f'export WICKED_GARDEN_ROOT="{plugin_root}"\n')
-                f.write(f'export PATH="{plugin_root}/scripts:$PATH"\n')
+                # idempotent: SessionStart also fires on reconnects, and the env file is
+                # appended to — never let PATH grow one entry per fire
+                f.write(
+                    f'case ":$PATH:" in *":{plugin_root}/scripts:"*) ;; '
+                    f'*) export PATH="{plugin_root}/scripts:$PATH" ;; esac\n'
+                )
         except OSError:
             pass
 

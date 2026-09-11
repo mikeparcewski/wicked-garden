@@ -46,7 +46,7 @@ not part of this discrete gate.)
    whether this even needs an ADR. Cheap-to-reverse decisions don't
    benefit from this archetype's overhead.
 4. If a vault is resolvable
-   (`scripts/qe/vault_gate.py resolve` → `available: true`), declare the
+   (`wicked-garden run scripts/qe/vault_gate.py resolve` → `available: true`), declare the
    re-derivable contract so the select gate has a bar to check against:
    `wicked-vault init` (once per repo) then
    `wicked-vault declare-contract --scope <scope> --phase decide --spec contract.json`.
@@ -97,7 +97,7 @@ not part of this discrete gate.)
 
 Decide is done when the produces-gate is satisfied AND the chosen option
 is named. Check the gate — don't self-assert it:
-`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase decide` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase decide`
+`wicked-garden run scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase decide` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `wicked-garden run scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase decide`
 (exit 0 = satisfied). This is a re-derived PASS over the declared
 contract — the ADR was re-hashed and its structure verifier re-run. A
 REJECT means the recorded ADR doesn't clear its contract (a missing

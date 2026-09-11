@@ -9,7 +9,7 @@
  * never spells a plugin path; it says `wicked-garden run scripts/<x>.py …` and this
  * launcher resolves the root and the interpreter wherever it runs.
  *
- * Verbs (node >= 18, no dependencies):
+ * Verbs (node >= 20 — the package's `engines` floor — no dependencies):
  *   wicked-garden run <root-relative path> [args…]   run a file under the plugin root
  *                                                    (.py → python, .mjs/.js/.cjs → node,
  *                                                    .sh → sh); cwd is left untouched
@@ -246,8 +246,25 @@ function childEnv(base, root, extra) {
   return { ...base, WICKED_GARDEN_ROOT: root, CLAUDE_PLUGIN_ROOT: root, ...extra };
 }
 
+/**
+ * How to spawn argv without a shell (pure). On Windows a PATH hit may be a `.cmd`/`.bat` shim
+ * (pyenv-win's `python.bat`, npm shims); Node refuses to spawn those with `shell: false`
+ * (EINVAL, CVE-2024-27980), so they go through `cmd.exe /d /s /c "…"` explicitly with every
+ * argument double-quoted (embedded quotes doubled) and verbatim argument passing.
+ */
+export function spawnPlan(argv, platform = process.platform, comspec = "cmd.exe") {
+  if (platform === "win32" && /\.(cmd|bat)$/i.test(argv[0])) {
+    const quoted = argv.map((a) => `"${String(a).replace(/"/g, '""')}"`).join(" ");
+    return { file: comspec, args: ["/d", "/s", "/c", `"${quoted}"`], windowsVerbatimArguments: true };
+  }
+  return { file: argv[0], args: argv.slice(1), windowsVerbatimArguments: false };
+}
+
 function exec(argv, env, io) {
-  const res = spawnSync(argv[0], argv.slice(1), { stdio: "inherit", env, shell: false, cwd: io.cwd });
+  const plan = spawnPlan(argv, io.platform ?? process.platform, env.ComSpec || "cmd.exe");
+  const res = spawnSync(plan.file, plan.args, {
+    stdio: "inherit", env, shell: false, cwd: io.cwd, windowsVerbatimArguments: plan.windowsVerbatimArguments,
+  });
   if (res.error) {
     throw new LauncherError(`failed to start ${argv[0]}: ${res.error.message}`, {
       tried: [{ argv }],
@@ -373,7 +390,7 @@ export function main(argv, io = {}) {
       const passthrough = rest[0] === "-" || rest[0].startsWith("-");
       const target = passthrough ? [] : [resolveUnderRoot(root, rest[0])];
       const args = passthrough ? rest : rest.slice(1);
-      return exec([...python.argv, ...target, ...args], childEnv(env, root, python.env), { cwd });
+      return exec([...python.argv, ...target, ...args], childEnv(env, root, python.env), { cwd, platform });
     }
     // run
     if (rest.length === 0 || rest[0].startsWith("-")) {
@@ -386,14 +403,14 @@ export function main(argv, io = {}) {
     }
     if (kind === "python") {
       const python = pythonOrThrow(root, env, platform);
-      return exec([...python.argv, abs, ...rest.slice(1)], childEnv(env, root, python.env), { cwd });
+      return exec([...python.argv, abs, ...rest.slice(1)], childEnv(env, root, python.env), { cwd, platform });
     }
     if (kind === "node") {
-      return exec([process.execPath, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd });
+      return exec([process.execPath, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd, platform });
     }
     const sh = findOnPath("sh", env, platform) || (platform === "win32" ? null : "/bin/sh");
     if (!sh) throw new LauncherError("sh not found on PATH (needed for .sh targets)", { tried: [{ kind: "sh" }] });
-    return exec([sh, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd });
+    return exec([sh, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd, platform });
   } catch (e) {
     if (e instanceof LauncherError) {
       err(JSON.stringify(e.toJSON()) + "\n");

@@ -11,18 +11,28 @@ by a filesystem path, (3) reach the shared runtime only through the launcher
 (``wicked-garden run scripts/<x> …``) and carry the standard ``## Runtime`` block, and
 (4) write harness mechanics (Skill tool, forks, AskUserQuestion) with an inline fallback.
 
-The rules live as DATA in ``tests/portability_rules.json`` — the same spelling wicked-crew's
-publisher validator imports as a parity fixture — so drift between the two lints is a
-failing test, not a surprise at publish. Files under ``skills/`` are attributed to the
-DEEPEST skill directory that contains them (nested modules are their own skills), exactly
-as crew's catalog does. The allowlist is EMPTY on purpose: a violation is fixed in the
-skill body (``python3 scripts/wg/portability_codemod.py --dry-run`` shows the fix), never
-tolerated here.
+Two rule files, both DATA:
 
-Non-vacuity is inverted from the pre-12.33 suite: this lint asserts ZERO plugin-root /
-skill-dir-var references under ``skills/``, MORE THAN 200 launcher calls (a regex drift
-cannot pass vacuously), ZERO unresolved ``wicked-garden-*`` names, and that the shared
-false-positive corpus stays quiet while the positive corpus trips.
+* ``tests/portability_rules.json`` — the CANONICAL parity fixture, vendored byte-for-byte
+  from wicked-crew (``packages/crew/tests/fixtures/portability_rules.json``). Every regex,
+  the fence walk, option skipping, bundle existence, ``../`` resolution and the six shared
+  tokens come from it; ``derive()`` below is the Python port of that engine and every one
+  of its ``cases[]`` is re-derived here (``test_canonical_case``). Nothing about the shared
+  tokens is hand-coded in this file. ``tests/test_portability_fixture_parity.py`` pins the
+  vendored bytes and re-computes the fixture's ``sha256_of_rules``.
+* ``tests/portability_rules.garden.json`` — garden's extras on top: the exact ``## Runtime``
+  block, the fallback sentences, the name resolver, the slash-form ban, the bare
+  ``scripts/x.py <args>`` span extension of ``cwd-script``, the stricter bare-identifier
+  check, and their own regression corpus.
+
+Files under ``skills/`` are attributed to the DEEPEST skill directory that contains them
+(nested modules are their own skills), exactly as crew's catalog does; the bundle universe
+is crew's (support files outside ``skills/`` in the bundle closure + skills' own files). The
+allowlist is EMPTY on purpose: a violation is fixed in the skill body
+(``python3 scripts/wg/portability_codemod.py --dry-run`` shows the fix), never tolerated here.
+
+Non-vacuity is inverted from the pre-12.33 suite: ZERO plugin-root / skill-dir-var refs under
+``skills/``, MORE THAN 200 launcher calls, ZERO unresolved ``wicked-garden-*`` names.
 
 Run it directly for the full report + counts: ``python3 tests/test_skill_portability.py``.
 """
@@ -30,48 +40,53 @@ Run it directly for the full report + counts: ``python3 tests/test_skill_portabi
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 import sys
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, Iterator
 
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SKILLS = REPO / "skills"
-RULES_PATH = Path(__file__).resolve().parent / "portability_rules.json"
-RULES = json.loads(RULES_PATH.read_text(encoding="utf-8"))
+CANON_PATH = Path(__file__).resolve().parent / "portability_rules.json"
+GARDEN_PATH = Path(__file__).resolve().parent / "portability_rules.garden.json"
+CANON = json.loads(CANON_PATH.read_text(encoding="utf-8"))
+GARDEN = json.loads(GARDEN_PATH.read_text(encoding="utf-8"))
 
-# Where a cwd-relative path may resolve into and still be "a plugin file" (crew's bundle
-# closure + hooks). Anything else that happens to exist (README.md, tests/…) is not a
-# runtime dependency the mirror could break.
-BUNDLE_DIRS = ("scripts", "skills", "schemas", "docs", "hooks")
-SKIP_NAMES = {"__pycache__", ".DS_Store"}
+# --- canonical (shared with wicked-crew) — everything below is read from the fixture ------
+MARKERS = CANON["markers"]
+RX = {name: re.compile(src) for name, src in CANON["regex"].items()}
+FENCE_OPEN = RX["fence_line"]
+SHELL_LANGS = {lang.lower() for lang in CANON["fences"]["shell_langs"]}
+RH_KEY = CANON["frontmatter"]["requires_harness_key"]          # "metadata.requires-harness"
+RH_VALUE = CANON["frontmatter"]["requires_harness_value"]      # "claude"
+SHARED_TOKENS = {rule["token"] for rule in CANON["rules"]}
+TRAILING_PUNCT = ".,:"
+
+# --- garden-only ----------------------------------------------------------------------
+IDENTIFIERS = GARDEN["identifiers"]
+GRX = {name: re.compile(src) for name, src in GARDEN["regex"].items()}
+RUNTIME_BLOCK = GARDEN["launcher"]["runtime_block"]
+FORK_SENTENCE = GARDEN["fallbacks"]["fork_worker_sentence"]
+DISPATCH_SENTENCE = GARDEN["fallbacks"]["dispatch_sentence"]
+DISPATCH_RE = re.compile(GARDEN["fallbacks"]["dispatch_trigger_regex"])
+NOT_A_SKILL = GARDEN["fallbacks"]["skill_name_exemption_marker"]
+SKIP_NAMES = {"__pycache__", ".DS_Store", "node_modules", ".venv"}
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 CONTEXT_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 NAME_DECL_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
 
 
-def _rx(name: str) -> re.Pattern[str]:
-    return re.compile(RULES["regex"][name])
-
-
-FENCE_RE = _rx("fence")
-CWD_RE = _rx("cwd_script")
-RELLINK_RE = _rx("relative_link")
-NAME_RE = _rx("skill_name")
-LAUNCHER_RE = _rx("launcher_call")
-SLASH_RE = _rx("slash_form")
-ASK_RE = _rx("ask_fallback")
-SHELL_FENCES = {lang.lower() for lang in RULES["shell_fence_languages"]}
-SCRIPT_EXTS = tuple(RULES["script_extensions"])
-IDENTIFIERS = RULES["identifiers"]
-RUNTIME_BLOCK = RULES["launcher"]["runtime_block"]
-FORK_SENTENCE = RULES["fallbacks"]["fork_worker_sentence"]
-DISPATCH_SENTENCE = RULES["fallbacks"]["dispatch_sentence"]
-DISPATCH_TRIGGER = RULES["fallbacks"]["dispatch_trigger"]
+@dataclass(frozen=True)
+class Hit:
+    token: str
+    line: int
+    detail: str
 
 
 @dataclass(frozen=True)
@@ -86,17 +101,203 @@ class Violation:
 
 
 # ---------------------------------------------------------------------------
-# Catalog helpers
+# The bundle: what exists, and who owns what (canonical `existence` semantics)
+# ---------------------------------------------------------------------------
+
+class Bundle:
+    """The files the next publish carries. `exists` = a carried file, or a directory some
+    carried file sits under, or the bare root. `owner` = the DEEPEST skill dir prefixing a path."""
+
+    def __init__(self, files: Iterable[str], skill_dirs: Iterable[str]):
+        self.files = set(files)
+        self.dirs: set[str] = set()
+        for f in self.files:
+            parts = f.split("/")
+            for i in range(1, len(parts)):
+                self.dirs.add("/".join(parts[:i]))
+        self.skill_dirs = sorted(set(skill_dirs), key=lambda d: (-d.count("/"), d))
+
+    def exists(self, path: str) -> bool:
+        return path == "" or path in self.files or path in self.dirs
+
+    def owner(self, path: str) -> str | None:
+        for d in self.skill_dirs:
+            if path == d or path.startswith(d + "/"):
+                return d
+        return None
+
+    @classmethod
+    def from_case(cls, case: dict) -> "Bundle":
+        files = case.get("exists") or CANON["bundle"]["files"]
+        skill_dirs = {f[: -len("/SKILL.md")] for f in files if f.endswith("/SKILL.md")} | {case["skill_dir"]}
+        return cls(files, skill_dirs)
+
+    @classmethod
+    def from_repo(cls, repo: Path = REPO) -> "Bundle":
+        skill_dirs = {p.parent.relative_to(repo).as_posix() for p in (repo / "skills").rglob("SKILL.md")
+                      if not any(part in SKIP_NAMES for part in p.parts)}
+        deepest = sorted(skill_dirs, key=lambda d: -d.count("/"))
+        files: set[str] = set()
+        for p in repo.rglob("*"):
+            if not p.is_file() or any(part in SKIP_NAMES for part in p.relative_to(repo).parts):
+                continue
+            rel = p.relative_to(repo).as_posix()
+            if rel.startswith("skills/"):
+                if any(rel.startswith(d + "/") for d in deepest):  # owner-less files under skills/ are never carried
+                    files.add(rel)
+            elif rel.startswith((".claude-plugin/", "schemas/", "docs/examples/")) or rel in ("pyproject.toml", "uv.lock"):
+                files.add(rel)
+            elif rel.startswith("scripts/") and not rel.startswith(("scripts/ci/", "scripts/wg/")):
+                files.add(rel)
+        return cls(files, skill_dirs)
+
+
+# ---------------------------------------------------------------------------
+# Path resolution (canonical `relative_resolution` + `existence.cwd_script_target`)
+# ---------------------------------------------------------------------------
+
+def _normalize(path: str) -> str | None:
+    """Posix-normalize a plugin-relative path; None when it climbs out of the root."""
+    if path in ("", "."):
+        return ""
+    n = posixpath.normpath(path)
+    if n == ".":
+        return ""
+    if n == ".." or n.startswith("../"):
+        return None
+    return n.rstrip("/")
+
+
+def plugin_root_target(after_marker: str | None) -> str | None:
+    if not after_marker:
+        return ""                                # the bare marker is the root
+    return _normalize(after_marker.lstrip("/").rstrip(TRAILING_PUNCT))
+
+
+def relative_target(token: str, file: str) -> str | None:
+    joined = posixpath.join(posixpath.dirname(file), token.rstrip(TRAILING_PUNCT))
+    return _normalize(joined)
+
+
+def cwd_target(token: str) -> str | None:
+    return _normalize(token)
+
+
+# ---------------------------------------------------------------------------
+# The fence walk (canonical `fences`)
+# ---------------------------------------------------------------------------
+
+def fence_walk(lines: list[str]) -> Iterator[tuple[int, str, bool, bool]]:
+    """Yield (lineno, line, in_fence, fence_is_shell). Boundary lines are scanned as prose;
+    a shorter run or a run followed by text does not close; an unclosed fence runs to EOF."""
+    open_char: str | None = None
+    open_len = 0
+    shell = True
+    for lineno, line in enumerate(lines, 1):
+        if open_char is None:
+            m = FENCE_OPEN.match(line)
+            if m and (m.group(1) or m.group(2)):
+                run = m.group(1) or m.group(2)
+                open_char, open_len = run[0], len(run)
+                shell = (m.group(3) or "").lower() in SHELL_LANGS
+                yield lineno, line, False, True
+                continue
+            yield lineno, line, False, True
+        else:
+            if re.match(r"^\s*" + re.escape(open_char) + "{" + str(open_len) + r",}\s*$", line):
+                open_char = None
+                yield lineno, line, False, True
+                continue
+            yield lineno, line, True, shell
+
+
+def requires_harness_line(text: str) -> int | None:
+    """1-based line of `requires-harness: claude` under a `metadata:` mapping in YAML frontmatter."""
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return None
+    top, sub = RH_KEY.split(".", 1)
+    in_mapping = False
+    for i, line in enumerate(lines[1:], 2):
+        if line.strip() == "---":
+            return None
+        if re.match(rf"^{re.escape(top)}:\s*$", line):
+            in_mapping = True
+            continue
+        if in_mapping:
+            if line[:1] not in (" ", "\t"):
+                in_mapping = False
+                continue
+            m = re.match(rf"^\s+{re.escape(sub)}:\s*(.*)$", line)
+            if m and m.group(1).strip().lower() == RH_VALUE:
+                return i
+    return None
+
+
+# ---------------------------------------------------------------------------
+# The canonical engine — derive the shared reasons for one file
+# ---------------------------------------------------------------------------
+
+def derive(text: str, file: str, skill_dir: str, bundle: Bundle) -> list[Hit]:
+    hits: list[Hit] = []
+    lines = text.split("\n")
+    for lineno, line in enumerate(lines, 1):
+        for m in RX["plugin_root_ref"].finditer(line):
+            hits.append(Hit("plugin-root", lineno, f"`{MARKERS['plugin-root']}` is substituted by Claude Code only"))
+            target = plugin_root_target(m.group(1))
+            if target is not None and bundle.exists(target):
+                owner = bundle.owner(target)
+                if owner is not None and owner != skill_dir:
+                    hits.append(Hit("cross-skill-path", lineno, f"`{m.group(0)}` reaches skill dir `{owner}` by path — refer to that skill by NAME"))
+        if MARKERS["skill-dir-var"] in line:
+            hits.append(Hit("skill-dir-var", lineno, f"`{MARKERS['skill-dir-var']}` is a Claude-only substitution"))
+        for m in RX["relative_ref"].finditer(line):
+            target = relative_target(m.group(1), file)
+            if target is None or not bundle.exists(target):
+                continue
+            owner = bundle.owner(target)
+            if owner == skill_dir:
+                continue
+            hits.append(Hit("relative-link", lineno, f"`{m.group(1)}` → {target} leaves the skill's own tree — the flat install breaks it"))
+            if owner is not None:
+                hits.append(Hit("cross-skill-path", lineno, f"`{m.group(1)}` → {target} lives in skill dir `{owner}`; refer to that skill by NAME"))
+    for lineno, line, in_fence, fence_is_shell in fence_walk(lines):
+        if in_fence and not fence_is_shell:
+            continue
+        masked = RX["launcher_call"].sub(lambda m: " " * len(m.group(0)), line)
+        for m in RX["cwd_script"].finditer(masked):
+            target = cwd_target(m.group(1))
+            if target is not None and bundle.exists(target):
+                hits.append(Hit("cwd-script", lineno, f"`{m.group(0).strip()}` reaches a plugin file cwd-relatively; write `wicked-garden run {target}`"))
+    if file == skill_dir + "/SKILL.md":
+        ln = requires_harness_line(text)
+        if ln is not None:
+            hits.append(Hit("requires-harness:claude", ln, "declared by the author"))
+    return hits
+
+
+def reasons(hits: Iterable[Hit]) -> list[str]:
+    return sorted({h.token for h in hits})
+
+
+def first_lines(hits: Iterable[Hit]) -> dict[str, int]:
+    out: dict[str, int] = {}
+    for h in hits:
+        out[h.token] = min(out.get(h.token, h.line), h.line)
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Catalog helpers (garden)
 # ---------------------------------------------------------------------------
 
 def skill_dirs(root: Path = SKILLS) -> list[Path]:
-    return sorted((p.parent for p in root.rglob("SKILL.md")), key=lambda d: (-len(d.parts), str(d)))
+    return sorted((p.parent for p in root.rglob("SKILL.md") if not any(x in SKIP_NAMES for x in p.parts)),
+                  key=lambda d: (-len(d.parts), str(d)))
 
 
 def skill_of(path: Path, root: Path = SKILLS) -> Path | None:
-    """Deepest ancestor (or self, for a directory) that declares a SKILL.md — crew's attribution."""
-    candidates = [path] if path.is_dir() else []
-    candidates += list(path.parents)
+    candidates = ([path] if path.is_dir() else []) + list(path.parents)
     for d in candidates:
         try:
             d.relative_to(root)
@@ -113,43 +314,29 @@ def declared_names(root: Path = SKILLS) -> dict[str, Path]:
     names: dict[str, Path] = {}
     for d in skill_dirs(root):
         m = FRONTMATTER_RE.match((d / "SKILL.md").read_text(encoding="utf-8"))
-        if not m:
-            continue
-        decl = NAME_DECL_RE.search(m.group(1))
+        decl = NAME_DECL_RE.search(m.group(1)) if m else None
         if decl:
             names[decl.group(1).strip().strip("\"'")] = d
     return names
 
 
-def name_of(skill_dir: Path, names: dict[str, Path]) -> str:
-    for name, d in names.items():
-        if d == skill_dir:
-            return name
-    return "wicked-garden-" + "-".join(skill_dir.relative_to(SKILLS).parts)
-
-
 def is_text(path: Path) -> bool:
     try:
-        head = path.read_bytes()
+        data = path.read_bytes()
     except OSError:
         return False
-    if b"\x00" in head[:8000]:
+    if b"\x00" in data[:8000]:
         return False
     try:
-        head.decode("utf-8")
+        data.decode("utf-8")
     except UnicodeDecodeError:
         return False
     return True
 
 
 def text_files(root: Path = SKILLS) -> list[Path]:
-    out = []
-    for p in sorted(root.rglob("*")):
-        if not p.is_file() or p.name in SKIP_NAMES or any(part in SKIP_NAMES for part in p.parts):
-            continue
-        if is_text(p):
-            out.append(p)
-    return out
+    return [p for p in sorted(root.rglob("*"))
+            if p.is_file() and not any(part in SKIP_NAMES for part in p.parts) and is_text(p)]
 
 
 def frontmatter_lines(text: str) -> int:
@@ -162,131 +349,63 @@ def body_of(text: str) -> str:
     return text[m.end():] if m else text
 
 
-def _is_within(target: Path, ancestor: Path) -> bool:
-    try:
-        target.relative_to(ancestor)
-        return True
-    except ValueError:
-        return False
-
-
 # ---------------------------------------------------------------------------
-# Line scanner with fence awareness
+# The garden scan: canonical engine + garden's extras, for one file
 # ---------------------------------------------------------------------------
 
-def iter_lines(text: str):
-    """Yield (lineno, line, in_fence, fence_is_shell)."""
-    fence_marker: str | None = None
-    fence_is_shell = True
-    for lineno, line in enumerate(text.splitlines(), 1):
-        m = FENCE_RE.match(line)
-        if m and fence_marker is None:
-            fence_marker = m.group(1)
-            fence_is_shell = m.group(2).lower() in SHELL_FENCES
-            yield lineno, line, True, fence_is_shell
-            continue
-        if m and fence_marker is not None and m.group(1) == fence_marker and m.group(2) == "":
-            fence_marker = None
-            yield lineno, line, False, True
-            continue
-        yield lineno, line, fence_marker is not None, fence_is_shell
-
-
-def classify_cwd(interp: str, rel: str, file_path: Path, skill: Path | None, repo: Path) -> Violation | None:
-    if not ("/" in rel or rel.endswith(SCRIPT_EXTS)):
-        return None
-    bare = rel[2:] if rel.startswith("./") else rel
-    if skill is not None:
-        own = (skill / bare).resolve()
-        if own.exists() and _is_within(own, skill.resolve()):
-            return None  # base-dir-relative path to the skill's OWN file: portable
-    first = bare.split("/", 1)[0]
-    root_target = repo / bare
-    if first in BUNDLE_DIRS and root_target.exists():
-        return Violation(
-            "cwd-script",
-            str(file_path.relative_to(repo)),
-            0,
-            f"`{interp} {rel}` reaches a plugin file cwd-relatively; write `wicked-garden run {bare}`"
-            + (" (or `wicked-garden path …`)" if interp == "cd" else ""),
-        )
-    return None
-
-
-def classify_rel(rel: str, file_path: Path, skill: Path | None, names: dict[str, Path], repo: Path) -> Violation | None:
-    target = (file_path.parent / rel).resolve()
-    if not target.exists():
-        return None
-    try:
-        rel_to_repo = target.relative_to(repo.resolve())
-    except ValueError:
-        return None
-    other = skill_of(target.relative_to(repo.resolve()) and (repo / rel_to_repo))
-    where = str(file_path.relative_to(repo))
-    if other is not None and (skill is None or other.resolve() != skill.resolve()):
-        return Violation(
-            "cross-skill-path",
-            where,
-            0,
-            f"`{rel}` → {rel_to_repo} lives in skill `{name_of(other, names)}`; refer to that skill by NAME "
-            "(+ its skill-relative file) — the installer lays skills out flat by name",
-        )
-    if other is not None:
-        return None  # inside the referencing skill's own tree
-    return Violation(
-        "relative-link",
-        where,
-        0,
-        f"`{rel}` → {rel_to_repo} is a shared plugin file; use `wicked-garden path {rel_to_repo}` or a URL",
-    )
-
-
-def scan_text(rel_file: str, text: str, names: dict[str, Path], repo: Path = REPO) -> list[Violation]:
-    """The per-line token rules over one file's text (the corpus runs exactly these)."""
+def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, repo: Path = REPO) -> list[Violation]:
     file_path = repo / rel_file
     skill = skill_of(file_path, repo / "skills")
+    skill_rel = skill.relative_to(repo).as_posix() if skill else ""
     is_md = rel_file.endswith(".md")
-    is_shell_file = rel_file.endswith(".sh")
     fm_end = frontmatter_lines(text) if is_md else 0
     out: list[Violation] = []
 
     def add(token: str, lineno: int, detail: str) -> None:
         out.append(Violation(token, rel_file, lineno, detail))
 
-    for lineno, line, in_fence, fence_is_shell in iter_lines(text):
+    for h in derive(text, rel_file, skill_rel, bundle):
+        add(h.token, h.line, h.detail)
+
+    def own_file(p: str) -> bool:
+        return skill is not None and (skill / p).exists()
+
+    prev_nonblank = ""
+    for lineno, line, in_fence, fence_is_shell in fence_walk(text.split("\n")):
+        # stricter than crew: the bare identifier, not only the `${…}` marker
         for token, ident in IDENTIFIERS.items():
-            if ident in line:
+            if ident in line and MARKERS[token] not in line:
                 add(token, lineno, f"`{ident}` is substituted by Claude Code only — use a skill-relative path or the launcher")
         if is_md:
-            for m in NAME_RE.finditer(line):
+            for m in GRX["skill_name"].finditer(line):
                 name = m.group(1)
-                if "{" in name or name in names:
+                if "{" in name or name in names or NOT_A_SKILL in line:
                     continue
                 add("unresolved-skill-name", lineno, f"`{name}` is not declared by any SKILL.md")
-            if lineno > fm_end and SLASH_RE.search(line):
+            if lineno > fm_end and GRX["slash_form"].search(line):
                 add("slash-form", lineno, "skills are not slash commands on any CLI — name the skill (`wicked-garden-<x>`) instead")
-        shell_ctx = is_shell_file or (is_md and (not in_fence or fence_is_shell))
-        if shell_ctx:
-            for m in CWD_RE.finditer(line):
-                v = classify_cwd(m.group(1), m.group(2).rstrip(".,;:"), file_path, skill, repo)
-                if v:
-                    add(v.token, lineno, v.detail)
-        if is_md:
-            for m in RELLINK_RE.finditer(line):
-                v = classify_rel(m.group(1).rstrip(".,;:"), file_path, skill, names, repo)
-                if v:
-                    add(v.token, lineno, v.detail)
+            # bare `scripts/<x>.py <args>` span (prose) / bare shell-fence command line: no interpreter at all
+            if not in_fence:
+                for m in GRX["bare_script_span"].finditer(line):
+                    if not own_file(m.group(1)) and bundle.exists(m.group(1)):
+                        add("cwd-script", lineno, f"bare `{m.group(1)} …` span has no interpreter and is cwd-relative; write `wicked-garden run {m.group(1)} …`")
+            elif fence_is_shell and not prev_nonblank.rstrip().endswith("\\"):
+                m = GRX["bare_script_line"].match(line)
+                if m and not own_file(m.group(2)) and bundle.exists(m.group(2)):
+                    add("cwd-script", lineno, f"bare `{m.group(2)}` command line is cwd-relative; write `wicked-garden run {m.group(2)}`")
+        if line.strip():
+            prev_nonblank = line
     return out
 
 
-def scan_structure(files_by_skill: dict[Path, list[Path]], names: dict[str, Path], repo: Path = REPO) -> list[Violation]:
-    """Per-skill and per-file structural rules (preamble, fork/dispatch/ask fallbacks)."""
+def scan_structure(files_by_skill: dict[Path, list[Path]], repo: Path = REPO) -> list[Violation]:
+    """Per-skill and per-file structural rules (garden): preamble, fork/dispatch/ask fallbacks."""
     out: list[Violation] = []
     for skill, files in files_by_skill.items():
         skill_md = skill / "SKILL.md"
         skill_text = skill_md.read_text(encoding="utf-8")
-        rel_skill_md = str(skill_md.relative_to(repo))
-        uses_launcher = any(LAUNCHER_RE.search(f.read_text(encoding="utf-8")) for f in files)
+        rel_skill_md = skill_md.relative_to(repo).as_posix()
+        uses_launcher = any(RX["launcher_call"].search(f.read_text(encoding="utf-8")) for f in files)
         if uses_launcher and RUNTIME_BLOCK not in skill_text:
             out.append(Violation("missing-runtime-preamble", rel_skill_md, 1,
                                  "skill uses `wicked-garden run|python|path` but its SKILL.md lacks the exact `## Runtime` block"))
@@ -298,11 +417,11 @@ def scan_structure(files_by_skill: dict[Path, list[Path]], names: dict[str, Path
             if f.suffix != ".md":
                 continue
             text = f.read_text(encoding="utf-8")
-            rel = str(f.relative_to(repo))
-            if DISPATCH_TRIGGER in text and DISPATCH_SENTENCE not in text:
+            rel = f.relative_to(repo).as_posix()
+            if DISPATCH_RE.search(text) and DISPATCH_SENTENCE not in text:
                 out.append(Violation("dispatch-no-fallback", rel, 1,
-                                     "dispatches with Skill(skill=…) but lacks the harness-fallback sentence"))
-            if "AskUserQuestion" in body_of(text) and not ASK_RE.search(text):
+                                     "dispatches with Skill(skill=…) (single- or multi-line) but lacks the harness-fallback sentence"))
+            if "AskUserQuestion" in body_of(text) and not GRX["ask_fallback"].search(text):
                 out.append(Violation("ask-no-fallback", rel, 1,
                                      "mentions AskUserQuestion without spelling the plain-text fallback"))
     return out
@@ -319,6 +438,7 @@ def files_by_skill(files: list[Path]) -> dict[Path, list[Path]]:
 
 def scan_repo(repo: Path = REPO) -> tuple[list[Violation], dict[str, int]]:
     names = declared_names(repo / "skills")
+    bundle = Bundle.from_repo(repo)
     files = text_files(repo / "skills")
     violations: list[Violation] = []
     launcher_calls = 0
@@ -326,17 +446,18 @@ def scan_repo(repo: Path = REPO) -> tuple[list[Violation], dict[str, int]]:
     name_tokens = 0
     for f in files:
         text = f.read_text(encoding="utf-8")
-        rel = str(f.relative_to(repo))
-        violations.extend(scan_text(rel, text, names, repo))
+        rel = f.relative_to(repo).as_posix()
+        violations.extend(scan_text(rel, text, names, bundle, repo))
         # the ## Runtime block MENTIONS the launcher twice; count only real call sites
-        launcher_calls += len(LAUNCHER_RE.findall(text.replace(RUNTIME_BLOCK, "")))
+        launcher_calls += len(RX["launcher_call"].findall(text.replace(RUNTIME_BLOCK, "")))
         for token, ident in IDENTIFIERS.items():
             identifier_hits[token] += text.count(ident)
         if f.suffix == ".md":
-            name_tokens += sum(1 for m in NAME_RE.finditer(text) if "{" not in m.group(1))
-    violations.extend(scan_structure(files_by_skill(files), names, repo))
+            name_tokens += sum(1 for m in GRX["skill_name"].finditer(text) if "{" not in m.group(1))
+    violations.extend(scan_structure(files_by_skill(files), repo))
     counts = {
         "files_scanned": len(files),
+        "bundle_files": len(bundle.files),
         "skills": len(names),
         "plugin_root_refs": identifier_hits["plugin-root"],
         "skill_dir_var_refs": identifier_hits["skill-dir-var"],
@@ -361,18 +482,35 @@ def _report(violations: list[Violation], counts: dict[str, int]) -> str:
 
 _VIOLATIONS, _COUNTS = scan_repo()
 _NAMES = declared_names()
+_BUNDLE = Bundle.from_repo()
 
 
-def test_rules_fixture_is_well_formed():
-    tokens = {t["token"] for t in RULES["tokens"]}
-    assert tokens >= {
-        "plugin-root", "skill-dir-var", "cwd-script", "relative-link", "cross-skill-path",
-        "unresolved-skill-name", "missing-runtime-preamble", "requires-harness",
-    }
-    for name in RULES["regex"]:
-        re.compile(RULES["regex"][name])  # raises on a Python-incompatible spelling
-    assert RUNTIME_BLOCK.startswith(RULES["launcher"]["runtime_heading"] + "\n")
+def test_fixtures_are_well_formed():
+    assert CANON["version"] == 2
+    assert SHARED_TOKENS == {"plugin-root", "skill-dir-var", "cwd-script", "relative-link", "cross-skill-path", "requires-harness:claude"}
+    for name, src in {**CANON["regex"], **GARDEN["regex"]}.items():
+        re.compile(src)  # raises on a Python-incompatible spelling
+    assert GARDEN["canonical_fixture"] == "tests/portability_rules.json"
+    assert RUNTIME_BLOCK.startswith(GARDEN["launcher"]["runtime_heading"] + "\n")
     assert "Relative paths in this skill are relative to the directory that contains this SKILL.md." in RUNTIME_BLOCK
+
+
+@pytest.mark.parametrize("case", CANON["cases"], ids=lambda c: c["name"])
+def test_canonical_case(case):
+    """Parity with wicked-crew: every canonical case derives EXACTLY its expected reasons
+    (and the first hit line where the case pins one)."""
+    hits = derive(case["text"], case["file"], case["skill_dir"], Bundle.from_case(case))
+    assert reasons(hits) == case["expected"], [str(h) for h in hits]
+    if "first_line" in case:
+        got = first_lines(hits)
+        for token, line in case["first_line"].items():
+            assert got.get(token) == line, (token, got)
+
+
+def test_canonical_corpus_is_not_vacuous():
+    assert len(CANON["cases"]) >= 80
+    expected = Counter(t for c in CANON["cases"] for t in c["expected"])
+    assert set(expected) == SHARED_TOKENS, expected
 
 
 def test_skills_are_portable():
@@ -387,6 +525,7 @@ def test_skills_are_portable():
 def test_non_vacuity_inverted():
     """The pre-12.33 guard asserted > 20 plugin-root refs; the portable tree asserts the inverse."""
     assert _COUNTS["files_scanned"] > 300, _COUNTS
+    assert _COUNTS["bundle_files"] > 500, _COUNTS
     assert _COUNTS["skills"] >= 140, _COUNTS
     assert _COUNTS["plugin_root_refs"] == 0, f"plugin-root refs under skills/: {_COUNTS['plugin_root_refs']}"
     assert _COUNTS["skill_dir_var_refs"] == 0, f"skill-dir-var refs under skills/: {_COUNTS['skill_dir_var_refs']}"
@@ -398,28 +537,40 @@ def test_non_vacuity_inverted():
     assert _COUNTS.get("violations.unresolved-skill-name", 0) == 0
 
 
-@pytest.mark.parametrize("entry", RULES["corpus"]["quiet"], ids=lambda e: e["text"][:50])
-def test_false_positive_corpus_is_quiet(entry):
-    got = scan_text(entry["file"], entry["text"], _NAMES)
+@pytest.mark.parametrize("entry", GARDEN["corpus"]["quiet"], ids=lambda e: e["text"][:50])
+def test_garden_corpus_is_quiet(entry):
+    got = scan_text(entry["file"], entry["text"], _NAMES, _BUNDLE)
     assert not got, [str(v) for v in got]
 
 
-@pytest.mark.parametrize("entry", RULES["corpus"]["trips"], ids=lambda e: f"{e['token']}::{e['text'][:40]}")
-def test_positive_corpus_trips_exactly_its_token(entry):
-    got = {v.token for v in scan_text(entry["file"], entry["text"], _NAMES)}
-    assert got == {entry["token"]}, f"expected {{{entry['token']!r}}}, got {got}"
+@pytest.mark.parametrize("entry", GARDEN["corpus"]["trips"], ids=lambda e: f"{e['token']}::{e['text'][:40]}")
+def test_garden_corpus_trips_exactly_its_tokens(entry):
+    got = {v.token for v in scan_text(entry["file"], entry["text"], _NAMES, _BUNDLE)}
+    assert got == set(entry["token"].split("+")), f"expected {entry['token']}, got {got}"
 
 
-def test_fence_parser_sees_non_shell_fences():
+@pytest.mark.parametrize("text", [
+    'Skill(skill="wicked-garden-mem", args="recall x")',
+    'Skill(\n  skill="wicked-garden-qe-test-oracle",\n  args="""…"""\n)',
+    'Skill(   skill="x")',
+])
+def test_dispatch_trigger_matches_single_and_multi_line_forms(text):
+    assert DISPATCH_RE.search(text), text
+
+
+def test_dispatch_trigger_ignores_non_dispatch_mentions():
+    for text in ["invoke it with the Skill tool", "`Skill(wicked-bus:query, query=…)`", "Skill(\"superpowers:x\")"]:
+        assert not DISPATCH_RE.search(text), text
+
+
+def test_fence_walk_sees_non_shell_fences_in_the_repo():
     """The JS/TS-import false positives are killed by the fence skip — make sure it is exercised."""
     non_shell = 0
     for f in text_files():
         if f.suffix != ".md":
             continue
-        for _, _, in_fence, fence_is_shell in iter_lines(f.read_text(encoding="utf-8")):
-            if in_fence and not fence_is_shell:
-                non_shell += 1
-                break
+        if any(in_fence and not shell for _, _, in_fence, shell in fence_walk(f.read_text(encoding="utf-8").split("\n"))):
+            non_shell += 1
     assert non_shell > 50, non_shell
 
 

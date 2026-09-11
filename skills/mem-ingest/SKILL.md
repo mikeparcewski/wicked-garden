@@ -111,7 +111,7 @@ Do NOT ingest files one-by-one in conversation. Write a small Python batch
 script to the session scratch dir that walks the tree (skip dotdirs,
 `node_modules`, `__pycache__`, lockfiles), applies the Step-2 chunking to
 each text file, and pipes one `ingest` JSON per file into
-`scripts/mem/estate_memory.py ingest -`. Run it, then:
+`wicked-garden run scripts/mem/estate_memory.py ingest -`. Run it, then:
 
 - Report `files → chunks` counts from its output.
 - List the binary files it found and vision-ingest the important ones

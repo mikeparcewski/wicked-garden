@@ -202,9 +202,9 @@ wicked-garden run scripts/qe/lib/gate.mjs \
   the entry/attestation ids in `equivalence_json`; DomainStore emits
   `wicked.test.evidence.captured` alongside the verdict event.
 - **The grade as opinion:** PASS→`pass`, FAIL→`reject`, anything else→
-  `unclear` — appended via vault `attest` (evaluator defaults to the gate's
-  own identity — `gate.mjs --vault-evaluator`'s default; the vault refuses a
-  self-grade where evaluator equals the recording actor).
+  `unclear` — appended via vault `attest` (evaluator defaults to
+  `wicked-garden-qe-gate` <!-- not-a-skill -->, `gate.mjs --vault-evaluator`'s default; the
+  vault refuses a self-grade where evaluator equals the recording actor).
 - **ORDERING LAW (enforced in code, `scripts/qe/lib/vault-evidence.mjs`):**
   redaction (TH-19) runs before ANY vault write. The vault seam refuses a
   bundle without the executor's redaction marker, or with any residual

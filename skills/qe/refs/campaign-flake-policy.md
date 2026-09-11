@@ -142,7 +142,7 @@ calculus** but never from sight:
 - `scripts/qe/lib/campaign-scoreboard.mjs` — applies the policy on every
   assembly; envelope keys `flake_policy`, `certification.excluded`,
   `certification.gate_summary`
-- `scripts/qe/lib/gate.mjs --exclusions-from` — exclusions into the
+- `wicked-garden run scripts/qe/lib/gate.mjs --exclusions-from` — exclusions into the
   acceptance payload
 - `wicked-garden-qe-flaky-test-hunter` — root cause + the quarantine
   decision (dispatch through the guard, refs/campaign.md); § insight answers

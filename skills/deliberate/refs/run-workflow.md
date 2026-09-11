@@ -58,7 +58,9 @@ Multiple lenses can apply. Load what's relevant.
 
 ### 4. Apply Five Lenses
 
-Dispatch to an Explore agent for thorough analysis. Do NOT restate the five
+Dispatch to an Explore agent for thorough analysis (Claude Code's built-in
+subagent; on a harness without an Explore agent, run the five-lens analysis
+inline, keeping its output separate from your own). Do NOT restate the five
 lenses in the prompt — instruct the subagent to load them from this skill:
 
 ```
