@@ -434,9 +434,11 @@ def test_windows_path_building_via_pure_functions(sandbox: Sandbox) -> None:
         "  cacheXdg: m.cacheDir({XDG_CACHE_HOME: '/xdg'}, 'linux', '/home/x'),"
         "  uvEnv: m.uvProjectEnvironment('C:\\\\snap\\\\000002', 'C:\\\\Users\\\\x\\\\AppData\\\\Local\\\\wicked-garden\\\\cache', 'win32'),"
         "  kinds: ['scripts\\\\x.py', 'scripts/x.mjs', 'a.js', 'b.cjs', 'c.sh', 'd.json'].map(m.interpreterKindFor),"
-        "  shim: m.spawnPlan(['C:\\\\py\\\\python.bat', 'x.py', 'a b', 'q\"r'], 'win32'),"
-        "  exe: m.spawnPlan(['C:\\\\py\\\\python.exe', 'x.py'], 'win32'),"
-        "  posix: m.spawnPlan(['/usr/bin/python3', 'x.py', 'a b'], 'linux'),"
+        "  shimOnly: m.findOnPath('python', {PATH: 'C:\\\\py'}, 'win32', {existsSync: p => p === 'C:\\\\py\\\\python.bat', statSync: () => ({isFile: () => true})}),"
+        "  shimSkipped: m.skippedShimsOnPath('python', {PATH: 'C:\\\\py'}, 'win32', {existsSync: p => p === 'C:\\\\py\\\\python.bat', statSync: () => ({isFile: () => true})}),"
+        "  exe: m.findOnPath('python', {PATH: 'C:\\\\py'}, 'win32', {existsSync: p => p === 'C:\\\\py\\\\python.exe', statSync: () => ({isFile: () => true})}),"
+        "  posix: m.findOnPath('python3', {PATH: '/usr/bin'}, 'linux', {existsSync: p => p === '/usr/bin/python3', statSync: () => ({isFile: () => true})}),"
+        "  posixNoShimScan: m.skippedShimsOnPath('python', {PATH: '/usr/bin'}, 'linux', {existsSync: () => true, statSync: () => ({isFile: () => true})}),"
         " };"
         " console.log(JSON.stringify(out)); })"
     )
@@ -452,13 +454,14 @@ def test_windows_path_building_via_pure_functions(sandbox: Sandbox) -> None:
     assert out["uvEnv"].startswith("C:\\Users\\x\\AppData\\Local\\wicked-garden\\cache\\venvs\\")
     assert not out["uvEnv"].startswith("C:\\snap")
     assert out["kinds"] == ["python", "node", "node", "node", "sh", None]
-    # .cmd/.bat shims cannot be spawned shell-less on Node >= 20 (CVE-2024-27980): cmd.exe wraps them
-    assert out["shim"]["file"] == "cmd.exe"
-    assert out["shim"]["args"][:3] == ["/d", "/s", "/c"]
-    assert out["shim"]["args"][3] == '""C:\\py\\python.bat" "x.py" "a b" "q""r""'
-    assert out["shim"]["windowsVerbatimArguments"] is True
-    assert out["exe"] == {"file": "C:\\py\\python.exe", "args": ["x.py"], "windowsVerbatimArguments": False}
-    assert out["posix"] == {"file": "/usr/bin/python3", "args": ["x.py", "a b"], "windowsVerbatimArguments": False}
+    # .cmd/.bat shims cannot be spawned shell-less on Node >= 20 (CVE-2024-27980) and running
+    # them through cmd.exe would build a command line from PATH-derived values — so on Windows
+    # only real .exe files qualify; the skipped shim is reported (doctor's `tried`), never run.
+    assert out["shimOnly"] is None
+    assert out["shimSkipped"] == ["C:\\py\\python.bat"]
+    assert out["exe"] == "C:\\py\\python.exe"
+    assert out["posix"] == "/usr/bin/python3"
+    assert out["posixNoShimScan"] == []
 
 
 @posix_only

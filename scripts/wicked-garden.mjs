@@ -39,7 +39,8 @@
  *   `uv run --project <root> --frozen --no-dev python` with UV_PROJECT_ENVIRONMENT under the
  *   user cache dir (never under the root; needs <root>/uv.lock, otherwise uv is skipped
  *   because it would write a lockfile into the root) →
- *   python3 → python → py -3 (the historical scripts/_python.sh ladder).
+ *   python3 → python → py -3 (the historical scripts/_python.sh ladder). On Windows only real
+ *   `.exe` interpreters qualify — `.cmd`/`.bat` shims are skipped (reported by doctor).
  *
  * Invariants: the launcher never writes under the root; the child inherits the caller's
  * cwd (a worktree) and gets WICKED_GARDEN_ROOT and CLAUDE_PLUGIN_ROOT set to the resolved
@@ -165,14 +166,21 @@ export function uvProjectEnvironment(root, cache, platform = process.platform) {
   return p.join(cache, "venvs", key);
 }
 
-/** Look an executable up on PATH without a shell (win32 also tries .exe/.cmd/.bat). */
+/**
+ * Look an executable up on PATH without a shell. On Windows only real `.exe` files qualify:
+ * `.cmd`/`.bat` shims (pyenv-win's `python.bat`, npm shims) cannot be spawned shell-less on
+ * Node >= 20 (EINVAL, CVE-2024-27980) and running them through cmd.exe would mean building a
+ * command line from environment-derived paths — so they are skipped, reported by `doctor`
+ * via `tried`, and the ladder falls through to the next real interpreter (`py.exe -3`).
+ */
 export function findOnPath(name, env = process.env, platform = process.platform, fs = { existsSync, statSync }) {
   const sep = platform === "win32" ? ";" : ":";
-  const exts = platform === "win32" ? ["", ".exe", ".cmd", ".bat"] : [""];
+  const exts = platform === "win32" ? [".exe"] : [""];
+  const p = pathModuleFor(platform);
   for (const dir of (env.PATH || "").split(sep)) {
     if (!dir) continue;
     for (const ext of exts) {
-      const candidate = path.join(dir, name + ext);
+      const candidate = p.join(dir, name + ext);
       try {
         if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
       } catch {
@@ -181,6 +189,25 @@ export function findOnPath(name, env = process.env, platform = process.platform,
     }
   }
   return null;
+}
+
+/** The `.cmd`/`.bat` shims findOnPath refused for `name` (win32 only; pure apart from stat). */
+export function skippedShimsOnPath(name, env = process.env, platform = process.platform, fs = { existsSync, statSync }) {
+  if (platform !== "win32") return [];
+  const found = [];
+  const p = pathModuleFor(platform);
+  for (const dir of (env.PATH || "").split(";")) {
+    if (!dir) continue;
+    for (const ext of [".cmd", ".bat"]) {
+      const candidate = p.join(dir, name + ext);
+      try {
+        if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) found.push(candidate);
+      } catch {
+        /* unreadable PATH entry */
+      }
+    }
+  }
+  return found;
 }
 
 /**
@@ -213,7 +240,10 @@ export function pickPython(root, env = process.env, platform = process.platform,
   for (const name of ["python3", "python"]) {
     const found = findOnPath(name, env, platform, fs);
     if (found) return { kind: name, argv: [found], env: {}, tried };
-    tried.push({ kind: name, reason: "not on PATH" });
+    const shims = skippedShimsOnPath(name, env, platform, fs);
+    tried.push(shims.length
+      ? { kind: name, path: shims[0], reason: ".cmd/.bat shim skipped (not spawnable without a shell) — install a real interpreter or use py -3" }
+      : { kind: name, reason: "not on PATH" });
   }
   const py = findOnPath("py", env, platform, fs);
   if (py) return { kind: "py", argv: [py, "-3"], env: {}, tried };
@@ -246,25 +276,9 @@ function childEnv(base, root, extra) {
   return { ...base, WICKED_GARDEN_ROOT: root, CLAUDE_PLUGIN_ROOT: root, ...extra };
 }
 
-/**
- * How to spawn argv without a shell (pure). On Windows a PATH hit may be a `.cmd`/`.bat` shim
- * (pyenv-win's `python.bat`, npm shims); Node refuses to spawn those with `shell: false`
- * (EINVAL, CVE-2024-27980), so they go through `cmd.exe /d /s /c "…"` explicitly with every
- * argument double-quoted (embedded quotes doubled) and verbatim argument passing.
- */
-export function spawnPlan(argv, platform = process.platform, comspec = "cmd.exe") {
-  if (platform === "win32" && /\.(cmd|bat)$/i.test(argv[0])) {
-    const quoted = argv.map((a) => `"${String(a).replace(/"/g, '""')}"`).join(" ");
-    return { file: comspec, args: ["/d", "/s", "/c", `"${quoted}"`], windowsVerbatimArguments: true };
-  }
-  return { file: argv[0], args: argv.slice(1), windowsVerbatimArguments: false };
-}
-
 function exec(argv, env, io) {
-  const plan = spawnPlan(argv, io.platform ?? process.platform, env.ComSpec || "cmd.exe");
-  const res = spawnSync(plan.file, plan.args, {
-    stdio: "inherit", env, shell: false, cwd: io.cwd, windowsVerbatimArguments: plan.windowsVerbatimArguments,
-  });
+  // never a shell: argv[0] is a real executable (findOnPath refuses .cmd/.bat shims on Windows)
+  const res = spawnSync(argv[0], argv.slice(1), { stdio: "inherit", env, shell: false, cwd: io.cwd });
   if (res.error) {
     throw new LauncherError(`failed to start ${argv[0]}: ${res.error.message}`, {
       tried: [{ argv }],
