@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   release:
-    uses: mikeparcewski/wicked-ci/.github/workflows/node-release.yml@d8c9b0a14fb91c2d13f5da0468eeeff983c27e5a # v1.1.2
+    uses: mikeparcewski/wicked-ci/.github/workflows/node-release.yml@2346ba60a182b51b936804846f659784f6755181 # v1.2.0
     with:
       package_name: wicked-garden
       setup_python: true
