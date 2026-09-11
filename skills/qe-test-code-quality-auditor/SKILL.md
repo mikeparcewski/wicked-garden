@@ -295,6 +295,40 @@ top-5 (full list in test-quality-top-n.csv):
 VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}
 ```
 
+## 9. Produced-test review (a PLAN + the tests it claims)
+
+When the qe `review` action dispatches you with a PLAN that carries an
+execution table (the `author` output — the review phase of a governed
+test-authoring run), the detectors above run on the produced files AND these
+duties apply. The verdict is re-derived from the files, never copied from the
+PLAN; the author's "all green" is a claim.
+
+1. **`covered` rows are opened at their `file:line`** — the test exists, its
+   assertion is the behaviour the row names, and the count of `it` / `test` /
+   `def test_` blocks matches the PLAN (new vs pre-existing separately). No
+   citation, or one that does not hold → reclassify `unverified` (P1); a
+   padded total is a P1 finding.
+2. **Every produced file has an execution record** — file · exact command ·
+   result. Re-run the produced files with that command when the harness is
+   available and compare. A produced file with no record, or a `needs-fixture`
+   e2e never run against its fixture → **VERDICT=FAIL `[unexecuted-test]`**
+   (P0), whatever else holds.
+3. **Mutate or reason about ≥ 2 tested behaviours** — apply a deliberate
+   mutation to the SOURCE under test (invert a guard, swallow an error, drop a
+   branch), re-run, confirm the test FAILS, then restore the file
+   (`git checkout -- <file>`; the tree is byte-identical afterwards — §7's
+   "do not mutate test code" stands, this touches the SUT and is reverted).
+   When you cannot run, name the mutation and the assertion line that would
+   catch it. No nameable failing mutation → tautological (P0).
+4. **e2e oracles against the source** — every selector, test id and text the
+   e2e waits on is rendered on the visited route under the named fixture
+   (`grep` the `data-testid`, read the render rule); an oracle that can never
+   match is `[scenario-defect]` (P0).
+5. **Scope honesty** — the PLAN's `not covered` rows name each intent area
+   without a test and why; a silent gap is a P1 finding.
+6. **You never ship** — no `git push`, `gh pr create`, `gh pr merge`; the
+   verdict returns to the run, whose deliver phase (or the human) opens the PR.
+
 ## Helper resolution (`{WT_LIB}`)
 
 `{WT_LIB}` is the plugin's own qe helper directory — the helper modules ship

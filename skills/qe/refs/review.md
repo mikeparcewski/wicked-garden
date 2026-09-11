@@ -45,6 +45,7 @@ Arguments map onto the dispatch table below:
 | A run's evidence manifest                                  | `wicked-garden-qe-acceptance-test-reviewer`    |
 | Spec + implementation (post-code divergence)               | `wicked-garden-qe-semantic-reviewer`           |
 | Test suite path                                            | `wicked-garden-qe-code-analyzer` + Tier-2      |
+| A PLAN + the produced tests it claims (the `author` output) | `wicked-garden-qe-test-code-quality-auditor` — § Reviewing produced tests |
 | Production metrics, post-deploy                            | `wicked-garden-qe-production-quality-engineer` |
 
 ### Dispatch block (executable)
@@ -95,6 +96,84 @@ Reviewers work from evidence and spec, not from the executor's story.
 forked invocation, scrubbed `context.md` via `{WT_LIB}/context-md-validator.mjs`)
 to keep its verdict honest. Do not pre-narrate what it should find.
 
+## Reviewing produced tests (the `author` output: a PLAN + test files)
+
+When the input is a PLAN with an execution table plus the test files it claims
+— the `review` phase of a governed test-authoring run, or any "are these new
+tests any good" — the reviewer re-derives every claim; it never takes the
+author's word. Written after the wave-6 acceptance review (R4-r2 / F-7R2-015),
+where seven default-allow gates passed a Playwright suite nobody had run.
+Dispatch `wicked-garden-qe-test-code-quality-auditor` with the block below;
+where the harness is runnable it re-runs the produced files itself.
+
+1. **Every `covered` claim is opened at its `file:line`.** Confirm the test
+   exists, that its assertion is the behaviour the row names, and that the
+   count of `it` / `test` / `def test_` blocks matches the PLAN's numbers (new
+   vs pre-existing reported separately). A `covered` row without a citation,
+   or whose citation does not hold, is reclassified `unverified` and is a
+   finding; a padded total is a finding.
+2. **Every produced file has an execution record** — file · exact command ·
+   result. Re-run at least the produced files when the harness is available
+   and compare with the record. A produced file with no record, a record with
+   no result, or a `needs-fixture` e2e that was never run against its fixture
+   → **the plan FAILS** (`[unexecuted-test]`), whatever else holds. The
+   "evidence-gated" label is decided here, not by the author.
+3. **Mutate or reason — at least two behaviours.** For ≥ 2 tested behaviours
+   either apply a deliberate source mutation (swallow the error, invert the
+   guard, drop the branch), re-run the test, confirm it FAILS, and restore the
+   source (`git checkout -- <file>`; the tree is byte-identical afterwards);
+   or — when you cannot run — write the specific mutation and the assertion
+   line that would catch it. A test for which no failing mutation can be named
+   is tautological → that row FAILS.
+4. **Behaviour vs implementation.** Flag tests that assert internal structure,
+   a mock asserting on a mock, a snapshot of a fixture, or that would still
+   pass with the implementation deleted.
+5. **e2e oracles are checked against the source.** For every selector, test id
+   and text an e2e waits on, confirm it is rendered on the route the test
+   visits under the fixture the PLAN names (read the component; `grep` the
+   `data-testid`). An oracle that can never match is `[scenario-defect]`.
+6. **Scope honesty.** The PLAN's `not covered` rows must name what the intent
+   asked for and why it is absent; an intent area with no row and no test is
+   a finding.
+7. **The verdict goes back to the run.** The reviewer never opens, edits or
+   merges the PR and never pushes — the run's deliver phase (or the human)
+   does; a reviewer that ships is a creator grading itself.
+
+Verdict: `PASS` only when 1–6 hold; `CONDITIONAL` with listed fixes when only
+style rows fail; `FAIL` on any `[unexecuted-test]`, tautological, or
+unsupported-`covered` row. Cite `file:line` for every finding.
+
+```
+Skill(
+  skill="wicked-garden-qe-test-code-quality-auditor",
+  args="""Review the produced tests named in the PLAN below against the qe
+`review` playbook's "Reviewing produced tests" rules. Re-derive every claim.
+
+## PLAN
+{path to the PLAN carrying the execution table}
+
+## Produced files
+{paths}
+
+## Instructions
+1. Open every `covered` row at its file:line; reclassify unsupported rows
+   `unverified`; recount new vs pre-existing tests.
+2. Confirm every produced file has an execution record (file · command ·
+   result). None — or a `needs-fixture` e2e never run against its fixture —
+   is VERDICT=FAIL `[unexecuted-test]`.
+3. Re-run the produced files when the harness is available; compare with
+   the record.
+4. Mutate-or-reason about at least two tested behaviours; name the failing
+   mutation and the assertion that catches it; restore any mutated source.
+5. Check every e2e selector / test id / text against the source on the
+   visited route under the named fixture.
+6. Check the PLAN's `not covered` rows against the intent.
+
+Return the verdict and per-row findings with file:line. Do NOT push, open,
+edit or merge a PR — the run's deliver phase delivers."""
+)
+```
+
 ## Tier-2 specialists this skill routes to
 
 For domain-specific reviews, dispatch the specialist. Each returns a verdict
@@ -117,7 +196,9 @@ or a list of findings the skill folds into the review output:
 ## Verdict semantics
 
 - `PASS` — evidence + spec agree, tests exercise what was changed
-- `FAIL` — assertion unsatisfied, evidence contradicts, or spec-code divergence
+- `FAIL` — assertion unsatisfied, evidence contradicts, spec-code divergence, or
+  a produced test with no execution record (`[unexecuted-test]` — an e2e nobody
+  ran is a FAIL, never a PASS on paper)
 - `N-A` — reviewable item doesn't apply (must be justified)
 - `SKIP` — applicable but deferred (ticket required)
 - `CONDITIONAL` — approve with listed fixes before ship

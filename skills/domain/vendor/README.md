@@ -15,7 +15,7 @@ is history, not the contract.
 
 | | |
 |---|---|
-| Bundle version (`VERSION`) | `1.1.0` — mirrors the owner's `schemas/VERSION` |
+| Bundle version (`VERSION`) | `1.2.0` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-09-11 from wicked-core `main` @ `e421e87`) |
 | Schema contract version (`$id` / `metadata.schema_version`) | `1.0.0` |
 | Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.0.0` |
 | Canonical source | `wicked-core/crates/wicked-governance/schemas/domain-model.schema.json` |
@@ -25,7 +25,9 @@ is history, not the contract.
 
 The **bundle** `VERSION` bumps when ANY schema in the owner's 4-file bundle
 changes (the 1.0.0→1.1.0 bump added `conformance-rules.schema.json` to the
-bundle — this file was untouched). The **contract version** a document carries (`metadata.schema_version`,
+bundle; the 1.1.0→1.2.0 bump was the STEERING unification's optional fields on
+`conformance-rules.schema.json` — this file was byte-untouched both times). The
+**contract version** a document carries (`metadata.schema_version`,
 const-pinned by the schema, matching the `$id` segment) is independent — the
 schemas document that independence themselves. Documents emitted here still carry
 `schema_version: "1.0.0"`.

@@ -50,6 +50,25 @@ Match what's there. Do not introduce a new framework unless asked.
 - Deterministic: no wall-clock, no random, no network unless explicitly needed
 - Assertion messages explain WHY, not WHAT
 
+## Run what you write — before you claim it
+
+- Name the harness and its exact command in your reply (from `package.json`
+  `scripts`, `vitest.config.*` / `jest.config.*` / `playwright.config.*`,
+  `pyproject.toml` pytest config, an existing `e2e/` rig).
+- Execute every file you produced with that command and report
+  file · command · result (`N passed / N failed`). A file you did not run is
+  `unverified` — never `covered`, never "passes". A red test ships as
+  `failing` with the reason, or not at all — never as green.
+- Behaviour tests: assert what the caller observes (output, status, DOM, file,
+  the arguments a boundary received), never internal structure or a mock
+  asserting on a mock; for each test know the source change that would fail it.
+- Pre-existing coverage is claimed only with `path:line` of the test and what
+  it asserts; report new and pre-existing counts separately — never padded.
+- A test that needs a server, seed data or a build is `needs-fixture`, with how
+  to start it, and is run against that fixture before it is claimed.
+- Never `git push`, `gh pr create` or `gh pr merge` — the run's deliver phase
+  opens the PR; standalone, the human does. Leave the files on the working tree.
+
 ## Infrastructure
 
 - Configure the runner config (jest.config, pytest.ini, etc.) only if missing
@@ -59,6 +78,8 @@ Match what's there. Do not introduce a new framework unless asked.
 ## Output
 
 - Test files in the project's conventional location
+- The execution table: file · exact command · result for every produced file,
+  plus the `unverified`, `needs-fixture` and `not covered` rows
 - One paragraph in the reply summarizing what was added, what's still missing,
   and the next command to run tests
 

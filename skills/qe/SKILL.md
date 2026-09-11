@@ -69,8 +69,7 @@ action; multi-model deliberation is `jam` council; in-run crew review is
 { test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"
 ```
 
-On `ERR_NO_CONFIG`, run § setup first (it is safe to auto-run: it only
-scaffolds `.wicked-qe/` and registers a project record).
+On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wicked-qe/` + a project record).
 
 ## setup — per-project initialization
 
@@ -87,10 +86,15 @@ scaffolds `.wicked-qe/` and registers a project record).
 
 ## author — scenarios, test code, fixtures
 
-1. Read `refs/author.md` — full playbook.
+1. Read `refs/author.md` — full playbook, incl. § Verified-test contract.
 2. Scenario authoring and/or framework test code via
    `wicked-garden-qe-{test-automation-engineer | acceptance-test-writer |
    test-data-manager | contract-testing-engineer}` per the playbook's table.
+3. Contract (binding for every produced test): detect the repo's harness; write
+   BEHAVIOUR tests against it; RUN every produced test and record command + result
+   in the PLAN — not executed = `unverified`, never `covered`; cite `file:line` for
+   any pre-existing coverage; label fixture-bound e2e `needs-fixture` with how to
+   start it. Never `gh pr create`/`git push` — the run's deliver phase opens the PR.
 
 ## campaign — repo recon + generated scenario ladder
 
@@ -122,10 +126,14 @@ scaffolds `.wicked-qe/` and registers a project record).
 
 ## review — independent verdicts
 
-1. Read `refs/review.md` — full playbook.
+1. Read `refs/review.md` — full playbook, incl. § Reviewing produced tests.
 2. Evidence manifests → `wicked-garden-qe-acceptance-test-reviewer`;
    spec-vs-code → `wicked-garden-qe-semantic-reviewer`; suite quality →
    `wicked-garden-qe-code-analyzer` + the matching tier-2 specialist.
+3. A PLAN + produced tests (the `author` output): verify every `covered` claim at
+   its `file:line`, mutate-or-reason about ≥ 2 tested behaviours, and FAIL a plan
+   whose e2e (or any produced test) has no execution record. The reviewer never
+   opens or merges the PR — the verdict goes back to the run.
 
 ## insight — read-only ledger lens
 
@@ -156,21 +164,16 @@ Pipeline: `wicked-garden-qe-acceptance-test-{writer, executor, reviewer}` · `wi
 
 Planning: `wicked-garden-qe-{test-strategist, risk-assessor, testability-reviewer, requirements-quality-analyst}`.
 
-Review/insight: `wicked-garden-qe-{semantic-reviewer, code-analyzer,
-test-oracle, production-quality-engineer, release-readiness-engineer,
-flaky-test-hunter, coverage-archaeologist, exploratory-tester,
-test-code-quality-auditor, snapshot-hygiene-auditor, test-impact-analyzer,
-mutation-test-engineer}`.
+Review/insight: `wicked-garden-qe-{semantic-reviewer, code-analyzer, test-oracle,
+production-quality-engineer, release-readiness-engineer, flaky-test-hunter, coverage-archaeologist,
+exploratory-tester, test-code-quality-auditor, snapshot-hygiene-auditor, test-impact-analyzer, mutation-test-engineer}`.
 
-Domain specialists (all prefixed `wicked-garden-qe-`): `a11y-test-engineer` ·
-`security-test-engineer` · `compliance-test-engineer` ·
-`ai-feature-test-engineer` · `chaos-test-engineer` · `iac-test-engineer` ·
-`integration-test-engineer` · `localization-test-engineer` ·
-`observability-test-engineer` · `ui-component-test-engineer` ·
-`load-performance-engineer` · `visual-regression-engineer` ·
-`fuzz-property-engineer` · `data-quality-tester` · `e2e-orchestrator` ·
-`contract-testing-engineer` · `test-automation-engineer` ·
-`test-data-manager` · `incident-to-scenario-synthesizer`.
+Domain specialists (all prefixed `wicked-garden-qe-`): `a11y-test-engineer` · `security-test-engineer` ·
+`compliance-test-engineer` · `ai-feature-test-engineer` · `chaos-test-engineer` · `iac-test-engineer` ·
+`integration-test-engineer` · `localization-test-engineer` · `observability-test-engineer` ·
+`ui-component-test-engineer` · `load-performance-engineer` · `visual-regression-engineer` ·
+`fuzz-property-engineer` · `data-quality-tester` · `e2e-orchestrator` · `contract-testing-engineer` ·
+`test-automation-engineer` · `test-data-manager` · `incident-to-scenario-synthesizer`.
 
 **Executor-vs-advisor twins** (reciprocal NOT-THIS-WHEN contracts): qe specialists RUN tools and
 write evidence + ledger verdict rows; their garden twins advise. a11y ↔ `product-a11y-expert`;
@@ -182,19 +185,16 @@ AC quality ↔ `product-requirements-analyst`; AI-feature probes ↔ `agentic-sa
 - **Evidence + config contract (shared with crew/ledger — do not rename):**
   `.wicked-qe/config.json`, `.wicked-qe/evidence/<run-id>/`,
   `.wicked-qe/wicked-qe.db`.
-- **wicked-ledger** (npm, pinned via `wicked_ledger_version` in plugin.json):
-  DomainStore CRUD, fixed-SQL oracle queries, `buildManifest`. Import-style
-  snippets need the package resolvable from the project
-  (`npm i --no-save wicked-ledger`).
-- **`{WT_LIB}` helpers**: specialist playbooks reference helper modules that
-  ship in-catalog at `scripts/qe/lib/` (ported from the
-  retired wicked-testing package in Phase 6c) — resolve <!-- historical -->
+- **wicked-ledger** (npm, pinned via `wicked_ledger_version` in plugin.json): DomainStore CRUD,
+  fixed-SQL oracle queries, `buildManifest`. Import-style snippets need the package resolvable
+  from the project (`npm i --no-save wicked-ledger`).
+- **`{WT_LIB}` helpers**: specialist playbooks reference helper modules that ship in-catalog at
+  `scripts/qe/lib/` (ported from the retired wicked-testing package in Phase 6c) — resolve <!-- historical -->
   `WT_LIB="$(wicked-garden path scripts/qe/lib)"`.
 
 ## Integration with wicked-crew
 
-Engaged during **build** (author + execute), **test/review** phases
-(execute + accept + review), and **ship** gates (release-readiness via
-insight/review). Crew routes the `qe` specialist per `specialist.json`;
-gates read verdict rows from the ledger — the pipeline never self-declares
-a crew gate passed.
+Engaged during **build** (author + execute), **test/review** phases (execute + accept + review),
+and **ship** gates (release-readiness via insight/review). Crew routes the `qe` specialist per
+`specialist.json`; gates read verdict rows from the ledger — the pipeline never self-declares a
+crew gate passed, and no qe action pushes or opens a PR — the run's deliver phase delivers.
