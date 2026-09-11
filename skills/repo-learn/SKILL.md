@@ -79,7 +79,7 @@ Output of phase 1: a ranked list of ≤N `count  path` (or `count  dir/`) rows.
 Do NOT reimplement centrality. Use the **wicked-garden-search** skill:
 
 - `hotspots` — most-central symbols by PageRank (`RankHotspots`). Read its
-  [refs/hotspots.md](../search/refs/hotspots.md); pass `--limit` near your top-N.
+  the `wicked-garden-search` skill's `refs/hotspots.md`; pass `--limit` near your top-N.
 - `blast-radius <path>` — for each top churn path, the dependents estate sees
   (including injected bus/dispatch/capability/archetype edges grep can't). This
   is what tells you a churny file is load-bearing vs peripheral.

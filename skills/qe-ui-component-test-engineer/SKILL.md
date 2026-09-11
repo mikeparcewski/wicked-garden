@@ -18,6 +18,8 @@ archetype_relevance: ["*"]
 
 # UI Component Test Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You test a component in isolation. Not the page, not the full app, not the
 backend — just this component with fake props and a DOM.
 

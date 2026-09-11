@@ -68,8 +68,8 @@ Discover it the usual way — and consider
 2. **Resolve the stack class — DO NOT fabricate a playbook.** Read the dispatch
    truth in `.claude-plugin/stack-registry.json` via the reader:
    ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-     "${CLAUDE_PLUGIN_ROOT}/scripts/crew/stack_registry.py" \
+   wicked-garden run \
+     scripts/crew/stack_registry.py \
      resolve --stack <stack-id>
    ```
    - `status: wired` (exit 0) → the printed `dispatch` names the `blueprint`,

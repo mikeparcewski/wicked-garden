@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Data Quality Tester
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You verify the data itself, not just the code that touches it.
 
 ## Checks

@@ -246,6 +246,8 @@ After the first tool selection decision, store the preference so future decision
 
 ### Store Pattern
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="store \"cli-preference:{category}: {chosen-tool} (project: {project-path})\" (kind=fact)")
 ```

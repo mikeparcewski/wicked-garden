@@ -28,9 +28,13 @@ archetype_relevance: ["*"]
 
 # Engineering
 
-Senior engineering guidance on code quality, architecture, and implementation.
-The five actions below run **inline** (no dispatch); genuinely structural,
-migration, or API-reference work dispatches to the fork workers listed at the end.
+Senior engineering guidance on code quality, architecture, and implementation. The five actions below run
+**inline** (no dispatch); genuinely structural, migration, or API-reference work dispatches to the fork workers listed at the end.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Routing
 
@@ -52,7 +56,7 @@ code-level; greenfield design is the [architecture module](architecture/SKILL.md
 ## review — senior-engineer code review
 
 1. Parse scope (path or git-diff target), `--focus`, `--persona`, and `--scenarios`.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/engineering/refs/review.md")` — R1–R6 Bulletproof Coding
+2. Read `refs/review.md` (relative to this skill's base directory) — R1–R6 Bulletproof Coding
    Standards, T1–T6 Bulletproof Testing Standards, agent overstepping checklist, focus lane
    definitions, persona routing instructions, wicked-scenarios format, and output template.
 3. **Persona branch** (only if `--persona <name>` present): resolve the persona via
@@ -71,7 +75,7 @@ Use `arch` for component/system-level review; use `review` for code-level review
 
 1. Parse `[target]` and `--scope` (module | service | system; infer if absent from directory depth
    and file count).
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/engineering/refs/arch.md")` — rubric, checklists, output
+2. Read `refs/arch.md` — rubric, checklists, output
    formats, and architecture principles for both module/service and system scope.
 3. Map the directory layout, entry points, key dependencies, and data flow of the target.
 4. Apply the scope-appropriate checklist from the rubric directly. Flag unauthorized architectural
@@ -80,14 +84,14 @@ Use `arch` for component/system-level review; use `review` for code-level review
    trade-off table, ADR candidates for system scope).
 
 For genuinely structural greenfield design, dispatch
-[wicked-garden-engineering-solution-architect](../engineering-solution-architect/SKILL.md).
+`wicked-garden-engineering-solution-architect`.
 
 ## debug — systematic debugging session
 
 1. Parse the error message, symptom, or issue description.
 2. Use `Skill("superpowers:systematic-debugging")` — the full hypothesis-driven debugging
    methodology (gather context, form hypothesis, test, document root cause).
-3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/engineering/refs/debug.md")` for garden-specific heuristics:
+3. Read `refs/debug.md` for garden-specific heuristics:
    check the wicked-bus first, loom/vault availability for gate failures, cross-platform hook issues,
    and the standard debug output format.
 4. Apply the six-step process. Read relevant files at error locations, search for related patterns,
@@ -107,7 +111,7 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 
 1. Parse the change request: identify goal, scope, and constraints. Ask a clarifying question if
    the request is too vague to scope (e.g. no target file or system identified).
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/engineering/refs/plan.md")` — exploration checklist,
+2. Read `refs/plan.md` — exploration checklist,
    risk assessment checklist, plan output format, and security/performance heuristics.
 3. Explore the affected code: entry points, key files, callers, existing patterns, test coverage.
    Use `wicked-garden:search:blast-radius {symbol}` for impact analysis.
@@ -122,14 +126,14 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 
 1. Parse `<file or component>` and `--type` (api | readme | guide | inline). Infer if absent:
    `.ts/.py/.go` → api or inline; top-level directory → readme; workflow request → guide.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/engineering/refs/docs.md")` — type-routing table,
+2. Read `refs/docs.md` — type-routing table,
    pre-generation checklist, API/README/guide/inline checklists, OpenAPI template, and quality
    standards.
 3. Read the source code: public interfaces, function signatures, types, error conditions, and
    existing docs (check for drift from implementation).
 4. Apply the type-appropriate checklist and generate the documentation inline following the
    output template in the rubric. API/reference docs dispatch to
-   [wicked-garden-engineering-api-documentarian](../engineering-api-documentarian/SKILL.md).
+   `wicked-garden-engineering-api-documentarian`.
 5. Present the documentation for user review before writing to file. When writing: API docs →
    `docs/api/`; READMEs → component root; guides → `docs/guides/`; inline → Edit tool in-file.
 

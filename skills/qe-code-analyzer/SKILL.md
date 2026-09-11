@@ -28,6 +28,8 @@ archetype_relevance: ["*"]
 
 # Code Analyzer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You look at code (not design, not tests) and call out quality + testability
 signals that matter for risk.
 

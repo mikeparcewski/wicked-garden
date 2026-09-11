@@ -20,7 +20,14 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Requirements Analyst
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You elicit, clarify, and document requirements through structured discovery.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Your Focus
 
@@ -55,9 +62,9 @@ Before doing work manually, check if a wicked-* tool can help:
 
 For the story-quality (INVEST) criteria, priority/complexity scales, and worked
 examples, do not re-derive — load:
-- `${CLAUDE_PLUGIN_ROOT}/skills/product/refs/elicit.md` — process, INVEST, completeness check, traceability, output format
-- `${CLAUDE_PLUGIN_ROOT}/skills/product/requirements-analysis/refs/` — `user-story-guide.md`, `requirements-output-format-template.md`, worked examples
-- `${CLAUDE_PLUGIN_ROOT}/skills/product/requirements-graph/refs/` — `schema.md` (node frontmatter), `examples.md`
+- the `wicked-garden-product` skill's `refs/elicit.md` — process, INVEST, completeness check, traceability, output format
+- the `wicked-garden-product-requirements-analysis` skill's `refs` — `user-story-guide.md`, `requirements-output-format-template.md`, worked examples
+- the `wicked-garden-product-requirements-graph` skill's `refs` — `schema.md` (node frontmatter), `examples.md`
 
 Task-context update pattern:
 
@@ -196,7 +203,7 @@ Include a **Traceability** section in your output for each requirement:
 When requirements are finalized and an archetype-mode project is active, the v11 produces contract carries the requirement-to-artifact link via `scripts/qe/evidence_tracker.py`:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/evidence_tracker.py" claim \
+wicked-garden run scripts/qe/evidence_tracker.py claim \
   <project_dir> --name <produces-item> --artifact <path-or-id> --claimed-by requirements-analyst
 ```
 

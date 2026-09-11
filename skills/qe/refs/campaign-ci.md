@@ -20,8 +20,8 @@ signal. Two lanes, deliberately different:
 | **Nightly** | `schedule` (cron) | The **full governed campaign** through crew's `/api/v1/campaigns` — budget-capped (TH-20), flake-policied (TH-21), graded by the accept trio, gated via `gate.mjs`, then **`qe campaign rerun` diffs verdicts vs the prior nightly**. | Real seats, real tokens — which is exactly why every ceiling below is mandatory | Graded verdicts of record; `campaign-rerun.mjs` exits 1 on any regression |
 
 Copy-paste starting points (edit for the target repo, they are recipes not
-turnkey): [`docs/examples/qe-campaign-pr.yml`](../../../docs/examples/qe-campaign-pr.yml)
-and [`docs/examples/qe-campaign-nightly.yml`](../../../docs/examples/qe-campaign-nightly.yml).
+turnkey): `docs/examples/qe-campaign-pr.yml` (plugin root: `wicked-garden path docs/examples/qe-campaign-pr.yml`)
+and `docs/examples/qe-campaign-nightly.yml` (plugin root: `wicked-garden path docs/examples/qe-campaign-nightly.yml`).
 
 ## Lane 1 — PR: deterministic subset
 
@@ -32,11 +32,11 @@ governed run, or a grade.
 
 ```yaml
 # .github/workflows/qe-campaign-pr.yml (see docs/examples/ for the full file)
-- run: cd scripts/qe/runner && npm ci && npx playwright install --with-deps chromium
+- run: cd "$(npx wicked-garden@12 path scripts/qe/runner)" && npm ci && npx playwright install --with-deps chromium
 - run: |
     for spec in .wicked-qe/campaigns/<name>/specs/*.spec.json; do
-      node scripts/qe/runner/bin/qe-run.mjs "$spec" --lint-only
-      node scripts/qe/runner/bin/qe-run.mjs "$spec"       # exit ≠ 0 fails the PR
+      npx wicked-garden@12 run scripts/qe/runner/bin/qe-run.mjs "$spec" --lint-only
+      npx wicked-garden@12 run scripts/qe/runner/bin/qe-run.mjs "$spec"       # exit ≠ 0 fails the PR
     done
 - uses: actions/upload-artifact@v4        # evidence bundle, always
   if: always()
@@ -85,18 +85,18 @@ cannot.
 ### Flake policy (TH-21 — always on at the gate)
 
 - Assemble the scoreboard after grading:
-  `node scripts/qe/lib/campaign-scoreboard.mjs --json --out scoreboard.json`
+  `npx wicked-garden@12 run scripts/qe/lib/campaign-scoreboard.mjs --json --out scoreboard.json`
   — mixed graded outcomes are a `flake_signal` blocker; quarantine records
   (hunter-owned, owner + deadline) exclude WITH REASON, never silently.
 - Record the gate verdict with the exclusions attached:
-  `node scripts/qe/lib/gate.mjs … --exclusions-from scoreboard.json`.
+  `npx wicked-garden@12 run scripts/qe/lib/gate.mjs … --exclusions-from scoreboard.json`.
 - Diagnostic re-runs are bounded and BOTH verdicts land in the ledger —
   never retry-to-green ([refs/campaign-flake-policy.md](campaign-flake-policy.md)).
 
 ### Rerun diff (the actual regression signal)
 
 ```bash
-node scripts/qe/lib/campaign-rerun.mjs \
+npx wicked-garden@12 run scripts/qe/lib/campaign-rerun.mjs \
   --strategy .wicked-qe/campaigns/<name> \
   --since "$LAST_NIGHTLY_ISO" --require-rerun --json --out rerun-diff.json
 # exit 0 clean · 1 regression/ungraded/not-rerun blockers · 3 usage/system error
@@ -143,9 +143,9 @@ deterministic (generated stubs `exit 1` by doctrine).
 
 ## References
 
-- `${CLAUDE_PLUGIN_ROOT}/docs/examples/qe-campaign-pr.yml` ·
-  `${CLAUDE_PLUGIN_ROOT}/docs/examples/qe-campaign-nightly.yml`
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-rerun.mjs` — the diff tool
+- `docs/examples/qe-campaign-pr.yml` (under the plugin root: `wicked-garden path docs/examples/qe-campaign-pr.yml`) ·
+  `docs/examples/qe-campaign-nightly.yml`
+- `scripts/qe/lib/campaign-rerun.mjs` — the diff tool
 - [refs/campaign.md](campaign.md) · [refs/campaign-grading.md](campaign-grading.md) ·
   [refs/campaign-flake-policy.md](campaign-flake-policy.md) ·
   [refs/campaign-degradation.md](campaign-degradation.md)

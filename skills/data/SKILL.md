@@ -35,6 +35,11 @@ structured markdown with tables and prioritized findings. For delegated or
 parallel worker execution, dispatch the **wicked-garden-data-engineer** fork
 skill instead.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Routing
 
 | Sub-action | Use for | Rubric |
@@ -63,7 +68,7 @@ exploration. NOT for schema-level checks (use `profile` / `validate` /
 1. Parse `<file-path>`, `--focus` (stats|quality|warehouse|ml, default
    `stats`), `--context`, `--refresh`, `--scenarios`.
 2. Read first rows of the file to capture column names / types / nulls / sample.
-3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/data/refs/analyze.md")` — the EDA
+3. Read `refs/analyze.md` (relative to this skill's base directory) — the EDA
    rubric, quality/warehouse/ml modes, insight pattern, and output format.
 4. Apply the rubric directly for the chosen `--focus` mode and emit the analysis.
 
@@ -75,7 +80,7 @@ Schema-level engineering ops on a dataset. NOT for interactive exploration
 1. Parse the sub-action (profile|validate|quality) and its args (`<path>`,
    `--schema` for validate).
 2. Read the data file head/tail to capture columns / types / nulls / sample.
-3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/data/refs/data.md")` — the profile,
+3. Read `refs/data.md` — the profile,
    validate, and quality rubrics with output formats and quality thresholds.
 4. Apply the rubric for the requested sub-action and emit structured markdown
    with tables and prioritized findings.
@@ -83,12 +88,12 @@ Schema-level engineering ops on a dataset. NOT for interactive exploration
 **Optional scripted paths** (deterministic profiling/validation):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/data_profiler.py" \
+wicked-garden run scripts/data/data_profiler.py \
   --input data.csv --output profile.json
 ```
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/schema_validator.py" \
+wicked-garden run scripts/data/schema_validator.py \
   --schema schemas/expected.json \
   --data data/actual.csv
 ```
@@ -104,7 +109,7 @@ ML model `review` and training-`pipeline` design. NOT for ETL pipeline design
 1. Parse the sub-action (review|pipeline) and args (`<path>` for review,
    `--type` for pipeline).
 2. For `review`, read model files at `<path>`.
-3. `Read("${CLAUDE_PLUGIN_ROOT}/skills/data/refs/ml.md")` — the model review
+3. Read `refs/ml.md` — the model review
    checklist, pipeline design template, deployment readiness checklist, and
    MLOps standards.
 4. Apply the rubric for the requested sub-action and emit structured markdown.
@@ -117,7 +122,7 @@ Data pipeline `design` and `review`. NOT for ML training pipelines (use
 1. Parse the sub-action (design|review) and args. For `review`, read pipeline
    files at `<path>`. For `design`, capture `--source`, `--target`,
    `--frequency`.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/data/refs/pipeline.md")` — the design
+2. Read `refs/pipeline.md` — the design
    checklist, review rubric with P1/P2/P3 findings, pattern selection, and
    engineering standards.
 3. Apply the rubric for the requested sub-action and emit structured markdown.
@@ -133,7 +138,7 @@ custom shape. Use this for ontology mapping. NOT for interactive analysis
 2. **Run recommender**:
 
    ```bash
-   cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/data/ontology_recommender.py "${file_path}"
+   wicked-garden run scripts/_run.py scripts/data/ontology_recommender.py "${file_path}"
    ```
 
 3. Present the script's match table, column-mapping suggestions, and any

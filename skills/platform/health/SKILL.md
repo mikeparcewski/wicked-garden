@@ -37,7 +37,7 @@ distributed tracing (use the `traces` action of the platform domain skill).
 Invoked as `[service name or 'all']`:
 
 1. Parse args: service name, or `all` for full assessment.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/health/refs/health.md")` —
+2. Read `refs/health.md` (relative to this skill's base directory) —
    discovery checklist, per-source assessment steps, fallback code-analysis
    approach, common patterns, and output format. See `refs/sources.md` for
    detailed capability discovery patterns.

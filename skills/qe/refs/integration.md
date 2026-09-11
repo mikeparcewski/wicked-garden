@@ -123,7 +123,7 @@ the emit is a no-op; the qe domain's own SQLite ledger is always written.
 
 > **Gate emitter (Phase 6c):** the `wicked-qe gate` binary retired with the
 > wicked-testing package. The gate-announcement CLI now ships in-catalog: <!-- historical -->
-> `node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" --project-id <id>
+> `wicked-garden run scripts/qe/lib/gate.mjs --project-id <id>
 > --run-id <id> --verdict <PASS|FAIL|CONDITIONAL|SYSTEM_ERROR>
 > --verdict-summary "<text>"`. Event types and the 8-field payload are a
 > STABLE wire contract (wicked-crew's acceptance route folds them) — never

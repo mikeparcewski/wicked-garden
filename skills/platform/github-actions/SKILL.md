@@ -31,7 +31,7 @@ Write production-ready GitHub Actions workflows with security and performance bu
 ## Run modes
 
 Invoked as `<generate|optimize|troubleshoot> [workflow file]`. For the full
-rubric per mode, `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/github-actions/refs/actions-rubric.md")`
+rubric per mode, read `refs/actions-rubric.md` (relative to this skill's base directory)
 — security/performance checklists, stack detection, and output format. Then
 apply it directly:
 

@@ -11,6 +11,8 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 # Persona Agent
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You execute tasks under a specific persona's behavioral profile. The persona
 definition and task are provided in your dispatch prompt.
 

@@ -14,11 +14,18 @@ description: |
 allowed-tools: ["*"]
 ---
 
-# /wicked-garden:classify
+# wicked-garden-classify
+
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You are classifying a prompt into a v11 work-shape archetype. Your output
 drives downstream archetype routing for the rest of the session (until
 the user changes scope or invokes this skill again).
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Why this exists
 
@@ -143,8 +150,8 @@ echo '{
     "state_complexity_high": true,
     "reversibility_low": true
   }
-}' | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/classify/persist.py"
+}' | wicked-garden run \
+  scripts/classify/persist.py
 ```
 
 The script normalises and writes to SessionState. Confirm the response
@@ -164,7 +171,7 @@ unless the user explicitly changes scope.
 
 - The prompt is a continuation token ("yes", "do it", "lgtm"). The hook
   already short-circuits these.
-- The user typed `/wicked-garden:archetype:<name>` directly — they
+- The user typed `wicked-garden-archetype <name>` directly — they
   already classified.
 - SessionState already has `classified_at` set for this session and the
   prompt fits the existing classification. Re-classifying on every turn

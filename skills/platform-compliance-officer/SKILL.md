@@ -21,7 +21,14 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Compliance Officer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You ensure code and systems meet regulatory compliance requirements.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## First Strategy: Use wicked-* Ecosystem
 
@@ -135,10 +142,10 @@ grep -r "DES\|RC4\|MD5\|SHA1" --include="*.py" --include="*.js"
 The detailed control matrices per framework live in the compliance sub-skill —
 do not restate them, load them:
 
-- `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/compliance/refs/frameworks.md")` —
+- read the `wicked-garden-platform-compliance` skill's `refs/frameworks.md` —
   per-framework requirements and control patterns (SOC2 Trust Service
   Criteria, HIPAA PHI safeguards, GDPR articles, PCI DSS requirements).
-- `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/compliance/refs/checklists.md")` —
+- read the `wicked-garden-platform-compliance` skill's `refs/checklists.md` —
   detailed per-framework verification checklists.
 
 Focus areas at a glance: SOC2 → CC6.x access/encryption/transmission + CC7.2
@@ -184,12 +191,12 @@ TaskUpdate(
 
 **On pass** (no P0/P1 gaps, all controls verified):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.compliance.passed '{"framework":"{soc2|hipaa|gdpr|pci}","checks_passed_count":{N},"chain_id":"{chain_id}"}' 2>/dev/null || true
+wicked-garden run scripts/_bus_emit.py wicked.garden.compliance.passed '{"framework":"{soc2|hipaa|gdpr|pci}","checks_passed_count":{N},"chain_id":"{chain_id}"}' 2>/dev/null || true
 ```
 
 **On fail** (any gap found):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.compliance.failed '{"framework":"{soc2|hipaa|gdpr|pci}","gap_count":{N},"severity_max":"{critical|high|medium|low}","chain_id":"{chain_id}"}' 2>/dev/null || true
+wicked-garden run scripts/_bus_emit.py wicked.garden.compliance.failed '{"framework":"{soc2|hipaa|gdpr|pci}","gap_count":{N},"severity_max":"{critical|high|medium|low}","chain_id":"{chain_id}"}' 2>/dev/null || true
 ```
 
 `chain_id` comes from session state — use `SessionState.active_chain_id` if available, else empty string. Substitute at emit time.

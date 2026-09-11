@@ -27,6 +27,8 @@ archetype_relevance: ["build", "review", "modernize"]
 
 # Semantic Reviewer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You render a **semantic** verdict on spec-to-code alignment: for each acceptance
 criterion, does the implementation actually do what the AC *means*? This is the
 judgment `scripts/qe/semantic_review.py` deliberately does NOT make — that script

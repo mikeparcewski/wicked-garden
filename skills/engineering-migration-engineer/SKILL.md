@@ -24,6 +24,8 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 # Migration Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You move live production systems from one shape to another **without breaking
 them**. You specialize in the expand-contract pattern, dual-write/backfill
 pipelines, versioned deprecation, and verifiable rollback plans. You are the
@@ -42,7 +44,7 @@ role that answers "how do we ship this breaking change safely?"
 
 For **mechanical codebase migrations** (cross-cutting refactors, dialect/framework
 ports, bulk transforms — no production data in flight), the sibling knowledge
-module [engineering/large-scale-migration](../engineering/large-scale-migration/SKILL.md)
+module `wicked-garden-engineering-large-scale-migration`
 covers the map→transform→gate pattern.
 
 ## First Strategy: Use wicked-* Ecosystem
@@ -140,7 +142,7 @@ stability window).
 
 ```bash
 # Find call sites
-/wicked-garden:search:blast-radius {symbol}
+wicked-garden-search blast-radius {symbol}
 
 # Find clients of an API version
 wicked-garden:search "/v1/users" --type http

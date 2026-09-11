@@ -11,10 +11,12 @@ needed.
 
 ### 1. Check wicked-garden is current
 
-Get the installed version from its package.json (typically `~/.claude/plugins/wicked-garden/package.json` or the path Claude Code reports for `CLAUDE_PLUGIN_ROOT`):
+Get the installed version from the launcher (it prints the `plugin.json` version of the plugin root it resolved — the crew snapshot, the Claude Code plugin copy, or its own package); fall back to the Claude Code copy's `package.json`:
 
 ```bash
-node -e "try{const p=require('path'),os=require('os');const v=require(p.join(os.homedir(),'.claude','plugins','wicked-garden','package.json')).version;console.log(v)}catch(e){console.log('UNKNOWN')}" 2>/dev/null || echo "UNKNOWN"
+wicked-garden --version 2>/dev/null \
+  || node -e "try{const p=require('path'),os=require('os');const v=require(p.join(os.homedir(),'.claude','plugins','wicked-garden','package.json')).version;console.log(v)}catch(e){console.log('UNKNOWN')}" 2>/dev/null \
+  || echo "UNKNOWN"
 ```
 
 Get the npm latest:
@@ -44,7 +46,7 @@ On failure: display the raw error and note "you can install wicked-vault manuall
 Detect question mode:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/detect_state.py" question-mode 2>/dev/null || echo "INTERACTIVE"
+wicked-garden run scripts/setup/detect_state.py question-mode 2>/dev/null || echo "INTERACTIVE"
 ```
 
 ---
@@ -94,9 +96,9 @@ For any tool where the user must run a command themselves, clearly display the c
 Run the internal loom doctor (no external wicked-loom needed):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+wicked-garden python -c "
 import sys, os, json
-sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts'))
+sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], 'scripts'))
 from loom import compose
 rows = compose.check_all()
 print(json.dumps(rows, indent=2))

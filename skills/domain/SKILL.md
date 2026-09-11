@@ -41,6 +41,11 @@ and coverage-gates fail-closed), estate GROUNDS (owns SymbolId identity + the
 graph), crew GOVERNS (drives the run). The peer CLIs are shelled via
 `scripts/domain/_clients.py`, or mocked behind fixtures when absent.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## The four-way seam
 
 ```
@@ -58,13 +63,12 @@ estate is the sole writer of graph structure.
 
 | Ask | Worker | Produces |
 |-----|--------|----------|
-| Mine business rules from the estate → domain-model doc | [domain-extractor](../domain-extractor/SKILL.md) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
-| Group clusters into domains → invoke core's domain-graph build | [domain-modeler](../domain-modeler/SKILL.md) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
-| Threat-model the extracted model before build | [domain-coverage](../domain-coverage/SKILL.md) | pre-build threat list / RISK-flag reasons |
+| Mine business rules from the estate → domain-model doc | domain-extractor (`wicked-garden-domain-extractor`) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
+| Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
+| Threat-model the extracted model before build | domain-coverage (`wicked-garden-domain-coverage`) | pre-build threat list / RISK-flag reasons |
 
-Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by
-loading its skill in a fork context. Run order for a full extraction:
-**extractor → translator → antagonist**. Each is independently invocable.
+Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by loading its skill in a
+fork context. Run order for a full extraction: **extractor → translator → antagonist**. Each is independently invocable.
 
 ## The document this skill emits
 
@@ -86,14 +90,10 @@ real code you can run and test today:
 
 ```bash
 # Emit a conformant domain-model doc from mocked estate + rule inputs
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/domain/emit_domain_model.py" \
-  --fixture > /tmp/domain-model.json
+wicked-garden run scripts/domain/emit_domain_model.py --fixture > /tmp/domain-model.json
 
 # Validate any doc against the vendored schema + hard invariants
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/domain/validate_domain_model.py" \
-  /tmp/domain-model.json
+wicked-garden run scripts/domain/validate_domain_model.py /tmp/domain-model.json
 ```
 
 - `emit_domain_model.py` — the extractor's **deterministic core**: takes a mocked
@@ -147,7 +147,7 @@ file) rows survive. Annotations are documented loss, not re-keyed.
 its first index under the new binary — in exactly this order:
 
 1. `wicked-estate index <repo>` with the new binary (the loud full re-extract).
-2. Re-run the extraction loop: `python3 scripts/domain/extract_loop.py --db "<store>" …`
+2. Re-run the extraction loop: `wicked-garden run scripts/domain/extract_loop.py --db "<store>" …`
    (it re-seeds from `wicked-core coverage`'s `unaccounted_nodes`, so orphaned
    nodes simply reappear as unaccounted; the loop's pre-flight also warns when it
    detects orphaned annotations before writing).

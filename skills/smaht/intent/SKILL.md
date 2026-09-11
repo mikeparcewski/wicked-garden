@@ -17,6 +17,11 @@ archetype_relevance: ["*"]
 
 Session intent is the keystone of v10's steer-not-block model. It's auto-detected from the first turn's prompt and made sticky for the rest of the session. This skill lets you (or another skill on your behalf) override that auto-detection without using flags or fighting validators.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Vocabulary
 
 Four values, locked. To change the vocabulary, run a brainstorm — don't add ad-hoc.
@@ -54,16 +59,16 @@ is rejected.
 ```bash
 # Show or set session intent. Pass nothing to display; pass a value to override.
 # Heredoc is single-quoted (<<'PY') so the shell does NOT expand $variables
-# inside the Python source — the script reads CLAUDE_PLUGIN_ROOT via
-# os.environ instead, which is inherited by the subprocess.
+# inside the Python source — the script reads WICKED_GARDEN_ROOT via
+# os.environ instead; the `wicked-garden` launcher exports it to the subprocess.
 ARG="${1:-}"
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - "$ARG" <<'PY'
+wicked-garden python - "$ARG" <<'PY'
 import os
 import sys
 
-plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
+plugin_root = os.environ.get("WICKED_GARDEN_ROOT")
 if not plugin_root:
-    print("error: CLAUDE_PLUGIN_ROOT not set", file=sys.stderr)
+    print("error: WICKED_GARDEN_ROOT not set (run this block through `wicked-garden python -`)", file=sys.stderr)
     sys.exit(1)
 sys.path.insert(0, os.path.join(plugin_root, "scripts"))
 

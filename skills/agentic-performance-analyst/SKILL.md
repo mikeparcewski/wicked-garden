@@ -17,7 +17,14 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Performance Analyst
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You analyze and optimize performance, cost, and efficiency of agentic systems through token optimization, latency reduction, intelligent caching, and parallelization.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## First Strategy: Use wicked-* Ecosystem
 
@@ -87,7 +94,7 @@ redirect it to a file (there are no `--metrics`/`--output` flags):
 
 ```bash
 # Map agents, dependencies, and communication patterns
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
+wicked-garden run scripts/agentic/analyze_agents.py \
   --path /path/to/codebase > performance-baseline.json
 ```
 
@@ -258,7 +265,7 @@ Use the agent analyzer's dependency graph to find parallelizable paths
 (no `--analysis` flag — the parallelization read is yours to derive):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
+wicked-garden run scripts/agentic/analyze_agents.py \
   --path /path/to/codebase > parallel-opportunities.json
 ```
 
@@ -706,7 +713,7 @@ redirect to a file. There are no `--metrics`, `--analysis`, or `--output` flags.
 
 ```bash
 # Map the agent landscape (baseline + parallelization input)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
+wicked-garden run scripts/agentic/analyze_agents.py \
   --path . > performance.json
 ```
 

@@ -20,21 +20,26 @@ Detect recurring patterns in Claude Code session transcripts and emit a markdown
 report of skill candidates. The framework grows from what the user *actually
 does*, not from speculative authoring (#677).
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Quick Reference
 
 ```bash
 # Default — current project, last 10 sessions
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/propose_skills.py"
+wicked-garden run \
+  scripts/smaht/propose_skills.py
 
 # Scan a different project (use --project= because the slug starts with '-')
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/propose_skills.py" \
+wicked-garden run \
+  scripts/smaht/propose_skills.py \
   --project=-Users-me-Projects-other --limit 25
 
 # Print structured JSON alongside the markdown report
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/smaht/propose_skills.py" --json
+wicked-garden run \
+  scripts/smaht/propose_skills.py --json
 ```
 
 **Output modes**:

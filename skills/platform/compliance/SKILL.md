@@ -19,6 +19,12 @@ archetype_relevance: ["*"]
 
 Analyze code and systems for regulatory compliance.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ## When to Use
 
 - Code handles sensitive data (PII, PHI, payment data)
@@ -42,11 +48,11 @@ See [refs/frameworks.md](refs/frameworks.md) for detailed framework requirements
 Invoked as `<framework> [path]`:
 
 1. Parse args: `<framework> [path]` (framework = `soc2|hipaa|gdpr|pci`).
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/compliance/refs/compliance.md")` —
+2. Read `refs/compliance.md` (relative to this skill's base directory) —
    data-classification scan commands, per-framework control matrix
    (SOC2/HIPAA/GDPR/PCI), gap checklist, bus emit, output format.
 3. For detailed per-framework checklists:
-   `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/compliance/refs/checklists.md")`.
+   Read `refs/checklists.md`.
    For framework-specific patterns: `refs/frameworks.md`.
 4. Apply the rubric directly: scan for sensitive data, verify each control,
    classify gaps P0/P1/P2, emit the bus event, and produce the compliance

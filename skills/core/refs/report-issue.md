@@ -91,6 +91,8 @@ Files likely relevant to this issue:
 
 Recall any past context about this area from the memory store:
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="recall \"{issue title keywords}\"")
 ```
@@ -205,14 +207,14 @@ On confirmation:
      ```
      Display the URL to the user with instructions: "Open this URL to file the issue directly in your browser."
   3. **Ask to save locally**: Ask the user: "Save this issue locally for later filing with the wicked-garden-core skill's `report-issue --list-unfiled` action? (yes/no)"
-     - If yes: Resolve path `UNFILED=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden unfiled-issues)` and save to `${UNFILED}/{timestamp}.json`
+     - If yes: Resolve path `UNFILED=$(wicked-garden run scripts/_run.py scripts/resolve_path.py wicked-garden unfiled-issues)` and save to `${UNFILED}/{timestamp}.json`
      - If no: Skip caching. Done.
 
 ### 7. List Unfiled Issues (--list-unfiled)
 
 If `--list-unfiled` was provided:
 
-1. Resolve path: `UNFILED=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden unfiled-issues)`
+1. Resolve path: `UNFILED=$(wicked-garden run scripts/_run.py scripts/resolve_path.py wicked-garden unfiled-issues)`
 2. Read all JSON files from `${UNFILED}/`
 3. If empty: report "No unfiled issues found."
 4. If found: display a summary table:

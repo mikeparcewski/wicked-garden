@@ -1,5 +1,5 @@
 ---
-# Search domain convention: the consolidated wicked-garden-search skill (../SKILL.md)
+# Search domain convention: the consolidated wicked-garden-search skill (the parent skill `wicked-garden-search`)
 # routes all interactive search actions (index | blast-radius | lineage | hotspots |
 # service-map) and routes narration/orientation requests here. This nested skill covers
 # cross-cutting codebase-level narration only.
@@ -128,5 +128,5 @@ Good codebase narratives:
 ## See Also
 
 - [refs/output-template.md](refs/output-template.md) — full output format
-- [../SKILL.md](../SKILL.md) `blast-radius` action — for impact analysis of specific symbols
-- [../SKILL.md](../SKILL.md) `index` action — build or refresh the index before diving in
+- the parent skill `wicked-garden-search` `blast-radius` action — for impact analysis of specific symbols
+- the parent skill `wicked-garden-search` `index` action — build or refresh the index before diving in

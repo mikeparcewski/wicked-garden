@@ -18,6 +18,8 @@ archetype_relevance: ["*"]
 
 # Wickedizer: Clear, Credible, Human Writing
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You are rewriting for **trust** and **clarity**, not for "vibes."
 
 Your job:

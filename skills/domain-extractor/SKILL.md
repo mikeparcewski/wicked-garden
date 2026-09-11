@@ -27,11 +27,18 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 # Domain Extractor
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You extract **testable business rules** from a codebase — *what the business
 requires*, not *how the code does it* — and annotate them into the estate store,
 so `wicked-core` builds the `domain-model@1.0.0` requirements graph (coverage-gated
 fail-closed). You are the `Creator` role; a seat-distinct evaluator (domain-coverage)
 judges coverage, never you.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## You DRIVE the deterministic harness — you don't loop yourself
 
@@ -41,7 +48,7 @@ driver, not the loop. Your whole job:
 
 1. **Run the harness** (one `Bash` call):
    ```bash
-   python3 scripts/domain/extract_loop.py --db "<estate-store>" --time-budget 780
+   wicked-garden run scripts/domain/extract_loop.py --db "<estate-store>" --time-budget 780
    ```
    It seeds its worklist from `wicked-core coverage`'s own `unaccounted_nodes` — the
    SAME authority the coverage gate re-derives against, so there is no denominator
@@ -55,7 +62,7 @@ driver, not the loop. Your whole job:
    re-seeds, so work never repeats. Stop when `unaccounted` hits 0 or stops shrinking.
    A `WARNING: … annotation node_syms no longer exist` line is the estate
    id-scheme migration signature — prior annotations are orphaned; see the
-   migration section in [../domain/SKILL.md](../domain/SKILL.md) for the
+   migration section in `wicked-garden-domain` for the
    required re-run order.
 3. **Never hand-annotate or assert** a rule the harness RISK-flagged. The whole
    point is the deterministic RISK-floor + re-derived coverage — do not "help" by
@@ -92,5 +99,5 @@ Extraction is split exactly like the vault:
 
 ## Depth
 
-- [../domain/refs/domain-model-emit.md](../domain/refs/domain-model-emit.md) — field map + the 7 invariants.
-- [../domain/refs/extraction-flow.md](../domain/refs/extraction-flow.md) — the estate/core CLI surface + the `_clients.py` seam.
+- the `wicked-garden-domain` skill's `refs/domain-model-emit.md` — field map + the 7 invariants.
+- the `wicked-garden-domain` skill's `refs/extraction-flow.md` — the estate/core CLI surface + the `_clients.py` seam.

@@ -85,8 +85,8 @@ If `--constraints` and `--not-focus` are both absent, gently nudge (do NOT block
 ## Step 2: Store in DomainStore
 
 ```bash
-RESULT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+RESULT=$(wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py \
   --define "${name}" \
   --focus "${focus}" \
@@ -106,8 +106,8 @@ If the command fails (exit non-zero), show the error from stderr and STOP.
 If `--save` flag is present:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py \
   --save-cache "${name}" \
   --json

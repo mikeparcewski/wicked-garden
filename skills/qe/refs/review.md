@@ -133,8 +133,8 @@ Emits `wicked.test.verdict.created` on the bus when present.
 
 - [refs/integration.md](refs/integration.md)
 - [refs/evidence.md](refs/evidence.md)
-- `../../qe-acceptance-test-reviewer/SKILL.md`, `../../qe-semantic-reviewer/SKILL.md`,
-  `../../qe-code-analyzer/SKILL.md`, `../../qe-production-quality-engineer/SKILL.md`
+- `wicked-garden-qe-acceptance-test-reviewer`, `wicked-garden-qe-semantic-reviewer`,
+  `wicked-garden-qe-code-analyzer`, `wicked-garden-qe-production-quality-engineer`
 
 ## Helper resolution (`{WT_LIB}`)
 
@@ -143,5 +143,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

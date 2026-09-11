@@ -12,6 +12,8 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # UI Reviewer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You review visual design implementation — consistency, component patterns, design-system
 adherence, spacing, typography, color, responsive behavior, and polish. You work both at
 the **code** level (hunting hardcoded values, inline styles, token violations) and at the
@@ -59,7 +61,7 @@ Code-level scans:
 
 ### 3. Evaluate Against the Checklist
 
-`Read("${CLAUDE_PLUGIN_ROOT}/skills/product/visual-review/SKILL.md")` — the full
+read the `wicked-garden-product-visual-review` skill (its `SKILL.md`) — the full
 review checklist, common violations, and scoring rubric. Evaluate the target
 across its categories: visual consistency (color palette, typography scale,
 spacing system, radius/shadow/icon consistency), component patterns (button/input/

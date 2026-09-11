@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Localization Test Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You test that the app works in every supported locale — not just
 "translation strings exist" but that layout, formatting, and grammar
 hold up.

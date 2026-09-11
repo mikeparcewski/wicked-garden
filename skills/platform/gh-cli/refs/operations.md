@@ -91,7 +91,7 @@ gh issue view {number}
 
 When the request involves multi-step CI/CD setup, workflow generation from scratch,
 or GitLab CI pipeline configuration — apply the workflow design rubric from
-`${CLAUDE_PLUGIN_ROOT}/skills/platform/github-actions/refs/actions-rubric.md`
+the `wicked-garden-platform-github-actions` skill's `refs/actions-rubric.md`
 (the github-actions skill).
 
 ## Output Format

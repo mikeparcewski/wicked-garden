@@ -120,6 +120,8 @@ Check:
 
 ## Integration with Tools
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```bash
 # Search for similar requirements (FTS5 over indexed docs + wiki)
 Skill(skill="wicked-garden-mem", args="recall \"user story\"")

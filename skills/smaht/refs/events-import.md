@@ -13,7 +13,7 @@ Args: `[--domain D] [--dry-run]`
 Scan the DomainStore local root for all domain directories:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+wicked-garden python -c "
 from _domain_store import _LOCAL_ROOT
 from pathlib import Path
 import json
@@ -88,7 +88,7 @@ Events are tagged with `migrated` for easy filtering.
 Query imported events later via the event store directly:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/_event_store.py query --fts migrated
+wicked-garden run scripts/_run.py scripts/_event_store.py query --fts migrated
 ```
 
 ### Flags

@@ -34,7 +34,7 @@ so in the report, don't treat it as a failure):
 
 ## 2. Triage the real findings
 
-Read `${CLAUDE_PLUGIN_ROOT}/skills/platform-security-engineer/SKILL.md` for
+Read the `wicked-garden-platform-security-engineer` skill (its `SKILL.md`) for
 the triage rubric (your reference, NOT a thing to re-derive): the CWE table,
 severity bands, OWASP matrix, output format, `--scenarios` behaviour, and bus
 emit.

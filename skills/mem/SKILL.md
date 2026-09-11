@@ -33,11 +33,16 @@ gracefully: when estate is unreachable the backend returns
 `{"ok": false, "reason": ...}` instead of crashing.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/mem/estate_memory.py" <action> '<json-args>'
+wicked-garden run \
+  scripts/mem/estate_memory.py <action> '<json-args>'
 ```
 
 Long content: pass `-` as json-args and pipe the JSON via stdin.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Routing
 
@@ -45,7 +50,7 @@ Long content: pass `-` as json-args and pipe the JSON via stdin.
 |--------|---------|-----|
 | `store` | persist one learning (decision, pattern, gotcha, discovery) | § Store |
 | `recall` | find memories ("what do we know about X") | § Recall |
-| `answer` | grounded, cited answer from the stores | [../search/refs/answer.md](../search/refs/answer.md) |
+| `answer` | grounded, cited answer from the stores | the `wicked-garden-search` skill's `refs/answer.md` |
 | `review` | browse what's stored (counts by kind/tier, scope digest) | § Review / Maintain |
 | `forget` | erase a scope subtree (kind-guarded) | § Forget |
 | `maintain` | reflect + coverage pulse (consolidation runs in-store) | § Review / Maintain |

@@ -16,8 +16,8 @@ Parse from the args passed to the `list` sub-action:
 Build the command with optional role filter:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py --list [--role "${role}"] --json
 ```
 

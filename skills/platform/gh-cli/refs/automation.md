@@ -30,7 +30,7 @@ jobs:
 
 ```bash
 #!/bin/bash
-result=$(python3 gh_ops.py diagnose --suggest-fixes)
+result=$(python3 scripts/gh_ops.py diagnose --suggest-fixes)
 if echo "$result" | jq -e '.errors | length > 0' > /dev/null; then
   curl -X POST "$SLACK_WEBHOOK" \
     -H 'Content-type: application/json' \
@@ -49,7 +49,7 @@ fi
 
 ```bash
 # Daily PR review reminder
-python3 gh_ops.py pr-review-queue | jq -r '.[] | "- [\(.title)](\(.url))"'
+python3 scripts/gh_ops.py pr-review-queue | jq -r '.[] | "- [\(.title)](\(.url))"'
 ```
 
 ## Release Automation
@@ -58,6 +58,6 @@ python3 gh_ops.py pr-review-queue | jq -r '.[] | "- [\(.title)](\(.url))"'
 #!/bin/bash
 # Auto-release on tag push
 if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-  python3 gh_ops.py release --bump patch
+  python3 scripts/gh_ops.py release --bump patch
 fi
 ```

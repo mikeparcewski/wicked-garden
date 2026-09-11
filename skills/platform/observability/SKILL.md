@@ -17,17 +17,22 @@ archetype_relevance: ["*"]
 
 Monitor and diagnose the wicked-garden plugin ecosystem — health probes, contract assertions, and hook execution traces. All three pillars run inline (no agent delegation needed).
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Quick Start
 
 ```bash
 # Check plugin ecosystem health
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/health_probe.py
+wicked-garden run scripts/_run.py scripts/platform/observability/health_probe.py
 
 # Query recent hook traces (operational log)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/ops_log_viewer.py --tail 20
+wicked-garden run scripts/_run.py scripts/platform/observability/ops_log_viewer.py --tail 20
 
 # Validate script output contracts
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/assert_contracts.py
+wicked-garden run scripts/_run.py scripts/platform/observability/assert_contracts.py
 ```
 
 ## Three Pillars
@@ -40,10 +45,10 @@ Run the health probe script inline:
 
 ```bash
 # All plugins
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/health_probe.py
+wicked-garden run scripts/_run.py scripts/platform/observability/health_probe.py
 
 # Single plugin, machine-readable
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/health_probe.py --plugin wicked-garden --json
+wicked-garden run scripts/_run.py scripts/platform/observability/health_probe.py --plugin wicked-garden --json
 ```
 
 - Display results grouped by plugin, with severity icons.
@@ -61,13 +66,13 @@ Every hook execution is traced with timing, exit codes, and silent failure detec
 
 ```bash
 # Last 10 entries
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/ops_log_viewer.py --tail 10
+wicked-garden run scripts/_run.py scripts/platform/observability/ops_log_viewer.py --tail 10
 
 # Filter by verbosity level (normal | verbose | debug)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/ops_log_viewer.py --level verbose
+wicked-garden run scripts/_run.py scripts/platform/observability/ops_log_viewer.py --level verbose
 
 # Machine-readable, or a specific session's log
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/ops_log_viewer.py --json --session {ID}
+wicked-garden run scripts/_run.py scripts/platform/observability/ops_log_viewer.py --json --session {ID}
 ```
 
 > Note: hook-trace viewing is **this script**, not distributed tracing. For
@@ -82,10 +87,10 @@ Run the assertion script inline:
 
 ```bash
 # Run all assertions
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/assert_contracts.py
+wicked-garden run scripts/_run.py scripts/platform/observability/assert_contracts.py
 
 # Single plugin, machine-readable
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/observability/assert_contracts.py --plugin wicked-garden --json
+wicked-garden run scripts/_run.py scripts/platform/observability/assert_contracts.py --plugin wicked-garden --json
 ```
 
 - Display results: pass/fail per script, violation details for failures.
@@ -126,7 +131,7 @@ Semantics:
   reported and the rest continue; when nothing is found, report "No
   monitoring CLIs detected" and suggest installation options.
 
-→ `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/observability/refs/toolchain-discovery.md")`
+→ read `refs/toolchain-discovery.md` (relative to this skill's base directory)
 for the detection script, per-tool usage examples, query routing, display
 format, and next-step suggestions.
 

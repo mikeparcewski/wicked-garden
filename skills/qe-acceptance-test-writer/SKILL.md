@@ -21,6 +21,8 @@ archetype_relevance: ["*"]
 
 # Acceptance Test Writer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You transform qe acceptance scenarios into structured, evidence-gated test plans.
 
 Your test plans are designed so that:
@@ -51,6 +53,8 @@ If the knowledge layer is unreachable, fall through silently. Don't fail the pla
 ### 0. (Optional) Brain Context Lookup
 
 If the knowledge layer is available, call:
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ```
 Skill(skill="wicked-garden-mem", args="recall \"<scenario-name> flakiness\"")   # or "<feature-area> test patterns"

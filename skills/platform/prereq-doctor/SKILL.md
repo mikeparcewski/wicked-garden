@@ -13,6 +13,12 @@ archetype_relevance: ["*"]
 
 Diagnoses missing CLI tools and Python dependencies, offers to install them.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ## When to Use
 
 - PostToolUseFailure hook detects a missing-tool error pattern
@@ -33,13 +39,13 @@ Diagnoses missing CLI tools and Python dependencies, offers to install them.
 
 ```bash
 # Diagnose a specific tool
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check <tool>
+wicked-garden run scripts/platform/prereq_doctor.py check <tool>
 
 # Diagnose from an error message
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" diagnose "<error_text>"
+wicked-garden run scripts/platform/prereq_doctor.py diagnose "<error_text>"
 
 # Check all prerequisites for wicked-garden
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/platform/prereq_doctor.py" check-all
+wicked-garden run scripts/platform/prereq_doctor.py check-all
 ```
 
 ## Usage from Commands
@@ -47,7 +53,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/pla
 Commands should NOT inline install logic. Instead:
 
 ```
-Skill(skill="wicked-garden:platform:prereq-doctor", args="check gh")
+Skill(skill="wicked-garden-platform-prereq-doctor", args="check gh")
 ```
 
 Or let the PostToolUseFailure hook catch it automatically — just try to use the tool.

@@ -24,7 +24,7 @@ Multi-perspective business analysis to guide technical investment decisions.
 
 ## Analysis Modes
 
-### Full Strategic Analysis (`/wicked-garden:product:strategy`)
+### Full Strategic Analysis (`wicked-garden-product-strategy`)
 
 - Business impact & ROI
 - Value proposition & differentiation
@@ -133,7 +133,8 @@ Payback Period = Investment / Annual Benefit
 
 ### With the memory layer (wicked-garden-mem)
 
-Store strategic insights:
+Store strategic insights. Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="store \"ROI analysis: {project}\" (kind=fact)")
 ```

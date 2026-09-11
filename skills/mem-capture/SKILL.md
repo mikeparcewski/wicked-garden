@@ -11,12 +11,19 @@ allowed-tools: Read, Bash
 
 # Mem Capture Worker (session teardown)
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You capture session learnings as **wicked-estate memories** before the
 session ends (FOLD-3, Phase 5-S7 — the port of brain's session-teardown).
 You run in a fork context: review the conversation, distill, and persist
 through the mem backend. Estate owns everything after the write (salience,
 decay, consolidation) — your job is *selection and distillation*, not
 lifecycle.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Step 1 — sweep the conversation
 
@@ -56,8 +63,8 @@ One backend call, JSON on stdin (never argv — summaries contain quotes):
 printf '%s' '{"memories":[
   {"content":"<summary 1>","kind":"fact","about":["tag1","tag2"]},
   {"content":"<summary 2>","kind":"skill","about":["tag3"]}
-]}' | sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/mem/estate_memory.py" capture-batch -
+]}' | wicked-garden run \
+  scripts/mem/estate_memory.py capture-batch -
 ```
 
 Build the JSON with real encoding discipline (escape newlines/quotes); a
@@ -70,8 +77,8 @@ and say which items were dropped and why.
 Recall the most important stored memory to prove the round-trip:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/mem/estate_memory.py" recall '{"query":"<key phrase from it>"}'
+wicked-garden run \
+  scripts/mem/estate_memory.py recall '{"query":"<key phrase from it>"}'
 ```
 
 ## Step 5 — report

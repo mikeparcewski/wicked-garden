@@ -7,9 +7,9 @@ CLI mid-session (the `--retry-auth` flow).
 ## 1. Run the bootstrap probe function directly
 
 ```bash
-python3 -c "
+wicked-garden python -c "
 import sys, json, os
-sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'hooks', 'scripts'))
+sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], 'hooks', 'scripts'))
 from bootstrap import _probe_plugin_readiness, _suggest_auth_fix
 results = _probe_plugin_readiness()
 if not results:

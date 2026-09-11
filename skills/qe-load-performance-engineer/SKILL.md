@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Load / Performance Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You put systems under realistic load and report what breaks. "It's fast"
 is not a finding. "P95 latency crosses 300ms at 200 RPS because the
 connection pool saturates" is a finding.
@@ -48,7 +50,7 @@ production-impacting load run requires `trust_level: production-authorized`
 AND a `change-ticket:` reference in the scenario frontmatter; otherwise
 refuse to run and record SKIP with reason `trust-level-insufficient`.
 (Same contract as chaos / security-DAST specialists — see
-`../qe/refs/execute.md`.)
+the `wicked-garden-qe` skill's `refs/execute.md`.)
 
 ## Output
 

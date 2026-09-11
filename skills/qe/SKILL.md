@@ -35,6 +35,11 @@ from captured evidence — never self-asserted by the agent that ran the work.
 Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- historical -->
 `.wicked-testing/` roots still resolve via wicked-ledger's dual-read.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Routing
 
 | Ask | Action |
@@ -69,27 +74,27 @@ scaffolds `.wicked-qe/` and registers a project record).
 
 ## setup — per-project initialization
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/setup.md")` — full playbook.
+1. Read `refs/setup.md` (relative to this skill's base directory) — full playbook.
 2. Detect available test CLIs, create `.wicked-qe/` + `config.json`,
    register the project row in the ledger DomainStore.
 
 ## plan — strategy, risk, testability, AC quality
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/plan.md")` — full playbook.
+1. Read `refs/plan.md` — full playbook.
 2. Route the target to `wicked-garden-qe-{test-strategist | risk-assessor |
    testability-reviewer | requirements-quality-analyst}` (parallel when broad);
    merge findings into one strategy with concrete next actions.
 
 ## author — scenarios, test code, fixtures
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/author.md")` — full playbook.
+1. Read `refs/author.md` — full playbook.
 2. Scenario authoring and/or framework test code via
    `wicked-garden-qe-{test-automation-engineer | acceptance-test-writer |
    test-data-manager | contract-testing-engineer}` per the playbook's table.
 
 ## campaign — repo recon + generated scenario ladder
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign.md")` — full playbook.
+1. Read `refs/campaign.md` — full playbook.
 2. Three-lens recon (estate graph when indexed, docs recall via
    `wicked-garden-mem`, live probe incl. committed endpoint manifests) → a plan
    CONFORMING to `schemas/campaign-recon.schema.json` (v2; spec:1 still valid —
@@ -102,36 +107,36 @@ scaffolds `.wicked-qe/` and registers a project record).
 
 ## intake — propose the campaign plan as a human gate (TH-12)
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/intake.md")` — full playbook.
+1. Read `refs/intake.md` — full playbook.
 2. V1 = **propose-as-gate** over crew's campaign-proven UI+REST gate wire
-   (`${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_intake.py`): approve runs the
+   (`scripts/qe/campaign_intake.py` (under the plugin root: `wicked-garden path scripts/qe/campaign_intake.py`)): approve runs the
    confirmed set, amend = the scenario-edit channel, reject cancels.
    Annotations → PROPOSED entries. Elicitation = v2 (wicked-crew#358).
 
 ## execute — run + capture evidence
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/execute.md")` — full playbook.
+1. Read `refs/execute.md` — full playbook.
 2. Dispatch `wicked-garden-qe-scenario-executor` (or the matching specialist);
    evidence lands in `.wicked-qe/evidence/<run-id>/`; run + verdict rows
    go to the ledger. Verdict requests default to § accept, never self-grading.
 
 ## review — independent verdicts
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/review.md")` — full playbook.
+1. Read `refs/review.md` — full playbook.
 2. Evidence manifests → `wicked-garden-qe-acceptance-test-reviewer`;
    spec-vs-code → `wicked-garden-qe-semantic-reviewer`; suite quality →
    `wicked-garden-qe-code-analyzer` + the matching tier-2 specialist.
 
 ## insight — read-only ledger lens
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/insight.md")` — full playbook.
+1. Read `refs/insight.md` — full playbook.
 2. Natural-language questions route to `wicked-garden-qe-test-oracle`
    (fixed-SQL oracle — never synthesized SQL); flake/coverage/exploratory
    questions go to their dedicated specialists. Never mutates state.
 
 ## accept — the 3-agent acceptance pipeline
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/accept.md")` — full playbook.
+1. Read `refs/accept.md` — full playbook.
    **Isolation is the point**: Writer plans, Executor captures, Reviewer
    judges from evidence paths only (`allowed-tools: Read`, `context: fork`,
    evidence-only dispatch). Never leak executor context to the reviewer.
@@ -141,18 +146,15 @@ scaffolds `.wicked-qe/` and registers a project record).
 ## Fork workers (dispatch with the Skill tool)
 
 **Dispatch guard (mandatory):** resolve every specialist through
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" <name>`
-before the Skill call — it asserts the resolved worker is a shipped
-`wicked-garden-qe-*` skill and BLOCKS retired `wicked-testing-*` / <!-- historical -->
-`wicked-brain-*` names at dispatch with a clear error naming the garden <!-- historical -->
+`wicked-garden run scripts/qe/campaign_dispatch.py <name>` before the Skill call — it
+asserts the resolved worker is a shipped `wicked-garden-qe-*` skill and BLOCKS retired
+`wicked-testing-*` / `wicked-brain-*` names at dispatch with a clear error naming the garden <!-- historical -->
 replacement. Never work around a block; fix the caller.
 
-Pipeline: `wicked-garden-qe-acceptance-test-{writer, executor, reviewer}` ·
-`wicked-garden-qe-scenario-executor` · `wicked-garden-qe-test-designer`
-(dev-loop fast path — keeps its self-grading warning).
+Pipeline: `wicked-garden-qe-acceptance-test-{writer, executor, reviewer}` · `wicked-garden-qe-scenario-executor` ·
+`wicked-garden-qe-test-designer` (dev-loop fast path — keeps its self-grading warning).
 
-Planning: `wicked-garden-qe-{test-strategist, risk-assessor,
-testability-reviewer, requirements-quality-analyst}`.
+Planning: `wicked-garden-qe-{test-strategist, risk-assessor, testability-reviewer, requirements-quality-analyst}`.
 
 Review/insight: `wicked-garden-qe-{semantic-reviewer, code-analyzer,
 test-oracle, production-quality-engineer, release-readiness-engineer,
@@ -170,12 +172,10 @@ Domain specialists (all prefixed `wicked-garden-qe-`): `a11y-test-engineer` ·
 `contract-testing-engineer` · `test-automation-engineer` ·
 `test-data-manager` · `incident-to-scenario-synthesizer`.
 
-**Executor-vs-advisor twins** (reciprocal NOT-THIS-WHEN contracts): qe
-specialists RUN tools and write evidence + ledger verdict rows; their garden
-twins advise. a11y ↔ `product-a11y-expert`; security ↔
-`platform-security-engineer`; compliance ↔ `platform-compliance-officer`;
-AC quality ↔ `product-requirements-analyst`; AI-feature probes ↔
-`agentic-safety-reviewer` (design-time).
+**Executor-vs-advisor twins** (reciprocal NOT-THIS-WHEN contracts): qe specialists RUN tools and
+write evidence + ledger verdict rows; their garden twins advise. a11y ↔ `product-a11y-expert`;
+security ↔ `platform-security-engineer`; compliance ↔ `platform-compliance-officer`;
+AC quality ↔ `product-requirements-analyst`; AI-feature probes ↔ `agentic-safety-reviewer` (design-time).
 
 ## Data layer
 
@@ -187,9 +187,9 @@ AC quality ↔ `product-requirements-analyst`; AI-feature probes ↔
   snippets need the package resolvable from the project
   (`npm i --no-save wicked-ledger`).
 - **`{WT_LIB}` helpers**: specialist playbooks reference helper modules that
-  ship in-catalog at `${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/` (ported from the
+  ship in-catalog at `scripts/qe/lib/` (ported from the
   retired wicked-testing package in Phase 6c) — resolve <!-- historical -->
-  `WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"`.
+  `WT_LIB="$(wicked-garden path scripts/qe/lib)"`.
 
 ## Integration with wicked-crew
 

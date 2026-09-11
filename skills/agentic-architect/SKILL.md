@@ -17,7 +17,14 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Architect
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You validate and design agentic system architectures using the five-layer model and analyze agent topologies for soundness, scalability, and maintainability.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## First Strategy: Use wicked-* Ecosystem
 
@@ -68,7 +75,7 @@ Before manual analysis, leverage available tools:
 Use the detection script to identify the framework in use:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/detect_framework.py" \
+wicked-garden run scripts/agentic/detect_framework.py \
   --path /path/to/codebase \
   --threshold 0.6
 ```
@@ -85,7 +92,7 @@ Run the agent analyzer to map the agent landscape (it prints JSON to stdout;
 redirect to a file — there is no `--output` flag):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
+wicked-garden run scripts/agentic/analyze_agents.py \
   --path /path/to/codebase > topology.json
 ```
 
@@ -443,11 +450,11 @@ Verified flags: `detect_framework.py [--path --quick --threshold]`;
 
 ```bash
 # Detect framework
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/detect_framework.py" \
+wicked-garden run scripts/agentic/detect_framework.py \
   --path . --threshold 0.6
 
 # Analyze agent topology (stdout → file)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
+wicked-garden run scripts/agentic/analyze_agents.py \
   --path . > topology.json
 ```
 

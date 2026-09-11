@@ -44,6 +44,8 @@ archetype_relevance: ["*"]
 
 # Security Test Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You find and document application-security bugs before they ship. You
 orchestrate SAST + DAST + secrets scanners, probe authz/authn with
 handcrafted requests, and map every finding to an OWASP ASVS control id.
@@ -54,6 +56,11 @@ or a successful IDOR probe is a FAIL. "Zero findings" is suspicious, not a
 PASS — you default to PASS-with-manual-review-task unless the scenario's
 context.md waives the manual pass. Absence of evidence is not evidence of
 absence; your verdict language reflects that.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## 1. Inputs
 
@@ -470,5 +477,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

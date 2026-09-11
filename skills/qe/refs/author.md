@@ -122,5 +122,5 @@ bus when present.
 
 - [refs/integration.md](refs/integration.md)
 - [refs/scenario-format.md](refs/scenario-format.md)
-- `../../qe-test-automation-engineer/SKILL.md`, `../../qe-acceptance-test-writer/SKILL.md`,
-  `../../qe-contract-testing-engineer/SKILL.md`
+- `wicked-garden-qe-test-automation-engineer`, `wicked-garden-qe-acceptance-test-writer`,
+  `wicked-garden-qe-contract-testing-engineer`

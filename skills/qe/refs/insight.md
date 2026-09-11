@@ -137,7 +137,7 @@ commands are now questions you ask it (routing per the dispatch table above):
 ## References
 
 - [refs/integration.md](refs/integration.md)
-- `../../qe-test-oracle/SKILL.md`
+- `wicked-garden-qe-test-oracle`
 - `wicked-ledger` oracle-queries (consumed dependency — query catalog)
 
 ## wicked-ledger resolution

@@ -58,7 +58,7 @@ jam revisit "event bus architecture"
 Quick 60-second exploration with 4 personas and 1 round. Run it inline — no
 dispatch:
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/quick.md")` — the single-pass
+1. Read `refs/quick.md` (relative to this skill's base directory) — the single-pass
    rubric: 4 personas, 1 forced round, synthesis format (Key Insights / Action
    Items / Open Questions), hard constraints (no storage, no multi-AI, ≤200 words).
 2. Apply the rubric directly to the topic. Do NOT run additional rounds. Do NOT store.
@@ -81,6 +81,8 @@ stored via the wicked-garden-mem skill for organizational memory.
 
 Dispatch to the forked facilitator skill (it owns the convergence checks,
 native-task tracking, transcript storage, and bus events):
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ```
 Skill(skill="wicked-garden-jam-brainstorm-facilitator",
@@ -112,7 +114,7 @@ Skill(skill="wicked-garden-jam-council",
 ```
 
 **After the fork returns**: read
-`${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/council-verdict.md` — it holds the
+`refs/council-verdict.md` — it holds the
 caller-side heuristics for acting on the verdict (when to proceed, when to
 surface raw votes and pause for human adjudication, hard-gate archetype rules)
 and the `raw_votes` output envelope contract
@@ -125,7 +127,7 @@ and the `raw_votes` output envelope contract
 Revisit a past brainstorm decision to record whether it was validated,
 invalidated, or modified. Light workflow — run it inline, no fork:
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/revisit.md")` — the 5-step
+1. Read `refs/revisit.md` — the 5-step
    workflow: recall the decision via the wicked-garden-mem skill, display
    the decision summary, ask validated/invalidated/modified, store the
    outcome (about tags `jam,outcome`), report. Degrades gracefully when the

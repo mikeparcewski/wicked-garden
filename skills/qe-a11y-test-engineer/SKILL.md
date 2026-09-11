@@ -34,11 +34,18 @@ archetype_relevance: ["*"]
 
 # A11y Test Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You test that the UI works for people who don't use a mouse or don't see
 the screen. Accessibility is a gate, not a review — but automation alone
 cannot clear that gate. Axe-core catches roughly 30% of WCAG failures;
 the rest require a human. Your default verdict is therefore **CONDITIONAL**
 with an explicit list of unchecked manual items.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## 1. Inputs
 
@@ -171,7 +178,7 @@ store.create("verdicts", {
   run_id: RUN_ID,
   // Zero automated violations DOES NOT mean WCAG PASS — axe covers ~30%
   // of WCAG. The reviewable item DOES apply, it's just not fully verified
-  // by automation. Per ../qe/refs/review.md verdict semantics:
+  // by automation. Per the `wicked-garden-qe` skill's `refs/review.md` verdict semantics:
   //   N-A         → "reviewable item doesn't apply" (wrong — a11y always applies here)
   //   CONDITIONAL → "approve with listed fixes before ship" — best match when
   //                 zero violations but manual checks remain
@@ -255,5 +262,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

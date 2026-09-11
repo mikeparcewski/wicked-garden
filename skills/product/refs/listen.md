@@ -7,7 +7,7 @@ covers sentiment/theme/trend classification.)
 ## 1. Discover sources
 
 ```bash
-PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
+PRODUCT_ROOT=$(wicked-garden run scripts/_run.py scripts/resolve_path.py wicked-garden:product)
 ls "${PRODUCT_ROOT}/voice/feedback/" 2>/dev/null
 find . -name "*feedback*" -o -name "*survey*" -o -name "*tickets*" 2>/dev/null | head -10
 gh issue list --label "customer-reported" 2>/dev/null | head -5

@@ -21,6 +21,11 @@ archetype_relevance: ["*"]
 **Run this skill inline — never fork it.** prove is designed to run in the
 parent context so the gate stays a reflex verb, not a dispatch ritual.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Action: prove (default)
 
 The one-line re-derivation verb. Before you tell the user something is "done"
@@ -35,8 +40,8 @@ gate) into one call, so the gate is something you reach for by reflex.
 Instructions:
 - Run it inline (the `--by` command executes in `--project-dir`, default `.`):
   ```bash
-  sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-    "${CLAUDE_PLUGIN_ROOT}/scripts/qe/prove.py" \
+  wicked-garden run \
+    scripts/qe/prove.py \
     <claim> --by "<command>" [--verifier exit_code_eq:0] [--project-dir <dir>]
   ```
   e.g. `prove.py tests-pass --by "pytest -q"` · `prove.py build-clean --by "npm run build"`
@@ -84,7 +89,7 @@ Parse the arguments: first non-flag token is the repo path (default `.`); pass
 `--trigger <value>` through verbatim when present. Then:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/compiler/compile.py" "<repo-path>" <flags>
+wicked-garden run scripts/compiler/compile.py "<repo-path>" <flags>
 ```
 
 Parse the JSON manifest and report, concisely:

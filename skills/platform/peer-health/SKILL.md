@@ -18,6 +18,11 @@ archetype_relevance: ["*"]
 
 Check reachability and version health of wicked-* peer tools.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Arguments
 
 - `--peer <name>` — check a single peer (vault, bus)
@@ -30,9 +35,9 @@ Run the internal loom doctor via the absorbed scripts/loom/compose module.
 No external wicked-loom process is needed — this runs in-process.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+wicked-garden python -c "
 import sys, os, json
-sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts'))
+sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], 'scripts'))
 from loom import compose, manifest
 
 peer_arg = None

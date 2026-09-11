@@ -38,7 +38,7 @@ Writer ──→ Test Plan ──→ Executor ──→ Evidence ──→ Revie
 
 The reviewer must NEVER receive executor conversation context. This is enforced through:
 
-1. **Tool restriction**: `allowed-tools: [Read]` in `../../qe-acceptance-test-reviewer/SKILL.md`. On Claude Code, this is enforced at the host level. On other CLIs, this is advisory.
+1. **Tool restriction**: `allowed-tools: [Read]` in `wicked-garden-qe-acceptance-test-reviewer`. On Claude Code, this is enforced at the host level. On other CLIs, this is advisory.
 2. **Evidence-only dispatch**: The reviewer is dispatched with ONLY:
    - The original scenario file path
    - The evidence directory path (`.wicked-qe/evidence/{run-id}/`)
@@ -46,7 +46,7 @@ The reviewer must NEVER receive executor conversation context. This is enforced 
    - It does NOT include: executor stdout, executor reasoning, or any executor conversational context
 3. **Forked-skill context boundary**: The reviewer skill declares `context: fork` and runs as a separate forked-skill invocation in a fresh context, not sharing history with the executor.
 
-See `../../qe-acceptance-test-reviewer/SKILL.md` for the reviewer's isolation annotation.
+See `wicked-garden-qe-acceptance-test-reviewer` for the reviewer's isolation annotation.
 
 ## Reviewer Isolation Enforcement Tiers
 
@@ -270,6 +270,8 @@ if (result.rejected) {
 
 Example safe query:
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="recall \"<scenario-category> test rules\"")
 ```
@@ -464,7 +466,7 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```
 
 ## wicked-ledger resolution

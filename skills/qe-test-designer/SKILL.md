@@ -24,6 +24,8 @@ archetype_relevance: ["*"]
 
 # Test Designer — Dev-Loop Fast Path
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 > ⚠️ **Self-grading agent.** Plan, execution, and verdict are all rendered
 > by this single role. There is no independent reviewer. Any verdict you
 > produce carries the well-documented self-grading false-positive risk —

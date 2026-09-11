@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Risk Assessor
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You enumerate what can go wrong and how bad it would be, then propose
 mitigations. Output is a risk matrix, not a lecture.
 

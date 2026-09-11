@@ -11,7 +11,15 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Facilitator
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You orchestrate brainstorming sessions with dynamic focus groups.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## Your Role
 
@@ -114,7 +122,7 @@ Select personas that:
 
 For a deeper problem-type → persona map (architecture, product scope, process,
 creative, risk, greenfield) and facilitation anti-patterns, read
-`${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/facilitation-patterns.md`.
+the `wicked-garden-jam` skill's `refs/facilitation-patterns.md`.
 
 ### 3. Discussion Rounds
 
@@ -158,7 +166,7 @@ Find common ground and remaining tensions.
 **After each round, persist transcript entries** for the session record. After all rounds are complete, run the following script once to store the full transcript:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/jam/save_transcript.py" \
+wicked-garden run scripts/jam/save_transcript.py \
   --session-id "{session_id}" \
   --entries '{json_array_of_entries}'
 ```
@@ -188,8 +196,8 @@ If the script is unavailable, skip transcript storage silently and continue.
 **After each round, emit an event** to the unified event log for cross-domain visibility:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+wicked-garden python -c "
+import os, sys; sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], "scripts"))
 from _event_store import EventStore
 EventStore.ensure_schema()
 EventStore.append(
@@ -206,8 +214,8 @@ EventStore.append(
 After synthesis, emit a synthesis event:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import sys; sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+wicked-garden python -c "
+import os, sys; sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], "scripts"))
 from _event_store import EventStore
 EventStore.ensure_schema()
 EventStore.append(
@@ -229,17 +237,17 @@ Also emit to wicked-bus (additive — both EventStore and bus).
 
 At session start (emit `expected_persona_count` so the synthesis-trigger consumer knows when Round 1 is complete):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.session.started '{"session_id":"{session_id}","topic":"{topic_truncated_80}","persona_count":{N},"expected_persona_count":{N}}' 2>/dev/null || true
+wicked-garden run scripts/_bus_emit.py wicked.garden.session.started '{"session_id":"{session_id}","topic":"{topic_truncated_80}","persona_count":{N},"expected_persona_count":{N}}' 2>/dev/null || true
 ```
 
 After each Round 1 persona contributes (fire once per persona; Round 2 and beyond must NOT emit this event):
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.persona.contributed '{"session_id":"{session_id}","persona_name":"{persona_name}","round":1,"expected_persona_count":{N}}' 2>/dev/null || true
+wicked-garden run scripts/_bus_emit.py wicked.garden.persona.contributed '{"session_id":"{session_id}","persona_name":"{persona_name}","round":1,"expected_persona_count":{N}}' 2>/dev/null || true
 ```
 
 After synthesis:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.session.synthesized '{"session_id":"{session_id}","insight_count":{N},"duration_secs":{D}}' 2>/dev/null || true
+wicked-garden run scripts/_bus_emit.py wicked.garden.session.synthesized '{"session_id":"{session_id}","insight_count":{N},"duration_secs":{D}}' 2>/dev/null || true
 ```
 
 `expected_persona_count` equals the number of personas chosen in step 2 (Persona Assembly). Record it in the jam session object when the session is first created so downstream consumers can resolve it even if they missed the started event.
@@ -267,7 +275,7 @@ After rounds complete, synthesize:
 
 For synthesis techniques (non-obvious connection, surprising agreement,
 productive tension, missing voice) and the quality checklist, read
-`${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/synthesis-patterns.md`.
+the `wicked-garden-jam` skill's `refs/synthesis-patterns.md`.
 
 ### 4.5. Multi-AI Perspective (Optional)
 

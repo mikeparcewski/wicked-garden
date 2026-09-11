@@ -26,6 +26,11 @@ archetype_relevance: ["*"]
 One entry point for the agentic domain. Pick the action from the request,
 parse its args, load its ref, and apply it inline.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Action router
 
 | Action | Use for | Args | Ref |
@@ -48,7 +53,7 @@ Full agentic-codebase review: framework detection → topology → architecture 
 safety + performance assessments → pattern scoring → unified remediation roadmap.
 
 1. Parse `[path]`, `--quick`, `--framework`, `--output`.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/agentic/refs/review.md")` — the full
+2. Read `refs/review.md` (relative to this skill's base directory) — the full
    5-step review rubric: framework+topology detection, architecture assessment,
    safety 8-layer, performance assessment, pattern scoring + issue taxonomy,
    and output format.
@@ -73,7 +78,7 @@ five-layer architecture → safety validation → design doc. Greenfield only �
 use `review` to assess existing code, `audit` for compliance evidence.
 
 1. Parse `[problem description]` and `--output`.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/agentic/refs/design.md")` — the design
+2. Read `refs/design.md` — the design
    rubric: requirements gathering, pattern selection, five-layer architecture,
    safety section, framework recommendation, and output format.
 3. Work through the rubric phases directly. If no problem statement is supplied,
@@ -87,7 +92,7 @@ handling, optionally emits compliance evidence + wicked-scenarios. Use `review`
 for the broader architecture+perf+safety sweep.
 
 1. Parse `[path]`, `--standard`, `--output`, `--scenarios`.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/agentic/refs/audit.md")` — the 8-layer rubric,
+2. Read `refs/audit.md` — the 8-layer rubric,
    checklist, compliance extensions, and output format.
 3. Apply the rubric directly to the target path. For each layer, assess findings,
    classify severity, and build the risk matrix.
@@ -103,7 +108,7 @@ code (use `review`) or architecture design (use `design`).
 1. Derive mode from args: `--compare` → side-by-side comparison; filters only
    (`--language`, `--use-case`) → filtered selection; no args → interactive
    5-question wizard.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/agentic/refs/frameworks.md")` — the
+2. Read `refs/frameworks.md` — the
    mode detection table, wizard questions, decision tree, comparison table,
    scoring template, and output format.
 3. Use WebSearch for latest 2026 ecosystem state (versions, features, community)

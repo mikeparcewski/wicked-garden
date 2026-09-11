@@ -16,6 +16,8 @@ archetype_relevance: ["*"]
 
 # Capability Router
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 **Purpose**: Scout available capabilities and decide what to use for a task. Return actionable recommendations so the main agent can execute without discovery overhead.
 
 ## Why This Matters

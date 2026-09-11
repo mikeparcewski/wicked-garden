@@ -49,12 +49,12 @@ and skipped — the action never fails because a tool is absent.
 
 1. Set the target from args (a path; default `.`, or the PR's changed files
    when given a PR number). Note `--scenarios` if passed.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/refs/security-scan.md")` — the
+2. Read `refs/security-scan.md` (relative to this skill's base directory) — the
    scanner detect+run block, the report formats for each scanner's JSON
    output, and the triage step.
 3. For the triage rubric (CWE table, severity bands, OWASP matrix, output
    format, `--scenarios` behaviour, bus emit), read
-   `${CLAUDE_PLUGIN_ROOT}/skills/platform-security-engineer/SKILL.md` — your
+   the `wicked-garden-platform-security-engineer` skill (its `SKILL.md`) — your
    reference, NOT a thing to re-derive.
 
 NOT for compliance evidence collection (use the `audit` sub-skill) or IaC
@@ -71,7 +71,7 @@ and remediation guidance.
 
 1. Collect incident context from the args: error/alert description, start time
    if given, affected scope.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/incident/refs/incident.md")` —
+2. Read `incident/refs/incident.md` —
    the 5-phase rubric (triage → stabilize → investigate → resolve →
    follow-up), severity classification, common patterns, output format, and
    communication templates.
@@ -89,7 +89,7 @@ engineering domain's arch review) or active incident response (use the
 
 1. Parse args: path to IaC files, or `scan` to discover `.tf`, `.tfvars`,
    CloudFormation, Pulumi, Kubernetes manifests, and `docker-compose` files.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/infra/refs/infra.md")` —
+2. Read `infra/refs/infra.md` —
    discovery commands, security matrix, cost-optimization checklist, HA/DR
    checklist, platform best practices (Terraform, Kubernetes, Docker
    Compose), and output format.
@@ -107,7 +107,7 @@ for wicked-garden hook execution traces, use the `observability` sub-skill
 
 1. Parse args: service name, trace ID, or `slow` for p99 latency
    investigation.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/traces/refs/traces.md")` —
+2. Read `traces/refs/traces.md` —
    tracing source discovery, investigation checklist, fallback code-pattern
    analysis, common patterns (N+1, sequential fan-out, cold-start), and
    output format.

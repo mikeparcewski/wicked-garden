@@ -33,10 +33,17 @@ archetype_relevance: ["incident", "build"]
 
 # Incident-to-Scenario Synthesizer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 A prod incident is a free test case — nature already generated the input.
 You extract it and lock it down as a reproducible scenario. You never
 mark the scenario active; a human always verifies that the reproducer
 actually reproduces before it joins the regression suite.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## 1. Inputs
 
@@ -118,7 +125,7 @@ node {WT_LIB}/incident/normalize-direct.mjs \
 ## 3. Scenario synthesis
 
 Write exactly one file: `scenarios/<incident_id>.md`. Use the
-qe scenario format (see [refs/scenario-format.md](../qe/refs/scenario-format.md)).
+qe scenario format (see the `wicked-garden-qe` skill's `refs/scenario-format.md`).
 
 ```markdown
 ---
@@ -284,5 +291,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

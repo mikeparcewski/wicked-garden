@@ -23,7 +23,7 @@ If not provided, ask the user:
 
 Create a new file at:
 ```
-${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/generators/{language}_generator.py
+`scripts/engineering/patch/generators/{language}_generator.py` (under the plugin root: `wicked-garden path scripts/engineering/patch/generators/{language}_generator.py`)
 ```
 
 Use this template structure (adapt for the specific language):
@@ -124,7 +124,7 @@ class {Language}Generator(BaseGenerator):
 
 ### Step 3: Update __init__.py
 
-Add import to `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/generators/__init__.py`:
+Add import to `scripts/engineering/patch/generators/__init__.py`:
 
 ```python
 from . import {language}_generator
@@ -132,7 +132,7 @@ from . import {language}_generator
 
 ### Step 4: Create Golden Test Fixture
 
-Create `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/tests/fixtures/{language}_add_field.json`:
+Create `scripts/engineering/patch/tests/fixtures/{language}_add_field.json`:
 
 ```json
 {
@@ -172,7 +172,7 @@ Create `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/tests/fixtures/{language
 
 ### Step 5: Update Test File
 
-Add to `${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/tests/test_conformance.py`:
+Add to `scripts/engineering/patch/tests/test_conformance.py`:
 
 1. Add contract test in `TestGeneratorContract`:
 ```python
@@ -211,7 +211,7 @@ from generators import {language}_generator
 
 Execute:
 ```bash
-cd "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch"
+cd "$(wicked-garden path scripts/engineering/patch)"
 python3 tests/test_conformance.py
 ```
 

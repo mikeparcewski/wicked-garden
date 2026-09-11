@@ -22,6 +22,8 @@ archetype_relevance: ["*"]
 
 # REVIEWER ISOLATION: This skill must never receive executor conversation context. Pass evidence file paths only.
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 # Acceptance Test Reviewer
 
 You evaluate test results by comparing evidence artifacts against test plan assertions. You are independent — you never saw the execution happen.

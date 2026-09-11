@@ -15,13 +15,18 @@ dispatch happens two ways —
   2. ``Skill(skill="wicked-garden-<name>")`` — skill-to-skill dispatch. It must
      resolve to a SKILL.md whose frontmatter declares that ``name:``.
 
-Additionally, every literal ``${CLAUDE_PLUGIN_ROOT}/<path>`` file reference in
-a skill body must exist — the conversion moved a lot of content into refs/ and
-a pointer at a file that didn't move with it is a silent capability loss.
+Additionally, every plugin file a skill body reaches through the launcher —
+``wicked-garden run|python|path <root-relative path>`` — must exist: the
+cross-CLI convention (F-079, 12.33) replaced every ``${CLAUDE_PLUGIN_ROOT}/<path>``
+reference with a launcher call, and a pointer at a file that does not exist is
+the same silent capability loss the old plugin-root check guarded against.
+``${CLAUDE_PLUGIN_ROOT}`` references themselves are asserted ABSENT here (the
+full portability lint is ``tests/test_skill_portability.py``).
 
 Template placeholders (paths/refs containing ``{``) are skipped: they are
 documentation of a pattern, not a concrete reference.
 """
+import json
 import re
 from pathlib import Path
 
@@ -45,10 +50,52 @@ TASK_REF_RE = re.compile(
 SKILL_REF_RE = re.compile(
     r"Skill\(skill=[\"'](wicked-garden-[a-z0-9]+(?:-[a-z0-9]+)*)[\"']"
 )
-# Literal plugin-root file references (concrete extensions only).
+# Literal plugin-root file references (concrete extensions only). Kept so the
+# suite can assert there are NONE left under skills/ (12.33 portability).
 PLUGIN_PATH_RE = re.compile(
     r"\$\{CLAUDE_PLUGIN_ROOT\}/([A-Za-z0-9_./{}-]+\.(?:md|py|json|sh|mjs))"
 )
+# Launcher calls — `wicked-garden run|python|path <root-relative path>` (also the
+# CI-template spelling `npx wicked-garden@12 run …`); the target may sit on the
+# next line after a trailing `\`, and `python -c …` / `python -` carry no path.
+# Every path target must exist. The two template mentions inside the standard
+# `## Runtime` block (exact text in tests/portability_rules.json) are not calls.
+LAUNCHER_CALL_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])(?:npx\s+)?wicked-garden(?:@[A-Za-z0-9_.^~-]+)?\s+"
+    r"(run|python|path)(?:[ \t]+(\S+))?"
+)
+_RUNTIME_BLOCK_LINES = set(
+    json.loads((REPO / "tests" / "portability_rules.json").read_text(encoding="utf-8"))
+    ["launcher"]["runtime_block"].split("\n")
+)
+
+
+def _launcher_calls() -> list[tuple[Path, int, str, str | None]]:
+    """(file, line, verb, target-or-None) for every launcher call site under skills/."""
+    calls = []
+    for md_file in _skill_md_files():
+        lines = md_file.read_text(encoding="utf-8").split("\n")
+        for i, line in enumerate(lines):
+            if line in _RUNTIME_BLOCK_LINES:
+                continue
+            for match in LAUNCHER_CALL_RE.finditer(line):
+                verb, target = match.group(1), match.group(2)
+                if target in (None, "\\"):
+                    j = i + 1
+                    while j < len(lines) and not lines[j].strip():
+                        j += 1
+                    target = lines[j].strip().split()[0] if j < len(lines) and lines[j].strip() else None
+                if target is not None:
+                    # a call site ends in prose punctuation / closing quotes+parens as often as not
+                    target = target.strip("`'\"").rstrip("\\;,)`\"'.:")
+                calls.append((md_file, i + 1, verb, target))
+    return calls
+
+
+def _is_path_target(target: str | None) -> bool:
+    return bool(target) and not target.startswith(("-", "<", "…")) and "{" not in target and (
+        "/" in target or re.search(r"\.(?:py|mjs|js|cjs|sh|md|json|yml|yaml)$", target) is not None
+    )
 
 # Dangling paths this suite deliberately tolerates. Emptied by #1111: the five
 # pre-existing entries (the imagery provider.py path left behind by the move
@@ -137,6 +184,24 @@ def _plugin_path_params():
     return params
 
 
+def _launcher_path_params():
+    seen = set()
+    params = []
+    for md_file, _lineno, _verb, target in _launcher_calls():
+        if not _is_path_target(target):
+            continue  # `python -c` / `-` pass-through, template placeholder
+        key = (str(md_file), target)
+        if key in seen:
+            continue
+        seen.add(key)
+        params.append(
+            pytest.param(
+                md_file, target, id=f"{md_file.relative_to(REPO)}::{target}"
+            )
+        )
+    return params
+
+
 @pytest.mark.parametrize("md_file,ref", _task_ref_params())
 def test_task_subagent_ref_resolves_to_fork_skill(md_file: Path, ref: str):
     """Every Task(subagent_type=...) must map to a context:fork skill that
@@ -157,13 +222,13 @@ def test_skill_dispatch_ref_resolves(md_file: Path, ref: str):
     )
 
 
-@pytest.mark.parametrize("md_file,rel", _plugin_path_params())
-def test_plugin_root_file_reference_exists(md_file: Path, rel: str):
-    """Every concrete ${CLAUDE_PLUGIN_ROOT}/<path> reference must exist."""
+@pytest.mark.parametrize("md_file,rel", _launcher_path_params())
+def test_launcher_path_reference_exists(md_file: Path, rel: str):
+    """Every `wicked-garden run|python|path <rel>` target must exist at the plugin root."""
     assert (REPO / rel).exists(), (
-        f"{md_file.relative_to(REPO)}: references "
-        f"${{CLAUDE_PLUGIN_ROOT}}/{rel} but that file does not exist — a "
-        "refs/ pointer or script path did not survive the skills-only move."
+        f"{md_file.relative_to(REPO)}: runs `wicked-garden … {rel}` but that "
+        "file does not exist under the plugin root — a script path did not "
+        "survive a move."
     )
 
 
@@ -184,8 +249,22 @@ def test_reference_extraction_is_not_vacuous():
     we actually guard against).
     """
     assert _skill_ref_params(), "no Skill dispatch refs found in skills/ — extraction broke"
-    assert len(_plugin_path_params()) > 20, (
-        "implausibly few ${CLAUDE_PLUGIN_ROOT} references found — extraction broke"
+    # 12.33 (F-079) INVERTED the plugin-root guard: skill text reaches plugin
+    # files only through the `wicked-garden` launcher, so the plugin-root count
+    # must be ZERO and the launcher-call count implausibly LARGE for a regex
+    # drift to pass vacuously (tests/test_skill_portability.py owns the rest).
+    assert len(_plugin_path_params()) == 0, (
+        "${CLAUDE_PLUGIN_ROOT} references under skills/ — Claude-only; use "
+        "`wicked-garden run <path>` / skill-relative paths (see .claude/CLAUDE.md): "
+        f"{[p.id for p in _plugin_path_params()][:5]}"
+    )
+    launcher_calls = len(_launcher_calls())
+    assert launcher_calls > 200, (
+        f"only {launcher_calls} launcher calls found under skills/ — "
+        "extraction broke or the shared-runtime call sites were lost"
+    )
+    assert len(_launcher_path_params()) > 100, (
+        f"only {len(_launcher_path_params())} distinct launcher targets — extraction broke"
     )
     assert len(_FORK_SUBAGENT_TYPES) >= 3, (
         "fewer than 3 fork skills declare a subagent_type compat key — the "

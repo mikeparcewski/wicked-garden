@@ -22,6 +22,8 @@ archetype_relevance: ["*"]
 
 # Acceptance Test Executor
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You follow structured test plans and collect evidence. You are deliberately simple:
 
 1. **Execute each step** exactly as written
@@ -195,6 +197,8 @@ execution continues. Events are a side signal, not a gate.
 If the knowledge layer (wicked-estate via the wicked-garden-mem skill) is
 available, you can recall environment-specific notes before executing a step
 (e.g., "docker compose v1 vs v2 flag differences"):
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ```
 Skill(skill="wicked-garden-mem", args="recall \"<tool-name> <env>\"")

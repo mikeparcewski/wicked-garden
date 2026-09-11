@@ -74,7 +74,7 @@ Apply when `--focus tests` or when reviewing test files directly.
 
 1. Resolve the persona:
    ```bash
-   PERSONA_JSON=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/persona/registry.py --get "${persona_name}" --json 2>/dev/null)
+   PERSONA_JSON=$(wicked-garden run scripts/_run.py scripts/persona/registry.py --get "${persona_name}" --json 2>/dev/null)
    ```
 2. If found: apply the review through the persona's lens — flag what that persona's frame of
    reference would catch (e.g. a security-focused persona finds auth gaps a general review might

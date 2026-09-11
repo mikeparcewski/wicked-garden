@@ -13,6 +13,11 @@ archetype_relevance: ["*"]
 
 AI-powered image generation from text prompts. Supports multiple providers through a unified abstraction layer.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## When To Use This Skill
 
 - Generating new images from text descriptions
@@ -34,7 +39,7 @@ AI-powered image generation from text prompts. Supports multiple providers throu
 
 ```bash
 # Check which providers are available
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" detect
+wicked-garden run skills/product/imagery/scripts/provider.py detect
 ```
 
 The provider abstraction selects the best available provider automatically. A specific provider can be forced when needed.
@@ -74,12 +79,12 @@ For detailed prompt engineering techniques, see [refs/prompt-engineering.md](ref
 
 ```bash
 # Basic generation (auto-detects best available provider)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" generate \
+wicked-garden run skills/product/imagery/scripts/provider.py generate \
   --prompt "Your crafted prompt" \
   --output ./output/v1.png
 
 # Use a specific provider
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" generate \
+wicked-garden run skills/product/imagery/scripts/provider.py generate \
   --prompt "Your crafted prompt" \
   --provider openai \
   --output ./output/v1.png

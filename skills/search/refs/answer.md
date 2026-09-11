@@ -16,8 +16,8 @@ narrow the memory side; default `""` = everything); `--budget <tokens>`
 1. **Fetch the evidence** — one backend call returns both stores' hits:
 
    ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-     "${CLAUDE_PLUGIN_ROOT}/scripts/mem/estate_memory.py" sources '{"query":"<question>"}'
+   wicked-garden run \
+     scripts/mem/estate_memory.py sources '{"query":"<question>"}'
    ```
 
    The result carries `knowledge` items (each with a `body_snippet` and its

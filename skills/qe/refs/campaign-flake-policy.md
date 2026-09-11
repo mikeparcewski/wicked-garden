@@ -101,9 +101,9 @@ calculus** but never from sight:
 - **Acceptance payload**: pass the envelope to the gate CLI —
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-scoreboard.mjs" \
+  wicked-garden run scripts/qe/lib/campaign-scoreboard.mjs \
     --repo-root . --json --out scoreboard.json
-  node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
+  wicked-garden run scripts/qe/lib/gate.mjs \
     --project-id <id> --run-id <id> --verdict PASS \
     --verdict-summary "$(node -e 'console.log(require("./scoreboard.json").certification.gate_summary)')" \
     --exclusions-from scoreboard.json
@@ -155,4 +155,4 @@ calculus** but never from sight:
 
 [refs/campaign-grading.md](campaign-grading.md) · [refs/execute.md](execute.md) ·
 [refs/insight.md](insight.md) ·
-`${CLAUDE_PLUGIN_ROOT}/skills/qe-flaky-test-hunter/SKILL.md` · ADR 0006 (`docs/adr/`)
+the `wicked-garden-qe-flaky-test-hunter` skill (its `SKILL.md`) · ADR 0006 (`docs/adr/`)

@@ -8,7 +8,7 @@ action items. Pipeline: listen -> analyze -> **synthesize**. Run after
 ## 1. Locate analysis input
 
 ```bash
-PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
+PRODUCT_ROOT=$(wicked-garden run scripts/_run.py scripts/resolve_path.py wicked-garden:product)
 ls "${PRODUCT_ROOT}/voice/analysis/"
 ```
 If empty, tell the user to run `/wicked-garden-product analyze` first and stop.

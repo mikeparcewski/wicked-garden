@@ -22,6 +22,8 @@ archetype_relevance: ["build", "review", "migrate", "modernize", "incident"]
 
 # Swarm — parallel verification swarm
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Orchestrate **N units of work in parallel** (one scoped subagent per unit),
 then **independently verify** every result with a separate wave of agents that
 re-derive "done" from a clean state. The swarm's value is not the parallelism —
@@ -45,9 +47,9 @@ the garden — reference these, do not duplicate them:
 | Per-unit recon subagent | `wicked-garden-crew-researcher` fork skill (`skills/crew-researcher/`) — read-only context gathering |
 | Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` fork skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
 | Fallback reviewer | `wicked-garden-crew-reviewer` fork skill (`skills/crew-reviewer/`) — reviewer-separation + external-review rules baked in |
-| Re-derive a claim (the receipt) | `/wicked-garden:prove` (run + freeze evidence + gate; fail-closed) |
-| Hard-gate independent sign-off | `/wicked-garden:prove --with-attestations` → `wicked-vault attest` (evaluator ≠ creator, G10) |
-| Blast-radius / scope lens | `wicked-garden:deliberate` (lens 2 + 3) and `/wicked-garden:search:blast-radius` |
+| Re-derive a claim (the receipt) | `wicked-garden-prove` (run + freeze evidence + gate; fail-closed) |
+| Hard-gate independent sign-off | `wicked-garden-prove --with-attestations` → `wicked-vault attest` (evaluator ≠ creator, G10) |
+| Blast-radius / scope lens | `wicked-garden:deliberate` (lens 2 + 3) and `wicked-garden-search blast-radius` |
 | Per-unit isolation + commit hygiene | `wicked-garden:worktrees` (dangling-commit trust-but-verify) |
 | Phase shape per unit | `wicked-garden:archetype` refs (`build` / `review` / `migrate`) |
 | Multi-model verdict in a wave | `wicked-garden:jam:council` |
@@ -62,7 +64,7 @@ the garden — reference these, do not duplicate them:
                 each writes DETAILED artifacts to disk, returns a ~150-word summary
 2. verify     → M parallel verifier agents (SEPARATE from implementers)
                 re-run from clean state, read the ACTUAL diff, render PASS/FAIL/PARTIAL
-3. receipts   → /wicked-garden:prove per claim; hard gates add --with-attestations
+3. receipts   → wicked-garden-prove per claim; hard gates add --with-attestations
 4. ship       → branch per unit, conventional commits, CI-green, independent review,
                 clean merge tree, tag-driven release  (only when asked)
 ```

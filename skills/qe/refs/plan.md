@@ -144,5 +144,5 @@ python3 -c "import json,sys; sys.stdout.write(json.dumps({'ok': True, 'data': {'
 ## References
 
 - [refs/integration.md](refs/integration.md)
-- `../../qe-test-strategist/SKILL.md`, `../../qe-risk-assessor/SKILL.md`,
-  `../../qe-testability-reviewer/SKILL.md`, `../../qe-requirements-quality-analyst/SKILL.md`
+- `wicked-garden-qe-test-strategist`, `wicked-garden-qe-risk-assessor`,
+  `wicked-garden-qe-testability-reviewer`, `wicked-garden-qe-requirements-quality-analyst`

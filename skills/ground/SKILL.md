@@ -21,6 +21,8 @@ archetype_relevance: ["*"]
 
 # wicked-garden:ground — Steer Yourself
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You are uncertain. Pull what's known into focus.
 
 ## When to use
@@ -69,6 +71,8 @@ named entities, and technical terms. Example: "v8 daemon projection model" →
 `["daemon", "projection", "v8 architecture", "state machine"]`.
 
 **Step 2 — Parallel execution.** Invoke in a single parallel batch:
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ```bash
 # Knowledge-layer recall (repeat per term if ≥2 terms)

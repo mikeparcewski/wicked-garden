@@ -20,6 +20,11 @@ On-demand persona invocation for applying named perspectives to any task.
 Personas are behavioral modifiers — they change the lens through which a task
 is executed, not the tools available.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Sub-Action Routing
 
 Route on the **first token** of the args, then read the matching ref for the

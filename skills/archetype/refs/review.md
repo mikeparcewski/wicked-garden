@@ -65,6 +65,9 @@ in three domains").
 
 1. Apply the rubric. Take notes; don't write the findings yet.
 2. Use the right specialist — `pr-review-toolkit:code-reviewer` (external
+
+   Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
    subagent), or a garden fork skill via `Skill(skill="…")`:
    `wicked-garden-crew-reviewer`, `wicked-garden-qe-semantic-reviewer`,
    `wicked-garden-engineering-solution-architect`, etc. Match the artifact

@@ -28,8 +28,8 @@ Split the args on the first space (after the `as` token):
 Run the registry script to resolve the persona definition:
 
 ```bash
-PERSONA_JSON=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+PERSONA_JSON=$(wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py --get "${persona_name}" --json 2>/dev/null)
 REGISTRY_EXIT=$?
 ```
@@ -41,8 +41,8 @@ If the script exits non-zero or PERSONA_JSON is empty or contains `"error"`:
 1. Run the list action's registry call to get available personas:
 
 ```bash
-AVAILABLE=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+AVAILABLE=$(wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py --list --json 2>/dev/null)
 ```
 

@@ -55,7 +55,7 @@ The imagery skill uses a provider abstraction layer. Review works without any pr
 
 ```bash
 # Check available providers
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" detect
+python3 scripts/provider.py detect
 ```
 
 | Provider | How to Enable |
