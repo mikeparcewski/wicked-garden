@@ -691,7 +691,7 @@ wheels = [
 
 [[package]]
 name = "wicked-garden"
-version = "1.33.0"
+version = "0.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },

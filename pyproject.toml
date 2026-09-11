@@ -1,6 +1,11 @@
 [project]
 name = "wicked-garden"
-version = "1.33.0"
+# NOT a release anchor. The plugin's version lives in package.json and is synced into
+# .claude-plugin/{plugin,marketplace}.json by `npm version` -> .github/scripts/sync-plugin-version.mjs
+# when the vX.Y.Z tag runs release.yml. This Python project is never built or published (the hatch
+# target exists only so uv can manage deps), nothing reads this field, and the release train does
+# not bump it — PEP 621 requires a value, so it is pinned to the placeholder 0.0.0 (mirrored in uv.lock).
+version = "0.0.0"
 description = "AI-Native SDLC delivered as a single Claude Code plugin"
 requires-python = ">=3.10"
 dependencies = [

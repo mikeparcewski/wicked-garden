@@ -43,8 +43,17 @@ backend — just this component with fake props and a DOM.
 - Interact via user-event (not fireEvent) where possible
 - Query by role / label — avoid test-ids unless there's no semantic anchor
 - Assert what a user would notice, not implementation details
+- Run every file you write with the project's runner (`npx vitest run <file>`,
+  jest) and report file · command · result; not run = `unverified`, never
+  `covered`; a red test ships as `failing` with the reason, never as green
+- Claim pre-existing coverage only with `path:line` of the test; count new
+  tests separately from cited pre-existing ones
+- Never `git push` / `gh pr create` — the run's deliver phase opens the PR
+- The `wicked-garden-qe` skill's `refs/author.md` § Verified-test contract is the
+  full text; it binds whether you are dispatched or invoked directly
 
 ## Output
 
 Tests in the project's conventional test location. One file per component,
-one test per behavior variant. Note coverage gains.
+one test per behavior variant. Note coverage gains with the execution record
+(file · command · result) — never a pass claim without it.

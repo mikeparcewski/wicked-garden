@@ -47,6 +47,22 @@ You verify the data itself, not just the code that touches it.
 - **SQL-based custom checks** — `EXCEPT` queries, cardinality ratios
 - **Soda** for streaming / operational data
 
+## Run what you write — never ship
+
+The `wicked-garden-qe` skill's `refs/author.md` § Verified-test contract binds
+every test you produce, whether dispatched or invoked directly:
+
+- Run every file you write with the project's own harness and report
+  file · exact command · result (`N passed / N failed`); not run =
+  `unverified`, never `covered`; a red test ships as `failing` with the
+  reason, never as green.
+- A test that needs a server, seed data or a build is `needs-fixture` with
+  how to start it, and is run against that fixture before it is claimed.
+- Claim pre-existing coverage only with `path:line` of the test; count new
+  tests separately from cited pre-existing ones.
+- Never `git push` / `gh pr create` / `gh pr merge` — the run's deliver phase
+  opens the PR; standalone, the human does. Leave the files on the working tree.
+
 ## Output
 
 Assertion suite + a freshness / drift report. On failure, show the
