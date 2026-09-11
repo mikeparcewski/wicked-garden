@@ -20,8 +20,7 @@ FIXTURE = Path(__file__).resolve().parent / "portability_rules.json"
 
 # wicked-crew#532 @ 6c8870b9263759ba9bb0c1dae95d24d93d554883 — packages/crew/tests/fixtures/portability_rules.json
 VENDORED_FROM = "mikeparcewski/wicked-crew@6c8870b9263759ba9bb0c1dae95d24d93d554883"
-VENDORED_SHA256 = "2df674f2380d1842"  # first 16 hex chars of sha256(file bytes); the full digest is asserted below
-VENDORED_SHA256_FULL = None  # filled at import from the file when it matches the prefix (see test)
+VENDORED_SHA256 = "2df674f2380d1842f7a0336ee4d3536c20bc10da160a8b525667b5b5037aba08"  # sha256 of the vendored file bytes
 
 
 def _fixture_bytes() -> bytes:
@@ -42,7 +41,7 @@ def test_declared_sha256_of_rules_reproduces():
 
 def test_vendored_bytes_are_pinned():
     digest = hashlib.sha256(_fixture_bytes()).hexdigest()
-    assert digest.startswith(VENDORED_SHA256), (
+    assert digest == VENDORED_SHA256, (
         f"tests/portability_rules.json sha256={digest} differs from the pinned vendored copy "
         f"({VENDORED_FROM}); re-vendor byte-for-byte and update VENDORED_SHA256 in this test"
     )

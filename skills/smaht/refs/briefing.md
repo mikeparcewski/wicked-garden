@@ -148,7 +148,7 @@ sibling plugin (a separate plugin, not a skill of this catalog — see `docs/v9/
 _The `affected_repos` helper was removed in v11. Multi-repo coordination
 was tied to the v6 universal pipeline's process-plan.json schema, which
 the v11 archetype catalog superseded. Future cross-repo orchestration
-work belongs in the `wicked-garden-monorepo` sibling plugin (not a skill of this catalog)._ <!-- not-a-skill -->
+work belongs in the `wicked-garden-monorepo` <!-- not-a-skill --> sibling plugin (not a skill of this catalog)._
 
 Format (when non-empty):
 

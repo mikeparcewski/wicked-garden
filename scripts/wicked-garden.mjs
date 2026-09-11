@@ -404,7 +404,7 @@ export function main(argv, io = {}) {
       const passthrough = rest[0] === "-" || rest[0].startsWith("-");
       const target = passthrough ? [] : [resolveUnderRoot(root, rest[0])];
       const args = passthrough ? rest : rest.slice(1);
-      return exec([...python.argv, ...target, ...args], childEnv(env, root, python.env), { cwd, platform });
+      return exec([...python.argv, ...target, ...args], childEnv(env, root, python.env), { cwd });
     }
     // run
     if (rest.length === 0 || rest[0].startsWith("-")) {
@@ -417,14 +417,14 @@ export function main(argv, io = {}) {
     }
     if (kind === "python") {
       const python = pythonOrThrow(root, env, platform);
-      return exec([...python.argv, abs, ...rest.slice(1)], childEnv(env, root, python.env), { cwd, platform });
+      return exec([...python.argv, abs, ...rest.slice(1)], childEnv(env, root, python.env), { cwd });
     }
     if (kind === "node") {
-      return exec([process.execPath, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd, platform });
+      return exec([process.execPath, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd });
     }
     const sh = findOnPath("sh", env, platform) || (platform === "win32" ? null : "/bin/sh");
     if (!sh) throw new LauncherError("sh not found on PATH (needed for .sh targets)", { tried: [{ kind: "sh" }] });
-    return exec([sh, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd, platform });
+    return exec([sh, abs, ...rest.slice(1)], childEnv(env, root, {}), { cwd });
   } catch (e) {
     if (e instanceof LauncherError) {
       err(JSON.stringify(e.toJSON()) + "\n");

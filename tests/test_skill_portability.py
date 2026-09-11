@@ -379,9 +379,13 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
         if is_md:
             for m in GRX["skill_name"].finditer(line):
                 name = m.group(1)
-                if "{" in name or name in names or NOT_A_SKILL in line:
+                # the exemption marker is TOKEN-scoped: it must follow this very token
+                # (`wicked-garden-x` <!-- not-a-skill -->), not merely sit somewhere on the line
+                exempt = re.match(r"[`'\"]?\s*" + re.escape(NOT_A_SKILL), line[m.end():]) is not None
+                if "{" in name or name in names or exempt:
                     continue
-                add("unresolved-skill-name", lineno, f"`{name}` is not declared by any SKILL.md")
+                add("unresolved-skill-name", lineno,
+                    f"`{name}` is not declared by any SKILL.md (an identifier that is not a skill gets `{NOT_A_SKILL}` right after the token)")
             if lineno > fm_end and GRX["slash_form"].search(line):
                 add("slash-form", lineno, "skills are not slash commands on any CLI — name the skill (`wicked-garden-<x>`) instead")
             # bare `scripts/<x>.py <args>` span (prose) / bare shell-fence command line: no interpreter at all
