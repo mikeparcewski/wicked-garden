@@ -31,12 +31,12 @@ this archetype tests the *consumer's honesty* when a dependency is simply
 
 ```bash
 # Emit capabilities + rungs + scenario markdown (JSON to stdout, writes nothing)
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py" generate \
+wicked-garden run scripts/qe/campaign_degradation.py generate \
   --deps external-deps.json --plan-name <campaign>
 
 # Append degradation rungs to an existing campaign plan (fail-closed:
 # validates the augmented plan in full before writing anything)
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py" augment \
+wicked-garden run scripts/qe/campaign_degradation.py augment \
   --deps external-deps.json --plan <campaign-dir>/campaign-recon.json \
   --out <campaign-dir> [--after <rung-id>] [--allow-spec-bump]
 ```
@@ -124,6 +124,6 @@ Invariants the generator enforces (fail-closed, in `augment`):
 
 ## References
 
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py` — the generator
+- `scripts/qe/campaign_degradation.py` (under the plugin root: `wicked-garden path scripts/qe/campaign_degradation.py`) — the generator
 - [refs/campaign.md](campaign.md) · [refs/scenario-format.md](scenario-format.md) ·
   [refs/campaign-ci.md](campaign-ci.md) (nightly wiring) · ADR 0006 (`docs/adr/`)

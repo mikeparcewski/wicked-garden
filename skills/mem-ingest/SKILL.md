@@ -11,6 +11,8 @@ allowed-tools: Read, Write, Grep, Glob, Bash
 
 # Mem Ingest Worker
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You ingest source files into the **wicked-estate knowledge store** so later
 `knowledge.recall` / cited-answer calls can return them with `source`
 citations. This ports the brain-era ingest pipeline (FOLD-2, Phase 5-S7)
@@ -19,6 +21,11 @@ reasoner); the **engine** writes and ranks (`knowledge.ingest` /
 `knowledge.write` — deterministic, never calls a model). Estate's embedded
 method card `skill://knowledge-ingest/SKILL.md` is the chunking doctrine
 this pipeline follows.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Parameters
 
@@ -31,8 +38,8 @@ this pipeline follows.
 All writes go through the mem backend (stdio shim → estate MCP):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/mem/estate_memory.py" ingest -
+wicked-garden run \
+  scripts/mem/estate_memory.py ingest -
 ```
 
 with a JSON body on stdin (chunks are long — never inline them in argv):
@@ -104,7 +111,7 @@ Do NOT ingest files one-by-one in conversation. Write a small Python batch
 script to the session scratch dir that walks the tree (skip dotdirs,
 `node_modules`, `__pycache__`, lockfiles), applies the Step-2 chunking to
 each text file, and pipes one `ingest` JSON per file into
-`scripts/mem/estate_memory.py ingest -`. Run it, then:
+`wicked-garden run scripts/mem/estate_memory.py ingest -`. Run it, then:
 
 - Report `files → chunks` counts from its output.
 - List the binary files it found and vision-ingest the important ones
@@ -116,8 +123,8 @@ Pick 1–2 distinctive phrases from the ingested content and confirm they
 come back cited:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/mem/estate_memory.py" sources '{"query":"<distinctive phrase>"}'
+wicked-garden run \
+  scripts/mem/estate_memory.py sources '{"query":"<distinctive phrase>"}'
 ```
 
 The matching chunk must appear with the right `source`. If it doesn't,

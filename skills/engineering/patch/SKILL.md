@@ -23,7 +23,7 @@ Generate and propagate code changes across your entire codebase using the symbol
 All sub-actions run the patch CLI. The full invocation is:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" <sub-action> [args]
+wicked-garden run scripts/engineering/patch/patch.py <sub-action> [args]
 ```
 
 Examples below abbreviate this to `patch.py <sub-action> …` — always run the full form.
@@ -32,6 +32,11 @@ The propagation diagram, quick-start recipes, per-action examples, the sample
 `PROPAGATION PLAN` / `GENERATED PATCHES` output, the patches-file JSON schema,
 and the language/type/SQL-dialect reference tables live in
 [refs/output-samples.md](refs/output-samples.md).
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Sub-actions
 
@@ -56,7 +61,7 @@ The CLI subcommand is `plan`.
 (max traversal depth, default 5); `--json` (output as JSON).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" plan "<symbol_id>" --change "<change_type>" [--json]
+wicked-garden run scripts/engineering/patch/patch.py plan "<symbol_id>" --change "<change_type>" [--json]
 ```
 
 See [refs/output-samples.md](refs/output-samples.md) for examples and the sample `PROPAGATION PLAN` output.
@@ -73,7 +78,7 @@ Date, etc.); `--column` (database column name, defaults to SNAKE_CASE of name);
 immediately); `--verbose`/`-v` (show full diffs).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" add-field "<symbol_id>" \
+wicked-garden run scripts/engineering/patch/patch.py add-field "<symbol_id>" \
   --name "<name>" \
   --type "<type>" \
   [--column "<column>"] \
@@ -90,7 +95,7 @@ See [refs/output-samples.md](refs/output-samples.md) for examples, a JPA entity 
 `--apply` (apply patches immediately); `--verbose`/`-v` (show full diffs).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" rename "<symbol_id>" --old "<old_name>" --new "<new_name>" [--verbose]
+wicked-garden run scripts/engineering/patch/patch.py rename "<symbol_id>" --old "<old_name>" --new "<new_name>" [--verbose]
 ```
 
 What gets updated:
@@ -111,7 +116,7 @@ remove); `--output`/`-o` (save patches to file); `--apply` (apply patches
 immediately); `--verbose`/`-v` (show full diffs).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" remove "<symbol_id>" --field "<field_name>" [--verbose]
+wicked-garden run scripts/engineering/patch/patch.py remove "<symbol_id>" --field "<field_name>" [--verbose]
 ```
 
 ### Warning
@@ -135,7 +140,7 @@ patch.py apply patches.json
 `--dry-run` (show what would be done without applying).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" apply "<patches_file>" [--dry-run]
+wicked-garden run scripts/engineering/patch/patch.py apply "<patches_file>" [--dry-run]
 ```
 
 See [refs/output-samples.md](refs/output-samples.md) for the save→review→dry-run→apply workflow and the patches-file JSON schema.
@@ -165,7 +170,7 @@ wicked-patch reads a `--db` translated from the wicked-estate code graph
 
 ```bash
 wicked-estate index . --db .codegraph/estate.db   # or reuse a crew-materialized store
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/estate_db.py" \
+wicked-garden run scripts/engineering/patch/estate_db.py \
   [--estate-db .codegraph/estate.db] [--out .wicked/patch-symbols.db]
 ```
 
@@ -185,6 +190,6 @@ patch-native `file::Name` scheme (e.g. `src/app.py::Order`).
 ## CLI Reference
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" --help
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" generators  # List supported languages
+wicked-garden run scripts/engineering/patch/patch.py --help
+wicked-garden run scripts/engineering/patch/patch.py generators  # List supported languages
 ```

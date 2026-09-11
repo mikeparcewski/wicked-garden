@@ -250,15 +250,15 @@ with one command, with grades as an append-only attestation chain:
 
 ```bash
 # freeze (payload = manifest.json — it binds every artifact hash)
-node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+wicked-garden run scripts/qe/lib/vault-evidence.mjs \
   record --evidence-dir .wicked-qe/evidence/<run-id> --json
 
 # append the reviewer grade as an opinion attestation (pass|reject|unclear)
-node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+wicked-garden run scripts/qe/lib/vault-evidence.mjs \
   attest --entry <entry-id> --verdict PASS --evaluator <reviewer-id>
 
 # months later: re-derive everything (vault hashes + every artifact on disk)
-node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+wicked-garden run scripts/qe/lib/vault-evidence.mjs \
   rederive --entry <entry-id>       # exit 0 intact · 1 ANY divergence · 3 error
 ```
 

@@ -49,7 +49,7 @@ in three domains").
    changed.
 3. Pick the rubric: code review uses R1–R6; design review uses
    testability + boundary clarity; spec review uses SMART+T.
-4. If a vault is resolvable (`scripts/qe/vault_gate.py resolve` →
+4. If a vault is resolvable (`wicked-garden run scripts/qe/vault_gate.py resolve` →
    `available: true`), declare the re-derivable contract for this phase
    so the final-verdict gate has a bar to check against:
    `wicked-vault init` (once per repo) then
@@ -65,6 +65,9 @@ in three domains").
 
 1. Apply the rubric. Take notes; don't write the findings yet.
 2. Use the right specialist — `pr-review-toolkit:code-reviewer` (external
+
+   Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
    subagent), or a garden fork skill via `Skill(skill="…")`:
    `wicked-garden-crew-reviewer`, `wicked-garden-qe-semantic-reviewer`,
    `wicked-garden-engineering-solution-architect`, etc. Match the artifact
@@ -99,14 +102,14 @@ in three domains").
 3. Sanitize free-text fields with `scripts/qe/content_sanitizer.py`
    to strip prompt-injection patterns from reasons / findings /
    condition descriptions before persisting.
-4. Append to the audit log with `scripts/qe/verdict_audit.py append`
+4. Append to the audit log with `wicked-garden run scripts/qe/verdict_audit.py append`
    so the verdict is replayable.
    Then record both produces as re-derivable evidence (vault present;
    **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase review --claim verdict
    --kind verdict --source "<verdict.json>" --criteria "<the bar>"
    --verifier exit_code_eq:0 --actor "${WICKED_VAULT_ACTOR:-garden-prove}"
-   --run` where the run is `scripts/qe/verdict_schema.py <verdict.json>`,
+   --run` where the run is `wicked-garden run scripts/qe/verdict_schema.py <verdict.json>`,
    and a second `record` for `--claim remediation-list ... --verifier
    regex_match:<pattern> --actor "${WICKED_VAULT_ACTOR:-garden-prove}"`.
    The **`--actor`** is mandatory for a hard gate: the vault refuses an
@@ -123,7 +126,7 @@ in three domains").
    on a self-grade. This is the "never let work self-grade its own done"
    guarantee.
 5. On CONDITIONAL: initialise the conditions manifest with
-   `scripts/qe/conditions_manifest.py init --from-verdict <path>`.
+   `wicked-garden run scripts/qe/conditions_manifest.py init --from-verdict <path>`.
    The downstream archetype calls `mark` as it satisfies each one.
 6. Don't soften — REJECT means REJECT.
 
@@ -131,7 +134,7 @@ in three domains").
 
 Review is done when the produces-gate is satisfied. Check the gate —
 don't self-assert it:
-`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase review --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase review --with-attestations` **`--with-attestations`** keeps this gate `UNATTESTED`/`REJECT` until an INDEPENDENT evaluator (not the doer) runs `wicked-vault attest <artifact-id> --opinion pass` — find it via `wicked-vault list --scope <scope> --phase review`. The doer's own evidence cannot satisfy a hard gate.
+`wicked-garden run scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase review --with-attestations` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `wicked-garden run scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase review --with-attestations` **`--with-attestations`** keeps this gate `UNATTESTED`/`REJECT` until an INDEPENDENT evaluator (not the doer) runs `wicked-vault attest <artifact-id> --opinion pass` — find it via `wicked-vault list --scope <scope> --phase review`. The doer's own evidence cannot satisfy a hard gate.
 (exit 0 = satisfied). This is a re-derived PASS over the declared
 contract. `--with-attestations` makes the gate require a passing
 independent `opinion_attestation` recorded via the

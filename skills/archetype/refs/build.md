@@ -47,10 +47,10 @@ method." Absent? Discover it the usual way — and consider
 ### plan
 
 1. Initialise the evidence tracker for this archetype run:
-   `scripts/qe/evidence_tracker.py init <project_dir> --archetype build`.
+   `wicked-garden run scripts/qe/evidence_tracker.py init <project_dir> --archetype build`.
    Pre-populates `shipped-code` and `test-report` as pending.
    Then, if a vault is resolvable
-   (`scripts/qe/vault_gate.py resolve` → `available: true`), declare the
+   (`wicked-garden run scripts/qe/vault_gate.py resolve` → `available: true`), declare the
    re-derivable contract for this phase so the review gate has a bar to
    check against:
    `wicked-vault init` (once per repo) then
@@ -58,7 +58,7 @@ method." Absent? Discover it the usual way — and consider
    — `required_evidence` should pin `tests-pass` to a deterministic
    verifier (e.g. `exit_code_eq:0`). Skip silently if no vault.
 2. If picking up open conditions from a prior `review` archetype, read
-   `scripts/qe/conditions_manifest.py status <project_dir>` and pin
+   `wicked-garden run scripts/qe/conditions_manifest.py status <project_dir>` and pin
    each one to a build task so they don't get lost.
 3. Name the diff in 2–3 sentences. What changes? What stays the same?
    What's the smallest possible scope?
@@ -117,12 +117,12 @@ Check the gate — don't self-assert it.
 
 **Frictionless (recommended for a single decisive claim):** skip the
 init/declare/record/gate ritual and re-derive in one call —
-`scripts/qe/prove.py tests-pass --by "<your test command>" --scope <scope> --phase build`
+`wicked-garden run scripts/qe/prove.py tests-pass --by "<your test command>" --scope <scope> --phase build`
 (exit 0 = re-derived PASS; exit 1 = REJECT; exit 3 = backend down / fail-closed).
 Run it before you tell anyone the build is done.
 
 **Full contract (multi-claim):** declare a contract then
-`scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase build`
+`wicked-garden run scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase build`
 (exit 0 = satisfied). Either way it is a re-derived PASS over the declared
 contract. A REJECT means the recorded evidence does not clear its
 contract — fix the work, not the claim. An `unavailable` verdict means

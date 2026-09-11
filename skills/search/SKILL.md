@@ -27,13 +27,15 @@ archetype_relevance: ["*"]
 
 # wicked-garden:search — code-intelligence over the estate graph
 
-All actions delegate to **wicked-estate**, which owns the unified static +
-injected code-relationship graph as of ADR 0005 (superseding the brain-homed
-graph of ADR 0004). Garden no longer maintains its own graph; it consumes
-estate's. Garden contributes its proprietary **archetype** edges to estate's
-graph via the drop-in TOML rules in
-`.wicked-estate-extractors/archetype.toml` (auto-discovered by
-`wicked-estate index`).
+All actions delegate to **wicked-estate**, which owns the unified static + injected code-relationship
+graph as of ADR 0005 (superseding the brain-homed graph of ADR 0004). Garden no longer maintains its own
+graph; it consumes estate's. Garden contributes its proprietary **archetype** edges to estate's graph via
+the drop-in TOML rules in `.wicked-estate-extractors/archetype.toml` (auto-discovered by `wicked-estate index`).
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Routing
 
@@ -193,7 +195,6 @@ reading order, annotated directory map, data-flow diagram, and gotchas list.
 
 ## Answer — cited synthesis ("ask the record")
 
-For "answer this from the knowledge base" / "what does the record say about
-X", load [refs/answer.md](refs/answer.md) — synthesizes an answer strictly
-from wicked-estate `knowledge.recall` + `memory.recall` results, citing each
-claim's `source`. Shared with the `wicked-garden-mem` skill's `answer` action.
+For "answer this from the knowledge base" / "what does the record say about X", load
+[refs/answer.md](refs/answer.md) — synthesizes an answer strictly from wicked-estate `knowledge.recall` +
+`memory.recall` results, citing each claim's `source`. Shared with the `wicked-garden-mem` skill's `answer` action.

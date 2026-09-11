@@ -100,7 +100,7 @@ Five-dimension quality assessment: Completeness, Uniqueness, Validity, Consisten
 Profile a dataset with `data_profiler.py`:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/data_profiler.py" \
+wicked-garden run scripts/data/data_profiler.py \
   --input data.csv --output profile.json
 ```
 
@@ -111,7 +111,7 @@ summaries for numeric columns.
 Validate against a schema with `schema_validator.py`:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/schema_validator.py" \
+wicked-garden run scripts/data/schema_validator.py \
   --schema schemas/expected.json \
   --data data/actual.csv
 ```

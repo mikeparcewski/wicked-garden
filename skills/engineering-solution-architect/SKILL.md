@@ -20,6 +20,8 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Solution Architect
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You design complete solutions from requirements to implementation approach.
 
 ## Your Role

@@ -36,7 +36,7 @@ Default: last 24 hours. Override with `--days N`. If `--project` specified, filt
 Single query replaces 4 separate domain calls:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/_event_store.py query \
+wicked-garden run scripts/_run.py scripts/_event_store.py query \
   --since "${days:-1}d" \
   ${project:+--project "$project"} \
   --limit 100 \
@@ -48,6 +48,8 @@ This returns events from ALL domains in one timeline — mem decisions, crew pha
 ### 2b. Fallback (if event log is empty or unavailable)
 
 If the event log returns no results (new install, events.db not yet populated), fall back to individual queries:
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 **Memory:** `Skill(skill="wicked-garden-mem", args="recall \"recent decisions and learnings\"")`
 
@@ -72,7 +74,7 @@ wicked-understanding layer — the *how*, complementing brain's *what*). Prints
 nothing if absent or unavailable:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || true
+wicked-garden python - <<'PY' 2>/dev/null || true
 import os
 from pathlib import Path
 roots = [Path.home()/".claude"/"skills"]
@@ -140,13 +142,13 @@ named via `--project`) carries an optional `affected_repos` list in its
 the `Detected stack:` line. The helper script below is fail-open: it
 prints NOTHING when the field is missing, empty, or malformed, so this
 block stays silent on every legacy project. The full DAG / worktrees /
-cross-repo evidence workflow lives in the `wicked-garden-monorepo`
-sibling plugin (see `docs/v9/sibling-plugin-monorepo.md`).
+cross-repo evidence workflow lives in the `wicked-garden-monorepo` <!-- not-a-skill -->
+sibling plugin (a separate plugin, not a skill of this catalog — see `docs/v9/sibling-plugin-monorepo.md`).
 
 _The `affected_repos` helper was removed in v11. Multi-repo coordination
 was tied to the v6 universal pipeline's process-plan.json schema, which
 the v11 archetype catalog superseded. Future cross-repo orchestration
-work belongs in the `wicked-garden-monorepo` sibling plugin._
+work belongs in the `wicked-garden-monorepo` <!-- not-a-skill --> sibling plugin (not a skill of this catalog)._
 
 Format (when non-empty):
 
@@ -193,7 +195,7 @@ Suggest ONE related command based on the briefing content:
 Keep it to ONE suggestion. Frame as: "You might find X useful because..."
 
 The general dynamic-relationship discovery and selection rules live in
-[../discovery/SKILL.md](../discovery/SKILL.md) — the table above is the
+`wicked-garden-smaht-discovery` — the table above is the
 briefing-specific shortcut; do not duplicate the discovery rules here.
 
 ### When context is thin

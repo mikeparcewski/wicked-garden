@@ -1,0 +1,208 @@
+{
+  "$comment": "GARDEN-ONLY portability rules, layered on top of the CANONICAL parity fixture tests/portability_rules.json (vendored byte-for-byte from wicked-crew packages/crew/tests/fixtures/portability_rules.json — never edit that file here; re-vendor it and update tests/test_portability_fixture_parity.py). The shared tokens (plugin-root, skill-dir-var, cwd-script, relative-link, cross-skill-path, requires-harness:claude) and ALL their semantics — regexes, fence walk, option skipping, existence, ../ resolution — live only in the canonical file and are derived by the same engine crew uses. This file holds what garden's authoring convention adds on top: the exact `## Runtime` block, the harness-fallback sentences, the name-based cross-ref resolver, the slash-form ban, the bare-script-span extension of cwd-script, and the stricter bare-identifier check. Regexes stay in the ECMAScript/Python common subset.",
+  "version": 1,
+  "canonical_fixture": "tests/portability_rules.json",
+  "identifiers": {
+    "plugin-root": "CLAUDE_PLUGIN_ROOT",
+    "skill-dir-var": "CLAUDE_SKILL_DIR"
+  },
+  "regex": {
+    "skill_name": "(?<![A-Za-z0-9_-])(wicked-garden-[a-z0-9]+(?:-[a-z0-9]+)*)(?![A-Za-z0-9_-])",
+    "slash_form": "(?<![A-Za-z0-9_})/])/wicked-garden:[a-z]",
+    "ask_fallback": "plain[- ]text",
+    "bare_script_span": "`((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s+[^`]+)`",
+    "bare_script_line": "^(\\s*)(?:\\$ )?((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s.*)?$"
+  },
+  "launcher": {
+    "bin": "wicked-garden",
+    "verbs": [
+      "run",
+      "python",
+      "path"
+    ],
+    "runtime_heading": "## Runtime",
+    "runtime_block": "## Runtime\nScript-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `\"$WICKED_GARDEN_ROOT/scripts/wicked-garden\"`.\nIf none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.\nRelative paths in this skill are relative to the directory that contains this SKILL.md."
+  },
+  "fallbacks": {
+    "fork_worker_sentence": "This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.",
+    "dispatch_sentence": "Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.",
+    "dispatch_trigger_regex": "Skill\\(\\s*skill=",
+    "skill_name_exemption_marker": "<!-- not-a-skill -->",
+    "skill_name_exemption_marker_scope": "token: the marker must directly follow the wicked-garden-<x> token (an optional closing quote/backtick and spaces may sit between); a marker elsewhere on the line exempts nothing"
+  },
+  "codemod": {
+    "shell_langs_extra": [
+      "yaml",
+      "yml"
+    ],
+    "launcher_prefix_by_file": {
+      "skills/qe/refs/campaign-ci.md": "npx wicked-garden@12"
+    },
+    "note": "the codemod (scripts/wg/portability_codemod.py, dev tooling) rewrites MORE than the lint judges — yaml/yml fences too, since a CI template's `run:` lines are shell — rewriting toward the launcher is always safe"
+  },
+  "tokens": [
+    {
+      "token": "plugin-root",
+      "garden_extension": "garden also fails on the bare identifier CLAUDE_PLUGIN_ROOT anywhere under skills/ (crew: the `${…}` marker only)",
+      "garden": "fail"
+    },
+    {
+      "token": "skill-dir-var",
+      "garden_extension": "garden also fails on the bare identifier CLAUDE_SKILL_DIR",
+      "garden": "fail"
+    },
+    {
+      "token": "cwd-script",
+      "garden_extension": "a bare `scripts/<x>.py <args>` code span, or a shell-fence line that starts with such a path and is not a `\\` continuation, with no interpreter at all — an instruction no host can execute — when the path exists at the plugin root and not inside the referencing skill",
+      "garden": "fail"
+    },
+    {
+      "token": "unresolved-skill-name",
+      "rule": "a wicked-garden-<x> name (prose, .md files) that no SKILL.md declares; template forms (`{`, or followed by `-` as in wicked-garden-qe-{a, b} / wicked-garden-qe-* / wicked-garden-<x>) are skipped; the inline marker `<!-- not-a-skill -->` placed DIRECTLY AFTER a token (`wicked-garden-x` <!-- not-a-skill -->) declares that token an identifier (an evaluator id, a sibling plugin), not a cross-ref — the design scopes this token to dispatch/cross-refs and the marker keeps that declaration next to the text instead of in a central allowlist (which stays empty)",
+      "garden": "fail"
+    },
+    {
+      "token": "missing-runtime-preamble",
+      "rule": "a skill whose own files use `wicked-garden run|python|path` must carry the exact ## Runtime block in its SKILL.md",
+      "garden": "fail"
+    },
+    {
+      "token": "slash-form",
+      "rule": "a /wicked-garden:<x> slash form in a skill BODY (frontmatter descriptions may keep 'former /wicked-garden:x invocation' trigger phrases) — skills are not slash commands on any CLI",
+      "garden": "fail"
+    },
+    {
+      "token": "fork-no-fallback",
+      "rule": "a context: fork SKILL.md must carry the fork_worker_sentence",
+      "garden": "fail"
+    },
+    {
+      "token": "dispatch-no-fallback",
+      "rule": "a file that dispatches with Skill(skill=…) — single-line or the multi-line `Skill(\\n  skill=…` form — must carry the dispatch_sentence once",
+      "garden": "fail"
+    },
+    {
+      "token": "ask-no-fallback",
+      "rule": "a file that mentions AskUserQuestion (outside frontmatter) must also spell the plain-text fallback",
+      "garden": "fail"
+    }
+  ],
+  "corpus": {
+    "$comment": "garden-only regression corpus; the shared tokens are covered by the canonical cases[]. Each entry runs through the full garden scan (canonical engine + extras) against the real repo bundle.",
+    "quiet": [
+      {
+        "file": "skills/product/listen/refs/channels.md",
+        "text": "ls $(wicked-garden run scripts/resolve_path.py <domain>)/wicked-garden:product/voice/feedback/"
+      },
+      {
+        "file": "skills/product/listen/SKILL.md",
+        "text": "{local_root}/wicked-garden:product/voice/feedback/{source}/{date}/{id}.md"
+      },
+      {
+        "file": "skills/qe/SKILL.md",
+        "text": "Planning: `wicked-garden-qe-{test-strategist, risk-assessor}` and `wicked-garden-qe-*` workers; a `wicked-garden-<domain>-<role>` template."
+      },
+      {
+        "file": "skills/qe/refs/campaign-grading.md",
+        "text": "evaluator defaults to `wicked-garden-qe-gate` <!-- not-a-skill -->"
+      },
+      {
+        "file": "skills/qe/refs/campaign.md",
+        "text": "- `scripts/qe/campaign_plan.py` — assembler/validator (a file mention, not a command)"
+      },
+      {
+        "file": "skills/archetype/refs/build.md",
+        "text": "`wicked-garden run scripts/qe/evidence_tracker.py init <project_dir> --archetype build`"
+      },
+      {
+        "file": "skills/classify/SKILL.md",
+        "text": "```bash\nwicked-garden run \\\n  scripts/classify/persist.py\n```"
+      },
+      {
+        "file": "skills/platform/gh-cli/refs/gh-ops.md",
+        "text": "```bash\npython3 scripts/gh_ops.py diagnose --suggest-fixes\n```"
+      },
+      {
+        "file": "skills/platform/gh-cli/refs/gh-ops.md",
+        "text": "`scripts/gh_ops.py diagnose --suggest-fixes` (skill-local, stdlib-only)"
+      },
+      {
+        "file": "skills/smaht/intent/SKILL.md",
+        "text": "```bash\nwicked-garden python - \"$ARG\" <<'PY'\nimport os, sys\nsys.path.insert(0, os.path.join(os.environ[\"WICKED_GARDEN_ROOT\"], \"scripts\"))\nPY\n```"
+      },
+      {
+        "file": "skills/runtime-exec/SKILL.md",
+        "text": "```bash\nuv run python script.py [args]\npython3 script.py [args]\n```"
+      },
+      {
+        "file": "skills/engineering/patch/refs/new-generator.md",
+        "text": "```bash\ncd \"$(wicked-garden path scripts/engineering/patch)\"\npython3 tests/test_conformance.py\n```"
+      },
+      {
+        "file": "skills/domain/vendor/README.md",
+        "text": "as the sibling checkout `../wicked-core/crates/wicked-governance/schemas`, or"
+      },
+      {
+        "file": "skills/qe/refs/campaign-grading.md",
+        "text": "the `wicked-garden-qe-gate` <!-- not-a-skill --> identity and `wicked-garden-qe` (a real skill)"
+      }
+    ],
+    "trips": [
+      {
+        "file": "skills/qe/SKILL.md",
+        "text": "PLUGIN_ROOT=\"${CLAUDE_PLUGIN_ROOT:-$(pwd)}\"",
+        "token": "plugin-root"
+      },
+      {
+        "file": "skills/qe/SKILL.md",
+        "text": "the script reads CLAUDE_PLUGIN_ROOT via os.environ",
+        "token": "plugin-root"
+      },
+      {
+        "file": "skills/qe/SKILL.md",
+        "text": "read `${CLAUDE_SKILL_DIR}/refs/plan.md`",
+        "token": "skill-dir-var"
+      },
+      {
+        "file": "skills/product/SKILL.md",
+        "text": "dispatch the `wicked-garden-does-not-exist` worker",
+        "token": "unresolved-skill-name"
+      },
+      {
+        "file": "skills/swarm/SKILL.md",
+        "text": "3. receipts   → /wicked-garden:prove per claim",
+        "token": "slash-form"
+      },
+      {
+        "file": "skills/workflow/SKILL.md",
+        "text": "| **yolo** | `/wicked-garden:crew:auto-approve` | Auto-advance |",
+        "token": "slash-form"
+      },
+      {
+        "file": "skills/crew-reviewer/SKILL.md",
+        "text": "check whether the contract was satisfied via `scripts/qe/evidence_tracker.py status <project_dir>`.",
+        "token": "cwd-script"
+      },
+      {
+        "file": "skills/archetype/refs/build.md",
+        "text": "```bash\nscripts/qe/vault_gate.py resolve\n```",
+        "token": "cwd-script"
+      },
+      {
+        "file": "skills/domain-extractor/SKILL.md",
+        "text": "```bash\npython3 scripts/domain/extract_loop.py --db \"<store>\" --time-budget 780\n```",
+        "token": "cwd-script"
+      },
+      {
+        "file": "skills/mem/SKILL.md",
+        "text": "| `answer` | grounded, cited answer | [../search/refs/answer.md](../search/refs/answer.md) |",
+        "token": "cross-skill-path+relative-link"
+      },
+      {
+        "file": "skills/qe/refs/campaign-grading.md",
+        "text": "`wicked-garden-qe-gate` is the evaluator <!-- not-a-skill -->",
+        "token": "unresolved-skill-name"
+      }
+    ]
+  }
+}

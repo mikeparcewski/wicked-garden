@@ -12,7 +12,7 @@ archetype_relevance: ["specify", "build", "ship", "review"]
 
 Turns a target repo into a machine-readable, dependency-ordered campaign
 plan: a capability inventory derived from three lenses, bound to a scenario
-ladder that CONFORMS to `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json`
+ladder that CONFORMS to `schemas/campaign-recon.schema.json` (under the plugin root: `wicked-garden path schemas/campaign-recon.schema.json`)
 (format v2; spec:1 plans still validate) — **never a parallel format**.
 Scenario bodies stay scenario-format markdown (v1.1 —
 [refs/scenario-format.md](scenario-format.md)); the plan orders and binds
@@ -56,7 +56,10 @@ the graph — route/handler/component nodes and the injected edges grep never
 sees (event→consumer, command→agent):
 
 1. Probe availability first (fail-open, never crash):
-   `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_estate_client.py"` — `health` +
+   `wicked-garden run scripts/_estate_client.py` — `health` +
+
+   Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
    `stats`; or dispatch `Skill(skill="wicked-garden-search")` for
    blast-radius/lineage questions.
 2. Query surfaces: `SearchEntity` for routes/handlers/components; follow
@@ -72,7 +75,7 @@ sees (event→consumer, command→agent):
 sites for claimed capabilities the graph and probes did not surface.
 **Every doc-derived claim enters as `status: "proposed"`** — pending human
 review, exactly the incident-to-scenario pending-review pattern
-(`../../qe-incident-to-scenario-synthesizer/SKILL.md`). The assembler
+(`wicked-garden-qe-incident-to-scenario-synthesizer`). The assembler
 enforces this; a rung certifying a proposed capability cannot be
 `confirmed`.
 
@@ -87,7 +90,7 @@ Against an ISOLATED instance only (79xx port, scratch `--db`, never
   endpoints[]}`); convert it to inventory entries mechanically:
 
   ```bash
-  python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py" \
+  wicked-garden run scripts/qe/campaign_plan.py \
     from-endpoint-manifest <repo>/packages/crew/endpoint-manifest.json
   ```
 
@@ -101,7 +104,8 @@ Assemble with the glue — it derives `sources` honestly, forces doc-derived
 entries to `proposed`, and rejects any plan that does not conform:
 
 ```python
-# python3, from ${CLAUDE_PLUGIN_ROOT}
+# python3 with the plugin root as cwd: `cd "$(wicked-garden root)"`, or run the
+# block through `wicked-garden python -` (it exports WICKED_GARDEN_ROOT)
 from scripts.qe.campaign_plan import assemble_plan, persist_plan
 
 plan = assemble_plan(
@@ -119,7 +123,7 @@ persist_plan(plan, out_dir=".wicked-qe/campaigns/<name>")  # raises on any defec
 Or validate a hand-assembled plan:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py" validate <plan.json>
+wicked-garden run scripts/qe/campaign_plan.py validate <plan.json>
 ```
 
 Rules the validator enforces beyond the JSON schema: ladder order (deps
@@ -193,7 +197,7 @@ campaign runs as a parallel DAG (wicked-core's scheduler via crew's
 The campaign's proven negative pattern (S19 estate-binary-absent, S20
 daemon-kill — both PASSED because the consumer told the truth), generalized:
 for every DECLARED external dependency of the target,
-`${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py` generates a
+`scripts/qe/campaign_degradation.py` generates a
 break-it capability + rung + scenario stub whose pass bar is **honest error
 naming + zero crashes + recovery** — distinct honest answers for distinct
 absent states, never a generic 500, never a fake success. `augment` appends
@@ -209,7 +213,7 @@ deterministic specs; the diff half consumes the ledger's run history (the
 runs + verdicts rows accruing under stable scenario ids, TH-6):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-rerun.mjs" \
+wicked-garden run scripts/qe/lib/campaign-rerun.mjs \
   --strategy <campaign-dir | campaign-recon.json> \
   [--since <ISO-8601>] [--require-rerun] [--json] [--out <file>]
 ```
@@ -223,7 +227,7 @@ rule: newest NON-executor verdicts row only (TH-10), INCONCLUSIVE denies.
 ## CI assembly — PR subset + governed nightly (TH-23)
 
 The GH Actions recipe lives at [refs/campaign-ci.md](campaign-ci.md) with
-copyable workflows in `${CLAUDE_PLUGIN_ROOT}/docs/examples/`: **PR** runs
+copyable workflows in `docs/examples/`: **PR** runs
 the deterministic subset only (runner specs, executor claims, zero tokens);
 **nightly** runs the full governed campaign through crew's
 `/api/v1/campaigns` — budget-capped (TH-20 knobs pinned explicitly),
@@ -240,10 +244,10 @@ BLOCKS retired surfaces with a clear error (never a silent rewrite):
 
 <!-- historical: the dispatch-guard demo deliberately names a retired specialist to show the block -->
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" wicked-garden-qe-scenario-executor
+wicked-garden run scripts/qe/campaign_dispatch.py wicked-garden-qe-scenario-executor
 # → wicked-garden-qe-scenario-executor          (exit 0)
 
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" wicked-testing-a11y-test-engineer
+wicked-garden run scripts/qe/campaign_dispatch.py wicked-testing-a11y-test-engineer
 # → dispatch guard: BLOCKED retired specialist ... (exit 2)
 ```
 <!-- /historical -->
@@ -263,11 +267,11 @@ the caller; do not work around the guard.
 
 ## References
 
-- `${CLAUDE_PLUGIN_ROOT}/schemas/campaign-recon.schema.json` — the contract
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_plan.py` — assembler/validator
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py` — dispatch guard
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_degradation.py` — degradation generator
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-rerun.mjs` — rerun verdict diffs
+- `schemas/campaign-recon.schema.json` — the contract
+- `scripts/qe/campaign_plan.py` — assembler/validator
+- `scripts/qe/campaign_dispatch.py` — dispatch guard
+- `scripts/qe/campaign_degradation.py` — degradation generator
+- `scripts/qe/lib/campaign-rerun.mjs` — rerun verdict diffs
 - [refs/scenario-format.md](scenario-format.md) · [refs/execute.md](execute.md) ·
   [refs/accept.md](accept.md) · [refs/campaign-flake-policy.md](campaign-flake-policy.md) ·
   [refs/campaign-degradation.md](campaign-degradation.md) ·

@@ -13,6 +13,11 @@ archetype_relevance: ["*"]
 
 AI-powered modification of existing images through two primary modes: image-to-image editing (global changes) and mask-based inpainting (local changes).
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## When To Use This Skill
 
 - Modifying style, lighting, or mood of an existing image
@@ -27,7 +32,7 @@ AI-powered modification of existing images through two primary modes: image-to-i
 Changes the overall style or adds global elements while preserving core composition.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" edit \
+wicked-garden run skills/product/imagery/scripts/provider.py edit \
   --image ./source.png \
   --prompt "Same scene but with a dramatic sunset sky" \
   --output ./v2.png
@@ -43,7 +48,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/prod
 Precise edits to specific regions using a binary mask (white = edit area, black = preserve).
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" inpaint \
+wicked-garden run skills/product/imagery/scripts/provider.py inpaint \
   --image ./source.png \
   --mask ./mask.png \
   --prompt "Replace with floating lanterns" \
@@ -87,7 +92,7 @@ Use upscaling as the last step to bring a draft to production quality:
 
 ```bash
 # Upscaling (cstudio only — other providers may not support this)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" generate \
+wicked-garden run skills/product/imagery/scripts/provider.py generate \
   --provider cstudio \
   --prompt "upscale" \
   --output ./final_hires.png

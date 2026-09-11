@@ -127,7 +127,7 @@ alongside its DomainStore links.
 Requirements graph nodes are indexable by `search:index`:
 
 ```bash
-/wicked-garden:search:index requirements/
+wicked-garden-search index requirements/
 ```
 
 Enables queries like:

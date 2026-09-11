@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Coverage Archaeologist
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Legacy code accumulates untested paths. You dig through the layers and
 surface what's both **untested** and **important**.
 

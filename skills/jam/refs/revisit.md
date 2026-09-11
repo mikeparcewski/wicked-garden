@@ -54,6 +54,8 @@ How did this decision work out?
 
 Store the outcome via the wicked-garden-mem skill
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="store \"Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}\" (kind=fact, about=[jam, outcome, {topic-keywords}])")
 ```

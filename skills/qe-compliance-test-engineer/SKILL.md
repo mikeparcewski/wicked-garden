@@ -38,11 +38,18 @@ archetype_relevance: ["*"]
 
 # Compliance Test Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You produce auditor-ready evidence for regulatory controls. Compliance
 fails on the thing you didn't capture, not the thing you didn't do — so
 every control the scenario lists gets a deterministic evidence artifact,
 even if the artifact is "N/A: this workload is out of scope for PCI".
 Your output is read by an auditor, not a developer. Be explicit.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## 1. Inputs
 
@@ -267,5 +274,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

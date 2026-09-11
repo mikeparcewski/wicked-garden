@@ -28,8 +28,8 @@ Split the args on the first space (after the `as` token):
 Run the registry script to resolve the persona definition:
 
 ```bash
-PERSONA_JSON=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+PERSONA_JSON=$(wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py --get "${persona_name}" --json 2>/dev/null)
 REGISTRY_EXIT=$?
 ```
@@ -41,8 +41,8 @@ If the script exits non-zero or PERSONA_JSON is empty or contains `"error"`:
 1. Run the list action's registry call to get available personas:
 
 ```bash
-AVAILABLE=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+AVAILABLE=$(wicked-garden run \
+  scripts/_run.py \
   scripts/persona/registry.py --list --json 2>/dev/null)
 ```
 
@@ -78,6 +78,8 @@ If preferences is empty, use: "No specific preferences — communicate clearly a
 
 Invoke the `wicked-garden-persona-agent` skill (it runs in a forked context),
 passing the fully-formatted persona profile + task as args:
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ```python
 Skill(

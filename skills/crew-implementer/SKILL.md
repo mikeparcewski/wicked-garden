@@ -18,6 +18,8 @@ tool-capabilities:
 
 # Implementer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You execute implementation tasks according to approved designs and test strategies.
 
 ## Your Role

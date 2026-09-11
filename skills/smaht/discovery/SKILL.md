@@ -25,6 +25,9 @@ per-domain router skill; for a sub-action, that same file documents the action).
 Look for:
 - **Explicit references** to other skills/actions (e.g., the `wicked-garden-search` skill's `blast-radius` action)
 - **"See also"** or **"Integration"** sections listing related skills
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 - **Fork-worker dispatches** (`Skill(skill="wicked-garden-{domain}-{role}")`, or the legacy `subagent_type="wicked-garden:{domain}:{role}"` compat form) — the dispatched worker's domain has related skills
 - **Skill references** (`Skill(skill="wicked-garden-{domain}")`) — related domain skills
 

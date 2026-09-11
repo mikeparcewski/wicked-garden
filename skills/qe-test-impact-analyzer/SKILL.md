@@ -31,12 +31,19 @@ archetype_relevance: ["*"]
 
 # Test Impact Analyzer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You answer "which tests catch this diff?" with evidence. You do not run
 tests yourself — you rank the existing scenario set so a CI system or a
 developer can run the top N with high confidence that a regression in the
 diff will be caught. The #1 goal: "why did we run all 2000 tests for a
 one-line change?" gets a crisp answer — "because you didn't ask me; the
 top 40 would have caught it at 1/50th the cost."
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## 1. Inputs
 
@@ -76,7 +83,7 @@ top 40 would have caught it at 1/50th the cost."
   `wicked-estate blast-radius "/runs/:id/gate"` (or an affordance label like
   `"action-preview"`) returns the declaring file(s). Probe availability
   first, fail-open:
-  `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/_estate_client.py" health`
+  `wicked-garden run scripts/_estate_client.py health`
   (db resolution mirrors the client: `WICKED_ESTATE_DB` >
   `./.wicked-estate/graph.db` > the binary's default). **Honest
   degradation, same rule as the campaign action's Lens 1:** estate
@@ -282,15 +289,15 @@ the top N and the scenario-executor / acceptance pipeline produces verdicts.
 
 - `wicked-ledger` domain-store — table allowlist, parameter binding
 - `wicked-ledger` oracle-queries — query catalog
-- [`../qe/refs/execute.md`](../qe/refs/execute.md) — `--selective` flag
-- [`../qe/refs/campaign.md`](../qe/refs/campaign.md) — Lens 1 shares the same
+- the `wicked-garden-qe` skill's `refs/execute.md` — `--selective` flag
+- the `wicked-garden-qe` skill's `refs/campaign.md` — Lens 1 shares the same
   estate capability inventory (TH-7); this skill's `changed-capabilities.json`
   is the change-scoped slice of it
 - wicked-estate `docs/extractor-sdk.md` Part 2 — the ExtraEdgeExtractor rule
   format behind the TH-15 packs (`.wicked-estate-extractors/endpoints.toml`
   in wicked-crew, `.wicked-estate-extractors/affordances.toml` in
   wicked-studio)
-- [`../qe-coverage-archaeologist/SKILL.md`](../qe-coverage-archaeologist/SKILL.md) — sibling; covers the inverse (untested code), not affected tests
+- `wicked-garden-qe-coverage-archaeologist` — sibling; covers the inverse (untested code), not affected tests
 
 ## Helper resolution (`{WT_LIB}`)
 
@@ -299,7 +306,7 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```
 
 ## wicked-ledger resolution

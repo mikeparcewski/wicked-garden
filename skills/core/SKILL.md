@@ -25,16 +25,21 @@ setup / install / reset / report-issue actions are interactive wizards that must
 converse with the user (AskUserQuestion, or plain-text STOP-and-wait in
 dangerous mode). Run everything inline in the parent context.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Action router
 
 | Action | Trigger phrases / args | How |
 |--------|------------------------|-----|
 | `help` | no args, "help", "overview" | Default — show the overview below |
-| `setup` | "setup", "--reconfigure", "onboard this codebase" | `Read("${CLAUDE_PLUGIN_ROOT}/skills/core/refs/setup.md")` and follow it |
-| `install` | "install", "add peers", "install layers" | `Read("${CLAUDE_PLUGIN_ROOT}/skills/core/refs/install.md")` and follow it |
-| `reset` | "reset", "clear state", `--all` `--only` `--keep` `--force` `--list-projects` `--all-projects` | `Read("${CLAUDE_PLUGIN_ROOT}/skills/core/refs/reset.md")` and follow it |
+| `setup` | "setup", "--reconfigure", "onboard this codebase" | read `refs/setup.md` (relative to this skill's base directory) and follow it |
+| `install` | "install", "add peers", "install layers" | read `refs/install.md` and follow it |
+| `reset` | "reset", "clear state", `--all` `--only` `--keep` `--force` `--list-projects` `--all-projects` | read `refs/reset.md` and follow it |
 | `where-am-i` | "where am I", "path manifest", `--fence` `--env` | Inline section below |
-| `report-issue` | "report issue", "file a bug", `bug` `ux-friction` `unmet-outcome` `--list-unfiled` | `Read("${CLAUDE_PLUGIN_ROOT}/skills/core/refs/report-issue.md")` and follow it |
+| `report-issue` | "report issue", "file a bug", `bug` `ux-friction` `unmet-outcome` `--list-unfiled` | read `refs/report-issue.md` and follow it |
 
 ## Action: help (default)
 
@@ -140,14 +145,14 @@ hand-enumerating paths — it costs fewer tokens and closes a class of
 path-mismatch bugs. Provenance: Issue #576.
 
 Arguments: `--json` (JSON manifest, default) · `--fence` (wrap the JSON in a
-```json fence for paste) · `--env` (substitute env-var forms such as
-`$CLAUDE_PLUGIN_ROOT` where the corresponding environment variable is present).
+```json fence for paste) · `--env` (substitute env-var forms — the plugin-root
+variable — where the corresponding environment variable is present).
 
 Invoke the helper script and stream its stdout to the user verbatim. This
 action is a thin wrapper — do not re-interpret the manifest.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/where_am_i.py" "$@"
+wicked-garden run scripts/where_am_i.py "$@"
 ```
 
 Output shape:
@@ -164,7 +169,7 @@ Output shape:
 
 Any field that cannot be resolved emits `null` and logs a one-line note to
 stderr. The script never raises and is safe to invoke from any cwd. Graceful
-degradation: missing `CLAUDE_PLUGIN_ROOT` falls back to the checkout inferred
+degradation: a missing plugin-root variable falls back to the checkout inferred
 from the script location; missing
 bus DB emits `"bus_db": null`; no active crew project emits
 `"active_project_id": null` and points `project_artifacts` at the crew

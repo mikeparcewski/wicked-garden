@@ -20,6 +20,12 @@ Aggregate customer feedback from multiple channels with automatic source discove
 > invocation: `/wicked-garden-product listen [args]` or plain natural language —
 > the examples below use that form.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ## When to Use
 
 - Starting product requirements (gather customer needs)
@@ -81,7 +87,7 @@ The skill automatically discovers available feedback capabilities and routes to 
 
 4. **Store for Analysis**
    ```
-   # Resolved via: sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:product
+   # Resolved via: wicked-garden run scripts/resolve_path.py wicked-garden:product
    {local_root}/wicked-garden:product/voice/feedback/{source}/{date}/{id}.md
    ```
 

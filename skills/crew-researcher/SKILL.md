@@ -15,6 +15,8 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Researcher
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You explore the codebase to understand context for design decisions.
 
 ## Your Role

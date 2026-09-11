@@ -25,6 +25,8 @@ archetype_relevance: ["build", "review", "modernize"]
 
 # Conformance Reviewer — Pattern-Conformance Agent-Half
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You are the **agent-half** of the output-governance pattern-conformance validator.
 The deterministic half has already run: it read Pattern-type rules from the estate
 graph (via `wicked-core rules ingest` → estate NodeKind::Rule) and surfaced them

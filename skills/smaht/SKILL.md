@@ -23,9 +23,17 @@ archetype_relevance: ["*"]
 
 # Context Assembly (v6 pull-model)
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Gather relevant context from the knowledge layer (wicked-estate) + wicked-garden:search + domain state when
 a subagent or command asks for it. There is no per-prompt push — the user prompt
 submit hook no longer runs an orchestrator.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## Sub-action router
 
@@ -37,7 +45,7 @@ submit hook no longer runs an orchestrator.
 
 Run a sub-action inline (no dispatch):
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/smaht/refs/<sub-action>.md")` — the full rubric.
+1. Read `refs/<sub-action>.md` (relative to this skill's base directory) — the full rubric.
 2. Apply the rubric directly using the parsed args.
 
 No sub-action named? The caller wants general context assembly — use the quick
@@ -57,7 +65,7 @@ SearchEntity {"name": "symbol"}
 
 # Pull v11 archetype-mode project state (the v6 crew.py find-active
 # auto-resolver was deleted with the universal pipeline — look up by name)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} status --json
+wicked-garden run scripts/_run.py scripts/crew/phase_manager.py {project} status --json
 ```
 
 ## Context Sources

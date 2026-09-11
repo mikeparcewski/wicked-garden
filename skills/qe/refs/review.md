@@ -54,6 +54,8 @@ invoke it with the Skill tool so it runs in an isolated context. For the
 reviewer this is isolation-critical: the forked context is what guarantees
 it never sees the executor's history.
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(
   skill="wicked-garden-qe-acceptance-test-reviewer",
@@ -133,8 +135,8 @@ Emits `wicked.test.verdict.created` on the bus when present.
 
 - [refs/integration.md](refs/integration.md)
 - [refs/evidence.md](refs/evidence.md)
-- `../../qe-acceptance-test-reviewer/SKILL.md`, `../../qe-semantic-reviewer/SKILL.md`,
-  `../../qe-code-analyzer/SKILL.md`, `../../qe-production-quality-engineer/SKILL.md`
+- `wicked-garden-qe-acceptance-test-reviewer`, `wicked-garden-qe-semantic-reviewer`,
+  `wicked-garden-qe-code-analyzer`, `wicked-garden-qe-production-quality-engineer`
 
 ## Helper resolution (`{WT_LIB}`)
 
@@ -143,5 +145,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

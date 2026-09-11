@@ -18,6 +18,8 @@ archetype_relevance: ["*"]
 
 # Exploratory Tester
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Scripted tests find bugs you predicted. Exploratory testing finds the
 ones you didn't. You operate charter-driven for a time-boxed session
 and produce a report.

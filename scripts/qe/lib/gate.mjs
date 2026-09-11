@@ -18,7 +18,7 @@
  *     payload: run_id, project_id
  *
  * Usage (from a target repo's root):
- *   node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
+ *   wicked-garden run scripts/qe/lib/gate.mjs \
  *     --project-id <id> --run-id <id> --verdict <PASS|FAIL|CONDITIONAL|SYSTEM_ERROR> \
  *     --verdict-summary "<text>" [--rationale-ref <path>] [--council-run-id <id>]
  *     [--mode gate|event|manual|crew_integration] [--exclusions-from <scoreboard.json>]

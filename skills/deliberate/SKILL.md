@@ -22,6 +22,11 @@ A structured way of thinking about work **before doing it**. Applied to any requ
 bugs, features, enhancements, content, design, infrastructure — to ensure we're solving
 the right problem the right way.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## When to Use
 
 - Before accepting any work request at face value

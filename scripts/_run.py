@@ -9,8 +9,9 @@ Two modes:
      Executes normally. On argparse errors (exit code 2),
      automatically appends --help output for self-correction.
 
-Script paths are resolved relative to CLAUDE_PLUGIN_ROOT (or this
-script's parent directory as fallback).
+Script paths are resolved relative to CLAUDE_PLUGIN_ROOT — which the
+`wicked-garden` launcher exports (alongside WICKED_GARDEN_ROOT) on every
+host — or this script's parent directory as fallback.
 
 Examples:
   # Show usage before invoking
@@ -20,7 +21,7 @@ Examples:
   python3 scripts/_run.py scripts/crew/phase_manager.py create my-project --description "foo"
 
   # Works with uv for scripts that need deps
-  cd "${CLAUDE_PLUGIN_ROOT}" && uv run python scripts/_run.py scripts/crew/phase_manager.py status my-project
+  wicked-garden run scripts/_run.py scripts/crew/phase_manager.py status my-project
 """
 
 import json

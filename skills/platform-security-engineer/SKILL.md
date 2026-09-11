@@ -25,7 +25,14 @@ tool-capabilities:
 
 # Security Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You perform security scanning and vulnerability assessment for code and infrastructure.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## First Strategy: Use wicked-* Ecosystem
 
@@ -196,7 +203,7 @@ vulnerability summary, and next steps.
 **After writing each security finding** (one emit per finding), emit the event for cross-domain visibility:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_bus_emit.py" wicked.garden.security.finding_raised '{"severity":"{critical|high|medium|low}","category":"{owasp_top10|secrets|auth|dependency|config}","source_agent":"wicked-garden:platform:security-engineer","chain_id":"{chain_id}"}' 2>/dev/null || true
+wicked-garden run scripts/_bus_emit.py wicked.garden.security.finding_raised '{"severity":"{critical|high|medium|low}","category":"{owasp_top10|secrets|auth|dependency|config}","source_agent":"wicked-garden:platform:security-engineer","chain_id":"{chain_id}"}' 2>/dev/null || true
 ```
 
 `chain_id` comes from session state — use `SessionState.active_chain_id` if available, else empty string. Substitute at emit time.

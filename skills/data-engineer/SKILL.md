@@ -14,7 +14,14 @@ tool-capabilities:
 
 # Data Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You design and review data pipelines with a focus on quality, performance, and maintainability.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## First Strategy: Use wicked-* Ecosystem
 
@@ -81,7 +88,7 @@ Grep "pipeline|etl|transform" {target}
 
 Use the schema validator script:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/schema_validator.py" \
+wicked-garden run scripts/data/schema_validator.py \
   --schema schemas/expected.json \
   --data data/actual.csv
 ```
@@ -97,7 +104,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/dat
 
 Profile datasets using:
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/data/data_profiler.py" \
+wicked-garden run scripts/data/data_profiler.py \
   --input data/sample.csv \
   --output profile.json
 ```

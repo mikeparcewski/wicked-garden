@@ -68,8 +68,8 @@ Discover it the usual way — and consider
 2. **Resolve the stack class — DO NOT fabricate a playbook.** Read the dispatch
    truth in `.claude-plugin/stack-registry.json` via the reader:
    ```bash
-   sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-     "${CLAUDE_PLUGIN_ROOT}/scripts/crew/stack_registry.py" \
+   wicked-garden run \
+     scripts/crew/stack_registry.py \
      resolve --stack <stack-id>
    ```
    - `status: wired` (exit 0) → the printed `dispatch` names the `blueprint`,
@@ -114,7 +114,7 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
    "latest"), module/package structure, API surface, data model, the engines/tools.
 2. Write the blueprint to `docs/modernization/{slug}-blueprint.md` and declare the
    re-derivable contract early so the cutover gate has a bar. If a vault is
-   resolvable (`scripts/qe/vault_gate.py resolve` → `available: true`):
+   resolvable (`wicked-garden run scripts/qe/vault_gate.py resolve` → `available: true`):
    `wicked-vault init` then
    `wicked-vault declare-contract --scope <scope> --phase modernize --spec contract.json`.
    `required_evidence` must pin `parity-proof` to a deterministic verifier
@@ -163,10 +163,10 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
    - Monitoring + alerts cover the new stack.
 2. **Gate before any switch** — don't self-assert the checklist. Run the
    produces-gate WITH judgment:
-   `scripts/qe/prove.py parity-proof --by "<command>" --scope <scope> --phase modernize --with-attestations`
+   `wicked-garden run scripts/qe/prove.py parity-proof --by "<command>" --scope <scope> --phase modernize --with-attestations`
    (frictionless, single claim — re-derive, don't assert) — or the full multi-claim
    contract via
-   `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase modernize --with-attestations`.
+   `wicked-garden run scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase modernize --with-attestations`.
    `--with-attestations` keeps this gate `UNATTESTED`/`REJECT` until an INDEPENDENT
    evaluator (not the doer) runs `wicked-vault attest <artifact-id> --opinion pass`
    — find it via `wicked-vault list --scope <scope> --phase modernize`. The doer's

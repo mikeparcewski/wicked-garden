@@ -43,7 +43,7 @@ always available.** Don't bypass the gate; widen the criteria.
 2. Define the SLO criteria: error rate threshold, latency p95/p99
    threshold, saturation threshold. Pull baseline from the last 7d.
 3. If a vault is resolvable
-   (`scripts/qe/vault_gate.py resolve` → `available: true`), declare the
+   (`wicked-garden run scripts/qe/vault_gate.py resolve` → `available: true`), declare the
    re-derivable contract for this rollout so every ramp gate has a bar to
    check against: `wicked-vault init` (once per repo) then
    `wicked-vault declare-contract --scope <scope> --phase ship --spec
@@ -95,7 +95,7 @@ always available.** Don't bypass the gate; widen the criteria.
 
 Each ramp step advances only when the produces-gate is satisfied — check
 it, don't self-assert it:
-`scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase ship` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase ship`
+`wicked-garden run scripts/qe/prove.py <claim> --by "<command>" --scope <scope> --phase ship` (frictionless, single claim — re-derive, don't assert) — or the full multi-claim contract via `wicked-garden run scripts/qe/vault_gate.py gate <project_dir> --scope <scope> --phase ship`
 (exit 0 = satisfied). This is a re-derived APPROVE over the declared
 contract, re-run at **every** ramp step against the fresh captured
 snapshot. A REJECT means the recorded SLO snapshot doesn't clear its

@@ -13,9 +13,9 @@ Unified GitHub operations CLI with intelligent features.
 Analyze failed workflow runs with categorized errors.
 
 ```bash
-python3 gh_ops.py diagnose
-python3 gh_ops.py diagnose --repo owner/name
-python3 gh_ops.py diagnose --suggest-fixes
+python3 scripts/gh_ops.py diagnose
+python3 scripts/gh_ops.py diagnose --repo owner/name
+python3 scripts/gh_ops.py diagnose --suggest-fixes
 ```
 
 **Error categories detected:**
@@ -32,7 +32,7 @@ python3 gh_ops.py diagnose --suggest-fixes
 List PRs requesting your review across all repos.
 
 ```bash
-python3 gh_ops.py pr-review-queue
+python3 scripts/gh_ops.py pr-review-queue
 ```
 
 ### pr-merge-ready
@@ -40,7 +40,7 @@ python3 gh_ops.py pr-review-queue
 Find PRs that are approved, passing CI, and mergeable.
 
 ```bash
-python3 gh_ops.py pr-merge-ready --dry-run
+python3 scripts/gh_ops.py pr-merge-ready --dry-run
 ```
 
 ### pr-status
@@ -48,8 +48,8 @@ python3 gh_ops.py pr-merge-ready --dry-run
 Comprehensive PR status with checks, reviews, and stats.
 
 ```bash
-python3 gh_ops.py pr-status 123
-python3 gh_ops.py pr-status 123 --repo owner/name
+python3 scripts/gh_ops.py pr-status 123
+python3 scripts/gh_ops.py pr-status 123 --repo owner/name
 ```
 
 ### release
@@ -58,13 +58,13 @@ Auto-generate release with changelog from commits.
 
 ```bash
 # Preview
-python3 gh_ops.py release --dry-run
+python3 scripts/gh_ops.py release --dry-run
 
 # Create patch release
-python3 gh_ops.py release --bump patch
+python3 scripts/gh_ops.py release --bump patch
 
 # Minor release with notes
-python3 gh_ops.py release --bump minor --notes "Breaking: new API"
+python3 scripts/gh_ops.py release --bump minor --notes "Breaking: new API"
 ```
 
 **Changelog categories:**
@@ -77,8 +77,8 @@ python3 gh_ops.py release --bump minor --notes "Breaking: new API"
 Repository health check.
 
 ```bash
-python3 gh_ops.py health
-python3 gh_ops.py health --repo owner/name
+python3 scripts/gh_ops.py health
+python3 scripts/gh_ops.py health --repo owner/name
 ```
 
 **Checks:**
@@ -93,11 +93,11 @@ All commands output JSON for easy parsing:
 
 ```bash
 # Pretty print
-python3 gh_ops.py diagnose | jq '.'
+python3 scripts/gh_ops.py diagnose | jq '.'
 
 # Extract just errors
-python3 gh_ops.py diagnose | jq '.errors[].message'
+python3 scripts/gh_ops.py diagnose | jq '.errors[].message'
 
 # Get PR URLs needing review
-python3 gh_ops.py pr-review-queue | jq '.[].url'
+python3 scripts/gh_ops.py pr-review-queue | jq '.[].url'
 ```

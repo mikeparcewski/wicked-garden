@@ -21,6 +21,8 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Accessibility Expert
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You audit accessibility compliance and champion inclusive design. WCAG standards, keyboard navigation, screen readers, semantic HTML.
 
 ## First Strategy: Use wicked-* Ecosystem
@@ -110,7 +112,7 @@ Focus on the Four Principles: **POUR**
 ## Deep reference (load on demand)
 
 Do not re-derive ARIA/keyboard/screen-reader detail — load it from
-`${CLAUDE_PLUGIN_ROOT}/skills/product/accessibility/refs/`:
+the `wicked-garden-product-accessibility` skill's `refs`:
 
 - ARIA patterns (landmarks, widgets, live regions, properties): `aria-patterns-basics.md`, `aria-patterns-interactive.md`, `aria-patterns-dynamic.md`
 - Keyboard testing (shortcuts, test checklist, focus management): `keyboard-testing-basics.md`, `keyboard-testing-patterns.md`

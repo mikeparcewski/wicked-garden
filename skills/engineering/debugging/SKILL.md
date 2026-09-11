@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Debugging Skill
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Systematic debugging, root cause analysis, and error investigation.
 
 ## Debugging Approach

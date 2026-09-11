@@ -19,6 +19,8 @@ archetype_relevance: ["*"]
 
 # Worktrees
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Git worktrees let multiple branches be checked out simultaneously and let
 agent runtimes (Claude Code's `Agent({isolation: 'worktree'})`, crew runners,
 etc.) make changes in isolation without disturbing the main checkout. Useful —

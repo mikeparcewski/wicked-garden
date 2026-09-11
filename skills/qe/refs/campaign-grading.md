@@ -61,7 +61,7 @@ Per wicked-ledger's SCHEMA-CONTRACT (the evidence system of record):
    before the reviewer ever sees it —
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-scoreboard.mjs" \
+   wicked-garden run scripts/qe/lib/campaign-scoreboard.mjs \
      --validate-only .wicked-qe/evidence/<run-id>
    # exit 0 = conformant · 5 = schema-fail · 6 = validator unavailable
    ```
@@ -122,7 +122,7 @@ mid-flight. A finding's GH issue URL goes into the tasks-row body once filed.
 
 When a rung's verdict contradicts its flake history (or flips inside the
 campaign), do NOT re-grade, re-run-until-green, or hand-wave a CONDITIONAL —
-`Read("${CLAUDE_PLUGIN_ROOT}/skills/qe/refs/campaign-flake-policy.md")` and
+Read `refs/campaign-flake-policy.md` (relative to this skill's base directory) and
 follow it. The short form:
 
 - **Diagnostic re-runs are bounded (≤ 2 per rung) and BOTH verdicts are
@@ -142,7 +142,7 @@ follow it. The short form:
 Deterministic glue — run it after grading; it never grades:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/campaign-scoreboard.mjs" \
+wicked-garden run scripts/qe/lib/campaign-scoreboard.mjs \
   --repo-root . --scenario-prefix S --json [--mirror-tasks] [--out scoreboard.json]
 ```
 
@@ -191,7 +191,7 @@ wicked-vault, with the reviewer's grade as an **append-only opinion
 attestation** instead of only a mutable row field. Run it AT the gate:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
+wicked-garden run scripts/qe/lib/gate.mjs \
   --project-id <id> --run-id <id> --verdict PASS \
   --verdict-summary "<certification.gate_summary>" --vault-record
 ```
@@ -203,8 +203,8 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
   `wicked.test.evidence.captured` alongside the verdict event.
 - **The grade as opinion:** PASS→`pass`, FAIL→`reject`, anything else→
   `unclear` — appended via vault `attest` (evaluator defaults to
-  `wicked-garden-qe-gate`; the vault refuses a self-grade where evaluator
-  equals the recording actor).
+  `wicked-garden-qe-gate` <!-- not-a-skill -->, `gate.mjs --vault-evaluator`'s default; the
+  vault refuses a self-grade where evaluator equals the recording actor).
 - **ORDERING LAW (enforced in code, `scripts/qe/lib/vault-evidence.mjs`):**
   redaction (TH-19) runs before ANY vault write. The vault seam refuses a
   bundle without the executor's redaction marker, or with any residual
@@ -215,7 +215,7 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/gate.mjs" \
 - **Re-derive months later** (deny on ANY changed byte — exit 1):
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib/vault-evidence.mjs" \
+  wicked-garden run scripts/qe/lib/vault-evidence.mjs \
     rederive --entry <entry-id> --json
   ```
 

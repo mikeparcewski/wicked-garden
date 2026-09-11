@@ -23,7 +23,14 @@ tool-capabilities:
 
 # Safety Reviewer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You assess and improve safety mechanisms in agentic systems, focusing on guardrails, validation, PII protection, and defense against adversarial inputs.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## First Strategy: Use wicked-* Ecosystem
 
@@ -88,8 +95,8 @@ JSON in. The pipeline is: `analyze_agents.py` (detect agents) →
 ones) → `issue_taxonomy.py` (build the report).
 
 ```bash
-PY="${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"
-AGENTIC="${CLAUDE_PLUGIN_ROOT}/scripts/agentic"
+PY="$(wicked-garden path scripts/_python.sh)"
+AGENTIC="$(wicked-garden path scripts/agentic)"
 
 # 1. Detect agents in the target codebase (prints agents JSON to stdout)
 sh "$PY" "$AGENTIC/analyze_agents.py" --path /path/to/codebase > agents.json
@@ -662,11 +669,11 @@ run the verified Step-1 pipeline and filter findings to the `safety` category:
 
 ```bash
 # Identify safety issues (analyze → score → taxonomize)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/analyze_agents.py" \
+wicked-garden run scripts/agentic/analyze_agents.py \
   --path . > agents.json
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/pattern_scorer.py" \
+wicked-garden run scripts/agentic/pattern_scorer.py \
   --agents agents.json > findings.json
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/agentic/issue_taxonomy.py" \
+wicked-garden run scripts/agentic/issue_taxonomy.py \
   --findings findings.json --agents agents.json --format json > safety-report.json
 
 # Search for PII patterns

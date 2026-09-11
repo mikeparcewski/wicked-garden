@@ -12,6 +12,8 @@ archetype_relevance: ["*"]
 
 # Imagery: Visual Asset Lifecycle
 
+Skill-local scripts (`scripts/provider.py`, `scripts/*.sh`) are stdlib-only and run base-directory-relative with `python3` (`py -3` on Windows).
+
 Manage the full lifecycle of visual assets through three specialized sub-skills. Each sub-skill handles a distinct phase of creative work, from analysis through generation to iterative refinement.
 
 ## Sub-Skills
@@ -55,7 +57,7 @@ The imagery skill uses a provider abstraction layer. Review works without any pr
 
 ```bash
 # Check available providers
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/product/imagery/scripts/provider.py" detect
+python3 scripts/provider.py detect
 ```
 
 | Provider | How to Enable |

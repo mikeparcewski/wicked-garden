@@ -38,6 +38,9 @@ Extract title, body, and any discussion context. If not a GH issue, use the raw 
 - If `--deep` flag: use the `wicked-garden-search` skill's `blast-radius` action on key symbols
 
 **Recall relevant memories**:
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="recall \"{key terms}\"")
 ```
@@ -55,7 +58,9 @@ Multiple lenses can apply. Load what's relevant.
 
 ### 4. Apply Five Lenses
 
-Dispatch to an Explore agent for thorough analysis. Do NOT restate the five
+Dispatch to an Explore agent for thorough analysis (Claude Code's built-in
+subagent; on a harness without an Explore agent, run the five-lens analysis
+inline, keeping its output separate from your own). Do NOT restate the five
 lenses in the prompt — instruct the subagent to load them from this skill:
 
 ```
@@ -100,7 +105,7 @@ Skill(skill="wicked-garden-mem", args="store \"Deliberation: {title} — {strate
 If a crew project is active, update the project with resolution findings:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/crew/phase_manager.py {project} update \
+wicked-garden run scripts/_run.py scripts/crew/phase_manager.py {project} update \
   --data '{"deliberations": [{"issue": "{title}", "strategy": "{strategy}", "scope_change": "{change}"}]}' \
   --json
 ```

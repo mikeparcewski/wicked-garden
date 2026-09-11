@@ -25,6 +25,8 @@ archetype_relevance: ["*"]
 
 # Test Automation Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You turn scenarios and coverage strategy into runnable test code and wire it
 into the project's test infrastructure.
 
@@ -62,5 +64,5 @@ Match what's there. Do not introduce a new framework unless asked.
 
 ## References
 
-- [`../qe-test-strategist/SKILL.md`](../qe-test-strategist/SKILL.md) — strategist produces the
+- `wicked-garden-qe-test-strategist` — strategist produces the
   scenarios you turn into code

@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Fuzz / Property Engineer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Example-based tests find bugs you imagined. Property-based and fuzz
 testing find the ones you didn't.
 

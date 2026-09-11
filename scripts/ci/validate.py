@@ -165,8 +165,16 @@ def main():
     # (advisory) rather than hard errors — a genuinely broken skill-body
     # path is a content fix owned by the skill's author, not a reason to
     # fail the structural gate.
+    # Since 12.33 (cross-CLI skills, F-079) skill text reaches plugin files only
+    # through the launcher — `wicked-garden run|python|path <root-relative>` — so
+    # that shape is checked too; the plugin-root shape is kept for any regression
+    # (the hard gate for it is tests/test_skill_portability.py).
     script_ref_pattern = re.compile(
         r'\$\{CLAUDE_PLUGIN_ROOT\}/([^\s"]+\.(?:py|sh))'
+    )
+    launcher_ref_pattern = re.compile(
+        r'(?<![A-Za-z0-9_-])(?:npx\s+)?wicked-garden(?:@[A-Za-z0-9_.^~-]+)?\s+'
+        r'(?:run|python|path)\s+([A-Za-z0-9_][A-Za-z0-9_./{}-]*)'
     )
     for md_file in sorted(root.glob("skills/**/*.md")):
         text = md_file.read_text()
@@ -176,6 +184,11 @@ def main():
                 continue
             if not (root / ref).exists():
                 warnings.append(f"{rel}: broken script path: {ref}")
+        for ref in launcher_ref_pattern.findall(text):
+            if re.search(r"\{[^}]+\}", ref) or ref.startswith("-"):
+                continue
+            if not (root / ref).exists():
+                warnings.append(f"{rel}: broken launcher path: {ref}")
 
     # --- 7. specialist.json roles vs ROLE_CATEGORIES ---
     specialist_json = root / ".claude-plugin" / "specialist.json"

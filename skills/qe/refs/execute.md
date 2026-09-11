@@ -46,7 +46,7 @@ wicked-garden-qe execute [target] [--project <name>] [--suite] [--json]
 **Default posture:** verdict requests go to the 3-role pipeline. `wicked-garden-qe-test-designer`
 is the dev-loop fast path with known self-grading risk; it is never the default
 and never used for audit / CI / crew-phase sign-off evidence. See the warning
-in `../../qe-test-designer/SKILL.md`.
+in `wicked-garden-qe-test-designer`.
 
 ### Dispatch block (executable)
 
@@ -54,10 +54,12 @@ Every id in the tables above is a forked worker skill (`context: fork`) —
 invoke it with the Skill tool so it runs in an isolated context.
 
 **Dispatch guard (TH-7):** resolve the specialist first —
-`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_dispatch.py" <name>` —
+`wicked-garden run scripts/qe/campaign_dispatch.py <name>` —
 which asserts it is a shipped `wicked-garden-qe-*` worker and BLOCKS retired
 `wicked-testing-*` names at dispatch with a clear error naming the garden <!-- historical -->
 replacement (exit 2). Never dispatch a name the guard refused.
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ```
 Skill(
@@ -146,8 +148,8 @@ SKIP with reason `trust-level-insufficient`.
 
 - [refs/integration.md](refs/integration.md)
 - [refs/evidence.md](refs/evidence.md)
-- `../../qe-scenario-executor/SKILL.md`, `../../qe-test-designer/SKILL.md`,
-  `../../qe-acceptance-test-executor/SKILL.md`
+- `wicked-garden-qe-scenario-executor`, `wicked-garden-qe-test-designer`,
+  `wicked-garden-qe-acceptance-test-executor`
 
 ## Helper resolution (`{WT_LIB}`)
 
@@ -156,5 +158,5 @@ in-catalog (`scripts/qe/lib/`, ported from the retired wicked-testing package <!
 in Phase 6c). Resolve it (cross-platform):
 
 ```bash
-WT_LIB="${CLAUDE_PLUGIN_ROOT}/scripts/qe/lib"
+WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ```

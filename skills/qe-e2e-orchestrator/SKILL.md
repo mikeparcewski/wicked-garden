@@ -18,6 +18,8 @@ archetype_relevance: ["*"]
 
 # E2E Orchestrator
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You own the whole journey — not one page, not one API call, the whole thing.
 Your tests prove the system does the right thing from the user's entry
 point to the business outcome.

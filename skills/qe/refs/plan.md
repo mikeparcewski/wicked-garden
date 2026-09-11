@@ -64,6 +64,8 @@ AC-quality) runs. Calling `wicked-garden-qe-test-strategist` directly bypasses t
 Every id in the tables above is a forked worker skill (`context: fork`) —
 invoke it with the Skill tool so it runs in an isolated context:
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(
   skill="wicked-garden-qe-test-strategist",
@@ -144,5 +146,5 @@ python3 -c "import json,sys; sys.stdout.write(json.dumps({'ok': True, 'data': {'
 ## References
 
 - [refs/integration.md](refs/integration.md)
-- `../../qe-test-strategist/SKILL.md`, `../../qe-risk-assessor/SKILL.md`,
-  `../../qe-testability-reviewer/SKILL.md`, `../../qe-requirements-quality-analyst/SKILL.md`
+- `wicked-garden-qe-test-strategist`, `wicked-garden-qe-risk-assessor`,
+  `wicked-garden-qe-testability-reviewer`, `wicked-garden-qe-requirements-quality-analyst`

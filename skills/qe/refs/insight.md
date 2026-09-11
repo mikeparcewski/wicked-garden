@@ -51,6 +51,8 @@ on the underlying oracle queries.
 Every id in the tables above is a forked worker skill (`context: fork`) —
 invoke it with the Skill tool so it runs in an isolated context:
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(
   skill="wicked-garden-qe-test-oracle",
@@ -137,7 +139,7 @@ commands are now questions you ask it (routing per the dispatch table above):
 ## References
 
 - [refs/integration.md](refs/integration.md)
-- `../../qe-test-oracle/SKILL.md`
+- `wicked-garden-qe-test-oracle`
 - `wicked-ledger` oracle-queries (consumed dependency — query catalog)
 
 ## wicked-ledger resolution

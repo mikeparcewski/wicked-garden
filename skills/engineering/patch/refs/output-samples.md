@@ -4,7 +4,7 @@ Verbose material moved out of `SKILL.md` (Tier-2 slim-body cap). The SKILL body
 keeps the argument lists, the full CLI invocations, the sub-action table, and the
 `remove` DELETES warning; everything illustrative lives here. All examples
 abbreviate the CLI to `patch.py <sub-action> …` — always run the full form
-(`sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/engineering/patch/patch.py" …`).
+(`wicked-garden run scripts/engineering/patch/patch.py …`).
 
 ## How it works
 

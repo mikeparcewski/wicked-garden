@@ -20,6 +20,11 @@ Generate diverse perspectives through structured focus group sessions.
 This is the single entry point for the jam domain — route the user's request
 to one of the sub-actions below.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## Routing
 
 | Sub-action | When | How it runs |
@@ -58,7 +63,7 @@ jam revisit "event bus architecture"
 Quick 60-second exploration with 4 personas and 1 round. Run it inline — no
 dispatch:
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/quick.md")` — the single-pass
+1. Read `refs/quick.md` (relative to this skill's base directory) — the single-pass
    rubric: 4 personas, 1 forced round, synthesis format (Key Insights / Action
    Items / Open Questions), hard constraints (no storage, no multi-AI, ≤200 words).
 2. Apply the rubric directly to the topic. Do NOT run additional rounds. Do NOT store.
@@ -82,6 +87,8 @@ stored via the wicked-garden-mem skill for organizational memory.
 Dispatch to the forked facilitator skill (it owns the convergence checks,
 native-task tracking, transcript storage, and bus events):
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-jam-brainstorm-facilitator",
       args="Run a full brainstorm session on: {topic}. Options: {personas}, {rounds}, convergence_mode={converge|'normal'}.")
@@ -95,7 +102,7 @@ Structured evaluation tool that uses real external LLM CLIs — registry-driven
 (20+ CLIs: Codex, Gemini, Copilot, OpenCode, Pi, Aider, Goose, Amp, Droid, …;
 see `scripts/jam/agentic_cli_registry.py`) — to get genuinely independent
 model perspectives. Installed CLIs are detected AND usability-probed via
-`scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured /
+`wicked-garden run scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured /
 daemon-down CLIs are excluded). When fewer than 2 usable external CLIs are
 present, council seats are filled with forked subagent seats so deliberation
 always happens. Unlike brainstorm (free-form creative exploration), council is
@@ -112,7 +119,7 @@ Skill(skill="wicked-garden-jam-council",
 ```
 
 **After the fork returns**: read
-`${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/council-verdict.md` — it holds the
+`refs/council-verdict.md` — it holds the
 caller-side heuristics for acting on the verdict (when to proceed, when to
 surface raw votes and pause for human adjudication, hard-gate archetype rules)
 and the `raw_votes` output envelope contract
@@ -125,7 +132,7 @@ and the `raw_votes` output envelope contract
 Revisit a past brainstorm decision to record whether it was validated,
 invalidated, or modified. Light workflow — run it inline, no fork:
 
-1. `Read("${CLAUDE_PLUGIN_ROOT}/skills/jam/refs/revisit.md")` — the 5-step
+1. Read `refs/revisit.md` — the 5-step
    workflow: recall the decision via the wicked-garden-mem skill, display
    the decision summary, ask validated/invalidated/modified, store the
    outcome (about tags `jam,outcome`), report. Degrades gracefully when the

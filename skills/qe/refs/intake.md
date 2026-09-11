@@ -33,7 +33,7 @@ shape (crew's `GateSchema` is strict: an extra key is a 400).
 2. Build the proposal + prompt:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_intake.py" \
+   wicked-garden run scripts/qe/campaign_intake.py \
      propose .wicked-qe/campaigns/<name>/campaign-recon.json
    ```
 
@@ -46,7 +46,7 @@ shape (crew's `GateSchema` is strict: an extra key is a 400).
    text back to the worker; apply it deterministically:
 
    ```bash
-   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_intake.py" \
+   wicked-garden run scripts/qe/campaign_intake.py \
      decide <plan.json> --approve [--amend <amend.txt>] --out <plan.json>
    # or: decide <plan.json> --reject
    ```
@@ -105,7 +105,7 @@ itself does not capture one.
 are required. Convert mechanically:
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_intake.py" \
+wicked-garden run scripts/qe/campaign_intake.py \
   from-annotations <annotations.json>
 ```
 
@@ -139,7 +139,7 @@ The round-trip test (`tests/qe/test_campaign_intake.py`) pins that contract.
 
 ## References
 
-- `${CLAUDE_PLUGIN_ROOT}/scripts/qe/campaign_intake.py` — proposal/decision/annotation glue
+- `scripts/qe/campaign_intake.py` (under the plugin root: `wicked-garden path scripts/qe/campaign_intake.py`) — proposal/decision/annotation glue
 - [refs/campaign.md](campaign.md) — recon + generation (produces the plan this action proposes)
 - [refs/execute.md](execute.md) · [refs/accept.md](accept.md) — what runs after approval
 - crew gate wire: `POST/GET /api/v1/runs/:id/gate` (`GateSchema` — approve/amend/reject)

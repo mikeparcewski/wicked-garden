@@ -50,6 +50,8 @@ wicked-garden-qe author [target] [--framework <name>] [--scenario] [--code]
 Every id in the tables above is a forked worker skill (`context: fork`) —
 invoke it with the Skill tool so it runs in an isolated context:
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(
   skill="wicked-garden-qe-test-automation-engineer",
@@ -122,5 +124,5 @@ bus when present.
 
 - [refs/integration.md](refs/integration.md)
 - [refs/scenario-format.md](refs/scenario-format.md)
-- `../../qe-test-automation-engineer/SKILL.md`, `../../qe-acceptance-test-writer/SKILL.md`,
-  `../../qe-contract-testing-engineer/SKILL.md`
+- `wicked-garden-qe-test-automation-engineer`, `wicked-garden-qe-acceptance-test-writer`,
+  `wicked-garden-qe-contract-testing-engineer`

@@ -21,10 +21,10 @@ State is project-scoped — each working directory gets its own isolated storage
 Detect whether AskUserQuestion is available:
 
 ```bash
-python3 -c "
+wicked-garden python -c "
 import json, os, sys
 from pathlib import Path
-sys.path.insert(0, str(Path(os.environ.get('CLAUDE_PLUGIN_ROOT', '.')).resolve() / 'scripts'))
+sys.path.insert(0, str(Path(os.environ["WICKED_GARDEN_ROOT"]) / 'scripts'))
 from _session import SessionState
 state = SessionState.load()
 print('PLAIN_TEXT' if state.dangerous_mode else 'INTERACTIVE')
@@ -38,7 +38,7 @@ print('PLAIN_TEXT' if state.dangerous_mode else 'INTERACTIVE')
 Run a dry-run scan to see what exists:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --json
+wicked-garden run scripts/_run.py scripts/reset.py --json
 ```
 
 Parse the JSON output. Extract the domains where `exists` is `true`.
@@ -47,7 +47,7 @@ The JSON output includes `project` (current project slug) and `project_root` (st
 
 If no domains have state, tell the user: "Nothing to reset — wicked-garden has no local state for project {project}." and stop.
 
-**If `--list-projects` was passed**: Run `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --list-projects --json` instead and display the project list. Stop after showing.
+**If `--list-projects` was passed**: Run `wicked-garden run scripts/_run.py scripts/reset.py --list-projects --json` instead and display the project list. Stop after showing.
 
 **If `--all-projects` was passed**: Add `--all-projects` to the reset command in Step 4.
 
@@ -110,13 +110,13 @@ STOP and wait. If the user cancels, say "Reset cancelled." and stop.
 Build the `--only` list from the user's selection:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --confirm --only {selected_domains_space_separated} --json
+wicked-garden run scripts/_run.py scripts/reset.py --confirm --only {selected_domains_space_separated} --json
 ```
 
 Or if `--all` with `--keep`:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/reset.py --confirm --all --keep {kept_domains_space_separated} --json
+wicked-garden run scripts/_run.py scripts/reset.py --confirm --all --keep {kept_domains_space_separated} --json
 ```
 
 ### 5. Report Results

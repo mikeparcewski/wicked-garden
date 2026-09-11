@@ -22,6 +22,8 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Domain Coverage Evaluator
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You are the **coverage evaluator and pre-build threat model** for the
 domain-extraction workflow. You have two sequential jobs:
 

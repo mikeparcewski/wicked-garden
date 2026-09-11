@@ -13,7 +13,7 @@ asks the user what they want.
 Detect once, branch every interactive call site below:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/detect_state.py" question-mode
+wicked-garden run scripts/setup/detect_state.py question-mode
 ```
 
 - **INTERACTIVE**: Use AskUserQuestion as documented in each step.
@@ -30,7 +30,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/set
 ### 1. Detect Current State
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/detect_state.py" config
+wicked-garden run scripts/setup/detect_state.py config
 ```
 
 Returns `{"present": false, "path": ...}` if no config, otherwise `{"present": true, "path": ..., "config": {...}}`. This determines which questions to ask in Step 3.
@@ -38,7 +38,7 @@ Returns `{"present": false, "path": ...}` if no config, otherwise `{"present": t
 ### 2. Install Prerequisites
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-all
+wicked-garden run scripts/_run.py scripts/platform/prereq_doctor.py check-all
 ```
 
 Parse the JSON. Only `core` tools are required during setup. For each `core` tool: `status: "available"` → checkmark; `status: "missing"` → show "{name} is not installed. Install with: `{install_cmd}`?" then **INTERACTIVE mode**: AskUserQuestion header "{name}", options "Install now" = "Run: {install_cmd}" / "Skip" = "Continue without {name}"; **PLAIN_TEXT mode**: ask in plain text and STOP. If approved, run `install_cmd` (and `post_install` if present), then re-check with `prereq_doctor.py check {tool}`. If declined, warn dependent features will be unavailable and continue. **Skip `optional` tools** — the PostToolUseFailure hook detects them at runtime.
@@ -52,7 +52,7 @@ After core tools, if `uv` is available, sync Python deps: `{uv_path} sync --quie
 wicked-estate is a Rust binary pair (`wicked-estate` CLI + `wicked-estate-mcp` MCP server). Hooks resolve it via `WICKED_ESTATE_MCP_BIN` → PATH → `~/.local/bin`, so verify by presence:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
+wicked-garden python - <<'PY' 2>/dev/null || python - <<'PY'
 import os, shutil
 from pathlib import Path
 override = os.environ.get("WICKED_ESTATE_MCP_BIN")
@@ -70,7 +70,7 @@ PY
 wicked-understanding installs as **`skills`-standard skills** (multi-CLI; no server). It analyzes the current repo at HEAD into task playbooks (`fix-bug`/`add-feature`/`verify`/`write-tests`) the agent loads on demand — the "how to work in THIS repo" layer that pairs with the knowledge layer's "what". Per-repo, so verify by presence of its generated skills rather than a version probe.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
+wicked-garden python - <<'PY' 2>/dev/null || python - <<'PY'
 import os
 from pathlib import Path
 found = False
@@ -96,14 +96,14 @@ npx wicked-vault --version 2>/dev/null || echo "MISSING"
 ```
 
 - `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
-- Version string → compare it against the declared peer floor **≥ 0.5.0** <!-- vault-floor --> (single source: `scripts/loom/manifest.py` `version_pin`, lockstep with plugin.json `wicked_vault_version`). **Below the floor** (e.g. `0.4.5`) → tell the user to upgrade: "wicked-vault {version} is below the floor 0.5.0 — peer health checks (`loom doctor` / peer-health) report it as drift and fail. Upgrade: `npm i -g wicked-vault@latest`." At or above (e.g. `0.6.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/qe/vault_gate.py" resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
+- Version string → compare it against the declared peer floor **≥ 0.5.0** <!-- vault-floor --> (single source: `scripts/loom/manifest.py` `version_pin`, lockstep with plugin.json `wicked_vault_version`). **Below the floor** (e.g. `0.4.5`) → tell the user to upgrade: "wicked-vault {version} is below the floor 0.5.0 — peer health checks (`loom doctor` / peer-health) report it as drift and fail. Upgrade: `npm i -g wicked-vault@latest`." At or above (e.g. `0.6.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `wicked-garden run scripts/qe/vault_gate.py resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
 
 ### 2.7 Verify wicked-bus (Recommended — audit-trail layer)
 
 wicked-bus installs from npm (`npm i -g wicked-bus`), and `npx wicked-bus-install` copies its skills into detected AI CLIs, so verify by presence of those skills rather than a version probe.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" - <<'PY' 2>/dev/null || python - <<'PY'
+wicked-garden python - <<'PY' 2>/dev/null || python - <<'PY'
 import json, os
 from pathlib import Path
 installed = False
@@ -139,9 +139,9 @@ directly into wicked-garden as `scripts/loom/`. No external `wicked-loom` npm pa
 required. Check that the internal module is importable:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
+wicked-garden python -c "
 import sys, os
-sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PLUGIN_ROOT', '.'), 'scripts'))
+sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], 'scripts'))
 try:
     from loom import resolve, compose, gate, manifest
     print('READY')
@@ -158,7 +158,7 @@ except ImportError as e:
 If the user has v6-v10 crew projects on disk, advise them to run the v11 migration script:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/migrate_v6_projects.py"
+wicked-garden run scripts/setup/migrate_v6_projects.py
 ```
 
 `CLEAN` → no v6-state found, skip silently. `MIGRATABLE_FOUND` → list affected projects and ask whether to translate them to v11 archetype-mode shape. The legacy qe-evaluator naming sweep that lived here in v6 was removed when the universal pipeline was deleted in v11.0.0.
@@ -178,8 +178,8 @@ Method depends on Question Mode.
 ### 4. Write Config (if needed)
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/onboarding.py" write-local-config
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/onboarding.py" mark-setup-complete
+wicked-garden run scripts/setup/onboarding.py write-local-config
+wicked-garden run scripts/setup/onboarding.py mark-setup-complete
 ```
 
 Show: "Storage configured! Mode: Local (DomainStore — local JSON files). Status: Ready."
@@ -193,8 +193,8 @@ Execute based on the onboarding answer from Step 3.
 Skip this step if the user chose "Skip".
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/detect_state.py" project-env
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check-all
+wicked-garden run scripts/setup/detect_state.py project-env
+wicked-garden run scripts/_run.py scripts/platform/prereq_doctor.py check-all
 ```
 
 Store as `DETECTED_LANGS`, `DETECTED_FWS`. Build `DETECTED_TOOLS` from combined `core` + `optional` where `status` is `"available"`.
@@ -204,7 +204,7 @@ Store as `DETECTED_LANGS`, `DETECTED_FWS`. Build `DETECTED_TOOLS` from combined 
 **Validate the selected tool is reachable** (skip for `local`):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/platform/prereq_doctor.py check "{selection}"
+wicked-garden run scripts/_run.py scripts/platform/prereq_doctor.py check "{selection}"
 ```
 
 - `available` + `via: "mcp"` → show "**{name}** connected via MCP server `{mcp_server}`."
@@ -214,7 +214,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_ru
 Persist the selection (one of `github` | `linear` | `jira` | `ado` | `rally` | `local`):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/onboarding.py" save-domain-pref {selection}
+wicked-garden run scripts/setup/onboarding.py save-domain-pref {selection}
 ```
 
 #### 5.1 Full Onboarding
@@ -228,6 +228,8 @@ First, ask which directories to onboard. **INTERACTIVE mode**: Use AskUserQuesti
 **Step A — Verify wicked-estate** (§2.5b probe). If MISSING, skip Steps B–C (log it) and still do Step D's best effort — the mem backend degrades gracefully.
 
 **Step B — Build the code graph**. Show "Indexing code graph..." then run `wicked-estate index {selected_directory}` (binary via `WICKED_ESTATE_BIN` → PATH → `~/.local/bin`; DB defaults to `.wicked-estate/graph.db`). This powers blast-radius/lineage/hotspots.
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 **Step C — Ingest codebase knowledge**. Show "Ingesting codebase into the knowledge store..." then `Skill(skill="wicked-garden-mem", args="ingest {selected_directory}")` — the mem skill dispatches its ingest worker (text chunked deterministically, binary docs via LLM vision, provenance on every chunk).
 
@@ -258,7 +260,7 @@ Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} skipped by 
 Set `{mode}` to `full` / `quick` / `skip`. Pass `--complete` for full/quick (omit for skip):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/setup/onboarding.py" clear-gate --mode {mode} [--complete]
+wicked-garden run scripts/setup/onboarding.py clear-gate --mode {mode} [--complete]
 ```
 
 ### 6.5 Inject CLAUDE.md Hints
@@ -287,12 +289,12 @@ Invoke the `wicked-garden-core` skill for help with all available skills.
 
 Offer to surface the detected archetype on screen. **INTERACTIVE mode**: AskUserQuestion header "Status line", options "Enable (Recommended)" = "Show the live work mode at the bottom of the screen" / "Skip" = "Don't change my status line". **PLAIN_TEXT mode**: ask in plain text and STOP.
 
-If enabled, add (non-destructively — skip if a `statusLine` key already exists) to the user's `settings.json`:
+If enabled, add (non-destructively — skip if a `statusLine` key already exists) to the user's `settings.json`. The status line runs outside any plugin context, so it uses the launcher, which resolves the plugin root itself (`npm i -g wicked-garden` puts `wicked-garden` on PATH; without it, substitute `<root>` with the output of `wicked-garden root` and use `python3 "<root>/scripts/statusline.py"`):
 
 ```json
 "statusLine": {
   "type": "command",
-  "command": "sh \"$CLAUDE_PLUGIN_ROOT/scripts/_python.sh\" \"$CLAUDE_PLUGIN_ROOT/scripts/statusline.py\""
+  "command": "wicked-garden run scripts/statusline.py"
 }
 ```
 

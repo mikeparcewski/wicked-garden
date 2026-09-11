@@ -15,6 +15,8 @@ archetype_relevance: ["*"]
 
 # GitHub CLI Power Utilities
 
+Skill-local scripts (`scripts/gh_ops.py`) are stdlib-only and run base-directory-relative with `python3` (`py -3` on Windows).
+
 Intelligent wrappers and patterns for GitHub CLI that go beyond basic commands.
 
 ## When to Use
@@ -36,7 +38,7 @@ brew install gh && gh auth login  # macOS
 Invoked as `<operation> [args]` (operation = `workflows | prs | releases | repo`):
 
 1. Parse the operation and its args.
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/refs/operations.md")` —
+2. Read `refs/operations.md` (relative to this skill's base directory) —
    the command reference for each operation category, multi-step patterns,
    and output format.
 3. Execute the gh commands directly and deliver:
@@ -46,7 +48,7 @@ Invoked as `<operation> [args]` (operation = `workflows | prs | releases | repo`
    - **repo**: findings summary + actionable next steps.
 
 For multi-step workflow generation from scratch, also load the github-actions
-skill's rubric: `${CLAUDE_PLUGIN_ROOT}/skills/platform/github-actions/refs/actions-rubric.md`.
+skill's rubric: the `wicked-garden-platform-github-actions` skill's `refs/actions-rubric.md`.
 
 ## Core Capabilities
 
@@ -56,13 +58,13 @@ Don't wade through logs - get the actual errors.
 
 ```bash
 # Get actionable error summary
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" diagnose
+python3 scripts/gh_ops.py diagnose
 
 # Specific repo
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" diagnose --repo owner/repo
+python3 scripts/gh_ops.py diagnose --repo owner/repo
 
 # With suggested fixes
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" diagnose --suggest-fixes
+python3 scripts/gh_ops.py diagnose --suggest-fixes
 ```
 
 **Output:** Structured error summary with job timelines, extracted failures, and fix suggestions based on common patterns.
@@ -73,13 +75,13 @@ Bulk PR management that scales.
 
 ```bash
 # List PRs needing review across your repos
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" pr-review-queue
+python3 scripts/gh_ops.py pr-review-queue
 
 # Merge all approved PRs (with safety checks)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" pr-merge-ready --dry-run
+python3 scripts/gh_ops.py pr-merge-ready --dry-run
 
 # PR health check (conflicts, checks, reviews)
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" pr-status 123
+python3 scripts/gh_ops.py pr-status 123
 ```
 
 ### 3. Release Automation
@@ -88,13 +90,13 @@ Generate releases with proper changelogs.
 
 ```bash
 # Create release from unreleased commits
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" release --bump minor
+python3 scripts/gh_ops.py release --bump minor
 
 # Preview changelog without releasing
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" release --dry-run
+python3 scripts/gh_ops.py release --dry-run
 
 # Release with custom notes
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" release --notes "Breaking: API v2"
+python3 scripts/gh_ops.py release --notes "Breaking: API v2"
 ```
 
 ### 4. Repo Health
@@ -102,7 +104,7 @@ sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/plat
 Quick health check for repositories.
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/skills/platform/gh-cli/scripts/gh_ops.py" health
+python3 scripts/gh_ops.py health
 ```
 
 **Checks:** Branch protection, required reviews, CI status, security advisories, dependency alerts.

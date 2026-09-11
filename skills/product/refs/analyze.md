@@ -7,7 +7,7 @@ signal-analysis rubric (also referenced by `listen`/`synthesize`).
 ## 1. Load input
 
 ```bash
-PRODUCT_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" scripts/resolve_path.py wicked-garden:product)
+PRODUCT_ROOT=$(wicked-garden run scripts/_run.py scripts/resolve_path.py wicked-garden:product)
 ls "${PRODUCT_ROOT}/voice/feedback/"
 ```
 If no data, tell the user to run `/wicked-garden-product listen` first and stop.

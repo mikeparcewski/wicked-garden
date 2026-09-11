@@ -63,6 +63,8 @@ TaskGet(taskId="{id}")
 
 **When available**: Cross-session learning
 
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 # Store decision
 Skill(skill="wicked-garden-mem", args="store \"{decision}\" (kind=fact, about=[{project}])")

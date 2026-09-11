@@ -18,6 +18,11 @@ Extract themes, sentiment, and trends from aggregated customer feedback.
 > invocation: `/wicked-garden-product analyze [args]` or plain natural language —
 > the examples below use that form.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+
 ## When to Use
 
 - After running `/wicked-garden-product listen`
@@ -71,7 +76,7 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
 
 1. **Load Feedback Data**:
    ```bash
-   LOCAL_ROOT=$(sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:product)
+   LOCAL_ROOT=$(wicked-garden run scripts/resolve_path.py wicked-garden:product)
    ```
    Then use the **Glob** tool to find feedback files:
    ```

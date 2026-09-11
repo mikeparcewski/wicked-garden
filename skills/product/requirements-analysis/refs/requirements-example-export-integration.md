@@ -77,6 +77,9 @@ TaskCreate(
 
 ### With the memory layer (wicked-garden-mem)
 Store for pattern recall:
+
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ```
 Skill(skill="wicked-garden-mem", args="store \"auth-requirements-2026: $(cat requirements.md)\"")
 ```

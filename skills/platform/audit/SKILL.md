@@ -19,6 +19,12 @@ archetype_relevance: ["*"]
 
 Collect evidence and verify audit trails for compliance.
 
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+
 ## When to Use
 
 - Preparing for external audit
@@ -33,11 +39,11 @@ Invoked as `<framework> [control_id|all]`:
 
 1. Parse args: `<framework> [control_id]` (framework = `soc2|hipaa|gdpr|pci`;
    control_id or `all`).
-2. `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/audit/refs/audit.md")` — full
+2. Read `refs/audit.md` (relative to this skill's base directory) — full
    collection rubric, control-testing checklist, SOC2/HIPAA control matrix,
    gap analysis, bus emit, and output format.
 3. For framework-specific checklists:
-   `Read("${CLAUDE_PLUGIN_ROOT}/skills/platform/audit/refs/checklists-soc2-hipaa.md")`
+   Read `refs/checklists-soc2-hipaa.md`
    or `refs/checklists-gdpr-pci-evidence.md`. For evidence scripts and
    organization: `refs/checklists-evidence-operations.md`.
 4. Apply the rubric directly: collect evidence via code search, verify each

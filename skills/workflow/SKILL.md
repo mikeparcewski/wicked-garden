@@ -12,6 +12,8 @@ archetype_relevance: ["*"]
 
 # Workflow Skill (v6)
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 **Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
 gates are hard enforcement; two interaction modes (normal / yolo).
 
@@ -38,7 +40,7 @@ All phase selection is judgment-driven by the facilitator, not rule-based.
 | Mode | How | Effect |
 |------|-----|--------|
 | **normal** | Default | Each phase gate requires explicit user approval before advancing |
-| **yolo** | `/wicked-garden:crew:auto-approve` | Auto-advance through gates; gates still run, findings still logged |
+| **yolo** | the `auto-approve` run operation (see Operations Reference) | Auto-advance through gates; gates still run, findings still logged |
 
 ## Rigor Tiers
 
@@ -115,18 +117,21 @@ Artifact states: `Designed → Built → Wired → Tested → Integrated → Ver
 The `convergence-verify` gate flips REJECT → APPROVE only when every tracked
 artifact reaches `Integrated`. Stalls at threshold 3 sessions surface as findings.
 
-## Commands Reference
+## Operations Reference
 
-| Command | Purpose |
-|---------|---------|
-| `/wicked-garden:crew:start` | Begin project — invokes propose-process |
-| `/wicked-garden:crew:status` | View current phase and engaged specialists |
-| `/wicked-garden:crew:execute` | Run current phase |
-| `/wicked-garden:crew:approve` | Advance phase after gate |
-| `/wicked-garden:crew:just-finish` | Autonomous completion (yolo-equivalent) |
-| `/wicked-garden:crew:gate` | Run a specific quality gate |
-| `/wicked-garden:crew:evidence` | Query evidence for a task |
-| `/wicked-garden:crew:auto-approve` | Switch to auto-advance mode |
+Run-lifecycle operations of the wicked-crew engine — driven from wicked-studio
+or crew's `/api/v1` (they are not slash commands on any CLI):
+
+| Operation | Purpose |
+|-----------|---------|
+| `start` | Begin project — invokes propose-process |
+| `status` | View current phase and engaged specialists |
+| `execute` | Run current phase |
+| `approve` | Advance phase after gate |
+| `just-finish` | Autonomous completion (yolo-equivalent) |
+| `gate` | Run a specific quality gate |
+| `evidence` | Query evidence for a task |
+| `auto-approve` | Switch to auto-advance mode |
 
 ## Storage
 

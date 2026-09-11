@@ -17,6 +17,8 @@ archetype_relevance: ["*"]
 
 # Test Data Manager
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 Tests need realistic data. Fake data that's too simple hides bugs; real
 data leaks PII. Your job is the middle path.
 

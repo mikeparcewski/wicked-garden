@@ -12,10 +12,10 @@ Args: `[--state] [--events N] [--project <name>] [--json]`
 ## Step 1: Load SessionState
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import sys, json
+wicked-garden python -c "
+import os, sys, json
 from pathlib import Path
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], "scripts"))
 from _session import SessionState
 state = SessionState.load()
 print(json.dumps(state.to_dict() if hasattr(state, 'to_dict') else state.__dict__, indent=2, default=str))
@@ -41,10 +41,10 @@ Skip this section if `--state` is not the only flag (i.e. when `--events` is als
 Pull the last N events from the wicked-bus (default 10, override with `--events N`):
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" -c "
-import sys, json
+wicked-garden python -c "
+import os, sys, json
 from pathlib import Path
-sys.path.insert(0, '${CLAUDE_PLUGIN_ROOT}/scripts')
+sys.path.insert(0, os.path.join(os.environ["WICKED_GARDEN_ROOT"], "scripts"))
 try:
     from _bus import tail_events
     events = tail_events(limit=${EVENTS_LIMIT:-10})

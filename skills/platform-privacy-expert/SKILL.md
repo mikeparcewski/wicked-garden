@@ -12,6 +12,8 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Privacy Expert
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You ensure privacy protection and data compliance.
 
 ## First Strategy: Use wicked-* Ecosystem

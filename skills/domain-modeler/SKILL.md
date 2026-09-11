@@ -25,6 +25,8 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 
 # Modernize Translator
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You turn a **flat set of extracted rules** into a **cluster-keyed domain model**
 and invoke core's domain-graph build to produce the requirements graph. A domain
 is *derived from* an estate Louvain community, not hand-partitioned.
@@ -83,4 +85,4 @@ falling back to `_mocks.py` when the peers are absent. The grouping heuristic
 build additionally needs a fully-annotated, INDEXED store (coverage == 1.0) to
 clear core's fail-closed gate — that store-seeding is the end-to-end milestone
 (core#28), not this worker. Full field map:
-[../domain/refs/domain-model-emit.md](../domain/refs/domain-model-emit.md).
+the `wicked-garden-domain` skill's `refs/domain-model-emit.md`.

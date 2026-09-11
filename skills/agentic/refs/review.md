@@ -7,12 +7,12 @@ Full rubric sourced from the `wicked-garden-agentic-architect`, `wicked-garden-a
 Run the detection scripts directly:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+wicked-garden run \
+  scripts/_run.py \
   scripts/agentic/detect_framework.py --path "$TARGET_PATH"
 
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+wicked-garden run \
+  scripts/_run.py \
   scripts/agentic/analyze_agents.py \
   --path "$TARGET_PATH" --framework "${FRAMEWORK_OVERRIDE:-$DETECTED_FRAMEWORK}"
 ```
@@ -85,13 +85,13 @@ and can run with `asyncio.gather()`.
 Run the pattern scorer to get quantitative data:
 
 ```bash
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+wicked-garden run \
+  scripts/_run.py \
   scripts/agentic/pattern_scorer.py \
   --agents "$AGENTS_FILE" --framework "$DETECTED_FRAMEWORK"
 
-sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \
-  "${CLAUDE_PLUGIN_ROOT}/scripts/_run.py" \
+wicked-garden run \
+  scripts/_run.py \
   scripts/agentic/issue_taxonomy.py \
   --findings "$FINDINGS_FILE" --agents "$AGENTS_FILE" \
   --framework "$FRAMEWORK_FILE" --format markdown

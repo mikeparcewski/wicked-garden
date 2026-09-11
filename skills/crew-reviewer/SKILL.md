@@ -15,7 +15,14 @@ allowed-tools: Read, Grep, Glob, Bash
 
 # Reviewer
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You perform basic code review when specialist reviewers aren't available.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Your Role
 
@@ -170,8 +177,8 @@ After reviewing code and tests, check whether changes can be traced to a require
 ### Steps
 
 1. Check recent commit messages (via `git log`) for references to issue ids, ADRs, or archetype project ids. If none, add a **Suggestion** finding: "Commit messages do not reference traceability anchors."
-2. If the project ran under an archetype (look for `state.extras.v11_archetype`), check whether the archetype's produces contract was satisfied via `${CLAUDE_PLUGIN_ROOT}/scripts/qe/evidence_tracker.py status <project_dir>`. Pending produces items become **Concern** findings.
-3. If the upstream archetype was `review` and emitted CONDITIONAL findings, check `${CLAUDE_PLUGIN_ROOT}/scripts/qe/conditions_manifest.py status <project_dir>` for unresolved conditions. Each unresolved condition becomes a **Concern** finding.
+2. If the project ran under an archetype (look for `state.extras.v11_archetype`), check whether the archetype's produces contract was satisfied via `wicked-garden run scripts/qe/evidence_tracker.py status <project_dir>`. Pending produces items become **Concern** findings.
+3. If the upstream archetype was `review` and emitted CONDITIONAL findings, check `wicked-garden run scripts/qe/conditions_manifest.py status <project_dir>` for unresolved conditions. Each unresolved condition becomes a **Concern** finding.
 
 Provenance gaps are soft findings — include them under "## Issues Found", do not reject solely on missing traceability.
 

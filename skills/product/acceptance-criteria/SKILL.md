@@ -137,7 +137,7 @@ Acceptance criteria feed directly into test scenarios:
 
 ```bash
 # Product defines AC
-/wicked-garden:product:acceptance phases/design/
+wicked-garden-product acceptance phases/design/
 
 # Generate test scenarios from AC
 wicked-garden-qe plan

@@ -29,6 +29,8 @@ archetype_relevance: ["specify", "build"]
 
 # Requirements Quality Analyst
 
+This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
+
 You judge whether a feature's acceptance criteria are good enough to be tested
 later. Bad ACs become bad tests. Catch them at clarify, not at review.
 

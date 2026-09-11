@@ -1,0 +1,22 @@
+#!/bin/sh
+# wicked-garden launcher — POSIX twin of scripts/wicked-garden.mjs (the implementation).
+# wicked-crew prepends <snapshot>/scripts to a seat's PATH so `wicked-garden run …` in
+# skill text resolves here; it needs `node` (>= 20) on PATH and nothing else. When this
+# file is reached through a symlink (`ln -s <root>/scripts/wicked-garden ~/bin/…`) the
+# link is followed if `readlink` exists; otherwise $0 is used as-is. The logic lives
+# once, in wicked-garden.mjs — never edit it here.
+self=$0
+n=0
+while [ -h "$self" ] && [ "$n" -lt 16 ]; do
+  link=$(readlink "$self" 2>/dev/null) || break
+  case $link in
+    /*) self=$link ;;
+    *)  self=${self%/*}/$link ;;
+  esac
+  n=$((n + 1))
+done
+case $self in
+  */*) dir=${self%/*} ;;
+  *)   dir=. ;;
+esac
+exec node "$dir/wicked-garden.mjs" "$@"

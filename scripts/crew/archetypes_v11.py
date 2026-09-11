@@ -40,8 +40,7 @@ Usage (library):
     # directives -> [{"archetype": "build", "phases": [...], "next_action": ...}]
 
 Usage (CLI):
-    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \\
-      "${CLAUDE_PLUGIN_ROOT}/scripts/crew/archetypes_v11.py" \\
+    wicked-garden run scripts/crew/archetypes_v11.py \\
       detect --prompt "add caching to the dashboard"
 """
 
