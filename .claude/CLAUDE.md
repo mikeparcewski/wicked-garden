@@ -172,7 +172,11 @@ Storage paths: `~/.something-wicked/wicked-garden/projects/{slug}/{domain}/{subp
 
 ## Cross-Platform Requirement
 
-All skills, hooks, agents, and shell commands must work on macOS/Linux and Windows. Use `python3 -c "..."` with `2>/dev/null || python -c "..."` fallback for JSON output in hooks. Prefer Python over shell builtins for cross-platform logic. Use `tempfile.gettempdir()` instead of hardcoding `/tmp`. Use `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"` to invoke Python scripts.
+All skills, hooks, agents, and shell commands must work on macOS/Linux and Windows. Use `python3 -c "..."` with `2>/dev/null || python -c "..."` fallback for JSON output in hooks. Prefer Python over shell builtins for cross-platform logic. Use `tempfile.gettempdir()` instead of hardcoding `/tmp`. Hooks invoke Python through `sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh"` (Claude Code substitutes the variable for hooks); skill text invokes it through the launcher — `wicked-garden run scripts/<x>.py` — per the portability rule below.
+
+## Cross-CLI skills (portability rule)
+
+A skill's text must work wherever it is installed — Claude Code (plugin), Codex, OpenCode, Pi and Antigravity (skills-only, flat by name) and wicked-crew's snapshot. Therefore, under `skills/`: (1) refer to your own files by a path relative to the skill's base directory (`refs/plan.md`), never `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_SKILL_DIR}` or `../`; (2) refer to another skill by its **name** (`wicked-garden-qe`, "its `refs/review.md`"), never by a filesystem path — the installer lays skills out flat by name; (3) run shared runtime code only through the launcher: `wicked-garden run scripts/<path> [args]` (or `wicked-garden path <dir>`, `wicked-garden python -c …`), include the standard `## Runtime` block once (exact text in `tests/portability_rules.json`), and give a manual alternative for hosts without it; (4) write harness features with a fallback: "invoke skill X (Skill tool) — otherwise open its SKILL.md and follow it inline", "ask the user (AskUserQuestion where available, else plain text and wait)"; (5) `context: fork` and `allowed-tools` are Claude Code loading hints, fine to keep — say in the body what to do when the harness cannot fork. Hooks (`hooks/`) are Claude-plugin mechanics and keep `${CLAUDE_PLUGIN_ROOT}`. `tests/test_skill_portability.py` fails the build on any violation; run `python3 scripts/wg/portability_codemod.py --dry-run` to see the fix. The launcher lives once in `scripts/wicked-garden.mjs` (twins `scripts/wicked-garden`, `scripts/wicked-garden.cmd`; npm bin `wicked-garden run|python|path|root|doctor`); root order `WICKED_GARDEN_ROOT` → `CLAUDE_PLUGIN_ROOT` → its own package; it never writes under the root.
 
 ## Memory Management
 
@@ -214,7 +218,7 @@ When the session briefing notes `[Question Mode] Dangerous mode is active`, `Ask
 
 ## Security
 
-- Use `${CLAUDE_PLUGIN_ROOT}` for all paths in plugin scripts.
+- Hooks and `.claude-plugin/` use `${CLAUDE_PLUGIN_ROOT}` for plugin paths; skill text never does — it goes through `wicked-garden run|path` (portability rule above).
 - Quote all shell variables.
 - Quote temp paths: `"${TMPDIR:-/tmp}/..."`.
 - Python: use `tempfile.gettempdir()` instead of hardcoded `/tmp`.

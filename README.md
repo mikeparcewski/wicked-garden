@@ -69,6 +69,14 @@ installs/updates the whole wicked-\* family (garden, its peers, and the rest).
 > and the previous copy is put back). Those transient dirs are **not plugins**; a leftover after an interrupted install is
 > safe to delete (`status` lists them).
 
+**Other CLIs (Codex, OpenCode, Pi, Antigravity)** — `npx wicked-installer install-<cli> wicked-garden` copies
+the skills only (flat, by name — no `scripts/`, no venv). Every skill's text works there as written: own files are
+referenced relative to the skill's directory, other skills by name, and the shared runtime only through the
+launcher — `wicked-garden run scripts/<x>.py …`. So for script-backed skills the runtime prerequisite on those
+CLIs is `npm i -g wicked-garden` (or `npx wicked-garden`); the launcher resolves the plugin root and the Python
+interpreter itself (`wicked-garden doctor` shows what it found) and never writes under the root. Prose-only
+skills need nothing. Under wicked-crew the same launcher points at the run's snapshot via `WICKED_GARDEN_ROOT`.
+
 Then, in a Claude Code session:
 
 ```bash

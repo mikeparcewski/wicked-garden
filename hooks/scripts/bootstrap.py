@@ -1201,12 +1201,18 @@ def main():
     # Export CLAUDE_PLUGIN_ROOT to CLAUDE_ENV_FILE so Bash tool calls can access it.
     # Hooks receive CLAUDE_PLUGIN_ROOT from the plugin runtime, but Bash tool calls
     # do not inherit it.  Writing to CLAUDE_ENV_FILE bridges the gap.
+    # Since 12.33 (cross-CLI skills, F-079) skill text reaches scripts/ only through
+    # the `wicked-garden` launcher, so the same bridge puts <root>/scripts on PATH
+    # (the launcher twin lives there — no npm install needed on Claude Code) and
+    # exports WICKED_GARDEN_ROOT, the launcher's first root candidate.
     env_file = os.environ.get("CLAUDE_ENV_FILE")
     plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if env_file and plugin_root:
         try:
             with open(env_file, "a") as f:
                 f.write(f'export CLAUDE_PLUGIN_ROOT="{plugin_root}"\n')
+                f.write(f'export WICKED_GARDEN_ROOT="{plugin_root}"\n')
+                f.write(f'export PATH="{plugin_root}/scripts:$PATH"\n')
         except OSError:
             pass
 

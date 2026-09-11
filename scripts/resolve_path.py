@@ -5,8 +5,8 @@ Used by command prompts to avoid hardcoded ~/.something-wicked/ paths.
 Prints the resolved path to stdout.
 
 Usage:
-    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-delivery
-    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/resolve_path.py" wicked-garden:search extracted
+    wicked-garden run scripts/resolve_path.py wicked-delivery
+    wicked-garden run scripts/resolve_path.py wicked-garden:search extracted
 """
 
 import sys

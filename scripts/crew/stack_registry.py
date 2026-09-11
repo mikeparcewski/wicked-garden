@@ -21,8 +21,7 @@ Usage (library):
     # else                    -> r["gap_task"] = {title, body, ...}, dispatch is None
 
 Usage (CLI):
-    sh "${CLAUDE_PLUGIN_ROOT}/scripts/_python.sh" \\
-      "${CLAUDE_PLUGIN_ROOT}/scripts/crew/stack_registry.py" \\
+    wicked-garden run scripts/crew/stack_registry.py \
       resolve --stack node-legacy-to-modern
 """
 

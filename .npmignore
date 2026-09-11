@@ -54,5 +54,4 @@ daemon/
 memory/
 .wicked-estate-extractors/
 renovate.json
-uv.lock
 package-lock.json
