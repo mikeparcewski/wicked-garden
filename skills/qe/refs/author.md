@@ -93,8 +93,9 @@ Return the path(s) written, the execution table, the `unverified` and
 Specialized dispatches swap the `skill` id for the right worker (see the
 table above). For an OpenAPI spec, use `wicked-garden-qe-contract-testing-engineer`; for the
 3-role acceptance pipeline's test-plan phase, use `wicked-garden-qe-acceptance-test-writer`.
-Instructions 1, 5 and 6 travel with EVERY code-producing dispatch — a fork worker
-sees only its args, so the contract below is copied into them, not assumed.
+Instructions 1, 5 and 6 travel with EVERY code-producing dispatch (not the
+acceptance writer — its plans are run by the executor) — a fork worker sees only
+its args, so the contract below is copied into them, not assumed.
 
 ## Verified-test contract (binding for every produced test)
 
@@ -166,9 +167,12 @@ and FAILS any PLAN whose e2e has no execution row.
 
 ## Tier-2 specialists this skill routes to
 
-For domain-specific test authoring, dispatch the matching specialist. Each
-returns test code and/or scenarios in its domain — do not merge their output
-verbatim; fold it into the authoring reply:
+For domain-specific test authoring, dispatch the matching specialist with the
+block above — instructions 1, 5 and 6 included. Each specialist's own SKILL.md
+also carries the contract's run-before-claim / cite / never-ship block, so a
+direct invocation on any CLI is bound the same way. Each returns test code
+and/or scenarios in its domain — do not merge their output verbatim; fold it
+into the authoring reply:
 
 | Trigger                                              | Specialist                                  |
 |------------------------------------------------------|---------------------------------------------|
@@ -191,9 +195,10 @@ Scenario files use the format in [refs/scenario-format.md](refs/scenario-format.
 - Test code in the project's test directory matching the project's framework,
   OR
 - Both, when authoring scenarios that have automated companions
-- For test code, ALWAYS a PLAN (markdown beside the tests, or the run's
-  deliverable) carrying the execution table above — harness + command,
-  per-file results, `unverified` / `needs-fixture` / `not covered` rows
+- For test code, ALWAYS a PLAN carrying the execution table above — harness +
+  command, per-file results, `unverified` / `needs-fixture` / `not covered`
+  rows — in the run's deliverable, or where the repo already keeps test prose
+  (`docs/`, `.product/`); inside the test tree only if the repo already does that
 
 Emits `wicked.qe.scenario.authored` and/or `wicked.test.strategy.generated` on the
 bus when present. The authoring reply never says a test passes without its

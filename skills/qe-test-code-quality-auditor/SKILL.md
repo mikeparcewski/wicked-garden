@@ -3,7 +3,7 @@ name: wicked-garden-qe-test-code-quality-auditor
 context: fork
 model: sonnet
 effort: medium
-max-turns: 10
+max-turns: 15
 allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Audits the TEST code itself — not the SUT. Detects assertion-free tests,
@@ -211,7 +211,12 @@ top-n.csv` columns: `file,line,rule,severity,snippet,fix_hint`.
 const p0 = findings.filter(f => f.severity === "P0");
 const p1 = findings.filter(f => f.severity === "P1");
 const p2 = findings.filter(f => f.severity === "P2");
-const verdict = p0.length > 0 ? "FAIL" : (p1.length > 0 ? "CONDITIONAL" : "CONDITIONAL");
+// Audit mode (§1–8): any P0 → FAIL, otherwise CONDITIONAL — a smell audit never certifies.
+// Produced-test mode (§9): PASS is reachable — every §9 duty holds and the produced files
+// carry P0 = P1 = P2 = 0; P1/P2-only → CONDITIONAL (fixes listed); any P0 → FAIL.
+const verdict = p0.length > 0 ? "FAIL"
+  : MODE === "produced-test" ? ((p1.length + p2.length) > 0 ? "CONDITIONAL" : "PASS")
+  : "CONDITIONAL";
 
 store.create("verdicts", {
   run_id: RUN_ID,
@@ -254,8 +259,9 @@ narrative so the reviewer knows the coverage is partial.
 
 ## 7. Non-negotiable rules
 
-- **Do not mutate test code.** This is a read-only auditor. Remediation
-  is a human action.
+- **Do not mutate test code.** This is a read-only auditor toward the
+  tests; remediation is a human action. The one exception is §9.3's mutation
+  of the SOURCE under test — temporary, guarded, and restored byte-for-byte.
 - **P0 findings block the verdict.** A single assertion-free test is
   a FAIL — that test is coverage theatre.
 - **Never flag a legitimate `expect.assertions(N)` / `assert_called`
@@ -305,29 +311,61 @@ PLAN; the author's "all green" is a claim.
 
 1. **`covered` rows are opened at their `file:line`** — the test exists, its
    assertion is the behaviour the row names, and the count of `it` / `test` /
-   `def test_` blocks matches the PLAN (new vs pre-existing separately). No
-   citation, or one that does not hold → reclassify `unverified` (P1); a
-   padded total is a P1 finding.
+   `def test_` blocks matches the PLAN (new vs pre-existing separately). A
+   `covered` claim with no citation, or one that does not hold, is an
+   unsupported coverage claim (P0) — reclassify the row `unverified`; a padded
+   total is a P1 finding.
 2. **Every produced file has an execution record** — file · exact command ·
    result. Re-run the produced files with that command when the harness is
-   available and compare. A produced file with no record, or a `needs-fixture`
-   e2e never run against its fixture → **VERDICT=FAIL `[unexecuted-test]`**
-   (P0), whatever else holds.
+   available and compare. A produced file with no record, an `unverified`
+   produced file, or a `needs-fixture` e2e never run against its fixture →
+   **`[unexecuted-test]`** (P0), whatever else holds; a red produced test
+   (`failing`, or red on your re-run) is P0 too.
 3. **Mutate or reason about ≥ 2 tested behaviours** — apply a deliberate
    mutation to the SOURCE under test (invert a guard, swallow an error, drop a
-   branch), re-run, confirm the test FAILS, then restore the file
-   (`git checkout -- <file>`; the tree is byte-identical afterwards — §7's
-   "do not mutate test code" stands, this touches the SUT and is reverted).
-   When you cannot run, name the mutation and the assertion line that would
-   catch it. No nameable failing mutation → tautological (P0).
-4. **e2e oracles against the source** — every selector, test id and text the
+   branch), re-run, confirm the test FAILS, then restore. Guard the restore:
+   before mutating, `git status --porcelain -- <file>` must be empty — if it
+   is not (the author phase touched that file and the run has not committed
+   it), copy the file aside and restore from the copy, never with
+   `git checkout`, which would also discard the author's edit; afterwards
+   `git diff --quiet -- <file>` (or a checksum) proves the tree is
+   byte-identical. §7's "do not mutate test code" stands — this touches the
+   SUT and is reverted. When you cannot run, name the mutation and the
+   assertion line that would catch it. No nameable failing mutation →
+   tautological (P0).
+4. **Behaviour vs implementation** — a test that asserts internal structure,
+   a mock asserting on a mock, a snapshot of a fixture, or that would still
+   pass with the implementation deleted is implementation-shaped (P1); the
+   detectors in §2 do not catch this — read the assertions.
+5. **e2e oracles against the source** — every selector, test id and text the
    e2e waits on is rendered on the visited route under the named fixture
    (`grep` the `data-testid`, read the render rule); an oracle that can never
    match is `[scenario-defect]` (P0).
-5. **Scope honesty** — the PLAN's `not covered` rows name each intent area
+6. **Scope honesty** — the PLAN's `not covered` rows name each intent area
    without a test and why; a silent gap is a P1 finding.
-6. **You never ship** — no `git push`, `gh pr create`, `gh pr merge`; the
+7. **You never ship** — no `git push`, `gh pr create`, `gh pr merge`; the
    verdict returns to the run, whose deliver phase (or the human) opens the PR.
+
+### Produced-test verdict (`PASS` is reachable here, unlike the audit in §5)
+
+- **`PASS`** — all of: every `covered` claim verified at its `path:line`
+  (duty 1); every produced file executed with its recorded command and green,
+  and your re-run — when the harness is available — reproduces it (duty 2); no
+  `unverified` and no `failing` row among the produced files; ≥ 2 behaviours
+  mutated-or-reasoned with a nameable failing mutation each (duty 3); e2e
+  oracles verified (duty 5); `not covered` rows account for the intent
+  (duty 6); and the §2 detectors report P0 = P1 = P2 = 0 on the produced files.
+- **`CONDITIONAL`** — no P0, but any P1/P2 (implementation-shaped test, padded
+  total, silent scope gap, style smells): approve with the fixes listed.
+- **`FAIL`** — any P0: `[unexecuted-test]`, a red produced test, an
+  unsupported `covered` claim, a tautological test, or an impossible oracle
+  `[scenario-defect]`.
+
+Report line for this mode (the §8 line stays for the audit):
+
+```
+VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}
+```
 
 ## Helper resolution (`{WT_LIB}`)
 

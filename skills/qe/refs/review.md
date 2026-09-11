@@ -121,7 +121,10 @@ where the harness is runnable it re-runs the produced files itself.
 3. **Mutate or reason — at least two behaviours.** For ≥ 2 tested behaviours
    either apply a deliberate source mutation (swallow the error, invert the
    guard, drop the branch), re-run the test, confirm it FAILS, and restore the
-   source (`git checkout -- <file>`; the tree is byte-identical afterwards);
+   source — guarded: `git status --porcelain -- <file>` must be empty before
+   you mutate (otherwise copy the file aside and restore from the copy — never
+   `git checkout`, which would also discard the author's uncommitted edit), and
+   `git diff --quiet -- <file>` afterwards proves the tree is byte-identical;
    or — when you cannot run — write the specific mutation and the assertion
    line that would catch it. A test for which no failing mutation can be named
    is tautological → that row FAILS.
@@ -139,9 +142,17 @@ where the harness is runnable it re-runs the produced files itself.
    merges the PR and never pushes — the run's deliver phase (or the human)
    does; a reviewer that ships is a creator grading itself.
 
-Verdict: `PASS` only when 1–6 hold; `CONDITIONAL` with listed fixes when only
-style rows fail; `FAIL` on any `[unexecuted-test]`, tautological, or
-unsupported-`covered` row. Cite `file:line` for every finding.
+Verdict vocabulary (`MODE=produced-test`): **`PASS`** only when 1–7 hold with
+zero findings — every `covered` claim verified at its `path:line`, every
+produced test executed and green (your re-run reproduces the record), no
+`unverified` or `failing` row; **`CONDITIONAL`** with the fixes listed when only
+P1/P2 rows fail (implementation-shaped test, padded total, silent scope gap,
+style); **`FAIL`** on any `[unexecuted-test]`, red produced test, tautological
+test, unsupported-`covered` claim, or `[scenario-defect]` oracle. Cite
+`file:line` for every finding. The auditor's §9 carries the same rule.
+
+Dispatch fallback as in § Dispatch block above: without a Skill tool, open the
+named skill's `SKILL.md` and carry the args out inline.
 
 ```
 Skill(
@@ -164,13 +175,19 @@ Skill(
 3. Re-run the produced files when the harness is available; compare with
    the record.
 4. Mutate-or-reason about at least two tested behaviours; name the failing
-   mutation and the assertion that catches it; restore any mutated source.
+   mutation and the assertion that catches it; restore any mutated source
+   (guarded: clean `git status` on the file first, `git diff --quiet` after).
 5. Check every e2e selector / test id / text against the source on the
    visited route under the named fixture.
 6. Check the PLAN's `not covered` rows against the intent.
+7. Flag implementation-shaped tests: internal structure, a mock asserting on
+   a mock, a snapshot of a fixture, or one that would pass with the
+   implementation deleted.
 
-Return the verdict and per-row findings with file:line. Do NOT push, open,
-edit or merge a PR — the run's deliver phase delivers."""
+Return `VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test` — PASS only with
+every claim verified at path:line, every produced test executed and green, no
+`unverified` — and per-row findings with file:line. Do NOT push, open, edit or
+merge a PR — the run's deliver phase delivers."""
 )
 ```
 

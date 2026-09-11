@@ -69,7 +69,7 @@ action; multi-model deliberation is `jam` council; in-run crew review is
 { test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"
 ```
 
-On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wicked-qe/` + a project record).
+On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wicked-qe/` and registers a project record).
 
 ## setup — per-project initialization
 

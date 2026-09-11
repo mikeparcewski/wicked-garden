@@ -49,6 +49,8 @@ backend — just this component with fake props and a DOM.
 - Claim pre-existing coverage only with `path:line` of the test; count new
   tests separately from cited pre-existing ones
 - Never `git push` / `gh pr create` — the run's deliver phase opens the PR
+- The `wicked-garden-qe` skill's `refs/author.md` § Verified-test contract is the
+  full text; it binds whether you are dispatched or invoked directly
 
 ## Output
 

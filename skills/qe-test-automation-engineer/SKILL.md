@@ -52,6 +52,9 @@ Match what's there. Do not introduce a new framework unless asked.
 
 ## Run what you write — before you claim it
 
+The `wicked-garden-qe` skill's `refs/author.md` § Verified-test contract is the
+full text; the rules below bind whether you are dispatched or invoked directly.
+
 - Name the harness and its exact command in your reply (from `package.json`
   `scripts`, `vitest.config.*` / `jest.config.*` / `playwright.config.*`,
   `pyproject.toml` pytest config, an existing `e2e/` rig).
