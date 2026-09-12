@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 test('hero renders headline, capability-plane stats, and install command', async ({ page }) => {
   await expect(page).toHaveTitle(/wicked-garden/);
   await expect(page.locator('h1')).toContainText('The tools your coding agent');
-  await expect(page.locator('.gd-hero-stats')).toContainText('142');
+  await expect(page.locator('.gd-hero-stats')).toContainText('143');
   await expect(page.locator('.gd-hero-stats')).toContainText('40');
   await expect(page.locator('#hero .kicker').first()).toContainText('capability plane');
   await expect(

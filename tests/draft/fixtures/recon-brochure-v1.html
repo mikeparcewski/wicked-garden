@@ -1,0 +1,1156 @@
+<style data-wi-theme="corporate-light">
+:root{--wi-bg:#FFFFFF;--wi-surface:#F8FAFC;--wi-primary:#1E3A5F;--wi-secondary:#2563EB;--wi-accent:#0891B2;--wi-text:#1E293B;--wi-text-secondary:#64748B;--wi-muted:#94A3B8;--wi-border:#E2E8F0;--wi-font-heading:Calibri;--wi-font-body:Calibri;--wi-font-mono:Consolas;--wi-size-title:44px;--wi-size-heading:34px;--wi-size-body:18px;--wi-card-bg:#FFFFFF;--wi-card-radius:8px;--wi-card-padding:24px;--wi-card-shadow:0 1px 3px rgba(0,0,0,0.1);}
+body{font-family:var(--wi-font-body),system-ui,-apple-system,sans-serif;color:var(--wi-text);background:var(--wi-bg);}
+h1,h2,h3,h4,h5,h6{font-family:var(--wi-font-heading),system-ui,sans-serif;color:var(--wi-primary);line-height:1.2;}
+h1{font-size:var(--wi-size-title);}
+h2{font-size:var(--wi-size-heading);}
+a{color:var(--wi-secondary);}
+[data-card]{background:var(--wi-card-bg);border:1px solid var(--wi-border);border-radius:var(--wi-card-radius);padding:var(--wi-card-padding);box-shadow:var(--wi-card-shadow);}
+</style>
+
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>wicked-studio — Product Brochure</title>
+<style>
+/* ============================================================
+   PRINT SETUP
+   ============================================================ */
+@page {
+  size: A4 portrait;
+  margin: 18mm 20mm 18mm 20mm;
+}
+
+/* ============================================================
+   DESIGN TOKENS  (grounded in DES-VISION-001 §2.3–§2.4)
+   ============================================================ */
+:root {
+  --surface:        #09090f;
+  --surface-card:   #1a1a26;
+  --surface-raised: #22223a;
+  --surface-border: rgba(255,255,255,0.08);
+
+  --ink-primary:    rgba(255,255,255,0.92);
+  --ink-body:       rgba(255,255,255,0.78);
+  --ink-muted:      rgba(255,255,255,0.48);
+  --ink-faint:      rgba(255,255,255,0.14);
+
+  --accent:         hsl(258, 72%, 62%);
+  --accent-dim:     hsl(258, 50%, 32%);
+  --amber:          hsl(45,  90%, 68%);
+  --emerald:        hsl(148, 58%, 58%);
+  --red:            hsl(0,   75%, 60%);
+
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Code', 'Fira Code', 'Consolas', 'Courier New', monospace;
+
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 12px;
+}
+
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  font-family: var(--sans);
+  background: var(--surface);
+  color: var(--ink-body);
+  line-height: 1.55;
+  font-size: 10pt;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   PAGES
+   ============================================================ */
+.page {
+  width: 100%;
+  background: var(--surface);
+}
+
+.page-1 {
+  page-break-after: always;
+}
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1, h2, h3, h4, h5 {
+  font-family: var(--sans);
+  color: var(--ink-primary);
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+p {
+  font-family: var(--sans);
+  color: var(--ink-body);
+  line-height: 1.65;
+}
+
+code, .mono {
+  font-family: var(--mono);
+  font-size: 0.87em;
+}
+
+em {
+  font-style: italic;
+  color: var(--ink-primary);
+}
+
+/* ============================================================
+   HERO — PAGE 1
+   ============================================================ */
+.hero {
+  background: linear-gradient(145deg, #0d0d1e 0%, #111132 55%, #0a0a18 100%);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--r-lg);
+  padding: 26pt 28pt 22pt;
+  margin-bottom: 14pt;
+  position: relative;
+}
+
+.hero::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 5%, hsl(258,72%,62%) 40%, hsl(258,72%,62%) 60%, transparent 95%);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.wordmark {
+  font-family: var(--mono);
+  font-size: 8pt;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 12pt;
+  display: flex;
+  align-items: center;
+  gap: 10pt;
+}
+
+.wordmark::after {
+  content: '';
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent-dim), transparent);
+  width: 60pt;
+}
+
+.hero-body-wrap {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 18pt;
+  align-items: start;
+}
+
+.hero-headline {
+  font-size: 20pt;
+  font-weight: 700;
+  color: var(--ink-primary);
+  letter-spacing: -0.03em;
+  margin-bottom: 10pt;
+  line-height: 1.15;
+}
+
+.hero-subhead {
+  font-size: 10.5pt;
+  color: var(--ink-body);
+  margin-bottom: 12pt;
+  line-height: 1.55;
+}
+
+.hero-desc {
+  font-size: 9pt;
+  color: var(--ink-body);
+  margin-bottom: 14pt;
+  line-height: 1.7;
+}
+
+.hero-cta {
+  display: inline-block;
+  background: var(--surface-card);
+  border: 1px solid rgba(138,100,224,0.30);
+  border-radius: var(--r-md);
+  padding: 9pt 14pt;
+}
+
+.hero-cta .cta-label {
+  font-size: 6.5pt;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4pt;
+  font-family: var(--sans);
+}
+
+.hero-cta code {
+  font-family: var(--mono);
+  font-size: 10pt;
+  color: var(--emerald);
+  font-weight: 600;
+}
+
+/* Mockup — ASCII/mono design representation; not a product screenshot */
+.hero-mockup {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--r-md);
+  padding: 9pt 11pt;
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  color: var(--ink-muted);
+  line-height: 1.65;
+}
+
+.mockup-titlebar {
+  color: var(--ink-faint);
+  font-size: 6pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--surface-border);
+  padding-bottom: 5pt;
+  margin-bottom: 7pt;
+  display: flex;
+  justify-content: space-between;
+}
+
+.mockup-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2.5pt 0;
+  border-bottom: 1px solid var(--ink-faint);
+}
+
+.mockup-row:last-of-type {
+  border-bottom: none;
+}
+
+.mockup-run-name { color: var(--ink-body); }
+
+.mockup-status-running { color: var(--emerald); }
+.mockup-status-gate    { color: var(--amber);   }
+.mockup-status-done    { color: var(--ink-muted); }
+
+.mockup-dot {
+  display: inline-block;
+  width: 5pt;
+  height: 5pt;
+  border-radius: 50%;
+  margin-right: 4pt;
+  vertical-align: middle;
+}
+
+.mockup-kpi {
+  margin-top: 8pt;
+  padding-top: 7pt;
+  border-top: 1px solid var(--surface-border);
+}
+
+.mockup-kpi-label {
+  color: var(--ink-faint);
+  font-size: 5.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 5pt;
+}
+
+.mockup-kpi-row {
+  display: flex;
+  gap: 10pt;
+  flex-wrap: wrap;
+  font-size: 7pt;
+}
+
+.fact-strip {
+  margin-top: 14pt;
+  padding-top: 11pt;
+  border-top: 1px solid var(--surface-border);
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  color: var(--ink-muted);
+  letter-spacing: 0.03em;
+  display: flex;
+  gap: 5pt;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.fact-sep { color: var(--ink-faint); }
+
+/* ============================================================
+   THREE PILLARS — PAGE 1
+   ============================================================ */
+.pillars-eyebrow {
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+  margin-bottom: 9pt;
+}
+
+.pillars-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 9pt;
+}
+
+.pillar {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--r-md);
+  padding: 13pt 12pt;
+  position: relative;
+}
+
+.pillar::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+}
+
+.pillar-govern::before { background: var(--accent);  }
+.pillar-see::before    { background: var(--emerald); }
+.pillar-direct::before { background: var(--amber);   }
+
+.pillar-glyph {
+  font-size: 13pt;
+  margin-bottom: 5pt;
+  line-height: 1;
+  font-family: var(--sans);
+}
+
+.pillar-govern .pillar-glyph { color: var(--accent);  }
+.pillar-see .pillar-glyph    { color: var(--emerald); }
+.pillar-direct .pillar-glyph { color: var(--amber);   }
+
+.pillar-heading {
+  font-size: 10.5pt;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 4pt;
+}
+
+.pillar-quote {
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  color: var(--ink-muted);
+  font-style: italic;
+  margin-bottom: 8pt;
+  line-height: 1.5;
+}
+
+.pillar-body {
+  font-size: 8.5pt;
+  color: var(--ink-body);
+  line-height: 1.65;
+  margin-bottom: 10pt;
+}
+
+.pillar-bullets {
+  list-style: none;
+  border-top: 1px solid var(--surface-border);
+  padding-top: 8pt;
+}
+
+.pillar-bullets li {
+  font-family: var(--mono);
+  font-size: 7.2pt;
+  color: var(--ink-muted);
+  padding: 2.5pt 0;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  align-items: flex-start;
+  gap: 5pt;
+  line-height: 1.45;
+}
+
+.pillar-bullets li:last-child { border-bottom: none; }
+
+.bl-arrow { color: var(--ink-faint); flex-shrink: 0; }
+
+.pillar-govern .bl-arrow { color: hsl(258,72%,45%); }
+.pillar-see .bl-arrow    { color: hsl(148,58%,38%); }
+.pillar-direct .bl-arrow { color: hsl(45,90%,45%);  }
+
+/* ============================================================
+   PAGE 2 — HEADER STRIP
+   ============================================================ */
+.p2-header {
+  text-align: center;
+  margin-bottom: 14pt;
+  padding-bottom: 11pt;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.p2-eyebrow {
+  font-family: var(--mono);
+  font-size: 6.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+  margin-bottom: 5pt;
+}
+
+.p2-heading {
+  font-size: 15pt;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 4pt;
+}
+
+.p2-sub {
+  font-size: 8.5pt;
+  color: var(--ink-muted);
+}
+
+/* ============================================================
+   RUN FLOW — PAGE 2
+   ============================================================ */
+.flow-section {
+  margin-bottom: 14pt;
+}
+
+.flow-diagram {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 10pt;
+}
+
+.flow-node {
+  flex: 1;
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--r-md);
+  padding: 9pt 6pt;
+  text-align: center;
+}
+
+.flow-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 8pt;
+  padding: 0 3pt;
+  flex-shrink: 0;
+}
+
+.flow-glyph {
+  font-size: 13pt;
+  line-height: 1;
+  margin-bottom: 3pt;
+}
+
+.fn-intent  .flow-glyph { color: var(--ink-muted);  }
+.fn-council .flow-glyph { color: var(--emerald);    }
+.fn-gates   .flow-glyph { color: var(--amber);      }
+.fn-evidence .flow-glyph { color: var(--accent);    }
+.fn-pr      .flow-glyph { color: var(--ink-muted);  }
+
+.flow-label {
+  font-family: var(--mono);
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 4pt;
+}
+
+.fn-intent  .flow-label { color: var(--ink-muted);  }
+.fn-council .flow-label { color: var(--emerald);    }
+.fn-gates   .flow-label { color: var(--amber);      }
+.fn-evidence .flow-label { color: var(--accent);    }
+.fn-pr      .flow-label { color: var(--ink-muted);  }
+
+.flow-status {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 5.5pt;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2pt 5pt;
+  border-radius: 20pt;
+}
+
+.st-running { background: rgba(91,209,136,0.12); color: var(--emerald); }
+.st-gate    { background: rgba(255,198,88,0.12);  color: var(--amber);  }
+.st-done    { background: rgba(255,255,255,0.06); color: var(--ink-muted); }
+.st-proof   { background: rgba(138,100,224,0.14); color: var(--accent); }
+
+.flow-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+  gap: 7pt;
+}
+
+.flow-detail {
+  background: var(--surface-card);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--r-sm);
+  padding: 8pt;
+}
+
+.fd-label {
+  font-family: var(--mono);
+  font-size: 6pt;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  margin-bottom: 4pt;
+}
+
+.fn-intent  .fd-label { color: var(--ink-muted);  }
+.fn-council .fd-label { color: var(--emerald);    }
+.fn-gates   .fd-label { color: var(--amber);      }
+.fn-evidence .fd-label { color: var(--accent);    }
+.fn-pr      .fd-label { color: var(--ink-muted);  }
+
+.fd-body {
+  font-size: 7.2pt;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.fd-body code {
+  font-family: var(--mono);
+  font-size: 6.5pt;
+  color: var(--ink-body);
+}
+
+/* ============================================================
+   PROOF SECTION — PAGE 2
+   ============================================================ */
+.proof-section {
+  margin-bottom: 14pt;
+}
+
+.proof-heading {
+  font-size: 11.5pt;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 3pt;
+}
+
+.proof-sub {
+  font-family: var(--mono);
+  font-size: 7.2pt;
+  color: var(--ink-muted);
+  margin-bottom: 10pt;
+}
+
+.proof-grid {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  gap: 13pt;
+}
+
+.proof-divider {
+  background: var(--surface-border);
+}
+
+.proof-col-heading {
+  font-family: var(--mono);
+  font-size: 7.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-primary);
+  margin-bottom: 4pt;
+}
+
+.proof-tagline {
+  font-size: 8.5pt;
+  color: var(--ink-body);
+  font-style: italic;
+  margin-bottom: 9pt;
+  padding-left: 8pt;
+  border-left: 2px solid var(--surface-border);
+  line-height: 1.5;
+}
+
+.proof-items {
+  list-style: none;
+}
+
+.proof-items li {
+  font-size: 7.8pt;
+  color: var(--ink-muted);
+  padding: 3.5pt 0;
+  border-bottom: 1px solid var(--ink-faint);
+  display: flex;
+  gap: 6pt;
+  align-items: flex-start;
+  line-height: 1.5;
+}
+
+.proof-items li:last-child { border-bottom: none; }
+
+.pb { color: var(--accent);  flex-shrink: 0; font-family: var(--mono); font-size: 7pt; margin-top: 1pt; }
+.pb-amber { color: var(--amber); flex-shrink: 0; font-family: var(--mono); font-size: 7pt; margin-top: 1pt; }
+
+.il { color: var(--ink-body); font-weight: 600; }
+
+.spec-badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 5.8pt;
+  color: var(--amber);
+  background: rgba(255,198,88,0.10);
+  border: 1px solid rgba(255,198,88,0.22);
+  border-radius: 20pt;
+  padding: 1pt 5pt;
+  margin-left: 3pt;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.proof-items code {
+  font-family: var(--mono);
+  font-size: 6.8pt;
+  color: var(--ink-body);
+}
+
+/* PLACEHOLDER marker — industry convention for content not available in source repo */
+.placeholder-note {
+  background: rgba(255,198,88,0.05);
+  border: 1px solid rgba(255,198,88,0.18);
+  border-radius: var(--r-sm);
+  padding: 6pt 8pt;
+  margin-top: 9pt;
+  font-size: 6.8pt;
+  color: hsl(45,80%,60%);
+  font-family: var(--mono);
+  line-height: 1.55;
+}
+
+/* ============================================================
+   CTA SECTION — PAGE 2
+   ============================================================ */
+.cta-section {
+  background: var(--surface-card);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--r-lg);
+  padding: 16pt 20pt;
+  position: relative;
+}
+
+.cta-section::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 5%, hsl(258,72%,62%) 40%, hsl(258,72%,62%) 60%, transparent 95%);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+}
+
+.cta-heading {
+  font-size: 13pt;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4pt;
+}
+
+.cta-intro {
+  font-size: 8.8pt;
+  color: var(--ink-muted);
+  margin-bottom: 13pt;
+}
+
+.cta-paths {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10pt;
+  margin-bottom: 13pt;
+}
+
+.cta-path {
+  background: var(--surface);
+  border: 1px solid var(--surface-border);
+  border-radius: var(--r-md);
+  padding: 10pt 11pt;
+}
+
+.cta-path-num {
+  font-family: var(--mono);
+  font-size: 6.2pt;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4pt;
+}
+
+.cta-path-heading {
+  font-size: 8.5pt;
+  font-weight: 700;
+  color: var(--ink-primary);
+  margin-bottom: 6pt;
+}
+
+.cta-cmd-block {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--ink-faint);
+  border-radius: var(--r-sm);
+  padding: 5pt 8pt;
+  margin-bottom: 6pt;
+}
+
+.cta-cmd-block code {
+  font-family: var(--mono);
+  font-size: 8pt;
+  color: var(--emerald);
+  font-weight: 600;
+}
+
+.cta-cmd-block.url-block code {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.cta-path-desc {
+  font-size: 7.5pt;
+  color: var(--ink-muted);
+  line-height: 1.55;
+}
+
+.cta-footer {
+  border-top: 1px solid var(--surface-border);
+  padding-top: 11pt;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12pt;
+}
+
+.cta-closing {
+  font-size: 8.8pt;
+  font-style: italic;
+  color: var(--ink-muted);
+  line-height: 1.6;
+  max-width: 55%;
+}
+
+.cta-reqs {
+  font-family: var(--mono);
+  font-size: 6.2pt;
+  color: var(--ink-faint);
+  text-align: right;
+  line-height: 1.75;
+}
+
+/* ============================================================
+   PRINT
+   ============================================================ */
+@media print {
+  html, body {
+    background: var(--surface);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color-adjust: exact;
+  }
+
+  .page-1 {
+    page-break-after: always;
+  }
+}
+
+/* ============================================================
+   SCREEN PREVIEW
+   ============================================================ */
+@media screen {
+  body {
+    padding: 24px;
+    max-width: 210mm;
+    margin: 0 auto;
+  }
+
+  .page {
+    padding: 18mm 20mm;
+    margin-bottom: 24px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+  }
+}
+</style>
+
+
+
+<!-- ============================================================
+     PAGE 1 — THE PROMISE + THREE PILLARS
+     ============================================================ -->
+<section class="page page-1" aria-label="Page 1 — Promise and Pillars" data-wid="section-0">
+
+  <!-- SECTION 1: HERO -->
+  <header class="hero" data-wid="section-1">
+
+    <div class="wordmark">wicked-studio</div>
+
+    <div class="hero-body-wrap">
+
+      <!-- Left column: headline + body + CTA -->
+      <div>
+        <h1 class="hero-headline" data-wid="slide-0-heading-1">The cockpit for AI coding agents you can actually trust.</h1>
+
+        <p class="hero-subhead" data-wid="slide-0-paragraph-1">
+          Coding agents are fast but unsupervised — wicked-studio puts a governance layer between your intent and the PR, with human gates, independent verification, and evidence for every "done."
+        </p>
+
+        <p class="hero-desc" data-wid="slide-0-paragraph-2">
+          You launch a run: describe the goal, pick which agents join, bind a repo. The agents work headless; studio watches in real time over a live WebSocket stream. When a decision matters, studio surfaces it to you — the artifact, governance findings, and controls — so you approve what counts, not what's trivial. Every run leaves a downloadable evidence bundle: transcripts, diffs, and gate outcomes. <em>"Done" is proven, not claimed.</em>
+        </p>
+
+        <div class="hero-cta">
+          <div class="cta-label">Start in one command</div>
+          <code>npx wicked-crew serve</code>
+        </div>
+      </div>
+
+      <!-- Right column: mock command-center UI (design representation — no screenshots in repo) -->
+      <!-- PLACEHOLDER: Replace with product screenshot once available. Wireframe derived from DES-VISION-001 §1.3. -->
+      <div class="hero-mockup" aria-hidden="true" role="presentation">
+        <div class="mockup-titlebar">
+          <span>wicked-studio</span>
+          <span>command center</span>
+        </div>
+
+        <div class="mockup-row">
+          <span>
+            <span class="mockup-dot" style="background:hsl(148,58%,58%);"></span>
+            <span class="mockup-run-name">impl/auth-layer</span>
+          </span>
+          <span class="mockup-status-running">● running</span>
+        </div>
+
+        <div class="mockup-row">
+          <span>
+            <span class="mockup-dot" style="background:hsl(45,90%,68%);"></span>
+            <span class="mockup-run-name">refactor/api-gateway</span>
+          </span>
+          <span class="mockup-status-gate">⊡ gate awaiting</span>
+        </div>
+
+        <div class="mockup-row">
+          <span>
+            <span class="mockup-dot" style="background:rgba(255,255,255,0.18);"></span>
+            <span class="mockup-run-name">docs/openapi-sync</span>
+          </span>
+          <span class="mockup-status-done">✓ complete</span>
+        </div>
+
+        <div class="mockup-kpi">
+          <div class="mockup-kpi-label">portfolio KPIs</div>
+          <!-- KPI values are illustrative design representations, not measured benchmarks -->
+          <div class="mockup-kpi-row">
+            <span style="color:hsl(148,58%,58%);">3 active</span>
+            <span style="color:rgba(255,255,255,0.20);">·</span>
+            <span style="color:hsl(45,90%,68%);">1 needs you</span>
+            <span style="color:rgba(255,255,255,0.20);">·</span>
+            <span style="color:hsl(258,72%,62%);">governed</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="fact-strip">
+      <span>Works with Claude Code</span>
+      <span class="fact-sep">·</span>
+      <span>Codex</span>
+      <span class="fact-sep">·</span>
+      <span>Antigravity</span>
+      <span class="fact-sep">·</span>
+      <span>more</span>
+      <span class="fact-sep" style="margin:0 3pt;">&nbsp;|&nbsp;</span>
+      <span>Ships inside wicked-crew</span>
+      <span class="fact-sep" style="margin:0 3pt;">&nbsp;|&nbsp;</span>
+      <span>Node ≥ 22 · npm ≥ 10</span>
+      <span class="fact-sep" style="margin:0 3pt;">&nbsp;|&nbsp;</span>
+      <span>Browser-native · MIT licensed</span>
+    </div>
+
+  </header>
+
+  <!-- SECTION 2: THREE PILLARS -->
+  <section aria-labelledby="pillars-heading" data-wid="section-2">
+    <div class="pillars-eyebrow" id="pillars-heading">Three governing principles</div>
+
+    <div class="pillars-grid">
+
+      <!-- PILLAR 1 — GOVERN -->
+      <!-- Sources: README "Govern the work"; REQ-001 §4 Flow 2; DES-HOME-COMMAND-CENTER §4; REQ-003 invariant 1 -->
+      <article class="pillar pillar-govern">
+        <div class="pillar-glyph" aria-hidden="true">⬡</div>
+        <h2 class="pillar-heading" data-wid="slide-1-heading-1">Govern</h2>
+        <div class="pillar-quote">"The evaluator is never the creator."</div>
+        <p class="pillar-body" data-wid="slide-1-paragraph-1">
+          Every run flows through verification gates. An independent agent grades the work; you approve or redirect. Steering rules and policies codify your engineering standards once — the decisions ledger records every outcome.
+        </p>
+        <ul class="pillar-bullets">
+          <li data-wid="slide-1-list-item-1"><span class="bl-arrow" aria-hidden="true">›</span><span>Human gates: approve · steer · reject — evidence inline</span></li>
+          <li data-wid="slide-1-list-item-2"><span class="bl-arrow" aria-hidden="true">›</span><span>Decisions ledger: full audit trail for every gate outcome</span></li>
+          <li data-wid="slide-1-list-item-3"><span class="bl-arrow" aria-hidden="true">›</span><span>Deny-dominance enforced: the reject path is always reachable</span></li>
+        </ul>
+      </article>
+
+      <!-- PILLAR 2 — SEE -->
+      <!-- Sources: REQ-001 SC-S02/SC-S04; README "See the evidence"; DES-HOME-COMMAND-CENTER §4 KPI band -->
+      <article class="pillar pillar-see">
+        <div class="pillar-glyph" aria-hidden="true">◉</div>
+        <h2 class="pillar-heading" data-wid="slide-1-heading-2">See</h2>
+        <div class="pillar-quote">"Every run, in real time — nothing buried."</div>
+        <p class="pillar-body" data-wid="slide-1-paragraph-2">
+          A live CoreEvent stream drives studio's phase timeline, evidence panel, and command-center dashboard. The portfolio KPI band shows active runs, failure count, success rate, and governed percentage — honest numbers at a glance.
+        </p>
+        <ul class="pillar-bullets">
+          <li data-wid="slide-1-list-item-4"><span class="bl-arrow" aria-hidden="true">›</span><span>Real-time phase timeline — gate events appear within 2 seconds</span></li>
+          <li data-wid="slide-1-list-item-5"><span class="bl-arrow" aria-hidden="true">›</span><span>Downloadable evidence bundle: per-step transcripts and diffs</span></li>
+          <li data-wid="slide-1-list-item-6"><span class="bl-arrow" aria-hidden="true">›</span><span>Portfolio dashboard: active · needs-you · success % · governed %</span></li>
+        </ul>
+      </article>
+
+      <!-- PILLAR 3 — DIRECT -->
+      <!-- Sources: README "Direct, don't babysit"; DES-HOME-COMMAND-CENTER §3 NEEDS YOU queue; DES-VISION-001 §1.1 -->
+      <article class="pillar pillar-direct">
+        <div class="pillar-glyph" aria-hidden="true">⊕</div>
+        <h2 class="pillar-heading" data-wid="slide-1-heading-3">Direct</h2>
+        <div class="pillar-quote">"Direct many projects at once. Attention comes to you."</div>
+        <p class="pillar-body" data-wid="slide-1-paragraph-3">
+          Launch runs across repos and projects simultaneously. The command center surfaces only what needs a human — gates, failures, stalled agents — ranked by severity. Everything else works in the background.
+        </p>
+        <ul class="pillar-bullets">
+          <li data-wid="slide-1-list-item-7"><span class="bl-arrow" aria-hidden="true">›</span><span>Chat · Build · Document · Video modes per project</span></li>
+          <li data-wid="slide-1-list-item-8"><span class="bl-arrow" aria-hidden="true">›</span><span>Multi-model fan-out: ask your whole agent roster, compare answers side by side</span></li>
+          <li data-wid="slide-1-list-item-9"><span class="bl-arrow" aria-hidden="true">›</span><span>Cmd+K palette · desktop notifications when a run needs you</span></li>
+        </ul>
+      </article>
+
+    </div>
+  </section>
+
+</section><!-- end page 1 -->
+
+
+<!-- ============================================================
+     PAGE 2 — RUN FLOW + PROOF + CALL TO ACTION
+     ============================================================ -->
+<section class="page page-2" aria-label="Page 2 — Run Flow, Proof, and Call to Action" data-wid="section-3">
+
+  <!-- PAGE 2 HEADER -->
+  <header class="p2-header" data-wid="section-4">
+    <div class="p2-eyebrow">wicked-studio — governed AI coding runs</div>
+    <h2 class="p2-heading" data-wid="slide-2-heading-1">Intent to PR — governed end to end.</h2>
+    <p class="p2-sub" data-wid="slide-2-paragraph-1">The five phases every Build run follows, with human gates at each decision point.</p>
+  </header>
+
+  <!-- SECTION 3: RUN FLOW -->
+  <!-- Sources: REQ-001 Flow 1 (Intent), DES-COPY-001 S5 (Council), REQ-001 SC-S02/SC-S03 (Gates), README §Evidence, README §PR delivery -->
+  <section class="flow-section" aria-labelledby="flow-heading" data-wid="section-5">
+    <div class="flow-diagram" role="img" aria-label="Five-stage run flow: Intent to Council to Gates to Evidence to PR">
+
+      <div class="flow-node fn-intent">
+        <div class="flow-glyph" aria-hidden="true">⬤</div>
+        <div class="flow-label">Intent</div>
+        <div class="flow-status st-done">you act</div>
+      </div>
+
+      <div class="flow-connector" aria-hidden="true">──▶</div>
+
+      <div class="flow-node fn-council">
+        <div class="flow-glyph" aria-hidden="true">⬡</div>
+        <div class="flow-label">Council</div>
+        <div class="flow-status st-running">running</div>
+      </div>
+
+      <div class="flow-connector" aria-hidden="true">──▶</div>
+
+      <div class="flow-node fn-gates">
+        <div class="flow-glyph" aria-hidden="true">⊡</div>
+        <div class="flow-label">Gates</div>
+        <div class="flow-status st-gate">gate</div>
+      </div>
+
+      <div class="flow-connector" aria-hidden="true">──▶</div>
+
+      <div class="flow-node fn-evidence">
+        <div class="flow-glyph" aria-hidden="true">◎</div>
+        <div class="flow-label">Evidence</div>
+        <div class="flow-status st-proof">recorded</div>
+      </div>
+
+      <div class="flow-connector" aria-hidden="true">──▶</div>
+
+      <div class="flow-node fn-pr">
+        <div class="flow-glyph" aria-hidden="true">⊞</div>
+        <div class="flow-label">PR</div>
+        <div class="flow-status st-done">delivered</div>
+      </div>
+
+    </div>
+
+    <div class="flow-details">
+
+      <div class="flow-detail fn-intent">
+        <div class="fd-label">Intent</div>
+        <p class="fd-body" data-wid="slide-3-paragraph-1">Describe the goal and choose a workflow — ask, balanced, or autonomous. The run appears in the live timeline immediately. Studio calls <code>POST /api/v1/runs</code> and begins streaming events.</p>
+      </div>
+
+      <div class="flow-detail fn-council">
+        <div class="fd-label">Council</div>
+        <p class="fd-body" data-wid="slide-3-paragraph-2">The crew engine distributes work across the agent seats you selected — Claude Code, Codex, Antigravity, or others. Each agent runs headless; studio streams live output over WebSocket.</p>
+      </div>
+
+      <div class="flow-detail fn-gates">
+        <div class="fd-label">Gates</div>
+        <p class="fd-body" data-wid="slide-3-paragraph-3">When a phase completes, an independent evaluator grades it. A gate card surfaces within 2 s — the artifact, findings, and approve / steer / reject controls. The run advances within 3 s of your decision.</p>
+      </div>
+
+      <div class="flow-detail fn-evidence">
+        <div class="fd-label">Evidence</div>
+        <p class="fd-body" data-wid="slide-3-paragraph-4">Each completed phase appends to the evidence bundle: transcript, diff, gate outcome. The bundle is downloadable at any point — read-only; studio never writes or modifies the evidence store.</p>
+      </div>
+
+      <div class="flow-detail fn-pr">
+        <div class="fd-label">PR</div>
+        <p class="fd-body" data-wid="slide-3-paragraph-5">With a repo bound, the run delivers its output as a pull request. The evidence bundle travels with it — the audit trail for every decision made during the run.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SECTION 4: PROOF -->
+  <!-- Sources: REQ-001 SC-S02/SC-S03, REQ-003 invariants 1 & 4, README "See the evidence", README "The evaluator is never the creator", REQ-001 §8 GET /evidence, REQ-001 §2 audit -->
+  <section class="proof-section" aria-labelledby="proof-heading" data-wid="section-6">
+
+    <h2 class="proof-heading" id="proof-heading" data-wid="slide-4-heading-1">Proof, not assertion.</h2>
+    <div class="proof-sub">Verifiable behaviour grounded in product specification — not marketing copy.</div>
+
+    <div class="proof-grid">
+
+      <div>
+        <div class="proof-col-heading">The evidence bundle</div>
+        <p class="proof-tagline" data-wid="slide-4-paragraph-1">"Every run leaves a record you can hand to an auditor."</p>
+        <ul class="proof-items">
+          <li data-wid="slide-4-list-item-1">
+            <span class="pb" aria-hidden="true">›</span>
+            <span><span class="il">Per-step transcripts</span> — the full reasoning trail for each completed phase</span>
+          </li>
+          <li data-wid="slide-4-list-item-2">
+            <span class="pb" aria-hidden="true">›</span>
+            <span><span class="il">Diff viewer</span> — what changed, file by file, in worktree context</span>
+          </li>
+          <li data-wid="slide-4-list-item-3">
+            <span class="pb" aria-hidden="true">›</span>
+            <span><span class="il">One-click download</span> — the complete bundle as a portable artifact via <code>GET /api/v1/runs/:id/evidence</code></span>
+          </li>
+          <li data-wid="slide-4-list-item-4">
+            <span class="pb" aria-hidden="true">›</span>
+            <span><span class="il">Decisions ledger</span> — gate outcomes, steer text, and the audit trail via <code>/api/v1/audit</code></span>
+          </li>
+          <li data-wid="slide-4-list-item-5">
+            <span class="pb" aria-hidden="true">›</span>
+            <span><span class="il">Read-only in studio</span> — studio never writes or modifies the evidence store</span>
+          </li>
+        </ul>
+      </div>
+
+      <div class="proof-divider" aria-hidden="true"></div>
+
+      <div>
+        <div class="proof-col-heading">The acceptance gate</div>
+        <p class="proof-tagline" data-wid="slide-4-paragraph-2">"The system that grades work never wrote it."</p>
+        <ul class="proof-items">
+          <li data-wid="slide-4-list-item-6">
+            <span class="pb-amber" aria-hidden="true">›</span>
+            <span><span class="il">Gate arrival</span> — within 2 s of the <code>wicked.crew.gate.awaiting_human</code> WebSocket event<span class="spec-badge">SC-S02</span></span>
+          </li>
+          <li data-wid="slide-4-list-item-7">
+            <span class="pb-amber" aria-hidden="true">›</span>
+            <span><span class="il">Gate advance</span> — run advances in crew within 3 s of operator decision<span class="spec-badge">SC-S03</span></span>
+          </li>
+          <li data-wid="slide-4-list-item-8">
+            <span class="pb-amber" aria-hidden="true">›</span>
+            <span><span class="il">Deny-dominance</span> — the reject control is always reachable regardless of run state</span>
+          </li>
+          <li data-wid="slide-4-list-item-9">
+            <span class="pb-amber" aria-hidden="true">›</span>
+            <span><span class="il">Governance findings</span> — pre-gate guidance notes give context for the decision, not a binary prompt</span>
+          </li>
+          <li data-wid="slide-4-list-item-10">
+            <span class="pb-amber" aria-hidden="true">›</span>
+            <span><span class="il">Portfolio visibility</span> — governed % KPI visible in the command-center dashboard at a glance</span>
+          </li>
+        </ul>
+
+        <!-- PLACEHOLDER: No customer testimonials or third-party audit results exist in the wicked-studio repository.
+             This section would be strengthened by a quote from an engineering leader who has used wicked-studio
+             in production, or results from a third-party governance audit confirming the 2 s / 3 s latency
+             specs and audit-trail completeness claim from direct operational experience. -->
+        <div class="placeholder-note">
+          [PLACEHOLDER: Customer validation] — A quote from an engineering leader who has run wicked-studio in production would strengthen this section. No such material is available in the product repository. The 2 s / 3 s latency specs above are grounded in REQ-001 SC-S02/SC-S03.
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- SECTION 5: CALL TO ACTION -->
+  <!-- Sources: README "npx wicked-crew serve"; README "npx wicked-installer"; REQ-001 §9 Definition of Done (ws.wickedagile.com); README Requirements (Node ≥ 22, npm ≥ 10, modern browser) -->
+  <section class="cta-section" aria-labelledby="cta-heading" data-wid="section-7">
+
+    <h2 class="cta-heading" id="cta-heading" data-wid="slide-5-heading-1">Start governing your AI coding runs today.</h2>
+    <p class="cta-intro" data-wid="slide-5-paragraph-1">One command. No separate setup. Studio, the engine, and the API on a single port.</p>
+
+    <div class="cta-paths">
+
+      <div class="cta-path">
+        <div class="cta-path-num">01 / Try it now</div>
+        <div class="cta-path-heading">One command</div>
+        <div class="cta-cmd-block"><code>npx wicked-crew serve</code></div>
+        <p class="cta-path-desc" data-wid="slide-5-paragraph-2">Open the URL it prints. Studio, the engine, and the API run on one port. No additional configuration required.</p>
+      </div>
+
+      <div class="cta-path">
+        <div class="cta-path-num">02 / Guided setup</div>
+        <div class="cta-path-heading">Full installer</div>
+        <div class="cta-cmd-block"><code>npx wicked-installer</code></div>
+        <p class="cta-path-desc" data-wid="slide-5-paragraph-3">Installs the full wicked-* family and wires your existing coding-agent CLIs — Claude Code, Codex, Antigravity, and more.</p>
+      </div>
+
+      <div class="cta-path">
+        <div class="cta-path-num">03 / Live instance</div>
+        <div class="cta-path-heading">Production demo</div>
+        <div class="cta-cmd-block url-block"><code>ws.wickedagile.com</code></div>
+        <p class="cta-path-desc" data-wid="slide-5-paragraph-4">The live wicked-studio instance. See governed runs, the command center, and the evidence browser in action.</p>
+      </div>
+
+    </div>
+
+    <div class="cta-footer">
+      <p class="cta-closing" data-wid="slide-5-paragraph-5"><em>Your agents do the work. You govern it. Every decision has evidence.</em></p>
+      <div class="cta-reqs">
+        Node.js ≥ 22 &nbsp;·&nbsp; npm ≥ 10<br>
+        Chrome · Edge · Firefox · Safari on macOS<br>
+        MIT licensed &nbsp;·&nbsp; Ships inside wicked-crew
+      </div>
+    </div>
+
+  </section>
+
+</section><!-- end page 2 -->
+
+
+

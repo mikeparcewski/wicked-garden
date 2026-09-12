@@ -145,6 +145,14 @@
       {
         "file": "skills/qe/refs/campaign-grading.md",
         "text": "the `wicked-garden-qe-gate` <!-- not-a-skill --> identity and `wicked-garden-qe` (a real skill)"
+      },
+      {
+        "file": "skills/draft/SKILL.md",
+        "text": "```bash\nwicked-garden run scripts/draft/self_check.py <out.html> --pages 2 --exact --render --repo <snapshot-dir>\n```"
+      },
+      {
+        "file": "skills/draft/refs/self-check.md",
+        "text": "`scripts/draft/contrast_check.py` (re-derives the readable floor — a file mention, not a command)"
       }
     ],
     "trips": [
@@ -202,6 +210,16 @@
         "file": "skills/qe/refs/campaign-grading.md",
         "text": "`wicked-garden-qe-gate` is the evaluator <!-- not-a-skill -->",
         "token": "unresolved-skill-name"
+      },
+      {
+        "file": "skills/draft/SKILL.md",
+        "text": "run `scripts/draft/self_check.py out.html --pages 2` before done",
+        "token": "cwd-script"
+      },
+      {
+        "file": "skills/draft/refs/self-check.md",
+        "text": "```bash\npython3 \"${CLAUDE_PLUGIN_ROOT}/scripts/draft/self_check.py\" out.html\n```",
+        "token": "plugin-root"
       }
     ]
   }
