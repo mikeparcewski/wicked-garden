@@ -13,8 +13,10 @@ only a render knows. This module therefore counts pages from, in order of author
    as unverified, never as a pass.
 
 Exit codes: 0 = the rendered count meets the budget; 1 = it exceeds the budget (or misses an
-``--exact`` budget); 3 = nothing could render and the estimate is all there is — say so in the
-deliverable's notes instead of claiming the count; 2 = usage / unreadable input. Stdlib only.
+``--exact`` budget) — a structural estimate that already exceeds it is a 1 too; 3 = nothing could
+render and the estimate is all there is — say so in the deliverable's notes instead of claiming the
+count; 2 = usage / unreadable input (a ``--pdf`` path that does not exist is an error, never a
+silent render). Stdlib only.
 
 CLI:
     page_count.py <file.html|file.pdf> [--pdf out.pdf] [--budget N] [--exact] [--render] [--json]
@@ -150,7 +152,10 @@ def render_pdf(html_path: str | Path, out_pdf: str | Path, chrome: str | None = 
     if chrome is None:
         return False, "no Chrome/Chromium/Edge binary found (set WICKED_CHROME to one to enable rendering)"
     src = Path(html_path).resolve()
+    # Offline on purpose: a self-contained deliverable needs no network, and an HTML that reaches
+    # for web fonts/CSS must not be quietly completed by the counter (L7).
     cmd = [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-pdf-header-footer",
+           "--disable-extensions", "--host-resolver-rules=MAP * ~NOTFOUND",
            "--run-all-compositor-stages-before-draw", "--virtual-time-budget=5000",
            f"--print-to-pdf={Path(out_pdf).resolve()}", src.as_uri()]
     try:
@@ -176,21 +181,34 @@ def estimate_html_pages(html: str) -> dict:
     see overflow — a wrapper taller than the sheet still spills onto another page."""
     doc = parse(html)
     css = doc.inline_style_text()
-    breaking_selectors: list[str] = []
+    # which classes force a break, and on which side (`after` needs content after the element to
+    # open a new page; `before` needs content before it) — L8: a trailing break-after is not a page
+    class_sides: dict[str, set[str]] = {}
     for sel, body in _RULE_RE.findall(re.sub(r"/\*.*?\*/", " ", css, flags=re.DOTALL)):
-        if _BREAK_PROP_RE.search(body):
-            breaking_selectors.extend(s.strip() for s in sel.split(",") if s.strip())
-    class_names = {s.lstrip(".") for s in breaking_selectors if s.startswith(".") and "." not in s[1:] and " " not in s}
-    breaks = 0
+        sides = {m.group(1).lower() for m in _BREAK_PROP_RE.finditer(body)}
+        if not sides:
+            continue
+        for s in (x.strip() for x in sel.split(",")):
+            if s.startswith(".") and "." not in s[1:] and " " not in s:
+                class_sides.setdefault(s[1:], set()).update(sides)
+    elements = list(doc.elements())
     wrappers = 0
-    for el in doc.elements():
+    breaks = 0
+    for idx, el in enumerate(elements):
         classes = set(el.classes())
-        if classes & class_names:
-            breaks += 1
-        elif _BREAK_PROP_RE.search(el.attrs.get("style", "")):
-            breaks += 1
         if "page" in classes or el.attrs.get("data-page") is not None:
             wrappers += 1
+        sides: set[str] = set()
+        for c in classes & set(class_sides):
+            sides |= class_sides[c]
+        sides |= {m.group(1).lower() for m in _BREAK_PROP_RE.finditer(el.attrs.get("style", ""))}
+        if not sides:
+            continue
+        inside = {id(n) for n in el.walk()}
+        content_after = any(id(n) not in inside and n.all_text() for n in elements[idx + 1:])
+        content_before = any(id(n) not in inside and n.direct_text() for n in elements[:idx])
+        if ("after" in sides and content_after) or ("before" in sides and content_before):
+            breaks += 1
     at_page = re.findall(r"@page[^{]*\{[^}]*\}", css)
     size = None
     for block in at_page:
@@ -218,7 +236,10 @@ def run(target: str, pdf: str | None = None, budget: int | None = None, exact: b
     elif pdf and Path(pdf).exists():
         report["pages"], report["source"], report["verified"] = count_pdf_pages(pdf), "pdf", True
         report["pdf"] = pdf
-    elif render or pdf:
+    elif pdf and not render:
+        # L9: a --pdf that does not exist is an error, never a silent render into that path
+        raise OSError(f"--pdf {pdf}: no such file (pass --render to print the HTML there, or point at the exported PDF)")
+    elif render:
         with tempfile.TemporaryDirectory(prefix="wg-draft-pages-") as tmp:
             out = Path(pdf) if pdf else Path(tmp) / "render.pdf"
             ok, detail = render_pdf(path, out, chrome=chrome)
@@ -246,7 +267,7 @@ def run(target: str, pdf: str | None = None, budget: int | None = None, exact: b
         report["ok"] = True if report["verified"] else None
     summary = f"pages: {report['pages']} ({report['source']})"
     if budget is not None:
-        summary += f" vs budget {'= ' if exact else '≤ '}{budget}"
+        summary += f" vs budget {'= ' if exact else '<= '}{budget}"
         if report["pages"] is not None:
             summary += " — " + ("within" if report.get("within_budget") else "EXCEEDED")
     if not report["verified"]:
@@ -255,11 +276,23 @@ def run(target: str, pdf: str | None = None, budget: int | None = None, exact: b
     return report
 
 
+def safe_console() -> None:
+    """M1 — never crash on a code-page console (Windows piped stdout is cp1252 on Python < 3.15)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("target", help="the HTML deliverable (or an exported PDF)")
-    ap.add_argument("--pdf", help="an exported PDF of the deliverable (authoritative when present); "
-                                  "with --render, where to write the rendered PDF")
+    ap.add_argument("--pdf", help="an exported PDF of the deliverable (authoritative when present; a "
+                                  "missing path is an error); with --render, where to write the rendered PDF")
     ap.add_argument("--budget", type=int, help="the page budget from the brief")
     ap.add_argument("--exact", action="store_true", help="the budget must be met exactly, not just not exceeded")
     ap.add_argument("--render", action="store_true", help="print the HTML with headless Chrome when no PDF is given")
@@ -276,10 +309,11 @@ def main(argv: list[str] | None = None) -> int:
         print(report["summary"])
         for note in report["notes"]:
             print(f"  note: {note}")
+    # L8: an estimate that ALREADY exceeds the budget is a failure, not merely unverified
+    if args.budget is not None and report.get("within_budget") is False:
+        return 1
     if not report["verified"]:
         return 3
-    if args.budget is not None and not report.get("within_budget", False):
-        return 1
     return 0
 
 

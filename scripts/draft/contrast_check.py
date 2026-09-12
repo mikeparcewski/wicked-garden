@@ -21,8 +21,14 @@ rare and worth a look. Stdlib only.
 
 CLI:
     contrast_check.py <file.html> [--min 4.5] [--min-font-pt 7|0] [--mode print|screen|both] [--json]
-Exit: 0 = floor met, 1 = a text/background pair below the floor (or text under the size floor),
-2 = usage / unreadable input.
+Exit: 0 = floor met and every pair evaluated; 1 = a text/background pair below the floor (or text
+under the size floor); 3 = no pair failed but at least one pair is UNVERIFIED (an unsupported colour
+function such as oklch()/color-mix(), an image background with no colour fallback, or a transform
+this checker cannot evaluate) — say so in the notes, never round it up; 2 = usage / unreadable input.
+
+Shrink-to-fit is judged, not rewarded: `zoom`, `transform: scale()` and `scale:` on any ancestor
+multiply into the EFFECTIVE text size the 7pt floor is applied to (a page budget is met by cutting
+content, never by scaling the page).
 """
 
 from __future__ import annotations
@@ -242,7 +248,10 @@ _CLASS_RE = re.compile(r"\.([\w-]+)")
 _ATTR_RE = re.compile(r"\[([\w-]+)(?:([~|^$*]?=)\"?'?([^\]\"']*)\"?'?)?\]")
 _PSEUDO_RE = re.compile(r"::?[\w-]+(?:\([^)]*\))?")
 _TRACKED = {"color", "background", "background-color", "background-image", "opacity", "font-size",
-            "font-weight", "font", "display", "visibility"}
+            "font-weight", "font", "display", "visibility", "zoom", "transform", "scale"}
+# colour functions this checker does not evaluate — a value using one is UNVERIFIED, never inherited
+_UNSUPPORTED_COLOR_FN = re.compile(r"\b(oklch|oklab|lab|lch|color-mix|color|light-dark|hwb|device-cmyk)\s*\(", re.IGNORECASE)
+_IMAGE_FN = re.compile(r"\b(url|image-set|image|element|cross-fade|paint)\s*\(", re.IGNORECASE)
 
 
 @dataclass
@@ -257,6 +266,9 @@ class Rule:
 @dataclass
 class Sheet:
     rules: list[Rule] = field(default_factory=list)
+    # colour-declaring rules whose selector this matcher cannot evaluate (:nth-child, :is, …) —
+    # reported as a note so a skipped rule is never a silent pass
+    skipped_color_selectors: list[str] = field(default_factory=list)
 
 
 def _split_top(text: str, sep: str) -> list[str]:
@@ -301,16 +313,25 @@ def parse_declarations(block: str) -> dict[str, tuple[str, bool]]:
 
 
 def _media_applies(query: str, mode: str) -> bool:
-    q = query.lower()
-    has_print, has_screen = "print" in q, "screen" in q
-    if "not" in q.split():
-        # `not print` / `not screen`: keep it simple and conservative — apply.
-        return True
-    if has_print and not has_screen:
-        return mode == "print"
-    if has_screen and not has_print:
-        return mode == "screen"
-    return True  # `all`, feature-only queries, or both media named
+    """Does an `@media <query>` block apply in `mode` (print|screen)? Each comma-separated
+    query is judged on its media type: `print`, `screen`, `not print`, `not screen`, `only
+    screen`; `all` and feature-only queries (`(min-width: …)`) apply in both modes."""
+    for part in query.lower().split(","):
+        tokens = [t for t in re.split(r"[\s()]+", part.strip()) if t]
+        if not tokens:
+            continue
+        negate = False
+        if tokens[0] == "not":
+            negate, tokens = True, tokens[1:]
+        elif tokens[0] == "only":
+            tokens = tokens[1:]
+        media = tokens[0] if tokens and tokens[0] in ("print", "screen", "all") else "all"
+        applies = media == "all" or media == mode
+        if negate:
+            applies = not applies
+        if applies:
+            return True
+    return False
 
 
 def _iter_blocks(css: str) -> Iterable[tuple[str, str]]:
@@ -416,9 +437,12 @@ def parse_css(css: str, mode: str, start_order: int = 0) -> Sheet:
             decls = parse_declarations(body)
             if not decls:
                 continue
+            declares_color = any(p in decls for p in ("color", "background", "background-color", "background-image"))
             for selector in _split_top(prelude, ","):
                 compiled = _compile_selector(selector)
                 if compiled is None:
+                    if declares_color:
+                        sheet.skipped_color_selectors.append(selector.strip())
                     continue
                 parts, spec = compiled
                 sheet.rules.append(Rule(selector.strip(), decls, order, spec, parts))
@@ -518,6 +542,72 @@ class Computed:
     bold: bool
     hidden: bool
     custom: dict[str, str]
+    # H1 — the cumulative `zoom` / `transform: scale()` / `scale:` factor from the root down;
+    # the size floor is judged on font_px × scale (shrink-to-fit is not a way to meet a page budget)
+    scale: float = 1.0
+    scale_unknown: str | None = None   # an ancestor transform this checker cannot evaluate
+    color_unknown: str | None = None   # an unsupported colour function (inherits like `color`)
+    bg_unknown: str | None = None      # this element paints an image / unsupported colour, no fallback
+
+
+_ZOOM_RE = re.compile(rf"^({_NUM})(%?)$")
+_TRANSFORM_FN_RE = re.compile(r"([a-zA-Z0-9]+)\(([^)]*)\)")
+_NO_SCALE_FNS = {"translate", "translatex", "translatey", "translatez", "translate3d", "rotate", "rotatex",
+                 "rotatey", "rotatez", "rotate3d", "skew", "skewx", "skewy", "perspective"}
+
+
+def _nums(body: str) -> list[float]:
+    return [float(x) for x in re.findall(_NUM, body)]
+
+
+def scale_factor(zoom: str | None, transform: str | None, scale_prop: str | None) -> tuple[float, str | None]:
+    """The text-size factor an element applies to itself and its descendants, from `zoom`,
+    `transform` and the `scale` property. Returns (factor, unknown) — `unknown` names a value
+    that could not be evaluated (the size of that subtree is then UNVERIFIED)."""
+    factor = 1.0
+    unknown: str | None = None
+    if zoom:
+        z = zoom.strip().lower()
+        if z in ("normal", "reset", "1", "100%", ""):
+            pass
+        else:
+            m = _ZOOM_RE.match(z)
+            if m:
+                factor *= float(m.group(1)) / (100.0 if m.group(2) else 1.0)
+            else:
+                unknown = f"zoom: {zoom.strip()}"
+    if scale_prop:
+        s = scale_prop.strip().lower()
+        if s not in ("none", ""):
+            vals = _nums(s)
+            if vals:
+                factor *= min(vals[:2])
+            else:
+                unknown = unknown or f"scale: {scale_prop.strip()}"
+    if transform:
+        t = transform.strip().lower()
+        if t not in ("none", ""):
+            consumed = 0
+            for m in _TRANSFORM_FN_RE.finditer(t):
+                fn, body = m.group(1), m.group(2)
+                consumed += len(m.group(0))
+                vals = _nums(body)
+                if fn in _NO_SCALE_FNS:
+                    continue
+                if fn in ("scale", "scale3d") and vals:
+                    factor *= min(vals[:2])
+                elif fn in ("scalex", "scaley", "scalez") and vals:
+                    factor *= vals[0] if fn != "scalez" else 1.0
+                elif fn == "matrix" and len(vals) == 6:
+                    a, b, c, d = vals[0], vals[1], vals[2], vals[3]
+                    factor *= min(math.hypot(a, b), math.hypot(c, d))
+                elif fn == "matrix3d" and len(vals) == 16:
+                    factor *= min(math.hypot(vals[0], vals[1], vals[2]), math.hypot(vals[4], vals[5], vals[6]))
+                else:
+                    unknown = unknown or f"transform: {transform.strip()}"
+            if consumed == 0:
+                unknown = unknown or f"transform: {transform.strip()}"
+    return factor, unknown
 
 
 _VAR_RE = re.compile(r"var\(\s*(--[\w-]+)\s*(?:,\s*([^)]*))?\)")
@@ -583,7 +673,8 @@ def _font_shorthand_parts(value: str) -> tuple[str | None, str | None]:
     return size, weight
 
 
-ROOT_KEY = 0  # `cascade()` stores the document-level (html/:root) Computed under this key
+ROOT_KEY = 0   # `cascade()` stores the document-level (html/:root) Computed under this key
+SHEET_KEY = -1  # …and the parsed Sheet (skipped-selector notes) under this one
 
 
 def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Computed]:
@@ -613,7 +704,8 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
         inline = node.attrs.get("style")
         if inline:
             for prop, (val, imp) in parse_declarations(inline).items():
-                key = (1 if imp else 0, 1, 0, 0)
+                # inline beats every non-important rule; inline !important beats every rule
+                key = (2, 0, 0, 0) if imp else (0, 10**6, 0, 0)
                 cur = winners.get(prop)
                 if cur is None or key >= cur[0]:
                     winners[prop] = (key, 10**9, val)
@@ -623,6 +715,10 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
         for child in node.children:
             if child.tag.startswith("#") or not child.tag:
                 continue
+            if child.tag == "html":
+                # a REAL <html> element re-declares the document level itself — start it from the
+                # blank defaults, or `html{zoom:80%}` / `html{font-size:50%}` would apply twice
+                parent = default
             decl = declared(child)
             custom = dict(parent.custom)
             for prop, val in decl.items():
@@ -652,17 +748,22 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
             elif child.tag == "h3" and "font-size" not in res and "font" not in res:
                 font_px, bold = 1.17 * root_px, True
 
-            # colour (inherits)
+            # colour (inherits) — an unsupported colour function is UNVERIFIED, never a silent inherit
             color = parent.color
+            color_unknown = parent.color_unknown
             if "color" in res:
                 cv = res["color"].strip().lower()
                 if cv not in ("inherit", "currentcolor", ""):
                     parsed = parse_color(cv)
                     if parsed is not None:
-                        color = parsed
+                        color, color_unknown = parsed, None
+                    elif cv not in ("initial", "unset", "revert"):
+                        color_unknown = f"color: {res['color'].strip()}"
 
-            # background (does not inherit)
+            # background (does not inherit); an image or unsupported function with no colour
+            # fallback makes the pair UNVERIFIED — it is never reported as "on white"
             backgrounds: list[RGBA] = []
+            bg_unknown: str | None = None
             for prop in ("background", "background-color", "background-image"):
                 if prop in res:
                     found = find_colors(res[prop])
@@ -670,7 +771,16 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
                         backgrounds = [found[0]]  # longhand overrides shorthand's colour
                     else:
                         backgrounds.extend(found)
+                    if not found and (_IMAGE_FN.search(res[prop]) or _UNSUPPORTED_COLOR_FN.search(res[prop])):
+                        bg_unknown = f"{prop}: {res[prop].strip()[:80]}"
             backgrounds = [c for c in backgrounds if c[3] > 0]
+            if backgrounds:
+                bg_unknown = None  # a colour fallback is present — judged on it
+
+            # H1 — zoom / transform / scale shrink the text this element renders
+            own_factor, scale_unknown = scale_factor(res.get("zoom"), res.get("transform"), res.get("scale"))
+            scale = parent.scale * own_factor
+            scale_unknown = parent.scale_unknown or scale_unknown
 
             opacity = parent.opacity
             if "opacity" in res:
@@ -682,7 +792,8 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
                 or res.get("visibility", "").strip().lower() in ("hidden", "collapse")
 
             comp = Computed(color=color, backgrounds=backgrounds, opacity=opacity, font_px=font_px,
-                            bold=bold, hidden=hidden, custom=custom)
+                            bold=bold, hidden=hidden, custom=custom, scale=scale,
+                            scale_unknown=scale_unknown, color_unknown=color_unknown, bg_unknown=bg_unknown)
             computed[id(child)] = comp
             visit(child, comp)
 
@@ -690,6 +801,14 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
     # both), so tokens resolve even when the deliverable has no <html> element of its own.
     synthetic_html = Node(tag="html", parent=doc.root)
     root_decl = declared(synthetic_html)
+    if not doc.find_all("body"):
+        # No <body> element either (the recon fixture: style, meta, title, style, section…) — a
+        # browser implies one around the content, so `body{…}` rules (zoom, colour, background,
+        # font-size) must land on the document root as well; the inner element wins (H1: the
+        # reviewer's `body{zoom:.62}` bypass lived exactly here).
+        synthetic_body = Node(tag="body", parent=synthetic_html)
+        synthetic_html.children.append(synthetic_body)
+        root_decl = {**root_decl, **declared(synthetic_body)}
     root_custom = {p: v for p, v in root_decl.items() if p.startswith("--")}
     root_res = {p: resolve_vars(v, root_custom) for p, v in root_decl.items() if not p.startswith("--")}
     root_color = default.color
@@ -704,9 +823,12 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
     root_font = default.font_px
     if "font-size" in root_res:
         root_font = _font_px(root_res["font-size"], root_px, root_px) or root_font
+    root_scale, root_scale_unknown = scale_factor(root_res.get("zoom"), root_res.get("transform"), root_res.get("scale"))
     root = Computed(color=root_color, backgrounds=root_bgs, opacity=1.0, font_px=root_font,
-                    bold=False, hidden=False, custom=root_custom)
+                    bold=False, hidden=False, custom=root_custom, scale=root_scale,
+                    scale_unknown=root_scale_unknown)
     computed[ROOT_KEY] = root
+    computed[SHEET_KEY] = sheet  # type: ignore[assignment]  — the parsed sheet, for the report's notes
     # a real <html> element (when present) is visited as a child of doc.root and re-declares
     # nothing new; every other top-level element inherits from `root`.
     visit(doc.root, root)
@@ -717,7 +839,7 @@ def cascade(doc: Document, mode: str, root_px: float = 16.0) -> dict[int, Comput
 
 @dataclass
 class Finding:
-    kind: str  # "contrast" | "size"
+    kind: str  # "contrast" | "size" | "unknown"
     path: str
     text: str
     fg: str
@@ -726,22 +848,35 @@ class Finding:
     required: float
     font_pt: float
     mode: str
+    scale: float = 1.0   # the cumulative zoom/scale factor applied to this text (1.0 = none)
+    detail: str = ""     # for `unknown`: what could not be evaluated and what to do
 
     def as_dict(self) -> dict:
-        return {"kind": self.kind, "path": self.path, "text": self.text, "fg": self.fg, "bg": self.bg,
-                "ratio": round(self.ratio, 2), "required": self.required,
-                "font_pt": round(self.font_pt, 1), "mode": self.mode}
+        d = {"kind": self.kind, "path": self.path, "text": self.text, "fg": self.fg, "bg": self.bg,
+             "ratio": round(self.ratio, 2), "required": self.required,
+             "font_pt": round(self.font_pt, 1), "mode": self.mode}
+        if abs(self.scale - 1.0) > 1e-9:
+            d["scale"] = round(self.scale, 3)
+        if self.detail:
+            d["detail"] = self.detail
+        return d
 
 
-def _effective_backgrounds(node: Node, computed: dict[int, Computed]) -> list[RGBA]:
+def _effective_backgrounds(node: Node, computed: dict[int, Computed]) -> tuple[list[RGBA], str | None]:
     """Candidate opaque backgrounds beneath `node`'s text: the nearest ancestor-or-self that
-    paints a background, each of its colours composited over what lies beneath it. Root = white."""
+    paints a background, each of its colours composited over what lies beneath it. Root = white.
+    Returns (backgrounds, unknown): `unknown` names an image/unsupported background met before
+    any colour — the pair is then UNVERIFIED rather than judged against white."""
     chain = [node, *node.ancestors()]
     layers: list[list[RGBA]] = []
     opaque_found = False
     for n in chain:
         comp = computed.get(id(n))
-        if comp and comp.backgrounds:
+        if comp is None:
+            continue
+        if comp.bg_unknown and not comp.backgrounds:
+            return [], comp.bg_unknown
+        if comp.backgrounds:
             layers.append(comp.backgrounds)
             if all(c[3] >= 1.0 for c in comp.backgrounds):
                 opaque_found = True
@@ -757,14 +892,21 @@ def _effective_backgrounds(node: Node, computed: dict[int, Computed]) -> list[RG
             for b in base:
                 nxt.append(composite(c, b))
         base = nxt[:16]  # bound the combinatorics for gradient-on-gradient stacks
-    return base
+    return base, None
 
 
 def check_document(html: str, min_ratio: float = 4.5, min_font_pt: float = 7.0,
-                   mode: str = "print") -> tuple[list[Finding], int]:
-    """Judge every text-bearing element. Returns (findings, elements_checked)."""
+                   mode: str = "print", notes: list[str] | None = None) -> tuple[list[Finding], int]:
+    """Judge every text-bearing element. Returns (findings, elements_checked); `unknown`
+    findings mark pairs this checker could not evaluate (UNVERIFIED, never PASS). Report-level
+    notes (rules skipped for unsupported selectors) are appended to `notes` when given."""
     doc = parse(html)
     computed = cascade(doc, mode)
+    sheet = computed.get(SHEET_KEY)
+    if notes is not None and isinstance(sheet, Sheet) and sheet.skipped_color_selectors:
+        sample = ", ".join(sorted(set(sheet.skipped_color_selectors))[:5])
+        notes.append(f"{len(sheet.skipped_color_selectors)} colour-declaring rule(s) use selectors this "
+                     f"checker does not evaluate and were NOT judged ({sample}) — verify those elements by hand")
     findings: list[Finding] = []
     seen: set[tuple] = set()
     checked = 0
@@ -776,43 +918,92 @@ def check_document(html: str, min_ratio: float = 4.5, min_font_pt: float = 7.0,
         if not re.search(r"[A-Za-z0-9]", text):
             continue  # separators / glyph-only spans carry no words to read
         checked += 1
-        fg = (comp.color[0], comp.color[1], comp.color[2], comp.color[3] * comp.opacity)
-        large = comp.font_px >= 24 or (comp.font_px >= 18.66 and comp.bold)
+        eff_px = comp.font_px * comp.scale  # H1: the size the reader gets, after zoom/scale
+        font_pt = eff_px * 0.75
+        large = eff_px >= 24 or (eff_px >= 18.66 and comp.bold)
         required = 3.0 if large else min_ratio
-        font_pt = comp.font_px * 0.75
+        path = el.path()
+
+        def add(kind: str, fg_hex: str, bg_hex: str, ratio: float, req: float, detail: str = "") -> None:
+            sig = (kind, path, fg_hex, bg_hex, round(font_pt, 1), detail[:40])
+            if sig in seen:
+                return
+            seen.add(sig)
+            findings.append(Finding(kind, path, text[:80], fg_hex, bg_hex, ratio, req, font_pt, mode,
+                                    comp.scale, detail))
+
+        # size floor on the EFFECTIVE size (zoom / scale included)
+        if comp.scale_unknown:
+            add("unknown", "?", "?", 0.0, min_font_pt,
+                f"text size UNVERIFIED — an ancestor applies `{comp.scale_unknown}`, which this checker "
+                f"cannot evaluate; remove it (a page budget is met by cutting content, never by scaling)")
+        elif min_font_pt > 0 and font_pt + 1e-9 < min_font_pt:
+            add("size", "?", "?", 0.0, min_font_pt)
+
+        # contrast — unsupported colour / image background → UNVERIFIED, never judged as inherited/white
+        if comp.color_unknown:
+            add("unknown", "?", "?", 0.0, required,
+                f"text colour UNVERIFIED — `{comp.color_unknown}` is not evaluated by this checker; "
+                f"write it as hex/rgb()/hsl() or verify the pair by hand")
+            continue
+        bgs, bg_unknown = _effective_backgrounds(el, computed)
+        if bg_unknown is not None:
+            add("unknown", to_hex(comp.color), "?", 0.0, required,
+                f"background UNVERIFIED — `{bg_unknown}` paints an image or an unsupported colour with no "
+                f"fallback; add an opaque `background-color` fallback so the pair can be judged")
+            continue
+        fg = (comp.color[0], comp.color[1], comp.color[2], comp.color[3] * comp.opacity)
         worst: tuple[float, RGBA, RGBA] | None = None
-        for bg in _effective_backgrounds(el, computed):
+        for bg in bgs:
             fgc = composite(fg, bg)
             ratio = contrast_ratio(fgc, bg)
             if worst is None or ratio < worst[0]:
                 worst = (ratio, fgc, bg)
         assert worst is not None
         ratio, fgc, bg = worst
-        sig = (el.path(), to_hex(fgc), to_hex(bg), round(font_pt, 1))
+        # backfill the colours on this element's size finding for a readable report
+        for f in findings:
+            if f.kind == "size" and f.path == path and f.fg == "?":
+                f.fg, f.bg, f.ratio = to_hex(fgc), to_hex(bg), ratio
         if ratio + 1e-9 < required:
-            if ("contrast", *sig) not in seen:
-                seen.add(("contrast", *sig))
-                findings.append(Finding("contrast", el.path(), text[:80], to_hex(fgc), to_hex(bg),
-                                        ratio, required, font_pt, mode))
-        if min_font_pt > 0 and font_pt + 1e-9 < min_font_pt:
-            if ("size", *sig) not in seen:
-                seen.add(("size", *sig))
-                findings.append(Finding("size", el.path(), text[:80], to_hex(fgc), to_hex(bg),
-                                        ratio, min_font_pt, font_pt, mode))
+            add("contrast", to_hex(fgc), to_hex(bg), ratio, required)
     return findings, checked
 
 
 def run(path: str, min_ratio: float = 4.5, min_font_pt: float = 7.0, mode: str = "print") -> dict:
     html = Path(path).read_text(encoding="utf-8", errors="replace")
     modes = ["print", "screen"] if mode == "both" else [mode]
-    findings: list[Finding] = []
+    merged: dict[tuple, Finding] = {}
+    notes: list[str] = []
     checked = 0
     for m in modes:
-        f, c = check_document(html, min_ratio, min_font_pt, m)
-        findings.extend(f)
+        f, c = check_document(html, min_ratio, min_font_pt, m, notes)
         checked = max(checked, c)
+        for x in f:  # L1: a pair failing in both media is ONE finding, tagged with both modes
+            key = (x.kind, x.path, x.fg, x.bg, round(x.font_pt, 1), x.detail[:40])
+            if key in merged:
+                merged[key].mode = merged[key].mode + "+" + x.mode if x.mode not in merged[key].mode else merged[key].mode
+            else:
+                merged[key] = x
+    findings = list(merged.values())
+    notes = list(dict.fromkeys(notes))
     contrast = [f for f in findings if f.kind == "contrast"]
     size = [f for f in findings if f.kind == "size"]
+    unknown = [f for f in findings if f.kind == "unknown"]
+    failed = bool(contrast or size)
+    summary = f"contrast: {checked} text elements checked in {mode} mode — "
+    if failed:
+        summary += f"{len(contrast)} below {min_ratio}:1 (3:1 for large text)"
+        if min_font_pt > 0:
+            summary += f", {len(size)} under {min_font_pt}pt"
+        if unknown:
+            summary += f", {len(unknown)} UNVERIFIED"
+    elif unknown:
+        summary += f"no pair below the floor, but {len(unknown)} pair(s) UNVERIFIED (unsupported colour / image background / transform)"
+    else:
+        summary += "all meet the floor"
+    if notes:
+        summary += f"; {len(notes)} note(s)"
     return {
         "check": "contrast",
         "file": path,
@@ -820,20 +1011,41 @@ def run(path: str, min_ratio: float = 4.5, min_font_pt: float = 7.0, mode: str =
         "min_ratio": min_ratio,
         "min_font_pt": min_font_pt,
         "elements_checked": checked,
-        "ok": not findings,
+        "ok": not failed,
+        "verified": not unknown,
         "contrast_failures": len(contrast),
         "size_failures": len(size),
+        "unverified": len(unknown),
         "findings": [f.as_dict() for f in findings],
-        "summary": (
-            f"contrast: {checked} text elements checked in {mode} mode — "
-            + ("all meet the floor" if not findings else
-               f"{len(contrast)} below {min_ratio}:1 (3:1 for large text)"
-               + (f", {len(size)} under {min_font_pt}pt" if min_font_pt > 0 else ""))
-        ),
+        "notes": notes,
+        "summary": summary,
     }
 
 
+def safe_console() -> None:
+    """M1 — never crash on a code-page console (Windows piped stdout is cp1252 on Python < 3.15):
+    unencodable characters in summaries or echoed document text print as `?` instead of raising."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
+def format_finding(f: dict) -> str:
+    """One human-readable line per finding (shared with self_check)."""
+    if f["kind"] == "unknown":
+        return f"  [unknown] {f['path']}  \"{f['text']}\"  — {f.get('detail', '')}"
+    scale = f"  (x{f['scale']} zoom/scale applied)" if "scale" in f else ""
+    what = (f"{f['ratio']}:1 < {f['required']}:1" if f["kind"] == "contrast"
+            else f"{f['font_pt']}pt < {f['required']}pt{scale}")
+    return f"  [{f['kind']}] {f['path']}  fg {f['fg']} on {f['bg']}  {what}  \"{f['text']}\""
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("html", help="the self-contained HTML deliverable")
     ap.add_argument("--min", type=float, default=4.5, help="contrast floor for normal text (default 4.5)")
@@ -853,10 +1065,12 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(report["summary"])
         for f in report["findings"]:
-            what = (f"{f['ratio']}:1 < {f['required']}:1" if f["kind"] == "contrast"
-                    else f"{f['font_pt']}pt < {f['required']}pt")
-            print(f"  [{f['kind']}] {f['path']}  fg {f['fg']} on {f['bg']}  {what}  “{f['text']}”")
-    return 0 if report["ok"] else 1
+            print(format_finding(f))
+        for note in report["notes"]:
+            print(f"  note: {note}")
+    if not report["ok"]:
+        return 1
+    return 3 if not report["verified"] else 0
 
 
 if __name__ == "__main__":

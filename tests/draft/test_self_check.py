@@ -68,3 +68,45 @@ def test_cli_json_and_error(tmp_path: Path):
     payload = json.loads(proc.stdout)
     assert payload["verdict"] == "PASS" and set(payload["checks"]) == {"contrast", "claims"}
     assert sc.main([str(tmp_path / "missing.html")]) == 2
+
+
+# ── review follow-ups: H1 end to end, M2 → UNVERIFIED with disclosure, M1 ─────────────────────
+
+def test_shrink_to_fit_bypass_fails_end_to_end(tmp_path: Path):
+    """The reviewer's PASS: a corrected document plus `body{zoom:.62}` on a two-page render."""
+    html = tmp_path / "zoomed.html"
+    html.write_text(GOOD.replace("<style>", "<style>body{zoom:0.62} ", 1), encoding="utf-8")
+    exported = tmp_path / "two.pdf"
+    exported.write_bytes(make_pdf(2))
+    report = sc.run(str(html), pdf=str(exported), pages=2, exact=True)
+    assert report["verdict"] == "FAIL" and report["failed"] == ["contrast"]
+    assert all(f["kind"] == "size" and f.get("scale") == 0.62 for f in report["checks"]["contrast"]["findings"])
+
+
+def test_unknown_colour_is_unverified_with_a_disclosure(tmp_path: Path):
+    html = tmp_path / "oklch.html"
+    html.write_text(GOOD.replace(":root{--ink:#111;", ":root{--ink:oklch(20% 0 0);", 1), encoding="utf-8")
+    exported = tmp_path / "two.pdf"
+    exported.write_bytes(make_pdf(2))
+    report = sc.run(str(html), pdf=str(exported), pages=2, exact=True)
+    assert report["verdict"] == "UNVERIFIED" and report["unverified"] == ["contrast"] and report["failed"] == []
+    assert len(report["disclose"]) == 1 and "contrast" in report["disclose"][0] and "by hand" in report["disclose"][0]
+    assert sc.main([str(html), "--pdf", str(exported), "--pages", "2", "--exact"]) == 3
+
+
+def test_unverified_pages_disclosure_names_the_verification_point(tmp_path: Path, monkeypatch):
+    from draft import page_count as pc
+    monkeypatch.setattr(pc, "find_chrome", lambda env=None: None)
+    html = tmp_path / "good.html"
+    html.write_text(GOOD, encoding="utf-8")
+    report = sc.run(str(html), pages=2, render=True)
+    assert report["verdict"] == "UNVERIFIED"
+    assert "page_count.py --pdf" in report["disclose"][0] and "estimate 2" in report["disclose"][0]
+
+
+def test_cli_survives_a_cp1252_console():
+    import os
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    proc = subprocess.run([sys.executable, str(SCRIPT), str(FIXTURE), "--no-pages"], capture_output=True, env=env)
+    assert proc.returncode == 1 and b"Traceback" not in proc.stderr
+    assert b"draft self-check: FAIL" in proc.stdout

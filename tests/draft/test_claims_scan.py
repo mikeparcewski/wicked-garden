@@ -178,8 +178,13 @@ def test_recon_brochure_reproduces_f_recon_009():
 
 
 def test_recon_brochure_passes_once_claims_are_disciplined():
+    import re
     html = FIXTURE.read_text(encoding="utf-8")
-    fixed = html.replace('<div class="placeholder-note">', '<div class="placeholder-note" hidden>')
+    # the placeholder is REMOVED (the skill says "never in the deliverable") — hiding it would be the bypass
+    fixed, n = re.subn(r'<div class="placeholder-note">.*?</div>', "", html, count=1, flags=re.DOTALL)
+    from draft._dom import text_elements
+    visible = " ".join(el.direct_text() for el in text_elements(cs.parse(fixed)))
+    assert n == 1 and "PLACEHOLDER" not in visible
     fixed = fixed.replace('<section class="page page-1"', '<section data-source="README.md:5 .product/REQ-001-application-overview.md:82" class="page page-1"', 1)
     fixed = fixed.replace('<section class="page page-2"', '<section data-source="README.md:60 .product/REQ-001-application-overview.md:83" class="page page-2"', 1)
     fixed = fixed.replace('<div class="mockup-kpi">', '<div class="mockup-kpi" data-illustrative><div>Illustrative — not measured data</div>', 1)
@@ -201,3 +206,38 @@ def test_cli(tmp_path: Path):
     assert proc.returncode == 1
     payload = json.loads(proc.stdout)
     assert payload["by_kind"] == {"placeholder": 1, "uncited-number": 1}
+
+
+# ── review follow-ups: L2 false-positive classes, M1 ───────────────────────────────────────────
+
+@pytest.mark.parametrize("html", [
+    "<p>Published September 12, 2026 by the team.</p>",
+    "<p>Updated 12 Sep 2026.</p>",
+    "<p>Roadmap for Sep 2026 and Q3 2026.</p>",
+    "<p>The 2026 roadmap in one page.</p>",
+    "<h2>1. Readable</h2><h2>2) Sized to the brief</h2>",
+    "<h3>Step 1 — outline</h3><p>Figure 2 shows the flow. See Table 3 and Section 4.</p>",
+    "<footer>Page 1 of 2</footer><footer>1 / 2</footer>",
+    "<span class='badge'>10</span><span class='num'>7</span>",
+])
+def test_structural_numbers_are_not_claims(html):
+    assert _kinds(f"<body>{html}</body>") == []
+
+
+@pytest.mark.parametrize("html", [
+    "<p>Gate events appear within 2 seconds.</p>",
+    "<p>Node ≥ 22 · npm ≥ 10</p>",
+    "<p>3 active runs · 1 needs you</p>",
+    "<p>Success rate 94% over 12 months.</p>",
+])
+def test_real_figures_are_still_claims(html):
+    assert "uncited-number" in _kinds(f"<body>{html}</body>")
+
+
+def test_cli_survives_a_cp1252_console():
+    """M1 — echoed document text carries ≥ · — and curly quotes; must print, not raise."""
+    import os
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    proc = subprocess.run([sys.executable, str(SCRIPT), str(FIXTURE)], capture_output=True, env=env)
+    assert proc.returncode == 1 and b"Traceback" not in proc.stderr
+    assert b"[placeholder]" in proc.stdout

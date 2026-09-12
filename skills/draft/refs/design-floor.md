@@ -16,27 +16,40 @@ backgrounds over what is really beneath them (root = white unless `html`/`body` 
 
 ## The token pairs from the recon brochure (why it was unreadable)
 
+All ratios below are computed with `scripts/draft/contrast_check.py`
+(`contrast_ratio(composite(token, surface), surface)`), rounded to one decimal.
+
 | Token | Declared | Composited on `#1a1a26` (card) | Ratio | Verdict |
 |-------|----------|-------------------------------|-------|---------|
-| `--ink-primary` | `rgba(255,255,255,0.92)` | `#ededee` | 14.6:1 | fine |
-| `--ink-body` | `rgba(255,255,255,0.78)` | `#cdcdcf` | 10.4:1 | fine |
-| `--ink-muted` | `rgba(255,255,255,0.48)` | `#88888e` | 4.6:1 | passes 4.5 — but at 6.8pt it read as ~93/255 grey; use 0.70+ for small meta |
+| `--ink-primary` | `rgba(255,255,255,0.92)` | `#ededee` | 14.7:1 | fine |
+| `--ink-body` | `rgba(255,255,255,0.78)` | `#cdcdcf` | 10.8:1 | fine |
+| `--ink-muted` | `rgba(255,255,255,0.48)` | `#88888e` | 4.9:1 | passes 4.5 — but at 6.8pt it read as ≤ 93/255 grey; use 0.70+ for small meta |
 | `--ink-faint` | `rgba(255,255,255,0.14)` | `#3a3a44` | **1.5:1** | the invisible footer / KPI label |
 | `--accent` | `hsl(258,72%,62%)` | `#8258e4` | **3.7:1** | fine for rules and glyphs, not for text |
 
-Lifting `--ink-faint` to `0.70`, `--ink-muted` to `0.72` and the accent to 78 % lightness makes
-the same document pass every pair (`tests/draft/test_contrast_check.py` proves it).
+Lifting `--ink-faint` to `0.70` (8.9:1), `--ink-muted` to `0.72` (9.4:1) and the accent to 78 %
+lightness (7.5:1) makes the same document pass every pair (`tests/draft/test_contrast_check.py`
+proves it).
 
 ## Safe defaults
 
-- **Dark surface (`#09090f`–`#22223a`):** text tints of white at ≥ 0.72 (meta) and ≥ 0.85
-  (body); accents for TEXT at ≥ 75 % lightness; never a tint under 0.6.
-- **Light paper (`#ffffff`–`#f8fafc`):** body `#1e293b`-class inks (≥ 12:1); meta no lighter than
-  `#5b6470` (≈ 6:1); `#94a3b8` (3.2:1) is a rule colour, not a caption colour.
+- **Dark surface (`#09090f`–`#22223a`):** text tints of white at ≥ 0.72 (meta; 10.3:1 on the
+  surface) and ≥ 0.85 (body; 14.2:1); accents for TEXT at ≥ 75 % lightness (6.6:1 on the card);
+  a tint of 0.6 is 6.9:1 on the card — treat it as the floor for meta, never go under it.
+- **Light paper (`#ffffff`–`#f8fafc`):** body `#1e293b`-class inks (14.6:1); meta no lighter than
+  `#5b6470` (6.0:1); `#64748b` (4.8:1) is the last passing grey; `#94a3b8` (**2.6:1**) is a rule
+  colour, not a caption colour.
 - **Tinted cards over a gradient hero:** the text must pass against the darkest AND lightest
   stop the card can sit over — or give the card an opaque background.
 - **Status colours** (emerald/amber/red) as text: check them — `hsl(148,58%,58%)` on `#1a1a26`
-  is 7.8:1 (fine); `hsl(45,90%,68%)` is 11:1 (fine); a 45 %-lightness variant of either is not.
+  is 9.0:1, `hsl(45,90%,68%)` is 11.8:1; darker variants lose ratio fast (the 45 %-lightness
+  emerald is 6.6:1, the amber 7.8:1) — let the check tell you rather than guessing.
+- **Colours the check cannot read:** `oklch()`, `oklab()`, `lab()`, `lch()`, `color-mix()`,
+  `light-dark()` are not evaluated — the pair is reported `UNVERIFIED`, never passed or inherited.
+  Write tokens in hex / `rgb()` / `hsl()`.
+- **Image backgrounds:** a container painted only by `background: url(…)` has no colour the
+  checker can judge — its text is `UNVERIFIED`. Give it an opaque `background-color` fallback
+  (`background: #0d0d1e url(hero.jpg) center/cover`) so the pair is judged on the fallback.
 
 ## Print typography floor
 
@@ -53,5 +66,9 @@ the same document pass every pair (`tests/draft/test_contrast_check.py` proves i
 - Available block per sheet: `297mm − 36mm = 261mm` tall, `210mm − 40mm = 170mm` wide.
 - Each `.page` wrapper: budget its content to ≤ 261mm; `break-after: page` on every wrapper but
   the last; **no** `overflow: hidden`, **no** fixed `height` that clips.
+- **Never `zoom`, `transform: scale(…)` or `scale:` the page (or drop `font-size` under 7pt) to
+  make the count fit** — that is the unreadable brochure again. Cut content: drop a card, shorten
+  a paragraph, move a table to the notes. The size floor is judged on the effective size after any
+  zoom/scale, so a shrunk page fails the check anyway.
 - Verify with the rendered count (`page_count.py --render`, or the product's export) — the
   structural estimate cannot see a wrapper that grew past the sheet.

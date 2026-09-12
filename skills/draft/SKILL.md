@@ -68,6 +68,10 @@ One command runs all three (§ Self-check). Details and worked examples: `refs/d
 - **Print size floor: 7pt.** Eyebrows at 5.5pt and monospace fact strips at 6.8pt are
   what "unreadable" looked like. Body 9.5–11pt, captions/meta ≥ 7pt, and let the check
   tell you (`--min-font-pt`, default 7; `0` for screen-only deliverables).
+- **Write colours the check can read.** Use hex / `rgb()` / `hsl()`; `oklch()`, `lab()`,
+  `color-mix()` and friends are not evaluated — the pair comes back `UNVERIFIED`, not
+  passed. A container whose background is only an image (`url(…)`) gets an opaque
+  `background-color` fallback, or its text is `UNVERIFIED` too.
 
 ## 2. Sized to the brief — the page budget
 
@@ -80,6 +84,12 @@ One command runs all three (§ Self-check). Details and worked examples: `refs/d
 - **Wrappers are not pages.** A `.page` block taller than the sheet prints on two.
   Budget each page's content to the sheet (A4 portrait: 297mm minus the `@page` margins),
   use `break-after: page` between pages, never `overflow: hidden` to hide the overflow.
+- **Never shrink to fit.** `zoom`, `transform: scale(…)`, `scale:` on `html`/`body`/a
+  page wrapper, or dropping `font-size` under the floor to make the count come out, is
+  the F-RECON-007 defect in a new coat: a page budget is met by **cutting content**, never
+  by scaling the page. The size floor is judged on the *effective* size after any
+  zoom/scale, so the check fails such a document — and a transform it cannot evaluate
+  makes the size `UNVERIFIED`, not passed.
 - **Verify the RENDERED count**: the exported PDF (`--pdf`) or a headless-Chrome print
   (`--render`). When neither is possible the count is `UNVERIFIED` — say so in the notes
   with the structural estimate; never state a page count you did not render.
@@ -114,14 +124,19 @@ wicked-garden run scripts/draft/self_check.py <out.html> --pages 2 --exact --ren
 
 | Verdict | Exit | Meaning | What you do |
 |---------|------|---------|-------------|
-| `PASS` | 0 | every floor met and verified | end your reply with the verdict line |
-| `FAIL` | 1 | a pair below the floor, text under 7pt, pages over budget, a placeholder, an uncited number/URL, a hidden mock label, a dangling source | fix the document (not the check), re-run |
-| `UNVERIFIED` | 3 | no floor failed, but the page count could not be rendered | disclose it in the notes with the estimate; do not claim the count |
+| `PASS` | 0 | every floor met and every pair/page evaluated | **done** — end your reply with the verdict line |
+| `FAIL` | 1 | a pair below the floor, text under 7pt (after any zoom/scale), pages over budget, a placeholder, an uncited number/URL, a hidden mock label, a dangling source | **never done** — fix the document (not the check, not the flags), re-run |
+| `UNVERIFIED` | 3 | no floor failed, but something could not be evaluated: the page count (no PDF and no renderer on this seat), or a colour pair (unsupported colour function, image-only background, an unevaluable transform) | **done only with disclosure** — copy the `DISCLOSE` line(s) the check prints into the deliverable's notes and your reply |
 
-Paste the verdict line(s) into your reply — never paraphrase them or describe a run you
-did not make. If the launcher or Python is missing, follow the manual alternative in
-`refs/self-check.md` (the WCAG formula per token pair, a real print to count pages, and
-the placeholder/number grep) and say which steps were manual.
+There are exactly two "done" states: `PASS`, or `UNVERIFIED` with the disclosure. `FAIL`
+is never done. A disclosure names (a) which check is unverified, (b) why on this seat
+(e.g. "no Chrome/Chromium — structural estimate 2 pages"), (c) what a reviewer must do to
+verify it (e.g. "run `page_count.py --pdf <export>` on the product's PDF export", or
+"check pair X by hand / rewrite it in hex with an opaque background"). Paste the verdict
+line(s) into your reply — never paraphrase them or describe a run you did not make. If the
+launcher or Python is missing, follow the manual alternative in `refs/self-check.md` (the
+WCAG formula per token pair, a real print to count pages, and the placeholder/number grep)
+and say which steps were manual.
 
 ## In a governed run (wicked-crew `interactive-draft`, `-edit`, `-chat`)
 
@@ -130,9 +145,14 @@ the placeholder/number grep) and say which steps were manual.
   text, no HTML yet.
 - **Draft phase:** write the file to the absolute path the task names, then run the
   self-check on THAT file with the budget and the repo snapshot(s) the task names
-  (`--pdf` when the task gives you an export, else `--render`). Fix and re-run until
-  `PASS`; end the reply with the absolute path and the verdict line. The run's own
-  deliverable floor only proves the file exists — this skill is the quality floor.
+  (`--pdf` when the task gives you an export, else `--render`). Fix and re-run until the
+  verdict is `PASS` — or `UNVERIFIED` when this seat has no renderer or a pair cannot be
+  evaluated (the check prints `DISCLOSE …` lines): then stop re-running, put the
+  disclosure into the deliverable's notes, and end the reply with the absolute path, the
+  verdict line, the structural page estimate, and the verification point ("verify with
+  `page_count.py --pdf` on the product's PDF export"). A `FAIL` is never a stopping
+  point. The run's own deliverable floor only proves the file exists — this skill is the
+  quality floor.
 - **Edit / revise phases:** a revision can re-introduce a defect (a design pin that
   darkens a caption). Re-run the self-check after every landed change; a `FAIL` is
   yours to fix before the turn ends.

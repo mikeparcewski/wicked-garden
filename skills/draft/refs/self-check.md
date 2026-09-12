@@ -24,7 +24,7 @@ wicked-garden run scripts/draft/claims_scan.py out.html --repo /path/to/snapshot
 | Flag | Meaning |
 |------|---------|
 | `--pages N` / `--exact` | the brief's page budget; `--exact` = must equal N (default: must not exceed) |
-| `--pdf <file>` | an exported PDF — the authoritative rendered count |
+| `--pdf <file>` | an exported PDF — the authoritative rendered count; a path that does not exist is an error (exit 2) unless `--render` is also given, in which case the render is written there |
 | `--render` | print the HTML with Chrome/Chromium/Edge (PATH, usual install dirs, `$WICKED_CHROME`) |
 | `--no-pages` | skip the page check (web pages, prose docs) |
 | `--repo <dir>` (repeatable) | repository snapshot(s) claims must trace to: `data-source` paths must exist, URLs must appear |
@@ -37,14 +37,27 @@ wicked-garden run scripts/draft/claims_scan.py out.html --repo /path/to/snapshot
 
 | Verdict | Exit | When |
 |---------|------|------|
-| `PASS` | 0 | every floor met; page count verified (or `--no-pages`) |
-| `FAIL` | 1 | any finding in contrast/claims, or pages over (or ≠ with `--exact`) the budget |
-| `UNVERIFIED` | 3 | nothing failed, but no PDF and no renderer — the page count is a structural estimate |
-| error | 2 | unreadable input / usage |
+| `PASS` | 0 | every floor met; every pair evaluated; page count verified (or `--no-pages`) |
+| `FAIL` | 1 | any `contrast`/`size` or claims finding, or pages over (or ≠ with `--exact`) the budget — a structural estimate that already exceeds the budget is a FAIL too |
+| `UNVERIFIED` | 3 | nothing failed, but something could not be evaluated: no PDF and no renderer (page count = structural estimate), and/or `[unknown]` contrast pairs (unsupported colour function, image-only background, an unevaluable transform) |
+| error | 2 | unreadable input / usage (including a `--pdf` path that does not exist) |
 
-`FAIL` is fixed in the DOCUMENT and re-run; never by loosening the flags. `UNVERIFIED` is
-disclosed in the deliverable's notes ("page count estimated at 2 — no renderer available in
-this environment; verify on export"), never rounded up to a pass.
+The two "done" states are `PASS` and `UNVERIFIED`-with-disclosure. `FAIL` is fixed in the
+DOCUMENT and re-run; never by loosening the flags, never by `zoom`/`scale`. `UNVERIFIED` is never
+rounded up to a pass: the check prints one `DISCLOSE in the deliverable's notes -> …` line per
+unverified check — copy those lines into the document's notes and your reply. A disclosure always
+names **which** check, **why** on this seat, and **what a reviewer does to verify**:
+
+```
+pages: count UNVERIFIED (no PDF and no renderer on this seat) — structural estimate 2;
+       verify with `page_count.py --pdf <export>` on the product's export
+contrast: 1 pair(s) UNVERIFIED — see the [unknown] findings; verify those pairs by hand or
+       rewrite them in hex/rgb/hsl with an opaque background fallback
+```
+
+The individual checks use the same codes: `contrast_check.py` exits 3 when no pair fails but at
+least one is `[unknown]`; `page_count.py` exits 1 before 3 (an over-budget estimate is a failure);
+`claims_scan.py` has no unverified state.
 
 ## JSON shape (top level)
 
@@ -62,8 +75,13 @@ this environment; verify on export"), never rounded up to a pass.
  "summary": ["contrast: …", "claims: …", "pages: 4 (pdf) vs budget = 2 — EXCEEDED"]}
 ```
 
-Finding kinds — contrast: `contrast`, `size`; claims: `placeholder`, `uncited-number`,
-`uncited-url`, `unsourced-url`, `mock-label-hidden`, `mock-unlabelled`, `dangling-source`.
+Finding kinds — contrast: `contrast`, `size` (carries `scale` when a zoom/transform factor was
+applied: the reported `font_pt` is the *effective* size), `unknown` (UNVERIFIED pair, with a
+`detail` saying what and what to do); claims: `placeholder`, `uncited-number`, `uncited-url`,
+`unsourced-url`, `mock-label-hidden`, `mock-unlabelled`, `dangling-source`. The contrast report
+also carries `notes` — e.g. colour-declaring rules whose selectors (`:nth-child`, `:is`, `:has`…)
+the checker does not evaluate and therefore did NOT judge; check those elements by hand. With
+`--mode both` a pair failing in both media is one finding tagged `print+screen`.
 
 ## Manual alternative (launcher or Python unavailable)
 

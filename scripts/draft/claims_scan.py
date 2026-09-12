@@ -62,6 +62,21 @@ FOOTNOTE_RE = re.compile(r"\[\d{1,3}\]|[†‡§¶]|\^\d{1,3}")
 LABEL_RE = re.compile(r"\b(illustrative|illustration|example|mock(?:-?up)?|sample|hypothetical|not (?:real|measured)|for illustration)\b", re.IGNORECASE)
 COPYRIGHT_YEAR_RE = re.compile(r"(?:©|\(c\)|copyright)\s*\d{4}", re.IGNORECASE)
 ORDINAL_RE = re.compile(r"^0\d$")  # "01", "02" — section numbering, not a claim
+# L2 — number tokens that are structure, not claims: prose dates ("September 12, 2026", "Sep 2026",
+# "2026 roadmap" → the year next to a month word), numbered headings ("1. Readable"), "Step 1",
+# page footers ("Page 1 of 2", "1 / 2"), and a lone 1–2 digit number that is an element's whole text
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
+STRUCTURE_RES = [
+    re.compile(rf"\b{_MONTH}\s+\d{{1,2}}(?:st|nd|rd|th)?,?\s+\d{{4}}\b", re.IGNORECASE),  # September 12, 2026
+    re.compile(rf"\b\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH},?\s+\d{{4}}\b", re.IGNORECASE),   # 12 Sep 2026
+    re.compile(rf"\b{_MONTH}\s+\d{{4}}\b", re.IGNORECASE),                                # Sep 2026
+    re.compile(r"\b(?:19|20)\d{2}\s+(?:roadmap|edition|release|plan|report|review|q[1-4])\b", re.IGNORECASE),
+    re.compile(r"\b(?:q[1-4]|h[12]|fy)\s*(?:19|20)?\d{2}\b", re.IGNORECASE),               # Q3 2026 / FY26
+    re.compile(r"^\s*\d{1,3}[.)]\s+(?=\S)"),                                                # "1. Readable"
+    re.compile(r"\b(?:step|phase|part|chapter|section|figure|fig\.|table|slide|page|pg\.)\s+\d{1,3}(?:\s+of\s+\d{1,3})?\b", re.IGNORECASE),
+    re.compile(r"^\s*\d{1,3}\s*/\s*\d{1,3}\s*$"),                                            # "1 / 2" footer
+]
+LONE_ORDINAL_RE = re.compile(r"^\d{1,2}$")
 SOURCE_ATTRS = ("data-source", "data-sources", "data-src-path", "data-cite")
 SKIP_DIRS = {".git", "node_modules", ".venv", "target", "dist", "build", "__pycache__", ".next"}
 
@@ -224,6 +239,10 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         # numbers
         text_wo_paths = PATH_RE.sub(" ", URL_RE.sub(" ", own))
         text_wo_paths = COPYRIGHT_YEAR_RE.sub(" ", text_wo_paths)
+        for structure in STRUCTURE_RES:
+            text_wo_paths = structure.sub(" ", text_wo_paths)
+        if LONE_ORDINAL_RE.match(own.strip()):
+            text_wo_paths = ""  # a badge / list marker whose whole text is one small number
         numbers = [n for n in NUMBER_RE.findall(text_wo_paths) if not ORDINAL_RE.match(n)]
         if not numbers:
             continue
@@ -266,7 +285,23 @@ def run(path: str, repos: list[str] | None = None) -> dict:
     }
 
 
+def safe_console() -> None:
+    """M1 — never crash on a code-page console (Windows piped stdout is cp1252 on Python < 3.15)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
+def format_finding(f: dict) -> str:
+    return f"  [{f['kind']}] {f['path']}  \"{f['text']}\"  — {f['detail']}"
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("html", help="the self-contained HTML deliverable")
     ap.add_argument("--repo", action="append", default=[],
@@ -283,7 +318,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         print(report["summary"])
         for f in report["findings"]:
-            print(f"  [{f['kind']}] {f['path']}  “{f['text']}”  — {f['detail']}")
+            print(format_finding(f))
     return 0 if report["ok"] else 1
 
 

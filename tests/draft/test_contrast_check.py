@@ -244,3 +244,162 @@ def test_cli_exit_codes_and_json(tmp_path: Path):
     assert proc.returncode == 1
     payload = json.loads(proc.stdout)
     assert payload["check"] == "contrast" and payload["contrast_failures"] == 1
+
+
+# ── review follow-ups: H1 shrink-to-fit, M2 unknown colours, M3 `not` media, L1/L3/L6, M1 ──────
+
+def test_body_zoom_shrinks_the_effective_size():
+    """H1 — `body{zoom:.6}` renders 10pt text at 6pt; the floor judges the EFFECTIVE size."""
+    html = _doc("body{zoom:0.6;background:#fff;color:#000;font-size:10pt}", "<p>fits now</p>")
+    f = _findings(html)
+    assert [x.kind for x in f] == ["size"]
+    assert f[0].font_pt == pytest.approx(6.0, abs=0.01) and f[0].scale == pytest.approx(0.6)
+    assert "scale" in f[0].as_dict()
+
+
+@pytest.mark.parametrize("css,expected_pt", [
+    (".page{transform:scale(0.5)}", 5.0),
+    (".page{transform:translate(4px, 2px) scale(0.5, 0.9)}", 5.0),   # min axis
+    (".page{transform:matrix(0.5,0,0,0.5,0,0)}", 5.0),
+    (".page{scale: 0.6}", 6.0),
+    ("html{zoom:60%}", 6.0),                                          # a REAL <html> applies once
+    (".page{zoom:0.9} .inner{transform:scaleY(0.5)}", 4.5),           # factors multiply through ancestors
+])
+def test_transform_and_scale_ancestors_shrink_text(css, expected_pt):
+    html = _doc(f"body{{background:#fff;color:#000;font-size:10pt}} {css}",
+                "<section class='page'><div class='inner'><p>text</p></div></section>")
+    f = _findings(html)
+    assert [x.kind for x in f] == ["size"], f
+    assert f[0].font_pt == pytest.approx(expected_pt, abs=0.01)
+
+
+def test_zoom_up_can_lift_small_text_and_rotate_is_neutral():
+    html = _doc("body{background:#fff;color:#000} .s{font-size:6pt;zoom:1.25} .r{font-size:8pt;transform:rotate(3deg) translateX(2px)}",
+                "<div class='s'>lifted to 7.5pt</div><div class='r'>rotated only</div>")
+    assert _findings(html) == []
+
+
+def test_unevaluable_transform_makes_size_unverified_not_passed():
+    html = _doc("body{background:#fff;color:#000;font-size:10pt} .w{transform:translateX(1px) unknownfn(0.3)}",
+                "<div class='w'><p>who knows</p></div>")
+    f = _findings(html)
+    assert [x.kind for x in f] == ["unknown"] and "cannot evaluate" in f[0].detail and "cutting content" in f[0].detail
+
+
+def test_recon_shrink_to_fit_bypass_fails_the_size_floor():
+    """The reviewer's bypass: the fixture + `body{zoom:.62}` printed on two pages and would have
+    PASSed — every text element now lands under 7pt effective and the check FAILS."""
+    for placement in ("prepend", "append"):
+        html = FIXTURE.read_text(encoding="utf-8")
+        zoomed = ("<style>body{zoom:0.62}</style>" + html) if placement == "prepend" else (html + "<style>body{zoom:0.62}</style>")
+        findings, checked = cc.check_document(zoomed)
+        sizes = [f for f in findings if f.kind == "size"]
+        assert checked > 80 and len(sizes) > 60, placement
+        assert all(f.scale == pytest.approx(0.62) for f in sizes)
+        # even the body copy (10pt declared) is now 6.2pt effective
+        assert any(f.font_pt == pytest.approx(6.2, abs=0.05) for f in sizes)
+
+
+def test_corrected_document_plus_zoom_still_fails():
+    """Corrected tokens + zoom = the exact PASS the reviewer reproduced; it must FAIL now."""
+    html = FIXTURE.read_text(encoding="utf-8")
+    fixed = (html.replace("--ink-faint:      rgba(255,255,255,0.14);", "--ink-faint:      rgba(255,255,255,0.70);")
+                 .replace("--ink-muted:      rgba(255,255,255,0.48);", "--ink-muted:      rgba(255,255,255,0.72);")
+                 .replace("--accent:         hsl(258, 72%, 62%);", "--accent:         hsl(258, 72%, 78%);")
+                 .replace('style="color:hsl(258,72%,62%);"', 'style="color:hsl(258,72%,78%);"'))
+    for small in ("5.5pt", "5.8pt", "6pt", "6.2pt", "6.5pt", "6.8pt"):
+        fixed = fixed.replace(f"font-size: {small}", "font-size: 7pt").replace(f"font-size:{small}", "font-size:7pt")
+    assert cc.check_document(fixed)[0] == []                       # clean without zoom
+    findings, _ = cc.check_document(fixed + "<style>body{zoom:0.62}</style>")
+    assert findings and all(f.kind == "size" for f in findings)   # zoom alone re-fails it
+
+
+@pytest.mark.parametrize("value", ["oklch(96% 0 0)", "color-mix(in srgb, #fff 95%, #000)", "lab(98% 0 0)", "light-dark(#fff, #000)"])
+def test_unsupported_colour_functions_are_unverified_not_inherited(value):
+    html = _doc(f"body{{background:#fff;color:#000;font-size:12pt}} p{{color:{value}}}", "<p>near white?</p><div>fine</div>")
+    f = _findings(html)
+    assert [x.kind for x in f] == ["unknown"]
+    assert value.split("(")[0] in f[0].detail and "hex/rgb()/hsl()" in f[0].detail
+
+
+def test_unsupported_colour_inherits_as_unknown_to_children():
+    html = _doc("body{background:#fff;font-size:12pt} .w{color:oklch(96% 0 0)}", "<div class='w'><p>child</p></div>")
+    assert [x.kind for x in _findings(html)] == ["unknown"]
+
+
+def test_image_only_background_is_unverified_not_on_white():
+    html = _doc("body{font-size:12pt} .hero{background:url(hero.jpg) center/cover;color:#fff}", "<div class='hero'>on a photo</div>")
+    f = _findings(html)
+    assert [x.kind for x in f] == ["unknown"] and "image" in f[0].detail and "background-color" in f[0].detail
+    assert f[0].bg == "?" and f[0].fg == "#ffffff"
+
+
+def test_image_background_with_colour_fallback_is_judged():
+    html = _doc("body{font-size:12pt} .hero{background:#000 url(hero.jpg) center/cover;color:#fff} .bad{background:#fff url(x.png);color:#fff}",
+                "<div class='hero'>fine</div><div class='bad'>white on white</div>")
+    f = _findings(html)
+    assert [(x.kind, x.path.split(' > ')[-1]) for x in f] == [("contrast", "div.bad")]
+
+
+def test_media_not_print_applies_only_off_print():
+    """M3 — false positive: a `not print` rule must NOT apply in print mode."""
+    html = _doc("body{background:#fff;color:#000;font-size:12pt} @media not print { p{color:#fff} }", "<p>black in print</p>")
+    assert _findings(html, mode="print") == []
+    assert [x.kind for x in _findings(html, mode="screen")] == ["contrast"]
+
+
+def test_media_not_print_false_negative_is_caught():
+    """M3 — false negative: white text fixed only for `not print` is still white when printed."""
+    html = _doc("body{background:#fff;font-size:12pt} p{color:#fff} @media not print { p{color:#000} }", "<p>white in print</p>")
+    assert [x.kind for x in _findings(html, mode="print")] == ["contrast"]
+    assert _findings(html, mode="screen") == []
+
+
+def test_media_lists_and_only_screen():
+    html = _doc("body{background:#fff;color:#000;font-size:12pt} @media only screen and (min-width: 1px), print and (color) { p{color:#fff} } @media not screen, (min-width:1px) { .a{color:#fff} }",
+                "<p>both listed</p><div class='a'>feature query applies</div>")
+    assert sorted(x.path.split(" > ")[-1] for x in _findings(html, mode="print")) == ["div.a", "p"]
+
+
+def test_inline_important_beats_more_specific_stylesheet_important():
+    """L3 — inline !important is the top of the cascade."""
+    html = _doc("body{background:#fff;font-size:12pt} #a #b{color:#fff !important}",
+                "<div id='a'><p id='b' style='color:#000 !important'>black</p></div>")
+    assert _findings(html) == []
+
+
+def test_mode_both_reports_a_pair_once(tmp_path: Path):
+    """L1 — a pair failing in print AND screen is one finding tagged with both modes."""
+    p = tmp_path / "x.html"
+    p.write_text(_doc("body{background:#fff;font-size:12pt} p{color:#eee}", "<p>faint</p>"), encoding="utf-8")
+    report = cc.run(str(p), mode="both")
+    assert report["contrast_failures"] == 1 and len(report["findings"]) == 1
+    assert report["findings"][0]["mode"] == "print+screen"
+
+
+def test_unsupported_selector_colour_rules_are_noted_not_silent():
+    """L6 — a rule this matcher skips must leave a trace in the report."""
+    html = _doc("body{background:#fff;color:#000;font-size:12pt} li:nth-child(2){color:#fff} .x:is(.y){background:#000}",
+                "<ul><li>a</li><li>b</li></ul>")
+    notes: list[str] = []
+    cc.check_document(html, notes=notes)
+    assert len(notes) == 1 and "2 colour-declaring rule" in notes[0] and "li:nth-child(2)" in notes[0]
+
+
+def test_cli_exit_3_when_only_unverified(tmp_path: Path):
+    p = tmp_path / "u.html"
+    p.write_text(_doc("body{background:#fff;font-size:12pt} p{color:oklch(96% 0 0)}", "<p>near white</p>"), encoding="utf-8")
+    assert cc.main([str(p)]) == 3
+    report = cc.run(str(p))
+    assert report["ok"] is True and report["verified"] is False and report["unverified"] == 1
+
+
+def test_cli_survives_a_cp1252_console():
+    """M1 — Windows piped stdout: summaries with ≤/—/curly quotes and echoed document text must
+    print (with `?`), never raise UnicodeEncodeError."""
+    import os
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    proc = subprocess.run([sys.executable, str(SCRIPT), str(FIXTURE)], capture_output=True, env=env)
+    assert proc.returncode == 1, proc.stderr[-400:]
+    assert b"Traceback" not in proc.stderr and b"UnicodeEncodeError" not in proc.stderr
+    assert b"[contrast]" in proc.stdout and b"[size]" in proc.stdout

@@ -153,3 +153,61 @@ def test_cli(tmp_path: Path):
     proc = subprocess.run([sys.executable, str(SCRIPT), str(p), "--budget", "2", "--json"], capture_output=True, text=True)
     assert proc.returncode == 1
     assert json.loads(proc.stdout)["pages"] == 4
+
+
+# ── review follow-ups: L7 offline render, L8 exit order + trailing break, L9 missing --pdf, M1 ──
+
+def test_estimate_ignores_a_forced_break_on_the_last_element():
+    html = ("<style>.page{break-after:page}</style><body>"
+            "<section class='page'>a</section><section class='page'>b</section>"
+            "<section class='page'>c</section><section class='page'>d</section></body>")
+    est = pc.estimate_html_pages(html)
+    assert est["wrappers"] == 4 and est["breaks"] == 3 and est["estimate"] == 4
+
+
+def test_over_budget_estimate_is_a_failure_even_when_unverified(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """L8 — page_count and self_check must agree: 4 wrappers vs budget 2 is exit 1, not 3."""
+    monkeypatch.setattr(pc, "find_chrome", lambda env=None: None)
+    html = tmp_path / "four.html"
+    html.write_text("<style>.page{break-after:page}</style><body>" + "".join(f"<section class='page'>p{i}</section>" for i in range(4)) + "</body>", encoding="utf-8")
+    report = pc.run(str(html), budget=2, render=True)
+    assert report["verified"] is False and report["within_budget"] is False
+    assert pc.main([str(html), "--budget", "2", "--render"]) == 1
+
+
+def test_missing_pdf_without_render_is_an_error(tmp_path: Path):
+    """L9 — `--pdf <missing>` must never silently render into that path."""
+    missing = tmp_path / "nope.pdf"
+    with pytest.raises(OSError):
+        pc.run(str(FIXTURE), pdf=str(missing), budget=2)
+    assert pc.main([str(FIXTURE), "--pdf", str(missing), "--budget", "2"]) == 2
+    assert not missing.exists()
+
+
+@pytest.mark.skipif(os.name != "posix", reason="fake chrome is a POSIX shell script")
+def test_render_is_offline_and_writes_the_given_pdf_path(tmp_path: Path):
+    """L7 — the Chrome argv carries the offline guard; with --render, --pdf names the output."""
+    canned = tmp_path / "canned.pdf"
+    canned.write_bytes(make_pdf(2))
+    argv_log = tmp_path / "argv.txt"
+    fake = tmp_path / "chrome"
+    fake.write_text(
+        "#!/bin/sh\nprintf '%s\\n' \"$@\" > '" + str(argv_log) + "'\n"
+        "for a in \"$@\"; do case \"$a\" in --print-to-pdf=*) out=\"${a#--print-to-pdf=}\";; esac; done\n"
+        f"cp '{canned}' \"$out\"\n", encoding="utf-8")
+    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+    out = tmp_path / "rendered.pdf"
+    report = pc.run(str(FIXTURE), pdf=str(out), budget=2, exact=True, render=True, chrome=str(fake))
+    assert report["source"] == "chrome-render" and report["pages"] == 2 and report["pdf"] == str(out) and out.exists()
+    argv = argv_log.read_text(encoding="utf-8")
+    assert "--host-resolver-rules=MAP * ~NOTFOUND" in argv and "--disable-extensions" in argv
+
+
+def test_cli_survives_a_cp1252_console(tmp_path: Path):
+    """M1 — the human summary used `≤`; under a cp1252 console it must print, not raise."""
+    p = tmp_path / "four.pdf"
+    p.write_bytes(make_pdf(4))
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252"}
+    proc = subprocess.run([sys.executable, str(SCRIPT), str(p), "--budget", "2"], capture_output=True, env=env)
+    assert proc.returncode == 1 and b"Traceback" not in proc.stderr
+    assert b"EXCEEDED" in proc.stdout

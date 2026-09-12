@@ -39,27 +39,51 @@ def run(html: str, pdf: str | None = None, pages: int | None = None, exact: bool
     checks: dict[str, dict] = {}
     checks["contrast"] = contrast_check.run(html, min_contrast, min_font_pt, mode)
     checks["claims"] = claims_scan.run(html, repos)
-    unverified = False
     if check_pages:
         checks["pages"] = page_count.run(html, pdf=pdf, budget=pages, exact=exact, render=render)
-        unverified = not checks["pages"]["verified"]
     failed = [name for name, rep in checks.items()
               if rep.get("ok") is False or (name == "pages" and rep.get("within_budget") is False)]
+    # a check that could not evaluate everything (no renderer; an unsupported colour / image
+    # background / transform) is UNVERIFIED — a third state, disclosed, never rounded to PASS
+    unverified = [n for n, rep in checks.items() if rep.get("verified") is False]
     verdict = "FAIL" if failed else ("UNVERIFIED" if unverified else "PASS")
     lines = [rep["summary"] for rep in checks.values()]
+    disclose: list[str] = []
+    if verdict == "UNVERIFIED":
+        if "pages" in unverified:
+            est = checks["pages"].get("estimate", {}).get("estimate")
+            disclose.append(f"pages: count UNVERIFIED (no PDF and no renderer on this seat) — structural "
+                            f"estimate {est}; verify with `page_count.py --pdf <export>` on the product's export")
+        if "contrast" in unverified:
+            disclose.append(f"contrast: {checks['contrast']['unverified']} pair(s) UNVERIFIED — see the "
+                            f"[unknown] findings; verify those pairs by hand or rewrite them in hex/rgb/hsl "
+                            f"with an opaque background fallback")
     return {
         "check": "draft-self-check",
         "file": html,
         "verdict": verdict,
         "ok": verdict == "PASS",
         "failed": failed,
-        "unverified": [n for n, rep in checks.items() if rep.get("verified") is False],
+        "unverified": unverified,
+        "disclose": disclose,
         "checks": checks,
         "summary": lines,
     }
 
 
+def safe_console() -> None:
+    """M1 — never crash on a code-page console (Windows piped stdout is cp1252 on Python < 3.15)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("html", help="the self-contained HTML deliverable")
     ap.add_argument("--pdf", help="an exported PDF of the deliverable (authoritative page count)")
@@ -86,19 +110,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"draft self-check: {report['verdict']}")
         for line in report["summary"]:
             print(f"  {line}")
-        for name in ("contrast", "claims"):
+        for name, fmt in (("contrast", contrast_check.format_finding), ("claims", claims_scan.format_finding)):
             for f in report["checks"][name]["findings"][:40]:
-                if name == "contrast":
-                    what = (f"{f['ratio']}:1 < {f['required']}:1" if f["kind"] == "contrast"
-                            else f"{f['font_pt']}pt < {f['required']}pt")
-                    print(f"    [{f['kind']}] {f['path']}  fg {f['fg']} on {f['bg']}  {what}  “{f['text']}”")
-                else:
-                    print(f"    [{f['kind']}] {f['path']}  “{f['text']}”  — {f['detail']}")
+                print("  " + fmt(f))
             extra = len(report["checks"][name]["findings"]) - 40
             if extra > 0:
-                print(f"    … {extra} more {name} findings (use --json for all)")
+                print(f"    ... {extra} more {name} findings (use --json for all)")
+        for note in report["checks"]["contrast"].get("notes", []):
+            print(f"    note: {note}")
         for note in report["checks"].get("pages", {}).get("notes", []):
             print(f"    note: {note}")
+        for line in report["disclose"]:
+            print(f"  DISCLOSE in the deliverable's notes -> {line}")
     if report["verdict"] == "FAIL":
         return 1
     if report["verdict"] == "UNVERIFIED":
