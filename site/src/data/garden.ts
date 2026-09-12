@@ -4,7 +4,7 @@
    what agents act through. The toolkit for what a coding agent can't do alone.
    The soul: "done is re-derived from evidence, never asserted."
    All claims code-grounded against the wicked-garden repo (skills/**,
-   .claude-plugin/plugin.json v12.32.0): 142 SKILL.md across 14 domain groups,
+   .claude-plugin/plugin.json v12.35.0): 143 SKILL.md across 14 domain groups,
    40 qe-* specialist fork skills + the 3-agent acceptance pipeline (absorbed
    from the retired wicked-testing plugin in Phase 6b/6c), the estate-backed // historical
    mem + search + patch stack, and the open {vendor}-{domain}-{role} naming
@@ -144,10 +144,11 @@ export const TOOLS: Tool[] = [
 
 /* ── The wider surface — the 14 domains the toolbox samples from ─────────────
    Every chip below is a real skill or routed action in the repo (skills/<dir>/).
-   Counts are honest: 142 SKILL.md under skills/** folded into these 14 domain
+   Counts are honest: 143 SKILL.md under skills/** folded into these 14 domain
    groups (per-domain routers, routed actions, and fork workers), 10 work-shapes
-   — verified against skills/** at v12.32.0 (142 SKILL.md on disk; the 14
-   domain counts below sum to 142; 40 qe-* specialist dirs). This is an
+   — verified against skills/** at v12.35.0 (143 SKILL.md on disk; the 14
+   domain counts below sum to 143; 40 qe-* specialist dirs; the `draft`
+   document-deliverable floor is folded into product & UX). This is an
    editorial verification claim — re-verify by hand on a version bump; the
    RENDERED version stamp itself is build-time injected and never stales. */
 export interface Domain {
@@ -172,9 +173,9 @@ export const DOMAINS: Domain[] = [
     id: "product",
     name: "product & UX",
     hue: "creation",
-    blurb: "Vague ask → SMART criteria that land in estate’s requirements graph — the forward source of truth; plus UX & a11y review, mockups, visual direction, user-signal synthesis.",
-    count: 25,
-    cmds: ["requirements-analysis", "acceptance-criteria", "ux-review", "accessibility", "mockup", "strategy"],
+    blurb: "Vague ask → SMART criteria that land in estate’s requirements graph — the forward source of truth; plus UX & a11y review, mockups, visual direction, user-signal synthesis, and the draft floor for document deliverables (contrast, page budget, cited claims).",
+    count: 26,
+    cmds: ["requirements-analysis", "acceptance-criteria", "ux-review", "accessibility", "mockup", "strategy", "draft"],
   },
   {
     id: "platform",
@@ -479,7 +480,7 @@ export const G = {
   ownTools: TOOLS.length,
   peers: PEERS.length,
   domains: DOMAINS.length,   // 14
-  skills: 142,               // real SKILL.md count under skills/**
+  skills: 143,               // real SKILL.md count under skills/**
   qeSpecialists: QE_SPECIALISTS.length, // 40
   workShapes: 10,
 };

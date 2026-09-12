@@ -2,7 +2,7 @@
   "_comment": "Issue #328: Component declarations for wicked-garden plugin. Claude Code plugin.json does not yet support inline component declarations beyond path overrides. This manifest documents all components for tooling, validation, and future schema support. When plugin.json gains a 'components' field, merge this data into plugin.json. The plugin is skills-only: former commands/ became actions of consolidated per-domain skills, and former agents/ became standalone context:fork worker skills (enumerated under fork_skills). Regenerate derived blocks with scripts/ci/sync_components.py.",
   "domains": ["agentic", "crew", "data", "engineering", "jam", "mem", "persona", "platform", "product", "qe", "search", "smaht"],
   "summary": {
-    "skills": 142,
+    "skills": 143,
     "fork_skills": 78,
     "hooks": 13,
     "specialists": 7
@@ -25,6 +25,7 @@
     "domain-coverage": ["domain-coverage"],
     "domain-extractor": ["domain-extractor"],
     "domain-modeler": ["domain-modeler"],
+    "draft": ["draft"],
     "engineering": ["architecture", "backend", "debugging", "docs", "engineering", "frontend", "integration", "large-scale-migration", "patch", "system-design", "unit-test-quality"],
     "engineering-api-documentarian": ["engineering-api-documentarian"],
     "engineering-conformance-reviewer": ["engineering-conformance-reviewer"],
