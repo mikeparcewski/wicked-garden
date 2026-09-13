@@ -15,7 +15,7 @@ description: |
 
   NOT THIS WHEN: senior-engineer code review (quality, patterns,
   architecture) — use the `wicked-garden-engineering` skill's review
-  action; in-run crew review — `wicked-garden-crew-reviewer`.
+  action; in-run crew review — `wicked-garden-governed-worker` (Evaluator).
   THIS skill analyses testability + static quality signals for QE.
 context: fork
 model: sonnet

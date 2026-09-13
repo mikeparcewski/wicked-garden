@@ -13,14 +13,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Need | Capability Type | Options |
 |------|-----------------|---------|
 | PR context | MCP | github, gitlab |
-| Code quality | Agent / inline | wicked-garden:crew:reviewer (or engineering review skill inline) |
+| Code quality | Agent / inline | wicked-garden-governed-worker evaluator (or engineering review skill inline) |
 | Security check | Agent | wicked-garden:platform:security-engineer |
-| Test coverage | Agent / inline | wicked-garden:crew:reviewer (or engineering review skill inline) |
+| Test coverage | Agent / inline | wicked-garden-governed-worker evaluator (or engineering review skill inline) |
 | Link to ticket | MCP | atlassian, linear |
 
 **Recommended flow**:
 1. Get PR diff via MCP
-2. Run the engineering review skill inline (or dispatch crew:reviewer) for quality
+2. Run the engineering review skill inline (or dispatch a governed-worker evaluator) for quality
 3. Spawn security-engineer if auth/data handling involved
 4. Store findings in ticket via MCP
 
@@ -92,14 +92,14 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 |------|-----------------|---------|
 | Requirements clarity | Agent | wicked-garden:product:requirements-analyst |
 | Design guidance | Agent | wicked-garden:engineering:solution-architect |
-| Implementation | Agent | wicked-garden:crew:implementer |
+| Implementation | Agent | wicked-garden-governed-worker creator |
 | Test strategy | Agent | wicked-garden-qe-test-strategist |
 | Track progress | MCP/Native | atlassian, TaskCreate/TaskUpdate |
 
 **Recommended flow**:
 1. Clarify requirements with requirements-analyst if vague
 2. Get design guidance from solution-architect
-3. Implement with crew:implementer; plan tests with wicked-garden-qe-test-strategist
+3. Implement with a governed-worker creator; plan tests with wicked-garden-qe-test-strategist
 4. Track via native TaskCreate or issue tracker
 
 ---
@@ -168,7 +168,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 | Need | Capability Type | Options |
 |------|-----------------|---------|
 | Test strategy | Agent | wicked-garden:crew:gate-adjudicator |
-| Test generation | Agent | wicked-garden:crew:implementer |
+| Test generation | Agent | wicked-garden-governed-worker creator |
 | TDD guidance | Agent | wicked-garden-qe-test-strategist |
 | Risk assessment | Agent | wicked-garden:platform:security-engineer |
 
@@ -183,7 +183,7 @@ Common task types and their typical capability mappings. Use as starting pointsâ
 
 | Task Type | Primary Agent | Supporting | MCP Needs |
 |-----------|---------------|------------|-----------|
-| Code review | crew:reviewer | security-engineer | github/gitlab |
+| Code review | governed-worker evaluator | security-engineer | github/gitlab |
 | Security audit | security-engineer | compliance-officer | - |
 | Architecture | solution-architect | data-engineer | - |
 | Bug fix | engineering debugging skill (inline) | platform errors skill | error tracking |

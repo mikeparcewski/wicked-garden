@@ -43,10 +43,10 @@ the garden — reference these, do not duplicate them:
 
 | Need | Use (existing garden piece) |
 |------|------------------------------|
-| Per-unit implementer subagent | `wicked-garden-crew-implementer` fork skill (`skills/crew-implementer/`) — already does parallel-when-independent + evidence |
-| Per-unit recon subagent | `wicked-garden-crew-researcher` fork skill (`skills/crew-researcher/`) — read-only context gathering |
+| Per-unit implementer subagent | a worker following `wicked-garden-governed-worker` **Creator** — the repo's checks run in-tree with exit codes pasted, generated artifacts regenerated, evidence in the output |
+| Per-unit recon subagent | a worker following `wicked-garden-governed-worker` **Neutral** — read-only: analyse, plan, name files and risks, never implement |
 | Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` fork skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
-| Fallback reviewer | `wicked-garden-crew-reviewer` fork skill (`skills/crew-reviewer/`) — reviewer-separation + external-review rules baked in |
+| Fallback reviewer | a worker following `wicked-garden-governed-worker` **Evaluator** — output-only, evaluator ≠ creator, verdict with file:line reasons |
 | Re-derive a claim (the receipt) | `wicked-garden-prove` (run + freeze evidence + gate; fail-closed) |
 | Hard-gate independent sign-off | `wicked-garden-prove --with-attestations` → `wicked-vault attest` (evaluator ≠ creator, G10) |
 | Blast-radius / scope lens | `wicked-garden:deliberate` (lens 2 + 3) and `wicked-garden-search blast-radius` |
@@ -79,8 +79,7 @@ auditable.
   plan / diff / receipt to the scratch dir and return ≤150 words. Never let a
   subagent dump raw output into your context.
 - **One message, many Task calls** for each wave — that is what makes it
-  parallel. A serial run with no documented `serial_reason` is a protocol miss
-  (same rule the `wicked-garden-crew-implementer` fork skill enforces).
+  parallel. A serial run with no documented `serial_reason` is a protocol miss.
 - **Background long/external work** and synthesize on completion rather than
   blocking the wave.
 - **The verifier is a different agent than the implementer.** If the same agent

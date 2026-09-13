@@ -14,7 +14,8 @@ help overview against the skills/ tree:
   - FAIL if help advertises a ``wicked-garden-<x>`` skill that no SKILL.md
     declares in its frontmatter ``name:``.
   - FAIL if a real user-entry skill (top-level skills/<dir>/SKILL.md without
-    ``context: fork``) is not mentioned in the help overview.
+    ``context: fork`` and not a ``metadata.role: module`` redirect stub) is not
+    mentioned in the help overview.
   - FAIL if the core action router drops one of the utility actions that
     absorbed the former top-level commands (help/setup/install/reset/
     where-am-i/report-issue).
@@ -75,10 +76,26 @@ def _declared_skill_names() -> set[str]:
     return names
 
 
-def _entry_skills() -> dict[str, str]:
-    """Top-level user-entry skills: skills/<dir>/SKILL.md without context: fork.
+METADATA_BLOCK_RE = re.compile(r"^metadata:\s*\n((?:[ \t]+.*\n?)*)", re.MULTILINE)
 
-    Fork-context skills are workers reached by dispatch, not entry points the
+
+def _metadata_role(fm: str) -> str | None:
+    """``metadata.role`` from the cross-CLI frontmatter closed set (worker | router |
+    module | floor), or None. A ``module`` is a retired redirect stub, not an entry
+    point — the cross-CLI counterpart of the ``context: fork`` scoping below."""
+    block = METADATA_BLOCK_RE.search(fm + "\n")
+    if not block:
+        return None
+    role = re.search(r"^[ \t]+role:\s*(\S+)\s*$", block.group(1), re.MULTILINE)
+    return role.group(1).strip("\"'") if role else None
+
+
+def _entry_skills() -> dict[str, str]:
+    """Top-level user-entry skills: skills/<dir>/SKILL.md without context: fork
+    and not a ``metadata.role: module`` redirect stub.
+
+    Fork-context skills are workers reached by dispatch, and module stubs only
+    redirect to their successor — neither is an entry point the
     operator would look for in help — the same scoping the old suite applied by
     reading commands/ (entry points) and not agents/ (workers).
     """
@@ -88,8 +105,8 @@ def _entry_skills() -> dict[str, str]:
         if not skill_md.exists():
             continue
         fm = _frontmatter(skill_md)
-        if CONTEXT_FORK_RE.search(fm):
-            continue
+        if CONTEXT_FORK_RE.search(fm) or _metadata_role(fm) == "module":
+            continue  # workers are reached by dispatch; modules are retired redirects
         name_match = NAME_RE.search(fm)
         assert name_match, f"{skill_md.relative_to(REPO)}: missing name"
         entries[skill_dir.name] = name_match.group(1).strip()

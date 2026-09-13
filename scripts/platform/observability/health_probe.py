@@ -236,8 +236,8 @@ def _ref_worker_exists(ref_plugin_dir: Path, ref_agent_name: str) -> bool:
       * legacy ``agents/<name>.md`` (plugins that still ship an agents/ tree)
       * a skills-only worker: a ``skills/**/SKILL.md`` that declares
         ``context: fork`` and whose declaring directory name equals
-        ``<name>`` or ends with ``-<name>`` (e.g. ``crew-reviewer`` for
-        ``reviewer``), OR whose frontmatter ``name`` ends with ``-<name>``.
+        ``<name>`` or ends with ``-<name>`` (e.g. ``qe-semantic-reviewer`` for
+        ``semantic-reviewer``), OR whose frontmatter ``name`` ends with ``-<name>``.
     """
     if (ref_plugin_dir / "agents" / f"{ref_agent_name}.md").exists():
         return True

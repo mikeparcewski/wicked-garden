@@ -16,7 +16,7 @@ swarm: a claim is only true if it can be recomputed from frozen evidence.
 | Verdict needed | Agent |
 |----------------|-------|
 | Does the code do what the spec/AC MEANS? | `wicked-garden-qe-semantic-reviewer` fork skill (opus, independent-by-construction) |
-| General correctness when no specialist fits | `wicked-garden-crew-reviewer` fork skill (has reviewer-separation + external-review baked in) |
+| General correctness when no specialist fits | a reviewer following `wicked-garden-governed-worker` Evaluator (output-only; evaluator ≠ creator) |
 | High-stakes verdict needing multiple opinions | `wicked-garden:jam:council` (independent multi-model) inside the wave |
 | The raw "did the suite actually pass" receipt | `/wicked-garden-prove` (run + gate) — see `refs/receipts-and-evidence.md` |
 

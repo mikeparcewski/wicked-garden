@@ -30,8 +30,8 @@ def test_all_fork_skill_tool_capabilities_are_registered():
     loader = AgentLoader()
     agents = loader.load_fork_skills(_REPO_ROOT / "skills")
     assert agents, "no fork skills loaded — loader or skills/ path is broken"
-    assert "wicked-garden-crew-implementer" in agents, (
-        "the crew implementer worker did not load — the fork-skill scan is "
+    assert "wicked-garden-engineering-solution-architect" in agents, (
+        "the solution-architect worker did not load — the fork-skill scan is "
         "not seeing the converted workers"
     )
 

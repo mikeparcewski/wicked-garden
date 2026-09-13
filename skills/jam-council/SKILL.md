@@ -101,7 +101,7 @@ and why, so the user can fix auth/config:
 ```
 Council found {detected} installed CLI(s) but {unusable} are unusable
 (e.g. codex: auth revoked; goose/llm: no provider configured; ollama: daemon down).
-Filling council seats with forked-subagent seats instead (see below).
+Filling council seats with separate-worker seats instead (see below).
 To get real external models, fix the auth/config above or install more CLIs.
 ```
 
@@ -109,26 +109,33 @@ To get real external models, fix the auth/config above or install more CLIs.
 
 **A council must always have a real, plural set of independent perspectives.**
 If fewer than 2 **usable external** CLIs are available, fill the empty seats
-with forked-subagent seats so deliberation still happens. These are *in-harness*
-seats (still Claude-family), so they are a weaker form of diversity than
-external vendors — label them as such in the synthesis. Each subagent seat:
+with separate-worker seats so deliberation still happens. These are *in-harness*
+seats (the host's own model family), so they are a weaker form of diversity than
+external vendors — label them as such in the synthesis. Each worker seat:
 
 - gets the SAME question scaffold (step 4),
-- runs in isolation (no subagent sees another's output — dispatch in parallel),
+- runs in isolation — one separate worker per seat, no seat sees another's
+  output; an inline invocation is not a seat,
 - is given a distinct framing persona so the perspectives differ
   (e.g. "architect", "security reviewer", "operator/SRE", "skeptic").
 
-Dispatch each seat as the forked reviewer skill (multiple invocations in a
-single message so they run in parallel):
+**Hand-off (required for seat independence).** If your harness can run a separate
+worker, hand each seat to one with the brief below, in parallel, and continue when
+all return; keep only their answers in your context. If it cannot isolate seats —
+loading a fork-less skill inline is NOT isolation — do not fill the seats yourself:
+an inline invocation is not a seat. Count only the seats you can isolate (usable
+external CLIs + separate workers); with fewer than 2 distinct seats in total, report
+"no quorum" instead of synthesizing and suggest the jam skill's brainstorm sub-action
+(the step-3 row-0 behaviour).
 
-```
-Skill(skill="wicked-garden-crew-reviewer",
-      args="You are the COUNCIL's {persona} seat. Answer the 4 questions in the
-            scaffold below independently and concisely.\n\n{scaffold}")
-```
+Brief: "Follow the `wicked-garden-governed-worker` skill, Evaluator section. You are
+the COUNCIL's {persona} seat. Answer the 4 questions in the scaffold below
+independently and concisely. {scaffold}"
 
-Aim to reach at least 2-3 total seats (external + subagent). Always disclose in
-the synthesis which seats were external CLIs vs subagent fallbacks.
+Aim to reach at least 2-3 total seats (external + separate workers). Always disclose
+in the synthesis which seats were external CLIs vs separate-worker fallbacks, and
+name any seat that could not be isolated — it is not a seat, is not counted toward
+quorum, and is not synthesized.
 
 ### 4. Build Question Scaffold
 
@@ -245,12 +252,15 @@ wicked-garden run scripts/_bus_emit.py wicked.garden.council.voted '{"session_id
 
 #### Stage 1: Independent Responses
 
-Present each model's raw answers, clearly separated. State isolation:
+Present each seat's raw answers, clearly separated. State isolation only when it
+is true — every counted seat was a usable external CLI or a separate worker (step
+3.5 hand-off). If any seat was not isolated, do not emit the line: name those seats,
+exclude them, and re-check quorum before synthesizing.
 
 ```markdown
 ## Council Evaluation: {topic}
 
-*Each model responded independently. No model saw another's output. Synthesis follows.*
+*Each seat responded independently — one external CLI or one separate worker per seat; no seat saw another's output. Synthesis follows.*
 
 ### Claude
 {Claude's 4 answers}
