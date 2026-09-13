@@ -118,12 +118,13 @@ external vendors — label them as such in the synthesis. Each subagent seat:
 - is given a distinct framing persona so the perspectives differ
   (e.g. "architect", "security reviewer", "operator/SRE", "skeptic").
 
-Dispatch each seat as the forked reviewer skill (multiple invocations in a
-single message so they run in parallel):
+Dispatch each seat as a reviewer following the `wicked-garden-governed-worker` skill's
+Evaluator section — one context per seat where your harness isolates them
+(multiple invocations in a single message so they run in parallel):
 
 ```
-Skill(skill="wicked-garden-crew-reviewer",
-      args="You are the COUNCIL's {persona} seat. Answer the 4 questions in the
+Skill(skill="wicked-garden-governed-worker",
+      args="Role: evaluator. You are the COUNCIL's {persona} seat. Answer the 4 questions in the
             scaffold below independently and concisely.\n\n{scaffold}")
 ```
 

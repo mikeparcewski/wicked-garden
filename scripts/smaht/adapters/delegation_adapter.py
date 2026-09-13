@@ -24,7 +24,7 @@ DOMAIN_HINTS = {
     "requirements": ("wicked-garden-product-requirements-analyst", "Requirements elicitation"),
     "agent": ("wicked-garden-agentic-architect", "Agentic system review"),
 
-    "review": ("wicked-garden-crew-reviewer", "Code review"),
+    "review": ("wicked-garden-governed-worker", "Code review (follow the evaluator section)"),
     "debug": ("wicked-garden-engineering-solution-architect", "Debugging / root-cause analysis"),
     "performance": ("wicked-garden-agentic-performance-analyst", "Performance analysis"),
     "ux": ("wicked-garden-product-ux-designer", "UX research"),

@@ -123,7 +123,7 @@ Task involves security review.
 Relevant skills:
 - platform (security-engineer, privacy-expert)
 - qe (test-strategist for security test scenarios)
-- engineering (review skill inline / crew:reviewer for code quality)
+- engineering (review skill inline / a governed-worker evaluator for code quality)
 
 Recommendation: Use wicked-garden:platform:security-engineer as primary reviewer.
 ```
@@ -152,7 +152,7 @@ Task: "Review PR for security issues"
 
 Relevant agents:
 - `wicked-garden:platform:security-engineer` - Security expertise
-- `wicked-garden:crew:reviewer` - Code quality review
+- `wicked-garden-governed-worker` (evaluator) - Code quality review
 - `Explore` - Understand codebase context
 
 Recommendation: Spawn security-engineer for focused review.

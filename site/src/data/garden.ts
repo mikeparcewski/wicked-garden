@@ -205,9 +205,9 @@ export const DOMAINS: Domain[] = [
     id: "crew",
     name: "orchestration",
     hue: "layer",
-    blurb: "Orchestration workers — implement, research, review; swarm, worktrees, workflow runners.",
+    blurb: "Orchestration — the governed-worker discipline every governed unit follows (creator / evaluator / neutral); swarm, worktrees, workflow runners.",
     count: 9,
-    cmds: ["crew-implementer", "crew-researcher", "crew-reviewer", "swarm", "worktrees", "workflow"],
+    cmds: ["governed-worker", "swarm", "worktrees", "workflow"],
   },
   {
     id: "smaht",

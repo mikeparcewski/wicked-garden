@@ -67,27 +67,27 @@ def test_pack_specialist_domain_listed(pack_env):
 
 def test_first_party_resolution_unchanged_by_pack(pack_env):
     resolver = build_resolver(_REPO)
-    domain, skill = resolve_role("wicked-garden-crew-reviewer", resolver)
-    assert (domain, skill) == ("crew", "wicked-garden-crew-reviewer")
+    domain, skill = resolve_role("wicked-garden-engineering-solution-architect", resolver)
+    assert (domain, skill) == ("engineering", "wicked-garden-engineering-solution-architect")
 
 
 def test_garden_wins_role_collision(monkeypatch, tmp_path):
     """A pack shipping a worker whose bare role collides with a first-party
-    role (``reviewer`` = wicked-garden-crew-reviewer's bare role) must lose
+    role (``solution-architect`` = wicked-garden-engineering-solution-architect's bare role) must lose
     the bare-role slot (garden indexed first) but still be dispatchable by
     its full name."""
     import json
     pack = tmp_path / "acme-rivals"
     (pack / "skills" / "acme-rivals").mkdir(parents=True)
-    (pack / "skills" / "acme-rivals-reviewer").mkdir(parents=True)
+    (pack / "skills" / "acme-rivals-solution-architect").mkdir(parents=True)
     (pack / "wicked-pack.json").write_text(json.dumps({
         "spec": 1, "name": "acme-rivals", "vendor": "acme", "version": "1.0.0",
         "domains": [{"name": "rivals"}],
     }), encoding="utf-8")
     (pack / "skills" / "acme-rivals" / "SKILL.md").write_text(
         "---\nname: acme-rivals\ndescription: router\n---\n# r\n", encoding="utf-8")
-    (pack / "skills" / "acme-rivals-reviewer" / "SKILL.md").write_text(
-        "---\nname: acme-rivals-reviewer\ncontext: fork\ndescription: w\n---\n# w\n",
+    (pack / "skills" / "acme-rivals-solution-architect" / "SKILL.md").write_text(
+        "---\nname: acme-rivals-solution-architect\ncontext: fork\ndescription: w\n---\n# w\n",
         encoding="utf-8")
     monkeypatch.setenv("WICKED_PACK_PATH", str(pack))
     monkeypatch.setenv("WICKED_PACK_REGISTRY", str(tmp_path / "registered.json"))
@@ -95,11 +95,11 @@ def test_garden_wins_role_collision(monkeypatch, tmp_path):
     try:
         resolver = build_resolver(_REPO)
         # bare role: first-party keeps it
-        assert resolve_role("reviewer", resolver) == \
-            ("crew", "wicked-garden-crew-reviewer")
+        assert resolve_role("solution-architect", resolver) == \
+            ("engineering", "wicked-garden-engineering-solution-architect")
         # full name: the pack worker still resolves, to ITSELF
-        assert resolve_role("acme-rivals-reviewer", resolver) == \
-            ("acme-rivals", "acme-rivals-reviewer")
+        assert resolve_role("acme-rivals-solution-architect", resolver) == \
+            ("acme-rivals", "acme-rivals-solution-architect")
         assert any("collision" in w for w in resolver["warnings"])
     finally:
         clear_cache()
@@ -108,8 +108,8 @@ def test_garden_wins_role_collision(monkeypatch, tmp_path):
 def test_no_packs_resolver_shape_intact(no_pack_env):
     resolver = build_resolver(_REPO)
     assert resolver["packs"] == []
-    assert resolve_role("reviewer", resolver) == \
-        ("crew", "wicked-garden-crew-reviewer")
+    assert resolve_role("solution-architect", resolver) == \
+        ("engineering", "wicked-garden-engineering-solution-architect")
 
 
 def test_broken_discovery_fails_open(monkeypatch, tmp_path, no_pack_env):
@@ -118,7 +118,7 @@ def test_broken_discovery_fails_open(monkeypatch, tmp_path, no_pack_env):
     clear_cache()
     try:
         resolver = build_resolver(_REPO)
-        assert resolve_role("wicked-garden-crew-implementer", resolver) == \
-            ("crew", "wicked-garden-crew-implementer")
+        assert resolve_role("wicked-garden-engineering-solution-architect", resolver) == \
+            ("engineering", "wicked-garden-engineering-solution-architect")
     finally:
         clear_cache()

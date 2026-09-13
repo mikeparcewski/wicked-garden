@@ -421,8 +421,8 @@ def _check_challenge_gate(file_path: str) -> str:
             f"'{project_name}' (complexity={complexity}). {reason} "
             f"Invoke a contrarian reviewer to produce and clear "
             f"phases/design/challenge-artifacts.md before continuing build. "
-            f"Dispatch the reviewer fork skill: Skill("
-            f"skill='wicked-garden-crew-reviewer') with a contrarian challenge brief. "
+            f"Dispatch a reviewer that follows the evaluator section of the "
+            f"wicked-garden-governed-worker skill with a contrarian challenge brief. "
             f"To bypass temporarily, set WG_CHALLENGE_GATE=off."
         )
     except Exception:
@@ -1064,7 +1064,7 @@ def _warn_reviewer_report(phase_dir: Path, phase_name: str, complexity: int) -> 
             f"[wicked-garden] Warning: phases/{phase_name}/reviewer-report.md is missing "
             f"for a complexity-{complexity} project. The async reviewer (Tier 2) should "
             f"have written this. Proceeding with approve, but consider dispatching "
-            f"Skill(skill='wicked-garden-crew-reviewer') to generate a reviewer report."
+            f"a reviewer that follows the wicked-garden-governed-worker skill's evaluator section to generate a reviewer report."
         )
     return ""
 

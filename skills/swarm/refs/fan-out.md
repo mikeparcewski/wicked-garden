@@ -4,10 +4,11 @@ Dispatch **N independent subagents in parallel**, one per unit of work
 (repo / module / file / service). One message, multiple `Task` calls — that
 is what makes it a swarm and not a loop.
 
-Use the `wicked-garden-crew-implementer` fork skill as the agent. It already encodes the rules
-that matter here: parallel-when-independent dispatch, structured evidence in
-every `TaskUpdate`, and the guardrails (never auto-proceed on deploys / deletes /
-schema migrations). This ref adds the **per-unit brief** that scopes each one.
+Brief each unit's worker with `wicked-garden-governed-worker` Creator. It already encodes the
+rules that matter here: the repo's checks run in-tree before "done" (exit codes pasted),
+generated artifacts regenerated not hand-edited, structured evidence in the output, and
+the guardrails (never auto-proceed on deploys / deletes / schema migrations). This ref
+adds the **per-unit brief** that scopes each one.
 
 ## When a unit is independent
 

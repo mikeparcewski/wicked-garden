@@ -78,7 +78,7 @@ wicked-garden/
 ├── skills/                      # skills-only: the former commands/ and agents/ were absorbed here
 │   ├── archetype/               # v11 entry point + 9 ref playbooks
 │   ├── {domain}/                # consolidated per-domain router skills (user-invocable; absorbed the former commands/)
-│   └── {domain}-{role}/         # context:fork worker skills (the former agents/; e.g. crew-reviewer, engineering-migration-engineer)
+│   └── {domain}-{role}/         # context:fork worker skills (the former agents/; e.g. qe-semantic-reviewer, engineering-migration-engineer)
 ├── hooks/
 │   ├── hooks.json
 │   └── scripts/                 # bootstrap, prompt_submit, post_tool, etc.

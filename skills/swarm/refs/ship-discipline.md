@@ -18,9 +18,9 @@ ship, review, and roll back independently:
 
 - One branch per unit (e.g. `swarm/<unit-name>/<change>`).
 - **Conventional commits** (`feat:` / `fix:` / `refactor:` / `chore:`) with the
-  body referencing the unit and the receipt. This keeps the provenance check in
-  the `wicked-garden-crew-reviewer` fork skill happy (commit messages should reference traceability
-  anchors).
+  body referencing the unit and the receipt. This keeps the evaluator's provenance
+  check (`wicked-garden-governed-worker` Evaluator) satisfied (commit messages should
+  reference traceability anchors).
 - **Trust-but-verify every reported commit SHA** (`wicked-garden:worktrees` §1):
   a subagent's reported SHA can be a dangling commit. Run the ancestry check
   before you treat the work as on a branch — especially with many implementers
@@ -44,7 +44,7 @@ cause; never narrate around a failing gate.
 ## Independent code review + RESOLVE comments
 
 - Each unit's PR gets an **independent** review — a different agent/human than
-  the implementer (reviewer-separation; the `wicked-garden-crew-reviewer` fork skill and the vault
+  the implementer (reviewer-separation; `wicked-garden-governed-worker` Evaluator and the vault
   both enforce evaluator ≠ creator). For high-stakes units run a
   `wicked-garden:jam:council` for multi-model perspective.
 - **Resolve every bot/review comment** before merge — address it or reply why

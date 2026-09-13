@@ -69,7 +69,7 @@ in three domains").
    Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
    subagent), or a garden fork skill via `Skill(skill="…")`:
-   `wicked-garden-crew-reviewer`, `wicked-garden-qe-semantic-reviewer`,
+   `wicked-garden-governed-worker` (Evaluator section), `wicked-garden-qe-semantic-reviewer`,
    `wicked-garden-engineering-solution-architect`, etc. Match the artifact
    to the specialist.
 3. For high-stakes reviews, run a council via

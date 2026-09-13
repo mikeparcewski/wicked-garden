@@ -21,7 +21,7 @@ description: |
 
   NOT for: senior-engineer code review (engineering review action),
   multi-model deliberation (jam council), in-run crew review
-  (wicked-garden-crew-reviewer), or the portable evidence gate stamped into
+  (wicked-garden-governed-worker, Evaluator section), or the portable evidence gate stamped into
   a repo (the prove skill's compile action).
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
@@ -59,7 +59,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 **Review disambiguation**: this domain renders *verdicts on captured QE
 evidence*. Source-code quality review is the `engineering` skill's review
 action; multi-model deliberation is `jam` council; in-run crew review is
-`wicked-garden-crew-reviewer`; spec-meaning judgment is dispatched to
+`wicked-garden-governed-worker` (Evaluator); spec-meaning judgment is dispatched to
 `wicked-garden-qe-semantic-reviewer`.
 
 ## Preflight (all actions except setup)

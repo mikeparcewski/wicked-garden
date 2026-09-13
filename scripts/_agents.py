@@ -13,7 +13,7 @@ Usage:
 
     loader = AgentLoader()
     loader.load_fork_skills(skills_dir)          # skills/ root
-    profile = loader.get("wicked-garden-crew-implementer")
+    profile = loader.get("wicked-garden-engineering-solution-architect")
 """
 
 import json
@@ -69,7 +69,7 @@ class AgentLoader:
     Lifecycle (called once in bootstrap.py):
         loader = AgentLoader()
         loader.load_fork_skills(skills_dir)
-        profile = loader.get("wicked-garden-crew-implementer")
+        profile = loader.get("wicked-garden-engineering-solution-architect")
     """
 
     def __init__(self) -> None:
@@ -174,7 +174,7 @@ def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
 
     Format:
         ---
-        name: wicked-garden-crew-implementer
+        name: wicked-garden-engineering-solution-architect
         description: |
           Optional description
         context: fork                # required when fork_only=True

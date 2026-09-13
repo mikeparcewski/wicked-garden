@@ -218,18 +218,18 @@ When `--batch N` is specified with `--all`:
 ```
 # Launch up to N scenarios in parallel
 for each scenario in current_batch:
-  Task(
-    subagent_type="wicked-garden:crew:reviewer",
-    prompt="Execute scenario: {scenario_path}. Return structured results."
+  Skill(
+    skill="wicked-garden-governed-worker",
+    args="Role: evaluator. Execute scenario: {scenario_path}. Return structured results."
   )
 ```
 
 **Batch dispatch (scenarios-only fallback):**
 ```
 for each scenario in current_batch:
-  Task(
-    subagent_type="wicked-garden:crew:implementer",
-    prompt="Execute scenario: {scenario_path}. Return structured results."
+  Skill(
+    skill="wicked-garden-governed-worker",
+    args="Role: creator. Execute scenario: {scenario_path}. Return structured results."
   )
 ```
 

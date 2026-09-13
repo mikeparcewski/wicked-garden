@@ -59,6 +59,7 @@ grep can't see, and otherwise stays out of the harness's way.
 | `wicked-garden-deliberate` | Critically analyze a request before doing the work — challenge assumptions, find root causes, propose better approaches. |
 | `wicked-garden-smaht` | On-demand context assembly + session briefing; its `intent` action sets or inspects the active session intent. |
 | `wicked-garden-archetype` | The v11 work-shape playbooks (below). |
+| `wicked-garden-governed-worker` | The discipline every governed unit follows, by role (creator / evaluator / neutral): the repo's checks run in-tree with exit codes pasted, evaluators output-only, honest counts, no questions into a headless run. |
 
 ### Archetypes (v11 work-shape model)
 
