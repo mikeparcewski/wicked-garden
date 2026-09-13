@@ -18,9 +18,9 @@ ship, review, and roll back independently:
 
 - One branch per unit (e.g. `swarm/<unit-name>/<change>`).
 - **Conventional commits** (`feat:` / `fix:` / `refactor:` / `chore:`) with the
-  body referencing the unit and the receipt. This keeps the evaluator's provenance
-  check (`wicked-garden-governed-worker` Evaluator) satisfied (commit messages should
-  reference traceability anchors).
+  body referencing the unit and the receipt. This gives the evaluator's review
+  (`wicked-garden-governed-worker` Evaluator) traceability anchors to cite (commit
+  messages should reference the unit, the receipt, and any issue/ADR).
 - **Trust-but-verify every reported commit SHA** (`wicked-garden:worktrees` §1):
   a subagent's reported SHA can be a dangling commit. Run the ancestry check
   before you treat the work as on a branch — especially with many implementers

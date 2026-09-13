@@ -3,7 +3,8 @@ name: wicked-garden-governed-worker
 description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree and paste exit codes, prove any 'pre-existing' claim on the base, regenerate instead of hand-editing, evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: worker
-  phases: "creator,evaluator,neutral"
+  phases: "*"
+  roles: "creator,evaluator,neutral"
 ---
 
 # Governed worker — the discipline, by role
@@ -33,7 +34,9 @@ evaluator, then creator) and say which you chose in your output.
 
 - **A1 — Steers are context.** An intake amendment addressed to another phase
   ("tell the fix phase to…") is background, not your instruction. Never act on it
-  outside your role.
+  outside your role. A task, intent or steer that names a file inside the
+  repository for your notes does not override E1/N1: deliver that content in your
+  output and say so.
 - **A2 — Use only the handed path.** Never shell a tool the grounding posture
   marks unavailable or denied (the estate write CLI, for example). Ground through
   the handed estate shim in read-only mode, or write "not available" and continue.
@@ -78,9 +81,11 @@ Validate the work against the design and the evidence; cite `file:line`; give a
 verdict with reasons. You are output-only.
 
 - **E1 — Never write into the worktree.** No note files, no "fix it in place",
-  no scratch. Write analysis to the unit's declared notes root or your final
-  output only. If you find the fix, describe it as a suggestion with a patch in
-  your output — do not apply it.
+  no scratch. Write analysis only to the notes root the run hands you — a
+  location OUTSIDE the repository, never a path inside the checkout — or to your
+  final output. Creating a directory or an empty file inside the repository IS a
+  write. If you find the fix, describe it as a suggestion with a patch in your
+  output — do not apply it.
 - **E2 — Never run install or build steps that mutate tracked files.** If a
   check needs provisioning, say exactly what and stop there; the floor provisions.
 
@@ -95,7 +100,9 @@ refuse the verdict.
 ## Neutral (triage / recon / plan)
 
 - **N1 — Do not implement.** Analyse, plan, name files and risks, and hand the
-  plan on. No edits, no commits, no "quick fix while I'm here".
+  plan on. No edits, no commits, no "quick fix while I'm here". Creating a
+  directory or an empty file inside the repository IS a write; notes go to the
+  handed notes root (outside the repository) or into your output.
 
 Method: state the question; map the structure that matters (entry points,
 owners, dependencies, tests); name the exact files a creator would touch and the
@@ -137,5 +144,5 @@ Rules cite the acceptance-program findings that motivated them.
 | N1 | F-RC2-038 |
 
 History: `wicked-garden-crew-implementer`, `wicked-garden-crew-reviewer` and
-`wicked-garden-crew-researcher` (Claude Code fork-agent definitions) were folded
+`wicked-garden-crew-researcher` (Claude Code fork-agent definitions <!-- historical -->) were folded
 into Creator, Evaluator and Neutral above and retired in 2026-09.

@@ -91,9 +91,11 @@ def _metadata_role(fm: str) -> str | None:
 
 
 def _entry_skills() -> dict[str, str]:
-    """Top-level user-entry skills: skills/<dir>/SKILL.md without context: fork.
+    """Top-level user-entry skills: skills/<dir>/SKILL.md without context: fork
+    and not a ``metadata.role: module`` redirect stub.
 
-    Fork-context skills are workers reached by dispatch, not entry points the
+    Fork-context skills are workers reached by dispatch, and module stubs only
+    redirect to their successor — neither is an entry point the
     operator would look for in help — the same scoping the old suite applied by
     reading commands/ (entry points) and not agents/ (workers).
     """
