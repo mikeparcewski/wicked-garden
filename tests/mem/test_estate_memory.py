@@ -320,12 +320,16 @@ def test_live_ingest_yields_cited_sources(tmp_path):
 
 @pytest.fixture(autouse=True)
 def _clean_shim_mode(monkeypatch):
-    for name in ("WICKED_RUN_ID", "WICKED_ESTATE_READONLY") + _estate_client.STORE_PIN_ENV:
+    for name in (_estate_client.GOVERNED_MARKERS
+                 + (_estate_client.GOVERNED_ENV, _estate_client.READONLY_ENV)
+                 + _estate_client.STORE_PIN_ENV):
         monkeypatch.delenv(name, raising=False)
     _estate_client.set_readonly(False)
+    _estate_client.set_governed(False)
     _estate_client.set_db(None)
     yield
     _estate_client.set_readonly(False)
+    _estate_client.set_governed(False)
     _estate_client.set_db(None)
 
 
@@ -366,6 +370,17 @@ def test_backend_refuses_a_governed_run_with_no_pinned_store(monkeypatch, capsys
     assert code == 0 and out["ok"] is False           # fail-open degrade, not a crash
     assert "--db" in out["reason"] and "WICKED_ESTATE_DB" in out["reason"]
     assert rec.calls == [], "no estate call may be attempted against an unpinned store"
+
+
+def test_backend_governed_flag_forwards_to_the_shim(monkeypatch, capsys):
+    """`--governed` rides the backend argv like the other two flags (a seat declaring the unit)."""
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    rec = _Recorder({"memory.recall": {"items": []}})
+    monkeypatch.setattr(estate_memory._estate_client, "call", rec)
+    code = estate_memory.main(["recall", '{"query": "q"}', "--governed"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 0 and out["ok"] is True
+    assert _estate_client.governed_marker() == "--governed" and _estate_client.read_only() is True
 
 
 def test_backend_in_a_pinned_governed_run_proceeds_read_only(monkeypatch, capsys):

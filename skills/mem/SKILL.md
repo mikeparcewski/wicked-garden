@@ -39,7 +39,10 @@ wicked-garden run \
 
 Long content: pass `-` as json-args and pipe the JSON via stdin.
 
-**In a governed run** (`WICKED_RUN_ID` is set) append `--readonly` to every `estate_memory.py` call —
+**In a governed run** (dispatched as a unit of a wicked-crew run — a phase directive and/or the
+`wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` / `WICKED_GATE_SCOPE`
+confirm it when present, their absence does not refute it; when unsure, treat the session as
+governed) append `--readonly` to every `estate_memory.py` call —
 the backend forwards it to the estate shim, which spawns `wicked-estate-mcp --readonly`
 with the store pinned from the worker environment (`WICKED_ESTATE_DB` / `WICKED_HOME` /
 `WICKED_MEMORY_DB`) or `--db <path>`; an unpinned store is refused

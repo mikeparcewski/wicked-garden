@@ -12,11 +12,23 @@ the skill on every CLI):
 
 * ``governed-write-cli`` — inside a GOVERNED BLOCK, a line that spells a write-CLI
   invocation must also spell a prohibition (``never`` / ``not a rung`` / ``do not`` /
-  ``must not`` / ``denied`` / ``refused`` / ``forbidden``). A governed block is (a) a
-  Markdown section whose heading mentions ``governed`` — up to the next heading of the
-  same or a higher level — or (b) a paragraph / list-item run (contiguous non-blank lines,
-  fenced code included) any line of which mentions ``governed``. Outside governed blocks
-  the write CLI stays legitimate (a human session indexes its own repo).
+  ``must not`` / ``denied`` / ``refused`` / ``forbidden`` — NOT ``no longer`` / ``denies``,
+  which neutralise nothing). A governed block is (a) a Markdown section whose heading
+  mentions governed mode — up to the next heading of the same or a higher level — or (b) a
+  paragraph / list-item run (contiguous non-blank lines, fenced code included) any line of
+  which mentions it. "Mentions governed mode" = ``governed`` / ``wicked-crew run`` /
+  ``WICKED_RUN_ID`` / ``governed-worker`` (case-insensitive). Outside governed blocks the
+  write CLI stays legitimate (a human session indexes its own repo).
+* ``governed-unknown-verb`` — inside a governed block, a CODE invocation (a backtick span or
+  a shell-fence line) of ``wicked-estate <verb>`` whose verb is not in the fence's read
+  allowlist (``query blast-radius rank stats source semantic cross-graph subscribe`` and
+  ``clusters``) — including no verb at all (``wicked-estate --help``, the shape that killed
+  pipeline attempt L4: the fence denies it ``unknown-verb``, fail-closed) — unless prohibited
+  on the same line. Prose mentions (no code span) are not invocations.
+* ``governed-mcp-not-readonly`` — inside a governed block, a CODE invocation of
+  ``wicked-estate-mcp`` on a line that does not also spell the literal ``--readonly``
+  (``wicked-estate-mcp --help`` / ``--db x`` spawn a WRITE-capable server; the fence
+  denies them ``no-readonly``), unless prohibited on the same line.
 * ``governed-ladder-names-the-shim`` — the skills that carry a grounding ladder
   (``search``, ``repo-learn``, ``mem``) must have a governed block that names the shim
   (``_estate_client.py`` or ``estate_memory.py``) together with the literal ``--readonly``
@@ -47,11 +59,27 @@ WRITE_CLI_RE = re.compile(
     r"wicked-estate(?:\.exe)?\s+(?:" + "|".join(re.escape(v) for v in WRITE_VERBS) + r")(?![A-Za-z0-9_-])"
 )
 ANNOTATE_RE = re.compile(r"wicked-estate(?:\.exe)?\s+clusters\b[^\n]*--annotate|clusters\s+--annotate")
-GOVERNED_RE = re.compile(r"\bgoverned\b", re.IGNORECASE)
+# What marks a block as governed-mode text: the word itself, the run it names, the env cue the
+# skills cite, or the governed-worker skill (garden #1134 MEDIUM-2 — the literal word alone missed
+# "Inside a wicked-crew run (`WICKED_RUN_ID` is set) …").
+GOVERNED_RE = re.compile(r"\bgoverned\b|wicked-crew run|WICKED_RUN_ID|governed-worker", re.IGNORECASE)
+# A prohibition on the SAME line neutralises a write / unknown-verb / MCP mention. `no longer`
+# and `denies` are deliberately absent: "is no longer slow" / "nobody denies it helps" excuse nothing.
 PROHIBITION_RE = re.compile(
-    r"\b(?:never|not a rung|do not|must not|don't|denied|denies|refus(?:e|ed|es)|forbidden|no longer)\b",
+    r"\b(?:never|not a rung|do not|must not|don't|denied|refus(?:e|ed|es)|forbidden)\b",
     re.IGNORECASE,
 )
+# The fence's read allowlist (wicked-core `ESTATE_READ_VERBS` + `clusters` without --annotate).
+# Anything else — `hotspots` (an alias the fence does not know), `nodes`, `--help` (no verb) —
+# is denied fail-closed, so a governed rung must not coach it.
+ESTATE_READ_VERBS = frozenset({
+    "query", "blast-radius", "rank", "stats", "source", "semantic", "cross-graph", "subscribe", "clusters",
+})
+# `wicked-estate` followed by whitespace and its argv tokens (stops at a closing backtick / quote /
+# bracket). `wicked-estate-mcp` and `wicked-estate` immediately followed by a backtick do not match.
+ESTATE_ARGV_RE = re.compile(r"wicked-estate(?:\.exe)?((?:[ \t]+[^\s`'\")\];]+)+)")  # `|` stays: `rank|nodes` is one verb list
+ESTATE_MCP_RE = re.compile(r"wicked-estate-mcp(?:\.exe)?(?![A-Za-z0-9_-])")
+CODE_SPAN_RE = re.compile(r"`([^`]*)`")
 HEADING_RE = re.compile(r"^(#{1,6})\s+\S")
 SHIM_RE = re.compile(r"_estate_client\.py|estate_memory\.py")
 READONLY_TOKEN = "--readonly"
@@ -119,20 +147,93 @@ def write_cli_hits(line: str) -> list[str]:
     return hits
 
 
+def shell_fence_lines(text: str) -> set[int]:
+    """1-based lines inside a fenced block whose info string is empty or a shell language."""
+    out: set[int] = set()
+    open_char = None
+    shell = False
+    for i, line in enumerate(text.split("\n"), 1):
+        m = re.match(r"^\s*(```+|~~~+)\s*([^\s`{]*)", line)
+        if open_char is None:
+            if m:
+                open_char = m.group(1)[0]
+                shell = (m.group(2) or "").lower() in ("", "bash", "sh", "shell", "zsh", "console", "shell-session")
+            continue
+        if m and m.group(1)[0] == open_char and not (m.group(2) or ""):
+            open_char = None
+            continue
+        if shell:
+            out.add(i)
+    return out
+
+
+def code_segments(line: str, in_shell_fence: bool) -> list[str]:
+    """The parts of a line that are CODE — the whole line inside a shell fence, else its
+    backtick spans. Prose outside code is a mention, not an invocation."""
+    if in_shell_fence:
+        return [line]
+    return [m.group(1) for m in CODE_SPAN_RE.finditer(line)]
+
+
+def unknown_verb_hits(segment: str) -> list[str]:
+    """`wicked-estate <argv>` invocations whose verb is not read-allowlisted (or absent)."""
+    hits: list[str] = []
+    for m in ESTATE_ARGV_RE.finditer(segment):
+        toks = m.group(1).split()
+        verb = None
+        i = 0
+        while i < len(toks):
+            t = toks[i]
+            if t == "--db":
+                i += 2
+                continue
+            if t.startswith("-"):
+                i += 1
+                continue
+            verb = t
+            break
+        if verb is None:
+            hits.append(f"wicked-estate {' '.join(toks)}".strip() + " (no subcommand — the fence denies it unknown-verb)")
+            continue
+        # `blast-radius|query|rank` lists every alternative on one rung — each must be allowlisted.
+        alts = [a for a in verb.split("|") if a]
+        bad = [a for a in alts if a not in ESTATE_READ_VERBS]
+        if bad and not any(a in WRITE_VERBS for a in alts):
+            hits.append(f"wicked-estate {verb}")
+    return hits
+
+
 def scan_text(rel_file: str, text: str) -> list[Violation]:
     out: list[Violation] = []
     governed = governed_lines(text)
+    fenced = shell_fence_lines(text)
     for lineno, line in enumerate(text.split("\n"), 1):
         if lineno not in governed:
             continue
+        prohibited = PROHIBITION_RE.search(line) is not None
         hits = write_cli_hits(line)
-        if hits and not PROHIBITION_RE.search(line):
+        if hits and not prohibited:
             out.append(Violation(
                 "governed-write-cli", rel_file, lineno,
                 f"`{hits[0]}` is a write-CLI invocation inside a governed-mode block — the write CLI is "
                 "never a rung in a governed run; ground through the estate shim in --readonly "
                 "(or spell the prohibition on the same line)",
             ))
+        if prohibited:
+            continue
+        for seg in code_segments(line, lineno in fenced):
+            for hit in unknown_verb_hits(seg):
+                out.append(Violation(
+                    "governed-unknown-verb", rel_file, lineno,
+                    f"`{hit}` is not a read-allowlisted `wicked-estate` subcommand — the fence denies it "
+                    "fail-closed; coach only " + " ".join(sorted(ESTATE_READ_VERBS)) + " in a governed rung",
+                ))
+            if ESTATE_MCP_RE.search(seg) and READONLY_TOKEN not in line:
+                out.append(Violation(
+                    "governed-mcp-not-readonly", rel_file, lineno,
+                    "`wicked-estate-mcp` spelled in a governed rung without the literal `--readonly` on the "
+                    "same line — that spawns a WRITE-capable server (the fence denies it no-readonly)",
+                ))
     return out
 
 
@@ -228,6 +329,7 @@ def test_governed_ladder_forbids_the_write_cli_explicitly(rel):
 # --- regression corpus: the rule, not the repo ------------------------------------------
 
 _TRIPS = [
+    # (name, text, expected token)
     ("heading section, shell fence rung",
      "## In a governed run\n\n1. Refresh first:\n```bash\nwicked-estate index .\n```\n"),
     ("paragraph mentioning governed, inline rung",
@@ -240,6 +342,28 @@ _TRIPS = [
      "In a governed run: `wicked-estate.exe scip load.scip`.\n"),
     ("prohibition on a DIFFERENT line does not excuse the rung",
      "## Governed\n\nNever write the graph.\nRun `wicked-estate watch .` to keep it fresh.\n"),
+    # garden #1134 MEDIUM-2 — the reviewer's six probes
+    ("L4 killer: wicked-estate-mcp --help probe in a governed rung",
+     "## In a governed run\n\nProbe the server first: `wicked-estate-mcp --help`.\n",
+     "governed-mcp-not-readonly"),
+    ("wicked-estate --help has no read verb (fence: unknown-verb)",
+     "## In a governed run\n\nCheck the CLI: `wicked-estate --help`.\n",
+     "governed-unknown-verb"),
+    ("governed block phrased without the word governed",
+     "Inside a wicked-crew run (`WICKED_RUN_ID` is set) refresh with `wicked-estate index .`.\n"),
+    ("'no longer' does not neutralise a rung",
+     "In a governed run `wicked-estate index .` is no longer slow.\n"),
+    ("'denies' does not neutralise a rung",
+     "In a governed run nobody denies `wicked-estate index .` helps.\n"),
+    ("MCP started without --readonly in a governed rung",
+     "In a governed run start `wicked-estate-mcp --db x` then query.\n",
+     "governed-mcp-not-readonly"),
+    ("non-allowlisted read alias (hotspots) in a governed rung",
+     "In a governed run rank with `wicked-estate hotspots --limit 20`.\n",
+     "governed-unknown-verb"),
+    ("one bad alternative in a pipe list",
+     "In a governed run: `wicked-estate rank|nodes <x>`.\n",
+     "governed-unknown-verb"),
 ]
 
 _QUIET = [
@@ -259,14 +383,27 @@ _QUIET = [
      "Ungovernedly, run `wicked-estate index .`\n"),
     ("shim rung with --readonly",
      "In a governed run: `wicked-garden run scripts/_estate_client.py --readonly call '{}'`\n"),
+    ("MCP named with --readonly on the same line",
+     "In a governed run the shim spawns `wicked-estate-mcp --readonly` with the store pinned.\n"),
+    ("MCP probe forbidden on the same line",
+     "In a governed run never probe `wicked-estate-mcp --help`; a denied call is final.\n"),
+    ("prose mention of the CLI is not an invocation",
+     "In a governed run the wicked-estate CLI is read-only for you; the shim answers.\n"),
+    ("pipe list of allowlisted read verbs",
+     "In a governed run: `wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph …`\n"),
+    ("read verb with flags first",
+     "In a governed run: `wicked-estate --db x stats` and `wicked-estate clusters --json`.\n"),
+    ("wicked-crew run mention with only the shim",
+     "Inside a wicked-crew run use `wicked-garden run scripts/_estate_client.py --readonly health`.\n"),
 ]
 
 
 @pytest.mark.parametrize("case", _TRIPS, ids=lambda c: c[0])
 def test_corpus_trips(case):
-    _, text = case
+    name, text = case[0], case[1]
+    expected = case[2] if len(case) > 2 else "governed-write-cli"
     got = scan_text("skills/x/SKILL.md", text)
-    assert len(got) == 1 and got[0].token == "governed-write-cli", [str(v) for v in got]
+    assert len(got) == 1 and got[0].token == expected, [str(v) for v in got]
 
 
 @pytest.mark.parametrize("case", _QUIET, ids=lambda c: c[0])
@@ -274,6 +411,12 @@ def test_corpus_quiet(case):
     _, text = case
     got = scan_text("skills/x/SKILL.md", text)
     assert not got, [str(v) for v in got]
+
+
+def test_governed_re_covers_the_phrasings_without_the_word():
+    for phrase in ("Inside a wicked-crew run", "WICKED_RUN_ID is set", "follow `wicked-garden-governed-worker`"):
+        assert governed_lines(phrase + "\n") == {1}, phrase
+    assert governed_lines("Ungovernedly, index.\n") == set()
 
 
 def test_ladder_probe_needs_shim_and_readonly_on_one_governed_line():

@@ -41,8 +41,9 @@ requires ``{"confirm_erase_all": true}``.
 
 Governed / read-only mode (wicked-garden #1130)
 ------------------------------------------------
-Inside a wicked-crew run (`WICKED_RUN_ID` set) — or when the caller passes
-``--readonly`` — the shim spawns ``wicked-estate-mcp --readonly`` with the
+Inside a wicked-crew run (a governed-unit marker present — see
+`_estate_client.GOVERNED_MARKERS` — or ``--governed`` passed) — or when the
+caller passes ``--readonly`` — the shim spawns ``wicked-estate-mcp --readonly`` with the
 store pinned from ``--db <path>`` or the worker environment
 (``WICKED_ESTATE_DB`` / ``WICKED_HOME`` / ``WICKED_MEMORY_DB``); an unpinned
 store in a run is refused (``{"ok": false, "reason": ...}``). The flags ride
@@ -64,7 +65,7 @@ content never fights shell quoting.
 
 Usage
 -----
-  python3 scripts/mem/estate_memory.py [--readonly] [--db <path>] <action> '<json-args>'
+  python3 scripts/mem/estate_memory.py [--readonly] [--governed] [--db <path>] <action> '<json-args>'
   printf '%s' '<json-args>' | python3 scripts/mem/estate_memory.py <action> -
 """
 
@@ -93,7 +94,7 @@ KIND_DEFAULT_TIER = {
 }
 
 _USAGE = (
-    "usage: estate_memory.py [--readonly] [--db <path>] "
+    "usage: estate_memory.py [--readonly] [--governed] [--db <path>] "
     "<store|recall|review|forget|maintain|capture-batch|ingest|write|sources|health> "
     "['<json-args>' | -]"
 )

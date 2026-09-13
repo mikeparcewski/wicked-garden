@@ -61,17 +61,14 @@ orients; without capture it is a briefing), but the contract is **captured propo
 Rank the paths that changed most over a window. The method is fully specified in
 [refs/churn-sampling.md](refs/churn-sampling.md); the non-negotiables:
 
-- **Size the window first** (`git rev-list --count`) — choose full-scan vs sample
-  by commit count, never by hoping.
-- **Explicit top-N cap** (default **40** paths) — the final list is always
-  `head -N`; the raw `--name-only` stream stays inside the shell pipe (sort /
-  uniq), never in your context.
-- **Sampling rule for large histories** — above the commit cap (default
-  **2000**), switch to a recency-capped or even-stride sample; never `git log`
-  the full history unbounded. Worker output is capped ~25K chars — a full-history
-  churn dump both blows that and starves the phases that matter.
-- **Roll up to directories** for wide monorepos; **filter generated/vendored
-  noise** (lockfiles, `dist/`, `target/`, `node_modules/`).
+- **Size the window first** (`git rev-list --count`) — full-scan vs sample by commit count.
+- **Explicit top-N cap** (default **40** paths) — always `head -N`; the raw `--name-only`
+  stream stays inside the shell pipe (sort / uniq), never in your context.
+- **Sampling rule for large histories** — above the commit cap (default **2000**) switch to
+  a recency-capped or even-stride sample; never `git log` the full history unbounded (worker
+  output is capped ~25K chars — a full-history dump starves the phases that matter).
+- **Roll up to directories** for wide monorepos; **filter generated/vendored noise**
+  (lockfiles, `dist/`, `target/`, `node_modules/`).
 
 Output of phase 1: a ranked list of ≤N `count  path` (or `count  dir/`) rows.
 
@@ -148,14 +145,17 @@ when the proposal is approved, so the learning is lost):
   *is*, the policy records the *ought*. A stable high-centrality invariant is a
   policy; a "this is how X actually wires up" discovery is a memory.
 
-## In a governed run (`WICKED_RUN_ID` is set)
+## In a governed run
 
-You are a unit of a wicked-crew run: follow `wicked-garden-governed-worker` (A2, A5)
-and ground through the **estate shim in read-only mode** — it works on every seat CLI
-and does not depend on an MCP server being registered (an organization MCP allowlist
-can drop one silently). The store is pinned from the worker environment
-(`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`; the shim
-refuses an unpinned store — report that, never guess one.
+You are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase
+directive and/or the `wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` /
+`WICKED_GATE_SCOPE` in your environment confirm it when present, their absence does not refute
+it. **When unsure, take this ladder** — the shim in `--readonly` is also correct in a human
+session. Follow `wicked-garden-governed-worker` (A2, A5) and ground through the **estate shim
+in read-only mode** — it works on every seat CLI and does not depend on an MCP server being
+registered (an organization MCP allowlist can drop one silently). The store is pinned from the
+worker environment (`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`;
+the shim refuses an unpinned store — report that, never guess one.
 
 1. **Grounding ladder** (phases 2–3; stop at the first rung that answers and name it):
    the shim, `--readonly` literal — every estate tool named above is reachable as

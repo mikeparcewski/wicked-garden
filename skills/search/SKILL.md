@@ -71,7 +71,7 @@ external engine, no Node version floor.
    (references no resolver could bind — a health signal, not an error count); archetype
    wiring shows as injected edges (provenance `extractor:archetype-*`).
 
-**In a governed run** (`WICKED_RUN_ID` is set — you are a unit of a wicked-crew run) the
+**In a governed run** (you are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase directive and/or the `wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` / `WICKED_GATE_SCOPE` in your environment confirm it when present, their absence does not refute it) the
 graph is handed to you already indexed and the write CLI is **never** a rung:
 never `wicked-estate index`, never `wicked-estate scip|tfstate|import-telemetry|compact|watch`,
 never `wicked-estate clusters --annotate`. A stale graph is *reported* through its
@@ -79,17 +79,17 @@ never `wicked-estate clusters --annotate`. A stale graph is *reported* through i
 
 ## Resolving symbols + the ladder (shared by every action)
 
-**Resolve the symbol.** Estate tools take symbol **names** directly (a file node's
-name is its repo-relative path, e.g. `scripts/_bus.py`). When a name is ambiguous or
-you need the node id, resolve it first with the estate `SearchEntity` tool
-(`{"name": "<symbol>"}` → matches with ids and kinds).
+**Resolve the symbol.** Estate tools take symbol **names** directly (a file node's name is
+its repo-relative path, e.g. `scripts/_bus.py`); when a name is ambiguous or you need the
+node id, resolve it first with the estate `SearchEntity` tool (`{"name": "<symbol>"}`).
 
 **Ladder** — stop at the first rung that answers and **name the rung that answered**
 (shim / estate tools / read-only CLI / grep) in every result; never present a grep
 approximation as the graph answer. A denied call is final: record it and take the next
 rung — no variants, no wrappers (`wicked-garden-governed-worker` A5).
 
-*In a governed run* (`WICKED_RUN_ID` set):
+*In a governed run* (defined in § Index / freshness; **when unsure, take this ladder** — the
+shim in `--readonly` is also correct in a human session):
 1. **The estate shim in read-only mode**, store pinned from the worker environment —
    every estate tool named in this skill is reachable through its `call` action:
    ```bash

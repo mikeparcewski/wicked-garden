@@ -42,9 +42,16 @@ never through the raw write CLI. In that mode every spawn is
 
 * ``--readonly`` is spelled literally — the MCP detects read-only by the exact
   token and refuses every write tool except the safe ``proposal.submit``.
-  Read-only is on when `WICKED_RUN_ID` is set, when the caller passed
-  ``--readonly`` on the backend argv (`parse_cli_flags` / `set_readonly`), or
-  when ``WICKED_ESTATE_READONLY`` is truthy.
+  Read-only is on when a governed-unit marker is present (`GOVERNED_MARKERS`:
+  `WICKED_RUN_ID`, or the fence env the wrapped carrier sets on the worker —
+  `WICKED_GATE_SCOPE` / `WICKED_WRITE_ROOTS`), when the caller passed
+  ``--governed`` / ``--readonly`` on the backend argv (`parse_cli_flags` /
+  `set_governed` / `set_readonly`), or when ``WICKED_GOVERNED`` /
+  ``WICKED_ESTATE_READONLY`` is truthy. The markers are a CONFIRMATION, not
+  the definition: the skill text defines governed mode by the handed context
+  (a phase directive / the governed-worker skill), because no carrier stamps
+  `WICKED_RUN_ID` on the worker's own environment today and the ACP carrier
+  hands the child none of the fence env.
 * The store must be PINNED: ``--db <path>`` on the backend argv, or
   ``WICKED_ESTATE_DB`` / ``WICKED_HOME`` / ``WICKED_MEMORY_DB`` in the worker
   environment. In a governed run an unpinned store is REFUSED (no spawn,
@@ -159,8 +166,22 @@ def resolve_db() -> Optional[str]:
 # Governed / read-only mode — the argv contract the gate hook allows (#1130)
 # ─────────────────────────────────────────────────────────────────────────────
 
-GOVERNED_RUN_ENV = "WICKED_RUN_ID"            # set on every unit of a wicked-crew run
-READONLY_ENV = "WICKED_ESTATE_READONLY"       # explicit opt-in outside a run
+# Governed-unit markers — any of these non-empty in the environment means "you are a
+# unit of a wicked-crew run". `WICKED_RUN_ID` is what wicked-core stamps on the estate
+# MCP SERVER's launch env (`estate_provenance_env`), not on the worker's own Command env,
+# so on its own it is an unreliable cue inside a unit (garden #1134 HIGH-1). The fence
+# env the WRAPPED carrier does set on the worker Command is the reliable marker there —
+# wicked-core main `ad9a0c1`, `src/execute_wrapped.rs:853` (`WRITE_ROOTS_ENV` =
+# "WICKED_WRITE_ROOTS", `src/gate_hook.rs:114`) and `:863` (`GATE_SCOPE_ENV` =
+# "WICKED_GATE_SCOPE", `src/gate_hook.rs:56`). The ACP carrier hands its child none of
+# these today (`gate_hook.rs` `estate_store_pinned_for_child`), which is why the skill
+# text defines governed mode by the HANDED CONTEXT and `--governed` / WICKED_GOVERNED=1
+# let a seat (or a launcher) say so explicitly.
+GOVERNED_RUN_ENV = "WICKED_RUN_ID"
+GOVERNED_MARKERS = (GOVERNED_RUN_ENV, "WICKED_GATE_SCOPE", "WICKED_WRITE_ROOTS")
+GOVERNED_ENV = "WICKED_GOVERNED"              # explicit override (any truthy value)
+GOVERNED_FLAG = "--governed"                  # explicit override on the backend argv
+READONLY_ENV = "WICKED_ESTATE_READONLY"       # explicit read-only opt-in outside a run
 # Any of these, non-empty in the worker environment, pins the store the spawned
 # MCP resolves (the same set wicked-core's shim allow rule reads: core #471).
 STORE_PIN_ENV = ("WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB")
@@ -168,7 +189,14 @@ READONLY_FLAG = "--readonly"                  # exact token — the MCP matches 
 DB_FLAG = "--db"
 
 _readonly_flag: bool = False                  # set by --readonly / set_readonly()
+_governed_flag: bool = False                  # set by --governed / set_governed()
 _db_override: Optional[str] = None            # set by --db <path> / set_db()
+
+
+def set_governed(flag: bool = True) -> None:
+    """Declare this process a governed unit (`--governed`): read-only + pinned store required."""
+    global _governed_flag
+    _governed_flag = bool(flag)
 
 
 def set_readonly(flag: bool = True) -> None:
@@ -187,9 +215,23 @@ def _env_truthy(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() not in ("", "0", "false", "no")
 
 
+def governed_marker() -> Optional[str]:
+    """Which cue says "governed unit": the `--governed` flag, `WICKED_GOVERNED`, or the
+    first `GOVERNED_MARKERS` variable set in the environment. None = no marker seen
+    (which does NOT prove a human session — see the module docstring)."""
+    if _governed_flag:
+        return GOVERNED_FLAG
+    if _env_truthy(GOVERNED_ENV):
+        return GOVERNED_ENV
+    for name in GOVERNED_MARKERS:
+        if os.environ.get(name, "").strip():
+            return name
+    return None
+
+
 def is_governed() -> bool:
-    """True inside a wicked-crew run (`WICKED_RUN_ID` set on the worker)."""
-    return bool(os.environ.get(GOVERNED_RUN_ENV, "").strip())
+    """True when any governed-unit marker is present (`governed_marker`)."""
+    return governed_marker() is not None
 
 
 def read_only() -> bool:
@@ -208,10 +250,11 @@ def governed_refusal() -> Optional[str]:
     Belt-and-braces with the gate hook (which denies the same shape as `no-pin`):
     the shim never resolves the operator's default stores from inside a run.
     """
-    if not is_governed() or store_pinned():
+    marker = governed_marker()
+    if marker is None or store_pinned():
         return None
     return (
-        f"governed run ({GOVERNED_RUN_ENV} is set) but no estate store is pinned: pass "
+        f"governed unit ({marker} is set) but no estate store is pinned: pass "
         f"{DB_FLAG} <path> or set {' / '.join(STORE_PIN_ENV)} in the worker environment; "
         "refusing to spawn wicked-estate-mcp against an unpinned store (it would resolve "
         "the operator's defaults)"
@@ -231,7 +274,8 @@ def mcp_argv(exe: str, db: Optional[str]) -> list:
 def parse_cli_flags(argv: list) -> list:
     """Strip the shim's own flags from a backend argv, apply them, return the rest.
 
-    `--readonly` → `set_readonly(True)`; `--db <path>` / `--db=<path>` → `set_db`.
+    `--readonly` → `set_readonly(True)`; `--governed` → `set_governed(True)`;
+    `--db <path>` / `--db=<path>` → `set_db`.
     Flags are accepted ANYWHERE on argv (the gate hook's remedy coaches appending
     `--readonly` to a denied command). Any other `--flag` raises ValueError — a
     misspelling (`--read-only`, `--readonly=false`) must never pass through as a
@@ -243,6 +287,8 @@ def parse_cli_flags(argv: list) -> list:
     for tok in it:
         if tok == READONLY_FLAG:
             set_readonly(True)
+        elif tok == GOVERNED_FLAG:
+            set_governed(True)
         elif tok == DB_FLAG:
             value = next(it, None)
             if not value or value.startswith("-"):
@@ -255,8 +301,8 @@ def parse_cli_flags(argv: list) -> list:
             set_db(value)
         elif tok.startswith("--") and len(tok) > 2:
             raise ValueError(
-                f"unknown flag {tok!r}: the estate shim accepts {READONLY_FLAG} and "
-                f"{DB_FLAG} <path> only (spell {READONLY_FLAG} exactly)"
+                f"unknown flag {tok!r}: the estate shim accepts {READONLY_FLAG}, "
+                f"{GOVERNED_FLAG} and {DB_FLAG} <path> only (spell {READONLY_FLAG} exactly)"
             )
         else:
             rest.append(tok)
@@ -912,13 +958,13 @@ def stats(timeout: float = 8.0) -> Optional[dict]:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI — the `wicked-estate-call` entry for non-Python / shell / markdown callers
-#   python3 scripts/_estate_client.py [--readonly] [--db <path>] <action> [json-args]
+#   python3 scripts/_estate_client.py [--readonly] [--governed] [--db <path>] <action> [json-args]
 # Prints JSON to stdout; exit 0 always on a clean (even empty) result, 1 only on
 # a usage error. Never crashes a caller.
 # ─────────────────────────────────────────────────────────────────────────────
 
 _USAGE = (
-    "usage: _estate_client.py [--readonly] [--db <path>] "
+    "usage: _estate_client.py [--readonly] [--governed] [--db <path>] "
     "<health|mode|search|context|recall|knowledge-recall|stats|list-tools|call|propose> "
     "[json-args]"
 )
@@ -941,9 +987,9 @@ def main(argv: list) -> int:
     action = argv[0]
     if action == "mode":
         # A pure local probe — reports the mode without spawning, refusal included.
-        _emit({"governed": is_governed(), "readonly": read_only(),
-               "store_pinned": store_pinned(), "db": resolve_db(),
-               "refusal": governed_refusal()})
+        _emit({"governed": is_governed(), "marker": governed_marker(),
+               "readonly": read_only(), "store_pinned": store_pinned(),
+               "db": resolve_db(), "refusal": governed_refusal()})
         return 0
     refusal = governed_refusal()
     if refusal:

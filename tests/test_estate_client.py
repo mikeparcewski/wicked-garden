@@ -627,7 +627,11 @@ def test_live_roundtrip_to_estate(tmp_path, monkeypatch):
 # tests pin the INNER half: what the shim actually spawns. No real MCP is ever
 # launched — Popen is stubbed and the argv asserted.
 
-_GOVERNED_ENV = ("WICKED_RUN_ID", "WICKED_ESTATE_READONLY") + _estate_client.STORE_PIN_ENV
+_GOVERNED_ENV = (
+    _estate_client.GOVERNED_MARKERS
+    + (_estate_client.GOVERNED_ENV, _estate_client.READONLY_ENV)
+    + _estate_client.STORE_PIN_ENV
+)
 
 
 @pytest.fixture(autouse=True)
@@ -636,9 +640,11 @@ def _clean_governed_mode(monkeypatch):
     for name in _GOVERNED_ENV:
         monkeypatch.delenv(name, raising=False)
     _estate_client.set_readonly(False)
+    _estate_client.set_governed(False)
     _estate_client.set_db(None)
     yield
     _estate_client.set_readonly(False)
+    _estate_client.set_governed(False)
     _estate_client.set_db(None)
 
 
@@ -674,6 +680,55 @@ def test_governed_run_spawns_readonly_with_the_pinned_db(monkeypatch):
     seen = _capture_spawn(monkeypatch)
     assert _estate_client.health() is True
     assert seen == [["wicked-estate-mcp", "--readonly", "--db", "/srv/x.db"]]
+    assert _estate_client.governed_refusal() is None
+
+
+@pytest.mark.parametrize("marker", ["WICKED_GATE_SCOPE", "WICKED_WRITE_ROOTS"])
+def test_governed_run_detected_from_the_fence_env_without_a_run_id(monkeypatch, marker):
+    """wicked-core stamps WICKED_RUN_ID on the estate MCP's launch env, not on the worker
+    (garden #1134 HIGH-1); the fence env it DOES set on the wrapped worker Command
+    (execute_wrapped.rs:853 WICKED_WRITE_ROOTS, :863 WICKED_GATE_SCOPE) is the marker."""
+    monkeypatch.setenv(marker, "unit-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.is_governed() is True
+    assert _estate_client.governed_marker() == marker
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--readonly", "--db", "/srv/x.db"]]
+
+
+def test_governed_env_override(monkeypatch, tmp_path):
+    """WICKED_GOVERNED=1 (a launcher or seat saying so) is a marker; 0 is not."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WICKED_GOVERNED", "1")
+    assert _estate_client.is_governed() is True
+    assert _estate_client.governed_marker() == "WICKED_GOVERNED"
+    reason = _estate_client.governed_refusal()
+    assert reason and "WICKED_GOVERNED" in reason and "--db" in reason
+    monkeypatch.setenv("WICKED_GOVERNED", "0")
+    assert _estate_client.is_governed() is False
+
+
+def test_governed_flag_on_argv(monkeypatch, tmp_path):
+    """`--governed` on the backend argv declares the unit; unpinned → refusal names the flag;
+    pinned → read-only spawn."""
+    monkeypatch.chdir(tmp_path)
+    assert _estate_client.parse_cli_flags(["--governed", "health"]) == ["health"]
+    assert _estate_client.governed_marker() == "--governed"
+    reason = _estate_client.governed_refusal()
+    assert reason and "--governed" in reason
+    _estate_client.parse_cli_flags(["--db", "/srv/g.db"])
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--readonly", "--db", "/srv/g.db"]]
+
+
+def test_no_marker_means_no_governed_claim(monkeypatch, tmp_path):
+    """Absence of every marker is NOT a governed unit — but also not proof of a human session
+    (documented); the shim then behaves exactly as before the fix."""
+    monkeypatch.chdir(tmp_path)
+    assert _estate_client.governed_marker() is None
+    assert _estate_client.is_governed() is False
     assert _estate_client.governed_refusal() is None
 
 
@@ -887,6 +942,7 @@ def test_main_mode_probe_reports_without_spawning(monkeypatch, tmp_path, capsys)
     code, out = _main(capsys, ["mode"])
     assert code == 0
     assert out["governed"] is True and out["readonly"] is True and out["store_pinned"] is False
+    assert out["marker"] == "WICKED_RUN_ID"
     assert out["refusal"] and "--db" in out["refusal"]
     code, out = _main(capsys, ["--db", "/srv/x.db", "mode"])
     assert out["store_pinned"] is True and out["db"] == "/srv/x.db" and out["refusal"] is None
