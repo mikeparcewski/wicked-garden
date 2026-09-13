@@ -39,6 +39,18 @@ wicked-garden run \
 
 Long content: pass `-` as json-args and pipe the JSON via stdin.
 
+**In a governed run** (dispatched as a unit of a wicked-crew run — a phase directive and/or the
+`wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` / `WICKED_GATE_SCOPE`
+confirm it when present, their absence does not refute it; when unsure, treat the session as
+governed) append `--readonly` to every `estate_memory.py` call —
+the backend forwards it to the estate shim, which spawns `wicked-estate-mcp --readonly`
+with the store pinned from the worker environment (`WICKED_ESTATE_DB` / `WICKED_HOME` /
+`WICKED_MEMORY_DB`) or `--db <path>`; an unpinned store is refused
+(`ok: false`), and `store` / `capture-batch` / `ingest` / `write` / `forget` are refused
+by the read-only engine — capture learnings as proposals instead (the
+`wicked-garden-repo-learn` skill's capture contract). `recall` / `review` / `sources` /
+`health` work unchanged. Spell `--readonly` exactly (`--read-only` is a usage error).
+
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.

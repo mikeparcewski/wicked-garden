@@ -308,3 +308,87 @@ def test_live_ingest_yields_cited_sources(tmp_path):
     assert hits and hits[0]["source"] == "fixtures/live-fixture.md", (
         "ingested chunk must come back citing its source"
     )
+
+
+# ── governed / read-only flags ride the backend argv and reach the shim (#1130) ──
+#
+# wicked-core's allow rule (core #471) judges the OUTER argv the seat runs —
+# `… estate_memory.py recall '{…}' --readonly` — and relies on the backend
+# forwarding the flag to the shim it spawns. Before this fix `main()` read
+# argv[0]/argv[1] and dropped everything else: a governance ALLOW on a
+# write-capable MCP. These tests pin the pass-through.
+
+@pytest.fixture(autouse=True)
+def _clean_shim_mode(monkeypatch):
+    for name in (_estate_client.GOVERNED_MARKERS
+                 + (_estate_client.GOVERNED_ENV, _estate_client.READONLY_ENV)
+                 + _estate_client.STORE_PIN_ENV):
+        monkeypatch.delenv(name, raising=False)
+    _estate_client.set_readonly(False)
+    _estate_client.set_governed(False)
+    _estate_client.set_db(None)
+    yield
+    _estate_client.set_readonly(False)
+    _estate_client.set_governed(False)
+    _estate_client.set_db(None)
+
+
+@pytest.mark.parametrize("argv", [
+    ["--readonly", "--db", "/srv/x.db", "recall", '{"query": "q"}'],   # leading
+    ["recall", '{"query": "q"}', "--readonly", "--db", "/srv/x.db"],   # trailing (the remedy's spelling)
+    ["recall", "--db=/srv/x.db", '{"query": "q"}', "--readonly"],      # interleaved, --db=
+])
+def test_backend_forwards_readonly_and_db_to_the_shim(monkeypatch, capsys, argv):
+    rec = _Recorder({"memory.recall": {"items": []}})
+    monkeypatch.setattr(estate_memory._estate_client, "call", rec)
+    code = estate_memory.main(argv)
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 0 and out["ok"] is True
+    assert rec.calls[0][0] == "memory.recall"          # the action still ran
+    assert _estate_client.read_only() is True           # the flag reached the shim…
+    assert _estate_client.resolve_db() == "/srv/x.db"   # …and so did the pin
+
+
+def test_backend_rejects_a_misspelt_readonly_flag(monkeypatch, capsys):
+    """`--read-only` must be a usage error, never a silently-ignored positional."""
+    rec = _Recorder({"memory.recall": {"items": []}})
+    monkeypatch.setattr(estate_memory._estate_client, "call", rec)
+    code = estate_memory.main(["recall", '{"query": "q"}', "--read-only"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 1 and "unknown flag" in out["error"] and "--readonly" in out["error"]
+    assert rec.calls == []
+    assert _estate_client.read_only() is False
+
+
+def test_backend_refuses_a_governed_run_with_no_pinned_store(monkeypatch, capsys, tmp_path):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.chdir(tmp_path)
+    rec = _Recorder({"memory.recall": {"items": []}})
+    monkeypatch.setattr(estate_memory._estate_client, "call", rec)
+    code = estate_memory.main(["--readonly", "recall", '{"query": "q"}'])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 0 and out["ok"] is False           # fail-open degrade, not a crash
+    assert "--db" in out["reason"] and "WICKED_ESTATE_DB" in out["reason"]
+    assert rec.calls == [], "no estate call may be attempted against an unpinned store"
+
+
+def test_backend_governed_flag_forwards_to_the_shim(monkeypatch, capsys):
+    """`--governed` rides the backend argv like the other two flags (a seat declaring the unit)."""
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    rec = _Recorder({"memory.recall": {"items": []}})
+    monkeypatch.setattr(estate_memory._estate_client, "call", rec)
+    code = estate_memory.main(["recall", '{"query": "q"}', "--governed"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 0 and out["ok"] is True
+    assert _estate_client.governed_marker() == "--governed" and _estate_client.read_only() is True
+
+
+def test_backend_in_a_pinned_governed_run_proceeds_read_only(monkeypatch, capsys):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    rec = _Recorder({"memory.recall": {"items": [{"content": "hit"}]}})
+    monkeypatch.setattr(estate_memory._estate_client, "call", rec)
+    code = estate_memory.main(["recall", '{"query": "q"}', "--readonly"])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 0 and out["items"] == [{"content": "hit"}]
+    assert _estate_client.read_only() is True and _estate_client.governed_refusal() is None

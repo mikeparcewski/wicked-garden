@@ -29,6 +29,38 @@ On success the tool returns `{"id": "<proposal-id>"}`. A malformed `kind_type`,
 `facets`, or a non-object `payload` fails loud with `-32602` — fix and resubmit,
 never swallow.
 
+### Submitting through the shim (every governed run; any session without the MCP)
+
+The estate shim reaches `proposal.submit` without an MCP server being registered
+with your harness, on every seat CLI:
+
+```bash
+wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"memory","payload":{"content":"…","tier":"semantic"},"facets":{"repo":"<name>","project":"<name>"}}'
+```
+
+`--readonly` is literal (the shim spawns `wicked-estate-mcp --readonly`; `proposal.submit`
+is the safe write it still permits). The store is pinned from the worker environment
+(`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`; in a run an
+unpinned store is refused with `{"ok": false, "reason": …}` — report it, do not guess a
+store. The shim answers `{"ok": true, "id": "<proposal-id>"}` or `{"ok": false,
+"reason": …, "code": <json-rpc code or null>}`: `-32602` is a *your-args* bug (fix the
+shape), `null` means the estate was unreachable (keep the objects — next section). Long
+JSON: pass `-` as the json-args and pipe it on stdin. A `provenance` key is dropped.
+
+### The deliverable file (governed runs)
+
+In a governed run the capture phase ALSO writes every proposal it derived — the exact
+`{kind_type, payload, facets}` objects, as **one JSON array** (bare array, no prose, no
+code fences) — to the deliverable file the run names in your problem statement or
+intake. That path is absolute and lies inside the unit's **declared write root**, never
+inside the repository checkout (a file created in the repository is a write the
+worktree guard rejects — `wicked-garden-governed-worker` E1); create parent directories
+if needed and overwrite an earlier version. Write it whether or not `propose` succeeded:
+when the shim path is unavailable on a seat, this file IS the record — wicked-crew
+submits its objects as pending proposals with the run's provenance. If the run named no
+path, emit the same array as a fenced `json` block in your output and say so. Report
+the counts: derived N / submitted M / written-to-file W / failed K.
+
 ### `<type>` for policies (the seven steering types)
 
 `policy:` must be suffixed with exactly one: `architecture` · `development` ·
@@ -153,10 +185,12 @@ Policy (development, language-scoped, from a stable core with a clear guardrail)
 
 - `-32602` (invalid kind_type/facets/payload): a *your-args* bug — fix the shape
   (lowercase kind_type suffix, object payload, valid axis tokens) and resubmit.
-- `-32603` / transport / MCP unreachable: the store or server failed. Do **not**
-  drop the learning — collect the derived memories and policies into a structured
-  block in your final report (the exact `{kind_type, payload, facets}` objects) so
-  a human or a later run can submit them, and name the degrade explicitly.
+- `-32603` / transport / estate unreachable (shim `code: null`): the store or server
+  failed. Do **not** drop the learning — collect the derived memories and policies into
+  a structured block in your final report (the exact `{kind_type, payload, facets}`
+  objects) so a human or a later run can submit them, and name the degrade explicitly.
+  In a governed run the deliverable file above already carries them; say which rung
+  answered (shim / estate tools / none).
 - Report captures honestly: "**proposed** N memories, M policies (pending
   review)", never "recorded" or "stored" — nothing is in the record until an
   operator approves it.

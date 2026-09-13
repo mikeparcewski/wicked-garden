@@ -174,6 +174,10 @@ wicked-garden run scripts/engineering/patch/estate_db.py \
   [--estate-db .codegraph/estate.db] [--out .wicked/patch-symbols.db]
 ```
 
+**In a governed run** (a unit of a wicked-crew run; when unsure, assume so) the store is
+handed to you — pass it as `--estate-db "$WICKED_ESTATE_DB"`; never run `wicked-estate index`
+inside a run (the write CLI is denied there; the `wicked-garden-search` ladder applies).
+
 `estate_db.py` auto-discovers the store (`$WICKED_ESTATE_DB`, then
 `.codegraph/estate.db`, then `.wicked-estate/graph.db`); pass the resulting
 `--db .wicked/patch-symbols.db` to the patch sub-actions. Symbol ids keep the
