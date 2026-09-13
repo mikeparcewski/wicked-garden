@@ -57,54 +57,66 @@ The graph lives in **wicked-estate** (ADR 0005): a 75-language tree-sitter
 static graph **plus** injected domain edges, built by the estate binary — no
 external engine, no Node version floor.
 
-1. **Build / refresh** — one command rebuilds the static graph **and**
-   re-applies every injected-edge rule (any per-repo TOML drop-ins under
-   `.wicked-estate-extractors/`, e.g. garden's archetype rules):
+1. **Build / refresh** (a human session only — see the rule below the list) — one
+   command rebuilds the static graph **and** re-applies every injected-edge rule
+   (per-repo TOML drop-ins under `.wicked-estate-extractors/`, e.g. garden's archetype rules):
    ```bash
    wicked-estate index <path>        # DB defaults to .wicked-estate/graph.db
    ```
-   Incremental — unchanged files are skipped; editing the extractor rules
-   forces a full re-extract automatically. (The estate MCP server serves the
-   same DB, so an index refresh is immediately visible to the MCP tools.)
+   Incremental and idempotent — unchanged files are skipped; editing the extractor
+   rules forces a full re-extract. The estate MCP serves the same DB, so a refresh is
+   immediately visible to the tools. Freshness is lazy (opt-in `wicked-estate watch`);
+   estate prints a `STALENESS: N commit(s) since last index` marker — re-run when stale.
+2. **Verify**: `wicked-estate stats` reports node/edge counts plus `unresolved=N`
+   (references no resolver could bind — a health signal, not an error count); archetype
+   wiring shows as injected edges (provenance `extractor:archetype-*`).
 
-2. **Verify**: `wicked-estate stats` reports node/edge counts plus an
-   `unresolved=N` token (call/import references no resolver could bind — a
-   resolver-health signal, not an error count); a repo with
-   archetype wiring shows the injected edges (provenance
-   `extractor:archetype-declare` / `extractor:archetype-playbook`).
+**In a governed run** (`WICKED_RUN_ID` is set — you are a unit of a wicked-crew run) the
+graph is handed to you already indexed and the write CLI is **never** a rung:
+never `wicked-estate index`, never `wicked-estate scip|tfstate|import-telemetry|compact|watch`,
+never `wicked-estate clusters --annotate`. A stale graph is *reported* through its
+`STALENESS` marker, not rebuilt. Binary resolution: `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`.
 
-**Notes**
-- Indexing is incremental/idempotent — safe to re-run.
-- Freshness is lazy by design (no file-watcher reindex; `wicked-estate watch`
-  exists for opt-in). Estate reports **staleness** on queries and prints a
-  `STALENESS: N commit(s) since last index` marker — re-run `index` when stale.
-- Binary resolution: `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`
-  (`scripts/_estate_client.py` is the Python reach-shim for hooks).
+## Resolving symbols + the ladder (shared by every action)
 
-## Resolving symbols + fallback ladder (shared by blast-radius and lineage)
+**Resolve the symbol.** Estate tools take symbol **names** directly (a file node's
+name is its repo-relative path, e.g. `scripts/_bus.py`). When a name is ambiguous or
+you need the node id, resolve it first with the estate `SearchEntity` tool
+(`{"name": "<symbol>"}` → matches with ids and kinds).
 
-**Resolve the symbol.** Estate tools take symbol **names** directly (a file
-node's name is its repo-relative path, e.g. `scripts/_bus.py`). When a name is
-ambiguous or you need the node id, resolve it first with the estate MCP
-`SearchEntity` tool (`{"name": "<symbol>"}` → matches with ids and kinds).
+**Ladder** — stop at the first rung that answers and **name the rung that answered**
+(shim / estate tools / read-only CLI / grep) in every result; never present a grep
+approximation as the graph answer. A denied call is final: record it and take the next
+rung — no variants, no wrappers (`wicked-garden-governed-worker` A5).
 
-**Fallbacks** (in order):
-1. If the estate MCP server isn't connected, shell the CLI directly:
-   `wicked-estate blast-radius <name>` / `wicked-estate query <name>`
-   (resolve the binary via `WICKED_ESTATE_BIN` → PATH → `~/.local/bin`).
-2. If estate is unreachable entirely, fall back to Grep/Glob for literal
-   refs — and **flag that injected relationships will be MISSING** from the
-   result (injected/string-keyed links are invisible to grep).
+*In a governed run* (`WICKED_RUN_ID` set):
+1. **The estate shim in read-only mode**, store pinned from the worker environment —
+   every estate tool named in this skill is reachable through its `call` action:
+   ```bash
+   wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"BlastRadius","arguments":{"symbol":"<name>"}}'
+   ```
+   `--readonly` is literal (the spawned `wicked-estate-mcp` reads only). The store rides
+   `WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB` from the run, or `--db <path>`;
+   the shim refuses an unpinned store (`{"ok": false, "reason": …}`) — report that, never
+   guess a store. This rung works on every seat CLI and does not depend on an MCP server
+   being registered (an organization MCP allowlist can drop one silently).
+2. **A read-only CLI subcommand**: `wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph …`
+   (`clusters` only without `--annotate`). The write CLI is never a rung (§ Index / freshness).
+3. **grep** (your code-search tool) for literal refs — and **flag that injected
+   relationships are MISSING** (injected/string-keyed links are invisible to grep).
+
+*Otherwise* (a human session):
+1. The estate MCP tools (`SearchEntity`, `BlastRadius`, `Lineage`, …) when connected.
+2. The CLI directly: `wicked-estate blast-radius <name>` / `wicked-estate query <name>`
+   (binary via `WICKED_ESTATE_BIN` → `PATH` → `~/.local/bin`).
+3. grep for literal refs — flagging that injected relationships are MISSING.
 
 ## Blast radius — "what breaks if I change X?"
 
 Analyze what would be affected if you changed a symbol — traces **dependents**
 (what uses this) over the code-relationship graph, including injected edges
 (bus/dispatch/capability/archetype) that grep and a static call-graph cannot see.
-
-> **Scope**: `blast-radius` answers "what breaks if I change X?" (the
-> dependents graph). For **data-flow tracing** (UI field → DB column or
-> reverse), use the `lineage` action.
+For **data-flow tracing** (UI field → DB column or reverse) use the `lineage` action.
 
 **Arguments**: `symbol` (required — a file path like `src/app.py`, or a symbol
 name); `--depth` (optional traversal depth; estate default 8, max 24).
@@ -112,49 +124,40 @@ Starting from a **file path** returns its **importer files** as dependents
 (File→File import edges), so `blast-radius scripts/_bus.py` answers "which
 files import this file" — no longer an empty "no resolved dependents".
 
-1. **Ensure the graph is fresh** (§ Index / freshness): `wicked-estate index <path>`.
-   Estate prints a `STALENESS` marker when commits have landed since the last
-   index; re-run after editing.
+1. **Ensure the graph is fresh** (§ Index / freshness) — in a governed run only read the
+   `STALENESS` marker and report it.
 2. **Resolve the symbol** (§ Resolving symbols).
 3. **Query blast radius from estate** (static + injected dependents in one
-   answer — the authoritative layer): call the estate MCP **`BlastRadius`**
-   tool with `{"symbol": "<name-or-path>", "depth": <n>}`.
+   answer — the authoritative layer): the estate **`BlastRadius`**
+   tool with `{"symbol": "<name-or-path>", "depth": <n>}` (via the ladder's first rung).
    The `dependents` array includes relationships grep can't see: a command that
-   *dispatches* an agent, a consumer that *subscribes* to an event, an agent
-   that *declares* a capability — and archetype→playbook relationships via
-   garden's `.wicked-estate-extractors/archetype.toml` (provenance
-   `extractor:archetype-playbook`). Results carry confidence + provenance per
-   edge and an `unresolved_callers` count — reference sites **no resolver could
-   bind** (repeat call sites of an already-bound relationship are NOT counted,
-   so `0` is a legitimate value for a fully-resolved hot symbol; counts are
-   much lower than under the pre-2026-08 over-counting definition).
-4. **Fallbacks**: § Resolving symbols + fallback ladder.
-5. Report: **dependents** (static + injected, with provenance), total
-   blast-radius count, files affected, and the graph's staleness.
+   *dispatches* an agent, a consumer that *subscribes* to an event, an agent that
+   *declares* a capability — and archetype→playbook relationships via garden's
+   `.wicked-estate-extractors/archetype.toml` (provenance `extractor:archetype-playbook`).
+   Results carry confidence + provenance per edge and an `unresolved_callers` count —
+   reference sites **no resolver could bind** (repeat call sites of a bound relationship
+   are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
+4. **Fallbacks**: § Resolving symbols + the ladder.
+5. Report: **dependents** (static + injected, with provenance), total blast-radius
+   count, files affected, the graph's staleness, and **which rung answered**.
 
-**Examples**
-```
-blast-radius scripts/_bus.py
-blast-radius UserService --depth 3
-```
+Examples: `blast-radius scripts/_bus.py` · `blast-radius UserService --depth 3`.
 
 ## Lineage — "where does this flow from / to?"
 
-Trace flow through the code-relationship graph. Downstream = what the symbol
-depends on; upstream = what depends on it. Includes injected edges
-(bus/dispatch/capability/archetype) that grep and a static call-graph can't see.
+Trace flow through the code-relationship graph. Downstream = what the symbol depends
+on; upstream = what depends on it. Includes injected edges grep can't see.
 
-> **Scope**: `lineage` answers "where does this flow from / to?". For pure
-> "what breaks if I change X?" use the `blast-radius` action.
+For pure "what breaks if I change X?" use the `blast-radius` action.
 
 **Arguments**: `symbol` (required — a file path or symbol name);
 `--direction` (optional, default `downstream`): `downstream` (dependencies),
 `upstream` (dependents), or `both`; `--depth` (optional traversal depth;
 estate default 8, max 24).
 
-1. **Ensure the graph is fresh** (§ Index / freshness): `wicked-estate index <path>`.
+1. **Ensure the graph is fresh** (§ Index / freshness) — governed: report `STALENESS` only.
 2. **Resolve the symbol** (§ Resolving symbols).
-3. **Trace** via the estate MCP:
+3. **Trace** via the estate tools (the ladder's first rung):
    - **downstream** (what it depends on): the **`Lineage`** tool with
      `{"symbol": "<name>"}` → `dependencies`.
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
@@ -164,15 +167,11 @@ estate default 8, max 24).
    Each result includes injected edges (e.g. a consumer reached via a bus
    rule, an archetype via `extractor:archetype-playbook`) with confidence +
    provenance per edge.
-4. **Fallbacks**: § Resolving symbols + fallback ladder.
+4. **Fallbacks**: § Resolving symbols + the ladder.
 5. Report each path (source → sink), file locations per step, provenance of
-   injected hops, and gaps.
+   injected hops, gaps, and **which rung answered**.
 
-**Examples**
-```
-lineage scripts/_bus.py --direction upstream
-lineage User.email --direction both
-```
+Examples: `lineage scripts/_bus.py --direction upstream` · `lineage User.email --direction both`.
 
 ## Hotspots — most-central symbols
 

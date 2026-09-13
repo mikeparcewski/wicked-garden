@@ -7,11 +7,12 @@ god-objects, coupling hotspots, and high-impact refactor targets.
 
 ## Instructions
 
-1. **Freshness** — ensure the graph is current with the search skill's `index`
-   action (`wicked-estate index <path>` builds the static graph + injected
-   edges; estate prints a `STALENESS` marker when commits have landed since
-   the last index). The ranking below reads that graph.
-2. **Primary path — the estate MCP `RankHotspots` tool**: call it with
+1. **Freshness** — in a human session ensure the graph is current with the search
+   skill's `index` action (`wicked-estate index <path>` builds the static graph +
+   injected edges; estate prints a `STALENESS` marker when commits have landed since
+   the last index). The ranking below reads that graph. (Inside a wicked-crew run see
+   the paragraph after this list.)
+2. **Primary path — the estate `RankHotspots` tool**: call it with
    `{"limit": <n>}` (optionally `{"seeds": ["<symbol>", …]}` for a
    personalized, subsystem-local ranking). PageRank over Calls+Imports edges —
    strictly better than a raw incoming-edge count, because it weights a
@@ -35,6 +36,11 @@ god-objects, coupling hotspots, and high-impact refactor targets.
    skill's `index` action after installing wicked-estate — and note that any
    grep-based approximation misses injected relationships and referral
    centrality.
+
+**In a governed run** (`WICKED_RUN_ID` set): never run `wicked-estate index` — report the
+`STALENESS` marker instead — and take the ranking through the estate shim in read-only
+mode (the search skill's ladder, first rung; the store is pinned from the worker env):
+`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"RankHotspots","arguments":{"limit":20}}'`.
 
 ## Example
 

@@ -615,3 +615,278 @@ def test_live_roundtrip_to_estate(tmp_path, monkeypatch):
     # 4. stats CLI analogue reflects the indexed graph.
     st = _estate_client.stats(timeout=30)
     assert st and st.get("nodes", 0) >= 1
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Governed / read-only mode — the argv contract the gate hook allows (#1130)
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# wicked-core's shim allow rule (core #471) admits a shim / backend call only when
+# `--readonly` is on the outer argv AND the store is pinned (`--db <path>` or
+# WICKED_ESTATE_DB / WICKED_HOME / WICKED_MEMORY_DB in the worker env). These
+# tests pin the INNER half: what the shim actually spawns. No real MCP is ever
+# launched — Popen is stubbed and the argv asserted.
+
+_GOVERNED_ENV = ("WICKED_RUN_ID", "WICKED_ESTATE_READONLY") + _estate_client.STORE_PIN_ENV
+
+
+@pytest.fixture(autouse=True)
+def _clean_governed_mode(monkeypatch):
+    """No test inherits a run / pin from the developer's shell, and none leaks its flags."""
+    for name in _GOVERNED_ENV:
+        monkeypatch.delenv(name, raising=False)
+    _estate_client.set_readonly(False)
+    _estate_client.set_db(None)
+    yield
+    _estate_client.set_readonly(False)
+    _estate_client.set_db(None)
+
+
+_INIT_LINE = json.dumps(
+    {"jsonrpc": "2.0", "id": 1, "result": {"serverInfo": {"name": "wicked-estate"}}}
+)
+
+
+def _capture_spawn(monkeypatch):
+    """Stub Popen with a process that answers the handshake; record every argv."""
+    seen: list = []
+
+    class _Proc:
+        returncode = 0
+
+        def communicate(self, input=None, timeout=None):
+            return (_INIT_LINE + "\n", "")
+
+    def fake_popen(argv, **kwargs):
+        seen.append(list(argv))
+        return _Proc()
+
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", fake_popen)
+    _estate_client.set_dispatch(_estate_client._dispatch)
+    return seen
+
+
+def test_governed_run_spawns_readonly_with_the_pinned_db(monkeypatch):
+    """WICKED_RUN_ID + WICKED_ESTATE_DB → `wicked-estate-mcp --readonly --db <db>`."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--readonly", "--db", "/srv/x.db"]]
+    assert _estate_client.governed_refusal() is None
+
+
+def test_governed_run_pinned_by_wicked_home_only(monkeypatch, tmp_path):
+    """The ACP carrier pins via WICKED_HOME (no WICKED_ESTATE_DB): read-only, no --db —
+    the MCP resolves the graph default and the memory/knowledge stores from WICKED_HOME."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_HOME", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--readonly"]]
+
+
+def test_governed_run_without_a_pinned_store_never_spawns(monkeypatch, tmp_path):
+    """No --db, no pin variable, inside a run → refuse (no Popen), name the fix, stay fail-open."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.chdir(tmp_path)
+    seen = _capture_spawn(monkeypatch)
+    reason = _estate_client.governed_refusal()
+    assert reason and "WICKED_RUN_ID" in reason and "--db" in reason
+    for pin in _estate_client.STORE_PIN_ENV:
+        assert pin in reason
+    assert _estate_client.health() is False
+    assert _estate_client.call("SearchEntity", {"name": "x"}) is None
+    assert seen == [], "a governed, unpinned shim must not spawn the MCP at all"
+
+
+def test_governed_run_db_flag_pins_the_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.chdir(tmp_path)
+    rest = _estate_client.parse_cli_flags(["--db", "/srv/y.db", "health"])
+    assert rest == ["health"]
+    assert _estate_client.resolve_db() == "/srv/y.db"
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--readonly", "--db", "/srv/y.db"]]
+
+
+def test_outside_a_run_the_spawn_is_unchanged(monkeypatch, tmp_path):
+    """No run, no flag → the pre-#1130 argv (`--db` only when a db resolves)."""
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--db", "/srv/x.db"]]
+
+
+def test_explicit_readonly_flag_outside_a_run(monkeypatch, tmp_path):
+    """`--readonly` alone (human session) → read-only spawn; no pin is demanded outside a run."""
+    monkeypatch.chdir(tmp_path)
+    assert _estate_client.parse_cli_flags(["recall", "{}", "--readonly"]) == ["recall", "{}"]
+    assert _estate_client.read_only() is True
+    assert _estate_client.governed_refusal() is None
+    seen = _capture_spawn(monkeypatch)
+    assert _estate_client.health() is True
+    assert seen == [["wicked-estate-mcp", "--readonly"]]
+
+
+def test_readonly_env_opt_in(monkeypatch):
+    monkeypatch.setenv("WICKED_ESTATE_READONLY", "1")
+    assert _estate_client.read_only() is True
+    monkeypatch.setenv("WICKED_ESTATE_READONLY", "0")
+    assert _estate_client.read_only() is False
+
+
+@pytest.mark.parametrize("argv", [
+    ["--read-only", "health"],          # the spelling the MCP would NOT honour → write mode
+    ["--readonly=false", "health"],
+    ["health", "--verbose"],
+    ["--db"],                           # missing value
+    ["--db", "--readonly", "health"],   # value must be a path, not a flag
+    ["--db=", "health"],
+])
+def test_parse_cli_flags_rejects_anything_but_the_two_flags(argv):
+    with pytest.raises(ValueError):
+        _estate_client.parse_cli_flags(argv)
+
+
+def test_parse_cli_flags_accepts_db_equals_and_keeps_positionals():
+    rest = _estate_client.parse_cli_flags(["store", "-", "--db=/srv/z.db", "--readonly"])
+    assert rest == ["store", "-"]
+    assert _estate_client.resolve_db() == "/srv/z.db"
+    assert _estate_client.read_only() is True
+
+
+def test_broker_restarts_when_the_mode_changes(fake_mcp_bin, monkeypatch):
+    """A live broker started write-capable must not keep serving once read-only is on."""
+    seen: list = []
+    inner = _estate_client.subprocess.Popen  # the fixture's patched Popen
+
+    def recording_popen(argv, **kwargs):
+        seen.append(list(argv))
+        return inner(argv, **kwargs)
+
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", recording_popen)
+    broker = _estate_client._PersistentBroker()
+    _estate_client.set_dispatch(broker)
+    assert _estate_client.health(timeout=10) is True
+    first = broker._proc
+    assert "--readonly" not in seen[-1]
+    _estate_client.set_readonly(True)
+    assert _estate_client.health(timeout=10) is True
+    assert broker._proc is not first, "mode change must restart the process"
+    assert "--readonly" in seen[-1]
+    assert broker._readonly is True
+    assert broker._reconnect_used is False, "a planned mode restart is not a reconnect"
+
+
+def test_broker_refuses_a_governed_unpinned_store(monkeypatch, tmp_path):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    monkeypatch.setattr(_estate_client.subprocess, "Popen",
+                        lambda *a, **k: pytest.fail("must not spawn"))
+    broker = _estate_client._PersistentBroker()
+    assert broker([_estate_client._initialize_request()], db=None, timeout=5) == {}
+    assert broker._failed is False, "a refusal is a precondition, not a transport death"
+
+
+# ── proposal.submit through the shim ──────────────────────────────────────────
+
+def _proposal_dispatch(seen, *, response):
+    def fake_dispatch(requests, *, db, timeout):
+        out = {1: json.loads(_INIT_LINE)}
+        for r in requests:
+            if r.get("method") == "tools/call":
+                seen.append(r["params"])
+                env = dict(response)
+                env["id"] = r["id"]
+                out[r["id"]] = env
+        return out
+    return fake_dispatch
+
+
+def test_propose_routes_to_proposal_submit_and_never_sends_provenance():
+    seen: list = []
+    _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"id": "prop-1"})))
+    out = _estate_client.propose("memory", {"content": "c", "tier": "semantic"},
+                                 {"repo": "wicked-garden", "project": "wicked"})
+    assert out == {"ok": True, "id": "prop-1"}
+    assert seen[0]["name"] == "proposal.submit"
+    assert seen[0]["arguments"] == {
+        "kind_type": "memory",
+        "payload": {"content": "c", "tier": "semantic"},
+        "facets": {"repo": "wicked-garden", "project": "wicked"},
+    }
+
+
+def test_propose_surfaces_the_json_rpc_code():
+    seen: list = []
+    err = {"jsonrpc": "2.0", "error": {"code": -32602, "message": "invalid kind_type"}}
+    _estate_client.set_dispatch(_proposal_dispatch(seen, response=err))
+    out = _estate_client.propose("Memory", {"content": "c"})
+    assert out["ok"] is False and out["code"] == -32602 and "kind_type" in out["reason"]
+
+
+def test_propose_unreachable_is_a_degrade_with_no_code():
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
+    out = _estate_client.propose("memory", {"content": "c"})
+    assert out["ok"] is False and out["code"] is None and "unreachable" in out["reason"]
+
+
+# ── the CLI surface skills call ───────────────────────────────────────────────
+
+def _main(capsys, argv):
+    code = _estate_client.main(argv)
+    return code, json.loads(capsys.readouterr().out.strip())
+
+
+def test_main_propose_action_drops_provenance(capsys):
+    seen: list = []
+    _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"id": "prop-2"})))
+    code, out = _main(capsys, ["--readonly", "propose", json.dumps({
+        "kind_type": "policy:testing",
+        "payload": {"rule": "r", "severity": "warn"},
+        "facets": {"repo": "x", "project": "y"},
+        "provenance": {"forged": True},
+    })])
+    assert code == 0 and out == {"ok": True, "id": "prop-2"}
+    assert "provenance" not in seen[0]["arguments"]
+    assert _estate_client.read_only() is True
+
+
+def test_main_propose_requires_kind_type_and_object_payload(capsys):
+    code, out = _main(capsys, ["propose", json.dumps({"kind_type": "memory", "payload": "str"})])
+    assert code == 1 and "propose requires" in out["error"]
+
+
+def test_main_governed_refusal_is_a_clear_degrade_not_a_crash(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen",
+                        lambda *a, **k: pytest.fail("must not spawn"))
+    _estate_client.set_dispatch(_estate_client._dispatch)
+    code, out = _main(capsys, ["health"])
+    assert code == 0 and out["ok"] is False and out["governed"] is True
+    assert "--db" in out["reason"] and "WICKED_ESTATE_DB" in out["reason"]
+
+
+def test_main_rejects_a_misspelt_readonly_flag(capsys):
+    """`--read-only` would spawn a WRITE-capable MCP if it fell through — usage error instead."""
+    code, out = _main(capsys, ["--read-only", "health"])
+    assert code == 1 and "--readonly" in out["error"] and "unknown flag" in out["error"]
+
+
+def test_main_mode_probe_reports_without_spawning(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen",
+                        lambda *a, **k: pytest.fail("must not spawn"))
+    code, out = _main(capsys, ["mode"])
+    assert code == 0
+    assert out["governed"] is True and out["readonly"] is True and out["store_pinned"] is False
+    assert out["refusal"] and "--db" in out["refusal"]
+    code, out = _main(capsys, ["--db", "/srv/x.db", "mode"])
+    assert out["store_pinned"] is True and out["db"] == "/srv/x.db" and out["refusal"] is None

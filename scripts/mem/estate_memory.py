@@ -39,16 +39,32 @@ call from nuking the store, `forget` requires a scope_prefix containing at
 least one ``kind:id`` segment; erasing the root ("" / "*") additionally
 requires ``{"confirm_erase_all": true}``.
 
+Governed / read-only mode (wicked-garden #1130)
+------------------------------------------------
+Inside a wicked-crew run (`WICKED_RUN_ID` set) — or when the caller passes
+``--readonly`` — the shim spawns ``wicked-estate-mcp --readonly`` with the
+store pinned from ``--db <path>`` or the worker environment
+(``WICKED_ESTATE_DB`` / ``WICKED_HOME`` / ``WICKED_MEMORY_DB``); an unpinned
+store in a run is refused (``{"ok": false, "reason": ...}``). The flags ride
+THIS script's argv, anywhere on it, and are forwarded to the shim
+(`_estate_client.parse_cli_flags`) instead of being dropped — the wicked-core
+gate hook allows a backend call only when ``--readonly`` is spelled on it and
+the store is pinned (core #471). Under ``--readonly`` every write action
+(store / capture-batch / ingest / write / forget) is refused by the MCP
+itself; recall / review / sources / health keep working.
+
 Fail-open contract
 ------------------
 Estate missing/unreachable is a degrade, not a crash: actions emit
-``{"ok": false, "reason": ...}`` and exit 0. Only usage errors exit 1.
+``{"ok": false, "reason": ...}`` and exit 0. Only usage errors exit 1
+(including an unknown ``--flag``: a misspelt ``--read-only`` must never pass
+through silently — the MCP would run write-capable).
 Cross-platform: stdlib only; JSON in/out; ``-`` reads args from stdin so long
 content never fights shell quoting.
 
 Usage
 -----
-  python3 scripts/mem/estate_memory.py <action> '<json-args>'
+  python3 scripts/mem/estate_memory.py [--readonly] [--db <path>] <action> '<json-args>'
   printf '%s' '<json-args>' | python3 scripts/mem/estate_memory.py <action> -
 """
 
@@ -77,7 +93,7 @@ KIND_DEFAULT_TIER = {
 }
 
 _USAGE = (
-    "usage: estate_memory.py "
+    "usage: estate_memory.py [--readonly] [--db <path>] "
     "<store|recall|review|forget|maintain|capture-batch|ingest|write|sources|health> "
     "['<json-args>' | -]"
 )
@@ -364,9 +380,20 @@ _ACTIONS = {
 
 
 def main(argv):
+    # The shim's own flags (--readonly, --db <path>) may sit anywhere on argv;
+    # they are applied to the shim and stripped here — never dropped, never
+    # mistaken for the action or the JSON positional (garden #1130).
+    try:
+        argv = _estate_client.parse_cli_flags(list(argv))
+    except ValueError as exc:
+        _emit({"error": f"{exc}; {_USAGE}"})
+        return 1
     if not argv or argv[0] not in _ACTIONS:
         _emit({"error": _USAGE})
         return 1
+    refusal = _estate_client.governed_refusal()
+    if refusal:
+        return _fail_open(refusal)
     raw = argv[1] if len(argv) > 1 else "{}"
     if raw == "-":
         raw = sys.stdin.read()

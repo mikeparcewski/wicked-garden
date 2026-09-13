@@ -32,12 +32,39 @@ The spawn-vs-broker choice is an implementation detail behind a single seam:
 and swappable via `set_dispatch()`). Every public function routes through it, so
 **no caller changes** when the transport does.
 
+Governed / read-only mode (wicked-garden #1130, DES-GROUNDING-001 §7)
+------------------------------------------------------------------
+A governed worker (a unit of a wicked-crew run, `WICKED_RUN_ID` set) grounds
+through THIS shim, never through a Claude-Code-registered MCP server (an
+organization-managed `allowedMcpServers` allowlist drops that silently) and
+never through the raw write CLI. In that mode every spawn is
+``wicked-estate-mcp --readonly [--db <store>]``:
+
+* ``--readonly`` is spelled literally — the MCP detects read-only by the exact
+  token and refuses every write tool except the safe ``proposal.submit``.
+  Read-only is on when `WICKED_RUN_ID` is set, when the caller passed
+  ``--readonly`` on the backend argv (`parse_cli_flags` / `set_readonly`), or
+  when ``WICKED_ESTATE_READONLY`` is truthy.
+* The store must be PINNED: ``--db <path>`` on the backend argv, or
+  ``WICKED_ESTATE_DB`` / ``WICKED_HOME`` / ``WICKED_MEMORY_DB`` in the worker
+  environment. In a governed run an unpinned store is REFUSED (no spawn,
+  `governed_refusal()` names the fix) — an unpinned MCP would resolve the
+  operator's defaults, which is exactly the leak the fence denies.
+* Backends forward the flags instead of dropping them: `parse_cli_flags(argv)`
+  strips ``--readonly`` / ``--db`` anywhere on argv and REJECTS any other
+  ``--flag`` (a misspelling such as ``--read-only`` must never fall through —
+  the MCP would run write-capable). The wicked-core gate hook allows a shim
+  invocation only with ``--readonly`` AND a pinned store (core #471); this
+  module produces exactly that argv shape for the spawned MCP.
+
 Fail-open contract
 ------------------
 Every public function is fail-open: on a missing binary, spawn failure,
 timeout, non-zero exit, malformed JSON, or a tool `isError`, it returns a safe
 empty value (`False` / `None` / `[]`) and never raises. Hooks degrade; they do
-not crash.
+not crash. The governed refusal above is the one deliberate "do not even try":
+it still returns the empty value — the CLI surfaces the reason as
+``{"ok": false, "reason": …}``.
 
 Cross-platform
 --------------
@@ -108,11 +135,14 @@ def resolve_estate_bin() -> Optional[str]:
 def resolve_db() -> Optional[str]:
     """Resolve the graph DB path, mirroring the binary's own resolution.
 
-    Order: WICKED_ESTATE_DB env > <cwd>/.wicked-estate/graph.db (if present) >
-    None. When None, callers omit `--db` and let the binary apply its default,
-    so we never fight the binary's resolution — we only *pin* it when we have a
-    concrete answer. `:memory:` is honoured (passed through) for tests.
+    Order: an explicit `--db` (`set_db` / `parse_cli_flags`) > WICKED_ESTATE_DB
+    env > <cwd>/.wicked-estate/graph.db (if present) > None. When None, callers
+    omit `--db` and let the binary apply its default, so we never fight the
+    binary's resolution — we only *pin* it when we have a concrete answer.
+    `:memory:` is honoured (passed through) for tests.
     """
+    if _db_override:
+        return _db_override
     env_db = os.environ.get("WICKED_ESTATE_DB")
     if env_db:
         return env_db
@@ -123,6 +153,114 @@ def resolve_db() -> Optional[str]:
     except OSError:
         pass
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Governed / read-only mode — the argv contract the gate hook allows (#1130)
+# ─────────────────────────────────────────────────────────────────────────────
+
+GOVERNED_RUN_ENV = "WICKED_RUN_ID"            # set on every unit of a wicked-crew run
+READONLY_ENV = "WICKED_ESTATE_READONLY"       # explicit opt-in outside a run
+# Any of these, non-empty in the worker environment, pins the store the spawned
+# MCP resolves (the same set wicked-core's shim allow rule reads: core #471).
+STORE_PIN_ENV = ("WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB")
+READONLY_FLAG = "--readonly"                  # exact token — the MCP matches it literally
+DB_FLAG = "--db"
+
+_readonly_flag: bool = False                  # set by --readonly / set_readonly()
+_db_override: Optional[str] = None            # set by --db <path> / set_db()
+
+
+def set_readonly(flag: bool = True) -> None:
+    """Force read-only spawns (`--readonly` on the MCP argv) for this process."""
+    global _readonly_flag
+    _readonly_flag = bool(flag)
+
+
+def set_db(path: Optional[str]) -> None:
+    """Pin the store the spawned MCP opens (`--db <path>`); None clears the pin."""
+    global _db_override
+    _db_override = path or None
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() not in ("", "0", "false", "no")
+
+
+def is_governed() -> bool:
+    """True inside a wicked-crew run (`WICKED_RUN_ID` set on the worker)."""
+    return bool(os.environ.get(GOVERNED_RUN_ENV, "").strip())
+
+
+def read_only() -> bool:
+    """Spawn the MCP with `--readonly`? Governed run, explicit flag, or env opt-in."""
+    return _readonly_flag or is_governed() or _env_truthy(READONLY_ENV)
+
+
+def store_pinned() -> bool:
+    """Is the store named — `--db` on argv or a pin variable in the environment?"""
+    return bool(_db_override) or any(os.environ.get(k, "").strip() for k in STORE_PIN_ENV)
+
+
+def governed_refusal() -> Optional[str]:
+    """The reason NOT to spawn: a governed run with no pinned store. None = clear to go.
+
+    Belt-and-braces with the gate hook (which denies the same shape as `no-pin`):
+    the shim never resolves the operator's default stores from inside a run.
+    """
+    if not is_governed() or store_pinned():
+        return None
+    return (
+        f"governed run ({GOVERNED_RUN_ENV} is set) but no estate store is pinned: pass "
+        f"{DB_FLAG} <path> or set {' / '.join(STORE_PIN_ENV)} in the worker environment; "
+        "refusing to spawn wicked-estate-mcp against an unpinned store (it would resolve "
+        "the operator's defaults)"
+    )
+
+
+def mcp_argv(exe: str, db: Optional[str]) -> list:
+    """The exact argv every transport spawns: `<exe> [--readonly] [--db <db>]`."""
+    argv = [exe]
+    if read_only():
+        argv.append(READONLY_FLAG)
+    if db:
+        argv += [DB_FLAG, db]
+    return argv
+
+
+def parse_cli_flags(argv: list) -> list:
+    """Strip the shim's own flags from a backend argv, apply them, return the rest.
+
+    `--readonly` → `set_readonly(True)`; `--db <path>` / `--db=<path>` → `set_db`.
+    Flags are accepted ANYWHERE on argv (the gate hook's remedy coaches appending
+    `--readonly` to a denied command). Any other `--flag` raises ValueError — a
+    misspelling (`--read-only`, `--readonly=false`) must never pass through as a
+    positional, because the spawned MCP would then run write-capable. `-`
+    (read JSON from stdin) and JSON objects are positionals and pass through.
+    """
+    rest: list = []
+    it = iter(argv)
+    for tok in it:
+        if tok == READONLY_FLAG:
+            set_readonly(True)
+        elif tok == DB_FLAG:
+            value = next(it, None)
+            if not value or value.startswith("-"):
+                raise ValueError(f"{DB_FLAG} requires a store path")
+            set_db(value)
+        elif tok.startswith(DB_FLAG + "="):
+            value = tok[len(DB_FLAG) + 1:]
+            if not value:
+                raise ValueError(f"{DB_FLAG}= requires a store path")
+            set_db(value)
+        elif tok.startswith("--") and len(tok) > 2:
+            raise ValueError(
+                f"unknown flag {tok!r}: the estate shim accepts {READONLY_FLAG} and "
+                f"{DB_FLAG} <path> only (spell {READONLY_FLAG} exactly)"
+            )
+        else:
+            rest.append(tok)
+    return rest
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -139,14 +277,15 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     its `id`. Notifications (no `id`) produce no output and are simply absent.
 
     Fail-open: any failure returns {} — the caller treats a missing id as a
-    dead call and degrades.
+    dead call and degrades. A governed run with no pinned store never spawns
+    (`governed_refusal`).
     """
+    if governed_refusal():
+        return {}
     exe = resolve_mcp_bin()
     if not exe:
         return {}
-    argv = [exe]
-    if db:
-        argv += ["--db", db]
+    argv = mcp_argv(exe, db)
     payload = "".join(json.dumps(r, separators=(",", ":")) + "\n" for r in requests)
     try:
         proc = subprocess.Popen(
@@ -240,6 +379,7 @@ class _PersistentBroker:
         self._proc: Optional[subprocess.Popen] = None   # type: ignore[type-arg]
         self._init_resp: Optional[dict] = None           # cached after handshake
         self._db: Optional[str] = None                   # db the process was started with
+        self._readonly: bool = False                      # mode the process was started in
         self._q: queue.Queue = queue.Queue()             # response lines from reader thread
         self._failed: bool = False                        # permanent-degrade flag
         self._reconnect_used: bool = False               # one reconnect per lifetime
@@ -252,9 +392,8 @@ class _PersistentBroker:
         exe = resolve_mcp_bin()
         if not exe:
             return False
-        argv = [exe]
-        if db:
-            argv += ["--db", db]
+        readonly = read_only()
+        argv = mcp_argv(exe, db)
 
         # Fresh queue per session: a previous reader thread may enqueue an EOF
         # sentinel *after* any drain loop runs, corrupting the new session.
@@ -312,6 +451,7 @@ class _PersistentBroker:
         self._proc = proc
         self._init_resp = resp
         self._db = db
+        self._readonly = readonly
         return True
 
     @staticmethod
@@ -418,16 +558,17 @@ class _PersistentBroker:
 
     def _locked(self, requests: list, *, db: Optional[str], timeout: float) -> dict:
         """Called under self._lock. Returns {id: response}, {} on any failure."""
-        if self._failed:
+        if self._failed or governed_refusal():
             return {}
 
         # Ensure the process is running. Three cases:
         #  (a) First start: no process, no init_resp yet — start freely.
         #  (b) Unexpected death between calls: process gone, init_resp present —
         #      consumes the one reconnect budget; degrade if budget exhausted.
-        #  (c) Planned restart: DB changed while process is still alive —
-        #      close + restart, NOT counted against the reconnect budget.
-        if not self._is_alive() or self._db != db:
+        #  (c) Planned restart: DB or read-only mode changed while the process is
+        #      still alive — close + restart, NOT counted against the budget.
+        mode_changed = self._db != db or self._readonly != read_only()
+        if not self._is_alive() or mode_changed:
             previously_started = self._init_resp is not None
             if not self._is_alive() and previously_started:
                 # Case (b): death between calls.
@@ -435,8 +576,8 @@ class _PersistentBroker:
                     self._failed = True
                     return {}
                 self._reconnect_used = True
-            elif self._is_alive() and self._db != db:
-                # Case (c): DB changed — close old process before restarting.
+            elif self._is_alive() and mode_changed:
+                # Case (c): DB / mode changed — close old process before restarting.
                 self._close()
             if not self._start(db):
                 # Only mark permanently failed when this is a reconnect path
@@ -692,6 +833,42 @@ def knowledge_recall(query: str, token_budget: int = 2000, timeout: float = 8.0)
     return call("knowledge.recall", {"query": query, "token_budget": token_budget}, timeout=timeout)
 
 
+def propose(
+    kind_type: str,
+    payload: dict,
+    facets: Optional[dict] = None,
+    timeout: float = 8.0,
+) -> dict:
+    """Submit one inert proposal → estate `proposal.submit` (the safe write a
+    `--readonly` MCP still permits; it lands `pending` until an operator approves).
+
+    Returns ``{"ok": True, "id": <proposal-id>}`` or ``{"ok": False, "reason": …,
+    "code": <json-rpc code | None>}`` so a caller can tell a shape error (-32602 —
+    fix the args and resubmit) from an unreachable estate (code None — keep the
+    objects in the deliverable file / report instead). `provenance` is NEVER sent:
+    the server stamps it from its own `WICKED_RUN_*` environment.
+    """
+    arguments: dict = {"kind_type": kind_type, "payload": payload}
+    if facets:
+        arguments["facets"] = facets
+    envelope = call_raw("proposal.submit", arguments, timeout=timeout)
+    if envelope is None:
+        return {"ok": False, "reason": "estate unreachable (proposal.submit did not round-trip)",
+                "code": None}
+    error = envelope.get("error")
+    if isinstance(error, dict):
+        return {"ok": False, "reason": error.get("message") or "proposal.submit failed",
+                "code": error.get("code")}
+    result = _unwrap(envelope)
+    if isinstance(result, dict) and result.get("id"):
+        return {"ok": True, "id": result["id"]}
+    text = None
+    content = (envelope.get("result") or {}).get("content") if isinstance(envelope.get("result"), dict) else None
+    if isinstance(content, list) and content and isinstance(content[0], dict):
+        text = content[0].get("text")
+    return {"ok": False, "reason": text or "proposal.submit returned no id", "code": None}
+
+
 def stats(timeout: float = 8.0) -> Optional[dict]:
     """Index summary → the `wicked-estate stats` CLI, parsed to a dict.
 
@@ -735,10 +912,17 @@ def stats(timeout: float = 8.0) -> Optional[dict]:
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI — the `wicked-estate-call` entry for non-Python / shell / markdown callers
-#   python3 scripts/_estate_client.py <action> [json-args]
+#   python3 scripts/_estate_client.py [--readonly] [--db <path>] <action> [json-args]
 # Prints JSON to stdout; exit 0 always on a clean (even empty) result, 1 only on
 # a usage error. Never crashes a caller.
 # ─────────────────────────────────────────────────────────────────────────────
+
+_USAGE = (
+    "usage: _estate_client.py [--readonly] [--db <path>] "
+    "<health|mode|search|context|recall|knowledge-recall|stats|list-tools|call|propose> "
+    "[json-args]"
+)
+
 
 def _emit(obj: Any) -> None:
     sys.stdout.write(json.dumps(obj))
@@ -746,11 +930,26 @@ def _emit(obj: Any) -> None:
 
 
 def main(argv: list) -> int:
+    try:
+        argv = parse_cli_flags(argv)
+    except ValueError as exc:
+        _emit({"error": f"{exc}; {_USAGE}"})
+        return 1
     if not argv:
-        _emit({"error": "usage: _estate_client.py <health|search|context|recall|"
-                        "knowledge-recall|stats|list-tools|call> [json-args]"})
+        _emit({"error": _USAGE})
         return 1
     action = argv[0]
+    if action == "mode":
+        # A pure local probe — reports the mode without spawning, refusal included.
+        _emit({"governed": is_governed(), "readonly": read_only(),
+               "store_pinned": store_pinned(), "db": resolve_db(),
+               "refusal": governed_refusal()})
+        return 0
+    refusal = governed_refusal()
+    if refusal:
+        # Fail-open shape (exit 0): a degrade the worker reports, not a crash.
+        _emit({"ok": False, "reason": refusal, "governed": True})
+        return 0
     raw = argv[1] if len(argv) > 1 else "{}"
     try:
         args = json.loads(raw) if raw else {}
@@ -784,8 +983,17 @@ def main(argv: list) -> int:
             _emit({"error": "call requires {\"tool\": \"<ToolName>\", \"arguments\": {...}}"})
             return 1
         _emit({"result": call(tool, args.get("arguments", {}))})
+    elif action == "propose":
+        kind_type = args.get("kind_type")
+        payload = args.get("payload")
+        if not isinstance(kind_type, str) or not kind_type or not isinstance(payload, dict):
+            _emit({"error": 'propose requires {"kind_type": "memory"|"policy:<type>", '
+                            '"payload": {...}, "facets": {...}?} — never "provenance"'})
+            return 1
+        # `provenance` is deliberately not forwarded (server-stamped from WICKED_RUN_*).
+        _emit(propose(kind_type, payload, args.get("facets")))
     else:
-        _emit({"error": f"unknown action: {action}"})
+        _emit({"error": f"unknown action: {action}; {_USAGE}"})
         return 1
     return 0
 
