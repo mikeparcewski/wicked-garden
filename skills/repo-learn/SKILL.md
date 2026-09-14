@@ -8,13 +8,14 @@ description: |
   (memories) and what should hold (policies) — as inert estate proposals a human
   reviews, never as asserted fact.
 
-  Four BOUNDED phases: (1) SAMPLED git-churn → ranked active areas (explicit
-  top-N cap + a sampling rule for large histories — never streams every commit);
-  (2) hotspots + blast-radius via wicked-garden-search, cross-referenced with
-  churn to isolate load-bearing volatile code; (3) READ the intersection through
-  the estate graph (FetchContent / RetrieveEntity / TraverseGraph) for genuine
-  technical understanding; (4) DERIVE memories AND policies and submit them via
-  the estate `proposal.submit` tool (inert queue, safe under --readonly).
+  Three BOUNDED phases — one wicked-crew unit each: (1) CHURN — SAMPLED git-churn →
+  ranked active areas (explicit top-N cap + a sampling rule for large histories —
+  never streams every commit); (2) HOTSPOTS — hotspots + blast-radius via
+  wicked-garden-search cross-referenced with churn to isolate load-bearing volatile
+  code, then READ the intersection through the estate graph (FetchContent /
+  RetrieveEntity / TraverseGraph) for genuine technical understanding; (3) CAPTURE —
+  DERIVE memories AND policies and submit them through the estate shim's `propose`
+  (`proposal.submit`: inert queue, safe under --readonly; the only record).
 
   Use when: "learn this repo", "onboard me to this codebase", "study the active
   areas", "what should I know before working here", "derive memories / policies
@@ -44,17 +45,21 @@ Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
-## The four phases
+## The three phases (= wicked-crew's three units)
 
-| # | Phase | Produces | Where |
-|---|-------|----------|-------|
+| # | Phase (crew unit) | Produces | Where |
+|---|-------------------|----------|-------|
 | 1 | **churn** | ranked active paths/areas over a window, top-N capped | [refs/churn-sampling.md](refs/churn-sampling.md) |
-| 2 | **hotspots** | most-central symbols + blast-radius of the churn set | `wicked-garden-search` (reused — do NOT reimplement) |
-| 3 | **read** | real understanding of the load-bearing, volatile code | § Read the intersection |
-| 4 | **capture** | memories AND policies as inert `proposal.submit` entries | [refs/capture-proposals.md](refs/capture-proposals.md) |
+| 2 | **hotspots** (hotspots + blast-radius, then READ) | most-central symbols + blast-radius of the churn set, and real understanding of the load-bearing, volatile code | `wicked-garden-search` (reused — do NOT reimplement) + § Read the intersection |
+| 3 | **capture** | memories AND policies as inert `proposal.submit` entries | [refs/capture-proposals.md](refs/capture-proposals.md) |
 
 Run them in order — each phase narrows the next. A partial run still helps (churn alone
 orients; without capture it is a briefing), but the contract is **captured proposals**, not prose.
+
+**In a wicked-crew run each row is ONE unit** (`Phase n/3` in your directive — the
+`capture-learnings` workflow's `churn` / `hotspots` / `capture` units): do only that row's
+work, hand the next unit what it needs in your output, and submit proposals ONLY in the
+capture unit.
 
 ## Phase 1 — churn (the bounded, sampled step)
 
@@ -101,7 +106,7 @@ Churn and centrality answer different questions; the intersection ranks targets.
 The prime targets are the top-left cell: paths that appear in BOTH the phase-1
 churn list and the phase-2 hotspot/blast-radius set. Read those first.
 
-## Phase 3 — read the intersection
+## Phase 2, continued — read the intersection
 
 For each cross-referenced target, build **genuine** understanding — not a file
 listing — via the estate tools (all read-only; in a governed run through the shim's
@@ -117,14 +122,14 @@ listing — via the estate tools (all read-only; in a governed run through the s
    `recall` (`scope_prefix: ""`) so you extend the record rather than duplicate it.
 
 Stop when you can state, per target, **what it does, why it changes, what it
-depends on, and what would break** — that is the input to phase 4.
+depends on, and what would break** — that is the input to phase 3.
 
-## Phase 4 — capture: memories AND policies as proposals
+## Phase 3 — capture: memories AND policies as proposals
 
 Turn understanding into two kinds of reviewable record via the estate
 **`proposal.submit`** tool (inert queue; a PERMITTED safe write even under
-`--readonly`) — in a governed run through the shim's `propose` action, AND written to
-the unit's deliverable file (§ In a governed run). Full contract, payloads, facets,
+`--readonly`) — in a governed run through the shim's `propose` action (§ In a governed
+run), the ONLY submission path: there is no deliverable file and no other fallback. Full contract, payloads, facets,
 and derivation heuristics: [refs/capture-proposals.md](refs/capture-proposals.md). The essentials — use the
 enum values EXACTLY as written (an out-of-enum `tier` or `severity` is rejected
 when the proposal is approved, so the learning is lost):
@@ -148,45 +153,52 @@ when the proposal is approved, so the learning is lost):
 ## In a governed run
 
 You are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase
-directive and/or the `wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` /
-`WICKED_GATE_SCOPE` in your environment confirm it when present, their absence does not refute
-it. **When unsure, take this ladder** — the shim in `--readonly` is also correct in a human
-session. Follow `wicked-garden-governed-worker` (A2, A5) and ground through the **estate shim
-in read-only mode** — it works on every seat CLI and does not depend on an MCP server being
-registered (an organization MCP allowlist can drop one silently). The store is pinned from the
-worker environment (`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`;
-the shim refuses an unpinned store — report that, never guess one.
+directive and/or the `wicked-garden-governed-worker` skill was handed to you. Both carriers
+stamp `WICKED_RUN_ID` / `WICKED_RUN_UNIT` / `WICKED_RUN_AGENT` on your environment
+(wicked-core ≥ 0.7.26) — the primary cue; the handed context confirms it. **When unsure,
+treat the session as governed** — the shim in `--readonly` is also correct in a human session.
+Follow `wicked-garden-governed-worker` (A2, A5) and ground through the **estate shim in
+read-only mode** — the ONE grounding transport in a run: wicked-core registers no estate MCP
+on any seat any more (an organization MCP allowlist used to drop one silently), so there is
+no `mcp__wicked-estate__*` tool to call and nothing to fall back to. The store is pinned from
+the worker environment (`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or
+`--db <path>`; `WICKED_ESTATE_READONLY=1` rides every worker so the shim spawns read-only by
+default; the shim refuses an unpinned store — report that, never guess one.
 
-1. **Grounding ladder** (phases 2–3; stop at the first rung that answers and name it):
-   the shim, `--readonly` literal — every estate tool named above is reachable as
-   `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"FetchContent","arguments":{…}}'`;
-   then a read-only CLI subcommand (`wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph`);
-   then grep, flagging that injected edges are MISSING. The write CLI is **never** a
-   rung: never `wicked-estate index`, `scip`, `tfstate`, `import-telemetry`, `compact`,
-   `watch`; never `wicked-estate clusters --annotate`. A denied call is final — take
-   the next rung.
-2. **Capture** (phase 4) submits each proposal through the shim —
+1. **Grounding — one rung** (phase 2): the shim, `--readonly` literal — every estate tool
+   named above is reachable as
+   `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"FetchContent","arguments":{…}}'`.
+   If it answers `{"ok": false, …}` or the fence denies the call, write
+   `estate: not available (<reason>)` in your output and continue **UNGROUNDED** — for
+   phase 1 git suffices; for phase 2 report the gap rather than a grep approximation
+   presented as the graph answer. Never `wicked-estate index`, `scip`, `tfstate`,
+   `import-telemetry`, `compact`, `watch`, `clusters --annotate`; never retry a denied
+   call, no variants, no wrappers (governed-worker A2/A5). The read-only CLI is still
+   allowed by the fence but is not a documented rung.
+2. **Capture** (phase 3) submits each proposal through the shim —
    `wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"memory","payload":{…},"facets":{…}}'`
-   (`proposal.submit`; provenance is server-stamped from `WICKED_RUN_*`, never passed) —
-   AND writes the exact `{kind_type, payload, facets}` objects, as one JSON array, to the
-   **deliverable file the run names** in your problem statement or intake: an absolute
-   path inside the unit's declared write root, **never a path inside the repository**
-   (governed-worker E1). If the shim path is unavailable that file IS the record —
-   wicked-crew lands its proposals — so write it whether or not the submit succeeded.
-   If no path was named, emit the array as a fenced `json` block in your output and say so.
-3. **Report** the rung that answered each phase and honest counts: derived N /
-   submitted M / written-to-file W / failed K (governed-worker A4).
+   (`proposal.submit`; provenance is server-stamped from the `WICKED_RUN_*` markers on your
+   environment, never passed). **There is no deliverable file and no file fallback**: write
+   nothing into the repository (governed-worker E1) and nothing elsewhere either. If the shim
+   answers `{"ok": false, …}` or the fence denies the call, emit the exact
+   `{kind_type, payload, facets}` objects as ONE fenced `json` block in your output, write
+   `estate: not available (<reason>)`, and continue — that block is the ONLY record
+   (governed-worker A4); a human can submit from it.
+3. **Report** honest counts: derived N / submitted M / failed K (governed-worker A4), and
+   whether the shim answered.
 
 ## Degrade + honesty
 
-- **Estate unreachable** (index/MCP down): phase 1 still runs (pure git); for
-  phases 2–3 fall back per the search skill's ladder (read-only CLI → grep, flagging
-  that injected edges are MISSING). Say so — don't present a grep approximation as the
-  graph answer, and **name the rung that answered** (shim / estate tools / CLI / grep).
+- **Estate unreachable** (the shim answers `ok: false`, or the fence denies the call):
+  phase 1 still runs (pure git); for phase 2 write `estate: not available (<reason>)`
+  in your output and report the gap — never a grep approximation presented as the graph
+  answer, never a retry of a denied call. In a human session the search skill's
+  human ladder (estate tools → CLI → grep) applies instead.
 - **`proposal.submit` fails (a JSON-RPC error, e.g. -32602 / -32603)**: do NOT silently drop the learning.
-  Emit the derived memories and policies as a structured block in your report so
-  a human (or a later run) can submit them, and name the degrade. In a governed run
-  the deliverable file (§ In a governed run) already carries them.
+  Emit the derived memories and policies as one fenced `json` block of exact
+  `{kind_type, payload, facets}` objects in your report so a human can
+  submit them, and name the degrade. That block is the only record — a governed run
+  writes no file.
 - Capture is a **proposal**, not an assertion — report it as "proposed N
   memories, M policies (pending review)", never "recorded".
 
@@ -196,5 +208,5 @@ the shim refuses an unpinned store — report that, never guess one.
   window sizing, the sample rule, the top-N cap, directory rollup, noise filters, counting fallback.
 - [refs/capture-proposals.md](refs/capture-proposals.md) — the `proposal.submit`
   contract for memories and policies, the derivation heuristics (2×2 → what to
-  propose), worked examples, the idempotency/dedup discipline, the shim `propose`
-  command and the deliverable-file shape for governed runs.
+  propose), worked examples, the idempotency/dedup discipline, and the shim `propose`
+  command — the only submission path in a governed run.

@@ -1,12 +1,12 @@
 # Capture — memories AND policies as estate proposals
 
 The learning phase ends by writing back **two kinds** of record through the estate
-MCP **`proposal.submit`** tool: **memories** (what is *true* about this repo) and
-**policies** (what *should hold* in it). Both land in estate's **inert proposal
-queue** — a type-generic write surface that is a PERMITTED safe write **even under
-`--readonly`**, because a proposal is never recalled or applied until an operator
-approves it. A governed worker's estate MCP already opens the operator GLOBAL
-store and permits `proposal.submit`, so proposals surface in the studio Memories /
+**`proposal.submit`** tool (reached through the estate shim): **memories** (what is
+*true* about this repo) and **policies** (what *should hold* in it). Both land in
+estate's **inert proposal queue** — a type-generic write surface that is a PERMITTED safe
+write **even under `--readonly`**, because a proposal is never recalled or applied until
+an operator approves it. The shim's `wicked-estate-mcp --readonly` opens the operator
+GLOBAL store and permits `proposal.submit`, so proposals surface in the studio Memories /
 Policies review UI. This is *propose, not assert* — you never inject a fact into
 the record; a human promotes it.
 
@@ -29,7 +29,7 @@ On success the tool returns `{"id": "<proposal-id>"}`. A malformed `kind_type`,
 `facets`, or a non-object `payload` fails loud with `-32602` — fix and resubmit,
 never swallow.
 
-### Submitting through the shim (every governed run; any session without the MCP)
+### Submitting through the shim (every governed run — the only path; any session without a registered MCP)
 
 The estate shim reaches `proposal.submit` without an MCP server being registered
 with your harness, on every seat CLI:
@@ -47,19 +47,16 @@ store. The shim answers `{"ok": true, "id": "<proposal-id>"}` or `{"ok": false,
 shape), `null` means the estate was unreachable (keep the objects — next section). Long
 JSON: pass `-` as the json-args and pipe it on stdin. A `provenance` key is dropped.
 
-### The deliverable file (governed runs)
+### When `propose` fails in a governed run — no file fallback
 
-In a governed run the capture phase ALSO writes every proposal it derived — the exact
-`{kind_type, payload, facets}` objects, as **one JSON array** (bare array, no prose, no
-code fences) — to the deliverable file the run names in your problem statement or
-intake. That path is absolute and lies inside the unit's **declared write root**, never
-inside the repository checkout (a file created in the repository is a write the
-worktree guard rejects — `wicked-garden-governed-worker` E1); create parent directories
-if needed and overwrite an earlier version. Write it whether or not `propose` succeeded:
-when the shim path is unavailable on a seat, this file IS the record — wicked-crew
-submits its objects as pending proposals with the run's provenance. If the run named no
-path, emit the same array as a fenced `json` block in your output and say so. Report
-the counts: derived N / submitted M / written-to-file W / failed K.
+There is **no deliverable file**: a governed run writes proposals nowhere but through
+the shim (nothing into the repository — `wicked-garden-governed-worker` E1 — and nothing
+elsewhere; the former deliverable-file fallback was never consumed by wicked-crew and is
+gone). If the shim answers `{"ok": false, …}` or the fence denies the call, emit every
+proposal you derived as **one fenced `json` block** of exact `{kind_type, payload, facets}`
+objects in your output, write `estate: not available (<reason>)`, and continue — that
+block is the ONLY record; a human can submit from it. Report the counts:
+derived N / submitted M / failed K.
 
 ### `<type>` for policies (the seven steering types)
 
@@ -188,9 +185,9 @@ Policy (development, language-scoped, from a stable core with a clear guardrail)
 - `-32603` / transport / estate unreachable (shim `code: null`): the store or server
   failed. Do **not** drop the learning — collect the derived memories and policies into
   a structured block in your final report (the exact `{kind_type, payload, facets}`
-  objects) so a human or a later run can submit them, and name the degrade explicitly.
-  In a governed run the deliverable file above already carries them; say which rung
-  answered (shim / estate tools / none).
+  objects) so a human can submit them, and name the degrade explicitly.
+  That block is the only record — a governed run writes no file; say whether the shim
+  answered.
 - Report captures honestly: "**proposed** N memories, M policies (pending
   review)", never "recorded" or "stored" — nothing is in the record until an
   operator approves it.
