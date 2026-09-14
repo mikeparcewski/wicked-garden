@@ -49,9 +49,9 @@ Proceed with Tier 1 as the fan-out scope, or adjust?
 One question, structured, scoped. Not a stream of clarifications.
 
 **Under an explicit goal / full latitude, skip the checkpoint and proceed** —
-the user already authorized the spend. (If `AskUserQuestion` is unavailable in
-dangerous mode, fall back to a plain-text question and wait — per the garden's
-AskUserQuestion fallback rule.)
+the user already authorized the spend. (Where your harness has no native question
+prompt, or it auto-completes in dangerous mode, ask as a plain-text question and
+wait.)
 
 ## Scratch-dir layout (the run is auditable from here)
 

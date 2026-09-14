@@ -46,12 +46,13 @@ INPUTS: <scratch>/<unit-name>/  (the implementer's artifacts) and
      COMMIT and confirm it actually fails there. A "pre-existing failure" that
      passes on base is a regression the implementer introduced — FAIL.
    - If a test was weakened, skipped, or its assertion gutted to go green — FAIL.
-   - If the change does less than claimed — PARTIAL, and say exactly what's missing.
+   - If the change does less than claimed — FAIL, and say exactly what's missing (a
+     partial result is a FAIL with the gap named; the verdict grammar has no third token).
 
-4. RENDER THE VERDICT: PASS / FAIL / PARTIAL.
+4. RENDER THE VERDICT: PASS / FAIL.
    - PASS: re-ran clean, diff matches claim, no over-claims, tests genuinely green.
-   - PARTIAL: works but incomplete / claim overstated — list the gap.
-   - FAIL: does not re-derive — name the exact command + output that disproves it.
+   - FAIL: does not re-derive — name the exact command + output that disproves it;
+     or works but incomplete / claim overstated — list the gap (never a third token).
 
 5. WRITE THE AUTHORITATIVE RECEIPT to <scratch>/<unit-name>/receipt.md:
    verdict, the exact command(s) you ran, their verbatim output + exit codes,
@@ -72,7 +73,7 @@ implementers wave  →  (disk artifacts)  →  verifiers wave  →  (receipts)  
   the verifier starts from the implementer's outputs but re-derives the result
   independently.
 - A unit is only "done" when its `receipt.md` says PASS **and** the claim is
-  re-derived through `/wicked-garden-prove` (next ref). A FAIL or PARTIAL goes
+  re-derived through `/wicked-garden-prove` (next ref). A FAIL (a partial result included) goes
   back to a fresh implementer slice — the original implementer does not get to
   argue its way to PASS.
 

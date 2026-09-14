@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-swarm
-context: fork
 description: |
   Parallel verification-swarm orchestration playbook: fan out N scoped
   subagents over N units of work (repos / modules / files), then run a
@@ -15,14 +14,13 @@ description: |
   backlog with proof", "apply this across all modules", "audit each
   service"), high-blast-radius changes that need independent verification,
   or any run where a claimed "done" must be re-derivable from receipts.
-status: stable
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["build", "review", "migrate", "modernize", "incident"]
+metadata:
+  role: worker
+  phases: "build,test,review"
+  archetypes: "build,review,migrate,modernize,incident"
 ---
 
 # Swarm — parallel verification swarm
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Orchestrate **N units of work in parallel** (one scoped subagent per unit),
 then **independently verify** every result with a separate wave of agents that
@@ -63,7 +61,7 @@ the garden — reference these, do not duplicate them:
 1. implement  → N parallel implementer agents (one per unit, self-contained brief)
                 each writes DETAILED artifacts to disk, returns a ~150-word summary
 2. verify     → M parallel verifier agents (SEPARATE from implementers)
-                re-run from clean state, read the ACTUAL diff, render PASS/FAIL/PARTIAL
+                re-run from clean state, read the ACTUAL diff, render PASS/FAIL (partial = FAIL + the gap)
 3. receipts   → wicked-garden-prove per claim; hard gates add --with-attestations
 4. ship       → branch per unit, conventional commits, CI-green, independent review,
                 clean merge tree, tag-driven release  (only when asked)
@@ -100,7 +98,7 @@ Both live in `refs/fan-out.md` (implementer) and `refs/independent-verification.
 - **Verifier brief** (per unit): ignore the implementer's prose → re-run the
   suite/build from clean → read the ACTUAL diff → check over-claims (e.g. a
   claimed "pre-existing failure" must actually fail on the BASE commit) →
-  render PASS / FAIL / PARTIAL → write the authoritative receipt.
+  render PASS / FAIL (a partial result is FAIL with the gap named) → write the authoritative receipt.
 
 ## Honest marking (no padding)
 
@@ -128,6 +126,6 @@ profile/plan/review/receipt files, and a deferred-items log. Exact tree in
 
 - [refs/recon-synthesis.md](refs/recon-synthesis.md) — recon wave, fit-matrix, relevance tiers, the single checkpoint question, scratch-dir layout
 - [refs/fan-out.md](refs/fan-out.md) — parallel implementer wave + the **implementer brief template**, impact analysis, in-scope cleanup
-- [refs/independent-verification.md](refs/independent-verification.md) — the verifier wave + the **verifier brief template**, isolation, over-claim kills, PASS/FAIL/PARTIAL
+- [refs/independent-verification.md](refs/independent-verification.md) — the verifier wave + the **verifier brief template**, isolation, over-claim kills, PASS/FAIL
 - [refs/receipts-and-evidence.md](refs/receipts-and-evidence.md) — verbatim receipts, prove/vault/qe composition, honest GAP/PARTIAL/ALREADY-COVERED marking
 - [refs/ship-discipline.md](refs/ship-discipline.md) — branch-per-unit, conventional commits, CI-green gate, independent review + resolve, clean merge tree, tag-driven release

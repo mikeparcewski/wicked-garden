@@ -24,7 +24,7 @@ Each unit's `receipt.md` (written by the **verifier**, not the implementer) hold
 
 ```
 unit:        <unit-name>
-verdict:     PASS | FAIL | PARTIAL
+verdict:     PASS | FAIL            # a partial result is FAIL with the gap named below
 base_sha:    <sha the change started from>
 head_sha:    <sha after the change>
 command:     <the exact command run, copy-pasteable>
@@ -56,8 +56,8 @@ Rules:
 - **Record considered-and-rejected items explicitly** in `deferred.md` so they
   read as *weighed, not missed*. "Considered X, rejected because Y" is a
   stronger signal than silence.
-- **The verdict that names the gap is the value.** Never inflate a PARTIAL to
-  PASS, or a GAP to ALREADY-COVERED, to be agreeable.
+- **The verdict that names the gap is the value.** Never inflate a FAIL-with-a-gap
+  to PASS, or a GAP to ALREADY-COVERED, to be agreeable.
 
 ## Tie it back to the gate
 
@@ -65,5 +65,5 @@ A unit is shippable only when: its `receipt.md` verdict is PASS **and**
 `/wicked-garden-prove` returns `satisfied: true, re_derived: true` for the
 claim **and** (for hard-gate work) an independent `wicked-vault attest --opinion
 pass` exists from an evaluator that is not the implementer. Anything short of
-that is PARTIAL or FAIL and loops back to a fresh implementer slice — see
+that is FAIL (a partial result included) and loops back to a fresh implementer slice — see
 `refs/independent-verification.md`.
