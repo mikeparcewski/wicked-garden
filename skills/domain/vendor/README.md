@@ -40,7 +40,7 @@ schemas document that independence themselves. Documents emitted here still carr
    segment (self-consistency of the vendored bytes).
 2. The vendored schema is byte-identical to the owner copy, and the vendored
    `VERSION` equals the owner's `VERSION`, **whenever the owner is reachable** —
-   as the sibling checkout `../wicked-core/crates/wicked-governance/schemas`, or
+   as a sibling `wicked-core` checkout beside this plugin root (its `crates/wicked-governance/schemas` directory), or
    via the `WICKED_SCHEMA_OWNER_DIR` env var (point CI at a checkout of
    wicked-core to make the check unconditional). When neither is present the
    compare skips gracefully — we never fail on the owner's absence, only on

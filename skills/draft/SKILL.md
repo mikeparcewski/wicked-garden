@@ -1,27 +1,25 @@
 ---
 name: wicked-garden-draft
-user-invocable: true
 description: |
   The quality floor for DOCUMENT deliverables drafted from a repository — brochures,
   one-pagers, flyers, product pages, slide decks, memos — as design guidance AND one
-  self-check the author runs before "done". Three floors: (1) READABLE — every
-  text/background pair ≥ 4.5:1 (WCAG AA; 3:1 for large text) judged on the COMPOSITED
-  colours, and print text ≥ 7pt; (2) SIZED TO THE BRIEF — the RENDERED page count
-  honours the page budget the brief names (wrappers are not pages); (3) GROUNDED — every
-  number, URL and product claim cites a repo path, mocks are visibly labelled, and no
-  placeholder ever ships inside the deliverable.
+  self-check run before "done". Three floors: (1) READABLE — every
+  text/background pair ≥ 4.5:1 (WCAG AA) on the COMPOSITED colours, print
+  text ≥ 7pt; (2) SIZED TO THE BRIEF — the RENDERED page count honours the brief's page
+  budget (wrappers are not pages); (3) GROUNDED — every number, URL and product claim cites
+  a repo path, mocks are visibly labelled, no placeholder ships.
 
   Use when: "draft a brochure / one-pager / flyer / product page / deck / memo about
-  <repo>", "print-ready A4 / Letter", "make it two pages", "is this brochure readable /
-  grounded", before declaring any wicked-interactive document draft, edit or revision
-  done, or as the skill a governed drafting run (wicked-crew `interactive-draft`,
-  `interactive-edit`, `interactive-chat`) follows.
+  <repo>", "is this brochure readable / grounded", before declaring a wicked-interactive draft,
+  edit or revision done, or as the skill a governed drafting run
+  (wicked-crew `interactive-draft` / `-edit` / `-chat`) follows.
 
-  NOT for reviewing code documentation (that is the engineering documentarian) or for
-  auditing a running app's accessibility (the product accessibility action / the qe
-  a11y engineer).
-phase_relevance: ["build", "review"]
-archetype_relevance: ["*"]
+  NOT for reviewing code documentation (the engineering documentarian) or auditing a
+  running app's accessibility (the product accessibility action / the qe a11y engineer).
+metadata:
+  role: router
+  phases: "build,review"
+  archetypes: "*"
 ---
 
 # wicked-garden-draft — the document-deliverable quality floor
