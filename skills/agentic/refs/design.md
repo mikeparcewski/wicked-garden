@@ -1,6 +1,6 @@
 # agentic:design — Interactive Agentic Architecture Design Rubric
 
-Full rubric sourced from the `wicked-garden-agentic-architect` fork skill (former `agents/agentic/architect.md`) and
+Full rubric sourced from the `wicked-garden-agentic-architect` worker skill (former `agents/agentic/architect.md`) and
 `skills/agentic/agentic-patterns/`. Use for greenfield agentic system design.
 
 ## Phase 1: Requirements Gathering
@@ -86,7 +86,7 @@ Using `skills/agentic/frameworks/SKILL.md` decision tree:
 
 ## Output Format
 
-```markdown
+````markdown
 ## Agentic Architecture Design: {System Name}
 
 **Date**: {date} | **Pattern**: {chosen pattern} | **Framework**: {recommendation}
@@ -134,4 +134,4 @@ graph TB
 
 → Use `agentic:review` to assess once code is written.
 → Use `agentic:audit` for compliance-grade evidence before production.
-```
+````

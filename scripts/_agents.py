@@ -99,7 +99,7 @@ class AgentLoader:
         Each SKILL.md must have YAML frontmatter with at least a `name`
         field. Additional recognized frontmatter keys: domain, description,
         capabilities (list), traits (list), model, color, effort, max-turns,
-        allowed-tools, tool-capabilities.
+        allowed-tools.
 
         The body of the SKILL.md (after frontmatter) becomes system_prompt.
 
@@ -246,11 +246,6 @@ def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
     extra_meta = {k: v for k, v in parsed.items() if k in metadata_keys}
     extra_meta["source"] = "disk"
     extra_meta["file"] = str(path)
-
-    # Extract tool-capabilities for capability-based dynamic tool routing
-    tool_caps = _to_list(parsed.get("tool-capabilities"))
-    if tool_caps:
-        extra_meta["tool_capabilities"] = tool_caps
 
     # Parse allowed-tools into a list for the resolver
     allowed_tools_list = _to_list(parsed.get("allowed-tools"))

@@ -8,7 +8,7 @@ Complete templates for all review report types.
 
 ## 1. Issue Inventory (Detailed Report)
 
-```markdown
+````markdown
 # Agentic System Review - Issue Inventory
 Date: 2026-02-05
 Reviewer: [Name]
@@ -49,7 +49,7 @@ Implement parameterized queries and input validation.
 **Priority:** P0
 
 [Additional issues...]
-```
+````
 
 ## 2. Executive Summary (1-Pager)
 

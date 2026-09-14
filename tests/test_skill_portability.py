@@ -763,6 +763,18 @@ def _cross(file: str, text: str) -> set[str]:
     # review-L6-B N3: the prose plurals are NOT calls; a placeholder-argument call still is
     ("skills/x/refs/a.md", "Task(s) and Agent(s) are queued by the router; a Task(s) list follows.\n", set()),
     ("skills/x/refs/a.md", "then `Skill(...)` hands over\n", {"claude-dispatch", "handoff-missing"}),
+    # B8: framework code in a sample is not a dispatch — for the framework-ambiguous nouns Task( / Agent( ONLY, an assignment,
+    # constructor or lambda context is quiet (the accepted trade: a Claude `report = Agent(prompt=…)` is masked too); a bare call still trips
+    ("skills/x/refs/a.md", "```python\nresearcher = Agent(role='Researcher', tools=[search])\nsearch_task = Task(description='Research topic')\n```\n", set()),
+    ("skills/x/refs/a.md", "```typescript\nconst agent = new Agent({ model: 'x' });\n```\n", set()),
+    ("skills/x/refs/a.md", "factory=lambda: Agent(tools=[code_review])\n", set()),
+    ("skills/x/refs/a.md", "report = Agent(prompt=\"Recon the estate\")\n", set()),
+    ("skills/x/refs/a.md", "```python\nAgent(prompt=\"summarise\")\n```\n", {"claude-dispatch", "handoff-missing"}),
+    # review-garden-1154 H1: the Claude-only nouns are unconditional — assignment and label forms still trip (BC-38)
+    ("skills/x/refs/a.md", "plan = Skill(skill=\"wicked-garden-qe\", args=\"plan\")\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "Dispatch: Skill(skill=\"wicked-garden-qe\", args=\"plan\")\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "t = TaskCreate(subject=\"X\", description=\"Y\")\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "Then: TodoWrite(todos=[...])\n", {"claude-dispatch", "handoff-missing"}),
     # claude-only-prose: tool nouns, .claude/ paths, `Claude Code` — exempt inside a Hand-off paragraph / historical lines
     ("skills/x/refs/a.md", "Use the Read tool on the file.\n", {"claude-only-prose"}),
     ("skills/x/refs/a.md", "Dispatch uses the Skill tool on Claude Code (a fresh forked context).\n", {"claude-only-prose"}),
@@ -824,36 +836,51 @@ def test_cross_cli_baseline_is_well_formed():
 # Files whose fences do not pair at HEAD (all pre-existing). SHRINK-ONLY: the batch that translates a
 # file fixes its fences and deletes its entry; an entry whose file pairs again is STALE and fails.
 FENCE_PAIRING_BASELINE = {
-    "skills/agentic/refs/design.md",
-    "skills/agentic/review-methodology/refs/issue-taxonomy-quality-testing.md",
-    "skills/data/refs/ml.md",
     "skills/engineering/architecture/refs/architecture-template-design.md",
+    "skills/engineering/architecture/refs/examples-saas-trading.md",  # swallowed-sections class (review-garden-1154 M1)
     "skills/engineering/debugging/refs/process.md",
     "skills/engineering/integration/refs/event-schemas-best-practices.md",
     "skills/engineering/system-design/refs/component-template-structure.md",
     "skills/engineering/system-design/refs/interface-template-maintenance.md",
     "skills/engineering/system-design/refs/interface-template-structure.md",
     "skills/qe/refs/scenario-format.md",
+    "skills/qe-incident-to-scenario-synthesizer/SKILL.md",  # swallowed-sections class (review-garden-1154 M1)
 }
 _FENCE_RE = re.compile(r"^(`{3,})(.*)$")
+_HEADING_RE = re.compile(r"^#{2,6} \S")
 
 
 def fence_pairing_problem(text: str) -> str | None:
-    """The CommonMark pairing walk: `None` when every fenced block closes, else the line of the block
-    left open (or the first stray closer)."""
+    """The CommonMark pairing walk: `None` when every fenced block closes AND no block opened by a bare ```
+    swallows real sections; else the line of the block left open (or the first stray closer), or the block
+    that holds both a `##` heading and a language-tagged fence — the signature of a wrapper that closed early
+    (review-garden-1154 M1): a bare code fence never legitimately nests another fenced code block, while a
+    bare fence holding only a heading is a fenced markdown template (a legitimate authoring choice)."""
     open_len = 0
     open_at = 0
+    open_info = ""
+    heads: list[int] = []
+    inner: list[int] = []
+    swallowed: str | None = None
     for lineno, line in enumerate(text.split("\n"), start=1):
         m = _FENCE_RE.match(line)
         if not m:
+            if open_len and open_info == "" and _HEADING_RE.match(line):
+                heads.append(lineno)
             continue
         n, info = len(m.group(1)), m.group(2).strip()
         if open_len == 0:
-            open_len, open_at = n, lineno  # a bare ``` with nothing open OPENS a block — a "doubled closer" is never a stray
+            open_len, open_at, open_info, heads, inner = n, lineno, info, [], []  # a bare ``` with nothing open OPENS a block — a "doubled closer" is never a stray
         elif info == "" and n >= open_len:
+            if open_info == "" and heads and inner and swallowed is None:
+                swallowed = f"the bare fence opened at :{open_at} holds a heading (:{heads[0]}) and a tagged fence (:{inner[0]}) — a wrapper closed early and swallowed real sections (promote the wrapper to ````)"
             open_len = 0
-        # else: content inside the open block (an opener-looking line, or a shorter fence)
-    return None if open_len == 0 else f"fence opened at :{open_at} never closes (every heading after it renders as code)"
+        elif info:
+            inner.append(lineno)  # a tagged opener-looking line inside an open block
+        # else: a shorter bare fence inside the open block — content
+    if open_len:
+        return f"fence opened at :{open_at} never closes (every heading after it renders as code)"
+    return swallowed
 
 
 def test_fenced_blocks_pair_in_every_skill_file():
@@ -881,6 +908,10 @@ def test_fence_pairing_baseline_is_live():
     ("```json fence for paste) · more prose\n", False),                                # wrapped prose that starts a line with ``` IS an opener to a renderer
     ("text\n```\nblock\n```\n```\n", False),                                       # a doubled closer opens a new block
     ("```{language}\ncode\n```\n", True),                                            # an info string may be anything without backticks
+    # review-garden-1154 M1: the flipped wrapper — paired by count, but the bare second half swallows real sections
+    ("```markdown\n# Report\n```mermaid\ngraph TB\n```\ntext\n```\n\n## Integration\n\n```bash\nls\n```\n", False),
+    ("````markdown\n# Report\n```mermaid\ngraph TB\n```\ntext\n````\n\n## Integration\n\n```bash\nls\n```\n", True),
+    ("```\n## Grounding: {question}\n**Answer**: …\n```\n", True),                       # a bare fenced TEMPLATE with a heading is legitimate
 ])
 def test_fence_pairing_walk_table(text, ok):
     assert (fence_pairing_problem(text) is None) is ok

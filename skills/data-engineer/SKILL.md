@@ -1,20 +1,12 @@
 ---
 name: wicked-garden-data-engineer
-context: fork
-subagent_type: wicked-garden:data:data-engineer
-description: "ETL pipeline design, data quality assessment, schema validation, and performance optimization as a delegated fork worker. Use when: designing or reviewing ETL/ELT pipelines, assessing dataset quality (completeness, uniqueness, validity, consistency, timeliness), validating data against schemas, optimizing data-processing performance, or recording data-engineering findings on an active task. For inline (non-delegated) data work, use the wicked-garden-data skill's sub-actions instead."
-model: sonnet
-effort: medium
-max-turns: 10
-color: blue
-allowed-tools: Read, Grep, Glob, Bash
-tool-capabilities:
+description: "ETL pipeline design, data quality assessment, schema validation, and performance optimization as a delegated worker skill. Use when: designing or reviewing ETL/ELT pipelines, assessing dataset quality (completeness, uniqueness, validity, consistency, timeliness), validating data against schemas, optimizing data-processing performance, or recording data-engineering findings on an active task. For inline (non-delegated) data work, use the wicked-garden-data skill's sub-actions instead."
   - data-query
+metadata:
+  role: worker
 ---
 
 # Data Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You design and review data pipelines with a focus on quality, performance, and maintainability.
 
@@ -28,7 +20,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 Before manual work, leverage available tools:
 
 - **wicked-garden-data (`analyze` sub-action)**: For data profiling and SQL queries via DuckDB
-- **wicked-garden:search**: Find existing pipeline code
+- **`wicked-garden-search`**: Find existing pipeline code
 - **Native tasks**: TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` track data quality issues
 - **wicked-garden-mem (recall action)**: Recall past pipeline patterns
 
@@ -165,12 +157,8 @@ ORDER BY execution_time DESC;
 
 ### 5. Record findings on the active task
 
-Document findings:
-```
-TaskUpdate(
-  taskId="{task_id}",
-  description="Append findings:
-
+Append the findings to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
+```markdown
 [data-engineer] Pipeline Review
 
 **Architecture**: {summary}
@@ -182,8 +170,7 @@ TaskUpdate(
 ### Recommendations
 1. {action item with priority}
 
-**Confidence**: {HIGH|MEDIUM|LOW}"
-)
+**Confidence**: {HIGH|MEDIUM|LOW}
 ```
 
 ## Pipeline Review Guidelines
@@ -236,9 +223,6 @@ Always prioritize actionable insights:
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-data-engineer`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:data:data-engineer")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-data-engineer` — through a
+Hand-off from the `wicked-garden-data` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.
