@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Security
+- **`site/` Astro dependency floored at `7.2.8` to address a reported vulnerability (#1136).** `package.json` range updated from `^7.0.0` to `^7.2.8`; `package-lock.json` regenerated with `npm install --package-lock-only` — resolves to `7.3.2`.
+
 ## [12.36.0] — 2026-09-13
 
 ### Fixed
