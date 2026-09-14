@@ -9,14 +9,15 @@ description: |
   Use when: "find skills I should build", "what should I automate", "propose
   skills from my sessions", "mine my history for skill ideas",
   "session-mined skill builder", "skill discovery from past usage".
-user-invocable: true
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Propose Skills (session-mined, MVP)
 
-Detect recurring patterns in Claude Code session transcripts and emit a markdown
+Detect recurring patterns in the harness's session transcripts and emit a markdown
 report of skill candidates. The framework grows from what the user *actually
 does*, not from speculative authoring (#677).
 
@@ -56,7 +57,7 @@ Do not auto-invoke `/wg-scaffold` — this is a read-only proposer.
 | Kind | Trigger |
 |------|---------|
 | **Repeated tool sequence** | Same ordered N-tuple of tool names appears in >= 3 distinct sessions (N in [2, 5]). Homogeneous sequences like `Bash → Bash → Bash` are filtered. |
-| **Repeated prompt template** | User prompts whose first 5 normalized words match across >= 3 sessions. Generic continuations (`yes`, `continue`) and Claude Code system envelopes (`<local-command-...>`, `<command-name>`) are filtered. |
+| **Repeated prompt template** | User prompts whose first 5 normalized words match across >= 3 sessions. Generic continuations (`yes`, `continue`) and the harness's own system envelopes (`<local-command-...>`, `<command-name>`) are filtered. |
 | **Repeated bash shape** | Same first 2 tokens of a bash command across >= 3 sessions (e.g. `gh pr ...`). Generic file-inspection commands (`ls`, `cat`, `cd`, ...) are filtered. |
 
 ## Pipeline

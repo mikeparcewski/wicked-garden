@@ -3,9 +3,6 @@
   "generated_from": "b48a069",
   "entries": {
     "claude-frontmatter-key": [
-      "skills/integration-discovery/SKILL.md",
-      "skills/mem-capture/SKILL.md",
-      "skills/mem-ingest/SKILL.md",
       "skills/mem/SKILL.md",
       "skills/qe-a11y-test-engineer/SKILL.md",
       "skills/qe-acceptance-test-executor/SKILL.md",
@@ -51,16 +48,9 @@
       "skills/repo-learn/SKILL.md",
       "skills/search/SKILL.md",
       "skills/search/codebase-narrator/SKILL.md",
-      "skills/smaht/SKILL.md",
-      "skills/smaht/discovery/SKILL.md",
-      "skills/smaht/intent/SKILL.md",
-      "skills/smaht/propose-skills/SKILL.md",
       "skills/wickedizer/SKILL.md"
     ],
     "claude-dispatch": [
-      "skills/integration-discovery/SKILL.md",
-      "skills/integration-discovery/refs/cli-detection.md",
-      "skills/integration-discovery/refs/discovery-sources.md",
       "skills/qe-acceptance-test-executor/SKILL.md",
       "skills/qe-acceptance-test-writer/SKILL.md",
       "skills/qe/refs/accept.md",
@@ -70,14 +60,9 @@
       "skills/qe/refs/insight.md",
       "skills/qe/refs/integration.md",
       "skills/qe/refs/plan.md",
-      "skills/qe/refs/review.md",
-      "skills/smaht/SKILL.md",
-      "skills/smaht/discovery/SKILL.md",
-      "skills/smaht/refs/briefing.md"
+      "skills/qe/refs/review.md"
     ],
     "claude-only-prose": [
-      "skills/integration-discovery/refs/cli-detection.md",
-      "skills/integration-discovery/refs/discovery-sources.md",
       "skills/qe-acceptance-test-executor/SKILL.md",
       "skills/qe-acceptance-test-reviewer/SKILL.md",
       "skills/qe-acceptance-test-writer/SKILL.md",
@@ -90,16 +75,9 @@
       "skills/qe/refs/execute.md",
       "skills/qe/refs/insight.md",
       "skills/qe/refs/plan.md",
-      "skills/qe/refs/review.md",
-      "skills/smaht/SKILL.md",
-      "skills/smaht/discovery/SKILL.md",
-      "skills/smaht/propose-skills/SKILL.md",
-      "skills/smaht/refs/briefing.md"
+      "skills/qe/refs/review.md"
     ],
     "handoff-missing": [
-      "skills/integration-discovery/SKILL.md",
-      "skills/integration-discovery/refs/cli-detection.md",
-      "skills/integration-discovery/refs/discovery-sources.md",
       "skills/qe-acceptance-test-executor/SKILL.md",
       "skills/qe-acceptance-test-writer/SKILL.md",
       "skills/qe/refs/accept.md",
@@ -109,10 +87,7 @@
       "skills/qe/refs/insight.md",
       "skills/qe/refs/integration.md",
       "skills/qe/refs/plan.md",
-      "skills/qe/refs/review.md",
-      "skills/smaht/SKILL.md",
-      "skills/smaht/discovery/SKILL.md",
-      "skills/smaht/refs/briefing.md"
+      "skills/qe/refs/review.md"
     ],
     "retired-product-ref": [
       "skills/qe/SKILL.md",
@@ -130,8 +105,7 @@
       "skills/qe-snapshot-hygiene-auditor/SKILL.md",
       "skills/qe-test-code-quality-auditor/SKILL.md",
       "skills/qe/SKILL.md",
-      "skills/repo-learn/SKILL.md",
-      "skills/smaht/SKILL.md"
+      "skills/repo-learn/SKILL.md"
     ],
     "skill-too-large": [],
     "claude-tool-call": []

@@ -1214,7 +1214,7 @@ def check_outgov_pattern(
             rule_id=str(rid),
             severity=sev,
             message=f"[{rid}] {statement} — evaluate this session's output for conformance "
-                    f"(invoke wicked-garden-engineering-conformance-reviewer with this rule as rubric)",
+                    f"(evaluate with the wicked-garden-engineering skill's refs/conformance.md rubric)",
         ))
 
     result.duration_ms = int((time.monotonic() - t0) * 1000)

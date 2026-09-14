@@ -49,9 +49,7 @@ This returns events from ALL domains in one timeline — mem decisions, crew pha
 
 If the event log returns no results (new install, events.db not yet populated), fall back to individual queries:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-**Memory:** `Skill(skill="wicked-garden-mem", args="recall \"recent decisions and learnings\"")`
+**Hand-off (memory):** open the `wicked-garden-mem` skill and run its `recall` action with `recent decisions and learnings` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 **Native tasks:** read task JSON under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/` and summarize counts by `status` and `metadata.event_type`.
 

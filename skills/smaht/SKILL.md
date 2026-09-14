@@ -1,10 +1,9 @@
 ---
 name: wicked-garden-smaht
-context: fork
 description: |
   Context assembly / briefing builder (the name is a phonetic play on "smart").
   Gathers a relevant on-demand context briefing over the wicked-estate knowledge
-  layer + wicked-garden:search + domain state. Pull-model: subagents call it when they need background rather than
+  layer + the `wicked-garden-search` skill + domain state. Pull-model: subagents call it when they need background rather than
   having context pushed onto every prompt (v6 replaced the v5 push orchestrator, #428).
   Routes three sub-actions backed by refs/: briefing (what happened since the last
   session — NOT live state), state (live SessionState/adapter/directive inspection —
@@ -15,17 +14,15 @@ description: |
   a session break, building background on an unfamiliar area, "show session state",
   "inspect live session state", "import domain records into the event log", or any
   former /wicked-garden:smaht:{briefing|state|events-import} invocation.
-  Aliases: context-assembly, briefing, smart-context.
-user-invocable: true
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Context Assembly (v6 pull-model)
 
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
-
-Gather relevant context from the knowledge layer (wicked-estate) + wicked-garden:search + domain state when
+Gather relevant context from the knowledge layer (wicked-estate) + the `wicked-garden-search` skill + domain state when
 a subagent or command asks for it. There is no per-prompt push — the user prompt
 submit hook no longer runs an orchestrator.
 
@@ -33,7 +30,6 @@ submit hook no longer runs an orchestrator.
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## Sub-action router
 
@@ -53,14 +49,12 @@ reference below (and `briefing` when resuming after a session break).
 
 ## Quick Reference
 
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with your query (the primary
+knowledge source — estate memory + knowledge fusion), or its `answer` action for a cited answer to a
+conceptual "how does X work" question; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+
 ```bash
-# Knowledge recall — primary knowledge source (estate memory + knowledge fusion)
-Skill(skill="wicked-garden-mem", args="recall \"your query\"")
-
-# Cited answer — conceptual / "how does X work"
-Skill(skill="wicked-garden-mem", args="answer \"how does the facilitator rubric work\"")
-
-# Codebase symbol lookup (estate MCP, when connected)
+# Codebase symbol lookup (through the estate read-only shim)
 SearchEntity {"name": "symbol"}
 
 # Pull v11 archetype-mode project state (the v6 crew.py find-active

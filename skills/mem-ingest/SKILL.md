@@ -1,12 +1,8 @@
 ---
 name: wicked-garden-mem-ingest
-context: fork
-subagent_type: wicked-garden:mem:ingest
 description: "Ingest source files into the wicked-estate knowledge store as cited chunks. Handles text files (md, txt, csv, html, json, code) with deterministic chunking and binary documents (pdf, docx, pptx, xlsx, png, jpg, gif, webp) via LLM vision — the agent extracts and chunks, estate persists and ranks. Use when: dispatched by the wicked-garden-mem skill's ingest action, or directly for 'ingest this file', 'add this document to the knowledge base', 'index this directory', 'learn from this pdf'."
-model: sonnet
-effort: medium
-max-turns: 15
-allowed-tools: Read, Write, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Mem Ingest Worker

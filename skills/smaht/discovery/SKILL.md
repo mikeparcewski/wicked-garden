@@ -5,9 +5,10 @@ description: |
   just used. Discovers relationships dynamically from skill content, not a
   static map. Invoked by the Stop hook and the smaht `briefing` sub-action
   (skills/smaht/refs/briefing.md, step 5) to surface one relevant suggestion.
-user-invocable: false
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Contextual Discovery
@@ -26,10 +27,8 @@ Look for:
 - **Explicit references** to other skills/actions (e.g., the `wicked-garden-search` skill's `blast-radius` action)
 - **"See also"** or **"Integration"** sections listing related skills
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-- **Fork-worker dispatches** (`Skill(skill="wicked-garden-{domain}-{role}")`, or the legacy `subagent_type="wicked-garden:{domain}:{role}"` compat form) — the dispatched worker's domain has related skills
-- **Skill references** (`Skill(skill="wicked-garden-{domain}")`) — related domain skills
+- **Worker hand-offs** (a **Hand-off** paragraph naming `wicked-garden-{domain}-{role}`) — the dispatched worker's domain has related skills
+- **Skill references** (a **Hand-off** paragraph naming `wicked-garden-{domain}`) — related domain skills
 
 ### 2. Check what the user has already used this session
 
