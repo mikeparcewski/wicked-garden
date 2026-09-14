@@ -46,7 +46,7 @@ metadata:
 
 List tasks filtered by subject (`(?i)^{phase}[\s:-].*{project-name}`) and read one by id — through the harness's task list (the Hand-off above), else your working notes.
 
-**Validation & persistence**: covered by the harness-specific Hand-off above — a hook-validated envelope and native persistence on Claude Code; working notes on every other seat.
+**Validation & persistence**: covered by the harness-specific Hand-off above — a hook-validated envelope and native persistence where the harness has them; working notes on every other seat.
 
 ## wicked-garden-mem (memory over wicked-estate)
 

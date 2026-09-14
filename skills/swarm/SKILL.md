@@ -83,9 +83,13 @@ auditable.
   degradation: record `serial_reason: harness has no parallel dispatch` in the
   scratch dir. A serial run with no `serial_reason` is a protocol miss; a serial
   run that lets the same agent implement AND verify a unit is a broken swarm.
-- **Hand-off** — for each unit, open `wicked-garden-governed-worker` (Creator for
-  the implementer wave, Evaluator for the verifier wave) with the per-unit brief
-  from `refs/fan-out.md` / `refs/independent-verification.md` as the argument; on Claude Code this is one Task per unit in one message, on any other seat open the named skill from your catalog and run the brief inline, one unit after another, each unit's output in its own scratch file, then continue here.
+
+**Hand-off** — for each unit, open `wicked-garden-governed-worker` (Creator for the
+implementer wave, Evaluator for the verifier wave) with the per-unit brief from
+`refs/fan-out.md` / `refs/independent-verification.md` as the argument; on Claude Code
+this is one Task per unit in one message, on any other seat open the named skill from
+your catalog and run the brief inline, one unit after another, each unit's output in its
+own scratch file, then continue here.
 - **Background long/external work** and synthesize on completion rather than
   blocking the wave.
 - **The verifier is a different agent than the implementer.** If the same agent
