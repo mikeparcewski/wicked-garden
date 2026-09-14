@@ -405,7 +405,9 @@ def verdict_spelling_hit(rel_file: str, line: str) -> str | None:
 def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
     """The eight cross-CLI tokens for one .md file. Frontmatter tokens judge SKILL.md only;
     body tokens skip the frontmatter, skip `<!-- historical -->` lines, and exempt prose inside a
-    Hand-off paragraph. One violation per (token, file) — the baseline is keyed the same way."""
+    Hand-off paragraph. Prose is matched over the PARAGRAPH (intra-paragraph newlines normalised to
+    spaces), so a token cannot hide in a line wrap. One violation per (token, file) — the baseline is
+    keyed the same way."""
     out: list[Violation] = []
     lines = text.split("\n")
     if rel_file.endswith("/SKILL.md") or rel_file == "SKILL.md":
@@ -439,25 +441,52 @@ def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
     retired: dict[str, int] = {}
     has_handoff = False
     in_handoff = False
+    para: list[tuple[int, str]] = []
+
+    def close_paragraph() -> None:
+        """Match prose over the whole paragraph (review-garden-1158 M1). A tool noun can straddle a
+        line break — `multiple Bash` / `tool calls in a single message` — and a line-based search
+        never sees it. Join the lines with spaces, then map each match back to the line it starts on.
+        Joining only ever ADDS matches (one inside a single line still matches), so no baselined pair
+        can go stale from this."""
+        if para:
+            joined = " ".join(text for _, text in para)
+            starts: list[tuple[int, int]] = []
+            pos = 0
+            for lineno, text in para:
+                starts.append((pos, lineno))
+                pos += len(text) + 1
+            for m in PROSE_RE.finditer(joined):
+                line_at = starts[0][1]
+                for off, lineno in starts:
+                    if off > m.start():
+                        break
+                    line_at = lineno
+                prose.append(line_at)
+        para.clear()
+
     for lineno, line in enumerate(lines, start=1):
         if lineno <= fm_end:
             continue
         if not line.strip():
+            close_paragraph()  # a blank line ends the paragraph — and the Hand-off exemption
             in_handoff = False
             continue
         if HANDOFF_RE.match(line):
             in_handoff = True
             has_handoff = True
         if HISTORICAL in line:
+            close_paragraph()  # the line is exempt, and never joins to its neighbours
             continue
         if DISPATCH_CALL_RE.search(line):
             dispatch.append(lineno)
         if TOOL_CALL_RE.search(line):
             toolcalls.append(lineno)
-        if not in_handoff and PROSE_RE.search(line):
-            prose.append(lineno)
+        if not in_handoff:
+            para.append((lineno, line))
         for m in RETIRED_RE.finditer(line):
             retired.setdefault(m.group(0), lineno)
+    close_paragraph()
     if dispatch:
         out.append(Violation("claude-dispatch", rel_file, dispatch[0],
                              f"{len(dispatch)} line(s) call a Claude Code dispatch primitive (Task( / Skill( / Agent( / "
@@ -471,9 +500,10 @@ def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
                              f"{len(toolcalls)} line(s) call a Claude Code tool (Read( / Write( / Edit( / Bash( / Glob( / Grep( / …) "
                              "no other seat has — say what to do with your harness's file reader / shell / search instead"))
     if prose:
-        out.append(Violation("claude-only-prose", rel_file, prose[0],
-                             f"{len(prose)} line(s) of Claude-only prose (a tool noun, a .claude/ path or `Claude Code`) "
-                             "outside a Hand-off paragraph and not marked <!-- historical -->"))
+        out.append(Violation("claude-only-prose", rel_file, min(prose),
+                             f"{len(prose)} match(es) of Claude-only prose (a tool noun, a .claude/ path or `Claude Code`) "
+                             "outside a Hand-off paragraph and not marked <!-- historical --> — matched over the "
+                             "paragraph, so a token split across a line break still counts"))
     if retired:
         out.append(Violation("retired-product-ref", rel_file, min(retired.values()),
                              f"names retired product(s) {sorted(retired)} without <!-- historical -->"))
@@ -782,6 +812,15 @@ def _cross(file: str, text: str) -> set[str]:
     ("skills/x/refs/a.md", "**Hand-off** — on Claude Code use the Skill tool; on any other seat open the named skill.\nSecond line of the paragraph still mentions Claude Code.\n", set()),
     ("skills/x/refs/a.md", "Claude Code loaded it via the plugin root <!-- historical -->\n", set()),
     ("skills/x/refs/a.md", "read the file with your file-edit tool; wicked-crew hands the seat the skills\n", set()),
+    # review-garden-1158 M1: a prose token split across a line break is STILL Claude-only prose — the
+    # line-based scan could not see it (`multiple Bash\ntool calls` shipped in jam-council for a year).
+    # A token spanning a PARAGRAPH break is not one, a `<!-- historical -->` line never joins to its
+    # neighbour, and the Hand-off exemption still covers the whole paragraph.
+    ("skills/x/refs/a.md", "Run them in parallel using multiple Bash\ntool calls in one message.\n", {"claude-only-prose"}),
+    ("skills/x/refs/a.md", "Open it with the Read\ntool before judging.\n", {"claude-only-prose"}),
+    ("skills/x/refs/a.md", "the seat runs Bash\n\ntool calls are the harness's business\n", set()),
+    ("skills/x/refs/a.md", "**Hand-off** — open the `wicked-garden-qe` skill; on Claude\nCode this is the Skill tool.\n", set()),
+    ("skills/x/refs/a.md", "the old shape used the Read\ntool <!-- historical -->\n", set()),
     # claude-tool-call (review-garden-1153 M1): a tool call with an argument shape, in prose or a fence; the harness-neutral instruction is quiet
     ("skills/x/refs/a.md", "```\nRead(file_path=\"/path/to/screenshot.png\")\n```\n", {"claude-tool-call"}),
     ("skills/x/refs/a.md", "then `Glob(pattern=\"**/*.md\", path=\"x/\")` and `Bash(\"ls\")`\n", {"claude-tool-call"}),

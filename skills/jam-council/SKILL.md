@@ -75,8 +75,8 @@ The probe also captures each CLI's **version string** to disambiguate **binary
 collisions** (`grok` is both xAI's and the community CLI; `agent`, `forge`, `q`
 collide with unrelated tools; `q` was renamed `kiro-cli` in Nov 2025).
 
-Only the `usable` external CLIs are convened. Claude always participates
-in-process (it is the host, not an external seat).
+Only the `usable` external CLIs are convened. The host seat — the CLI you are
+running as — always participates in-process (it is the host, not an external seat).
 
 ### 3. Quorum Check (on USABLE external CLIs)
 
@@ -197,16 +197,18 @@ codex exec "<scaffold>" --skip-git-repo-check
 ```
 
 For `message-file` (aider) and `at-file` (pi) CLIs, pass the scaffold file
-rather than inlining it. Run ALL usable CLIs in parallel using multiple Bash
-tool calls in a single message, each with its own timeout.
+rather than inlining it. Run ALL usable CLIs in parallel where your harness can
+issue concurrent shell commands — launch every seat's command before waiting on any
+of them, each with its own timeout; where it cannot, run them one at a time and record
+`serial_reason: harness has no parallel shell`. No seat sees another's output either way.
 
-### 6. Claude's Own Evaluation
+### 6. The Host Seat's Own Evaluation
 
-Claude also answers the same 4 questions independently (you already have the scaffold). Answer BEFORE reading external responses to maintain independence.
+You — the host seat — also answer the same 4 questions independently (you already have the scaffold). Answer BEFORE reading external responses to maintain independence.
 
 ### 6.5. Persist Council Responses as Transcript Entries
 
-After collecting all external model responses AND Claude's own evaluation, persist them as transcript entries so they are retrievable via `jam.py transcript`. Run once after all responses are in hand:
+After collecting all external model responses AND the host seat's own evaluation, persist them as transcript entries so they are retrievable via `jam.py transcript`. Run once after all responses are in hand:
 
 ```bash
 wicked-garden run scripts/jam/save_transcript.py \
@@ -228,7 +230,9 @@ Each model's response becomes one entry:
 ```
 
 - Use `persona_name` = the CLI's `display_name` from the registry (e.g.
-  "Claude", "Codex", "Gemini", "Copilot", "OpenCode", "Pi", "Antigravity", …).
+  "Claude", "Codex", "Gemini", "Copilot", "OpenCode", "Pi", "Antigravity", …). For
+  your OWN host-seat row use your own display name from that same registry — the seat
+  you are actually running as, never a hardcoded "Claude".
   For a separate-worker fallback seat (step 3.5), use the persona framing and mark it,
   e.g. `persona_name: "Worker seat: architect"`.
 - `persona_type` is always `council` for these entries.
@@ -255,8 +259,8 @@ exclude them, and re-check quorum before synthesizing.
 
 *Each seat responded independently — one external CLI or one separate worker per seat; no seat saw another's output. Synthesis follows.*
 
-### Claude
-{Claude's 4 answers}
+### {host seat display name}
+{the host seat's 4 answers}
 
 ### Codex
 {Codex's 4 answers}
@@ -274,7 +278,7 @@ exclude them, and re-check quorum before synthesizing.
 
 | Model | Recommendation | Top Risk | Disqualifier |
 |-------|---------------|----------|-------------|
-| Claude | {option} | {risk} | {disqualifier or None} |
+| {host seat} | {option} | {risk} | {disqualifier or None} |
 | Codex | {option} | {risk} | {disqualifier or None} |
 | Gemini | {option} | {risk} | {disqualifier or None} |
 
@@ -336,8 +340,8 @@ Store the council outcome via the wicked-garden-mem skill (store action, if avai
 1. **No confidence scores** — LLMs produce uncalibrated numbers. Use risk convergence instead.
 2. **No rounds** — Single structured pass. Rounds break isolation.
 3. **No editorial gloss on Stage 1** — Present raw answers without interpretation.
-4. **Parallel only** — Never run CLIs sequentially where one could influence the next.
-5. **Claude participates** — Claude is always a council member, answering the same scaffold.
+4. **Parallel by default** — never let one seat's output reach another; where the harness cannot issue concurrent shell commands, run them one at a time on the same scaffold and record `serial_reason`.
+5. **The host participates** — the host seat is always a council member, answering the same scaffold.
 
 ## Persistent Access
 

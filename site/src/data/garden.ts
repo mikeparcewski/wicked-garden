@@ -254,8 +254,8 @@ export const DOMAINS: Domain[] = [
     name: "personas",
     hue: "creation",
     blurb: "Run any task under a named behavioral profile — a reusable review cast on demand.",
-    count: 2,
-    cmds: ["persona", "persona-agent"],
+    count: 1,
+    cmds: ["persona"],
   },
   {
     id: "search",

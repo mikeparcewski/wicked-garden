@@ -250,9 +250,10 @@ def test_reference_extraction_is_not_vacuous():
     is legitimately empty now — ``test_task_subagent_ref_resolves_to_fork_skill``
     still validates any body call-form that reappears, and the Task-dispatch
     machinery's real non-vacuity signal is its frontmatter resolution index,
-    asserted here by count (matching ``test_some_workers_keep_compat_keys`` in
-    the naming suite: adapters line-scan these, so dropping them all is the drift
-    we actually guard against).
+    asserted here by count. (The naming suite's ``>= 3 declarers`` floor was removed in
+    wave-2 B9: the cross-CLI batches drop ``subagent_type`` on purpose, so the drop is
+    deliberate, not drift — its ``test_subagent_compat_key_is_wellformed_and_consistent``
+    still validates every declarer that remains.)
     """
     assert _skill_ref_params(), "no Skill dispatch refs found in skills/ — extraction broke"
     # 12.33 (F-079) INVERTED the plugin-root guard: skill text reaches plugin
