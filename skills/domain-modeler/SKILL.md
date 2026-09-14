@@ -1,9 +1,7 @@
 ---
 name: wicked-garden-domain-modeler
-context: fork
-subagent_type: wicked-garden:domain:modeler
 description: |
-  Domain-graph fork worker for the modernize archetype. Groups the estate's
+  Domain-graph worker for the modernize archetype. Groups the estate's
   Louvain communities into business domains, attaches each requirement to its
   cluster (advisory cluster_id provenance), and invokes wicked-core's domain-graph
   build (which reads the annotated estate store, recomputes coverage fail-closed,
@@ -16,16 +14,11 @@ description: |
 
   NOT for mining the rules themselves (that is domain-extractor) or
   threat-modeling (that is domain-coverage).
-model: sonnet
-effort: medium
-max-turns: 12
-color: cyan
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+metadata:
+  role: worker
 ---
 
 # Modernize Translator
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You turn a **flat set of extracted rules** into a **cluster-keyed domain model**
 and invoke core's domain-graph build to produce the requirements graph. A domain

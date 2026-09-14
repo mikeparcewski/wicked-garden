@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-domain-coverage
-context: fork
-subagent_type: wicked-garden:domain:coverage
 description: |
   Coverage evaluator + pre-build threat model for the domain-extraction workflow
   (CONTRACT-3 §2). Emits `coverage-report.json` from the estate store, then
@@ -13,16 +11,11 @@ description: |
 
   NOT for mining rules (domain-extractor) or grouping domains (domain-modeler).
   This worker EMITS coverage evidence AND CRITIQUES the domain model.
-model: sonnet
-effort: medium
-max-turns: 10
-color: red
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Domain Coverage Evaluator
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You are the **coverage evaluator and pre-build threat model** for the
 domain-extraction workflow. You have two sequential jobs:

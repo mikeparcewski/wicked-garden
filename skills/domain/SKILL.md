@@ -1,17 +1,15 @@
 ---
 name: wicked-garden-domain
-user-invocable: true
 description: |
   The FOUNDATIONAL domain-model capability: extract a codebase's domain — testable
   business rules (with confidence + provenance), entities, requirements — as a
   schema-conformant model on the estate graph. The workers annotate the store;
   wicked-core reads it and builds the requirements graph, coverage-gating
-  fail-closed. Steers three fork workers.
+  fail-closed. Steers three workers.
 
   A shared substrate, not a modernization tool. The `modernize` archetype DERIVES
   from it; build / migrate / review / specify / explore consume the SAME domain
-  model — none OWN it. Understanding a codebase's domain is upstream of almost
-  everything else garden does.
+  model — none OWN it.
 
   Use when: "extract the business rules / domain model from this codebase", "build
   a requirements graph from the code", "what does this system actually require",
@@ -20,8 +18,10 @@ description: |
 
   NOT the code transform itself (that is the archetype consuming this model). This
   skill produces the DOMAIN MODEL, not new code.
-phase_relevance: ["discover", "extract", "blueprint", "plan", "specify"]
-archetype_relevance: ["modernize", "build", "migrate", "review", "specify", "explore"]
+metadata:
+  role: router
+  phases: "discover,extract,blueprint,plan,specify"
+  archetypes: "modernize,build,migrate,review,specify,explore"
 ---
 
 # wicked-garden-domain
@@ -51,7 +51,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 ```
 crew GOVERNS  →  garden STEERS  →  core BUILDS  →  estate GROUNDS
 (drives the run) (this skill +     (domain-graph +  (SymbolId + graph
-                  3 fork workers)   coverage gate)   + Louvain clusters)
+                  3 workers)        coverage gate)   + Louvain clusters)
 ```
 
 Garden never imports core or estate code — it shells their CLIs (argv lists, no
@@ -59,7 +59,7 @@ shell string) or mocks them. It annotates the estate store and references Symbol
 strings; core reads the store and builds + coverage-gates the requirements graph;
 estate is the sole writer of graph structure.
 
-## Routing — the three fork workers
+## Routing — the three workers
 
 | Ask | Worker | Produces |
 |-----|--------|----------|
@@ -67,8 +67,12 @@ estate is the sole writer of graph structure.
 | Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
 | Threat-model the extracted model before build | domain-coverage (`wicked-garden-domain-coverage`) | pre-build threat list / RISK-flag reasons |
 
-Dispatch a worker with `Task(subagent_type=...)` (colon back-compat) or by loading its skill in a fork context; where
-no fork/Task is available, open the worker's SKILL.md and follow it inline. Run order for a full extraction: **extractor → translator → antagonist**. Each is independently invocable.
+**Hand-off** — open the worker's skill by name (`wicked-garden-domain-extractor`,
+`wicked-garden-domain-modeler`, `wicked-garden-domain-coverage`) and carry out its SKILL.md
+with the ask as the argument; on Claude Code this is the Skill tool (a fresh context), on any
+other seat open the named skill from your catalog and run it inline, keeping its output
+separate from yours, then continue here. Run order for a full extraction: **extractor →
+translator → antagonist**. Each is independently invocable.
 
 ## The document this skill emits
 

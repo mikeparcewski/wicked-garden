@@ -1,9 +1,7 @@
 ---
 name: wicked-garden-domain-extractor
-context: fork
-subagent_type: wicked-garden:domain:extractor
 description: |
-  Rule-extraction fork worker for the FOUNDATIONAL domain-model capability. Mines
+  Rule-extraction worker for the FOUNDATIONAL domain-model capability. Mines
   testable business rules from a codebase — each with a numeric confidence and a
   provenance{source, ref, source_kinds} — and annotates them into the estate store
   so wicked-core can build the domain-model requirements graph (coverage-gated).
@@ -18,16 +16,11 @@ description: |
 
   NOT for grouping into domains (that is domain-modeler) or judging coverage (that
   is domain-coverage — a seat-distinct evaluator).
-model: sonnet
-effort: medium
-max-turns: 12
-color: green
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+metadata:
+  role: worker
 ---
 
 # Domain Extractor
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You extract **testable business rules** from a codebase — *what the business
 requires*, not *how the code does it* — and annotate them into the estate store,
