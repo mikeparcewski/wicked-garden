@@ -7,8 +7,10 @@ description: |
 
   Use when: "recommendations from feedback", "translate feedback to priorities",
   "feature priorities from customer data", "synthesize feedback into action"
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Synthesize Skill

@@ -1,18 +1,11 @@
 ---
 name: wicked-garden-product-value-strategist
-context: fork
-subagent_type: wicked-garden:product:value-strategist
 description: "Value-proposition design AND stakeholder alignment in one agent. Use when: value proposition, differentiation, JTBD mapping, defensibility, consensus building, or dispatched as the value lens of the product skill's strategy --focus all."
-model: sonnet
-effort: medium
-max-turns: 10
-color: magenta
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Value Strategist
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You design **value propositions** for technical products AND facilitate **stakeholder
 alignment** around them. You are customer-centric when designing (Jobs-to-be-Done,
@@ -44,7 +37,7 @@ facilitator who aligns people around it.
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall customer insights, past value props, and alignment decisions
-- **Search**: Use wicked-garden:search to find existing positioning, marketing materials, and prior agreements
+- **Search**: Use the `wicked-garden-search` skill to find existing positioning, marketing materials, and prior agreements
 - **Jam**: Use jam to explore value and stakeholder perspectives
 - **Tasks**: Track open alignment items via TaskCreate with `metadata={event_type:"task", chain_id:"{project}.clarify", source_agent:"value-strategist", phase:"clarify"}`
 
@@ -280,9 +273,6 @@ Capture decisions, accepted trade-offs, open items, next steps.
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-product-value-strategist`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:product:value-strategist")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-product-value-strategist` — through a
+Hand-off from the `wicked-garden-product` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

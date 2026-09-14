@@ -1,32 +1,28 @@
 ---
 name: wicked-garden-product-screenshot
 description: |
-  Screenshot-based UI review using Claude's multimodal capabilities.
+  Screenshot-based UI review using the seat's multimodal vision.
   Analyzes visual design from image files — layout, spacing, color, typography,
   responsiveness — and compares against design system rules.
 
   Use when: reviewing a UI screenshot for visual design, comparing rendered
   output against design system rules, or auditing layout from an image file.
-portability: portable
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Screenshot Skill
 
-Analyze UI design directly from screenshot images using Claude's multimodal
-vision capabilities. No code needed — review what users actually see.
+Analyze UI design directly from screenshot images using the seat's multimodal
+vision. No code needed — review what users actually see.
 
-## How to Use Read on Images
+## Reading the images
 
-Claude can read PNG, JPG, WEBP, and GIF files directly with the Read tool:
-
-```
-Read(file_path="/path/to/screenshot.png")
-```
-
-The image is presented visually. Analyze it for design quality, consistency,
-and usability issues without requiring access to source code.
+Open the PNG, JPG, WEBP or GIF file with your harness's file reader — the image is presented
+visually. Analyze it for design quality, consistency, and usability issues without requiring
+access to source code.
 
 ## What to Analyze
 
@@ -66,12 +62,8 @@ and usability issues without requiring access to source code.
 
 ## Comparison with Reference Designs
 
-When a reference image is provided:
-
-```
-Read(file_path="/path/to/reference.png")   # design spec or comp
-Read(file_path="/path/to/implementation.png")  # built UI
-```
+When a reference image is provided, open both with your harness's file reader — the reference
+(design spec or comp) and the implementation (built UI).
 
 Compare:
 - Spacing fidelity (does built match spec proportions?)

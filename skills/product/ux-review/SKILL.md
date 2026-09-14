@@ -4,8 +4,10 @@ description: |
   Use when evaluating UX quality — user flows, information architecture, user research synthesis,
   personas, and usability assessment. Also covers generative UX flow design from requirements.
   NOT for visual design consistency (use visual-review) or accessibility code audits (use product/accessibility).
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # UX Review Skill
@@ -104,10 +106,10 @@ Review produces:
 
 Works with:
 - **wicked-crew**: Auto-suggested after phases
-- **Read tool**: Analyze screenshots directly; capture via browser automation if available
+- **Image reading**: analyze screenshots directly with your harness's file reader; capture via browser automation if available
 - **Native tasks**: Issue tracking via TaskCreate with `metadata.event_type="task"`
 - **wicked-garden-mem**: Design system memory
-- **wicked-garden:search**: Pattern discovery
+- **`wicked-garden-search`**: Pattern discovery
 
 ## Phase Integration
 

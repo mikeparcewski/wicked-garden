@@ -77,7 +77,7 @@ IDENTIFIERS = GARDEN["identifiers"]
 GRX = {name: re.compile(src) for name, src in GARDEN["regex"].items()}
 RUNTIME_BLOCK = GARDEN["launcher"]["runtime_block"]
 NOT_A_SKILL = GARDEN["skill_names"]["exemption_marker"]
-# The seven cross-CLI tokens (L6 B0, D-21 — docs/cross-cli-skill-format.md). The Claude-only shapes a
+# The eight cross-CLI tokens (L6 B0, D-21 — docs/cross-cli-skill-format.md; `claude-tool-call` from the B7 fold). The Claude-only shapes a
 # skill still carries at HEAD are BASELINED per (token, file) in tests/cross_cli_baseline.json:
 # tolerated there ONLY; the qe batches (B3–B17) translate skills and delete their entries in the same
 # change; an entry that no longer trips is STALE and fails; B18 deletes the file (strict).
@@ -85,6 +85,7 @@ CROSS_CLI = GARDEN["cross_cli"]
 CROSS_CLI_TOKENS = tuple(CROSS_CLI["tokens"])
 CLOSED_KEYS = frozenset(CROSS_CLI["closed_frontmatter_keys"])
 DISPATCH_CALL_RE = re.compile(CROSS_CLI["dispatch_regex"])
+TOOL_CALL_RE = re.compile(CROSS_CLI["tool_call_regex"])
 PROSE_RE = re.compile(CROSS_CLI["prose_regex"])
 RETIRED_RE = re.compile(CROSS_CLI["retired_product_regex"])
 HANDOFF_RE = re.compile(CROSS_CLI["handoff_regex"])
@@ -402,7 +403,7 @@ def verdict_spelling_hit(rel_file: str, line: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
-    """The seven cross-CLI tokens for one .md file. Frontmatter tokens judge SKILL.md only;
+    """The eight cross-CLI tokens for one .md file. Frontmatter tokens judge SKILL.md only;
     body tokens skip the frontmatter, skip `<!-- historical -->` lines, and exempt prose inside a
     Hand-off paragraph. One violation per (token, file) — the baseline is keyed the same way."""
     out: list[Violation] = []
@@ -433,6 +434,7 @@ def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
                                  f"{len(lines)} lines / {nbytes} bytes (max {CROSS_CLI['skill_max_lines']} lines / "
                                  f"{CROSS_CLI['skill_max_bytes']} bytes) — move detail into refs/"))
     dispatch: list[int] = []
+    toolcalls: list[int] = []
     prose: list[int] = []
     retired: dict[str, int] = {}
     has_handoff = False
@@ -450,6 +452,8 @@ def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
             continue
         if DISPATCH_CALL_RE.search(line):
             dispatch.append(lineno)
+        if TOOL_CALL_RE.search(line):
+            toolcalls.append(lineno)
         if not in_handoff and PROSE_RE.search(line):
             prose.append(lineno)
         for m in RETIRED_RE.finditer(line):
@@ -462,6 +466,10 @@ def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
         if not has_handoff:
             out.append(Violation("handoff-missing", rel_file, dispatch[0],
                                  "dispatches but carries no `Hand-off` paragraph — the only cross-CLI dispatch shape"))
+    if toolcalls:
+        out.append(Violation("claude-tool-call", rel_file, toolcalls[0],
+                             f"{len(toolcalls)} line(s) call a Claude Code tool (Read( / Write( / Edit( / Bash( / Glob( / Grep( / …) "
+                             "no other seat has — say what to do with your harness's file reader / shell / search instead"))
     if prose:
         out.append(Violation("claude-only-prose", rel_file, prose[0],
                              f"{len(prose)} line(s) of Claude-only prose (a tool noun, a .claude/ path or `Claude Code`) "
@@ -664,11 +672,11 @@ def test_fixtures_are_well_formed():
     assert GARDEN["canonical_fixture"] == "tests/portability_rules.json"
     assert RUNTIME_BLOCK.startswith(GARDEN["launcher"]["runtime_heading"] + "\n")
     assert "Relative paths in this skill are relative to the directory that contains this SKILL.md." in RUNTIME_BLOCK
-    # L6 B0: the seven cross-CLI tokens + verdict-spelling are declared; the three Claude-first fallback
+    # L6 B0 (+ B7 fold): the eight cross-CLI tokens + verdict-spelling are declared; the three Claude-first fallback
     # tokens are gone; the closed key set is the helper's (one source of truth)
     declared = {t["token"] for t in GARDEN["tokens"]}
     assert set(CROSS_CLI_TOKENS) == {"claude-frontmatter-key", "claude-dispatch", "claude-only-prose", "handoff-missing",
-                                     "retired-product-ref", "description-too-long", "skill-too-large"}
+                                     "retired-product-ref", "description-too-long", "skill-too-large", "claude-tool-call"}
     assert set(CROSS_CLI_TOKENS) | {"verdict-spelling"} <= declared, declared
     assert not ({"fork-no-fallback", "dispatch-no-fallback", "ask-no-fallback"} & declared), declared
     assert CLOSED_KEYS == META_CLOSED_KEYS
@@ -762,6 +770,13 @@ def _cross(file: str, text: str) -> set[str]:
     ("skills/x/refs/a.md", "**Hand-off** — on Claude Code use the Skill tool; on any other seat open the named skill.\nSecond line of the paragraph still mentions Claude Code.\n", set()),
     ("skills/x/refs/a.md", "Claude Code loaded it via the plugin root <!-- historical -->\n", set()),
     ("skills/x/refs/a.md", "read the file with your file-edit tool; wicked-crew hands the seat the skills\n", set()),
+    # claude-tool-call (review-garden-1153 M1): a tool call with an argument shape, in prose or a fence; the harness-neutral instruction is quiet
+    ("skills/x/refs/a.md", "```\nRead(file_path=\"/path/to/screenshot.png\")\n```\n", {"claude-tool-call"}),
+    ("skills/x/refs/a.md", "then `Glob(pattern=\"**/*.md\", path=\"x/\")` and `Bash(\"ls\")`\n", {"claude-tool-call"}),
+    ("skills/x/refs/a.md", "Read(...) the file first\n", {"claude-tool-call"}),
+    ("skills/x/refs/a.md", "the old shape was `Read(file_path=…)` <!-- historical -->\n", set()),
+    ("skills/x/refs/a.md", "Read(s) and Write(s) are queued; open the file with your harness's file reader\n", set()),
+    ("skills/x/refs/a.md", "the `read_text(path)` helper and `grep(pattern)` in code are not tool calls\n", set()),
     # retired-product-ref
     ("skills/x/refs/a.md", "run `wicked-testing accept` first\n", {"retired-product-ref"}),
     ("skills/x/refs/a.md", "the loom peer (`wicked-loom`) re-derives the gate\n", {"retired-product-ref"}),

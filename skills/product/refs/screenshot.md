@@ -1,16 +1,14 @@
 # Screenshot UI Review Rubric (multimodal)
 
-Apply this inline. Review UI design from screenshot images using Claude's vision —
-no source code required. `Read` the image file(s) directly (the Read tool renders
+Apply this inline. Review UI design from screenshot images using the seat's multimodal vision —
+no source code required. Open the image file(s) with your harness's file reader (it renders
 PNG/JPG/JPEG/WEBP/GIF visually). Optional second image = design reference for
 comparison.
 
-## Read the image(s)
+## Open the image(s)
 
-```
-Read(file_path="{image-path}")
-Read(file_path="{reference-path}")   # optional comparison target
-```
+Open `{image-path}` — and `{reference-path}` when given (the optional comparison target) — with
+your harness's file reader.
 
 ## Evaluate
 

@@ -7,8 +7,10 @@ description: |
 
   Use when: defining requirements as a filesystem graph of atomic ACs, eliciting
   user stories, or laying out acceptance criteria with traceable edges.
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Requirements Graph

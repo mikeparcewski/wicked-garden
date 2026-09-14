@@ -4,8 +4,10 @@ description: |
   Use when auditing code for WCAG 2.1 AA compliance — keyboard navigation, ARIA patterns, color contrast,
   and semantic HTML. Produces prioritized remediation with code-level fixes.
   NOT for running automated a11y tools (use product:a11y command) or visual design review (use product/visual-review).
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Accessibility Skill
@@ -47,7 +49,7 @@ Content must work with assistive technologies.
 ## Quick Audit Process
 
 ### 1. Automated Scan
-Use the Read tool on a screenshot file, or capture via browser automation if available (e.g., Playwright, Puppeteer, or an MCP browser tool). For automated WCAG scanning, use axe DevTools, Lighthouse, WAVE, or pa11y.
+Open a screenshot file with your harness's file reader, or capture via browser automation if available (e.g., Playwright, Puppeteer, or an MCP browser tool). For automated WCAG scanning, use axe DevTools, Lighthouse, WAVE, or pa11y.
 
 ### 2. Keyboard Test (5 minutes)
 - Tab through entire page
@@ -68,10 +70,10 @@ Use the Read tool on a screenshot file, or capture via browser automation if ava
 
 ### 4. Code Review
 ```bash
-# Find potential issues
-wicked-garden:search "<div.*onclick" --type html  # Non-semantic buttons
-wicked-garden:search "<img(?!.*alt)" --type html  # Missing alt
-wicked-garden:search "aria-" --type html          # ARIA usage
+# Find potential issues — the wicked-garden-search skill over html files:
+#   <div.*onclick     non-semantic buttons
+#   <img(?!.*alt)     missing alt
+#   aria-             ARIA usage
 ```
 
 ## Common Quick Fixes
@@ -135,16 +137,8 @@ wicked-garden:search "aria-" --type html          # ARIA usage
 # Color contrast: compute the WCAG ratio (#666 on #fff = 5.74:1, passes AA
 # body text); use axe / Lighthouse / WAVE / pa11y for automated scanning.
 
-# Track issues via native TaskCreate
-# TaskCreate(
-#   subject="A11y: {issue}",
-#   metadata={
-#     "event_type": "task",
-#     "chain_id": "a11y-review.root",
-#     "source_agent": "a11y-expert",
-#     "priority": "P0"
-#   }
-# )
+# Track issues in the harness's task list where it has one (subject "A11y: {issue}"; metadata
+# event_type=task, chain_id=a11y-review.root, source_agent=a11y-expert, priority=P0), else your working notes.
 ```
 
 **Collaboration:**

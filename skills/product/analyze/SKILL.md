@@ -5,8 +5,10 @@ description: |
 
   Use when: analyzing customer feedback for sentiment, extracting themes from
   support or survey data, or detecting trends in voice-of-customer signal.
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Analyze Skill
@@ -78,11 +80,8 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
    ```bash
    LOCAL_ROOT=$(wicked-garden run scripts/resolve_path.py wicked-garden:product)
    ```
-   Then use the **Glob** tool to find feedback files:
-   ```
-   Glob(pattern="**/*.md", path="${LOCAL_ROOT}/voice/feedback/")
-   ```
-   Read individual files with the **Read** tool to load recent feedback.
+   Then list the feedback files — `${LOCAL_ROOT}/voice/feedback/**/*.md` — with your harness's
+   file search and open the recent ones with its file reader.
 
 2. **Extract Themes**:
    - Keyword frequency analysis

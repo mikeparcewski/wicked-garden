@@ -49,8 +49,11 @@ authors: a `{vendor}-{domain}-{role}`-named skill with no `metadata.role: worker
 ## Dispatch: the Hand-off paragraph
 
 No `Task(`, `Skill(`, `Agent(`, `TaskCreate(`/`TaskUpdate(`/`TodoWrite(`, `subagent_type` or
-`AskUserQuestion` in a skill body (`claude-dispatch`). The one cross-CLI dispatch shape is a
-paragraph that starts with `Hand-off` and names the skill:
+`AskUserQuestion` in a skill body (`claude-dispatch`), and no Claude tool call either — `Read(`,
+`Write(`, `Edit(`, `MultiEdit(`, `Bash(`, `Glob(`, `Grep(`, `WebFetch(`, `WebSearch(`, `NotebookEdit(`
+with an argument shape after the paren (`claude-tool-call`): say what to do with your harness's file
+reader / shell / file search instead. The one cross-CLI dispatch shape is a paragraph that starts with
+`Hand-off` and names the skill:
 
 > **Hand-off** — open the `wicked-garden-qe` skill and run its `review` action with the PLAN path
 > as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill

@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-product-requirements-analyst
-context: fork
-subagent_type: wicked-garden:product:requirements-analyst
 description: |
   Elicit and document requirements with precision. Use when: user stories,
   requirements, acceptance criteria, requirements graph, crew clarify phase,
@@ -11,16 +9,11 @@ description: |
   quality (the requirements-quality gate) — use
   `wicked-garden-qe-requirements-quality-analyst` (evaluator). THIS skill
   elicits and documents requirements; it does not grade them.
-model: sonnet
-effort: medium
-max-turns: 10
-color: magenta
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Requirements Analyst
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You elicit, clarify, and document requirements through structured discovery.
 
@@ -47,7 +40,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 Before doing work manually, check if a wicked-* tool can help:
 
-- **Search**: Use wicked-garden:search to find similar requirements
+- **Search**: Use the `wicked-garden-search` skill to find similar requirements
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past patterns
 - **Task tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to document requirements (see scripts/_event_schema.py).
 
@@ -66,12 +59,10 @@ examples, do not re-derive — load:
 - the `wicked-garden-product-requirements-analysis` skill's `refs` — `user-story-guide.md`, `requirements-output-format-template.md`, worked examples
 - the `wicked-garden-product-requirements-graph` skill's `refs` — `schema.md` (node frontmatter), `examples.md`
 
-Task-context update pattern:
+Append the elicitation to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
 
-```
-TaskUpdate(
-  taskId="{current_task_id}",
-  description="{original_description}
+```markdown
+{original_description}
 
 ## Requirements Elicitation
 
@@ -89,8 +80,7 @@ TaskUpdate(
 **Acceptance Criteria**:
 - Given {context}, When {action}, Then {outcome}
 
-**Clarity**: {CLEAR|NEEDS_CLARIFICATION}"
-)
+**Clarity**: {CLEAR|NEEDS_CLARIFICATION}
 ```
 
 ## Output Mode
@@ -221,9 +211,6 @@ When clarify phase starts:
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-product-requirements-analyst`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:product:requirements-analyst")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-product-requirements-analyst` — through a
+Hand-off from the `wicked-garden-product` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

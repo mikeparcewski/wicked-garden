@@ -29,7 +29,7 @@
     "exemption_marker_scope": "token: the marker must directly follow the wicked-garden-<x> token (an optional closing quote/backtick and spaces may sit between); a marker elsewhere on the line exempts nothing"
   },
   "cross_cli": {
-    "$comment": "The seven cross-CLI tokens (L6 B0). Detectors run over every skills/**/*.md body (frontmatter tokens over SKILL.md frontmatter); a line carrying historical_marker is never a hit; prose inside a Hand-off paragraph (a paragraph whose first line matches handoff_regex) is exempt from claude-only-prose — the Hand-off paragraph is the ONE cross-CLI dispatch shape. closed_frontmatter_keys mirrors scripts/_skill_meta.CLOSED_KEYS (the test pins the two equal).",
+    "$comment": "The eight cross-CLI tokens (L6 B0; claude-tool-call added by the B7 fold, review-garden-1153 M1). Detectors run over every skills/**/*.md body (frontmatter tokens over SKILL.md frontmatter); a line carrying historical_marker is never a hit; prose inside a Hand-off paragraph (a paragraph whose first line matches handoff_regex) is exempt from claude-only-prose — the Hand-off paragraph is the ONE cross-CLI dispatch shape. closed_frontmatter_keys mirrors scripts/_skill_meta.CLOSED_KEYS (the test pins the two equal).",
     "tokens": [
       "claude-frontmatter-key",
       "claude-dispatch",
@@ -37,7 +37,8 @@
       "handoff-missing",
       "retired-product-ref",
       "description-too-long",
-      "skill-too-large"
+      "skill-too-large",
+      "claude-tool-call"
     ],
     "baseline": "tests/cross_cli_baseline.json",
     "closed_frontmatter_keys": [
@@ -49,6 +50,7 @@
       "name"
     ],
     "dispatch_regex": "\\b(?:Task|Skill|Agent|TaskCreate|TaskUpdate|TodoWrite)\\((?=\\s*(?:[\"'`{]|\\.\\.\\.|…|[A-Za-z_][A-Za-z0-9_]*\\s*=|$))|\\bsubagent_type\\b|\\bAskUserQuestion\\b",
+    "tool_call_regex": "\\b(?:Read|Write|Edit|MultiEdit|Bash|Glob|Grep|WebFetch|WebSearch|NotebookEdit)\\((?=\\s*(?:[\"'`{]|\\.\\.\\.|…|[A-Za-z_][A-Za-z0-9_]*\\s*=|$))",
     "prose_regex": "Claude Code|\\.claude/|\\b(?:Read|Write|Edit|MultiEdit|Bash|Glob|Grep|WebFetch|WebSearch|NotebookEdit)\\s+tool\\b|\\bthe\\s+(?:Task|Skill|Agent)\\s+tool\\b",
     "retired_product_regex": "\\bwicked-(?:testing|brain|signals|loom)\\b",
     "handoff_regex": "^\\s*(?:\\*\\*|_|#+\\s*)?Hand-off\\b",
@@ -153,6 +155,11 @@
     {
       "token": "skill-too-large",
       "rule": "a SKILL.md over 500 lines or 24 KiB — move detail into refs/ (the same bound scripts/ci/validate.py enforces for routers)",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "claude-tool-call",
+      "rule": "a body line that calls a Claude Code tool — Read(, Write(, Edit(, MultiEdit(, Bash(, Glob(, Grep(, WebFetch(, WebSearch(, NotebookEdit( with an argument shape after the paren — no other seat has the call; say what to do with your harness's file reader / shell / file search instead; a `<!-- historical -->` line is exempt (review-garden-1153 M1: the class was lint-blind for two batches)",
       "garden": "fail (baselined per file until translated)"
     }
   ],

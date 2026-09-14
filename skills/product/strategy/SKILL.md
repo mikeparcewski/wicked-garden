@@ -6,8 +6,10 @@ description: |
 
   Use when: building a business case for a technical investment, evaluating
   ROI or value proposition, or doing competitive positioning analysis.
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Strategy Skill
@@ -133,16 +135,7 @@ Payback Period = Investment / Annual Benefit
 
 ### With the memory layer (wicked-garden-mem)
 
-Store strategic insights. Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-mem", args="store \"ROI analysis: {project}\" (kind=fact)")
-```
-
-Recall past analysis:
-```
-Skill(skill="wicked-garden-mem", args="recall \"strategic analysis {domain}\"")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with `ROI analysis: {project}` (kind=fact) to keep the strategic insight, and its `recall` action with `strategic analysis {domain}` as the query to recall past analysis; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### With wicked-crew
 
@@ -151,12 +144,9 @@ Called during clarify phase for value assessment:
 - Provides business perspective
 - Informs go/no-go decisions
 
-### With native tasks
+### With the harness's task list
 
-Attach analysis as evidence by appending to the task description:
-```
-TaskUpdate(taskId={task_id}, description="{previous}\n\n## Strategy Analysis\n{analysis_summary}")
-```
+Attach the analysis as evidence by appending `## Strategy Analysis` + `{analysis_summary}` to the task description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes.
 
 ## Output Structure
 
