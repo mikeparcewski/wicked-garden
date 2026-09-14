@@ -134,7 +134,7 @@
     },
     {
       "token": "claude-only-prose",
-      "rule": "a body line with Claude-only prose — a tool noun (`the Read tool`, `the Skill tool`, …), a `.claude/` path or the words `Claude Code` — outside a Hand-off paragraph and not marked `<!-- historical -->`",
+      "rule": "Claude-only prose — a tool noun (`the Read tool`, `the Skill tool`, …), a `.claude/` path or the words `Claude Code` — outside a Hand-off paragraph and not marked `<!-- historical -->`; matched over the PARAGRAPH with intra-paragraph newlines normalised to spaces, so a token split across a line wrap (`multiple Bash` / `tool calls`) cannot hide from the line-based scan (review-garden-1158 M1)",
       "garden": "fail (baselined per file until translated)"
     },
     {

@@ -5,20 +5,13 @@ archetype_relevance: ["*"]
 # jam revisit — Decision Outcome Workflow
 
 Revisit a past brainstorm decision to record whether it was validated,
-invalidated, or modified. Light workflow — run it inline, no fork needed.
+invalidated, or modified. Light workflow — run it inline, no hand-off needed.
 
 ## Instructions
 
 ### 1. Recall Past Decision
 
-Search for the decision via the wicked-garden-mem skill
-
-```
-Skill(
-  skill="wicked-garden-mem",
-  args="recall \"jam decision related to: {topic}\""
-)
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `jam decision related to: {topic}` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 If no matching decision found, inform the user and suggest running the jam
 skill's `brainstorm` sub-action first.
@@ -52,13 +45,7 @@ How did this decision work out?
 
 ### 4. Record Outcome
 
-Store the outcome via the wicked-garden-mem skill
-
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-mem", args="store \"Outcome: {topic}\nOriginal decision: {chosen}\nResult: {validated/invalidated/modified}\nReason: {user's explanation}\nLessons: {what we learned}\" (kind=fact, about=[jam, outcome, {topic-keywords}])")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the record `Outcome: {topic} / Original decision: {chosen} / Result: {validated/invalidated/modified} / Reason: {user's explanation} / Lessons: {what we learned}` (kind=fact, about=[jam, outcome, {topic-keywords}]); on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### 5. Report
 

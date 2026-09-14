@@ -159,7 +159,7 @@ They do not overlap; pick by target:
 | `define` | Create or update a custom persona |
 | `list` | List all available personas (Methodology vs Generic tiers) |
 
-**Fork worker**: `wicked-garden-persona-agent` (the `as` action builds its prompt from the registry at runtime and dispatches to it — kept). `define` runs inline from `refs/define.md`; the no-op `persona:submit` stub was deleted.
+**Worker**: none — the former `wicked-garden-persona-agent` worker is retired into `refs/as.md` (wave-2 B9): the `as` action builds the profile from the registry at runtime and embodies it inline. `define` runs inline from `refs/define.md`; the no-op `persona:submit` stub was deleted.
 
 ## smaht — Context Assembly
 

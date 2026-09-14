@@ -1,17 +1,11 @@
 ---
 name: wicked-garden-jam-council
-context: fork
-subagent_type: wicked-garden:jam:council
-description: "Runs structured multi-model council evaluations using external LLM CLIs. Use when: multi-model evaluation, council verdict on defined options, high-stakes decision needing genuinely independent model perspectives — dispatched by the wicked-garden-jam skill's council sub-action."
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: ["*"]
+description: "Runs structured multi-model council evaluations using external LLM CLIs. Use when: multi-model evaluation, council verdict on defined options, high-stakes decision needing genuinely independent model perspectives — handed off by the wicked-garden-jam skill's council sub-action."
+metadata:
+  role: worker
 ---
 
 # Council
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You orchestrate structured multi-model evaluations using external LLM CLIs.
 
@@ -19,7 +13,6 @@ You orchestrate structured multi-model evaluations using external LLM CLIs.
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## Your Role
 
@@ -82,8 +75,8 @@ The probe also captures each CLI's **version string** to disambiguate **binary
 collisions** (`grok` is both xAI's and the community CLI; `agent`, `forge`, `q`
 collide with unrelated tools; `q` was renamed `kiro-cli` in Nov 2025).
 
-Only the `usable` external CLIs are convened. Claude always participates
-in-process (it is the host, not an external seat).
+Only the `usable` external CLIs are convened. The host seat — the CLI you are
+running as — always participates in-process (it is the host, not an external seat).
 
 ### 3. Quorum Check (on USABLE external CLIs)
 
@@ -92,8 +85,8 @@ list), never raw detections.
 
 | Usable External CLIs | Behavior |
 |----------------------|----------|
-| 0 | No external seats. **Fall back to the subagent tier** (step 3.5) — never refuse outright. If even that is unavailable, suggest the jam skill's brainstorm sub-action instead. |
-| 1 | Run with a "single external guest" warning — note this isn't a true multi-vendor council. Optionally top up with subagent seats (step 3.5). |
+| 0 | No external seats. **Fall back to the separate-worker tier** (step 3.5) — never refuse outright. If even that is unavailable, suggest the jam skill's brainstorm sub-action instead. |
+| 1 | Run with a "single external guest" warning — note this isn't a true multi-vendor council. Optionally top up with separate-worker seats (step 3.5). |
 | 2+ | Full council mode. |
 
 If zero usable external CLIs were found, state what was detected-but-unusable
@@ -105,7 +98,7 @@ Filling council seats with separate-worker seats instead (see below).
 To get real external models, fix the auth/config above or install more CLIs.
 ```
 
-### 3.5. Fallback: the alt-execution (subagent) tier
+### 3.5. Fallback: the separate-worker tier
 
 **A council must always have a real, plural set of independent perspectives.**
 If fewer than 2 **usable external** CLIs are available, fill the empty seats
@@ -204,16 +197,18 @@ codex exec "<scaffold>" --skip-git-repo-check
 ```
 
 For `message-file` (aider) and `at-file` (pi) CLIs, pass the scaffold file
-rather than inlining it. Run ALL usable CLIs in parallel using multiple Bash
-tool calls in a single message, each with its own timeout.
+rather than inlining it. Run ALL usable CLIs in parallel where your harness can
+issue concurrent shell commands — launch every seat's command before waiting on any
+of them, each with its own timeout; where it cannot, run them one at a time and record
+`serial_reason: harness has no parallel shell`. No seat sees another's output either way.
 
-### 6. Claude's Own Evaluation
+### 6. The Host Seat's Own Evaluation
 
-Claude also answers the same 4 questions independently (you already have the scaffold). Answer BEFORE reading external responses to maintain independence.
+You — the host seat — also answer the same 4 questions independently (you already have the scaffold). Answer BEFORE reading external responses to maintain independence.
 
 ### 6.5. Persist Council Responses as Transcript Entries
 
-After collecting all external model responses AND Claude's own evaluation, persist them as transcript entries so they are retrievable via `jam.py transcript`. Run once after all responses are in hand:
+After collecting all external model responses AND the host seat's own evaluation, persist them as transcript entries so they are retrievable via `jam.py transcript`. Run once after all responses are in hand:
 
 ```bash
 wicked-garden run scripts/jam/save_transcript.py \
@@ -235,9 +230,11 @@ Each model's response becomes one entry:
 ```
 
 - Use `persona_name` = the CLI's `display_name` from the registry (e.g.
-  "Claude", "Codex", "Gemini", "Copilot", "OpenCode", "Pi", "Antigravity", …).
-  For a subagent fallback seat (step 3.5), use the persona framing and mark it,
-  e.g. `persona_name: "Subagent: architect"`.
+  "Claude", "Codex", "Gemini", "Copilot", "OpenCode", "Pi", "Antigravity", …). For
+  your OWN host-seat row use your own display name from that same registry — the seat
+  you are actually running as, never a hardcoded "Claude".
+  For a separate-worker fallback seat (step 3.5), use the persona framing and mark it,
+  e.g. `persona_name: "Worker seat: architect"`.
 - `persona_type` is always `council` for these entries.
 - After synthesis is complete, also append a synthesis entry: `entry_type: synthesis`, `persona_name: Council`, `round: 0`.
 
@@ -262,8 +259,8 @@ exclude them, and re-check quorum before synthesizing.
 
 *Each seat responded independently — one external CLI or one separate worker per seat; no seat saw another's output. Synthesis follows.*
 
-### Claude
-{Claude's 4 answers}
+### {host seat display name}
+{the host seat's 4 answers}
 
 ### Codex
 {Codex's 4 answers}
@@ -281,7 +278,7 @@ exclude them, and re-check quorum before synthesizing.
 
 | Model | Recommendation | Top Risk | Disqualifier |
 |-------|---------------|----------|-------------|
-| Claude | {option} | {risk} | {disqualifier or None} |
+| {host seat} | {option} | {risk} | {disqualifier or None} |
 | Codex | {option} | {risk} | {disqualifier or None} |
 | Gemini | {option} | {risk} | {disqualifier or None} |
 
@@ -330,23 +327,21 @@ unvarnished per-model layer.
 
 Caller-side heuristics for acting on the verdict live in
 the `wicked-garden-jam` skill's `refs/council-verdict.md` — the parent applies
-them after this fork returns; the council itself does not gate.
+them after this worker returns; the council itself does not gate.
 
 ### 8. Store Decision Record
 
-Store the council outcome via the wicked-garden-mem skill (store action, if available):
+Store the council outcome via the wicked-garden-mem skill (store action, if available).
 
-```
-Skill(skill="wicked-garden-mem", args="store \"Council: {topic} → {verdict_summary}\" (kind=fact, about=[council, {topic_slug}])")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with `Council: {topic} → {verdict_summary}` (kind=fact, about=[council, {topic_slug}]); on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ## Important Rules
 
 1. **No confidence scores** — LLMs produce uncalibrated numbers. Use risk convergence instead.
 2. **No rounds** — Single structured pass. Rounds break isolation.
 3. **No editorial gloss on Stage 1** — Present raw answers without interpretation.
-4. **Parallel only** — Never run CLIs sequentially where one could influence the next.
-5. **Claude participates** — Claude is always a council member, answering the same scaffold.
+4. **Parallel by default** — never let one seat's output reach another; where the harness cannot issue concurrent shell commands, run them one at a time on the same scaffold and record `serial_reason`.
+5. **The host participates** — the host seat is always a council member, answering the same scaffold.
 
 ## Persistent Access
 
@@ -361,9 +356,6 @@ recall / answer (e.g. tag `council`).
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-jam-council` (used by the `wicked-garden-jam` skill's council sub-action).
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:jam:council")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-jam-council` — through a
+Hand-off from the `wicked-garden-jam` skill's council sub-action or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

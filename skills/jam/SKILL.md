@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-jam
-user-invocable: true
 description: |
   Orchestrates AI-powered brainstorming sessions with dynamic focus groups.
   quick sessions are ephemeral (no storage). brainstorm and council sessions
@@ -10,8 +9,10 @@ description: |
   "jam quick <idea>", "jam brainstorm <topic>", "jam council <topic> with
   options A/B/C", "multi-model evaluation", "council verdict",
   "jam revisit <decision>", "how did that decision work out".
-phase_relevance: ["clarify", "design"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "clarify,design"
+  archetypes: "*"
 ---
 
 # Brainstorming Skill
@@ -30,8 +31,8 @@ Relative paths in this skill are relative to the directory that contains this SK
 | Sub-action | When | How it runs |
 |------------|------|-------------|
 | `quick` | Gut-check, rapid exploration (~60s) | Inline — apply `refs/quick.md` directly |
-| `brainstorm` | Important decisions, complex problems | Fork → `wicked-garden-jam-brainstorm-facilitator` |
-| `council` | Defined options needing a rigid verdict | Fork → `wicked-garden-jam-council` |
+| `brainstorm` | Important decisions, complex problems | Hand-off → `wicked-garden-jam-brainstorm-facilitator` |
+| `council` | Defined options needing a rigid verdict | Hand-off → `wicked-garden-jam-council` |
 | `revisit` | Record the outcome of a past decision | Inline — follow `refs/revisit.md` |
 
 > **Progression**: `quick` (60s gut-check, ephemeral) → `brainstorm` (full
@@ -84,15 +85,10 @@ stored via the wicked-garden-mem skill for organizational memory.
 - **fast** (`--converge fast`): After each round, assess whether there is
   enough signal to synthesize; skip remaining rounds when personas converge.
 
-Dispatch to the forked facilitator skill (it owns the convergence checks,
-native-task tracking, transcript storage, and bus events):
+Hand off to the facilitator worker skill (it owns the convergence checks,
+task tracking, transcript storage, and bus events):
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-jam-brainstorm-facilitator",
-      args="Run a full brainstorm session on: {topic}. Options: {personas}, {rounds}, convergence_mode={converge|'normal'}.")
-```
+**Hand-off** — open the `wicked-garden-jam-brainstorm-facilitator` skill with "Run a full brainstorm session on: {topic}. Options: {personas}, {rounds}, convergence_mode={converge|'normal'}." as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ## Sub-action: council
 
@@ -104,21 +100,18 @@ see `scripts/jam/agentic_cli_registry.py`) — to get genuinely independent
 model perspectives. Installed CLIs are detected AND usability-probed via
 `wicked-garden run scripts/jam/detect_clis.py --probe` (auth-revoked / unconfigured /
 daemon-down CLIs are excluded). When fewer than 2 usable external CLIs are
-present, council seats are filled with forked subagent seats so deliberation
+present, council seats are filled with separate-worker seats so deliberation
 always happens. Unlike brainstorm (free-form creative exploration), council is
 a **rigid evaluation tool** for when you have defined options and need a
 verdict.
 
 Natural workflow: `brainstorm → identify candidates → council → decide`
 
-Dispatch to the forked council skill:
+Hand off to the council worker skill:
 
-```
-Skill(skill="wicked-garden-jam-council",
-      args="Run a council evaluation on: {topic}. Options: {options}. Criteria: {criteria}.")
-```
+**Hand-off** — open the `wicked-garden-jam-council` skill with "Run a council evaluation on: {topic}. Options: {options}. Criteria: {criteria}." as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-**After the fork returns**: read
+**After the council returns**: read
 `refs/council-verdict.md` — it holds the
 caller-side heuristics for acting on the verdict (when to proceed, when to
 surface raw votes and pause for human adjudication, hard-gate archetype rules)
@@ -130,7 +123,7 @@ and the `raw_votes` output envelope contract
 **Args**: `<topic or decision keyword>`
 
 Revisit a past brainstorm decision to record whether it was validated,
-invalidated, or modified. Light workflow — run it inline, no fork:
+invalidated, or modified. Light workflow — run it inline, no hand-off:
 
 1. Read `refs/revisit.md` — the 5-step
    workflow: recall the decision via the wicked-garden-mem skill, display
@@ -139,10 +132,10 @@ invalidated, or modified. Light workflow — run it inline, no fork:
    memory layer is absent.
 2. Follow it step by step, waiting for the user's outcome answer in step 3.
 
-## Workers (forked skills)
+## Workers
 
 - `skills/jam-brainstorm-facilitator/SKILL.md` — multi-round, evidence gathering, transcript storage, decision record
-- `skills/jam-council/SKILL.md` — registry-driven multi-model council with isolation-enforced parallel dispatch
+- `skills/jam-council/SKILL.md` — registry-driven multi-model council with isolation-enforced parallel seats
 
 (`jam quick` runs inline via `refs/quick.md` — the former quick-facilitator
 agent was retired; the ref is the sole, up-to-date rubric.)
