@@ -63,7 +63,7 @@ finding (it documents a retired shape).
 
 ## Products and size
 
-`wicked-testing`, `wicked-brain`, `wicked-signals` are retired and `wicked-loom` is being replaced
+`wicked-testing`, `wicked-brain`, `wicked-signals` are retired and `wicked-loom` is being replaced — the skill TEXT retires the `wicked-loom` reference ahead of the peer itself (`wicked-loom` stays the prove gate's CI peer in `test.yml` / `tests/qe/test_prove.py` until the prove/loom-cutover seam removes it; DES-L6 B6 / review F3) —
 by the in-process gate — name their successors (the `qe` domain, wicked-estate through the `mem` /
 `search` skills, the built-in gate) or mark the line `<!-- historical -->` (`retired-product-ref`).
 A SKILL.md stays under 500 lines and 24 KiB (`skill-too-large`; `scripts/ci/validate.py` applies

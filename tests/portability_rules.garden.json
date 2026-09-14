@@ -48,7 +48,7 @@
       "metadata",
       "name"
     ],
-    "dispatch_regex": "\\b(?:Task|Skill|Agent|TaskCreate|TaskUpdate|TodoWrite)\\(|\\bsubagent_type\\b|\\bAskUserQuestion\\b",
+    "dispatch_regex": "\\b(?:Task|Skill|Agent|TaskCreate|TaskUpdate|TodoWrite)\\((?=\\s*(?:[\"'`{]|\\.\\.\\.|…|[A-Za-z_][A-Za-z0-9_]*\\s*=|$))|\\bsubagent_type\\b|\\bAskUserQuestion\\b",
     "prose_regex": "Claude Code|\\.claude/|\\b(?:Read|Write|Edit|MultiEdit|Bash|Glob|Grep|WebFetch|WebSearch|NotebookEdit)\\s+tool\\b|\\bthe\\s+(?:Task|Skill|Agent)\\s+tool\\b",
     "retired_product_regex": "\\bwicked-(?:testing|brain|signals|loom)\\b",
     "handoff_regex": "^\\s*(?:\\*\\*|_|#+\\s*)?Hand-off\\b",

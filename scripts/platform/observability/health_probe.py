@@ -308,7 +308,7 @@ def check_cross_plugin_refs(
 
             # Plugin exists — check that the referenced worker resolves,
             # either as a legacy agents/<name>.md file OR (skills-only
-            # cutover) as a context:fork worker skill in the target plugin.
+            # cutover) as a `metadata.role: worker` skill in the target plugin.
             if not _ref_worker_exists(ref_plugin_dir, ref_agent_name):
                 violations.append(
                     make_violation(
@@ -318,7 +318,7 @@ def check_cross_plugin_refs(
                         message=(
                             f"References subagent_type=\"{ref_plugin_name}:{ref_agent_name}\" "
                             f"but no matching agents/{ref_agent_name}.md file or "
-                            f"context:fork worker skill was found in {ref_plugin_name}."
+                            f"worker skill (metadata.role: worker) was found in {ref_plugin_name}."
                         ),
                         file=_rel_from(md_file, plugin_root.parent.parent),
                     )

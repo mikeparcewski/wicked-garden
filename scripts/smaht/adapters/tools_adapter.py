@@ -13,7 +13,7 @@ def _check_cli(name):
         return False
 
 
-# Known third-party AI CLIs that the wicked-garden council (a context:fork skill)
+# Known third-party AI CLIs that the wicked-garden council (a `metadata.role: worker` skill)
 # convenes for a multi-model second opinion. ``skill`` is the dash-named fork
 # skill invoked via Skill(...).
 KNOWN_CLIS = {

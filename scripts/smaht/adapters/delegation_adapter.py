@@ -11,7 +11,7 @@ from . import ContextItem
 
 
 # Domain-to-specialist mapping for delegation hints. The plugin is skills-only:
-# each worker is a context:fork skill dispatched by name via Skill(...). Values
+# each worker is a `metadata.role: worker` skill dispatched by name via Skill(...). Values
 # are (target, description). Every target is in-catalog (``wicked-garden-*``)
 # and invoked with the Skill tool — QE lives in-catalog too (the qe domain)
 # since Phase 6c retired wicked-testing.

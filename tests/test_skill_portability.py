@@ -752,6 +752,9 @@ def _cross(file: str, text: str) -> set[str]:
     ("skills/x/refs/a.md", "Hand-off: open the `wicked-garden-qe` skill and run its `review` action.\n\nThen `Skill(skill=\"wicked-garden-qe\")` was the old shape.\n", {"claude-dispatch"}),
     ("skills/x/refs/a.md", "the retired trio used `Task(subagent_type=…)` <!-- historical -->\n", set()),
     ("skills/x/refs/a.md", "a subtask is planned; the agent (a person) skips it\n", set()),
+    # review-L6-B N3: the prose plurals are NOT calls; a placeholder-argument call still is
+    ("skills/x/refs/a.md", "Task(s) and Agent(s) are queued by the router; a Task(s) list follows.\n", set()),
+    ("skills/x/refs/a.md", "then `Skill(...)` hands over\n", {"claude-dispatch", "handoff-missing"}),
     # claude-only-prose: tool nouns, .claude/ paths, `Claude Code` — exempt inside a Hand-off paragraph / historical lines
     ("skills/x/refs/a.md", "Use the Read tool on the file.\n", {"claude-only-prose"}),
     ("skills/x/refs/a.md", "Dispatch uses the Skill tool on Claude Code (a fresh forked context).\n", {"claude-only-prose"}),
@@ -780,14 +783,17 @@ def test_cross_cli_baseline_has_no_stale_entries():
     assert not _STALE, f"stale entries in {CROSS_CLI['baseline']} (delete them): {_STALE}"
 
 
-def test_cross_cli_baseline_is_not_vacuous_at_b0():
-    """B0 seeds the baseline from HEAD: every token has hits to translate (B18 deletes the file when
-    they reach zero — at which point this test is deleted with it)."""
+def test_cross_cli_baseline_is_well_formed():
+    """The baseline is SHRINK-ONLY after B0 (a batch deletes the entries it translated), so its size is
+    never asserted here — a numeric floor would turn CI red on a batch that did exactly what the design
+    asks (review-L6-B H1). What holds for the file's whole life: it names the HEAD it was generated
+    from, carries every token (an empty list is a token with nothing left to translate), and every
+    listed file still exists (a gone file = delete the entry). B18 deletes the file and this test."""
+    generated_from = BASELINE.get("generated_from")
+    assert isinstance(generated_from, str) and re.fullmatch(r"[0-9a-f]{7,40}", generated_from), generated_from
     entries = BASELINE.get("entries", {})
     assert set(entries) == set(CROSS_CLI_TOKENS), sorted(entries)
-    assert len(entries["claude-frontmatter-key"]) >= 100, len(entries["claude-frontmatter-key"])
-    assert len(entries["claude-dispatch"]) >= 30
-    assert len(entries["claude-only-prose"]) >= 30
+    assert all(isinstance(v, list) for v in entries.values())
     for t in CROSS_CLI_TOKENS:
         for f in entries[t]:
             assert (REPO / f).exists(), f"{t}: baselined file is gone — delete the entry: {f}"

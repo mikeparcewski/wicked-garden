@@ -4,7 +4,8 @@
 Skills-only cutover: the former "skill vs sibling agent" conflation smell
 (#652 Pattern A) becomes "domain ROUTER skill vs sibling WORKER
 skill". The former agents/{domain}/ tree is gone — workers are now standalone
-skills at skills/{domain}-{role}/SKILL.md declaring ``context: fork``.
+skills at skills/{domain}-{role}/SKILL.md declaring ``metadata.role: worker``
+(``context: fork`` is the legacy spelling ``skill_role()`` still infers).
 
 For each domain router (skills/{domain}/SKILL.md — a depth-2, non-fork skill),
 grep it and its sibling fork worker skills (skills/{domain}-*/SKILL.md) for

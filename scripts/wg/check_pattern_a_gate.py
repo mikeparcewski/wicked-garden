@@ -2,18 +2,19 @@
 """Pattern A migration validation gate for wg-check (#665).
 
 When a PR shrinks a router skills/**/SKILL.md substantially AND adds a new
-context:fork WORKER skill in the same diff, that's the Pattern A migration
+role-keyed WORKER skill in the same diff, that's the Pattern A migration
 shape from PR #666 (jam slim) and PR #670 (propose-process slim). The gate
 enforces: **every Pattern A migration must ship with a passing acceptance
 scenario** so reviewers can verify the new worker is wired correctly and the
 slimmed router still delegates to the right place.
 
 Skills-only cutover: the former ``agents/`` tree is gone — a "new worker" is
-now a newly-added ``skills/**/SKILL.md`` that declares ``context: fork``
-(the standalone worker skills that replaced agents/).
+now a newly-added ``skills/**/SKILL.md`` whose ``skill_role()`` is ``worker``
+(``metadata.role: worker``; the legacy ``context: fork`` spelling is still
+inferred) — the standalone worker skills that replaced agents/.
 
 Signal: a SKILL.md shrunk by >= 40% (lines-removed / lines-before) AND a new
-context:fork worker SKILL.md added in the same `git diff <base>...HEAD`.
+worker SKILL.md (role-keyed) added in the same `git diff <base>...HEAD`.
 
 Requirement: the same diff must add a scenario file matching:
     scenarios/**/*-pattern-a.md
