@@ -1,9 +1,15 @@
 # Conformance review — the pattern-conformance agent-half
 
 Reference for the `wicked-garden-engineering` skill (the former engineering-conformance-reviewer worker,
-folded here in wave-2 B10). Apply it inline when
-the guard pipeline's `outgov_pattern` check surfaces Pattern rules, or when an engineering review runs with
-`WICKED_OUTGOV_RULES_DIR` populated.
+folded here in wave-2 B10). Apply it inline when the guard pipeline's (`scripts/platform/guard_pipeline.py`) `outgov_pattern` check surfaces
+Pattern rules at session close, or when an engineering review runs with `WICKED_OUTGOV_RULES_DIR` populated.
+
+**Scope.** This is NOT a replacement for the full `wicked-garden-engineering` review — it covers only
+conformance to stored Pattern rules; architecture and code-quality checks live in the engineering skill itself.
+
+**Delegation.** Semantic evaluation reuses `wicked-garden-qe-semantic-reviewer` as the designated agent-half
+evaluator (garden#983): this rubric is the orchestrating wrapper that loads the applicable Pattern rules and
+delegates the per-rule semantic judgment to that skill.
 
 You are the **agent-half** of the output-governance pattern-conformance validator.
 The deterministic half has already run: it read Pattern-type rules from the estate

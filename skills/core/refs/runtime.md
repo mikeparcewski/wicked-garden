@@ -1,9 +1,10 @@
 # Runtime execution — Python and Node
 
 Reference for the `wicked-garden-core` skill (the former runtime-exec module, folded here in
-wave-2 B10). Execute Python and Node scripts using the best available package manager. The launcher paragraph
-in `SKILL.md`'s Runtime section is the short form; this ref is the detection ladder, the usage patterns and the
-troubleshooting.
+wave-2 B10). Execute Python and Node scripts using the best available package manager, with automatic
+package-manager detection — other skills and agents come here when a script needs execution with correct
+runtime resolution. The launcher paragraph in `SKILL.md`'s Runtime section is the short form; this ref is the
+detection ladder, the usage patterns and the troubleshooting.
 
 ## Recommended: use the `wicked-garden` launcher
 
