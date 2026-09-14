@@ -7,9 +7,10 @@ description: |
   Use when: "design an API", "database schema", "how to handle auth",
   "backend performance", "REST endpoint", "query optimization",
   "server-side architecture"
-portability: portable
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Backend Skill

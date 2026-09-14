@@ -6,18 +6,13 @@ description: |
 
   Use when: "debug this error", "why is this failing", "root cause analysis",
   "fix this bug", "investigate crash", "stack trace", "not working"
-portability: portable
-context: fork
-# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
-# file-context auto-activation, add:
-#   paths: ["**/*.log", "**/error*.ts", "**/error*.py", "**/*debug*"]
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Debugging Skill
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Systematic debugging, root cause analysis, and error investigation.
 

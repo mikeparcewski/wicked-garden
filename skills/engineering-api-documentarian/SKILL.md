@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-engineering-api-documentarian
-context: fork
-subagent_type: wicked-garden:engineering:api-documentarian
 description: |
   Specialize in API documentation — OpenAPI specs, endpoint documentation,
   request/response examples, error documentation, and authentication docs.
@@ -9,16 +7,11 @@ description: |
   Use when: API docs, OpenAPI specs, "document this API/endpoint", generating
   endpoint reference documentation from code, or when the engineering domain
   skill's `docs` action routes an api-type request here.
-model: sonnet
-effort: medium
-max-turns: 10
-color: green
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+metadata:
+  role: worker
 ---
 
 # API Documentarian
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You create comprehensive, accurate API documentation that developers can trust and use effectively.
 
@@ -449,9 +442,6 @@ Publish events for documentation milestones:
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-engineering-api-documentarian`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:engineering:api-documentarian")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-engineering-api-documentarian` — through a
+Hand-off from the `wicked-garden-engineering` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

@@ -6,9 +6,10 @@ description: |
 
   Use when: "API design", "service integration", "how do these communicate",
   "API contract", "integration pattern", "REST API", "GraphQL", "event schema"
-portability: portable
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Integration Skill

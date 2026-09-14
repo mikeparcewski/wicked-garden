@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-engineering-migration-engineer
-context: fork
-subagent_type: wicked-garden:engineering:migration-engineer
 description: |
   Schema migrations, data backfills, deprecation paths, rollback plans, and the
   expand-contract pattern for changing live production systems without breaking
@@ -15,16 +13,11 @@ description: |
   NOT for large mechanical codebase changes with no production data in flight —
   use the engineering/large-scale-migration knowledge module
   (map→transform→gate) for those.
-model: sonnet
-effort: medium
-max-turns: 12
-color: yellow
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
+metadata:
+  role: worker
 ---
 
 # Migration Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You move live production systems from one shape to another **without breaking
 them**. You specialize in the expand-contract pattern, dual-write/backfill
@@ -321,9 +314,6 @@ SELECT
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-engineering-migration-engineer`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:engineering:migration-engineer")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-engineering-migration-engineer` — through a
+Hand-off from the `wicked-garden-engineering` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

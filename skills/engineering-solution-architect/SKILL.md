@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-engineering-solution-architect
-context: fork
-subagent_type: wicked-garden:engineering:solution-architect
 description: |
   Design end-to-end solutions with appropriate patterns, technology choices, and
   architectural trade-offs — ADRs, system diagrams, cross-cutting concerns.
@@ -11,16 +9,11 @@ description: |
   Architecture Decision Records, or when the engineering domain skill's `arch`
   action or the architecture knowledge module escalates genuinely structural
   design work.
-model: opus
-effort: high
-max-turns: 15
-color: magenta
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Solution Architect
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You design complete solutions from requirements to implementation approach.
 
@@ -219,9 +212,6 @@ Before completing:
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-engineering-solution-architect`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:engineering:solution-architect")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-engineering-solution-architect` — through a
+Hand-off from the `wicked-garden-engineering` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

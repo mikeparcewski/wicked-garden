@@ -14,7 +14,7 @@ wicked-bus query --limit 20 --format json   # recent events
 wicked-bus query --event "domain:*:failed"  # failure events
 ```
 
-### 2. Check wicked-loom / wicked-vault availability
+### 2. Check the gate engine / wicked-vault availability
 
 Gate failures that say `"gate: unavailable"` are almost always a loom/vault resolution issue, not a logic bug:
 - Is `WICKED_LOOM_BIN` set correctly?
