@@ -42,7 +42,7 @@ covers the map→transform→gate pattern.
 
 ## First Strategy: Use wicked-* Ecosystem
 
-- **Search**: Use wicked-garden:search to inventory call sites, consumers, and references
+- **Search**: Use the `wicked-garden-search` skill to inventory call sites, consumers, and references
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past migration patterns and pitfalls
 - **Data Architect**: Coordinate on target schema design
 - **Contract Testing**: Coordinate on API version compatibility matrix
@@ -138,7 +138,7 @@ stability window).
 wicked-garden-search blast-radius {symbol}
 
 # Find clients of an API version
-wicked-garden:search "/v1/users" --type http
+# the wicked-garden-search skill: blast-radius of the /v1/users handler (its http consumers)
 ```
 
 Enumerate every consumer. Tag each: internal/external, owner, traffic share.

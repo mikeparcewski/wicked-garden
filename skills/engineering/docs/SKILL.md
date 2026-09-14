@@ -88,7 +88,7 @@ Detect and fix documentation drift:
 
 ## Integration
 
-- Use `wicked-garden:search` to scope the file set before auditing
+- Use the `wicked-garden-search` skill to scope the file set before auditing
 - Native TaskCreate (with `metadata.event_type="task"`) tracks doc tasks
 - CI: run audit in `--report` mode to gate PRs that drop below coverage threshold
 

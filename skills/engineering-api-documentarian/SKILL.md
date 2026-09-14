@@ -400,7 +400,7 @@ mutation CreateUser($input: CreateUserInput!) {
 
 ## Integration
 
-### With wicked-garden:search
+### With the wicked-garden-search skill
 
 Find API patterns:
 - Search for endpoint definitions

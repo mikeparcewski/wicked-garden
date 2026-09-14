@@ -13,7 +13,7 @@ Before drafting a plan, explore the codebase to understand:
 - [ ] Test patterns and coverage for affected areas
 - [ ] Any feature flags or config that gates the change
 
-Use `wicked-garden:search:blast-radius {symbol}` to find all call sites. Fall back to
+Use the `wicked-garden-search` skill's `blast-radius` action on `{symbol}` to find all call sites. Fall back to
 the estate MCP SearchEntity tool, or Grep when the index is unavailable.
 
 ## Risk assessment checklist

@@ -17,7 +17,7 @@ metadata:
 Design end-to-end solutions with clear patterns, decisions, and visual documentation.
 
 For genuinely structural greenfield design (system boundaries, cross-cutting
-design trade-offs, full ADR sets), dispatch the
+design trade-offs, full ADR sets), hand off to the
 `wicked-garden-engineering-solution-architect` worker skill.
 
 ## Purpose

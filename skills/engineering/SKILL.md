@@ -82,15 +82,14 @@ Use `arch` for component/system-level review; use `review` for code-level review
 5. Emit the scope-appropriate output format (strengths, concerns table, recommendations,
    trade-off table, ADR candidates for system scope).
 
-For genuinely structural greenfield design, dispatch
+For genuinely structural greenfield design, hand off to
 `wicked-garden-engineering-solution-architect`.
 
 ## debug — systematic debugging session
 
 1. Parse the error message, symptom, or issue description.
-2. Where the `superpowers` plugin is installed on your seat, open its `systematic-debugging`
-   skill from your catalog and follow it — the full hypothesis-driven methodology; otherwise
-   run the same loop inline: gather context, form a hypothesis, test it, document the root cause.
+2. Run the hypothesis loop inline: gather context, form a hypothesis, test it, document the
+   root cause — the systematic method on every seat (`refs/debug.md` carries the rubric).
 3. Read `refs/debug.md` for garden-specific heuristics:
    check the wicked-bus first, loom/vault availability for gate failures, cross-platform hook issues,
    and the standard debug output format.
@@ -114,7 +113,7 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 2. Read `refs/plan.md` — exploration checklist,
    risk assessment checklist, plan output format, and security/performance heuristics.
 3. Explore the affected code: entry points, key files, callers, existing patterns, test coverage.
-   Use `wicked-garden:search:blast-radius {symbol}` for impact analysis.
+   Use the `wicked-garden-search` skill's `blast-radius` action on `{symbol}` for impact analysis.
 4. Apply the risk assessment checklist (breaking changes, performance, security, data integrity,
    test gaps, deployment coordination).
 5. Emit the Implementation Plan output format: Summary, Scope (in/out), Changes Required per
@@ -132,7 +131,7 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 3. Read the source code: public interfaces, function signatures, types, error conditions, and
    existing docs (check for drift from implementation).
 4. Apply the type-appropriate checklist and generate the documentation inline following the
-   output template in the rubric. API/reference docs dispatch to
+   output template in the rubric. API/reference docs hand off to
    `wicked-garden-engineering-api-documentarian`.
 5. Present the documentation for user review before writing to file. When writing: API docs →
    `docs/api/`; READMEs → component root; guides → `docs/guides/`; inline → edit in-file with your file-edit tool.
