@@ -114,8 +114,7 @@ def test_every_shipped_skill_has_a_role_and_the_catalog_shape_holds():
         if p.parent.parent.name != "skills":
             fm = read_frontmatter(p)
             assert fm.get("user-invocable") == "true" or (fm.get("metadata") or {}).get("role") == "router", p
-    assert all(p.parent.parent.name == "skills" for p in roles["worker"] if p.parent.name != "debugging"), \
-        "workers are the top-level <domain>-<role> dirs (plus engineering/debugging)"
+    assert all(p.parent.parent.name == "skills" for p in roles["worker"]), "workers are the top-level <domain>-<role> dirs"
 
 
 # --------------------------------------------------------------------------- consumers

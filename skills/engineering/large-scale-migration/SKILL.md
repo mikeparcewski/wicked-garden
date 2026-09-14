@@ -10,6 +10,8 @@ description: |
   DB/dialect/framework", "adopt a library across N files", "refactor this
   pattern in M places", or any change touching dozens-to-thousands of sites.
   Language/DB/framework-agnostic — the thinking, not a specific tool.
+metadata:
+  role: module
 ---
 
 # Large-scale mechanical change — leverage, not grind

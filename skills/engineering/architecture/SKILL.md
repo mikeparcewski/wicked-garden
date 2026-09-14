@@ -6,9 +6,10 @@ description: |
 
   Use when: "design the architecture", "what's the overall structure",
   "architecture patterns", "technology stack", "system architecture"
-portability: portable
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Architecture Skill
@@ -16,8 +17,8 @@ archetype_relevance: ["*"]
 Design end-to-end solutions with clear patterns, decisions, and visual documentation.
 
 For genuinely structural greenfield design (system boundaries, cross-cutting
-design trade-offs, full ADR sets), dispatch the
-`wicked-garden-engineering-solution-architect` fork skill.
+design trade-offs, full ADR sets), hand off to the
+`wicked-garden-engineering-solution-architect` worker skill.
 
 ## Purpose
 
@@ -87,21 +88,12 @@ Architecture informs test strategy:
 - Failure modes
 - Performance targets
 
-### With native tasks
+### With the harness's task list
 
-Track work with ADR links via native TaskCreate:
-```
-TaskCreate(
-  subject="ADR-001",
-  description="Reference: phases/design/decisions/001.md",
-  metadata={
-    "event_type": "task",
-    "chain_id": "{project}.design",
-    "source_agent": "solution-architect",
-    "phase": "design"
-  }
-)
-```
+Track work with ADR links as tasks — subject `ADR-001`, description `Reference:
+phases/design/decisions/001.md`, metadata `event_type: task`, `chain_id: {project}.design`,
+`source_agent: solution-architect`, `phase: design`; the field list and the harness-specific
+Hand-off live in the `wicked-garden-workflow` skill's `refs/integration.md`.
 
 ## Architectural Thinking
 

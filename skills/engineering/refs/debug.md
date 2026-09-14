@@ -1,8 +1,8 @@
 # debug — garden-specific debug rubric
 
-Wicked-garden preferred debug process. For the full systematic methodology, invoke
-`superpowers:systematic-debugging` which covers hypothesis-driven debugging in depth.
-This ref captures garden-specific heuristics and the standard output format.
+Wicked-garden preferred debug process. The systematic method is the hypothesis loop —
+gather context, form a hypothesis, test it, document the root cause — run inline on every
+seat. This ref captures garden-specific heuristics and the standard output format.
 
 ## Garden-specific debug heuristics
 
@@ -14,7 +14,7 @@ wicked-bus query --limit 20 --format json   # recent events
 wicked-bus query --event "domain:*:failed"  # failure events
 ```
 
-### 2. Check wicked-loom / wicked-vault availability
+### 2. Check the gate engine / wicked-vault availability
 
 Gate failures that say `"gate: unavailable"` are almost always a loom/vault resolution issue, not a logic bug:
 - Is `WICKED_LOOM_BIN` set correctly?
@@ -54,7 +54,7 @@ When reviewing a diff that triggers a bug report, check if the diff contains cha
 
 ## Standard output format
 
-```markdown
+````markdown
 ## Debug Analysis: {issue title}
 
 ### Symptom
@@ -97,7 +97,7 @@ When reviewing a diff that triggers a bug report, check if the diff contains cha
 
 ### Alternative Explanations
 {only if confidence is not HIGH — other possible causes}
-```
+````
 
 ## Debugging techniques
 

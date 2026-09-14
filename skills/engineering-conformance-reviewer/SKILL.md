@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-engineering-conformance-reviewer
-context: fork
 description: |
   Pattern-conformance agent-half: evaluates a produced artifact or diff against
   a set of architectural/design pattern rules from the conformance-rule store
@@ -19,13 +18,13 @@ description: |
   designated agent-half evaluator (per garden#983 spec). This skill is the
   orchestrating wrapper that loads applicable Pattern rules and delegates the
   per-rule semantic judgment to qe-semantic-reviewer.
-phase_relevance: ["build", "review"]
-archetype_relevance: ["build", "review", "modernize"]
+metadata:
+  role: worker
+  phases: "build,review"
+  archetypes: "build,review,modernize"
 ---
 
 # Conformance Reviewer — Pattern-Conformance Agent-Half
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You are the **agent-half** of the output-governance pattern-conformance validator.
 The deterministic half has already run: it read Pattern-type rules from the estate

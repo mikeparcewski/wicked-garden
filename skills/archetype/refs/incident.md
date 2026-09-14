@@ -26,7 +26,7 @@ investigate before mitigating unless investigation IS the mitigation.
 The mitigate gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the evidence is re-hashed and its verifier
 re-run, never trusting a cached "mitigated". The honesty move here is the
 mitigation pin — a claimed mitigation that doesn't actually make the
-symptom check pass must REJECT. the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+symptom check pass must REJECT. The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. `--no-require` opts a throwaway/low-rigor run back
 to the doctrine-light claim-only path.
 
@@ -56,9 +56,9 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 
 ### investigate
 
-1. Look at dashboards FIRST — `wicked-garden:platform:health` /
-   `:traces` / `:incident`. Hypothesize from data, not memory.
-2. Run `wicked-garden:platform:incident` for triage workflows.
+1. Look at dashboards FIRST — the `wicked-garden-platform-health` / `-traces` /
+   `-incident` modules. Hypothesize from data, not memory.
+2. Run the `wicked-garden-platform` skill's `incident` action for triage workflows.
 3. **Time-box investigation to 15 minutes during SEV-1.** If you don't
    have a mitigation hypothesis in 15 min, escalate; don't keep
    investigating.
@@ -103,7 +103,7 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 ### followup
 
 1. Write the RCA within 48h. Use the standard postmortem template.
-2. Use `wicked-garden:incident-to-scenario-synthesizer` to convert the
+2. Use `wicked-garden-qe-incident-to-scenario-synthesizer` to convert the
    incident into a regression scenario that would catch the same break.
 3. Track action items in github. Don't bury them in a Slack thread.
 4. Record the docs evidence (vault present; **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):

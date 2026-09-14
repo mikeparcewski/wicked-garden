@@ -1,35 +1,34 @@
 ---
 name: wicked-garden-engineering
-user-invocable: true
 description: |
   Consolidated engineering domain skill: senior-engineer code review, architecture
   analysis, systematic debugging, implementation planning, and documentation
-  generation — plus cross-cutting guidance on code quality, patterns, and
-  maintainability.
+  generation.
 
   Use when: "review this code / file / diff" (quality, patterns, maintainability;
-  --focus security|performance|patterns|tests, --persona <name>, --scenarios);
+  --focus, --persona, --scenarios);
   "review the architecture of X" / "evaluate component boundaries, coupling, or
   layer violations" (--scope module|service|system); "debug this error / bug /
   unexpected behavior" (hypothesis-driven root cause, reproduction, fix,
-  prevention); "plan this change" / "implementation plan with specific file
-  changes, risk assessment, and test recommendations before writing code";
+  prevention); "plan this change" / "implementation plan with file changes, risks
+  and tests before writing code";
   "generate API docs / README / guide / inline comments" (--type
-  api|readme|guide|inline) or "docs drifted from code". Replaces the former
-  /wicked-garden:engineering:{review,arch,debug,plan,docs} commands.
+  api|readme|guide|inline) or "docs drifted from code".
 
   NOT for reviewing an AI agent system (agentic domain review), a UI (product
   ux-review), or a binding go/no-go verdict (archetype review); NOT for
-  greenfield system design (architecture knowledge module or the
-  wicked-garden-engineering-solution-architect fork skill).
-phase_relevance: ["design", "build", "review"]
-archetype_relevance: ["*"]
+  greenfield system design (the architecture module or the
+  wicked-garden-engineering-solution-architect worker).
+metadata:
+  role: router
+  phases: "design,build,review"
+  archetypes: "*"
 ---
 
 # Engineering
 
 Senior engineering guidance on code quality, architecture, and implementation. The five actions below run
-**inline** (no dispatch); genuinely structural, migration, or API-reference work dispatches to the fork workers listed at the end.
+**inline** (no dispatch); genuinely structural, migration, or API-reference work hands off to the workers listed at the end.
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
@@ -83,14 +82,14 @@ Use `arch` for component/system-level review; use `review` for code-level review
 5. Emit the scope-appropriate output format (strengths, concerns table, recommendations,
    trade-off table, ADR candidates for system scope).
 
-For genuinely structural greenfield design, dispatch
+For genuinely structural greenfield design, hand off to
 `wicked-garden-engineering-solution-architect`.
 
 ## debug — systematic debugging session
 
 1. Parse the error message, symptom, or issue description.
-2. Use `Skill("superpowers:systematic-debugging")` — the full hypothesis-driven debugging
-   methodology (gather context, form hypothesis, test, document root cause).
+2. Run the hypothesis loop inline: gather context, form a hypothesis, test it, document the
+   root cause — the systematic method on every seat (`refs/debug.md` carries the rubric).
 3. Read `refs/debug.md` for garden-specific heuristics:
    check the wicked-bus first, loom/vault availability for gate failures, cross-platform hook issues,
    and the standard debug output format.
@@ -114,7 +113,7 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 2. Read `refs/plan.md` — exploration checklist,
    risk assessment checklist, plan output format, and security/performance heuristics.
 3. Explore the affected code: entry points, key files, callers, existing patterns, test coverage.
-   Use `wicked-garden:search:blast-radius {symbol}` for impact analysis.
+   Use the `wicked-garden-search` skill's `blast-radius` action on `{symbol}` for impact analysis.
 4. Apply the risk assessment checklist (breaking changes, performance, security, data integrity,
    test gaps, deployment coordination).
 5. Emit the Implementation Plan output format: Summary, Scope (in/out), Changes Required per
@@ -132,10 +131,10 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 3. Read the source code: public interfaces, function signatures, types, error conditions, and
    existing docs (check for drift from implementation).
 4. Apply the type-appropriate checklist and generate the documentation inline following the
-   output template in the rubric. API/reference docs dispatch to
+   output template in the rubric. API/reference docs hand off to
    `wicked-garden-engineering-api-documentarian`.
 5. Present the documentation for user review before writing to file. When writing: API docs →
-   `docs/api/`; READMEs → component root; guides → `docs/guides/`; inline → Edit tool in-file.
+   `docs/api/`; READMEs → component root; guides → `docs/guides/`; inline → edit in-file with your file-edit tool.
 
 Audit (coverage metrics) and sync (stale-docs detection) modes live in the
 [docs module](docs/SKILL.md).
@@ -148,13 +147,15 @@ Audit (coverage metrics) and sync (stale-docs detection) modes live in the
 [docs](docs/SKILL.md) · [large-scale-migration](large-scale-migration/SKILL.md) ·
 [patch](patch/SKILL.md) · [unit-test-quality](unit-test-quality/SKILL.md)
 
-## Fork workers
+## Workers
 
-| Skill | Dispatch for |
+| Skill | Hand off for |
 |-------|-------------|
 | `wicked-garden-engineering-solution-architect` | System design, structural trade-offs, greenfield architecture, ADRs |
 | `wicked-garden-engineering-migration-engineer` | Production schema/data migrations, expand-contract, deprecation paths |
 | `wicked-garden-engineering-api-documentarian` | OpenAPI specs, endpoint reference docs |
+
+**Hand-off** — open the worker skill by name with the ask as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and run it inline, keeping its output separate from yours, then continue here.
 
 Frontend (React/CSS/browser), backend (APIs/databases/server-side), and debugging
 (error investigation, root-cause analysis) are handled **inline** by this skill —

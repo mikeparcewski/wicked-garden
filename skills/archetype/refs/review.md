@@ -21,7 +21,7 @@ REJECT, with a remediation list when not APPROVE.
 
 The final-verdict gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the verdict JSON is re-validated and the
 remediation-list structure re-checked, never trusting a self-asserted
-"done". the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
+"done". The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
 on a claim alone. Because final-verdict is a **hard** gate, the contract
 also demands an **independent attestation** — the verdict must be signed
 off by an evaluator that is NOT the worker who did the reviewed work
@@ -65,10 +65,10 @@ in three domains").
 
 1. Apply the rubric. Take notes; don't write the findings yet.
 2. Use the right specialist — `pr-review-toolkit:code-reviewer` (an external
-   subagent, where your harness has it), or a garden worker skill:
-   `wicked-garden-governed-worker` (Evaluator section), `wicked-garden-qe-semantic-reviewer`,
-   `wicked-garden-engineering-solution-architect`, etc. Match the artifact
-   to the specialist.
+   subagent, where your harness has it), a garden worker skill
+   (`wicked-garden-qe-semantic-reviewer`, `wicked-garden-engineering-solution-architect`,
+   etc.), or the Evaluator section of the `wicked-garden-governed-worker` floor. Match
+   the artifact to the specialist.
 
    **Hand-off** — open the chosen worker skill by name and carry out its SKILL.md with
    the artifact as the argument; on Claude Code this is the Skill tool, on any other seat

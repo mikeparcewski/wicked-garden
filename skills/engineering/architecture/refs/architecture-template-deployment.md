@@ -114,9 +114,9 @@ graph TD
 
 ### References
 
-- [System Requirements](../requirements.md)
-- [API Documentation](../api/openapi.yaml)
-- [Infrastructure as Code](../../infrastructure/)
+- [System Requirements](<path to the requirements doc>)
+- [API Documentation](<path to the OpenAPI file>)
+- [Infrastructure as Code](<path to the infrastructure-as-code tree>)
 - [ADRs](decisions/)
 
 ### Diagram Legend
@@ -136,7 +136,6 @@ graph LR
 | Architect | [Name] | YYYY-MM-DD | |
 | Tech Lead | [Name] | YYYY-MM-DD | |
 | Engineering Manager | [Name] | YYYY-MM-DD | |
-```
 
 ## Tips for Using This Template
 

@@ -24,7 +24,7 @@ cached "looked clean". Because live observation verifiers
 (`http_status_eq`, `pr_check_status`) aren't implemented yet, **capture
 the SLO metrics to a snapshot file** and verify with `jq_pred` over that
 captured JSON — deterministic and re-derivable, not a one-shot live
-probe. the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+probe. The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting an APPROVE. `--no-require` opts a throwaway/low-rigor
 rollout back to the doctrine-light claim-only path.
 

@@ -4,9 +4,10 @@ description: |
   Use when decomposing a system into components with clear boundaries, module organization, and interface
   contracts — the "how do we slice this?" question at design time.
   NOT for reviewing an existing system's health (use the architecture skill or engineering:arch).
-portability: portable
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # System Design Skill

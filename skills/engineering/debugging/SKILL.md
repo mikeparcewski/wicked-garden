@@ -6,18 +6,13 @@ description: |
 
   Use when: "debug this error", "why is this failing", "root cause analysis",
   "fix this bug", "investigate crash", "stack trace", "not working"
-portability: portable
-context: fork
-# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
-# file-context auto-activation, add:
-#   paths: ["**/*.log", "**/error*.ts", "**/error*.py", "**/*debug*"]
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Debugging Skill
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Systematic debugging, root cause analysis, and error investigation.
 
@@ -91,7 +86,7 @@ Debugging can leverage available integrations by capability:
 | **Observability** | `newrelic`, `dynatrace`, `telemetry` | APM data, traces, metrics |
 | **Logging** | `splunk`, `elastic`, `cloudwatch` | Log aggregation, search |
 
-Discover available integrations via capability detection. Fall back to local log analysis via wicked-garden:search when none available.
+Discover available integrations via capability detection. Fall back to local log analysis via the `wicked-garden-search` skill when none available.
 
 ## Notes
 

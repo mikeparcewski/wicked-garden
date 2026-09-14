@@ -11,10 +11,10 @@ description: |
 
   Use when: writing or reviewing a unit test, auditing a suite with high
   coverage but low confidence, or pairing a regression test with a bug fix.
-status: stable
-portability: portable
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Unit Test Quality

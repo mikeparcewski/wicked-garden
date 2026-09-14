@@ -5,8 +5,10 @@ description: |
   code-doc drift after a refactor. Covers generate (API docs, READMEs), audit (coverage metrics,
   undocumented exports), and sync (stale docs detection) in one skill.
   NOT for architecture documentation (use the architecture skill) or product requirements (use product/requirements-analysis).
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # Documentation Engineering Skill
@@ -86,7 +88,7 @@ Detect and fix documentation drift:
 
 ## Integration
 
-- Use `wicked-garden:search` to scope the file set before auditing
+- Use the `wicked-garden-search` skill to scope the file set before auditing
 - Native TaskCreate (with `metadata.event_type="task"`) tracks doc tasks
 - CI: run audit in `--report` mode to gate PRs that drop below coverage threshold
 

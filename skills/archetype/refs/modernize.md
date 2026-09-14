@@ -33,7 +33,7 @@ garden already preaches into those skills.
 The cutover gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py`
 → `scripts/loom/`, which shells `wicked-vault cross-check`): the parity
 harness is re-run and the blueprint post-condition re-checked, never trusting a
-self-asserted "ported fine". the gate engine ships inside wicked-garden and wicked-vault (the
+self-asserted "ported fine". The gate engine ships inside wicked-garden; wicked-vault (the
 evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's
 `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed**
 (`gate: "unavailable"`, `satisfied: false`) rather than self-asserting a PASS.
@@ -123,7 +123,7 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
 ### transform
 
 1. Transform **with leverage, not an agent-grind** — follow
-   `wicked-garden:engineering:large-scale-migration` (MAP → TRANSFORM → GATE) and
+   `wicked-garden-engineering-large-scale-migration` (MAP → TRANSFORM → GATE) and
    its ranked techniques menu: **prefer the lowest-numbered technique that fully
    covers the task** (deterministic recipe/codemod before AI-assisted waves), and
    **record the chosen technique** per wave. Drive the bulk through a deterministic

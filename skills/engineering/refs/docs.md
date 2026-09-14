@@ -2,7 +2,7 @@
 
 Checklist, output templates, and quality standards for generating API docs, READMEs,
 guides, and inline comments. API/reference docs route to the
-`wicked-garden-engineering-api-documentarian` fork skill;
+`wicked-garden-engineering-api-documentarian` worker skill;
 narrative docs (READMEs, guides, comments) are generated inline with this rubric.
 
 ## Documentation type routing
@@ -123,7 +123,7 @@ components:
 
 ### README template
 
-```markdown
+````markdown
 # {Component Name}
 
 {One sentence description of what this does and why it exists.}
@@ -150,7 +150,7 @@ components:
 ## Contributing
 
 {Link to CONTRIBUTING.md or brief notes}
-```
+````
 
 ## How-to guide checklist
 
@@ -186,6 +186,6 @@ components:
 | Endpoint reference | `docs/api/{resource}.md` |
 | README | component root `README.md` |
 | Guides | `docs/guides/{topic}.md` |
-| Inline | use Edit tool in-file |
+| Inline | edit in-file with your file-edit tool |
 
 Always present for user review before writing to file.

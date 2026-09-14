@@ -12,8 +12,10 @@ description: |
   {add-field,rename,remove,apply,patch-plan,new-generator} commands.
 
   This is the CODE MUTATION counterpart to wicked-garden-search (which is read-only).
-phase_relevance: ["design", "build"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,build"
+  archetypes: "*"
 ---
 
 # wicked-patch
