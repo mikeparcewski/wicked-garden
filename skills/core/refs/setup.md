@@ -17,7 +17,8 @@ wicked-garden run scripts/setup/detect_state.py question-mode
 ```
 
 - **INTERACTIVE**: Use your harness's native question prompt as documented in each step.
-- **PLAIN_TEXT**: no usable native prompt (dangerous mode auto-completes with empty answers; most CLIs have none). Present every question as a **numbered plain text list**, then **STOP and wait** for the user. Do NOT proceed until you receive a reply.
+- **PLAIN_TEXT**: no usable native prompt (dangerous mode auto-completes with empty answers; most CLIs have none).
+- The detector keys on the Claude harness's dangerous-mode flag only: on any other seat read PLAIN_TEXT regardless of its answer. Present every question as a **numbered plain text list**, then **STOP and wait** for the user. Do NOT proceed until you receive a reply.
 
 ## Answer Verification (CRITICAL)
 

@@ -16,8 +16,6 @@ metadata:
 
 # wicked-garden-classify
 
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
-
 You are classifying a prompt into a v11 work-shape archetype. Your output
 drives downstream archetype routing for the rest of the session (until
 the user changes scope or invokes this skill again).
@@ -41,7 +39,7 @@ session benefits without re-running classification on every turn.
 This skill **is the session router**. The former wicked-signals product (a <!-- historical -->
 separate text-in / intent-out classifier) was archived because intent /
 work-shape classification is a native model capability — the router is just a
-model reading the prompt with full tool access (`allowed-tools: ["*"]`), which
+model reading the prompt with full tool access (every tool the seat has), which
 is exactly this skill. Read it as one council member making the routing call on
 the fast path.
 
@@ -159,8 +157,8 @@ shows `"ok": true`, then return control.
 
 ### 6. Persist and return
 
-You are `context: fork` — your job is to classify, persist, and return, not to
-run the work. Do **not** start executing the playbook inside this fork; the
+You are a worker (`metadata.role: worker`) — your job is to classify, persist, and
+return, not to run the work. Do **not** start executing the playbook inside this unit; the
 persisted archetype is what the parent turn resumes on (the `prompt_submit`
 hook's Tier-1 path re-emits the steered `<wg archetype=… />` on the next turn
 from what you wrote to SessionState). The top archetype's playbook is

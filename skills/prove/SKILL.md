@@ -18,7 +18,7 @@ metadata:
 
 # Prove
 
-**Run this skill inline — never fork it.** prove is designed to run in the
+**Run this skill inline — never as a hand-off.** prove is designed to run in the
 parent context so the gate stays a reflex verb, not a dispatch ritual.
 
 ## Runtime

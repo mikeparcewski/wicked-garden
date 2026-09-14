@@ -47,6 +47,7 @@ Detect question mode:
 
 ```bash
 wicked-garden run scripts/setup/detect_state.py question-mode 2>/dev/null || echo "INTERACTIVE"
+# the detector keys on the Claude harness's dangerous-mode flag only — on any other seat read PLAIN_TEXT regardless
 ```
 
 ---

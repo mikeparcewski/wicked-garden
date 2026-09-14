@@ -61,6 +61,13 @@ tool`), a `.claude/` path or the words `Claude Code` is `claude-only-prose`. A f
 without a Hand-off paragraph is `handoff-missing`. A line ending in `<!-- historical -->` is never a
 finding (it documents a retired shape).
 
+**The `Hand-off (harness-specific)` variant.** A step that exists on ONE harness only (the setup
+wizard's `.claude/CLAUDE.md` hint block; the task-list tools' field mapping) is written as a paragraph
+starting `**Hand-off (harness-specific)**` that names the harness, says what it does there and says
+what every other seat does instead (usually: skip it). It hands the step to the harness, not to a
+skill; the same exemption applies inside it. Use it sparingly — a step every seat can do is written
+generically instead.
+
 ## Products and size
 
 `wicked-testing`, `wicked-brain`, `wicked-signals` are retired and `wicked-loom` is being replaced — the skill TEXT retires the `wicked-loom` reference ahead of the peer itself (`wicked-loom` stays the prove gate's CI peer in `test.yml` / `tests/qe/test_prove.py` until the prove/loom-cutover seam removes it; DES-L6 B6 / review F3) —
