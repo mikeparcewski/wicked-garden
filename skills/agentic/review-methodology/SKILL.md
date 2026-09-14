@@ -4,7 +4,7 @@ description: |
   Use when reviewing an agentic codebase for issues, risks, and maturity gaps — covers the four-phase review
   process (Detect → Analyze → Prioritize → Report) and the five-level maturity model (Prototype → Functional →
   Reliable → Production → Optimized) for assessing production readiness.
-  NOT for architecture design (use agentic-patterns) or live agentic review with a subagent (use agentic:review command).
+  NOT for architecture design (use agentic-patterns) or a live agentic review (the `wicked-garden-agentic` skill's `review` action).
 metadata:
   role: module
   phases: "design,review"

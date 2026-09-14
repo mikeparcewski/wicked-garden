@@ -49,8 +49,9 @@ authors: a `{vendor}-{domain}-{role}`-named skill with no `metadata.role: worker
 ## Dispatch: the Hand-off paragraph
 
 No `Task(`, `Skill(`, `Agent(`, `TaskCreate(`/`TaskUpdate(`/`TodoWrite(`, `subagent_type` or
-`AskUserQuestion` in a skill body (`claude-dispatch`; an assignment, constructor or lambda context — `x = Agent(`,
-`new Agent({`, `lambda: Agent(` — is framework code in a sample, not a dispatch), and no Claude tool call either — `Read(`,
+`AskUserQuestion` in a skill body (`claude-dispatch`; for the framework-ambiguous `Task(` / `Agent(` only, an assignment, constructor
+or lambda context — `x = Agent(`, `new Agent({`, `lambda: Agent(` — is framework code in a sample, not a
+dispatch; `Skill(`, `TaskCreate(`, `TaskUpdate(`, `TodoWrite(` trip in every context), and no Claude tool call either — `Read(`,
 `Write(`, `Edit(`, `MultiEdit(`, `Bash(`, `Glob(`, `Grep(`, `WebFetch(`, `WebSearch(`, `NotebookEdit(`
 with an argument shape after the paren (`claude-tool-call`): say what to do with your harness's file
 reader / shell / file search instead. The one cross-CLI dispatch shape is a paragraph that starts with

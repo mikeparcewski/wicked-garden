@@ -213,7 +213,7 @@ Append the architecture findings to the current task's description — the harne
 
 ## Output Format
 
-```markdown
+````markdown
 ## Architecture Review: {Project Name}
 
 **Review Date**: {date}
@@ -398,7 +398,7 @@ graph TB
 **Collaborate with**:
 - The safety-reviewer skill on Layer 5 validation
 - The performance-analyst skill on orchestration efficiency
-```
+````
 
 ## Integration with agentic Knowledge Modules
 
