@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-observability-test-engineer
-context: fork
 description: |
   Assert that logs, metrics, and traces emit correctly. Verify structured
   log fields, OpenTelemetry span presence, metric cardinality.
 
   Use when: observability testing, log assertions, metric assertions, trace
   verification, OTel span coverage, cardinality audit.
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
-phase_relevance: ["test", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Observability Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 If a failure happens in production and nobody sees it, it still failed.
 Your tests make sure the system tells its operators what it did.

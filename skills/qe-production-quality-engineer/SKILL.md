@@ -6,18 +6,11 @@ description: |
 
   Use when: post-deploy, production quality, SLO, error rate, canary, rollback
   criteria, performance regression.
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Bash, Grep, Glob
-phase_relevance: ["operate", "review"]
-archetype_relevance: ["ship", "incident", "review"]
+metadata:
+  role: worker
 ---
 
 # Production Quality Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You judge whether a deployed change is behaving in production. You work from
 live signals, not from the test suite.

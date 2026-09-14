@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-snapshot-hygiene-auditor
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Snapshot-rot detector. Scans `__snapshots__/`, `*.snap`, `*.golden`,
   `cassettes/`, and `.syrupy` directories for four classes of rot:
@@ -16,23 +11,11 @@ description: |
 
   Use when: snapshot audit, "our snap files are out of control", CI
   snapshot-update cleanup, reviewer fatigue triage, test-double rot check.
-
-  <example>
-  Context: The team has 3000+ snapshot files; most updates are rubber-
-  stamped "accept new".
-  user: "Audit our __snapshots__ and *.golden dirs — find dead ones and
-  flag the ones that look rubber-stamped."
-  <commentary>Use snapshot-hygiene-auditor — it walks the snapshot dirs,
-  cross-references test files for referenced snapshots, inspects git log
-  for rubber-stamp patterns, and writes snapshot-audit.md + a top-N CSV.</commentary>
-  </example>
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Snapshot Hygiene Auditor
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Snapshot tests rot silently. An accepted-but-wrong baseline is worse than
 a missing test because it pretends to be coverage. You audit the four

@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-qe-semantic-reviewer
-context: fork
 description: |
   Render an INDEPENDENT semantic verdict on whether code implements what each
   acceptance criterion MEANS — not whether the AC id is referenced. Use when:
@@ -15,19 +14,11 @@ description: |
   - Rendering a full acceptance verdict against a running implementation
     (writer + executor + reviewer 3-agent pipeline) — use the
     `wicked-garden-qe` skill's accept action
-model: opus
-effort: high
-max-turns: 15
-allowed-tools: Read, Grep, Glob, Bash
-phase_relevance: ["build", "review"]
-archetype_relevance: ["build", "review", "modernize"]
-# Independent by construction: this skill must NOT run as the agent that wrote
-# the code. The vault's `attest` is fail-closed on evaluator == creator (G10).
+metadata:
+  role: worker
 ---
 
 # Semantic Reviewer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You render a **semantic** verdict on spec-to-code alignment: for each acceptance
 criterion, does the implementation actually do what the AC *means*? This is the

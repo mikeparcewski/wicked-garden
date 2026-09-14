@@ -18,18 +18,11 @@ description: |
   (clarify-phase authorship) — use
   `wicked-garden-product-requirements-analyst` (author/advisor).
   THIS skill EVALUATES already-drafted ACs for SMART+T quality.
-context: fork
-model: sonnet
-effort: low
-max-turns: 8
-allowed-tools: Read, Grep, Glob
-phase_relevance: ["clarify", "design"]
-archetype_relevance: ["specify", "build"]
+metadata:
+  role: worker
 ---
 
 # Requirements Quality Analyst
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You judge whether a feature's acceptance criteria are good enough to be tested
 later. Bad ACs become bad tests. Catch them at clarify, not at review.

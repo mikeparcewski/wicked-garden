@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-qe-mutation-test-engineer
-context: fork
 description: |
   Mutation-testing specialist — Stryker (JS/TS), Mutmut (Python), Pitest (Java),
   go-mutesting (Go). Runs a scoped mutation pass, parses the kill report, and
@@ -21,17 +20,11 @@ description: |
   detected stack, scopes the run to src/pricing, writes stryker-report.json
   + kill-summary.md to evidence/, and records a verdict.</commentary>
   </example>
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Bash, Grep, Glob
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Mutation Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Coverage tells you which lines ran. Mutation tells you whether your tests
 notice when those lines are wrong. You run a scoped mutation pass, classify
@@ -233,7 +226,9 @@ top survivors (see surviving-top10.md for details):
   P1 src/cart/coupon.ts:91 (+, →, -)     count=1
   ...
 
-VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-mutation-test-engineer RUN_ID={RUN_ID}
+VERDICT: PASS|FAIL
+REVIEWER: wicked-garden-qe-mutation-test-engineer
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+<!-- fixall L6 -->
+### Changed
+- **Wave-2 catalog batch B16 (DES-L6 B14–B17; third of the 40 `qe-*` workers): 10 qe specialist workers (`qe-mutation-test-engineer`, `qe-observability-test-engineer`, `qe-production-quality-engineer`, `qe-release-readiness-engineer`, `qe-requirements-quality-analyst`, `qe-risk-assessor`, `qe-scenario-executor`, `qe-security-test-engineer`, `qe-semantic-reviewer`, `qe-snapshot-hygiene-auditor`) go cross-CLI (fixall L6-B16; D-21 — BC-37 / BC-39).** Each drops its Claude-only frontmatter for the closed key set with `metadata.role: worker` and loses the fork sentence; `qe-security-test-engineer` (1777 → 1015) and `qe-snapshot-hygiene-auditor` (1070 → 621) descriptions are trimmed under 1024 (example blocks dropped, security's two NOT/advisor lists condensed). `qe-scenario-executor`'s "Use the Read tool to read the scenario file" reads "Open the scenario file with your file reader". The `qe-mutation-test-engineer` `VERDICT={PASS|FAIL} REVIEWER=… RUN_ID=…` output footer becomes the D-9 grammar on separate lines and leaves `verdict_spelling.legacy_footer_files` (2 → 1, leaving only `qe-visual-regression-engineer` for B17 — the verdict-spelling test fixture target, whose `legacy_footer_files` entry and `_LEGACY_FOOTER` fixture rows move together in B17). `tests/cross_cli_baseline.json` shrinks by exactly this batch (13 pairs across 10 files → 18; 0 stale; nothing added); `components.json` unchanged. BM-style check for the wave-2 P2b/BM re-run: a non-claude seat receives the 10 workers in `skillsSnapshotHanded` with 0 `seatConstraint`, and a mutation run writes `VERDICT: PASS|FAIL` on its own line.
+
 ## [12.37.2] — 2026-09-15
 
 ### Changed
