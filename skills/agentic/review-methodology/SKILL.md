@@ -5,9 +5,10 @@ description: |
   process (Detect → Analyze → Prioritize → Report) and the five-level maturity model (Prototype → Functional →
   Reliable → Production → Optimized) for assessing production readiness.
   NOT for architecture design (use agentic-patterns) or live agentic review with a subagent (use agentic:review command).
-portability: portable
-phase_relevance: ["design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,review"
+  archetypes: "*"
 ---
 
 # Agentic Review Methodology

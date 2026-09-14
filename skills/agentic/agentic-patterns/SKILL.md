@@ -5,9 +5,10 @@ description: |
   parallel, event-driven), anti-patterns, and the five-layer model (Cognition → Context → Interaction →
   Runtime → Governance) for separating concerns in production-grade agentic systems.
   NOT for reviewing existing agentic code (use review-methodology) or framework selection (use the frameworks skill).
-portability: portable
-phase_relevance: ["design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "design,review"
+  archetypes: "*"
 ---
 
 # Agentic Patterns

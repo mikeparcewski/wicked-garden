@@ -3,17 +3,6 @@
   "generated_from": "b48a069",
   "entries": {
     "claude-frontmatter-key": [
-      "skills/agentic-architect/SKILL.md",
-      "skills/agentic-performance-analyst/SKILL.md",
-      "skills/agentic-safety-reviewer/SKILL.md",
-      "skills/agentic/SKILL.md",
-      "skills/agentic/agentic-patterns/SKILL.md",
-      "skills/agentic/context-engineering/SKILL.md",
-      "skills/agentic/frameworks/SKILL.md",
-      "skills/agentic/review-methodology/SKILL.md",
-      "skills/agentic/trust-and-safety/SKILL.md",
-      "skills/data-engineer/SKILL.md",
-      "skills/data/SKILL.md",
       "skills/integration-discovery/SKILL.md",
       "skills/jam-brainstorm-facilitator/SKILL.md",
       "skills/jam-council/SKILL.md",
@@ -74,17 +63,6 @@
       "skills/wickedizer/SKILL.md"
     ],
     "claude-dispatch": [
-      "skills/agentic-architect/SKILL.md",
-      "skills/agentic-performance-analyst/SKILL.md",
-      "skills/agentic-safety-reviewer/SKILL.md",
-      "skills/agentic/agentic-patterns/refs/anti-patterns-design.md",
-      "skills/agentic/agentic-patterns/refs/anti-patterns-operational.md",
-      "skills/agentic/frameworks/refs/framework-profiles-1.md",
-      "skills/agentic/frameworks/refs/framework-profiles-2.md",
-      "skills/agentic/frameworks/refs/migration-patterns-paths.md",
-      "skills/agentic/frameworks/refs/migration-patterns-testing.md",
-      "skills/data-engineer/SKILL.md",
-      "skills/data/refs/data-examples.md",
       "skills/integration-discovery/SKILL.md",
       "skills/integration-discovery/refs/cli-detection.md",
       "skills/integration-discovery/refs/discovery-sources.md",
@@ -135,17 +113,6 @@
       "skills/smaht/refs/briefing.md"
     ],
     "handoff-missing": [
-      "skills/agentic-architect/SKILL.md",
-      "skills/agentic-performance-analyst/SKILL.md",
-      "skills/agentic-safety-reviewer/SKILL.md",
-      "skills/agentic/agentic-patterns/refs/anti-patterns-design.md",
-      "skills/agentic/agentic-patterns/refs/anti-patterns-operational.md",
-      "skills/agentic/frameworks/refs/framework-profiles-1.md",
-      "skills/agentic/frameworks/refs/framework-profiles-2.md",
-      "skills/agentic/frameworks/refs/migration-patterns-paths.md",
-      "skills/agentic/frameworks/refs/migration-patterns-testing.md",
-      "skills/data-engineer/SKILL.md",
-      "skills/data/refs/data-examples.md",
       "skills/integration-discovery/SKILL.md",
       "skills/integration-discovery/refs/cli-detection.md",
       "skills/integration-discovery/refs/discovery-sources.md",
@@ -173,7 +140,6 @@
       "skills/qe/refs/campaign.md"
     ],
     "description-too-long": [
-      "skills/data/SKILL.md",
       "skills/mem/SKILL.md",
       "skills/qe-a11y-test-engineer/SKILL.md",
       "skills/qe-ai-feature-test-engineer/SKILL.md",
@@ -188,10 +154,7 @@
       "skills/search/SKILL.md",
       "skills/smaht/SKILL.md"
     ],
-    "skill-too-large": [
-      "skills/agentic-performance-analyst/SKILL.md",
-      "skills/agentic-safety-reviewer/SKILL.md"
-    ],
+    "skill-too-large": [],
     "claude-tool-call": []
   }
 }

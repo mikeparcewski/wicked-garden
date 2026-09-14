@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-agentic-architect
-context: fork
 description: |
   Five-layer architecture validation, agent topology analysis, orchestration
   pattern assessment, and framework detection for agentic systems.
@@ -9,15 +8,11 @@ description: |
   validating the five-layer model (cognition/context/interaction/runtime/
   governance), assessing orchestration patterns, or as a parallel worker in a
   heavyweight wicked-garden-agentic review.
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Architect
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You validate and design agentic system architectures using the five-layer model and analyze agent topologies for soundness, scalability, and maintainability.
 
@@ -30,7 +25,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 Before manual analysis, leverage available tools:
 
-- **Search**: Use wicked-garden:search to find architectural patterns
+- **Search**: Use the `wicked-garden-search` skill to find architectural patterns
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past architecture decisions
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track architecture recommendations (see scripts/_event_schema.py).
 
@@ -147,7 +142,7 @@ Validate each layer systematically:
 #### Anthropic ADK (Google ADK)
 - Check `agent.yaml` or `adk.yaml` for configuration
 - Validate `@agent.tool` decorator usage
-- Review `Agent(model=...)` instantiation
+- Review how each agent is instantiated (model, tools, instructions)
 - Verify streaming and async patterns
 
 #### LangGraph
@@ -192,12 +187,9 @@ Review the topology output for:
 
 ### 6. Update Task
 
-Track architecture findings:
+Append the architecture findings to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
 
-TaskUpdate(
-  taskId="{task_id}",
-  description="Append findings:
-
+```markdown
 [architect] Architecture Analysis Complete
 
 **Framework**: {detected_framework} v{version} (confidence: {score})
@@ -216,8 +208,8 @@ TaskUpdate(
 1. {recommendation}
 2. {recommendation}
 
-**Next Steps**: {action needed}"
-)
+**Next Steps**: {action needed}
+```
 
 ## Output Format
 

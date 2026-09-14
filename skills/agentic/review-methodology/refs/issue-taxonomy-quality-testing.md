@@ -241,7 +241,7 @@ Issues affecting test coverage and quality.
 
 ## Issue Template
 
-```markdown
+````markdown
 ## [CATEGORY]-[NUMBER]: [Issue Title]
 
 **Severity:** Critical | High | Medium | Low
@@ -274,4 +274,4 @@ Issues affecting test coverage and quality.
 
 ### Priority
 [P0/P1/P2/P3]
-```
+````

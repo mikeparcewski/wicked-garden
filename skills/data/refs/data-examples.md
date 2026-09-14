@@ -168,18 +168,7 @@ validate --schema expected.json --data new_data.csv
 quality new_data.csv
 ```
 
-4. **Document issues** via native TaskCreate
-```
-TaskCreate(
-  subject="Data Quality: Fix phone format",
-  metadata={
-    "event_type": "task",
-    "chain_id": "data-quality.root",
-    "source_agent": "data-profiler",
-    "priority": "P1"
-  }
-)
-```
+4. **Document issues** as a task — subject `Data Quality: Fix phone format`, metadata `event_type=task, chain_id=data-quality.root, source_agent=data-profiler, priority=P1` — in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes
 
 5. **Recommend remediation** with specific actions
 

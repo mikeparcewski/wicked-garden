@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-data
-user-invocable: true
 description: |
   Data engineering, analysis, and ML toolkit. One skill, routed sub-actions:
   analyze (interactive EDA on a CSV/Excel/data file), profile / validate /
@@ -15,25 +14,23 @@ description: |
   validity); "review this ML model" / "design an ML training pipeline";
   "design a data pipeline" / "review this ETL" / "optimize data
   processing"; "recommend an ontology for this data" / "map columns to a
-  public ontology". Replaces the former /wicked-garden:data:* commands
-  (analyze, data, ml, ontology, pipeline).
+  public ontology", or any former /wicked-garden:data:* invocation.
 
-  NOT for delegated subagent work — dispatch the wicked-garden-data-engineer
-  fork skill for that.
-# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
-# file-context auto-activation, add:
-#   paths: ["**/dags/**", "**/pipelines/**", "**/etl/**", "**/airflow/**", "**/prefect/**"]
-phase_relevance: ["clarify", "design", "build"]
-archetype_relevance: ["*"]
+  Delegated deep passes: the `wicked-garden-data-engineer` worker skill.
+metadata:
+  role: router
+  phases: "clarify,design,build"
+  archetypes: "*"
 ---
 
-# wicked-garden:data — data engineering, analysis, and ML
+# Data Domain — data engineering, analysis, and ML
 
-Every sub-action runs inline (no dispatch): parse the arguments, pre-read the
-data where noted, load the Tier-3 rubric from refs/, apply it, and emit
-structured markdown with tables and prioritized findings. For delegated or
-parallel worker execution, dispatch the **wicked-garden-data-engineer** fork
-skill instead.
+Every sub-action runs inline: parse the arguments, pre-read the data where noted,
+load the Tier-3 rubric from refs/, apply it, and emit structured markdown with tables
+and prioritized findings. For delegated or parallel worker execution, hand off to the
+**wicked-garden-data-engineer** worker skill instead.
+
+**Hand-off** — open the `wicked-garden-data-engineer` skill with the sub-action and its arguments as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.

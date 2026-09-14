@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-agentic
-user-invocable: true
 description: |
   Agentic-systems domain skill: review, design, audit, and framework selection
   for AI agent systems. Routes to one of four actions (review | design | audit |
@@ -17,8 +16,10 @@ description: |
   ordinary source code use the engineering review; for a binding go/no-go
   verdict use the archetype review (see docs/domains.md → "review appears in
   three domains").
-phase_relevance: ["design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "design,review"
+  archetypes: "*"
 ---
 
 # Agentic Domain
@@ -61,15 +62,19 @@ safety + performance assessments → pattern scoring → unified remediation roa
    the structural summary. Otherwise apply all rubric steps directly.
 4. Write to `--output` file when set; otherwise return inline.
 
-### Heavyweight full review (optional dispatch)
+### Heavyweight full review (optional hand-off)
 
 For large codebases, or when independent parallel assessments are wanted,
-dispatch the three fork skills as parallel workers instead of applying rubric
-steps 2–4 inline, then merge their findings into the ref's unified roadmap:
+hand off to the three worker skills — in parallel where your harness runs parallel
+sub-agents, serially otherwise (record `serial_reason: harness has no parallel dispatch` —
+the sanctioned degradation) — instead of applying rubric steps 2–4 inline, then merge
+their findings into the ref's unified roadmap:
 
 - `wicked-garden-agentic-architect` — five-layer architecture + agent topology
 - `wicked-garden-agentic-safety-reviewer` — guardrails, prompt injection, PII, HITL
 - `wicked-garden-agentic-performance-analyst` — tokens, latency, cost, parallelization
+
+**Hand-off** — open each worker skill by name with the target path and the `--quick` flag as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ## Action: design
 

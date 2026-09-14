@@ -62,7 +62,7 @@ captured task-type (for pipeline design).
 
 Problem setup → data/feature stages → model arch → evaluation → tuning → deployment → monitoring.
 
-```markdown
+````markdown
 ## Training Pipeline: {model_name}
 
 ### Problem Statement
@@ -107,7 +107,7 @@ evaluation:
 - **Automated**: CI/CD for ML pipelines.
 - **Tested**: unit tests for features, integration tests for pipeline.
 - **Documented**: model cards for transparency.
-```
+````
 
 ## ML development workflow (7 steps)
 

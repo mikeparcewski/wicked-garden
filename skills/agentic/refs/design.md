@@ -86,7 +86,7 @@ Using `skills/agentic/frameworks/SKILL.md` decision tree:
 
 ## Output Format
 
-```markdown
+````markdown
 ## Agentic Architecture Design: {System Name}
 
 **Date**: {date} | **Pattern**: {chosen pattern} | **Framework**: {recommendation}
@@ -134,4 +134,4 @@ graph TB
 
 → Use `agentic:review` to assess once code is written.
 → Use `agentic:audit` for compliance-grade evidence before production.
-```
+````

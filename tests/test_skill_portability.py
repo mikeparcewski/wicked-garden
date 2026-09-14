@@ -763,6 +763,11 @@ def _cross(file: str, text: str) -> set[str]:
     # review-L6-B N3: the prose plurals are NOT calls; a placeholder-argument call still is
     ("skills/x/refs/a.md", "Task(s) and Agent(s) are queued by the router; a Task(s) list follows.\n", set()),
     ("skills/x/refs/a.md", "then `Skill(...)` hands over\n", {"claude-dispatch", "handoff-missing"}),
+    # B8: framework code in a sample is not a dispatch — an assignment, constructor or lambda context is quiet; a bare call still trips
+    ("skills/x/refs/a.md", "```python\nresearcher = Agent(role='Researcher', tools=[search])\nsearch_task = Task(description='Research topic')\n```\n", set()),
+    ("skills/x/refs/a.md", "```typescript\nconst agent = new Agent({ model: 'x' });\n```\n", set()),
+    ("skills/x/refs/a.md", "factory=lambda: Agent(tools=[code_review])\n", set()),
+    ("skills/x/refs/a.md", "```python\nAgent(prompt=\"summarise\", subagent_type=\"x\")\n```\n", {"claude-dispatch", "handoff-missing"}),
     # claude-only-prose: tool nouns, .claude/ paths, `Claude Code` — exempt inside a Hand-off paragraph / historical lines
     ("skills/x/refs/a.md", "Use the Read tool on the file.\n", {"claude-only-prose"}),
     ("skills/x/refs/a.md", "Dispatch uses the Skill tool on Claude Code (a fresh forked context).\n", {"claude-only-prose"}),
@@ -824,9 +829,6 @@ def test_cross_cli_baseline_is_well_formed():
 # Files whose fences do not pair at HEAD (all pre-existing). SHRINK-ONLY: the batch that translates a
 # file fixes its fences and deletes its entry; an entry whose file pairs again is STALE and fails.
 FENCE_PAIRING_BASELINE = {
-    "skills/agentic/refs/design.md",
-    "skills/agentic/review-methodology/refs/issue-taxonomy-quality-testing.md",
-    "skills/data/refs/ml.md",
     "skills/engineering/architecture/refs/architecture-template-design.md",
     "skills/engineering/debugging/refs/process.md",
     "skills/engineering/integration/refs/event-schemas-best-practices.md",
