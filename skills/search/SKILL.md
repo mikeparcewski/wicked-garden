@@ -71,7 +71,7 @@ external engine, no Node version floor.
    (references no resolver could bind — a health signal, not an error count); archetype
    wiring shows as injected edges (provenance `extractor:archetype-*`).
 
-**In a governed run** (you are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase directive and/or the `wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` / `WICKED_GATE_SCOPE` in your environment confirm it when present, their absence does not refute it) the
+**In a governed run** (you are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase directive and/or the `wicked-garden-governed-worker` skill was handed to you; both carriers stamp `WICKED_RUN_ID` / `WICKED_RUN_UNIT` / `WICKED_RUN_AGENT` on your environment since wicked-core 0.7.26 — the primary cue, the handed context confirms it; when unsure, treat the session as governed) the
 graph is handed to you already indexed and the write CLI is **never** a rung:
 never `wicked-estate index`, never `wicked-estate scip|tfstate|import-telemetry|compact|watch`,
 never `wicked-estate clusters --annotate`. A stale graph is *reported* through its
@@ -83,27 +83,31 @@ never `wicked-estate clusters --annotate`. A stale graph is *reported* through i
 its repo-relative path, e.g. `scripts/_bus.py`); when a name is ambiguous or you need the
 node id, resolve it first with the estate `SearchEntity` tool (`{"name": "<symbol>"}`).
 
-**Ladder** — stop at the first rung that answers and **name the rung that answered**
-(shim / estate tools / read-only CLI / grep) in every result; never present a grep
-approximation as the graph answer. A denied call is final: record it and take the next
-rung — no variants, no wrappers (`wicked-garden-governed-worker` A5).
+**Ladder** — **name the path that answered** (shim / estate tools / CLI / grep) in every
+result; never present a grep approximation as the graph answer. A denied call is final:
+record it — no variants, no wrappers, no retry (`wicked-garden-governed-worker` A2/A5).
 
-*In a governed run* (defined in § Index / freshness; **when unsure, take this ladder** — the
-shim in `--readonly` is also correct in a human session):
+*In a governed run* (defined in § Index / freshness; **when unsure, treat the session as
+governed** — the shim in `--readonly` is also correct in a human session) there is **ONE
+rung**:
 1. **The estate shim in read-only mode**, store pinned from the worker environment —
    every estate tool named in this skill is reachable through its `call` action:
    ```bash
    wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"BlastRadius","arguments":{"symbol":"<name>"}}'
    ```
-   `--readonly` is literal (the spawned `wicked-estate-mcp` reads only). The store rides
+   `--readonly` is literal (the spawned `wicked-estate-mcp` reads only; `WICKED_ESTATE_READONLY=1`
+   rides every worker so it spawns read-only by default). The store rides
    `WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB` from the run, or `--db <path>`;
    the shim refuses an unpinned store (`{"ok": false, "reason": …}`) — report that, never
-   guess a store. This rung works on every seat CLI and does not depend on an MCP server
-   being registered (an organization MCP allowlist can drop one silently).
-2. **A read-only CLI subcommand**: `wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph …`
-   (`clusters` only without `--annotate`). The write CLI is never a rung (§ Index / freshness).
-3. **grep** (your code-search tool) for literal refs — and **flag that injected
-   relationships are MISSING** (injected/string-keyed links are invisible to grep).
+   guess a store. This is the only grounding transport in a run: wicked-core registers no
+   estate MCP on any seat any more (an organization MCP allowlist used to drop one
+   silently), so there is no `mcp__wicked-estate__*` tool and nothing to fall back to.
+   If the shim answers `{"ok": false, …}` or the fence denies the call, write
+   `estate: not available (<reason>)` in your output and continue **UNGROUNDED** — report
+   the gap; do not substitute grep for the graph. The read-only CLI
+   (`wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph`, `clusters`
+   without `--annotate`) stays allowed by the fence but is not a documented rung; the
+   write CLI is never one (§ Index / freshness).
 
 *Otherwise* (a human session):
 1. The estate MCP tools (`SearchEntity`, `BlastRadius`, `Lineage`, …) when connected.
@@ -137,7 +141,7 @@ files import this file" — no longer an empty "no resolved dependents".
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
-4. **Fallbacks**: § Resolving symbols + the ladder.
+4. **Ladder** (one rung in a governed run): § Resolving symbols + the ladder.
 5. Report: **dependents** (static + injected, with provenance), total blast-radius
    count, files affected, the graph's staleness, and **which rung answered**.
 
@@ -167,7 +171,7 @@ estate default 8, max 24).
    Each result includes injected edges (e.g. a consumer reached via a bus
    rule, an archetype via `extractor:archetype-playbook`) with confidence +
    provenance per edge.
-4. **Fallbacks**: § Resolving symbols + the ladder.
+4. **Ladder** (one rung in a governed run): § Resolving symbols + the ladder.
 5. Report each path (source → sink), file locations per step, provenance of
    injected hops, gaps, and **which rung answered**.
 

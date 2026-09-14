@@ -43,15 +43,15 @@ never through the raw write CLI. In that mode every spawn is
 * ``--readonly`` is spelled literally — the MCP detects read-only by the exact
   token and refuses every write tool except the safe ``proposal.submit``.
   Read-only is on when a governed-unit marker is present (`GOVERNED_MARKERS`:
-  `WICKED_RUN_ID`, or the fence env the wrapped carrier sets on the worker —
-  `WICKED_GATE_SCOPE` / `WICKED_WRITE_ROOTS`), when the caller passed
-  ``--governed`` / ``--readonly`` on the backend argv (`parse_cli_flags` /
-  `set_governed` / `set_readonly`), or when ``WICKED_GOVERNED`` /
-  ``WICKED_ESTATE_READONLY`` is truthy. The markers are a CONFIRMATION, not
-  the definition: the skill text defines governed mode by the handed context
-  (a phase directive / the governed-worker skill), because no carrier stamps
-  `WICKED_RUN_ID` on the worker's own environment today and the ACP carrier
-  hands the child none of the fence env.
+  `WICKED_RUN_ID` — stamped on the worker's OWN environment by BOTH carriers
+  since wicked-core 0.7.26 (R12, `stamp_run_markers`), the PRIMARY cue — or
+  the fence env the wrapped carrier sets on the worker, `WICKED_GATE_SCOPE` /
+  `WICKED_WRITE_ROOTS`), when the caller passed ``--governed`` / ``--readonly``
+  on the backend argv (`parse_cli_flags` / `set_governed` / `set_readonly`), or
+  when ``WICKED_GOVERNED`` / ``WICKED_ESTATE_READONLY`` is truthy (wicked-core
+  sets ``WICKED_ESTATE_READONLY=1`` on every worker child since 0.7.26, D-7).
+  The skill text's handed-context definition (a phase directive / the
+  governed-worker skill) CONFIRMS what the markers say.
 * The store must be PINNED: ``--db <path>`` on the backend argv, or
   ``WICKED_ESTATE_DB`` / ``WICKED_HOME`` / ``WICKED_MEMORY_DB`` in the worker
   environment. In a governed run an unpinned store is REFUSED (no spawn,
@@ -167,16 +167,16 @@ def resolve_db() -> Optional[str]:
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Governed-unit markers — any of these non-empty in the environment means "you are a
-# unit of a wicked-crew run". `WICKED_RUN_ID` is what wicked-core stamps on the estate
-# MCP SERVER's launch env (`estate_provenance_env`), not on the worker's own Command env,
-# so on its own it is an unreliable cue inside a unit (garden #1134 HIGH-1). The fence
-# env the WRAPPED carrier does set on the worker Command is the reliable marker there —
-# wicked-core main `ad9a0c1`, `src/execute_wrapped.rs:853` (`WRITE_ROOTS_ENV` =
-# "WICKED_WRITE_ROOTS", `src/gate_hook.rs:114`) and `:863` (`GATE_SCOPE_ENV` =
-# "WICKED_GATE_SCOPE", `src/gate_hook.rs:56`). The ACP carrier hands its child none of
-# these today (`gate_hook.rs` `estate_store_pinned_for_child`), which is why the skill
-# text defines governed mode by the HANDED CONTEXT and `--governed` / WICKED_GOVERNED=1
-# let a seat (or a launcher) say so explicitly.
+# unit of a wicked-crew run". `WICKED_RUN_ID` (with `WICKED_RUN_UNIT` / `WICKED_RUN_AGENT`)
+# is stamped on the worker's OWN Command env by BOTH carriers since wicked-core 0.7.26
+# (`execute_wrapped::stamp_run_markers`, DES-L4 PR-③ / R12) and inherited by this shim and
+# the `wicked-estate-mcp` it spawns (which stamps `proposal.submit` provenance from it) —
+# the PRIMARY marker (it closes garden #1134 HIGH-1: before 0.7.26 only the estate MCP
+# server's launch env carried it). The fence env the WRAPPED carrier also sets on the
+# worker Command stays a second marker (`WICKED_WRITE_ROOTS` / `WICKED_GATE_SCOPE`); the
+# ACP carrier sets the run markers and `WICKED_ESTATE_DB` / `WICKED_ESTATE_READONLY` on
+# its child too. `--governed` / WICKED_GOVERNED=1 let a seat (or a launcher) say so
+# explicitly, and the skill text's handed-context definition confirms it.
 GOVERNED_RUN_ENV = "WICKED_RUN_ID"
 GOVERNED_MARKERS = (GOVERNED_RUN_ENV, "WICKED_GATE_SCOPE", "WICKED_WRITE_ROOTS")
 GOVERNED_ENV = "WICKED_GOVERNED"              # explicit override (any truthy value)
