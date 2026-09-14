@@ -148,7 +148,7 @@ hand-enumerating paths — it costs fewer tokens and closes a class of
 path-mismatch bugs. Provenance: Issue #576.
 
 Arguments: `--json` (JSON manifest, default) · `--fence` (wrap the JSON in a
-```json fence for paste) · `--env` (substitute env-var forms — the plugin-root
+fenced `json` block for paste) · `--env` (substitute env-var forms — the plugin-root
 variable — where the corresponding environment variable is present).
 
 Invoke the helper script and stream its stdout to the user verbatim. This

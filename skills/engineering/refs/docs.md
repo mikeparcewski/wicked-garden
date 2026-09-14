@@ -123,7 +123,7 @@ components:
 
 ### README template
 
-```markdown
+````markdown
 # {Component Name}
 
 {One sentence description of what this does and why it exists.}
@@ -150,7 +150,7 @@ components:
 ## Contributing
 
 {Link to CONTRIBUTING.md or brief notes}
-```
+````
 
 ## How-to guide checklist
 

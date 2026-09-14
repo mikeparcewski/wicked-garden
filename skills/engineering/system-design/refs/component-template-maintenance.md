@@ -40,11 +40,10 @@ Change log, references, contact info, example auth component, and template usage
 - **Slack**: #platform-team
 - **On-call**: platform-oncall@example.com
 - **JIRA**: PLAT project
-```
 
 ## Example: Auth Component
 
-```markdown
+````markdown
 # Authentication Component
 
 ## Overview
@@ -191,7 +190,7 @@ oauth:
 **Alerts**:
 - Login failure rate > 20%
 - Token validation errors > 5%
-```
+````
 
 ## Tips for Using Template
 

@@ -208,4 +208,3 @@ Response: 200 OK
 **Status Page**: https://status.example.com
 **Support Email**: api-support@example.com
 **Slack**: #api-support
-```
