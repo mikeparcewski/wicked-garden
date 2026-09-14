@@ -18,6 +18,12 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Install PyYAML
+        # validate.py's frontmatter guard mirrors the skills publish's yaml.safe_load
+        # (catches the frontmatter-drop class the publish would reject). pyyaml is a
+        # declared garden dependency; install it explicitly, as test.yml installs pytest.
+        run: pip install pyyaml
+
       - name: Run structural validation
         run: python scripts/ci/validate.py
 

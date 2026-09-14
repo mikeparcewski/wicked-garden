@@ -34,6 +34,6 @@ jobs:
       setup_python: true
       python_version: '3.14'
       os_matrix: '["ubuntu-latest"]'
-      test_cmd: 'python scripts/ci/validate.py && python scripts/_validate_registry.py'
+      test_cmd: 'pip install pyyaml && python scripts/ci/validate.py && python scripts/_validate_registry.py'
       enable_sync_pr: true
     secrets: inherit

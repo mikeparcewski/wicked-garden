@@ -28,45 +28,70 @@ if _SCRIPTS_DIR not in sys.path:
 from _skill_meta import skill_role, skill_role_of  # noqa: E402
 
 
-def frontmatter_yaml_error(text: str) -> str | None:
-    """Strict STRUCTURAL check of a SKILL.md ``---`` frontmatter, in stdlib (garden CI runs this leg with a
-    bare interpreter — no PyYAML — so we cannot import the publish's ``yaml.safe_load``; this reproduces the
-    one failure mode that matters). Catches the frontmatter-drop class — removing a mapping key WITHOUT its
-    value lines — in both shapes it takes:
-      * an indented value line left under a SCALAR key (``description: "..."`` then ``  - data-query``) —
-        this is what broke garden 12.37.1's ``yaml.safe_load`` and blocked the whole skills publish;
-      * a bare single-token list item absorbed into a ``|``/``>`` block scalar (valid YAML, corrupt content —
-        ``description: |`` … ``  - security-scanning``), which a plain parse would NOT catch.
-    Returns an error string on a defect, else ``None``. Block keys (``metadata:``, ``mandates:``,
-    ``compatibility:``) and ordinary prose bullets in a description block are accepted."""
-    if not text.startswith("---"):
-        return "missing YAML frontmatter"
-    m = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
-    if not m:
-        return "malformed YAML frontmatter"
-    kind = None   # scalar | literal | nested — of the current top-level key
+def _frontmatter_structure_error(block: str) -> str | None:
+    """Stdlib structural fallback for the rare case PyYAML is not importable (CI installs it; this keeps the
+    guard working if run bare). Catches the frontmatter-drop class: an orphaned value under a SCALAR key,
+    and a bare-token list item absorbed into a ``|``/``>`` block scalar. Not a full YAML parser."""
+    kind = None
     key = None
-    for raw in m.group(1).split("\n"):
-        if not raw.strip() or raw.lstrip().startswith("#"):   # blank / YAML comment — valid anywhere
+    for raw in block.split("\n"):
+        if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         top = re.match(r"^([A-Za-z_][\w-]*):(.*)$", raw)
         if top:
             key = top.group(1); val = top.group(2).strip()
             kind = "literal" if val in ("|", ">", "|-", ">-", "|+", ">+") else ("nested" if val == "" else "scalar")
             continue
-        if raw[:1] in (" ", "\t"):          # an indented / continuation line
-            # under a SCALAR (inline value) key, a block-structure line — a sequence item or a nested
-            # mapping — is an orphaned value a dropped key left behind (plain-scalar text continuations
-            # do not match and are left alone):
+        if raw[:1] in (" ", "\t"):
             if kind == "scalar" and re.match(r"^\s+(?:-\s|[\w-]+:)", raw):
                 return (f"orphaned value under scalar key {key!r} ({raw.strip()!r}) — a dropped key must "
                         "take its value lines with it (frontmatter-drop class)")
-            # inside a ``|``/``>`` block scalar, a bare single-token list item is the silent-orphan shape:
             if kind == "literal" and re.match(r"^\s+-\s+[\w-]+\s*$", raw):
                 return (f"orphaned list value {raw.strip()!r} absorbed into the {key!r} block scalar — a "
                         "dropped key must take its value lines with it (frontmatter-drop class)")
-            continue
-        return None
+    return None
+
+
+def frontmatter_yaml_error(text: str) -> str | None:
+    """Strict frontmatter guard — the EXACT mirror of the skills publish's parser. Runs ``yaml.safe_load``
+    on the ``---`` block (PyYAML is installed on the ``validate`` / ``test`` / release pre-publish CI legs,
+    as ``test.yml`` installs pytest), so anything the publish would reject is rejected here — including the
+    frontmatter-drop class under a NESTED ``metadata:`` / ``mandates:`` key (the exact block every wave-2
+    skill carries). Also flags the SILENT subclass a plain parse accepts: a bare-token list value absorbed
+    into a ``|`` / ``>`` block scalar. Falls back to a stdlib structural check only if PyYAML is unimportable.
+    Returns an error string on a defect, else ``None``."""
+    if not text.startswith("---"):
+        return "missing YAML frontmatter"
+    m = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
+    if not m:
+        return "malformed YAML frontmatter"
+    block = m.group(1)
+    data = None
+    try:
+        import yaml  # installed on the CI legs that run this guard (see validate.yml / test.yml / release.yml)
+    except ImportError:
+        yaml = None
+    if yaml is not None:
+        try:
+            data = yaml.safe_load(block)
+        except yaml.YAMLError as e:
+            first = str(e).splitlines()[0]
+            return (f"frontmatter is not valid YAML ({first}) — a dropped key must take its value lines "
+                    "with it (frontmatter-drop class)")
+        if data is not None and not isinstance(data, dict):
+            return f"frontmatter is not a mapping (parsed as {type(data).__name__})"
+    else:
+        err = _frontmatter_structure_error(block)
+        if err:
+            return err
+    # SILENT subclass: valid YAML, corrupt content — a bare-token list value absorbed into a block scalar.
+    desc = data.get("description") if isinstance(data, dict) else None
+    if isinstance(desc, str):
+        for ln in desc.splitlines():
+            if re.match(r"^\s*-\s+[\w-]+\s*$", ln):
+                return (f"frontmatter description absorbed an orphaned list value ({ln.strip()!r}) — a "
+                        "dropped key must take its value lines with it (frontmatter-drop class)")
+    return None
 
 
 def main():
