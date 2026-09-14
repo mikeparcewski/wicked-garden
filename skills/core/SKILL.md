@@ -12,18 +12,19 @@ description: |
   "where am I", "path manifest", "report issue", "file a bug",
   "--list-unfiled", or any former /wicked-garden:{help|setup|install|reset|
   where-am-i|report-issue} invocation.
-user-invocable: true
-allowed-tools: ["AskUserQuestion", "Bash", "Read", "Write", "Grep", "Skill", "Agent"]
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Wicked Garden Core
 
-One entry point for the plugin's utility verbs. **Never fork this skill** — the
-setup / install / reset / report-issue actions are interactive wizards that must
-converse with the user (AskUserQuestion, or plain-text STOP-and-wait in
-dangerous mode). Run everything inline in the parent context.
+One entry point for the plugin's utility verbs. **Run this skill inline, never as a
+hand-off** — the setup / install / reset / report-issue actions are interactive wizards
+that converse with the user: your harness's native question prompt where it has one,
+else a numbered plain-text list and STOP-and-wait (the PLAIN_TEXT mode every ref
+documents). Everything runs in the parent context.
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.

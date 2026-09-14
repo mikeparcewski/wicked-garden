@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-classify
-context: fork
 description: |
   v11 LLM-based work-shape classifier. Replaces the regex archetype detector
   with the model's own reasoning. Reads the user's prompt, picks the right
@@ -11,7 +10,8 @@ description: |
   Use when: the prompt_submit hook emitted a `<wg classify-due />` directive,
   OR explicitly invoked at session start, OR when re-classifying after the
   user changes scope mid-session.
-allowed-tools: ["*"]
+metadata:
+  role: worker
 ---
 
 # wicked-garden-classify

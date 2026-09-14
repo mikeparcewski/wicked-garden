@@ -1,21 +1,21 @@
 ---
 name: wicked-garden-draft
 description: |
-  The quality floor for DOCUMENT deliverables drafted from a repository — brochures,
-  one-pagers, flyers, product pages, slide decks, memos — as design guidance AND one
-  self-check run before "done". Three floors: (1) READABLE — every
-  text/background pair ≥ 4.5:1 (WCAG AA) on the COMPOSITED colours, print
-  text ≥ 7pt; (2) SIZED TO THE BRIEF — the RENDERED page count honours the brief's page
-  budget (wrappers are not pages); (3) GROUNDED — every number, URL and product claim cites
-  a repo path, mocks are visibly labelled, no placeholder ships.
+  The quality floor for DOCUMENT deliverables drafted from a repo — brochures, one-pagers,
+  flyers, pages, decks, memos — design guidance plus one self-check run before
+  "done". Three floors: (1) READABLE — every text/background pair ≥ 4.5:1
+  (WCAG AA; 3:1 for large text) on COMPOSITED colours, print text ≥ 7pt; (2) SIZED TO
+  THE BRIEF — the RENDERED page count honours the brief's page budget (wrappers are not
+  pages); (3) GROUNDED — every number, URL and claim cites a repo path, mocks visibly
+  labelled, no placeholder ships.
 
   Use when: "draft a brochure / one-pager / flyer / product page / deck / memo about
-  <repo>", "is this brochure readable / grounded", before declaring a wicked-interactive draft,
-  edit or revision done, or as the skill a governed drafting run
-  (wicked-crew `interactive-draft` / `-edit` / `-chat`) follows.
+  <repo>", "print-ready A4 / Letter", "make it two pages", "is this brochure readable /
+  grounded", before declaring a wicked-interactive draft/edit/revision done, or as the skill
+  a governed drafting run (wicked-crew `interactive-*`) follows.
 
-  NOT for reviewing code documentation (the engineering documentarian) or auditing a
-  running app's accessibility (the product accessibility action / the qe a11y engineer).
+  NOT for code documentation (the engineering documentarian) or a running app's
+  accessibility audit (the product a11y action / the qe a11y engineer).
 metadata:
   role: router
   phases: "build,review"

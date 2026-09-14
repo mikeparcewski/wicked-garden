@@ -16,12 +16,12 @@ Detect once, branch every interactive call site below:
 wicked-garden run scripts/setup/detect_state.py question-mode
 ```
 
-- **INTERACTIVE**: Use AskUserQuestion as documented in each step.
-- **PLAIN_TEXT**: AskUserQuestion is broken (dangerous mode auto-completes with empty answers). Present every question as a **numbered plain text list**, then **STOP and wait** for the user. Do NOT proceed until you receive a reply.
+- **INTERACTIVE**: Use your harness's native question prompt as documented in each step.
+- **PLAIN_TEXT**: no usable native prompt (dangerous mode auto-completes with empty answers; most CLIs have none). Present every question as a **numbered plain text list**, then **STOP and wait** for the user. Do NOT proceed until you receive a reply.
 
 ## Answer Verification (CRITICAL)
 
-**INTERACTIVE (AskUserQuestion) mode**: after EVERY AskUserQuestion call you MUST (1) verify the selection is clearly present in the response, (2) echo it back — "You selected **[option]**. Proceeding with [action]..." — before any action, (3) if ambiguous or empty, do NOT assume — ask "I couldn't determine your selection. Could you tell me which option you'd like?" and wait.
+**INTERACTIVE (native prompt) mode**: after EVERY prompt answer you MUST (1) verify the selection is clearly present in the response, (2) echo it back — "You selected **[option]**. Proceeding with [action]..." — before any action, (3) if ambiguous or empty, do NOT assume — ask "I couldn't determine your selection. Could you tell me which option you'd like?" and wait.
 
 **PLAIN_TEXT mode**: present options as a numbered list, **STOP**, parse the reply, echo back the same way. Never proceed with a default. Wrong actions are worse than asking twice.
 
@@ -41,7 +41,7 @@ Returns `{"present": false, "path": ...}` if no config, otherwise `{"present": t
 wicked-garden run scripts/_run.py scripts/platform/prereq_doctor.py check-all
 ```
 
-Parse the JSON. Only `core` tools are required during setup. For each `core` tool: `status: "available"` → checkmark; `status: "missing"` → show "{name} is not installed. Install with: `{install_cmd}`?" then **INTERACTIVE mode**: AskUserQuestion header "{name}", options "Install now" = "Run: {install_cmd}" / "Skip" = "Continue without {name}"; **PLAIN_TEXT mode**: ask in plain text and STOP. If approved, run `install_cmd` (and `post_install` if present), then re-check with `prereq_doctor.py check {tool}`. If declined, warn dependent features will be unavailable and continue. **Skip `optional` tools** — the PostToolUseFailure hook detects them at runtime.
+Parse the JSON. Only `core` tools are required during setup. For each `core` tool: `status: "available"` → checkmark; `status: "missing"` → show "{name} is not installed. Install with: `{install_cmd}`?" then **INTERACTIVE mode**: native prompt header "{name}", options "Install now" = "Run: {install_cmd}" / "Skip" = "Continue without {name}"; **PLAIN_TEXT mode**: ask in plain text and STOP. If approved, run `install_cmd` (and `post_install` if present), then re-check with `prereq_doctor.py check {tool}`. If declined, warn dependent features will be unavailable and continue. **Skip `optional` tools** — the PostToolUseFailure hook detects them at runtime.
 
 After core tools, if `uv` is available, sync Python deps: `{uv_path} sync --quiet`. If sync fails, warn that search indexing will be unavailable but continue.
 
@@ -86,7 +86,7 @@ print("READY" if found else "ABSENT")
 PY
 ```
 
-- `ABSENT` → **recommended, not blocking.** Show "wicked-understanding isn't set up — without it the agent re-derives *how to work in this repo* each task. Add the repo-playbooks layer: `npx skills add mikeparcewski/wicked-understanding --all`, then run its `repo-analyst` to generate this repo's playbooks." **INTERACTIVE mode**: AskUserQuestion header "wicked-understanding (optional layer)", options "Install now" = "Run: npx skills add mikeparcewski/wicked-understanding --all" / "Skip" = "Continue without repo playbooks". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If skipped: continue setup.
+- `ABSENT` → **recommended, not blocking.** Show "wicked-understanding isn't set up — without it the agent re-derives *how to work in this repo* each task. Add the repo-playbooks layer: `npx skills add mikeparcewski/wicked-understanding --all`, then run its `repo-analyst` to generate this repo's playbooks." **INTERACTIVE mode**: native prompt header "wicked-understanding (optional layer)", options "Install now" = "Run: npx skills add mikeparcewski/wicked-understanding --all" / "Skip" = "Continue without repo playbooks". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If skipped: continue setup.
 - `READY` → show "wicked-understanding — ready (repo playbooks installed)." Suggest re-running `repo-analyst` after large changes so the playbooks track HEAD.
 
 ### 2.6 Verify wicked-vault (Required — the evidence gate)
@@ -95,7 +95,7 @@ PY
 npx wicked-vault --version 2>/dev/null || echo "MISSING"
 ```
 
-- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus)." **INTERACTIVE mode**: AskUserQuestion header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
+- `MISSING` → blocking. wicked-vault is the evidence backend every archetype gate re-derives against — without it, "done" can only be self-asserted. Show "wicked-vault is not installed. wicked-garden requires it as a direct infra peer (sibling to wicked-bus)." **INTERACTIVE mode**: native prompt header "wicked-vault Required", options "Install now (Required)" = "Run: npm i -g wicked-vault" / "Exit setup" = "Cancel — I'll install manually and re-run". **PLAIN_TEXT mode**: present numbered options and STOP. If install: run `npm i -g wicked-vault` (puts the `wicked-vault` binary on PATH) and confirm the CLI resolves with `npx wicked-vault --version`. On failure, show stderr and exit with manual instructions (`npm i -g wicked-vault`). If exit: "Run `npm i -g wicked-vault` then restart by invoking the wicked-garden-core skill's `setup` action."
 - Version string → compare it against the declared peer floor **≥ 0.5.0** <!-- vault-floor --> (single source: `scripts/loom/manifest.py` `version_pin`, lockstep with plugin.json `wicked_vault_version`). **Below the floor** (e.g. `0.4.5`) → tell the user to upgrade: "wicked-vault {version} is below the floor 0.5.0 — peer health checks (`loom doctor` / peer-health) report it as drift and fail. Upgrade: `npm i -g wicked-vault@latest`." At or above (e.g. `0.6.0`) → show "wicked-vault {version} — ready." Then verify the garden can resolve it for gating: `wicked-garden run scripts/qe/vault_gate.py resolve` should report `resolvable: true`. If `installed: false` (resolving only via npx), suggest `npm i -g wicked-vault` for faster gate latency — recommended, not a hard block.
 
 ### 2.7 Verify wicked-bus (Recommended — audit-trail layer)
@@ -129,14 +129,13 @@ print("READY" if installed else "MISSING")
 PY
 ```
 
-- `MISSING` → **recommended, not blocking.** wicked-bus is the audit-trail layer; event emission is already fire-and-forget / fail-open, so the toolkit runs fine without it (events just aren't recorded). Show "wicked-bus isn't installed — the cross-session audit trail will be empty until you add it." **INTERACTIVE mode**: AskUserQuestion header "wicked-bus (optional layer)", options "Install now" = "Run: npm i -g wicked-bus && npx wicked-bus-install" / "Skip" = "Continue without the audit trail". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: run `npm i -g wicked-bus && npx wicked-bus-install` (terminal commands — the installer copies the bus skills into `~/.claude/skills/`), then re-run the presence check and confirm `READY`. If skipped: continue setup.
+- `MISSING` → **recommended, not blocking.** wicked-bus is the audit-trail layer; event emission is already fire-and-forget / fail-open, so the toolkit runs fine without it (events just aren't recorded). Show "wicked-bus isn't installed — the cross-session audit trail will be empty until you add it." **INTERACTIVE mode**: native prompt header "wicked-bus (optional layer)", options "Install now" = "Run: npm i -g wicked-bus && npx wicked-bus-install" / "Skip" = "Continue without the audit trail". **PLAIN_TEXT mode**: offer the choice and CONTINUE. If install: run `npm i -g wicked-bus && npx wicked-bus-install` (terminal commands — the installer copies the bus skills into the detected AI CLIs' skills directories), then re-run the presence check and confirm `READY`. If skipped: continue setup.
 - `READY` → show "wicked-bus — ready (skills installed)."
 
 ### 2.7b Verify loom peer-resolution engine (internal — no external install needed)
 
 After Phase B of the ecosystem rationalization, the loom peer-resolution engine is absorbed
-directly into wicked-garden as `scripts/loom/`. No external `wicked-loom` npm package is
-required. Check that the internal module is importable:
+directly into wicked-garden as `scripts/loom/`. No external loom npm package is required. Check that the internal module is importable:
 
 ```bash
 wicked-garden python -c "
@@ -169,7 +168,7 @@ Method depends on Question Mode.
 
 #### 3a. If config exists (setup_complete: true)
 
-**Q1 — Onboarding**: "Would you like to run codebase onboarding?" Options: "Full onboarding (Recommended)" | "Quick scout" | "Skip for now". **INTERACTIVE mode**: Use AskUserQuestion with header "Onboarding" (Full = "Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes.", Quick scout = "Fast reconnaissance without indexing.", Skip = "Skip onboarding. Run the wicked-garden-core `setup` action later."). **PLAIN_TEXT mode**: present numbered text (a/b/c with same descriptions) and STOP. Verify, echo back. Skip to Step 5 with the answer.
+**Q1 — Onboarding**: "Would you like to run codebase onboarding?" Options: "Full onboarding (Recommended)" | "Quick scout" | "Skip for now". **INTERACTIVE mode**: native prompt with header "Onboarding" (Full = "Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes.", Quick scout = "Fast reconnaissance without indexing.", Skip = "Skip onboarding. Run the wicked-garden-core `setup` action later."). **PLAIN_TEXT mode**: present numbered text (a/b/c with same descriptions) and STOP. Verify, echo back. Skip to Step 5 with the answer.
 
 #### 3b. If NO config
 
@@ -199,7 +198,7 @@ wicked-garden run scripts/_run.py scripts/platform/prereq_doctor.py check-all
 
 Store as `DETECTED_LANGS`, `DETECTED_FWS`. Build `DETECTED_TOOLS` from combined `core` + `optional` where `status` is `"available"`.
 
-**Domain preferences** — which issue tracker? **INTERACTIVE mode**: Use AskUserQuestion header "Issue Tracking" with the 4 most common (AskUserQuestion supports max 4): "GitHub Issues" = "Use gh cli" / "Jira" = "Use Jira API" / "Azure DevOps" = "Use Azure DevOps work items" / "Local tasks only" = "Use Claude Code's native tasks only (default)". Let the user select "Other" for Linear or Rally. **PLAIN_TEXT mode**: write default `local` without asking (dangerous-mode sessions should not block on preferences).
+**Domain preferences** — which issue tracker? **INTERACTIVE mode**: native prompt header "Issue Tracking" with the 4 most common (native prompts support max 4): "GitHub Issues" = "Use gh cli" / "Jira" = "Use Jira API" / "Azure DevOps" = "Use Azure DevOps work items" / "Local tasks only" = "Use the coding agent's native tasks only (default)". Let the user select "Other" for Linear or Rally. **PLAIN_TEXT mode**: write default `local` without asking (dangerous-mode sessions should not block on preferences).
 
 **Validate the selected tool is reachable** (skip for `local`):
 
@@ -209,7 +208,7 @@ wicked-garden run scripts/_run.py scripts/platform/prereq_doctor.py check "{sele
 
 - `available` + `via: "mcp"` → show "**{name}** connected via MCP server `{mcp_server}`."
 - `available` + `via: "cli"` → show "**{cli}** CLI found at {cli_path}."
-- `missing` → "**{name}** is not installed. Install with: `{install_cmd}`?". **INTERACTIVE mode**: AskUserQuestion header "{name}", options "Install now (Recommended)" = "Run: {install_cmd}" / "Skip" = "Use local native tasks instead". **PLAIN_TEXT mode**: ask in plain text and STOP. If approved, run `install_cmd` (and `post_install` if present), re-check with `prereq_doctor.py check {selection}`. If declined, override to `local`.
+- `missing` → "**{name}** is not installed. Install with: `{install_cmd}`?". **INTERACTIVE mode**: native prompt header "{name}", options "Install now (Recommended)" = "Run: {install_cmd}" / "Skip" = "Use local native tasks instead". **PLAIN_TEXT mode**: ask in plain text and STOP. If approved, run `install_cmd` (and `post_install` if present), re-check with `prereq_doctor.py check {selection}`. If declined, override to `local`.
 
 Persist the selection (one of `github` | `linear` | `jira` | `ado` | `rally` | `local`):
 
@@ -221,7 +220,7 @@ wicked-garden run scripts/setup/onboarding.py save-domain-pref {selection}
 
 Runs the **knowledge pipeline** — build the code graph, ingest the codebase into the knowledge store, store onboarding context. Show progress as each step completes. If any step fails, log it and continue — each step is independently valuable.
 
-First, ask which directories to onboard. **INTERACTIVE mode**: Use AskUserQuestion with header "Directories", options "Current directory (Recommended)" = "Onboard the project root: {cwd}" / "Specify directories" = "Choose specific directories to index (enter paths via Other)". **PLAIN_TEXT mode**: ask in plain text (a = current directory `{cwd}`, b = specify paths), STOP, wait, verify, echo back.
+First, ask which directories to onboard. **INTERACTIVE mode**: native prompt with header "Directories", options "Current directory (Recommended)" = "Onboard the project root: {cwd}" / "Specify directories" = "Choose specific directories to index (enter paths via Other)". **PLAIN_TEXT mode**: ask in plain text (a = current directory `{cwd}`, b = specify paths), STOP, wait, verify, echo back.
 
 ##### Knowledge Pipeline (in order)
 
@@ -229,31 +228,25 @@ First, ask which directories to onboard. **INTERACTIVE mode**: Use AskUserQuesti
 
 **Step B — Build the code graph**. Show "Indexing code graph..." then run `wicked-estate index {selected_directory}` (binary via `WICKED_ESTATE_BIN` → PATH → `~/.local/bin`; DB defaults to `.wicked-estate/graph.db`). This powers blast-radius/lineage/hotspots.
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Step C — Ingest codebase knowledge**. Show "Ingesting codebase into the knowledge store..." then run the Hand-off below — the mem skill dispatches its ingest worker (text chunked deterministically, binary docs via LLM vision, provenance on every chunk).
 
-**Step C — Ingest codebase knowledge**. Show "Ingesting codebase into the knowledge store..." then `Skill(skill="wicked-garden-mem", args="ingest {selected_directory}")` — the mem skill dispatches its ingest worker (text chunked deterministically, binary docs via LLM vision, provenance on every chunk).
+**Hand-off** — open the `wicked-garden-mem` skill and run its `ingest` action with `{selected_directory}` as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 **Step D — Store onboarding memory**. `{DETECTED_TOOLS_SUMMARY}` lists only available tools (e.g. "gh, docker"):
-```
-Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.\" (kind=skill, about=[onboarding, project-context, {project}])")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the memory text `Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.` and `kind=skill, about=[onboarding, project-context, {project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 Show: "Onboarding complete — knowledge store has {N} chunks (mem review reports totals)."
 
 #### 5.2 Quick Scout
 
-Ask which directories to scout (same question mode pattern as 5.1 — AskUserQuestion or plain text depending on mode). Then Glob/Read the key entry points and store an enriched onboarding memory with detected context from Step 5.0:
+Ask which directories to scout (same question mode pattern as 5.1 — native prompt or plain text depending on mode). Then Glob/Read the key entry points and store an enriched onboarding memory with detected context from Step 5.0:
 
-```
-Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.\" (kind=skill, about=[onboarding, project-context, {project}])")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the memory text `Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.` and `kind=skill, about=[onboarding, project-context, {project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 #### 5.3 Skip
 
 Store a skip memory so the bootstrap directive doesn't fire again:
-```
-Skill(skill="wicked-garden-mem", args="store \"Onboarding: {project} skipped by user on {date}. Invoke the wicked-garden-core skill's setup action to onboard later.\" (kind=skill, about=[onboarding, {project}])")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the memory text `Onboarding: {project} skipped by user on {date}. Invoke the wicked-garden-core skill's setup action to onboard later.` and `kind=skill, about=[onboarding, {project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### 6. Clear Onboarding Gate
 
@@ -265,7 +258,7 @@ wicked-garden run scripts/setup/onboarding.py clear-gate --mode {mode} [--comple
 
 ### 6.5 Inject CLAUDE.md Hints
 
-Inject a minimal wicked-garden hint block into `.claude/CLAUDE.md` so Claude discovers the plugin in future sessions. Rules: target `.claude/CLAUDE.md` in the working directory (create the directory if needed); idempotent — if a `## Wicked Garden` section already exists, skip entirely; non-destructive — append to end; ultra-condensed (~80 tokens). If the file is created new, prepend `# Project Instructions\n\n` before the section. **Skip mode still injects** — the user should know the plugin is available even if onboarding was skipped.
+**Hand-off (harness-specific)** — on Claude Code only: inject a minimal wicked-garden hint block into `.claude/CLAUDE.md` so the agent discovers the plugin in future sessions; on any other seat skip this step (the seat's own instructions file is the operator's). Rules: target `.claude/CLAUDE.md` in the working directory (create the directory if needed); idempotent — if a `## Wicked Garden` section already exists, skip entirely; non-destructive — append to end; ultra-condensed (~80 tokens). If the file is created new, prepend `# Project Instructions\n\n` before the section. **Skip mode still injects** — the user should know the plugin is available even if onboarding was skipped.
 
 Append (or prepend with header for a new file):
 
@@ -287,7 +280,7 @@ Invoke the `wicked-garden-core` skill for help with all available skills.
 
 ### 6.6 Enable the work-mode status line (optional)
 
-Offer to surface the detected archetype on screen. **INTERACTIVE mode**: AskUserQuestion header "Status line", options "Enable (Recommended)" = "Show the live work mode at the bottom of the screen" / "Skip" = "Don't change my status line". **PLAIN_TEXT mode**: ask in plain text and STOP.
+Offer to surface the detected archetype on screen. **INTERACTIVE mode**: native prompt header "Status line", options "Enable (Recommended)" = "Show the live work mode at the bottom of the screen" / "Skip" = "Don't change my status line". **PLAIN_TEXT mode**: ask in plain text and STOP.
 
 If enabled, add (non-destructively — skip if a `statusLine` key already exists) to the user's `settings.json`. The status line runs outside any plugin context, so it uses the launcher, which resolves the plugin root itself (`npm i -g wicked-garden` puts `wicked-garden` on PATH; without it, substitute `<root>` with the output of `wicked-garden root` and use `python3 "<root>/scripts/statusline.py"`):
 

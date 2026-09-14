@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-ground
-context: fork
 description: |
   Grounding / assumption-check: pull deeper context from the knowledge layer
   (wicked-estate memory + knowledge) and the bus when uncertain, before acting.
@@ -12,11 +11,12 @@ description: |
   verify-assumption.
 
   NOT for: routine "what does this code do" questions (use Read or Grep), broad
-  codebase exploration (use Agent(Explore)), or fetching specific symbols (use
+  codebase exploration (use your harness's exploration agent, or search inline), or fetching specific symbols (use
   the wicked-estate MCP SearchEntity tool directly).
-portability: portable
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
+  phases: "*"
+  archetypes: "*"
 ---
 
 # wicked-garden:ground — Steer Yourself
@@ -37,7 +37,7 @@ You are uncertain. Pull what's known into focus.
 ## When NOT to use
 
 - Routine "what does this code do" questions — use Read or Grep, they're faster
-- Broad codebase exploration without a specific question — use Agent(Explore)
+- Broad codebase exploration without a specific question — use your harness's exploration agent (or search inline)
 - Fetching a specific symbol you already know exists — use the estate MCP
   `SearchEntity` tool directly
 - During flow when you already have enough context — don't interrupt to re-ground
@@ -70,18 +70,11 @@ When invoked with a `question`:
 named entities, and technical terms. Example: "v8 daemon projection model" →
 `["daemon", "projection", "v8 architecture", "state machine"]`.
 
-**Step 2 — Parallel execution.** Invoke in a single parallel batch:
+**Step 2 — Execution.** Run these, in parallel where your harness allows:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action once per term (`{term1}`, `{term2}`, …); on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```bash
-# Knowledge-layer recall (repeat per term if ≥2 terms)
-Skill(skill="wicked-garden-mem", args="recall \"{term1}\"")
-Skill(skill="wicked-garden-mem", args="recall \"{term2}\"")
-
-# Bus recent events
-Skill(wicked-bus:query, query="{question}", limit=50)
-```
+**Hand-off** — for recent bus events, run the wicked-bus plugin's `query` skill with `query="{question}", limit=50` when the bus plugin is installed on your seat; skip it otherwise.
 
 **Step 3 — Rank and dedupe.** Collect all results. Score by:
 - Source priority (memory > knowledge chunk > bus event)

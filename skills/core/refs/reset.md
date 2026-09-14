@@ -18,7 +18,7 @@ State is project-scoped — each working directory gets its own isolated storage
 
 ## Question Mode
 
-Detect whether AskUserQuestion is available:
+Detect whether a native question prompt is usable (INTERACTIVE) or every question goes out as a plain-text list (PLAIN_TEXT):
 
 ```bash
 wicked-garden python -c "
@@ -76,7 +76,7 @@ Which domains would you like to reset? (comma-separated numbers, or 'a' for all)
 
 Only list domains where `exists` is `true`. Number them sequentially.
 
-**INTERACTIVE mode**: Use AskUserQuestion. Since there may be more than 4 options, use plain text instead (AskUserQuestion only supports up to 4 options).
+**INTERACTIVE mode**: the native question prompt would apply, but since there may be more than 4 options use plain text instead (native prompts support up to 4 options).
 
 **In both modes**: Present as plain text and STOP. Wait for the user to reply.
 

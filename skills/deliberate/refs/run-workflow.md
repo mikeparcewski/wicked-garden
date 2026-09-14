@@ -39,11 +39,7 @@ Extract title, body, and any discussion context. If not a GH issue, use the raw 
 
 **Recall relevant memories**:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-mem", args="recall \"{key terms}\"")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `{key terms}` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### 3. Detect Context and Load Lens
 
@@ -58,15 +54,13 @@ Multiple lenses can apply. Load what's relevant.
 
 ### 4. Apply Five Lenses
 
-Dispatch to an Explore agent for thorough analysis (Claude Code's built-in
-subagent; on a harness without an Explore agent, run the five-lens analysis
-inline, keeping its output separate from your own). Do NOT restate the five
-lenses in the prompt — instruct the subagent to load them from this skill:
+**Hand-off** — if your harness has a codebase-exploration agent, hand it the
+prompt below (do NOT restate the five lenses — the agent loads them from the
+`wicked-garden-deliberate` skill's SKILL.md); on a harness without one, run the
+five-lens analysis inline, keeping its output separate from your own:
 
 ```
-Task(
-  subagent_type="Explore",
-  prompt="Analyze this work request through the five-lens deliberate framework.
+Analyze this work request through the five-lens deliberate framework.
 Load the wicked-garden-deliberate skill (skills/deliberate/SKILL.md) and apply
 its five lenses ('Is This Real?', 'What's Actually Going On?', 'What Else Can
 We Fix While We're Here?', 'Should We Rethink the Design?', 'Is There a Better
@@ -83,8 +77,7 @@ Return a structured Deliberation Brief (template in the skill's SKILL.md) with:
 - Opportunities (cleanup, generalization, rethink)
 - Recommendation (fix/redesign/generalize/defer/close + rationale)
 - Scope change (expand/contract/same)
-- Guidance (specific next steps)"
-)
+- Guidance (specific next steps)
 ```
 
 ### 5. Present Deliberation Brief
@@ -96,9 +89,7 @@ Format the agent's findings using the **Deliberation Brief** template from
 
 Store as a memory for future reference:
 
-```
-Skill(skill="wicked-garden-mem", args="store \"Deliberation: {title} — {strategy}: {one-line rationale}\" (kind=fact, about=[deliberation, {project}])")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the memory text `Deliberation: {title} — {strategy}: {one-line rationale}` and `kind=fact, about=[deliberation, {project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### 7. Crew Integration
 

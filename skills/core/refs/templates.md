@@ -12,13 +12,13 @@ acceptance-criteria + desired-outcome block.
 ## Header (all types)
 
 ```markdown
-> Reported via Claude Code (wicked-garden-core `report-issue`, manual report).
+> Reported via the wicked-garden-core `report-issue` action (manual report).
 ```
 
 ## Bug Report (label: `bug`)
 
 ```markdown
-> Reported via Claude Code (wicked-garden-core `report-issue`, manual report).
+> Reported via the wicked-garden-core `report-issue` action (manual report).
 
 ## Steps to Reproduce
 1. {step 1}
@@ -38,7 +38,7 @@ acceptance-criteria + desired-outcome block.
 ## UX Friction Report (label: `ux`)
 
 ```markdown
-> Reported via Claude Code (wicked-garden-core `report-issue`, manual report).
+> Reported via the wicked-garden-core `report-issue` action (manual report).
 
 ## What You Tried
 {the intent and actions taken}
@@ -53,7 +53,7 @@ acceptance-criteria + desired-outcome block.
 ## Unmet Outcome Report (label: `gap`)
 
 ```markdown
-> Reported via Claude Code (wicked-garden-core `report-issue`, manual report).
+> Reported via the wicked-garden-core `report-issue` action (manual report).
 
 ## Goal
 {what the session was trying to achieve}
