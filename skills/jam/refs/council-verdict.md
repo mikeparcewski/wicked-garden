@@ -4,7 +4,7 @@ archetype_relevance: ["*"]
 ---
 # Acting on the Council Verdict (caller side)
 
-This ref guides the PARENT after the `wicked-garden-jam-council` fork returns.
+This ref guides the PARENT after the `wicked-garden-jam-council` worker returns.
 It is caller-side policy — the council worker produces the verdict; the caller
 decides what to do with it.
 

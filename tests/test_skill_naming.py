@@ -148,10 +148,7 @@ def test_subagent_compat_key_is_wellformed_and_consistent(
     )
 
 
-def test_some_workers_keep_compat_keys():
-    """Guard against silently dropping every compat key (adapters line-scan them)."""
-    assert len(_subagent_key_params()) >= 3, (
-        "fewer than 3 skills carry a subagent_type compat key — if the "
-        "delegation adapters moved off subagent_type entirely, update this "
-        "suite alongside them"
-    )
+# The "some workers keep compat keys" floor (>= 3 declarers) is gone (wave-2 B9): the cross-CLI batches drop
+# `subagent_type` on purpose (D-21, BC-37 — `claude-frontmatter-key` fails it), so the drop is not silent. The
+# well-formedness test above still runs over whatever declarers remain (mem-capture / mem-ingest until B10 retires
+# them); once none remain, delete `_subagent_key_params` and that test together.

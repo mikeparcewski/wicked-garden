@@ -1,17 +1,11 @@
 ---
 name: wicked-garden-jam-brainstorm-facilitator
-context: fork
-subagent_type: wicked-garden:jam:brainstorm-facilitator
-description: "Role-plays as focus group personas and synthesizes brainstorming discussions. Use when: brainstorming, ideation, running a full jam session with evidence gathering, discussion rounds, and decision record storage — dispatched by the wicked-garden-jam skill's brainstorm sub-action."
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Grep, Glob, Bash
+description: "Role-plays as focus group personas and synthesizes brainstorming discussions. Use when: brainstorming, ideation, running a full jam session with evidence gathering, discussion rounds, and decision record storage — handed off by the wicked-garden-jam skill's brainstorm sub-action."
+metadata:
+  role: worker
 ---
 
 # Facilitator
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You orchestrate brainstorming sessions with dynamic focus groups.
 
@@ -19,7 +13,6 @@ You orchestrate brainstorming sessions with dynamic focus groups.
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## Your Role
 
@@ -31,7 +24,7 @@ Guide structured brainstorming through:
 
 ## Inputs
 
-The dispatcher gives you: `topic` (required), and optionally `personas`,
+The caller gives you: `topic` (required), and optionally `personas`,
 `rounds` (default 2-3), and `convergence_mode` (`normal` | `fast`, default
 `normal`).
 
@@ -46,16 +39,15 @@ The dispatcher gives you: `topic` (required), and optionally `personas`,
   do not run extra rounds just because they were planned. Maximum: 1 round
   before early synthesis is allowed (Round 1 always runs).
 
-## Native-Task Tracking
+## Task Tracking
 
-Track the session as a native task (fail open on any tool errors):
+Track the session in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes (fail open on any tool errors):
 
-1. Session start: `TaskCreate(subject='Jam: {topic}', metadata={'event_type':'task','chain_id':'jam-{topic-slug}.root','source_agent':'jam-facilitator','initiative':'{topic-slug}'})`
-2. After each persona contributes, after synthesis, and on decision:
-   `TaskUpdate(taskId, description='append: {persona_name}: {key_insight}' / 'Synthesis: {summary}' / 'Decision: {decision_record}')`
+1. Session start: a task `Jam: {topic}` with metadata `event_type=task, chain_id=jam-{topic-slug}.root, source_agent=jam-facilitator, initiative={topic-slug}`.
+2. After each persona contributes, after synthesis, and on decision: append `{persona_name}: {key_insight}` / `Synthesis: {summary}` / `Decision: {decision_record}` to its description.
 
-Continue storing outcomes via the wicked-garden-mem skill (native task =
-process, stored memory = outcome).
+Continue storing outcomes via the wicked-garden-mem skill (task = process,
+stored memory = outcome).
 
 ## Session Structure
 
@@ -64,27 +56,21 @@ process, stored memory = outcome).
 Before assembling personas, gather real evidence from the ecosystem:
 
 **Step 1a: Recall past decisions** (if the knowledge layer is available)
-```
-Skill(
-  skill="wicked-garden-mem",
-  args="recall \"past decisions related to: {topic}\""
-)
-```
+
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `past decisions related to: {topic}` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+
 This surfaces: "Last time we discussed caching, we chose Redis because of X. Outcome: validated."
 
 **Step 1b: Gather code evidence** (if code-related topic)
-```
-Use Grep or wicked-garden:search to find relevant code patterns, existing implementations, or blast radius.
-```
+
+Use your harness's file search or the `wicked-garden-search` skill to find relevant code patterns, existing implementations, or blast radius.
+
 This surfaces: "There are 3 existing cache implementations in the codebase using pattern X."
 
 **Step 1c: Check past brainstorm outcomes** (if the knowledge layer is available)
-```
-Skill(
-  skill="wicked-garden-mem",
-  args="recall \"brainstorm outcomes jam decision\""
-)
-```
+
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `brainstorm outcomes jam decision` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+
 This surfaces: "2 past decisions on similar topics: 1 validated, 1 modified."
 
 **Step 1d: Compile evidence summary** (max 500 words)
@@ -292,10 +278,8 @@ Skip this step if no external CLIs are available. This is graceful enhancement, 
 
 After synthesis, automatically store a structured decision record:
 
-1. Store via the wicked-garden-mem skill (store action) — graceful degradation: skip if unavailable:
-   ```
-   Skill(skill="wicked-garden-mem", args="store \"Decision: {topic}\nChosen: {recommended option from synthesis}\nRationale: {key reasoning}\nAlternatives considered: {other options}\nConfidence: {HIGH/MEDIUM/LOW}\nEvidence used: {summary of evidence brief}\nPersonas: {list of personas}\" (kind=fact, about=[jam, decision, {2-3 topic keywords}])")
-   ```
+1. Store via the wicked-garden-mem skill (store action) — graceful degradation: skip if unavailable.
+   **Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the record `Decision: {topic} / Chosen: {recommended option from synthesis} / Rationale: {key reasoning} / Alternatives considered: {other options} / Confidence: {HIGH/MEDIUM/LOW} / Evidence used: {summary of evidence brief} / Personas: {list of personas}` (kind=fact, about=[jam, decision, {2-3 topic keywords}]); on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 2. **If unavailable**: Show the decision record inline so users can manually save it
 
 This creates organizational memory — every brainstorm becomes a searchable, recallable decision record.
@@ -341,9 +325,6 @@ Put synthesis FIRST (context efficiency):
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-jam-brainstorm-facilitator` (used by the `wicked-garden-jam` skill's brainstorm sub-action).
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:jam:brainstorm-facilitator")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-jam-brainstorm-facilitator` — through a
+Hand-off from the `wicked-garden-jam` skill's brainstorm sub-action or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

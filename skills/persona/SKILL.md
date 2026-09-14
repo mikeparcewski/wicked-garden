@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-persona
-user-invocable: true
 description: |
   On-demand persona invocation system for applying named perspectives to any task.
   Sub-actions: `as <name> <task>` (invoke a persona), `list [--role R]`
@@ -10,8 +9,10 @@ description: |
   applying a specific perspective or role lens to a task, listing available
   personas, defining a house persona that encodes a failure-mode defense, or
   reviewing work through a specific role's perspective.
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Persona System
@@ -32,7 +33,7 @@ full flow:
 
 | Sub-action | Args | Ref | Purpose |
 |------------|------|-----|---------|
-| `as` | `<persona-name> <task description>` | `refs/as.md` | Invoke a persona for any task — registry lookup, profile assembly, dispatch to the `wicked-garden-persona-agent` skill |
+| `as` | `<persona-name> <task description>` | `refs/as.md` | Invoke a persona for any task — registry lookup, profile assembly, then embody the persona inline (the former persona-agent worker lives in this ref) |
 | `list` | `[--role <role>]` | `refs/list.md` | List all available personas, tiered Methodology vs Generic |
 | `define` | `<name> --focus "..." [--traits "..."] [--constraints "FAILURE MODE — ..."] [--not-focus "..."] [--role <role>] [--save]` | `refs/define.md` | Create or update a custom persona — the enterprise house-persona injection mechanism; `--save` promotes to the plugin cache |
 
@@ -51,9 +52,10 @@ table above and STOP.
 ## How It Works
 
 1. **Registry** merges built-in specialists + custom personas + plugin cache
-2. **The `as` action** looks up a persona and dispatches to the
-   `wicked-garden-persona-agent` skill (forked context)
-3. **persona-agent** executes the task under the persona's behavioral profile
+2. **The `as` action** looks up a persona, assembles its profile and embodies it
+   inline (`refs/as.md` carries the behavioral guidelines that were the
+   persona-agent worker — retired in B9)
+3. **The task runs** under the persona's behavioral profile
 4. **Behavior emerges** from personality, constraints, memories, and preferences
 
 ## Built-in Personas
@@ -155,7 +157,7 @@ If specialist.json is unavailable, three built-in personas are always available:
 
 When names collide across sources, higher priority wins:
 ```
-custom (DomainStore) > cache (~/.claude/plugins/...) > builtin > fallback
+custom (DomainStore) > cache (the harness's plugin cache) > builtin > fallback
 ```
 
 This lets you override a built-in persona with a project-specific version.
