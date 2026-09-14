@@ -143,3 +143,4 @@ scripts/compiler/**/__pycache__/
 # codegraph local index (per-machine, do not commit)
 .codegraph/
 .wicked/
+!.wicked/checks.json
