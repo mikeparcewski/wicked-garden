@@ -75,7 +75,7 @@ Echo back the full selection list before installing: "Installing: [comma-joined 
 
 ---
 
-**PLAIN_TEXT mode (dangerous — the native prompt auto-completes)**
+**PLAIN_TEXT mode (no native prompt — the normal mode on every non-Claude seat; on the Claude harness, dangerous mode where the native prompt auto-completes)**
 
 Present both questions as numbered plain-text lists. STOP and wait for the user's reply before proceeding. Parse the reply, echo it back, then continue.
 

@@ -136,7 +136,7 @@ or crew's `/api/v1` (they are not slash commands on any CLI):
 
 | Store | What |
 |-------|------|
-| Native tasks | TaskCreate/TaskUpdate with validated `metadata` (see `scripts/_event_schema.py`) |
+| Native tasks | the harness's task list with validated `metadata` (see `scripts/_event_schema.py`; `refs/integration.md`) |
 | `wicked-garden-mem` | Cross-session learning at project completion and gate failures |
 | Local JSON | DomainStore fallback; always available |
 

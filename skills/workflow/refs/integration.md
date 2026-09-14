@@ -8,7 +8,7 @@ How wicked-crew integrates with utility plugins (graceful degradation).
 
 ## Task Management (the harness's task list)
 
-Crew records every task-lifecycle operation in the harness's task list. **Use the full richness of task fields, including `metadata`, per the event envelope contract in `scripts/_event_schema.py`.** PreToolUse validates every TaskCreate/TaskUpdate against that contract.
+Crew records every task-lifecycle operation in the harness's task list. **Use the full richness of task fields, including `metadata`, per the event envelope contract in `scripts/_event_schema.py`.** The harness's hooks validate every create / update against that contract where it has them (the Hand-off below).
 
 ### Creating Tasks
 
@@ -27,17 +27,13 @@ metadata:
   assigned_to:  agent-name      # who owns this
 ```
 
-**Hand-off (harness-specific)** — on Claude Code the task-list tools (create / update) take these fields directly; on any other seat keep the same fields in your working notes and report them in your output.
+**Hand-off (harness-specific)** — on Claude Code the task-list tools (create / update / list / read) take these fields directly, the PreToolUse hook (`pretool_taskcreate.py`) validates the `metadata` envelope against `scripts/_event_schema.py` on every create / update, and tasks persist under the Claude config directory's `tasks/{session_id}/`; on any other seat keep the same fields in your working notes and report them in your output.
 
 ### Updating Tasks (use full fields)
 
 - Link dependencies between tasks: `blockedBy: [{blocker-id}]` / `blocks: [{dependent-id}]`.
 - Update with reasoning, not just status: `status: completed` + append to the description
   `## Outcome — Chose X because Y. Trade-off: Z.`
-
-## Outcome\nChose X because Y. Trade-off: Z."
-)
-```
 
 ### Enrichment Guidelines
 
@@ -48,12 +44,9 @@ metadata:
 
 ### Querying
 
-```
-TaskList()  # filter by subject: (?i)^{phase}[\s:-].*{project-name}
-TaskGet(taskId="{id}")
-```
+List tasks filtered by subject (`(?i)^{phase}[\s:-].*{project-name}`) and read one by id — through the harness's task list (the Hand-off above), else your working notes.
 
-**Validation & persistence**: PreToolUse runs `pretool_taskcreate.py` on every TaskCreate/TaskUpdate, validating the `metadata` dict against `scripts/_event_schema.py` (event_type, chain_id shape, source_agent, required per-type fields). Tasks persist natively under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
+**Validation & persistence**: covered by the harness-specific Hand-off above — a hook-validated envelope and native persistence on Claude Code; working notes on every other seat.
 
 ## wicked-garden-mem (memory over wicked-estate)
 
@@ -78,7 +71,7 @@ TaskGet(taskId="{id}")
 
 ## Detection Pattern
 
-Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. The PreToolUse hook enforces the metadata envelope defined in `scripts/_event_schema.py`.
+Crew records tasks in the harness's task list (§ Task Management above) — no plugin detection needed for task management; the metadata envelope is enforced by the harness's hooks where it has them.
 
 For optional memory storage (wicked-garden-mem), use graceful degradation:
 

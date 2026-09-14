@@ -43,7 +43,7 @@ the garden — reference these, do not duplicate them:
 |------|------------------------------|
 | Per-unit implementer subagent | a worker following `wicked-garden-governed-worker` **Creator** — the repo's checks run in-tree with exit codes pasted, generated artifacts regenerated, evidence in the output |
 | Per-unit recon subagent | a worker following `wicked-garden-governed-worker` **Neutral** — read-only: analyse, plan, name files and risks, never implement |
-| Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` fork skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
+| Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` worker skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
 | Fallback reviewer | a worker following `wicked-garden-governed-worker` **Evaluator** — output-only, evaluator ≠ creator, verdict with file:line reasons |
 | Re-derive a claim (the receipt) | `wicked-garden-prove` (run + freeze evidence + gate; fail-closed) |
 | Hard-gate independent sign-off | `wicked-garden-prove --with-attestations` → `wicked-vault attest` (evaluator ≠ creator, G10) |
@@ -76,13 +76,21 @@ auditable.
 - **Detail to disk, summary to context.** Subagents write the full profile /
   plan / diff / receipt to the scratch dir and return ≤150 words. Never let a
   subagent dump raw output into your context.
-- **One message, many Task calls** for each wave — that is what makes it
-  parallel. A serial run with no documented `serial_reason` is a protocol miss.
+- **One wave, many workers.** On a harness that runs parallel sub-agents,
+  dispatch every unit of a wave in ONE turn — one Hand-off per unit. On a seat
+  with no parallel dispatch, run the wave **serially, one Hand-off at a time**,
+  each unit's output in its own scratch file — that is the sanctioned
+  degradation: record `serial_reason: harness has no parallel dispatch` in the
+  scratch dir. A serial run with no `serial_reason` is a protocol miss; a serial
+  run that lets the same agent implement AND verify a unit is a broken swarm.
+- **Hand-off** — for each unit, open `wicked-garden-governed-worker` (Creator for
+  the implementer wave, Evaluator for the verifier wave) with the per-unit brief
+  from `refs/fan-out.md` / `refs/independent-verification.md` as the argument; on Claude Code this is one Task per unit in one message, on any other seat open the named skill from your catalog and run the brief inline, one unit after another, each unit's output in its own scratch file, then continue here.
 - **Background long/external work** and synthesize on completion rather than
   blocking the wave.
 - **The verifier is a different agent than the implementer.** If the same agent
   type did the work, the verdict is a self-grade — the `wicked-garden-qe-semantic-reviewer`
-  fork skill and the vault `attest` both refuse `evaluator == creator`.
+  worker skill and the vault `attest` both refuse `evaluator == creator`.
 
 ## The two reusable briefs
 
