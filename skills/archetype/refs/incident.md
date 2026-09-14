@@ -56,8 +56,8 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 
 ### investigate
 
-1. Look at dashboards FIRST — the `wicked-garden-platform` skill's `infra` /
-   `traces` / `incident` actions. Hypothesize from data, not memory.
+1. Look at dashboards FIRST — the `wicked-garden-platform-health` / `-traces` /
+   `-incident` modules. Hypothesize from data, not memory.
 2. Run the `wicked-garden-platform` skill's `incident` action for triage workflows.
 3. **Time-box investigation to 15 minutes during SEV-1.** If you don't
    have a mitigation hypothesis in 15 min, escalate; don't keep
