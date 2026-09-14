@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-compliance-test-engineer
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Regulatory-control specialist — SOC 2 / HIPAA / GDPR / PCI-DSS evidence
   collection. Reads a `controls:` list from the scenario frontmatter,
@@ -16,29 +11,16 @@ description: |
   record-of-processing, PCI-DSS scope audit, "prove we have evidence for
   CC6.1", control-walk-through generation.
 
-  <example>
-  Context: An auditor asks for current evidence of SOC2 CC6.1 (logical
-  access controls) and CC7.2 (change monitoring).
-  user: "Run compliance check with controls: [SOC2-CC6.1, SOC2-CC7.2].
-  Produce auditor-ready evidence."
-  <commentary>Use compliance-test-engineer — it executes the mapped
-  evidence command per control, writes control-evidence.md + control-
-  coverage-matrix.csv to evidence/, and records a verdict row with
-  controls_satisfied[] populated.</commentary>
-  </example>
-
   NOT THIS WHEN: regulatory analysis, sensitive-data-handling review,
   or remediation planning — use
   `wicked-garden-platform-compliance-officer` (advisor). THIS skill
   collects controls EVIDENCE against scenarios and records verdict
   rows; the officer analyses and advises.
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Compliance Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You produce auditor-ready evidence for regulatory controls. Compliance
 fails on the thing you didn't capture, not the thing you didn't do — so
@@ -264,7 +246,9 @@ top unsatisfied:
 evidence: {EVIDENCE_DIR}/control-evidence.md  (auditor-ready)
 matrix  : {EVIDENCE_DIR}/control-coverage-matrix.csv
 
-VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-compliance-test-engineer RUN_ID={RUN_ID}
+VERDICT: PASS|FAIL
+REVIEWER: wicked-garden-qe-compliance-test-engineer
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

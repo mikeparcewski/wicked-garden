@@ -960,7 +960,7 @@ def test_fence_pairing_walk_table(text, ok):
 # verdict-spelling (L6-0): the table the DES asks for — the three F4 sites + the grammar's edges
 # ---------------------------------------------------------------------------
 
-_LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}"
+_LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}"
 
 
 @pytest.mark.parametrize(("file", "line", "hit"), [
@@ -984,9 +984,9 @@ _LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engin
     ("skills/x/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL|SKIP} REVIEWER=wicked-garden-qe-security-test-engineer RUN_ID={RUN_ID}", True),
     ("skills/x/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}", True),
     # the legacy footer: tolerated in a LISTED file, a violation anywhere else
-    ("skills/qe-chaos-test-engineer/SKILL.md", _LEGACY_FOOTER, False),
-    ("skills/qe-chaos-test-engineer/SKILL.md", "VERDICT=PASS REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}", False),
-    ("skills/qe-chaos-test-engineer/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}", True),
+    ("skills/qe-visual-regression-engineer/SKILL.md", _LEGACY_FOOTER, False),
+    ("skills/qe-visual-regression-engineer/SKILL.md", "VERDICT=PASS REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}", False),
+    ("skills/qe-visual-regression-engineer/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}", True),
     ("skills/x/SKILL.md", _LEGACY_FOOTER, True),
     # not line-leading → not judged (the parser strips decoration; the TEXT rule forbids it in prose)
     ("skills/x/SKILL.md", "**VERDICT: PASS**", False),

@@ -243,8 +243,8 @@ def test_reference_extraction_is_not_vacuous():
 
     The v12.25 skills-only conversion retired concrete
     ``Task(subagent_type="wicked-garden:...")`` *call-forms* from skill bodies:
-    skill-to-skill dispatch is now ``Skill(skill="wicked-garden-...")`` and the
-    legacy Task shape survives only as a ``subagent_type:`` compat key in
+    skill-to-skill dispatch is now a Hand-off paragraph (wave-2, D-21); the
+    legacy Task ``subagent_type:`` call-form and the Skill( call-form are both retired. The compat key survives in
     fork-skill *frontmatter* (line-scanned by the delegation adapter,
     ``scripts/smaht/adapters/delegation_adapter.py``). So ``_task_ref_params()``
     is legitimately empty now — ``test_task_subagent_ref_resolves_to_fork_skill``
@@ -255,7 +255,14 @@ def test_reference_extraction_is_not_vacuous():
     deliberate, not drift — its ``test_subagent_compat_key_is_wellformed_and_consistent``
     still validates every declarer that remains.)
     """
-    assert _skill_ref_params(), "no Skill dispatch refs found in skills/ — extraction broke"
+    # wave-2 B14 converted the LAST `Skill(skill="wicked-garden-…")` dispatch call-form in the catalog to a
+    # Hand-off paragraph (the only cross-CLI dispatch shape, D-21/BC-37): the set is now legitimately EMPTY and
+    # must STAY empty — a reappearing Skill( ref is a regression. The launcher-count guards below keep this
+    # test non-vacuous; the parametrised resolver test still validates any ref that reappears.
+    assert not _skill_ref_params(), (
+        "Skill(skill=…) dispatch call-forms reappeared under skills/ — the cross-CLI dispatch shape is a "
+        f"Hand-off paragraph naming the skill, not a Skill( call: {[p.id for p in _skill_ref_params()][:5]}"
+    )
     # 12.33 (F-079) INVERTED the plugin-root guard: skill text reaches plugin
     # files only through the `wicked-garden` launcher, so the plugin-root count
     # must be ZERO and the launcher-call count implausibly LARGE for a regex
