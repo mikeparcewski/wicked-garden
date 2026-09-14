@@ -9,8 +9,10 @@ description: |
   automation with gh", "gh operations", or any former
   /wicked-garden:platform:gh invocation (operations: workflows | prs |
   releases | repo).
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # GitHub CLI Power Utilities

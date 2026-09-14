@@ -1,12 +1,11 @@
 ---
 name: wicked-garden-platform
-user-invocable: true
 description: |
   Platform domain skill: security scanning, incident triage, infrastructure
   review, and distributed-trace analysis. Routes to one of four inline actions
   (security | incident | infra | traces) backed by the rubrics in refs/, and
   links out to the domain's sub-skills (audit, compliance, health,
-  observability, CI/CD tooling, peer-health) and fork workers.
+  observability, CI/CD tooling, peer-health) and workers.
 
   Use when: "security scan", "vulnerability assessment", "scan this PR for
   vulnerabilities", "run the security scanners", "incident", "production is
@@ -14,8 +13,10 @@ description: |
   "IaC review", "infrastructure review", "cloud cost review", "trace analysis",
   "why is this endpoint slow", "latency investigation", or any former
   /wicked-garden:platform:{security|incident|infra|traces} invocation.
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Platform Domain
@@ -135,11 +136,13 @@ Loaded on demand — each is its own skill beside this one:
 | `skills/platform/gate-benchmark-rebaseline/` | AC-11 gate-result benchmark re-baselining |
 | `skills/platform/peer-health/` | wicked-* peer tool reachability + version health |
 
-## Fork workers
+## Workers
 
-Dispatchable specialist workers (context: fork), for delegated deep passes:
+Specialist workers for delegated deep passes — each reached by name through a Hand-off:
 
 - `skills/platform-security-engineer/` — security scanning + vulnerability
   assessment (also the triage rubric for the `security` action)
 - `skills/platform-compliance-officer/` — regulatory compliance analysis
 - `skills/platform-privacy-expert/` — PII/PHI detection and privacy-by-design
+
+**Hand-off** — open the worker skill by name (`wicked-garden-platform-security-engineer`, `wicked-garden-platform-compliance-officer`, `wicked-garden-platform-privacy-expert`) with the target and the ask as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.

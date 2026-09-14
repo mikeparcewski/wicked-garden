@@ -11,9 +11,10 @@ description: |
   /wicked-garden:platform:health invocation. NOT for plugin-level diagnostics
   (use the observability sub-skill) or distributed tracing (use the platform
   domain skill's traces action).
-portability: portable
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Health Aggregation Skill

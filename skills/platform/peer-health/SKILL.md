@@ -10,8 +10,10 @@ description: |
   Use when: "peer health", "check the wicked peers", "is wicked-vault
   reachable", "loom doctor", "peer version drift", "capability gap", or any
   former /wicked-garden:platform:peer-health invocation.
-phase_relevance: ["build", "review", "operate", "bootstrap"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate,bootstrap"
+  archetypes: "*"
 ---
 
 # Peer Health
@@ -32,7 +34,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 ## Instructions
 
 Run the internal loom doctor via the absorbed scripts/loom/compose module.
-No external wicked-loom process is needed — this runs in-process.
+No external loom process is needed — this runs in-process.
 
 ```bash
 wicked-garden python -c "
