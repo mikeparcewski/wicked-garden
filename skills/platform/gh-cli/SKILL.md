@@ -9,8 +9,10 @@ description: |
   automation with gh", "gh operations", or any former
   /wicked-garden:platform:gh invocation (operations: workflows | prs |
   releases | repo).
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # GitHub CLI Power Utilities
@@ -134,7 +136,7 @@ gh search prs --author=@me --state=open
 ## Integration with Other Tools
 
 Works well with:
-- **wicked-garden:search**: Find code patterns, then use gh to create issues
+- **`wicked-garden-search`**: Find code patterns, then use gh to create issues
 - **Native tasks**: Track PR status alongside tasks via TaskUpdate description appends
 
 ## References

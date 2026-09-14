@@ -8,12 +8,10 @@ description: |
   "automate deployment", "debug workflow", "Actions security", "generate a
   workflow", "optimize this workflow", "troubleshoot the failing workflow",
   or any former /wicked-garden:platform:actions invocation.
-portability: portable
-# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
-# file-context auto-activation, add:
-#   paths: [".github/workflows/**/*.yml", ".github/workflows/**/*.yaml", ".github/actions/**"]
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 Skill-local scripts (`scripts/workflow_gen.py`) are stdlib-only and run base-directory-relative with `python3` (`py -3` on Windows).

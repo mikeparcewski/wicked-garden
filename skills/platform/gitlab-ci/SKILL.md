@@ -5,9 +5,10 @@ description: |
 
   Use when: "create CI/CD pipeline", "GitLab CI config", "fix pipeline",
   ".gitlab-ci.yml", "configure runners", "pipeline optimization"
-portability: portable
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # GitLab CI/CD Pipeline Writing

@@ -4,8 +4,10 @@ description: |
   Use when you need glab CLI patterns for GitLab — pipeline debugging, MR management, or release
   automation. Provides composable glab invocations for power users.
   NOT for GitHub (use the gh-cli skill) or simple git commands (use Bash).
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # GitLab CLI Power Utilities
@@ -125,7 +127,7 @@ glab mr merge 123 --squash --remove-source-branch
 ## Integration
 
 Works with:
-- **wicked-garden:search**: Find code, create issues via glab
+- **`wicked-garden-search`**: Find code, create issues via glab
 - **Native tasks**: Track MR status alongside tasks via TaskUpdate description appends
 
 ## References

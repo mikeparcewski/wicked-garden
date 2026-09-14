@@ -9,8 +9,10 @@ description: |
   "contract assertions", "validate script outputs", "what monitoring tools are
   installed", "toolchain discovery", or any former
   /wicked-garden:platform:{plugin-health|assert|toolchain} invocation.
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Observability Skill

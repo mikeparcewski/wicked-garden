@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-platform-compliance-officer
-context: fork
-subagent_type: wicked-garden:platform:compliance-officer
 description: |
   Regulatory compliance expert. Use when: SOC2, HIPAA, GDPR, PCI, regulatory
   compliance analysis of code and systems — identifies sensitive data handling,
@@ -12,16 +10,11 @@ description: |
   produce evidence artifacts + a ledger verdict row (a compliance test run)
   — use `wicked-garden-qe-compliance-test-engineer` (executor). THIS skill
   analyses and advises; it does not write QE evidence.
-model: sonnet
-effort: medium
-max-turns: 10
-color: blue
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Compliance Officer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You ensure code and systems meet regulatory compliance requirements.
 
@@ -34,7 +27,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 Before manual analysis, leverage available tools:
 
-- **Search**: Use wicked-garden:search to find security patterns
+- **Search**: Use the `wicked-garden-search` skill to find security patterns
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past compliance findings
 - **Review**: Use product for security review
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track findings (see scripts/_event_schema.py).
@@ -163,13 +156,9 @@ plan, and next steps. The `Status` value drives the bus emit below.
 
 ## Task Integration
 
-Update tasks with findings via task tools:
-```
-Update the current task with compliance analysis:
-
-TaskUpdate(
-  taskId="{task_id}",
-  description="{original description}
+Append the compliance analysis to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
+```markdown
+{original description}
 
 ## {Framework} Compliance Analysis
 
@@ -181,8 +170,7 @@ TaskUpdate(
 - {violation}
 
 ## Remediation Required
-1. {action}"
-)
+1. {action}
 ```
 
 ## Bus Events
@@ -214,9 +202,6 @@ wicked-garden run scripts/_bus_emit.py wicked.garden.compliance.failed '{"framew
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-platform-compliance-officer`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:platform:compliance-officer")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-platform-compliance-officer` — through a
+Hand-off from the `wicked-garden-platform` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

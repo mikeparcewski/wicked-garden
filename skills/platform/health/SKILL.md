@@ -11,9 +11,10 @@ description: |
   /wicked-garden:platform:health invocation. NOT for plugin-level diagnostics
   (use the observability sub-skill) or distributed tracing (use the platform
   domain skill's traces action).
-portability: portable
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Health Aggregation Skill
@@ -82,7 +83,7 @@ For each discovered source, collect:
 
 Check for recent changes that might impact health:
 - Deployments (via CI/CD integrations or git history)
-- Code changes (via wicked-garden:search)
+- Code changes (via the `wicked-garden-search` skill)
 - Infrastructure changes
 - Traffic patterns
 
@@ -106,7 +107,7 @@ This skill discovers integrations at runtime based on capability:
 | **tracing** | Distributed tracing, request tracing, trace analysis | Distributed traces, dependencies |
 | **telemetry** | Metrics collection, custom instrumentation, time-series data | Custom metrics, instrumentation |
 
-**Fallback**: If no integrations found, perform local analysis via wicked-garden:search for error patterns in code.
+**Fallback**: If no integrations found, perform local analysis via the `wicked-garden-search` skill for error patterns in code.
 
 See refs/sources.md for detailed capability discovery patterns.
 

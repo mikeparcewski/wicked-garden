@@ -8,11 +8,10 @@ description: |
   Use when: "is this compliant", "compliance check", "regulatory requirements",
   "check against SOC2/HIPAA/GDPR/PCI", or any former
   /wicked-garden:platform:compliance invocation.
-# TODO #339: When Claude Code supports 'paths' in skill frontmatter for
-# file-context auto-activation, add:
-#   paths: ["**/compliance/**", "**/audit/**", "**/policy/**", "**/.hipaa*", "**/.gdpr*"]
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Compliance Skill
@@ -23,7 +22,6 @@ Analyze code and systems for regulatory compliance.
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## When to Use
 
@@ -116,18 +114,11 @@ Output:
 ### With wicked-crew
 Auto-triggered at phase gates
 
-### With native tasks
-```
-TaskUpdate(
-  taskId="{task_id}",
-  description="{previous}\n\n[compliance] {framework}: {status}"
-)
-```
+### With the harness's task list
+Append `[compliance] {framework}: {status}` to the task description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes.
 
 ### With the memory layer (wicked-estate)
-```bash
-Skill(skill="wicked-garden-mem", args="recall \"compliance {framework}\"")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `compliance {framework}` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### With the platform domain skill
 For an ad hoc vulnerability scan of the same target, run the `security`

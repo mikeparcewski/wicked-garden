@@ -4,8 +4,10 @@ description: |
   Use when investigating a production error spike or pattern across services — aggregates errors from
   discovered tracking sources, correlates with deployments, and assesses user impact.
   NOT for general observability (use platform/observability) or tracing latency (use the platform:traces command).
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Error Analysis Skill
@@ -58,7 +60,7 @@ Look for:
 
 Check for correlation with:
 - Recent deployments
-- Code changes via wicked-garden:search
+- Code changes via the `wicked-garden-search` skill
 - Infrastructure changes
 - Traffic patterns
 - External dependency changes
@@ -79,7 +81,7 @@ Based on patterns:
 | **apm** | Performance monitoring with error tracking features | Errors with performance context |
 | **logging** | Log platforms with error filtering and search | Error logs, patterns, search |
 
-**Fallback**: Search code for error patterns via wicked-garden:search (catch blocks, error handling, throw statements).
+**Fallback**: Search code for error patterns via the `wicked-garden-search` skill (catch blocks, error handling, throw statements).
 
 ## Output Format
 
@@ -124,7 +126,7 @@ Based on patterns:
 1. {specific action to take}
 2. {specific action to take}
 
-**Engage**: the engineering skill's debugging workflow (`skills/engineering/debugging/`) for code-level root-cause analysis
+**Engage**: the engineering skill's debugging workflow (the `wicked-garden-engineering-debugging` module) for code-level root-cause analysis
 ```
 
 ## Common Error Patterns

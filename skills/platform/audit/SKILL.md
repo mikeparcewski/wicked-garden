@@ -11,8 +11,10 @@ description: |
   invocation. NOT for defining compliance policies (use the compliance
   sub-skill) or ad hoc security checks (use the platform domain skill's
   security action).
-phase_relevance: ["build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "build,review,operate"
+  archetypes: "*"
 ---
 
 # Audit Skill
@@ -23,7 +25,6 @@ Collect evidence and verify audit trails for compliance.
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## When to Use
 
@@ -136,22 +137,13 @@ Create report with:
 
 ## Integration
 
-### With native tasks
+### With the harness's task list
 
-Attach audit evidence by appending to the task description (reference file paths checked into the repo):
-```
-TaskUpdate(
-  taskId="{task_id}",
-  description="{previous}\n\n## Audit Evidence: {control_id}\nEvidence file: {evidence_path}"
-)
-```
+Attach audit evidence by appending `## Audit Evidence: {control_id} — Evidence file: {evidence_path}` to the task description (reference file paths checked into the repo) — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes.
 
 ### With the knowledge layer
 
-Find related evidence (FTS5 over indexed code):
-```bash
-Skill(skill="wicked-garden-mem", args="recall \"audit logging encryption\"")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `audit logging encryption` as the query (FTS5 over indexed code); on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ## Output Format
 

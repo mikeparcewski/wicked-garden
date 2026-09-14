@@ -800,6 +800,78 @@ def test_cross_cli_baseline_is_well_formed():
 
 
 # ---------------------------------------------------------------------------
+# fenced-block pairing (L6-B6, review-garden-1148 H1 class): CommonMark treats EVERY line that starts
+# with three or more backticks as a fence; an opener may carry an info string, a closer never does and
+# must be at least as long. A template that wraps ```-blocks in a ```-wrapper therefore closes early
+# and every heading after it renders as code — an even fence COUNT does not catch it, the walk does.
+# ---------------------------------------------------------------------------
+
+# Files whose fences do not pair at HEAD (all pre-existing). SHRINK-ONLY: the batch that translates a
+# file fixes its fences and deletes its entry; an entry whose file pairs again is STALE and fails.
+FENCE_PAIRING_BASELINE = {
+    "skills/agentic/refs/design.md",
+    "skills/agentic/review-methodology/refs/issue-taxonomy-quality-testing.md",
+    "skills/data/refs/ml.md",
+    "skills/engineering/architecture/refs/architecture-template-design.md",
+    "skills/engineering/debugging/refs/process.md",
+    "skills/engineering/integration/refs/event-schemas-best-practices.md",
+    "skills/engineering/system-design/refs/component-template-structure.md",
+    "skills/engineering/system-design/refs/interface-template-maintenance.md",
+    "skills/engineering/system-design/refs/interface-template-structure.md",
+    "skills/qe/refs/scenario-format.md",
+}
+_FENCE_RE = re.compile(r"^(`{3,})(.*)$")
+
+
+def fence_pairing_problem(text: str) -> str | None:
+    """The CommonMark pairing walk: `None` when every fenced block closes, else the line of the block
+    left open (or the first stray closer)."""
+    open_len = 0
+    open_at = 0
+    for lineno, line in enumerate(text.split("\n"), start=1):
+        m = _FENCE_RE.match(line)
+        if not m:
+            continue
+        n, info = len(m.group(1)), m.group(2).strip()
+        if open_len == 0:
+            open_len, open_at = n, lineno  # a bare ``` with nothing open OPENS a block — a "doubled closer" is never a stray
+        elif info == "" and n >= open_len:
+            open_len = 0
+        # else: content inside the open block (an opener-looking line, or a shorter fence)
+    return None if open_len == 0 else f"fence opened at :{open_at} never closes (every heading after it renders as code)"
+
+
+def test_fenced_blocks_pair_in_every_skill_file():
+    broken = {}
+    for f in text_files():
+        if f.suffix != ".md":
+            continue
+        rel = f.relative_to(REPO).as_posix()
+        problem = fence_pairing_problem(f.read_text(encoding="utf-8"))
+        if problem is not None and rel not in FENCE_PAIRING_BASELINE:
+            broken[rel] = problem
+    assert not broken, "unpaired fenced blocks (promote a wrapper that holds ```-blocks to ```` or close the block): " + json.dumps(broken, indent=1)
+
+
+def test_fence_pairing_baseline_is_live():
+    """Every baselined file still fails the walk — a file that pairs again must leave the list."""
+    stale = [rel for rel in sorted(FENCE_PAIRING_BASELINE) if not (REPO / rel).exists() or fence_pairing_problem((REPO / rel).read_text(encoding="utf-8")) is None]
+    assert not stale, f"stale FENCE_PAIRING_BASELINE entries (the file pairs now, or is gone): {stale}"
+
+
+@pytest.mark.parametrize(("text", "ok"), [
+    ("```bash\necho hi\n```\n", True),
+    ("```markdown\n# T\n```python\nx = 1\n```\n## After\n```\n", False),          # the debug.md / component-template class: the inner closer ends the wrapper, the last ``` re-opens
+    ("````markdown\n# T\n```python\nx = 1\n```\n## After\n````\n", True),        # the fix: a 4-backtick wrapper
+    ("```json fence for paste) · more prose\n", False),                                # wrapped prose that starts a line with ``` IS an opener to a renderer
+    ("text\n```\nblock\n```\n```\n", False),                                       # a doubled closer opens a new block
+    ("```{language}\ncode\n```\n", True),                                            # an info string may be anything without backticks
+])
+def test_fence_pairing_walk_table(text, ok):
+    assert (fence_pairing_problem(text) is None) is ok
+
+
+# ---------------------------------------------------------------------------
 # verdict-spelling (L6-0): the table the DES asks for — the three F4 sites + the grammar's edges
 # ---------------------------------------------------------------------------
 

@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-platform-security-engineer
-context: fork
-subagent_type: wicked-garden:platform:security-engineer
 description: |
   Security scanning and vulnerability assessment from DevSecOps perspective.
   Use when: security review, vulnerability assessment, OWASP Top 10 scan,
@@ -13,19 +11,13 @@ description: |
   gate input) — use `wicked-garden-qe-security-test-engineer` (executor).
   Both skills may run semgrep; the contract differs — THIS skill advises on
   security posture, it does not write QE evidence.
-model: sonnet
-effort: medium
-max-turns: 10
-color: red
-allowed-tools: Read, Grep, Glob, Bash
-tool-capabilities:
   - security-scanning
   - version-control
+metadata:
+  role: worker
 ---
 
 # Security Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You perform security scanning and vulnerability assessment for code and infrastructure.
 
@@ -38,7 +30,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 Before manual analysis, leverage available tools:
 
-- **Search**: Use wicked-garden:search to find security patterns
+- **Search**: Use the `wicked-garden-search` skill to find security patterns
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past vulnerabilities
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track security findings (see scripts/_event_schema.py).
 
@@ -73,7 +65,7 @@ Before manual analysis, leverage available tools:
 
 ### 1. Search for Known Patterns
 
-Use wicked-garden:search to find potential issues:
+Use the `wicked-garden-search` skill to find potential issues:
 ```
 Grep "password|secret|api_key|token" {target}
 Grep "eval\(|exec\(|system\(" {target}
@@ -137,13 +129,9 @@ For GitLab CI:
 
 ### 6. Update Task
 
-Track findings via task tools:
-```
-Update the current task with security scan results:
-
-TaskUpdate(
-  taskId="{task_id}",
-  description="{original description}
+Append the security scan results to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
+```markdown
+{original description}
 
 ## Security Scan Results
 
@@ -157,8 +145,7 @@ TaskUpdate(
 1. {issue} - {severity} - {location}
 
 **Compliance**: OWASP {pass/fail}
-**Recommendation**: {action needed}"
-)
+**Recommendation**: {action needed}
 ```
 
 ## Output Format
@@ -213,9 +200,6 @@ wicked-garden run scripts/_bus_emit.py wicked.garden.security.finding_raised '{"
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-platform-security-engineer`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:platform:security-engineer")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-platform-security-engineer` — through a
+Hand-off from the `wicked-garden-platform` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.
