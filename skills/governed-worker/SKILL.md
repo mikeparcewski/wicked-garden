@@ -93,9 +93,13 @@ Method: read the outcome and design, then the changed files; for each, ask
 whether it follows the design, whether tests cover the key paths, and whether
 the evidence (commands + exit codes) supports the claims; re-run what you can
 without mutating; sort findings into Critical (must fix), Concern, Suggestion;
-verdict APPROVE / CONDITIONAL / REJECT — REJECT needs a Critical, CONDITIONAL
-names its conditions. If you are the seat that created the work, say so and
-refuse the verdict.
+verdict: make the LAST line of your output exactly `VERDICT: PASS` or
+`VERDICT: FAIL` — one plain-text line (no `**`, backticks or `#` around it),
+findings above it. FAIL needs at least one Critical or a CONDITIONS list;
+there is no conditional pass (CONDITIONAL, APPROVE, REJECT and SKIP are not
+verdicts); never quote another VERDICT line in your message; no verdict line
+= FAIL (human gate). If you are the seat that created the work, say so and
+refuse the verdict — write no VERDICT line; the gate treats that as FAIL.
 
 ## Neutral (triage / recon / plan)
 
@@ -117,10 +121,13 @@ Every unit's final message contains, in this order:
 1. **What you did** — role, scope, files touched (creator) or read (others).
 2. **Commands run** — each with its exit code, in the order run.
 3. **Counts** — derived N / submitted M / failed K (A4), with K explained.
-4. **Verdict or plan** — evaluator: verdict + findings by severity with
-   `file:line`; neutral: the plan; creator: what changed against the design.
+4. **Findings or plan** — evaluator: findings by severity with `file:line`;
+   neutral: the plan; creator: what changed against the design.
 5. **Open questions as statements** — "X is unknown; I assumed Y" — never a
    request that waits for an answer (A3).
+6. **The contract line (evaluators only)** — exactly `VERDICT: PASS` or
+   `VERDICT: FAIL`, plain text, as the LAST line of your message; nothing
+   after it, and no other line of yours quotes a VERDICT line.
 
 ## Provenance
 

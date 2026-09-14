@@ -142,13 +142,16 @@ where the harness is runnable it re-runs the produced files itself.
    merges the PR and never pushes — the run's deliver phase (or the human)
    does; a reviewer that ships is a creator grading itself.
 
-Verdict vocabulary (`MODE=produced-test`): **`PASS`** only when 1–7 hold with
+Verdict vocabulary (`MODE: produced-test`): **`PASS`** only when 1–7 hold with
 zero findings — every `covered` claim verified at its `path:line`, every
 produced test executed and green (your re-run reproduces the record), no
-`unverified` or `failing` row; **`CONDITIONAL`** with the fixes listed when only
-P1/P2 rows fail (implementation-shaped test, padded total, silent scope gap,
-style); **`FAIL`** on any `[unexecuted-test]`, red produced test, tautological
-test, unsupported-`covered` claim, or `[scenario-defect]` oracle. Cite
+`unverified` or `failing` row; **`FAIL`** otherwise — on any
+`[unexecuted-test]`, red produced test, tautological test,
+unsupported-`covered` claim or `[scenario-defect]` oracle, AND when only P1/P2
+rows fail (implementation-shaped test, padded total, silent scope gap, style):
+list those fixes as CONDITIONS above the verdict line; there is no conditional
+pass. The verdict is one plain-text line, `VERDICT: PASS` or `VERDICT: FAIL`,
+the LAST line of the message; never quote another VERDICT line. Cite
 `file:line` for every finding. The auditor's §9 carries the same rule.
 
 Dispatch fallback as in § Dispatch block above: without a Skill tool, open the
@@ -175,7 +178,7 @@ MODE: produced-test — grade per the auditor's §9 produced-test verdict
    `unverified`; recount new vs pre-existing tests.
 2. Confirm every produced file has an execution record (file · command ·
    result). None — or a `needs-fixture` e2e never run against its fixture —
-   is VERDICT=FAIL `[unexecuted-test]`.
+   is `VERDICT: FAIL` `[unexecuted-test]`.
 3. Re-run the produced files when the harness is available; compare with
    the record.
 4. Mutate-or-reason about at least two tested behaviours; name the failing
@@ -188,10 +191,13 @@ MODE: produced-test — grade per the auditor's §9 produced-test verdict
    a mock, a snapshot of a fixture, or one that would pass with the
    implementation deleted.
 
-Return `VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test` — PASS only with
-every claim verified at path:line, every produced test executed and green, no
-`unverified` — and per-row findings with file:line. Do NOT push, open, edit or
-merge a PR — the run's deliver phase delivers."""
+Report `MODE: produced-test` on its own line and per-row findings with
+file:line, then end with one plain-text line `VERDICT: PASS` or `VERDICT: FAIL`
+as the LAST line of your message — PASS only with every claim verified at
+path:line, every produced test executed and green, no `unverified`; anything
+less is FAIL with the conditions listed above it; never quote another VERDICT
+line. Do NOT push, open, edit or merge a PR — the run's deliver phase
+delivers."""
 )
 ```
 

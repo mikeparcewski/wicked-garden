@@ -128,7 +128,7 @@ Side-by-side evaluation.
 | Time | X weeks | Y weeks |
 | Risk | Low | Medium |
 
-VERDICT: [Which wins and why]
+Verdict — [which wins and why]
 ```
 
 ### The Sequence

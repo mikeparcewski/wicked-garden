@@ -301,14 +301,17 @@ Skill(
 {EVIDENCE_DIR}
 (May contain an optional context.md with pre-vetted cold domain knowledge —
 treat it as evidence. If it contains prior verdicts or historical outcomes,
-flag as CONTEXT_CONTAMINATION and return INCONCLUSIVE.)
+flag as CONTEXT_CONTAMINATION and return `VERDICT: FAIL` with
+`reason: inconclusive — context contaminated`.)
 
 ## Instructions
 1. Read the scenario file at the path above
 2. Read the test plan file at the path above
 3. Read evidence files from the evidence directory (including context.md if present)
 4. Evaluate each assertion against evidence
-5. Return verdict: PASS | FAIL | INCONCLUSIVE
+5. End with one plain-text line `VERDICT: PASS` or `VERDICT: FAIL` as the LAST
+   line of your reply (never quote another VERDICT line); missing evidence or
+   CONTEXT_CONTAMINATION is FAIL with `reason: inconclusive — <why>`
 6. For any EQUIVALENT_TO_BASELINE assertion, also return the equivalence facet
    { baseline_ref, baseline_sha, method, diff_count, tolerance, matched } so the
    orchestrator can persist it on the verdict (see `verdict.equivalence`).
@@ -338,15 +341,18 @@ Two writes and one manifest build, in order:
 //
 //   PASS         → passed
 //   FAIL         → failed
-//   PARTIAL      → partial         (some criteria met, some need human review)
-//   CONDITIONAL  → partial         (approve with listed fixes — Tier-2 gate verdict)
-//   INCONCLUSIVE → inconclusive    (evidence missing / context contaminated)
+//   PARTIAL      → partial         (legacy record value)
+//   CONDITIONAL  → partial         (legacy record value)
+//   INCONCLUSIVE → inconclusive    (legacy record value)
 //
-// CONDITIONAL is emitted by Tier-2 aggregator/gate agents (release-readiness,
-// security, ai-feature, test-code-quality). It is a deliberate "ship with
-// conditions" outcome — distinct from a clean PASS and from a FAIL — so it
-// maps to the `partial` run status rather than the `?? 'inconclusive'`
-// fallback (which is reserved for "couldn't evaluate").
+// Since garden 12.37.0 a garden evaluator's output line is `VERDICT: PASS` or
+// `VERDICT: FAIL` only — PARTIAL, CONDITIONAL and INCONCLUSIVE are legacy
+// record values a garden evaluator no longer writes on that line (unmet
+// conditions and missing evidence are FAIL with the reason listed above the
+// verdict); readers keep mapping them because older ledgers carry them. The
+// Tier-2 gate agents' DomainStore records may still carry CONDITIONAL as a
+// record value — the `partial` run status, distinct from the `?? 'inconclusive'`
+// fallback (reserved for "couldn't evaluate").
 //
 // `errored` and `skipped` remain reachable only via the run lifecycle
 // (executor crash / stale-run sweep, all-steps-skipped) — never from a verdict.
@@ -383,7 +389,7 @@ const reviewerEquivalenceFacet = reviewerResponse.equivalence ?? null;
 const reviewerEquivalence = reviewerEquivalenceFacet ?? null;
 const verdictRecord = store.create('verdicts', {
   run_id: run.id,
-  verdict: reviewerVerdict,            // 'PASS' | 'FAIL' | 'PARTIAL' | 'CONDITIONAL' | 'INCONCLUSIVE'
+  verdict: reviewerVerdict,            // 'PASS' | 'FAIL' from the reviewer's VERDICT line (PARTIAL / CONDITIONAL / INCONCLUSIVE: legacy record values readers still map)
   evidence_path: EVIDENCE_DIR,
   reviewer: 'acceptance-test-reviewer',
   reason: reviewerSummary,
@@ -426,7 +432,7 @@ emitBusEvent('wicked.test.evidence.captured', {
 ```markdown
 ## Acceptance Test Results: {scenario name}
 
-### Verdict: {PASS | FAIL | INCONCLUSIVE}
+### Verdict: {PASS | FAIL}
 
 ### Acceptance Criteria
 | Criterion | Verdict | Evidence |

@@ -77,3 +77,8 @@ Then one threat per line: `[RISK|BLOCK|NOTE] <location> — <finding>`.
 
 A `BLOCK` means the domain model must not proceed to build until resolved.
 `coverage == 1.0` with zero unaccounted is the gate bar; any hole is a `BLOCK`.
+
+Then the verdict — the LAST line of your output, one plain-text line, never
+quoting another VERDICT line: `VERDICT: PASS` iff `coverage == 1.0`, zero
+unaccounted and no `BLOCK`; otherwise `VERDICT: FAIL` (the threats above it
+are the conditions).

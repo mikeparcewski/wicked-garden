@@ -378,6 +378,13 @@ Verdict decision tree:
 - DAST refused for safety perimeter → **SKIP** with reason
   `insufficient-authorization`
 
+Those are ledger record values (`verdict: decision` below). The output line
+(§10) maps them: `PASS` → `VERDICT: PASS`; `CONDITIONAL` → `VERDICT: FAIL`
+with the Medium findings listed as conditions; `SKIP` → `VERDICT: FAIL` with
+`reason: not applicable: <why>`; `FAIL` → `VERDICT: FAIL`. There is no
+conditional pass and no skipped pass on the output line — a review with no
+security surface parks at the human gate rather than passing silently.
+
 ```js
 store.create("verdicts", {
   run_id: RUN_ID,
@@ -453,7 +460,8 @@ Do NOT touch `runs` status directly — the orchestrator owns that field.
 ## 12. Output
 
 Print a compact summary to stdout; full detail lives in the evidence
-files. Final line is a machine-readable verdict tag.
+files. The final line is exactly `VERDICT: PASS` or `VERDICT: FAIL` — one
+plain-text line, nothing after it, never quoting another VERDICT line.
 
 ```
 ## Security: {scenario.name}
@@ -465,9 +473,11 @@ authz:   idor={pass|FAIL} role-esc={pass|FAIL} jwt-none={pass|FAIL} session-fix=
 severity: critical={N} high={N} medium={N} low={N} info={N}
 asvs: exercised={N} not_exercised={N}
 
-verdict: {PASS|CONDITIONAL|FAIL|SKIP}  reason: {short}
+reason: {short — "not applicable: <why>" when nothing was in scope}
 
-VERDICT={PASS|CONDITIONAL|FAIL|SKIP} REVIEWER=wicked-garden-qe-security-test-engineer RUN_ID={RUN_ID}
+REVIEWER: wicked-garden-qe-security-test-engineer
+RUN_ID: {RUN_ID}
+VERDICT: PASS|FAIL
 ```
 
 ## Helper resolution (`{WT_LIB}`)
