@@ -20,7 +20,7 @@ Achievable, Relevant, Time-bound — that downstream `build` can verify.
 
 The validate gate **re-derives** this through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the recorded `smart-acceptance-criteria`
 artifact is re-hashed and its structural verifier re-run, never trusting
-a self-asserted "the ACs are testable". the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
+a self-asserted "the ACs are testable". The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
 than claiming a PASS. `--no-require` opts a throwaway/low-rigor run back
 to the doctrine-light claim-only path. This is a discrete (light) gate —
 the deterministic check proves *shape* (each AC is measurable); if the

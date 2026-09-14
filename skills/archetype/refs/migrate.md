@@ -25,7 +25,7 @@ The cutover gate **re-derives** these through the garden's in-process gate engin
 shape-change post-condition re-checked, never trusting a self-asserted
 "rolled back fine". This is the original evidence-vault use case — for a
 migration the load-bearing honesty move is **no cutover without a
-re-derivable rollback proof**. the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+re-derivable rollback proof**. The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. Because `cutover` is a HARD gate, the gate also
 demands an **independent attestation**: an evaluator who is **not** the
 migrator confirms the rollback proof and shape change are adequate
@@ -59,7 +59,7 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    - The rollback contract: how to undo, who pulls the trigger, how
      long the rollback window is.
    - The expand-contract phase boundaries: when each step happens.
-2. Use `wicked-garden:engineering:migration-engineer` for the canonical
+2. Use `wicked-garden-engineering-migration-engineer` for the canonical
    playbook.
 3. Declare the re-derivable contract early so the cutover gate has a bar
    to check against. If a vault is resolvable

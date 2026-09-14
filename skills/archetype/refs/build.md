@@ -21,7 +21,7 @@ phase looks different.
   At higher rigor: unit tests, integration tests, acceptance evidence.
 
 The review gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the evidence is re-hashed and its verifier
-re-run, never trusting a cached "done". the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
+re-run, never trusting a cached "done". The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
 than self-asserting a PASS. `--no-require` opts a throwaway/low-rigor run
 back to the doctrine-light claim-only path.
 
@@ -79,7 +79,7 @@ method." Absent? Discover it the usual way — and consider
 ### implement
 
 1. Write the change. Stay tight to the plan.
-2. Use `wicked-garden:engineering:apply` for patch-style edits when the
+2. Use the `wicked-garden-engineering-patch` module for patch-style edits when the
    change is well-scoped.
 3. **Don't refactor adjacent code unless plan said so.** Drift is the
    #1 source of inflated build cycles.

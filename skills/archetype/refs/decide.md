@@ -24,7 +24,7 @@ path and the reasons.
 The select gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the ADR's bytes are re-hashed and its
 structure verifier re-run, never trusting a cached "ADR written". The
 check is **deterministic document-structure** — it proves the ADR
-contains the required sections, not that the call was wise. the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`,
+contains the required sections, not that the call was wise. The gate engine ships inside wicked-garden; wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`,
 `satisfied: false`) rather than self-asserting a PASS. `--no-require`
 opts a throwaway/low-rigor decision back to the doctrine-light
 claim-only path. (A judgment tier — `wicked-vault analyze-evidence` —
@@ -76,7 +76,7 @@ not part of this discrete gate.)
 
 ### record
 
-1. Use `wicked-garden:jam:council` for a multi-model second opinion when
+1. Use the `wicked-garden-jam-council` skill for a multi-model second opinion when
    the stakes warrant it.
 2. Write the ADR. Sections: context, options considered, decision,
    consequences, trade-offs accepted.
