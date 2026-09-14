@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-load-performance-engineer
-context: fork
 description: |
   Load + performance testing — k6, locust, hey. SLO validation, P95/P99
   assertions, memory/CPU profile review.
 
   Use when: load tests, perf regression, SLO validation, capacity planning,
   throughput ceiling, response-time distribution.
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
-phase_relevance: ["test", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Load / Performance Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You put systems under realistic load and report what breaks. "It's fast"
 is not a finding. "P95 latency crosses 300ms at 200 RPS because the

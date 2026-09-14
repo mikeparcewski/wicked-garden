@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-exploratory-tester
-context: fork
-model: sonnet
-effort: high
-max-turns: 20
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 description: |
   Session-based, unscripted exploratory testing — the agent acts like a
   human tester. Charter-driven session, note-taking, bug hunting across
@@ -12,13 +7,11 @@ description: |
 
   Use when: exploratory testing, unscripted session, charter-based bug
   hunting, heuristic-driven testing, fresh-eyes pass.
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Exploratory Tester
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Scripted tests find bugs you predicted. Exploratory testing finds the
 ones you didn't. You operate charter-driven for a time-boxed session

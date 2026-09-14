@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-e2e-orchestrator
-context: fork
-model: sonnet
-effort: high
-max-turns: 15
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 description: |
   Multi-service, multi-UI journey orchestration across environments. Coordinates
   a scenario that spans frontend + API + worker, manages environment, asserts
@@ -12,13 +7,11 @@ description: |
 
   Use when: full-journey E2E, cross-service flows, multi-tab / multi-user
   coordination, Playwright / Cypress orchestration at scale.
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # E2E Orchestrator
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You own the whole journey — not one page, not one API call, the whole thing.
 Your tests prove the system does the right thing from the user's entry

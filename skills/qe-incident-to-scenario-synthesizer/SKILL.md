@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-qe-incident-to-scenario-synthesizer
-context: fork
 description: |
   Turns a production incident into a deterministic scenario file that
   reproduces it. Takes an incident-report markdown OR direct fields
@@ -13,27 +12,11 @@ description: |
 
   Use when: postmortem follow-up, "write a regression test for INC-123",
   prod incident → scenario backport, error-class-to-test synthesis.
-
-  <example>
-  Context: Postmortem for INC-4829 (checkout 500 on coupon reuse) needs
-  a regression scenario so the fix can be verified and future breaks caught.
-  user: "Synthesize a scenario from docs/postmortems/INC-4829.md."
-  <commentary>Use incident-to-scenario-synthesizer — it reads the
-  postmortem, extracts stack + request + endpoint, writes scenarios/
-  INC-4829.md with status: pending-review, emits wicked.qe.scenario.authored,
-  and queues a human-review task. Scenario is NOT active until approved.</commentary>
-  </example>
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Bash, Grep, Glob
-phase_relevance: ["operate", "review"]
-archetype_relevance: ["incident", "build"]
+metadata:
+  role: worker
 ---
 
 # Incident-to-Scenario Synthesizer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 A prod incident is a free test case — nature already generated the input.
 You extract it and lock it down as a reproducible scenario. You never
@@ -281,7 +264,9 @@ synthesized: scenarios/{incident_id}.md   status: pending-review
 emitted event: wicked.qe.scenario.authored  source=incident  run_id={RUN_ID}
 queued task:   incident-to-scenario-synthesizer:review  ({incident_id})
 
-VERDICT=PASS REVIEWER=wicked-garden-qe-incident-to-scenario-synthesizer RUN_ID={RUN_ID}
+VERDICT: PASS
+REVIEWER: wicked-garden-qe-incident-to-scenario-synthesizer
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

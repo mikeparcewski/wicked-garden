@@ -67,9 +67,6 @@
       "VERDICT: PASS|FAIL"
     ],
     "legacy_footer_files": [
-      "skills/qe-flaky-test-hunter/SKILL.md",
-      "skills/qe-iac-test-engineer/SKILL.md",
-      "skills/qe-incident-to-scenario-synthesizer/SKILL.md",
       "skills/qe-mutation-test-engineer/SKILL.md",
       "skills/qe-visual-regression-engineer/SKILL.md"
     ]
