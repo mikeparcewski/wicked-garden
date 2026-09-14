@@ -21,7 +21,7 @@ Use `ListMcpResourcesTool` to find available integrations. Look for:
 ## Step 3: Fallback (No Observability Sources)
 
 If no integrations are available:
-1. Use wicked-garden:search to find error patterns in code
+1. Use the `wicked-garden-search` skill to find error patterns in code
 2. Check recent git commits for deployment correlation (`git log --oneline --since="2 hours ago"`)
 3. Analyze logging statements for potential issues
 

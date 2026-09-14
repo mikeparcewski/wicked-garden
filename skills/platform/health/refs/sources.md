@@ -231,17 +231,14 @@ When no integrations available, fall back to local analysis:
 ### Code-Based Health Assessment
 
 ```bash
-# Search for error patterns in code
-wicked-garden:search error, exception, throw patterns
+# Search for error patterns in code — the wicked-garden-search skill: error, exception, throw patterns
 
-# Check for TODO/FIXME comments
-wicked-garden:search TODO, FIXME, HACK
+# Check for TODO/FIXME comments — the wicked-garden-search skill: TODO, FIXME, HACK
 
 # Review recent commits
 git log --since="24 hours ago"
 
-# Check for common anti-patterns
-wicked-garden:search catch without handling, silent failures
+# Check for common anti-patterns — the wicked-garden-search skill: catch without handling, silent failures
 ```
 
 **Provide Guidance**:

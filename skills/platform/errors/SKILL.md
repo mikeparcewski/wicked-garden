@@ -60,7 +60,7 @@ Look for:
 
 Check for correlation with:
 - Recent deployments
-- Code changes via wicked-garden:search
+- Code changes via the `wicked-garden-search` skill
 - Infrastructure changes
 - Traffic patterns
 - External dependency changes
@@ -81,7 +81,7 @@ Based on patterns:
 | **apm** | Performance monitoring with error tracking features | Errors with performance context |
 | **logging** | Log platforms with error filtering and search | Error logs, patterns, search |
 
-**Fallback**: Search code for error patterns via wicked-garden:search (catch blocks, error handling, throw statements).
+**Fallback**: Search code for error patterns via the `wicked-garden-search` skill (catch blocks, error handling, throw statements).
 
 ## Output Format
 

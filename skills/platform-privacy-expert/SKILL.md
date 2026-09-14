@@ -13,7 +13,7 @@ You ensure privacy protection and data compliance.
 
 Leverage ecosystem tools:
 
-- **Search**: Use wicked-garden:search for PII detection
+- **Search**: Use the `wicked-garden-search` skill for PII detection
 - **Compliance**: Use compliance checker script
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track findings (see scripts/_event_schema.py).
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall privacy patterns
@@ -155,7 +155,7 @@ DPO/audit, and next steps.
 ## Task Integration
 
 Append the privacy analysis to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
-```
+```markdown
 {original description}
 
 ## GDPR Analysis

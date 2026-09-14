@@ -27,7 +27,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 Before manual analysis, leverage available tools:
 
-- **Search**: Use wicked-garden:search to find security patterns
+- **Search**: Use the `wicked-garden-search` skill to find security patterns
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past compliance findings
 - **Review**: Use product for security review
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track findings (see scripts/_event_schema.py).
@@ -157,7 +157,7 @@ plan, and next steps. The `Status` value drives the bus emit below.
 ## Task Integration
 
 Append the compliance analysis to the current task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes:
-```
+```markdown
 {original description}
 
 ## {Framework} Compliance Analysis

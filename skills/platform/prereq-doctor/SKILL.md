@@ -22,7 +22,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 ## When to Use
 
-- PostToolUseFailure hook detects a missing-tool error pattern
+- The harness's tool-failure hook (where it has one) detects a missing-tool error pattern
 - Setup needs to validate a selected integration (issue tracker, CLI tool)
 - Any command fails with "command not found" or "ModuleNotFoundError"
 - User asks to check or install prerequisites
