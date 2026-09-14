@@ -1,0 +1,4 @@
+{
+  "test": ["node", "scripts/ci/run_pytest.js"],
+  "timeout_s": 1800
+}
