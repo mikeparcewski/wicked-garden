@@ -21,11 +21,11 @@ readers, switch writers, remove the old shape.
 - **Rollback proof**: an executable rollback path. Tested in staging
   before cutover.
 
-The cutover gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the rollback drill is re-run and the
+The cutover gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the rollback drill is re-run and the
 shape-change post-condition re-checked, never trusting a self-asserted
 "rolled back fine". This is the original evidence-vault use case — for a
 migration the load-bearing honesty move is **no cutover without a
-re-derivable rollback proof**. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+re-derivable rollback proof**. the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting a PASS. Because `cutover` is a HARD gate, the gate also
 demands an **independent attestation**: an evaluator who is **not** the
 migrator confirms the rollback proof and shape change are adequate
@@ -132,7 +132,7 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    `wicked-vault:analyze-evidence`). A REJECT means the rollback proof or
    shape change doesn't clear its contract — fix the work, not the claim.
    An `unavailable` verdict means the required vault isn't installed — run
-   `/wicked-garden-core setup`. **No cutover on a fail-closed verdict.**
+   the `wicked-garden-core` skill's `setup` action. **No cutover on a fail-closed verdict.**
 3. **Cutover staged**: switch readers first, watch for 1h, then switch
    writers. Don't switch both at once.
 4. The cutover gate is HARD — explicit user "go" before each switch.

@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-archetype
-context: fork
-user-invocable: true
 description: |
   v11 work-shape archetype runner. When a prompt has been routed to one
   of the archetypes (triage, explore, specify, decide, ship, review,
@@ -17,12 +15,11 @@ description: |
   "modernize / port this legacy app", "ship this release", "write
   acceptance criteria" (invoke with archetype=<name> plus the user's
   args — see the Direct invocation table).
-allowed-tools: ["*"]
+metadata:
+  role: worker
 ---
 
 # wicked-garden-archetype
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 v11 entry point for **work-shape archetypes**. Each archetype is a complete
 unit with its own phase shape, produces, HITL discipline, and cost band.

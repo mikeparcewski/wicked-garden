@@ -20,8 +20,8 @@ phase looks different.
 - **Test report**: at minimum, evidence that the change was exercised.
   At higher rigor: unit tests, integration tests, acceptance evidence.
 
-The review gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the evidence is re-hashed and its verifier
-re-run, never trusting a cached "done". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
+The review gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the evidence is re-hashed and its verifier
+re-run, never trusting a cached "done". the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
 than self-asserting a PASS. `--no-require` opts a throwaway/low-rigor run
 back to the doctrine-light claim-only path.
 
@@ -126,7 +126,7 @@ Run it before you tell anyone the build is done.
 (exit 0 = satisfied). Either way it is a re-derived PASS over the declared
 contract. A REJECT means the recorded evidence does not clear its
 contract — fix the work, not the claim. An `unavailable` verdict means
-the required vault isn't installed — run `/wicked-garden-core setup`. If the
+the required vault isn't installed — run the `wicked-garden-core` skill's `setup` action. If the
 change is high-blast-radius, hand off to `ship`.
 
 ## Anti-patterns
