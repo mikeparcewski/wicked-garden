@@ -4,16 +4,6 @@
   "entries": {
     "claude-frontmatter-key": [
       "skills/mem/SKILL.md",
-      "skills/qe-a11y-test-engineer/SKILL.md",
-      "skills/qe-acceptance-test-executor/SKILL.md",
-      "skills/qe-acceptance-test-reviewer/SKILL.md",
-      "skills/qe-acceptance-test-writer/SKILL.md",
-      "skills/qe-ai-feature-test-engineer/SKILL.md",
-      "skills/qe-chaos-test-engineer/SKILL.md",
-      "skills/qe-code-analyzer/SKILL.md",
-      "skills/qe-compliance-test-engineer/SKILL.md",
-      "skills/qe-contract-testing-engineer/SKILL.md",
-      "skills/qe-coverage-archaeologist/SKILL.md",
       "skills/qe-data-quality-tester/SKILL.md",
       "skills/qe-e2e-orchestrator/SKILL.md",
       "skills/qe-exploratory-tester/SKILL.md",
@@ -49,27 +39,14 @@
       "skills/search/codebase-narrator/SKILL.md",
       "skills/wickedizer/SKILL.md"
     ],
-    "claude-dispatch": [
-      "skills/qe-acceptance-test-executor/SKILL.md",
-      "skills/qe-acceptance-test-writer/SKILL.md"
-    ],
+    "claude-dispatch": [],
     "claude-only-prose": [
-      "skills/qe-acceptance-test-executor/SKILL.md",
-      "skills/qe-acceptance-test-reviewer/SKILL.md",
-      "skills/qe-acceptance-test-writer/SKILL.md",
       "skills/qe-scenario-executor/SKILL.md"
     ],
-    "handoff-missing": [
-      "skills/qe-acceptance-test-executor/SKILL.md",
-      "skills/qe-acceptance-test-writer/SKILL.md"
-    ],
+    "handoff-missing": [],
     "retired-product-ref": [],
     "description-too-long": [
       "skills/mem/SKILL.md",
-      "skills/qe-a11y-test-engineer/SKILL.md",
-      "skills/qe-ai-feature-test-engineer/SKILL.md",
-      "skills/qe-chaos-test-engineer/SKILL.md",
-      "skills/qe-compliance-test-engineer/SKILL.md",
       "skills/qe-incident-to-scenario-synthesizer/SKILL.md",
       "skills/qe-security-test-engineer/SKILL.md",
       "skills/qe-snapshot-hygiene-auditor/SKILL.md",

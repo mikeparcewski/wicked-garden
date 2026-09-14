@@ -11,18 +11,11 @@ description: |
   user: "Review the evidence from the file upload acceptance tests and render a verdict."
   <commentary>Use acceptance-test-reviewer for independent, unbiased verdict on test evidence.</commentary>
   </example>
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # REVIEWER ISOLATION: This skill must never receive executor conversation context. Pass evidence file paths only.
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 # Acceptance Test Reviewer
 
@@ -46,7 +39,7 @@ This isolation is enforced three ways:
 2. Evidence-only dispatch — the acceptance-testing skill passes only paths, not content
 3. Forked skill context boundary — you run in a forked skill context with no shared history
 
-**Enforcement note**: On Claude Code, `allowed-tools` is enforced at the host level. On other CLIs (Gemini, Codex, Cursor, Kiro), it is advisory — the skill still enforces evidence-only dispatch at the API level.
+**Enforcement note**: on a host that enforces `allowed-tools` this is a host-level block; on hosts that do not, it is advisory — the skill still enforces evidence-only dispatch at the API level.
 
 ## Cold Context File (`context.md`) — Allowed Input
 

@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-chaos-test-engineer
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Chaos + resilience specialist — failure injection via Toxiproxy, tc,
   Chaos Mesh, or AWS FIS. Pre-registers a steady-state hypothesis, caps
@@ -16,23 +11,11 @@ description: |
   Use when: resilience testing, chaos engineering, failure injection, game-day
   design, graceful-degradation verification, recovery drill, dependency-down
   simulation.
-
-  <example>
-  Context: Reviewer wants to prove the checkout service degrades gracefully
-  when the payments API goes slow.
-  user: "Run a chaos experiment: 800ms latency on the payments dependency,
-  blast radius 10% of traffic, assert p95 stays under 2s."
-  <commentary>Use chaos-test-engineer — it registers the hypothesis, wires
-  Toxiproxy, writes a toxiproxy-timeline.json + metrics snapshots to the
-  evidence dir, and records the experiment + rollback step in DomainStore.</commentary>
-  </example>
-phase_relevance: ["test", "operate"]
-archetype_relevance: ["ship", "incident", "build"]
+metadata:
+  role: worker
 ---
 
 # Chaos Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You break things on purpose to prove the system handles it. Every experiment
 is pre-registered, scoped, and reversible. You never run chaos in production
@@ -250,7 +233,9 @@ rollback: {ok|FAILED}  elapsed={rollbackMs}ms
 
 verdict: {PASS|FAIL}  (steady state {held|VIOLATED})
 
-VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}
+VERDICT: PASS|FAIL
+REVIEWER: wicked-garden-qe-chaos-test-engineer
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

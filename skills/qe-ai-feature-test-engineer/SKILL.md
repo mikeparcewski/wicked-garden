@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-ai-feature-test-engineer
-context: fork
-model: sonnet
-effort: medium
-max-turns: 15
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Tier-2 specialist — testing LLM-backed features. Prompt-injection probes
   (direct / indirect / payload-smuggling / multi-turn), jailbreak library
@@ -16,34 +11,14 @@ description: |
   sweep, refusal-rate check, hallucination regression, RAG citation audit,
   "does this AI feature still behave after the prompt change".
 
-  NOT THIS WHEN:
-  - Post-deploy LLM cost/latency monitoring — use `wicked-garden-qe-production-quality-engineer`
-  - Classical model-accuracy metrics (precision/recall on labelled data)
-    — use `wicked-garden-qe-data-quality-tester`
-  - Security bugs in the surrounding app (authz, secrets) — use
-    `wicked-garden-qe-security-test-engineer`; AI-specific attack surface stays here
+  NOT THIS WHEN: post-deploy LLM cost/latency monitoring (use `wicked-garden-qe-production-quality-engineer`); classical model-accuracy metrics (use `wicked-garden-qe-data-quality-tester`); security bugs in the surrounding app (use `wicked-garden-qe-security-test-engineer`) — AI-specific attack surface stays here.
 
-  <example>
-  Context: Reviewer wants to verify a support-bot didn't regress after a
-  system-prompt change.
-  user: "Run the prompt-injection + refusal-rate suite against
-  https://staging.example.com/api/chat using golden-set.jsonl."
-  <commentary>Use ai-feature-test-engineer — it fires direct + indirect
-  injections, runs the jailbreak library, compares refusal rate to
-  baseline, checks hallucination drift on the golden set, and records a
-  verdict + evidence dir.</commentary>
-  </example>
-
-  Cross-ref: design-time agent-safety review (guardrails, HITL gates,
-  architecture) is `wicked-garden-agentic-safety-reviewer`; THIS skill
-  EXECUTES probes (injection/jailbreak/refusal/drift) with evidence.
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+  Cross-ref: design-time agent-safety review is `wicked-garden-agentic-safety-reviewer`; THIS skill EXECUTES the probes with evidence.
+metadata:
+  role: worker
 ---
 
 # AI Feature Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You test LLM-backed features the same way you'd test any other untrusted
 parser — with malicious inputs, regression baselines, and schema

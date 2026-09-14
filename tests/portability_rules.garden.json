@@ -67,8 +67,6 @@
       "VERDICT: PASS|FAIL"
     ],
     "legacy_footer_files": [
-      "skills/qe-chaos-test-engineer/SKILL.md",
-      "skills/qe-compliance-test-engineer/SKILL.md",
       "skills/qe-flaky-test-hunter/SKILL.md",
       "skills/qe-iac-test-engineer/SKILL.md",
       "skills/qe-incident-to-scenario-synthesizer/SKILL.md",
@@ -243,8 +241,8 @@
         "text": "```\nMODE: produced-test\nREVIEWER: wicked-garden-qe-test-code-quality-auditor\nRUN_ID: {RUN_ID}\nVERDICT: PASS|FAIL\n```"
       },
       {
-        "file": "skills/qe-chaos-test-engineer/SKILL.md",
-        "text": "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}"
+        "file": "skills/qe-visual-regression-engineer/SKILL.md",
+        "text": "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}"
       }
     ],
     "trips": [

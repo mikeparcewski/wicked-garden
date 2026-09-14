@@ -10,18 +10,11 @@ description: |
   user: "Write an acceptance test plan for the 'user can export data as CSV' scenario."
   <commentary>Use acceptance-test-writer to produce structured, evidence-gated test plans from scenarios.</commentary>
   </example>
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Grep, Glob, Skill
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Acceptance Test Writer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You transform qe acceptance scenarios into structured, evidence-gated test plans.
 
@@ -54,11 +47,7 @@ If the knowledge layer is unreachable, fall through silently. Don't fail the pla
 
 If the knowledge layer is available, call:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-mem", args="recall \"<scenario-name> flakiness\"")   # or "<feature-area> test patterns"
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `<scenario-name> flakiness` (or `<feature-area> test patterns`) as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 Incorporate findings into your plan as **PLANNING NOTES** at the top of the output.
 Never copy prior verdicts into the plan — the Reviewer must not see those.

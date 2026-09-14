@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-coverage-archaeologist
-context: fork
-model: sonnet
-effort: high
-max-turns: 15
-allowed-tools: Read, Grep, Glob, Bash
 description: |
   Find dark corners in legacy code — untested, unreferenced, or low-confidence
   paths. Prioritizes by risk using coverage + git history + call-graph.
 
   Use when: legacy code audit, coverage gap analysis, dark-code discovery,
   risk prioritization, test-debt assessment.
-phase_relevance: ["review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Coverage Archaeologist
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Legacy code accumulates untested paths. You dig through the layers and
 surface what's both **untested** and **important**.

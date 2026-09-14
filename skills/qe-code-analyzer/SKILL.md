@@ -17,18 +17,11 @@ description: |
   architecture) — use the `wicked-garden-engineering` skill's review
   action; in-run crew review — `wicked-garden-governed-worker` (Evaluator).
   THIS skill analyses testability + static quality signals for QE.
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Grep, Glob, Bash
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Code Analyzer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You look at code (not design, not tests) and call out quality + testability
 signals that matter for risk.

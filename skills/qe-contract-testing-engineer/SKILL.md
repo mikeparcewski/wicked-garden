@@ -7,18 +7,11 @@ description: |
 
   Use when: API contract tests, CDC, Pact, OpenAPI verification, schema
   versioning, breaking-change detection, provider/consumer negotiation.
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Contract Testing Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You own the contract layer between services. Not unit, not integration,
 not E2E — specifically the agreement on request/response shape.
