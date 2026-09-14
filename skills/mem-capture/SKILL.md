@@ -1,12 +1,8 @@
 ---
 name: wicked-garden-mem-capture
-context: fork
-subagent_type: wicked-garden:mem:capture
 description: "Session-teardown memory capture: sweep the conversation for decisions, patterns, gotchas, discoveries, and preferences, classify each onto the estate kind/tier vocabulary, and batch-write them to wicked-estate memory. Use when: dispatched by the wicked-garden-mem skill's capture action, at session end, before /clear or exit, or when the user says 'capture what we learned' / 'remember this session'."
-model: sonnet
-effort: medium
-max-turns: 8
-allowed-tools: Read, Bash
+metadata:
+  role: worker
 ---
 
 # Mem Capture Worker (session teardown)

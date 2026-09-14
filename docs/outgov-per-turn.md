@@ -136,7 +136,7 @@ Hermetic tests — no live estate needed, fixture rules dirs only:
 - `hooks/scripts/stop.py` — `_check_outgov_compliance` (per-turn advisory)
 - `scripts/platform/guard_pipeline.py` — Check 6 (`check_outgov_pattern`),
   `compute_rules_content_hash`, `write_rules_provenance`, the `hash` CLI
-- `skills/engineering-conformance-reviewer/SKILL.md` — the agent-half that
+- `skills/engineering/refs/conformance.md` — the agent-half rubric that
   evaluates Check 6's surfaced rules semantically
 - wicked-core `crates/wicked-governance` — the graph side: `rules ingest`,
   `rules fanout` (the manifest + store split), `rules.recall`'s Rust twin

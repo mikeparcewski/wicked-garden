@@ -1,22 +1,9 @@
----
-name: wicked-garden-runtime-exec
-description: |
-  Smart runtime execution for Python and Node scripts with automatic package manager detection.
-  Invoked by other skills and agents when scripts need execution with correct runtime resolution.
-metadata:
-  role: module
-  phases: "*"
-  archetypes: "*"
----
+# Runtime execution — Python and Node
 
-# Runtime Execution Skill
-
-Execute Python and Node scripts using the best available package manager.
-
-## Runtime
-Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
-If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
-Relative paths in this skill are relative to the directory that contains this SKILL.md.
+Reference for the `wicked-garden-core` skill (the former runtime-exec module, folded here in
+wave-2 B10). Execute Python and Node scripts using the best available package manager. The launcher paragraph
+in `SKILL.md`'s Runtime section is the short form; this ref is the detection ladder, the usage patterns and the
+troubleshooting.
 
 ## Recommended: use the `wicked-garden` launcher
 

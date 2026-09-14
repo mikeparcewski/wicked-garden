@@ -8,9 +8,10 @@ description: |
 
   Use when: "set intent", "intent override", "/wicked-garden:intent",
   "make the framework quiet", "force rigor", "what's my intent".
-user-invocable: true
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Session Intent

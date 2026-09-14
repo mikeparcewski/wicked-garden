@@ -147,6 +147,9 @@ Audit (coverage metrics) and sync (stale-docs detection) modes live in the
 [docs](docs/SKILL.md) · [large-scale-migration](large-scale-migration/SKILL.md) ·
 [patch](patch/SKILL.md) · [unit-test-quality](unit-test-quality/SKILL.md)
 
+- [refs/conformance.md](refs/conformance.md) — pattern-conformance review: load the applicable Pattern rules,
+  judge the artifact semantically per rule, emit `CONFORMANT` / `DRIFT` / `VIOLATION` (report only, never gate).
+
 ## Workers
 
 | Skill | Hand off for |

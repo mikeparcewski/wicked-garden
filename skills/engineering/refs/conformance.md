@@ -1,30 +1,9 @@
----
-name: wicked-garden-engineering-conformance-reviewer
-description: |
-  Pattern-conformance agent-half: evaluates a produced artifact or diff against
-  a set of architectural/design pattern rules from the conformance-rule store
-  (wicked_governance schema). Returns structured findings with rule ID, severity,
-  and rationale — the deterministic half (mechanical rule recall) is done by the
-  guard pipeline; this is the semantic evaluation step.
+# Conformance review — the pattern-conformance agent-half
 
-  Triggered by: the guard_pipeline `outgov_pattern` check (session-close), or
-  explicitly by an engineering review when WICKED_OUTGOV_RULES_DIR is populated.
-
-  NOT a replacement for the full `engineering` review skill — focuses only on
-  conformance to stored Pattern rules; architecture and code-quality checks live
-  in the `engineering` skill.
-
-  Semantic evaluation reuses `wicked-garden-qe-semantic-reviewer` as the
-  designated agent-half evaluator (per garden#983 spec). This skill is the
-  orchestrating wrapper that loads applicable Pattern rules and delegates the
-  per-rule semantic judgment to qe-semantic-reviewer.
-metadata:
-  role: worker
-  phases: "build,review"
-  archetypes: "build,review,modernize"
----
-
-# Conformance Reviewer — Pattern-Conformance Agent-Half
+Reference for the `wicked-garden-engineering` skill (the former engineering-conformance-reviewer worker,
+folded here in wave-2 B10). Apply it inline when
+the guard pipeline's `outgov_pattern` check surfaces Pattern rules, or when an engineering review runs with
+`WICKED_OUTGOV_RULES_DIR` populated.
 
 You are the **agent-half** of the output-governance pattern-conformance validator.
 The deterministic half has already run: it read Pattern-type rules from the estate
