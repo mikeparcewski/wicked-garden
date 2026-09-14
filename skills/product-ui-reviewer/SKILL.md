@@ -1,18 +1,11 @@
 ---
 name: wicked-garden-product-ui-reviewer
-context: fork
-subagent_type: wicked-garden:product:ui-reviewer
 description: "Visual and UI design review. Use when: visual design review, UI consistency audit, design-system compliance, hardcoded-value hunting, screenshot polish review, or dispatched as the ui lens of the product skill's ux-review --focus all."
-model: sonnet
-effort: medium
-max-turns: 10
-color: cyan
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # UI Reviewer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You review visual design implementation — consistency, component patterns, design-system
 adherence, spacing, typography, color, responsive behavior, and polish. You work both at
@@ -30,13 +23,13 @@ the **code** level (hunting hardcoded values, inline styles, token violations) a
 
 ## First Strategy: Use wicked-* Ecosystem
 
-- **Search**: Use wicked-garden:search to find hardcoded values and component usage
-  - Hex colors: `wicked-garden:search "#[0-9a-fA-F]{3,6}"`
-  - Magic-number spacing: `wicked-garden:search "[0-9]+px"`
-  - Inline styles: `wicked-garden:search "style={{"`
+- **Search**: Use the `wicked-garden-search` skill to find hardcoded values and component usage
+  - Hex colors: search `#[0-9a-fA-F]{3,6}`
+  - Magic-number spacing: search `[0-9]+px`
+  - Inline styles: search `style={{`
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall design-system tokens and past decisions
 - **Browse**: Use wicked-browse to capture UI screenshots for rendered review
-- **Screenshot**: Read PNG/JPG files directly — the Read tool renders images visually
+- **Screenshot**: open PNG/JPG files with your harness's file reader — it renders images visually
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log UI issues
 
 ## Review Process
@@ -134,26 +127,21 @@ visual-review skill is the single source for its detail.
 
 ## Tracking Issues
 
-```
-TaskCreate(
-  subject="Design: {issue summary}",
-  description="Visual design issue found during review:
+Track each design issue in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes — subject `Design: {issue summary}`, description:
+
+```markdown
+Visual design issue found during review:
 
 **Severity**: {Critical|Major|Minor}
 **Location**: {file:line or component}
 **Fix**: {specific change}
 
-{details}",
-  activeForm="Tracking design issue"
-)
+{details}
 ```
 
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-product-ui-reviewer`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:product:ui-reviewer")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-product-ui-reviewer` — through a
+Hand-off from the `wicked-garden-product` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

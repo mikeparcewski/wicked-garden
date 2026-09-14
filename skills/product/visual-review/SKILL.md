@@ -4,9 +4,10 @@ description: |
   Use when auditing visual design for consistency — design system adherence, spacing tokens, typography
   scale, color palette, component patterns, and responsive polish. Structured checklist + scoring.
   NOT for UX flows or user research (use ux-review) or accessibility code audits (use product/accessibility).
-portability: portable
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Visual Review Skill
@@ -127,5 +128,5 @@ Typography violations:
 - **screenshot skill**: Capture visuals for before/after comparison
 - **accessibility skill**: Color contrast overlaps with a11y
 - **product/ux-review**: For UX flows, user research, and usability evaluation
-- **wicked-garden:search**: `wicked-garden:search "#[0-9a-fA-F]{3,6}"` finds hardcoded colors
+- **`wicked-garden-search`**: searching `#[0-9a-fA-F]{3,6}` finds hardcoded colors
 - **imagery/review skill**: For comprehensive image analysis with quality gates (brand, accessibility, production, sensitivity), see the `imagery/review` skill

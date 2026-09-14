@@ -58,31 +58,13 @@ Enable managers to export report data to CSV for offline analysis in Excel.
 
 ## Integration Points
 
-### With native tasks
-Store requirements as native tasks:
-```
-TaskCreate(
-  subject="US-AUTH-001",
-  description="$(cat requirements.md)",
-  metadata={
-    "event_type": "task",
-    "chain_id": "auth.clarify",
-    "source_agent": "requirements-analyst",
-    "phase": "clarify",
-    "priority": "P0",
-    "initiative": "auth"
-  }
-)
-```
+### With the harness's task list
+Store the requirements as one task — subject `US-AUTH-001`, description = the contents of `requirements.md`, metadata `event_type=task, chain_id=auth.clarify, source_agent=requirements-analyst, phase=clarify, priority=P0, initiative=auth` — in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes.
 
 ### With the memory layer (wicked-garden-mem)
 Store for pattern recall:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-mem", args="store \"auth-requirements-2026: $(cat requirements.md)\"")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with `auth-requirements-2026:` + the contents of `requirements.md`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### With Wicked QE
 Requirements feed test scenarios:

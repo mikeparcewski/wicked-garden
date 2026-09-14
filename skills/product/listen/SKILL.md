@@ -7,8 +7,10 @@ description: |
 
   Use when: aggregating customer feedback from discovered sources, gathering
   voice-of-customer data, or surveying sentiment across channels.
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Listen Skill
@@ -24,7 +26,6 @@ Aggregate customer feedback from multiple channels with automatic source discove
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## When to Use
 
@@ -152,11 +153,8 @@ See [channels.md](refs/channels.md) for detailed capability integration patterns
 ## Integration
 
 ### With the memory layer (wicked-garden-mem)
-```python
-# Recall past customer insights
-Skill(skill="wicked-garden-mem", args="recall \"customer feedback about {topic}\"")
-# Provide historical context
-```
+
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `customer feedback about {topic}` as the query to recall past customer insights for historical context; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ### With wicked-crew
 ```python

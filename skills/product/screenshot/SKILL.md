@@ -1,25 +1,26 @@
 ---
 name: wicked-garden-product-screenshot
 description: |
-  Screenshot-based UI review using Claude's multimodal capabilities.
+  Screenshot-based UI review using the seat's multimodal vision.
   Analyzes visual design from image files — layout, spacing, color, typography,
   responsiveness — and compares against design system rules.
 
   Use when: reviewing a UI screenshot for visual design, comparing rendered
   output against design system rules, or auditing layout from an image file.
-portability: portable
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Screenshot Skill
 
-Analyze UI design directly from screenshot images using Claude's multimodal
-vision capabilities. No code needed — review what users actually see.
+Analyze UI design directly from screenshot images using the seat's multimodal
+vision. No code needed — review what users actually see.
 
-## How to Use Read on Images
+## Reading the images
 
-Claude can read PNG, JPG, WEBP, and GIF files directly with the Read tool:
+Open PNG, JPG, WEBP and GIF files with your harness's file reader — the image is presented visually:
 
 ```
 Read(file_path="/path/to/screenshot.png")

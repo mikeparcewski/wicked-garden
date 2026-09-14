@@ -11,8 +11,10 @@ description: |
 
   NOT for: accessibility audits (use product:a11y), visual consistency review (use product:ux-review),
   or wireframing (use product:mockup).
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Visual Direction Skill

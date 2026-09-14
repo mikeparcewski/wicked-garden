@@ -5,8 +5,10 @@ description: |
 
   Use when: analyzing customer feedback for sentiment, extracting themes from
   support or survey data, or detecting trends in voice-of-customer signal.
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Analyze Skill

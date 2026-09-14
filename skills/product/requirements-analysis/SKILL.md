@@ -4,8 +4,10 @@ description: |
   Use when turning a vague idea or stakeholder ask into structured user stories with acceptance criteria
   and a requirements graph. For complexity >= 3 or compliance projects, defaults to graph mode.
   NOT for navigating an existing requirements graph (use requirements-navigate) or stakeholder alignment (use product:align).
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Requirements Analysis Skill
@@ -120,18 +122,10 @@ Check:
 
 ## Integration with Tools
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
-```bash
-# Search for similar requirements (FTS5 over indexed docs + wiki)
-Skill(skill="wicked-garden-mem", args="recall \"user story\"")
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `user story` as the query to find similar requirements (FTS5 over indexed docs + wiki), and again with `requirements for {feature_type}` to recall past patterns; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-# Store requirements on the active clarify task via native TaskUpdate
-# TaskUpdate(taskId="{task_id}", description="{previous}\n\n## Requirements\n{user_stories}")
-
-# Recall past patterns
-Skill(skill="wicked-garden-mem", args="recall \"requirements for {feature_type}\"")
-```
+Store the requirements by appending `## Requirements` + the user stories to the active clarify task's description — the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes.
 
 ## Output Format
 

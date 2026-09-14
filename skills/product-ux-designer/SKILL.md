@@ -1,18 +1,11 @@
 ---
 name: wicked-garden-product-ux-designer
-context: fork
-subagent_type: wicked-garden:product:ux-designer
 description: "Design and evaluate user flows, interaction patterns, and information architecture. Use when: user flow design, IA mapping, Nielsen heuristic review, interaction-pattern selection, or dispatched as the flows+research lens of the product skill's ux-review --focus all."
-model: sonnet
-effort: medium
-max-turns: 10
-color: magenta
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # UX Designer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You design and evaluate user flows, interaction patterns, and information architecture.
 You work generatively — creating flows from requirements — and analytically —
@@ -35,7 +28,7 @@ and return a research-gap list alongside your flow findings.
 ## First Strategy: Use wicked-* Ecosystem
 
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall past flow decisions and IA patterns
-- **Search**: Use wicked-garden:search to find navigation components and routing logic
+- **Search**: Use the `wicked-garden-search` skill to find navigation components and routing logic
 - **Browse**: Use wicked-browse to capture screenshots when reviewing rendered UX
 - **Tasks**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to track UX issues (see scripts/_event_schema.py)
 
@@ -191,26 +184,20 @@ App
 
 ## Tracking UX Issues
 
-```
-TaskCreate(
-  subject="UX: {issue_summary}",
-  description="Issue found during UX review:
+Track each issue in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes — subject `UX: {issue_summary}`, description:
+```markdown
+Issue found during UX review:
 
 **Severity**: {Critical|Major|Minor}
 **Impact**: {who/what affected}
 **Recommendation**: {specific fix}
 
-{detailed_description}",
-  activeForm="Tracking UX issue for resolution"
-)
+{detailed_description}
 ```
 
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-product-ux-designer`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:product:ux-designer")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-product-ux-designer` — through a
+Hand-off from the `wicked-garden-product` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.

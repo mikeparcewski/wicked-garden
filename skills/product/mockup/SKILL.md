@@ -3,9 +3,10 @@ name: wicked-garden-product-mockup
 description: |
   Use when you need a quick ASCII wireframe or HTML mockup in-chat without Figma overhead.
   NOT for production design work — use the figma plugin for that.
-portability: portable
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "clarify,design,review"
+  archetypes: "*"
 ---
 
 # Mockup Skill

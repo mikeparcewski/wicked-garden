@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-product
-user-invocable: true
 description: |
   Product domain skill: 13 user-invokable actions — a11y | acceptance | align |
   analyze | elicit | listen | mockup | screenshot | strategy | synthesize | ux |
@@ -15,8 +14,10 @@ description: |
   "synthesize feedback into recommendations", "design a user flow", "UX review",
   "design audit", "visual direction", or any former
   /wicked-garden:product:{action} invocation.
-phase_relevance: ["clarify", "design", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "clarify,design,test,review"
+  archetypes: "*"
 ---
 
 # Product Domain
@@ -27,7 +28,6 @@ One entry point for the product domain. Pick the action, parse its args, load it
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
 
 ## Action router
 
@@ -71,7 +71,7 @@ Facilitate stakeholder alignment, surface concerns, and build consensus. NOT req
 2. Read `refs/align.md` — the process, facilitation checklist, questions to ask, and output format.
 3. Apply the rubric directly: identify stakeholders, surface concerns, classify ALIGNED / CONFLICTED / UNCLEAR, propose compromises, and emit decisions-required + next steps (owner + deadline).
 
-Persist status via `TaskCreate`/`TaskUpdate` (`metadata.event_type="task"`); store stakeholder patterns via the `wicked-garden-mem` skill (store action). Heavyweight facilitation (value design + alignment in one worker): the `wicked-garden-product-value-strategist` fork skill — its Part B is the facilitation version of this rubric.
+Persist status in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes; store stakeholder patterns via the `wicked-garden-mem` skill (store action). Heavyweight facilitation (value design + alignment in one worker): the `wicked-garden-product-value-strategist` worker skill — its Part B is the facilitation version of this rubric.
 
 ## Action: analyze
 
@@ -92,7 +92,7 @@ Elicit requirements and write user stories with acceptance criteria.
 2. Read `refs/elicit.md` — the process, INVEST quality criteria, completeness check, traceability, and output format.
 3. Apply the rubric directly and emit user stories (priority + complexity + dependencies + AC) and open questions. Persist on the active clarify task via `TaskUpdate`.
 
-For complexity >= 3 or compliance signals, produce a requirements **graph** instead — load the `requirements-analysis` / `requirements-graph` skills. Dedicated worker: the `wicked-garden-product-requirements-analyst` fork skill.
+For complexity >= 3 or compliance signals, produce a requirements **graph** instead — load the `requirements-analysis` / `requirements-graph` skills. Dedicated worker: the `wicked-garden-product-requirements-analyst` worker skill.
 
 ## Action: listen
 
@@ -119,10 +119,10 @@ for ideation, HTML/CSS for stakeholder review, annotated spec for developer hand
 
 ## Action: screenshot
 
-Review UI design from screenshot images using Claude's multimodal vision — layout,
+Review UI design from screenshot images using the seat's multimodal vision — layout,
 spacing, color, typography, consistency — no source code. PNG/JPG/JPEG/WEBP/GIF.
 1. Parse `<image-path>` (required) and optional `<reference-path>`.
-2. `Read(file_path="{image-path}")` (and the reference if provided) — the Read tool renders images visually.
+2. Open `{image-path}` (and the reference if provided) with your harness's file reader — it renders images visually.
 3. Read `refs/screenshot.md` — the evaluation rubric (layout/color/typography/components), comparison mode, and output format. Tier-3 depth: `skills/product/screenshot/SKILL.md`.
 4. Apply the rubric directly to the rendered image(s) and emit the review. Flag contrast issues for the `a11y` action; compare against a `mockup` action spec when relevant.
 
@@ -132,15 +132,11 @@ Strategic business analysis: ROI, value proposition, market sizing/timing, compe
 `strategy` evaluates an idea; `elicit` converts a chosen direction into requirements. Tier-3 depth: `skills/product/strategy/` + its refs.
 1. **Read target + parse focus.** Read `<target>` (proposal/feature doc). Determine focus(es) from `--focus` (default `all`).
 2. **Single focus -> inline.** For one lens, read `refs/strategy.md` and apply that lens's rubric directly — market lens for `roi|market|competitive`, value lens for `value`. No dispatch.
-3. **`--focus all` -> dispatch value lens; run market lens inline.**
+3. **`--focus all` -> hand off the value lens; run the market lens inline.**
 
-   ```
-   Skill(skill="wicked-garden-product-value-strategist",
-         args="""Target: {target_content}  Quick: {--quick}
-   Design value proposition: customer JTBD, pain relievers, gain creators, differentiation, value statement.""")
-   ```
+   **Hand-off** — open the `wicked-garden-product-value-strategist` skill with `Target: {target_content}  Quick: {--quick}` and the ask "Design value proposition: customer JTBD, pain relievers, gain creators, differentiation, value statement." as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-   This dispatches the `wicked-garden-product-value-strategist` fork skill. The market lens (ROI / TAM-SAM-SOM / SWOT / Five Forces) runs **inline** — read `refs/strategy.md` and apply its market rubric directly: investment/returns/payback for `roi`, TAM/SAM/SOM + timing for `market`, SWOT/positioning for `competitive`. No separate dispatch.
+   The market lens (ROI / TAM-SAM-SOM / SWOT / Five Forces) runs **inline** — read `refs/strategy.md` and apply its market rubric directly: investment/returns/payback for `roi`, TAM/SAM/SOM + timing for `market`, SWOT/positioning for `competitive`. No separate dispatch.
 4. **Synthesis (always inline).** Render the verdict inline — Proceed / Caution / Defer / Do-Not-Proceed + confidence + assumptions + metrics (`refs/strategy.md` output format). Never delegate the synthesis.
 
 ## Action: synthesize
@@ -172,18 +168,11 @@ accessibility, user-research quality. Each lens returns score 1-5 + findings.
 `--quick` = critical-only. `ux-review` evaluates existing UI; `ux` generates flows.
 1. **Determine focus.** Parse `--focus`. Auto-detect: `.tsx/.jsx/.vue` -> flows+ui+a11y; `.css/.scss` -> ui; requirements `.md` -> research; directory -> all.
 2. **Single focus -> inline.** For one lens, read `refs/ux-review.md`, apply that lens's rubric directly to the target, and emit the score + findings. No dispatch.
-3. **`--focus all` -> dispatch the lenses in parallel.** Genuine multi-lens concurrency on a large surface earns the hop. Common preamble: `Target: {target_content}  Quick: {--quick}`. Each fork worker returns score 1-5 + findings.
+3. **`--focus all` -> hand off the lenses in parallel.** Genuine multi-lens concurrency on a large surface earns the hop. Common preamble: `Target: {target_content}  Quick: {--quick}`. Each worker returns score 1-5 + findings.
 
-   ```
-   Skill(skill="wicked-garden-product-ux-designer",
-         args="""<preamble> Two lenses. (1) Flows: clarity, error/empty/loading states, interaction patterns, IA. (2) Research: personas, journeys, JTBD, validation status. Issues with severity + file:line + impact + fix; plus a research-gap list.""")
-   Skill(skill="wicked-garden-product-ui-reviewer",
-         args="""<preamble> Eval design-system adherence, color/typography/spacing, component patterns, responsive + visual states. Issues with severity + fix.""")
-   Skill(skill="wicked-garden-product-a11y-expert",
-         args="""<preamble> Audit WCAG 2.1 AA (POUR): semantic HTML, ARIA, keyboard, screen reader, contrast, focus. Report WCAG level + issues with criterion + fix.""")
-   ```
+   **Hand-off** — open each worker skill by name with the preamble and its ask as the argument: `wicked-garden-product-ux-designer` — "Two lenses. (1) Flows: clarity, error/empty/loading states, interaction patterns, IA. (2) Research: personas, journeys, JTBD, validation status. Issues with severity + file:line + impact + fix; plus a research-gap list."; `wicked-garden-product-ui-reviewer` — "Eval design-system adherence, color/typography/spacing, component patterns, responsive + visual states. Issues with severity + fix."; `wicked-garden-product-a11y-expert` — "Audit WCAG 2.1 AA (POUR): semantic HTML, ARIA, keyboard, screen reader, contrast, focus. Report WCAG level + issues with criterion + fix."; run the three concurrently where the harness can, else in sequence; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-   These dispatch the `wicked-garden-product-ux-designer`, `wicked-garden-product-ui-reviewer`, and `wicked-garden-product-a11y-expert` fork skills. The research lens (personas / journeys / JTBD) is folded into the ux-designer dispatch — flow and research evaluation share the same artifact and reviewer skill. Merge the three returns inline into the combined report (`refs/ux-review.md` output format).
+   The research lens (personas / journeys / JTBD) is folded into the ux-designer hand-off — flow and research evaluation share the same artifact and reviewer skill. Merge the three returns inline into the combined report (`refs/ux-review.md` output format).
 
 ## Action: visual-direction
 
@@ -193,8 +182,8 @@ it should look like — not from what the nearest project used.
 2. Read `visual-direction/SKILL.md` (the `wicked-garden-product-visual-direction` module) — five questions, anti-patterns, visual brief format.
 3. **Answer all five questions out loud before proposing any treatment** (content type, audience mental model, desired action, physical-artifact metaphor, stupid-question test), then emit the visual brief. Do not skip to wireframe or implementation first.
 
-## Knowledge modules and fork workers
+## Knowledge modules and workers
 
 Reference knowledge lives beside this skill, loaded on demand: `acceptance-criteria/`, `accessibility/`, `analyze/`, `imagery/`, `listen/`, `mockup/`, `requirements-analysis/`,
 `requirements-graph/`, `requirements-migrate/`, `requirements-navigate/`, `screenshot/`, `strategy/`, `synthesize/`, `ux-review/`, `visual-direction/`, `visual-review/`, plus the per-action rubrics in `refs/`.
-Standalone fork workers (top-level `skills/product-<role>/`, dispatchable via Task): `a11y-expert`, `requirements-analyst`, `ui-reviewer`, `ux-designer`, `value-strategist` — all prefixed `wicked-garden-product-`.
+Standalone workers (top-level `skills/product-<role>/`, each reached by name through a Hand-off): `a11y-expert`, `requirements-analyst`, `ui-reviewer`, `ux-designer`, `value-strategist` — all prefixed `wicked-garden-product-`.

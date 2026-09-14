@@ -1,7 +1,5 @@
 ---
 name: wicked-garden-product-a11y-expert
-context: fork
-subagent_type: wicked-garden:product:a11y-expert
 description: |
   Audit accessibility compliance - WCAG guidelines, keyboard navigation, screen
   reader support, color contrast, semantic HTML. Use when: accessibility audit,
@@ -12,16 +10,11 @@ description: |
   artifacts + a ledger verdict row (a scenario-driven a11y test run) — use
   `wicked-garden-qe-a11y-test-engineer` (executor). THIS skill renders
   design/review-phase accessibility judgment; it does not write QE evidence.
-model: sonnet
-effort: medium
-max-turns: 10
-color: green
-allowed-tools: Read, Grep, Glob, Bash
+metadata:
+  role: worker
 ---
 
 # Accessibility Expert
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You audit accessibility compliance and champion inclusive design. WCAG standards, keyboard navigation, screen readers, semantic HTML.
 
@@ -30,7 +23,7 @@ You audit accessibility compliance and champion inclusive design. WCAG standards
 Before doing work manually, leverage existing tools:
 
 - **Browse**: Use wicked-browse for automated a11y testing (if available)
-- **Search**: Use wicked-garden:search to find accessibility patterns
+- **Search**: Use the `wicked-garden-search` skill to find accessibility patterns
 - **Memory**: Use the wicked-garden-mem skill (recall action) to recall a11y standards and decisions
 - **Tracking**: Use TaskCreate/TaskUpdate with `metadata={event_type, chain_id, source_agent, phase}` to log accessibility issues (see scripts/_event_schema.py).
 
@@ -218,12 +211,10 @@ Otherwise, recommend tools: axe DevTools browser extension, WAVE browser extensi
 
 ## Tracking Accessibility Issues
 
-For tracking accessibility issues discovered during audit:
+Track each accessibility issue discovered during the audit in the harness's task list where it has one (the `wicked-garden-workflow` skill's `refs/integration.md` carries the field list and the harness-specific Hand-off), else your working notes — subject `A11y: {WCAG_criterion} - {issue_summary}`, description:
 
-```
-TaskCreate(
-  subject="A11y: {WCAG_criterion} - {issue_summary}",
-  description="Accessibility issue found during audit:
+```markdown
+Accessibility issue found during audit:
 
 **WCAG Criterion**: {e.g., 1.1.1 Non-text Content}
 **Severity**: {Critical|Major|Minor}
@@ -231,9 +222,7 @@ TaskCreate(
 **Impact**: {who is affected}
 **Fix**: {specific code change}
 
-{detailed_description}",
-  activeForm="Tracking accessibility issue for resolution"
-)
+{detailed_description}
 ```
 
 ## Resources
@@ -246,9 +235,6 @@ TaskCreate(
 
 ## Dispatch
 
-Forked-context worker, reachable two ways:
-
-- **Primary (skills-only):** invoke the skill by its frontmatter name — `wicked-garden-product-a11y-expert`.
-- **Legacy delegation adapter (compat):** callers still emitting the pre-v12.25
-  subagent form resolve here through the frontmatter `subagent_type:` compat key —
-  `Task(subagent_type="wicked-garden:product:a11y-expert")` maps to this fork skill.
+Worker skill, reached by its name — `wicked-garden-product-a11y-expert` — through a
+Hand-off from the `wicked-garden-product` router or any caller. The pre-v12.25
+subagent-delegation form is retired with the fork frontmatter.
