@@ -69,7 +69,7 @@ estate is the sole writer of graph structure.
 
 **Hand-off** — open the worker's skill by name (`wicked-garden-domain-extractor`,
 `wicked-garden-domain-modeler`, `wicked-garden-domain-coverage`) and carry out its SKILL.md
-with the ask as the argument; on Claude Code this is the Skill tool (a fresh context), on any
+with the ask as the argument; on Claude Code this is the Skill tool, on any
 other seat open the named skill from your catalog and run it inline, keeping its output
 separate from yours, then continue here. Run order for a full extraction: **extractor →
 translator → antagonist**. Each is independently invocable.

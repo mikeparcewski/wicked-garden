@@ -1,12 +1,12 @@
 ---
 name: wicked-garden-runtime-exec
-context: fork
 description: |
   Smart runtime execution for Python and Node scripts with automatic package manager detection.
   Invoked by other skills and agents when scripts need execution with correct runtime resolution.
-user-invocable: false
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: module
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Runtime Execution Skill
@@ -23,7 +23,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 ## Recommended: use the `wicked-garden` launcher
 
 For scripts inside this plugin, prefer the launcher. It resolves the plugin
-root itself (`WICKED_GARDEN_ROOT` → the Claude Code plugin root → its own npm
+root itself (`WICKED_GARDEN_ROOT` → the host CLI's plugin root → its own npm
 package) and the interpreter (`<root>/.venv` → `uv run --project <root>` →
 `python3` / `python` / `py -3`) on macOS, Linux and Windows in one call, keeps
 the caller's cwd, and never writes under the root. Bare `python3` is not

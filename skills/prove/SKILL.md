@@ -10,10 +10,10 @@ description: |
   "--with-attestations", "compile", "emit a build gate", "stamp a gate into
   a repo", "compile a repo-native build gate", "--trigger hook,ci", or any
   former /wicked-garden:{prove|compile} invocation.
-user-invocable: true
-allowed-tools: ["Bash", "Read"]
-phase_relevance: ["bootstrap", "build", "review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "bootstrap,build,review,operate"
+  archetypes: "*"
 ---
 
 # Prove
@@ -80,8 +80,9 @@ triggers that fire it (pre-push hook / GitHub Actions). The vault is resolved
 at runtime via `npx` — it is the one thing the compiler never compiles.
 
 > The emitted gate is deliberately **vault-direct** (shells `wicked-vault`,
-> not `wicked-loom`). The garden's own gate uses loom; the emitted gate can't
-> assume loom is installed in a foreign repo, so it depends only on the vault.
+> not the loom engine). The garden's own gate uses its in-process loom engine
+> (`scripts/loom/`); the emitted gate can't assume it in a foreign repo, so it
+> depends only on the vault.
 
 ### Run
 

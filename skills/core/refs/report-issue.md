@@ -91,11 +91,7 @@ Files likely relevant to this issue:
 
 Recall any past context about this area from the memory store:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-```
-Skill(skill="wicked-garden-mem", args="recall \"{issue title keywords}\"")
-```
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `{issue title keywords}` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 If memories are returned that are relevant to the issue, summarize them as **Prior Context**. If no relevant memories exist, omit this section.
 
@@ -127,7 +123,7 @@ For each AC that fails either check:
 ### 5. Compose Issue
 
 Build the issue body using the template from the skill's `refs/templates.md`. Include:
-- Reporter info (Claude Code manual report)
+- Reporter info (manual report from the coding-agent session)
 - All collected fields
 - Research findings (Duplicate Check, Related Code, Prior Context) appended after main body
 - Acceptance criteria checklist (SMART-validated)

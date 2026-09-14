@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-deliberate
-user-invocable: true
 description: |
   Critical thinking framework applied before doing work. Challenges assumptions,
   reframes problems, identifies hidden opportunities, and validates whether the stated
@@ -12,8 +11,10 @@ description: |
   this request before implementing", `--deep` (blast-radius analysis),
   `--batch` (multiple issues, shared root causes), or any former
   /wicked-garden:deliberate invocation.
-phase_relevance: ["clarify", "design"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "clarify,design"
+  archetypes: "*"
 ---
 
 # Deliberate

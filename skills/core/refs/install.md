@@ -4,14 +4,14 @@ First-run installer for the wicked-* ecosystem. Ensures wicked-garden is
 current, installs the required evidence floor (wicked-vault automatically — no
 question asked), then prompts for optional layers and solo beds via a
 multi-select picker. The loom peer-resolution engine is absorbed into
-wicked-garden itself (scripts/loom/) — no separate wicked-loom install is
+wicked-garden itself (scripts/loom/) — no separate loom package install is
 needed.
 
 ## Instructions
 
 ### 1. Check wicked-garden is current
 
-Get the installed version from the launcher (it prints the `plugin.json` version of the plugin root it resolved — the crew snapshot, the Claude Code plugin copy, or its own package); fall back to the Claude Code copy's `package.json`:
+Get the installed version from the launcher (it prints the `plugin.json` version of the plugin root it resolved — the crew snapshot, the host CLI's plugin copy, or its own package); fall back to that plugin copy's `package.json`:
 
 ```bash
 wicked-garden --version 2>/dev/null \
@@ -51,7 +51,7 @@ wicked-garden run scripts/setup/detect_state.py question-mode 2>/dev/null || ech
 
 ---
 
-**INTERACTIVE mode (AskUserQuestion)**
+**INTERACTIVE mode (native question prompt)**
 
 Q1 — multi-select, header "Layers":
 
@@ -74,7 +74,7 @@ Echo back the full selection list before installing: "Installing: [comma-joined 
 
 ---
 
-**PLAIN_TEXT mode (dangerous — AskUserQuestion broken)**
+**PLAIN_TEXT mode (dangerous — the native prompt auto-completes)**
 
 Present both questions as numbered plain-text lists. STOP and wait for the user's reply before proceeding. Parse the reply, echo it back, then continue.
 
@@ -86,14 +86,14 @@ Run in the order listed. Show a ✓ or ✗ line per tool as each completes.
 |---|---|
 | wicked-estate | Install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or `~/.local/bin` (see the wicked-estate README — cargo install or a release download), then verify with the §2.5b presence probe in refs/setup.md |
 | wicked-understanding | `npx skills add mikeparcewski/wicked-understanding --all` |
-| wicked-bus | `npm i -g wicked-bus && npx wicked-bus-install` (the installer copies the bus skills into detected AI CLIs), then verify skills under `~/.claude/skills/wicked-bus-*` |
+| wicked-bus | `npm i -g wicked-bus && npx wicked-bus-install` (the installer copies the bus skills into detected AI CLIs), then verify the `wicked-bus-*` skills landed in the detected CLIs' skills directories |
 | wicked-interactive | `claude plugins marketplace add mikeparcewski/wicked-interactive && claude plugins install wicked-interactive` |
 
 For any tool where the user must run a command themselves, clearly display the command, pause, and wait for confirmation before marking it done.
 
 ### 5. Verify peer health
 
-Run the internal loom doctor (no external wicked-loom needed):
+Run the internal loom doctor (no external loom package needed):
 
 ```bash
 wicked-garden python -c "
