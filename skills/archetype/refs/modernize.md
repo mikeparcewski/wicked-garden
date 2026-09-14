@@ -30,12 +30,12 @@ garden already preaches into those skills.
 - **Parity proof**: an executable, re-derivable equivalence check — old vs new
   on identical seeded inputs assert identical outputs (the trust, not review).
 
-The cutover gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py`
-shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the parity
+The cutover gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py`
+→ `scripts/loom/`, which shells `wicked-vault cross-check`): the parity
 harness is re-run and the blueprint post-condition re-checked, never trusting a
-self-asserted "ported fine". wicked-loom (the gate engine) and wicked-vault (the
-evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if
-loom is unresolvable — or the vault behind it absent — the gate **fails closed**
+self-asserted "ported fine". the gate engine ships inside wicked-garden and wicked-vault (the
+evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's
+`setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed**
 (`gate: "unavailable"`, `satisfied: false`) rather than self-asserting a PASS.
 Because `cutover` is a HARD gate, the gate also demands an **independent
 attestation**: an evaluator who is **not** the modernizer confirms the parity proof
@@ -173,7 +173,7 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
    own evidence cannot satisfy a hard gate. (exit 0 = satisfied.) A REJECT means the
    parity proof doesn't clear its contract — fix the work, not the claim. An
    `unavailable` verdict means the required vault isn't installed — run
-   `/wicked-garden-core setup`. **No cutover on a fail-closed verdict.**
+   the `wicked-garden-core` skill's `setup` action. **No cutover on a fail-closed verdict.**
 3. **Cutover staged**: canary the new stack, watch, ramp. Hand the rollout tail to
    the `ship` archetype if blast radius warrants.
 4. The cutover gate is HARD — explicit user "go" before each ramp step.

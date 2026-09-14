@@ -18,13 +18,13 @@ to production. Each phase widens blast radius; gates are explicit ramps.
 - **SLO snapshot**: error rate, latency, saturation at each phase
   boundary, compared to the pre-rollout baseline.
 
-The ramp gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the SLO snapshot's verifier is re-run and
+The ramp gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the SLO snapshot's verifier is re-run and
 the rollout-verdict command's exit code re-checked, never trusting a
 cached "looked clean". Because live observation verifiers
 (`http_status_eq`, `pr_check_status`) aren't implemented yet, **capture
 the SLO metrics to a snapshot file** and verify with `jq_pred` over that
 captured JSON — deterministic and re-derivable, not a one-shot live
-probe. wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
+probe. the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than
 self-asserting an APPROVE. `--no-require` opts a throwaway/low-rigor
 rollout back to the doctrine-light claim-only path.
 
@@ -100,7 +100,7 @@ it, don't self-assert it:
 contract, re-run at **every** ramp step against the fresh captured
 snapshot. A REJECT means the recorded SLO snapshot doesn't clear its
 budget — **rollback**, don't widen. An `unavailable` verdict means the
-required vault isn't installed — run `/wicked-garden-core setup`.
+required vault isn't installed — run the `wicked-garden-core` skill's `setup` action.
 
 Ship is done when soak is clean. Hand off to `review` for a post-rollout
 audit when the change was high-blast-radius, or close out otherwise.

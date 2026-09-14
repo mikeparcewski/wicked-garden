@@ -18,9 +18,9 @@ Achievable, Relevant, Time-bound — that downstream `build` can verify.
 - One-line invariants: "A response time over 500ms is a regression".
 - Optional: a `requirements.md` artifact in the project dir.
 
-The validate gate **re-derives** this via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the recorded `smart-acceptance-criteria`
+The validate gate **re-derives** this through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the recorded `smart-acceptance-criteria`
 artifact is re-hashed and its structural verifier re-run, never trusting
-a self-asserted "the ACs are testable". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
+a self-asserted "the ACs are testable". the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather
 than claiming a PASS. `--no-require` opts a throwaway/low-rigor run back
 to the doctrine-light claim-only path. This is a discrete (light) gate —
 the deterministic check proves *shape* (each AC is measurable); if the
@@ -93,7 +93,7 @@ produces-gate is satisfied. Check the gate — don't self-assert it:
 contract: the AC artifact is re-hashed and its structural verifier
 re-run. A REJECT means the recorded ACs don't clear the testability bar —
 fix the criteria, not the claim. An `unavailable` verdict means the
-required vault isn't installed — run `/wicked-garden-core setup`. Then hand off
+required vault isn't installed — run the `wicked-garden-core` skill's `setup` action. Then hand off
 to `build` (when the next step is implementation), `decide` (when you've
 uncovered competing options), or `explore` (when the act of writing ACs
 revealed the problem isn't well understood).

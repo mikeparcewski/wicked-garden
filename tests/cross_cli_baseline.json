@@ -12,7 +12,6 @@
       "skills/agentic/frameworks/SKILL.md",
       "skills/agentic/review-methodology/SKILL.md",
       "skills/agentic/trust-and-safety/SKILL.md",
-      "skills/archetype/SKILL.md",
       "skills/data-engineer/SKILL.md",
       "skills/data/SKILL.md",
       "skills/engineering-api-documentarian/SKILL.md",
@@ -139,7 +138,6 @@
       "skills/agentic/frameworks/refs/framework-profiles-2.md",
       "skills/agentic/frameworks/refs/migration-patterns-paths.md",
       "skills/agentic/frameworks/refs/migration-patterns-testing.md",
-      "skills/archetype/refs/review.md",
       "skills/data-engineer/SKILL.md",
       "skills/data/refs/data-examples.md",
       "skills/engineering-api-documentarian/SKILL.md",
@@ -187,7 +185,6 @@
       "skills/smaht/refs/briefing.md"
     ],
     "claude-only-prose": [
-      "skills/archetype/refs/review.md",
       "skills/engineering/SKILL.md",
       "skills/engineering/refs/docs.md",
       "skills/integration-discovery/refs/cli-detection.md",
@@ -239,7 +236,6 @@
       "skills/agentic/frameworks/refs/framework-profiles-2.md",
       "skills/agentic/frameworks/refs/migration-patterns-paths.md",
       "skills/agentic/frameworks/refs/migration-patterns-testing.md",
-      "skills/archetype/refs/review.md",
       "skills/data-engineer/SKILL.md",
       "skills/data/refs/data-examples.md",
       "skills/engineering-api-documentarian/SKILL.md",
@@ -286,14 +282,6 @@
       "skills/smaht/refs/briefing.md"
     ],
     "retired-product-ref": [
-      "skills/archetype/refs/build.md",
-      "skills/archetype/refs/decide.md",
-      "skills/archetype/refs/incident.md",
-      "skills/archetype/refs/migrate.md",
-      "skills/archetype/refs/modernize.md",
-      "skills/archetype/refs/review.md",
-      "skills/archetype/refs/ship.md",
-      "skills/archetype/refs/specify.md",
       "skills/engineering/refs/debug.md",
       "skills/platform/peer-health/SKILL.md",
       "skills/qe/SKILL.md",

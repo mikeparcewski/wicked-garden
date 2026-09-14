@@ -19,9 +19,9 @@ REJECT, with a remediation list when not APPROVE.
 - **Remediation list**: each item has an id, severity, and a concrete
   action. Empty when APPROVE.
 
-The final-verdict gate **re-derives** these via `wicked-loom` (`scripts/qe/vault_gate.py` shells `wicked-loom gate`, which shells `wicked-vault cross-check`): the verdict JSON is re-validated and the
+The final-verdict gate **re-derives** these through the garden's in-process gate engine (`scripts/qe/vault_gate.py` → `scripts/loom/`, which shells `wicked-vault cross-check`): the verdict JSON is re-validated and the
 remediation-list structure re-checked, never trusting a self-asserted
-"done". wicked-loom (the gate engine) and wicked-vault (the evidence backend) are **required** peers (installed by `/wicked-garden-core setup`); if loom is unresolvable — or the vault behind it absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
+"done". the gate engine ships inside wicked-garden and wicked-vault (the evidence backend) is the one **required** peer (installed by the `wicked-garden-core` skill's `setup` action); if the engine cannot resolve — or the vault behind it is absent — the gate **fails closed** (`gate: "unavailable"`, `satisfied: false`) rather than passing
 on a claim alone. Because final-verdict is a **hard** gate, the contract
 also demands an **independent attestation** — the verdict must be signed
 off by an evaluator that is NOT the worker who did the reviewed work
@@ -64,16 +64,18 @@ in three domains").
 ### assess
 
 1. Apply the rubric. Take notes; don't write the findings yet.
-2. Use the right specialist — `pr-review-toolkit:code-reviewer` (external
-
-   Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-   subagent), or a garden fork skill via `Skill(skill="…")`:
+2. Use the right specialist — `pr-review-toolkit:code-reviewer` (an external
+   subagent, where your harness has it), or a garden worker skill:
    `wicked-garden-governed-worker` (Evaluator section), `wicked-garden-qe-semantic-reviewer`,
    `wicked-garden-engineering-solution-architect`, etc. Match the artifact
    to the specialist.
-3. For high-stakes reviews, run a council via
-   `wicked-garden:jam:council` — independent multi-model verdicts
+
+   **Hand-off** — open the chosen worker skill by name and carry out its SKILL.md with
+   the artifact as the argument; on Claude Code this is the Skill tool, on any other seat
+   open the named skill from your catalog and run it inline, keeping its output separate
+   from yours, then continue here.
+3. For high-stakes reviews, run a council via the
+   `wicked-garden-jam-council` skill — independent multi-model verdicts
    catch what a single reviewer misses.
 
 ### findings
@@ -142,7 +144,7 @@ independent `opinion_attestation` recorded via the
 that did the reviewed work — it fails closed on a self-grade. A REJECT
 means the recorded evidence does not clear its contract — fix the work,
 not the claim. An `unavailable` verdict means the required vault isn't
-installed — run `/wicked-garden-core setup`. Then hand off to `build` (when
+installed — run the `wicked-garden-core` skill's `setup` action. Then hand off to `build` (when
 fixes are needed before ship) or `ship` (when APPROVE).
 
 ## Anti-patterns
