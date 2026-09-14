@@ -7,16 +7,18 @@ god-objects, coupling hotspots, and high-impact refactor targets.
 
 ## Instructions
 
-1. **Freshness** — in a human session ensure the graph is current with the search
-   skill's `index` action (`wicked-estate index <path>` builds the static graph +
-   injected edges; estate prints a `STALENESS` marker when commits have landed since
-   the last index). The ranking below reads that graph. (Inside a run, see the
-   paragraph after this list.)
-2. **Primary path — the estate `RankHotspots` tool**: call it with
-   `{"limit": <n>}` (optionally `{"seeds": ["<symbol>", …]}` for a
-   personalized, subsystem-local ranking). PageRank over Calls+Imports edges —
-   strictly better than a raw incoming-edge count, because it weights a
-   reference by the centrality of the referrer.
+1. **Freshness** — read the `STALENESS` marker the result carries and report it. The graph is
+   rebuilt by an operator at a terminal (`wicked-estate index <path>` — the search skill's
+   `index` action), never from a seat.
+2. **The estate `RankHotspots` tool through the read-only shim** — the one way, on every seat
+   and in every session kind (store pinned by the environment; see the search skill's
+   "Resolving symbols + the one way to the graph"):
+   ```bash
+   wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"RankHotspots","arguments":{"limit":20}}'
+   ```
+   Optionally `{"seeds": ["<symbol>", …]}` for a personalized, subsystem-local ranking.
+   PageRank over Calls+Imports edges — strictly better than a raw incoming-edge count,
+   because it weights a reference by the centrality of the referrer.
 
    Report the ranked list. Call out anything with an unusually high score as a
    likely god-object or coupling hotspot worth refactoring. Injected edges are
@@ -26,24 +28,11 @@ god-objects, coupling hotspots, and high-impact refactor targets.
    import edges they carry); injected non-file nodes (agents, capabilities,
    archetypes) still rank.
 
-3. **Fallback — the estate CLI** (MCP server not connected):
-   ```bash
-   wicked-estate rank        # same PageRank ranking, top-N to stdout
-   ```
-   (Resolve the binary via `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`.)
-
-4. **If estate is unavailable entirely**: say so and suggest the search
-   skill's `index` action after installing wicked-estate — and note that any
-   grep-based approximation misses injected relationships and referral
-   centrality.
-
-**In a governed run** (dispatched as a unit of a wicked-crew run — a phase directive and/or the
-`wicked-garden-governed-worker` skill was handed to you; `WICKED_RUN_ID` / `WICKED_GATE_SCOPE`
-confirm it when present, their absence does not refute it; when unsure, take this rung):
-never run `wicked-estate index` — report the `STALENESS` marker instead — and take the
-ranking through the estate shim in read-only mode (the search skill's ladder, first rung;
-the store is pinned from the worker env):
-`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"RankHotspots","arguments":{"limit":20}}'`.
+3. **If the shim answers `{"ok": false, …}`** (no store pinned, estate not installed): write
+   `estate: not available (<reason>)`, say what would fix it (install wicked-estate, index the
+   repo at a terminal), and continue **ungrounded** — a grep-based approximation misses injected
+   relationships and referral centrality, so it is not the ranking; name the path that answered
+   (`shim` / `ungrounded`).
 
 ## Example
 

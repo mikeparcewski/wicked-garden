@@ -987,6 +987,29 @@ def test_fence_walk_sees_non_shell_fences_in_the_repo():
     assert non_shell > 50, non_shell
 
 
+# ── L4-⑨b (#1155, D1 / D2): search + mem ground through the read-only shim ONLY ──────────────────
+ONE_RUNG_SKILLS = ("skills/search", "skills/mem")
+MCP_RESIDUE_RE = re.compile(r"MCP|mcp__|wicked-estate-mcp|when connected")
+SHIM_CALL_RE = re.compile(r"_estate_client\.py --readonly call")
+
+
+def test_search_and_mem_have_one_rung_and_no_mcp_residue():
+    """The #1146 leftover class must not return: an MCP-first "human session" branch, a tool named as
+    something to "connect", the estate binary spelled as a rung. 0 residue tokens under
+    skills/search/** + skills/mem/** (refs included — they are delivered with the skill), and each
+    SKILL.md spells the one way — `_estate_client.py --readonly call` — at least once."""
+    residue: list[str] = []
+    for root in ONE_RUNG_SKILLS:
+        for p in sorted((REPO / root).rglob("*.md")):
+            for n, line in enumerate(p.read_text(encoding="utf-8").split("\n"), 1):
+                if MCP_RESIDUE_RE.search(line):
+                    residue.append(f"{p.relative_to(REPO).as_posix()}:{n}: {line.strip()[:90]}")
+    assert residue == [], "MCP-first residue in the one-rung skills:\n" + "\n".join(residue)
+    for root in ONE_RUNG_SKILLS:
+        text = (REPO / root / "SKILL.md").read_text(encoding="utf-8")
+        assert SHIM_CALL_RE.search(text), f"{root}/SKILL.md never spells `_estate_client.py --readonly call`"
+
+
 if __name__ == "__main__":  # pragma: no cover - CLI report for the codemod loop
     if "--write-baseline" in sys.argv[1:]:
         data = write_baseline()

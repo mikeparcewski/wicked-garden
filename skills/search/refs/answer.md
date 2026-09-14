@@ -39,8 +39,9 @@ narrow the memory side; default `""` = everything); `--budget <tokens>`
 
    When a returned item quotes an estate **SymbolId that no longer resolves**
    in the graph (ids minted before the 2026-08 id-scheme migration may be
-   dangling), fall back to the estate MCP `SearchEntity` tool by bare name to
-   find the symbol's current node.
+   dangling), resolve it again by bare name with the estate `SearchEntity` tool through
+   the read-only shim (`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"SearchEntity","arguments":{"name":"<symbol>"}}'`)
+   to find the symbol's current node.
 
 4. **Handle the miss honestly.** If nothing relevant came back (estate logs
    the miss), say the record doesn't answer this — offer to `ingest` the

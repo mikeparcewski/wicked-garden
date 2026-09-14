@@ -4,6 +4,25 @@
 
 <!-- fixall L4 -->
 ### Changed
+- **`search` and `mem` have ONE way to the estate on every seat and in every session kind — the
+  two-ladder structure and the "human session" branch that routed symbol lookup to an estate MCP
+  tool are DELETED (FIX-IT-ALL L4-⑨b; D1 / D2; F-RC1-045 class in text, wave-1 P6 NO-GO recon Q1 /
+  Q4 #2).** After #1146 the `search` skill still said "resolve … with the estate `SearchEntity`
+  tool", listed "the estate MCP tools when connected" as rung 1 of a *human session* ladder, gated
+  the shim command behind "in a governed run" (a chat is not one), and its description — shown in
+  the skill listing before load — sent symbol lookup to "the wicked-estate MCP's SearchEntity";
+  `mem` gated `--readonly` the same way and called the engine "MCP tools". Now: every graph read
+  and every store read is the read-only shim — `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"<X>","arguments":{…}}'`, store
+  pinned by `WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB` — on every seat (claude, codex,
+  pi, copilot, opencode) and in every session kind (a governed run's unit, a chat turn, a human
+  session); `SearchEntity` / `BlastRadius` / `Lineage` / `RankHotspots` / `rules.recall` are named
+  as tools reached through it, never as things to "connect"; the `wicked-estate` CLI is not a rung
+  (write verbs never from a seat, read verbs not how a seat grounds); a seat names the path that
+  answered (`shim` / `ungrounded`). `SearchEntity` `name` (exact / substring symbol) vs `query`
+  (full-text over the knowledge stores; 0 hits for a code symbol) is documented (F-W1-006).
+  `hotspots` / `service-map` / `answer` / `mem/refs/scopes.md` say the same one way. The `search`
+  description fits the 1024-character bound (its `description-too-long` baseline entry is gone —
+  0 stale, nothing added). No word "MCP" survives in `skills/search/**` or `skills/mem/**`.
 - **repo-learn = wicked-crew's three `capture-learnings` units; the deliverable-file fallback is
   DELETED; one grounding rung (FIX-IT-ALL L4-⑨; D-20 / R13, R12 text; F-RC1-048 C2, F-RC1-049).**
   `skills/repo-learn/SKILL.md` described FOUR phases while crew's def dispatches THREE units

@@ -2,25 +2,21 @@
 name: wicked-garden-search
 user-invocable: true
 description: |
-  Code-intelligence search over wicked-estate's unified static + injected
-  code-relationship graph (ADR 0005). One skill, six routed actions:
-  index (build/refresh the graph), blast-radius (impact analysis over
-  dependents), lineage (data/dependency flow), hotspots (most-central
-  symbols by PageRank), service-map (service architecture from infra +
-  code), and narrate (codebase orientation walkthrough).
+  Code-intelligence search over wicked-estate's static + injected
+  code-relationship graph (ADR 0005): index (build/refresh), blast-radius
+  (dependents), lineage (data/dependency flow), hotspots (PageRank
+  centrality), service-map (infra + code), narrate (orientation walkthrough).
+  Every graph read is ONE call on every seat, in every session kind — the
+  read-only estate shim (`wicked-garden run scripts/_estate_client.py
+  --readonly call …`).
 
-  Use when: "index the codebase" / "build or refresh the code-intelligence
-  index"; "what would break if I change X" / "blast radius of" / "impact
-  analysis"; "trace lineage" / "where does this flow from/to" / "upstream
-  or downstream of a symbol"; "most-referenced symbols" / "find god
-  objects" / "coupling hotspots"; "map the services" / "service dependency
-  map" / "visualize the service architecture"; "architecture walkthrough" /
-  "narrate this codebase". Replaces the former /wicked-garden:search:*
-  commands (index, blast-radius, lineage, hotspots, service-map).
+  Use when: "index the codebase"; "what breaks if I change X" / "blast
+  radius" / "impact analysis"; "trace lineage" / "upstream or downstream of a
+  symbol"; "most-referenced symbols" / "god objects" / "coupling hotspots";
+  "map the services"; "architecture walkthrough" / "narrate this codebase".
 
-  NOT for general concept/memory search — use the `wicked-garden-mem` skill
-  (recall/answer over estate's knowledge + memory stores) or the wicked-estate
-  MCP's SearchEntity (symbol lookup) directly.
+  NOT for concept/memory search — use `wicked-garden-mem`; a bare symbol
+  lookup is the estate `SearchEntity` tool through the same shim.
 phase_relevance: ["*"]
 archetype_relevance: ["*"]
 ---
@@ -49,7 +45,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
 | `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
 
-Doctrine / which-rules-apply: **Steering** (the governance rules, 7 steering types) is in the same stores — `knowledge.recall {"scope_prefix": "wiki:"}` (historical prefix) + estate MCP `rules.recall` (cited, read-only); management: wicked-core `crates/wicked-governance/STEERING.md`.
+Doctrine / which-rules-apply: **Steering** (the governance rules, 7 steering types) is in the same stores — the estate `knowledge.recall` tool through the shim — `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"knowledge.recall","arguments":{"scope_prefix":"wiki:",…}}'` (`wiki:` is a historical prefix) — + the estate `rules.recall` tool the same way (§ Resolving symbols) (cited, read-only); management: wicked-core `crates/wicked-governance/STEERING.md`.
 
 ## Index / freshness (shared by every action)
 
@@ -57,63 +53,56 @@ The graph lives in **wicked-estate** (ADR 0005): a 75-language tree-sitter
 static graph **plus** injected domain edges, built by the estate binary — no
 external engine, no Node version floor.
 
-1. **Build / refresh** (a human session only — see the rule below the list) — one
+1. **Build / refresh** (operator work at a terminal — never from a seat; see the rule below the list) — one
    command rebuilds the static graph **and** re-applies every injected-edge rule
    (per-repo TOML drop-ins under `.wicked-estate-extractors/`, e.g. garden's archetype rules):
    ```bash
    wicked-estate index <path>        # DB defaults to .wicked-estate/graph.db
    ```
    Incremental and idempotent — unchanged files are skipped; editing the extractor
-   rules forces a full re-extract. The estate MCP serves the same DB, so a refresh is
+   rules forces a full re-extract. The estate binary the shim spawns serves the same DB, so a refresh is
    immediately visible to the tools. Freshness is lazy (opt-in `wicked-estate watch`);
    estate prints a `STALENESS: N commit(s) since last index` marker — re-run when stale.
 2. **Verify**: `wicked-estate stats` reports node/edge counts plus `unresolved=N`
    (references no resolver could bind — a health signal, not an error count); archetype
    wiring shows as injected edges (provenance `extractor:archetype-*`).
 
-**In a governed run** (you are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase directive and/or the `wicked-garden-governed-worker` skill was handed to you; both carriers stamp `WICKED_RUN_ID` / `WICKED_RUN_UNIT` / `WICKED_RUN_AGENT` on your environment since wicked-core 0.7.26 — the primary cue, the handed context confirms it; when unsure, treat the session as governed) the
-graph is handed to you already indexed and the write CLI is **never** a rung:
-never `wicked-estate index`, never `wicked-estate scip|tfstate|import-telemetry|compact|watch`,
+**From a seat — any seat, any session kind** (a governed run's unit, a chat turn, any session
+where you are the agent): the graph is handed to you already indexed and the write CLI is **never**
+yours: never `wicked-estate index`, never `wicked-estate scip|tfstate|import-telemetry|compact|watch`,
 never `wicked-estate clusters --annotate`. A stale graph is *reported* through its
 `STALENESS` marker, not rebuilt. Binary resolution: `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`.
 
-## Resolving symbols + the ladder (shared by every action)
+## Resolving symbols + the one way to the graph (shared by every action)
 
-**Resolve the symbol.** Estate tools take symbol **names** directly (a file node's name is
-its repo-relative path, e.g. `scripts/_bus.py`); when a name is ambiguous or you need the
-node id, resolve it first with the estate `SearchEntity` tool (`{"name": "<symbol>"}`).
+**The one way to the graph — on every seat, in every session kind** (a governed run's unit, a chat
+turn, a human session at a terminal): the estate shim in read-only mode, store pinned by the
+environment. Every estate tool named in this skill is reachable through its `call` action:
+```bash
+wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"BlastRadius","arguments":{"symbol":"<name>"}}'
+```
+`--readonly` is literal (the spawned estate binary reads only; `WICKED_ESTATE_READONLY=1` rides
+every worker so it spawns read-only by default). The store rides `WICKED_ESTATE_DB` /
+`WICKED_HOME` / `WICKED_MEMORY_DB` from the environment, or `--db <path>`; the shim refuses an
+unpinned store (`{"ok": false, "reason": …}`) — report that, never guess a store. There is no
+other transport: no estate tool is registered on any seat, so there is nothing to "connect",
+nothing to fall back to, and no second rung — a grep is not the graph.
 
-**Ladder** — **name the path that answered** (shim / estate tools / CLI / grep) in every
-result; never present a grep approximation as the graph answer. A denied call is final:
-record it — no variants, no wrappers, no retry (`wicked-garden-governed-worker` A2/A5).
+**Resolve the symbol.** Estate tools take symbol **names** directly (a file node's name is its
+repo-relative path, e.g. `scripts/_bus.py`); when a name is ambiguous or you need the node id,
+resolve it first:
+```bash
+wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"SearchEntity","arguments":{"name":"<symbol>"}}'
+```
+`name` is the exact / substring symbol match; `query` is full-text over the knowledge stores and
+answers `matches: []` for a code symbol — a 0-hit `query` does not mean the graph is empty.
 
-*In a governed run* (defined in § Index / freshness; **when unsure, treat the session as
-governed** — the shim in `--readonly` is also correct in a human session) there is **ONE
-rung**:
-1. **The estate shim in read-only mode**, store pinned from the worker environment —
-   every estate tool named in this skill is reachable through its `call` action:
-   ```bash
-   wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"BlastRadius","arguments":{"symbol":"<name>"}}'
-   ```
-   `--readonly` is literal (the spawned `wicked-estate-mcp` reads only; `WICKED_ESTATE_READONLY=1`
-   rides every worker so it spawns read-only by default). The store rides
-   `WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB` from the run, or `--db <path>`;
-   the shim refuses an unpinned store (`{"ok": false, "reason": …}`) — report that, never
-   guess a store. This is the only grounding transport in a run: wicked-core registers no
-   estate MCP on any seat any more (an organization MCP allowlist used to drop one
-   silently), so there is no `mcp__wicked-estate__*` tool and nothing to fall back to.
-   If the shim answers `{"ok": false, …}` or the fence denies the call, write
-   `estate: not available (<reason>)` in your output and continue **UNGROUNDED** — report
-   the gap; do not substitute grep for the graph. The read-only CLI
-   (`wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph`, `clusters`
-   without `--annotate`) stays allowed by the fence but is not a documented rung; the
-   write CLI is never one (§ Index / freshness).
-
-*Otherwise* (a human session):
-1. The estate MCP tools (`SearchEntity`, `BlastRadius`, `Lineage`, …) when connected.
-2. The CLI directly: `wicked-estate blast-radius <name>` / `wicked-estate query <name>`
-   (binary via `WICKED_ESTATE_BIN` → `PATH` → `~/.local/bin`).
-3. grep for literal refs — flagging that injected relationships are MISSING.
+**Name the path that answered** (`shim` or `ungrounded`) in every result. If the shim answers
+`{"ok": false, …}` or the fence denies the call, write `estate: not available (<reason>)` in your
+output and continue **UNGROUNDED** — report the gap; do not substitute grep for the graph. A
+denied call is final: record it — no variants, no wrappers, no retry
+(`wicked-garden-governed-worker` A2/A5). The `wicked-estate` CLI is not a rung: its write verbs
+are never run from a seat (§ Index / freshness) and its read verbs are not how a seat grounds.
 
 ## Blast radius — "what breaks if I change X?"
 
@@ -128,12 +117,12 @@ Starting from a **file path** returns its **importer files** as dependents
 (File→File import edges), so `blast-radius scripts/_bus.py` answers "which
 files import this file" — no longer an empty "no resolved dependents".
 
-1. **Ensure the graph is fresh** (§ Index / freshness) — in a governed run only read the
-   `STALENESS` marker and report it.
+1. **Freshness** (§ Index / freshness) — read the `STALENESS` marker and report it; never
+   rebuild from a seat.
 2. **Resolve the symbol** (§ Resolving symbols).
 3. **Query blast radius from estate** (static + injected dependents in one
    answer — the authoritative layer): the estate **`BlastRadius`**
-   tool with `{"symbol": "<name-or-path>", "depth": <n>}` (via the ladder's first rung).
+   tool with `{"symbol": "<name-or-path>", "depth": <n>}` through the shim (§ Resolving symbols).
    The `dependents` array includes relationships grep can't see: a command that
    *dispatches* an agent, a consumer that *subscribes* to an event, an agent that
    *declares* a capability — and archetype→playbook relationships via garden's
@@ -141,9 +130,9 @@ files import this file" — no longer an empty "no resolved dependents".
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
-4. **Ladder** (one rung in a governed run): § Resolving symbols + the ladder.
+4. **Path**: the shim (§ Resolving symbols + the one way to the graph) — or `ungrounded`, said so.
 5. Report: **dependents** (static + injected, with provenance), total blast-radius
-   count, files affected, the graph's staleness, and **which rung answered**.
+   count, files affected, the graph's staleness, and **which path answered** (`shim` / `ungrounded`).
 
 Examples: `blast-radius scripts/_bus.py` · `blast-radius UserService --depth 3`.
 
@@ -159,9 +148,9 @@ For pure "what breaks if I change X?" use the `blast-radius` action.
 `upstream` (dependents), or `both`; `--depth` (optional traversal depth;
 estate default 8, max 24).
 
-1. **Ensure the graph is fresh** (§ Index / freshness) — governed: report `STALENESS` only.
+1. **Freshness** (§ Index / freshness) — report the `STALENESS` marker; never rebuild from a seat.
 2. **Resolve the symbol** (§ Resolving symbols).
-3. **Trace** via the estate tools (the ladder's first rung):
+3. **Trace** with the estate tools through the shim:
    - **downstream** (what it depends on): the **`Lineage`** tool with
      `{"symbol": "<name>"}` → `dependencies`.
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
@@ -171,17 +160,17 @@ estate default 8, max 24).
    Each result includes injected edges (e.g. a consumer reached via a bus
    rule, an archetype via `extractor:archetype-playbook`) with confidence +
    provenance per edge.
-4. **Ladder** (one rung in a governed run): § Resolving symbols + the ladder.
+4. **Path**: the shim (§ Resolving symbols + the one way to the graph) — or `ungrounded`, said so.
 5. Report each path (source → sink), file locations per step, provenance of
-   injected hops, gaps, and **which rung answered**.
+   injected hops, gaps, and **which path answered** (`shim` / `ungrounded`).
 
 Examples: `lineage scripts/_bus.py --direction upstream` · `lineage User.email --direction both`.
 
 ## Hotspots — most-central symbols
 
 Rank symbols by PageRank centrality to expose god-objects, coupling
-hotspots, and high-impact refactor targets — the estate MCP `RankHotspots`
-tool. → Full procedure: [refs/hotspots.md](refs/hotspots.md)
+hotspots, and high-impact refactor targets — the estate `RankHotspots`
+tool through the shim. → Full procedure: [refs/hotspots.md](refs/hotspots.md)
 
 ## Service map — detect the service architecture
 
