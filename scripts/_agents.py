@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
-_agents.py — Dynamic fork-skill (worker) loader.
+_agents.py — Dynamic worker-skill loader.
 
 The plugin is skills-only: the former agents/{domain}/*.md worker definitions
-now live as standalone skills at skills/<domain>-<role>/SKILL.md with
-``context: fork`` frontmatter. This loader scans skills/**/SKILL.md and loads
-every fork-context skill as an AgentProfile (name/domain/system_prompt/
-capabilities), preserving the profile shape downstream consumers expect.
+now live as standalone skills at skills/<domain>-<role>/SKILL.md whose role is
+``worker`` (``metadata.role: worker``; the legacy ``context: fork`` is inferred
+by ``scripts/_skill_meta.skill_role`` during the cross-CLI transition). This
+loader scans skills/**/SKILL.md and loads every WORKER skill as an AgentProfile
+(name/domain/system_prompt/capabilities), preserving the profile shape
+downstream consumers expect. Routers, modules and the ``floor`` skill
+(``wicked-garden-governed-worker``) are never AgentProfiles.
 
 Usage:
     from _agents import AgentLoader
@@ -21,6 +24,13 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+try:
+    from _skill_meta import skill_role
+except ImportError:  # pragma: no cover - path setup only
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _skill_meta import skill_role
 
 # ---------------------------------------------------------------------------
 # AgentProfile dataclass
@@ -80,8 +90,11 @@ class AgentLoader:
     # ------------------------------------------------------------------
 
     def load_fork_skills(self, skills_dir: Path) -> dict[str, AgentProfile]:
-        """Scan skills_dir recursively for SKILL.md files declaring
-        ``context: fork`` and load each as an AgentProfile.
+        """Scan skills_dir recursively for SKILL.md files whose role is
+        ``worker`` (``metadata.role: worker``, or the legacy ``context: fork``
+        inferred by ``_skill_meta.skill_role``) and load each as an
+        AgentProfile. Routers, modules and the ``floor`` skill are skipped —
+        only a worker is dispatchable. The method keeps its historical name.
 
         Each SKILL.md must have YAML frontmatter with at least a `name`
         field. Additional recognized frontmatter keys: domain, description,
@@ -170,14 +183,16 @@ _FRONTMATTER_END = "---"
 
 
 def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
-    """Parse a worker SKILL.md (context: fork) into an AgentProfile.
+    """Parse a worker SKILL.md (role ``worker``) into an AgentProfile.
 
     Format:
         ---
         name: wicked-garden-engineering-solution-architect
         description: |
           Optional description
-        context: fork                # required when fork_only=True
+        metadata:
+          role: worker               # required when fork_only=True (legacy
+                                     # ``context: fork`` is inferred)
         domain: engineering          # optional
         capabilities:                # optional list
           - code-review
@@ -193,7 +208,7 @@ def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
 
     Returns:
         AgentProfile, or None if the file lacks a valid name field or
-        (when fork_only) does not declare ``context: fork``.
+        (when fork_only) its role is not ``worker``.
     """
     try:
         raw = path.read_text(encoding="utf-8")
@@ -203,7 +218,7 @@ def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
     frontmatter, body = _split_frontmatter(raw)
     if frontmatter is None:
         if fork_only:
-            # A worker must declare context: fork in frontmatter
+            # A worker declares its role in frontmatter (metadata.role: worker)
             return None
         # No frontmatter — use filename as name, whole file as system_prompt
         name = path.stem
@@ -216,7 +231,8 @@ def _parse_agent_md(path: Path, fork_only: bool = False) -> AgentProfile | None:
         )
 
     parsed = _parse_simple_yaml(frontmatter)
-    if fork_only and parsed.get("context") != "fork":
+    # ONE reader of role: metadata.role first, legacy context: fork inferred.
+    if fork_only and skill_role(frontmatter) != "worker":
         return None
     name = parsed.get("name") or (path.parent.name if path.name == "SKILL.md" else path.stem)
     if not name:

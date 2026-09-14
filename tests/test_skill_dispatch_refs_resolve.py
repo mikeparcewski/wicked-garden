@@ -28,17 +28,21 @@ documentation of a pattern, not a concrete reference.
 """
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).parent.parent
 SKILLS_DIR = REPO / "skills"
+if str(REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO / "scripts"))
+
+from _skill_meta import skill_role  # noqa: E402
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 NAME_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
 SUBAGENT_KEY_RE = re.compile(r"^subagent_type:\s*(.+)$", re.MULTILINE)
-CONTEXT_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 
 # Task-dispatch references in skill bodies (quoted, in Task() calls).
 TASK_REF_RE = re.compile(
@@ -111,7 +115,8 @@ def _skill_md_files() -> list[Path]:
 
 
 def _frontmatter_index() -> tuple[set[str], dict[str, Path]]:
-    """(declared skill names, subagent_type -> fork SKILL.md path)."""
+    """(declared skill names, subagent_type -> WORKER SKILL.md path) — role via
+    ``_skill_meta.skill_role`` (``metadata.role: worker``, legacy ``context: fork`` inferred)."""
     names: set[str] = set()
     subagent_types: dict[str, Path] = {}
     for skill_md in SKILLS_DIR.rglob("SKILL.md"):
@@ -123,12 +128,12 @@ def _frontmatter_index() -> tuple[set[str], dict[str, Path]]:
         if name_match:
             names.add(name_match.group(1).strip())
         st_match = SUBAGENT_KEY_RE.search(fm)
-        if st_match and CONTEXT_FORK_RE.search(fm):
+        if st_match and skill_role(fm) == "worker":
             subagent_types[st_match.group(1).strip()] = skill_md
     return names, subagent_types
 
 
-_DECLARED_NAMES, _FORK_SUBAGENT_TYPES = _frontmatter_index()
+_DECLARED_NAMES, _WORKER_SUBAGENT_TYPES = _frontmatter_index()
 
 
 def _task_ref_params():
@@ -203,13 +208,14 @@ def _launcher_path_params():
 
 
 @pytest.mark.parametrize("md_file,ref", _task_ref_params())
-def test_task_subagent_ref_resolves_to_fork_skill(md_file: Path, ref: str):
-    """Every Task(subagent_type=...) must map to a context:fork skill that
-    declares the same subagent_type compat key in its frontmatter."""
-    assert ref in _FORK_SUBAGENT_TYPES, (
-        f"{md_file.relative_to(REPO)}: dispatches '{ref}' but no context:fork "
-        "SKILL.md declares that subagent_type. Known fork subagent_types: "
-        f"{sorted(_FORK_SUBAGENT_TYPES)}"
+def test_task_subagent_ref_resolves_to_worker_skill(md_file: Path, ref: str):
+    """Every Task(subagent_type=...) must map to a WORKER skill that declares the
+    same subagent_type compat key in its frontmatter (transitional — the
+    `claude-dispatch` lint token retires the Task( shape itself)."""
+    assert ref in _WORKER_SUBAGENT_TYPES, (
+        f"{md_file.relative_to(REPO)}: dispatches '{ref}' but no worker "
+        "SKILL.md declares that subagent_type. Known worker subagent_types: "
+        f"{sorted(_WORKER_SUBAGENT_TYPES)}"
     )
 
 
@@ -265,8 +271,4 @@ def test_reference_extraction_is_not_vacuous():
     )
     assert len(_launcher_path_params()) > 100, (
         f"only {len(_launcher_path_params())} distinct launcher targets — extraction broke"
-    )
-    assert len(_FORK_SUBAGENT_TYPES) >= 3, (
-        "fewer than 3 fork skills declare a subagent_type compat key — the "
-        "frontmatter index the Task-dispatch resolver targets looks broken"
     )

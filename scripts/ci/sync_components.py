@@ -21,7 +21,7 @@ Conventions it reproduces:
   - skills live at  skills/<domain>/[<skill>/...]SKILL.md
         depth 2  skills/<x>/SKILL.md            -> skills_by_domain[x] += x
         depth 3+ skills/<x>/<y>/.../SKILL.md    -> skills_by_domain[x] += y   (deduped)
-  - fork_skills: frontmatter ``name:`` of every SKILL.md declaring ``context: fork``
+  - fork_skills: frontmatter ``name:`` of every SKILL.md whose role is ``worker``
     (the former agents/, now standalone worker skills), sorted.
   - hooks: the event-name keys of hooks/hooks.json, in lifecycle (insertion) order.
 
@@ -38,6 +38,12 @@ import difflib
 import json
 import sys
 from pathlib import Path
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role_of  # noqa: E402
 from typing import Dict, List
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -70,12 +76,15 @@ def _skill_frontmatter(path: Path) -> Dict[str, str]:
 
 
 def _fork_skills() -> List[str]:
-    """Frontmatter names of every context:fork SKILL.md (former agents/)."""
+    """Frontmatter names of every WORKER SKILL.md (former agents/): role ``worker`` per
+    ``scripts/_skill_meta.skill_role`` (``metadata.role`` first; legacy ``context: fork``
+    inferred). The components.json key keeps its historical name ``fork_skills``."""
     names: List[str] = []
     for sk in sorted((_REPO / "skills").rglob("SKILL.md")):
+        if skill_role_of(sk) != "worker":
+            continue
         fm = _skill_frontmatter(sk)
-        if fm.get("context") == "fork":
-            names.append(fm.get("name", sk.parent.name))
+        names.append(fm.get("name", sk.parent.name))
     return sorted(set(names))
 
 

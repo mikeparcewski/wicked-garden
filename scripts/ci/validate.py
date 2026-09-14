@@ -9,7 +9,7 @@ Checks (skills-only layout: former commands/ + agents/ are now skills/):
   1. plugin.json is valid JSON with required fields
   2. All SKILL.md files are <= 200 lines
   3. All script paths in hooks.json exist
-  4. All context:fork worker skills have required frontmatter fields
+  4. All worker skills (metadata.role: worker) have required frontmatter fields
   5. No stale presentation/prezzie references in skills/
   6. Self-referential integrity: script paths referenced in skills/ resolve
   7. specialist.json roles match ROLE_CATEGORIES in specialist_discovery.py
@@ -20,6 +20,12 @@ import os
 import re
 import sys
 from pathlib import Path
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role, skill_role_of  # noqa: E402
 
 
 def main():
@@ -72,22 +78,22 @@ def main():
             errors.append(f"marketplace.json is invalid JSON: {e}")
 
     # --- 2. SKILL.md line counts ---
-    # The <=200 cap targets Tier-2 NAVIGATIONAL skills that load into the
-    # parent context permanently (parent-context bloat is the problem it
-    # guards). Skills-only note: context:fork WORKER skills (the former
-    # agents/, now standalone workers) load into an ISOLATED, short-lived
-    # subagent context — never the parent — so the bloat rationale does not
-    # apply and their full system-prompt bodies are intentionally long.
-    # They are exempt from the cap, exactly as agents/ files were pre-cutover.
+    # The cap targets ROUTER / MODULE skills that load into the parent context
+    # (parent-context bloat is the problem it guards). WORKER skills load into
+    # an isolated, short-lived context and the FLOOR skill
+    # (wicked-garden-governed-worker) is handed whole to every governed unit —
+    # both are exempt, exactly as agents/ files were pre-cutover. Role comes
+    # from scripts/_skill_meta.skill_role (metadata.role first; the legacy
+    # context: fork / user-invocable keys are inferred). Cap 200 → 500 with the
+    # cross-CLI format — the `skill-too-large` lint token carries the same bound.
     for skill_md in sorted(root.glob("skills/**/SKILL.md")):
         text = skill_md.read_text()
         rel = skill_md.relative_to(root)
-        fm_match = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
-        if fm_match and re.search(r"^context:\s*fork\s*$", fm_match.group(1), re.MULTILINE):
-            continue  # context:fork worker skill — no parent-context cap
+        if skill_role_of(skill_md) in ("worker", "floor"):
+            continue  # worker / floor skill — no parent-context cap
         lines = len(text.splitlines())
-        if lines > 200:
-            errors.append(f"{rel} is {lines} lines (max 200)")
+        if lines > 500:
+            errors.append(f"{rel} is {lines} lines (max 500)")
 
     # --- 3. hooks.json script paths ---
     hooks_json = root / "hooks" / "hooks.json"
@@ -114,9 +120,10 @@ def main():
         except json.JSONDecodeError as e:
             errors.append(f"hooks.json is invalid JSON: {e}")
 
-    # --- 4. Fork-skill (worker) frontmatter ---
-    # Skills-only: the former agents/ are now context:fork worker skills.
-    # Every worker skill must carry frontmatter with a description.
+    # --- 4. Worker-skill frontmatter ---
+    # Skills-only: the former agents/ are now worker skills (metadata.role:
+    # worker; legacy context: fork inferred). Every worker skill must carry
+    # frontmatter with a description.
     for skill_md in sorted(root.glob("skills/**/SKILL.md")):
         text = skill_md.read_text()
         rel = skill_md.relative_to(root)
@@ -130,9 +137,9 @@ def main():
             errors.append(f"{rel}: malformed YAML frontmatter")
             continue
         fm = fm_match.group(1)
-        # Only worker (context:fork) skills are validated here — they are the
-        # former agents/ definitions and must declare a description.
-        if not re.search(r"^context:\s*fork\s*$", fm, re.MULTILINE):
+        # Only worker skills are validated here — they are the former agents/
+        # definitions and must declare a description.
+        if skill_role(fm) != "worker":
             continue
         if "description:" not in fm:
             errors.append(f"{rel}: missing 'description' in frontmatter")

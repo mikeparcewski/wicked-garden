@@ -52,6 +52,11 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 SKILLS = REPO / "skills"
+if str(REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO / "scripts"))
+
+from _skill_meta import CLOSED_KEYS as META_CLOSED_KEYS  # noqa: E402
+from _skill_meta import claude_only_keys, parse_frontmatter, split_frontmatter  # noqa: E402
 CANON_PATH = Path(__file__).resolve().parent / "portability_rules.json"
 GARDEN_PATH = Path(__file__).resolve().parent / "portability_rules.garden.json"
 CANON = json.loads(CANON_PATH.read_text(encoding="utf-8"))
@@ -71,10 +76,23 @@ TRAILING_PUNCT = ".,:"
 IDENTIFIERS = GARDEN["identifiers"]
 GRX = {name: re.compile(src) for name, src in GARDEN["regex"].items()}
 RUNTIME_BLOCK = GARDEN["launcher"]["runtime_block"]
-FORK_SENTENCE = GARDEN["fallbacks"]["fork_worker_sentence"]
-DISPATCH_SENTENCE = GARDEN["fallbacks"]["dispatch_sentence"]
-DISPATCH_RE = re.compile(GARDEN["fallbacks"]["dispatch_trigger_regex"])
-NOT_A_SKILL = GARDEN["fallbacks"]["skill_name_exemption_marker"]
+NOT_A_SKILL = GARDEN["skill_names"]["exemption_marker"]
+# The seven cross-CLI tokens (L6 B0, D-21 — docs/cross-cli-skill-format.md). The Claude-only shapes a
+# skill still carries at HEAD are BASELINED per (token, file) in tests/cross_cli_baseline.json:
+# tolerated there ONLY; the qe batches (B3–B17) translate skills and delete their entries in the same
+# change; an entry that no longer trips is STALE and fails; B18 deletes the file (strict).
+CROSS_CLI = GARDEN["cross_cli"]
+CROSS_CLI_TOKENS = tuple(CROSS_CLI["tokens"])
+CLOSED_KEYS = frozenset(CROSS_CLI["closed_frontmatter_keys"])
+DISPATCH_CALL_RE = re.compile(CROSS_CLI["dispatch_regex"])
+PROSE_RE = re.compile(CROSS_CLI["prose_regex"])
+RETIRED_RE = re.compile(CROSS_CLI["retired_product_regex"])
+HANDOFF_RE = re.compile(CROSS_CLI["handoff_regex"])
+HISTORICAL = CROSS_CLI["historical_marker"]
+BASELINE_PATH = REPO / CROSS_CLI["baseline"]
+BASELINE = (json.loads(BASELINE_PATH.read_text(encoding="utf-8")) if BASELINE_PATH.exists()
+            else {"entries": {}})
+BASELINE_PAIRS = {(t, f) for t, files in BASELINE.get("entries", {}).items() for f in files}
 # `verdict-spelling` (FIX-IT-ALL L6-0, the D-9 text half): the engine reads an evaluator unit's
 # LAST `^VERDICT[:=]` line and passes ONLY on the token `PASS` — so garden text may ask for
 # nothing but `VERDICT: PASS` / `VERDICT: FAIL` on such a line. The legacy `VERDICT=… REVIEWER=…
@@ -380,6 +398,81 @@ def verdict_spelling_hit(rel_file: str, line: str) -> str | None:
 
 
 # ---------------------------------------------------------------------------
+# The cross-CLI scan (L6 B0): the Claude-only shapes, one violation per (token, file)
+# ---------------------------------------------------------------------------
+
+def scan_cross_cli(rel_file: str, text: str, fm_end: int) -> list[Violation]:
+    """The seven cross-CLI tokens for one .md file. Frontmatter tokens judge SKILL.md only;
+    body tokens skip the frontmatter, skip `<!-- historical -->` lines, and exempt prose inside a
+    Hand-off paragraph. One violation per (token, file) — the baseline is keyed the same way."""
+    out: list[Violation] = []
+    lines = text.split("\n")
+    if rel_file.endswith("/SKILL.md") or rel_file == "SKILL.md":
+        block, _ = split_frontmatter(text)
+        if block is not None:
+            fm = parse_frontmatter(block)
+            extra = claude_only_keys(fm)
+            if extra:
+                first = 2
+                for i, l in enumerate(block.split("\n")):
+                    km = re.match(r"^([A-Za-z_][\w-]*)\s*:", l)
+                    if km and km.group(1) in extra:
+                        first = i + 2
+                        break
+                out.append(Violation("claude-frontmatter-key", rel_file, first,
+                                     f"top-level frontmatter key(s) {extra} outside the cross-CLI closed set "
+                                     f"{sorted(CLOSED_KEYS)} — Claude Code plugin hints no other CLI reads; role/phases/"
+                                     "archetypes move under `metadata:`, the rest are dropped"))
+            desc = fm.get("description", "")
+            if isinstance(desc, str) and len(desc) > CROSS_CLI["description_max_chars"]:
+                out.append(Violation("description-too-long", rel_file, 2,
+                                     f"description is {len(desc)} chars (max {CROSS_CLI['description_max_chars']})"))
+        nbytes = len(text.encode("utf-8"))
+        if nbytes > CROSS_CLI["skill_max_bytes"] or len(lines) > CROSS_CLI["skill_max_lines"]:
+            out.append(Violation("skill-too-large", rel_file, 1,
+                                 f"{len(lines)} lines / {nbytes} bytes (max {CROSS_CLI['skill_max_lines']} lines / "
+                                 f"{CROSS_CLI['skill_max_bytes']} bytes) — move detail into refs/"))
+    dispatch: list[int] = []
+    prose: list[int] = []
+    retired: dict[str, int] = {}
+    has_handoff = False
+    in_handoff = False
+    for lineno, line in enumerate(lines, start=1):
+        if lineno <= fm_end:
+            continue
+        if not line.strip():
+            in_handoff = False
+            continue
+        if HANDOFF_RE.match(line):
+            in_handoff = True
+            has_handoff = True
+        if HISTORICAL in line:
+            continue
+        if DISPATCH_CALL_RE.search(line):
+            dispatch.append(lineno)
+        if not in_handoff and PROSE_RE.search(line):
+            prose.append(lineno)
+        for m in RETIRED_RE.finditer(line):
+            retired.setdefault(m.group(0), lineno)
+    if dispatch:
+        out.append(Violation("claude-dispatch", rel_file, dispatch[0],
+                             f"{len(dispatch)} line(s) call a Claude Code dispatch primitive (Task( / Skill( / Agent( / "
+                             "TaskCreate( / TaskUpdate( / TodoWrite( / subagent_type / AskUserQuestion) no other seat has — "
+                             "name the skill in a Hand-off paragraph instead"))
+        if not has_handoff:
+            out.append(Violation("handoff-missing", rel_file, dispatch[0],
+                                 "dispatches but carries no `Hand-off` paragraph — the only cross-CLI dispatch shape"))
+    if prose:
+        out.append(Violation("claude-only-prose", rel_file, prose[0],
+                             f"{len(prose)} line(s) of Claude-only prose (a tool noun, a .claude/ path or `Claude Code`) "
+                             "outside a Hand-off paragraph and not marked <!-- historical -->"))
+    if retired:
+        out.append(Violation("retired-product-ref", rel_file, min(retired.values()),
+                             f"names retired product(s) {sorted(retired)} without <!-- historical -->"))
+    return out
+
+
+# ---------------------------------------------------------------------------
 # The garden scan: canonical engine + garden's extras, for one file
 # ---------------------------------------------------------------------------
 
@@ -396,6 +489,8 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
 
     for h in derive(text, rel_file, skill_rel, bundle):
         add(h.token, h.line, h.detail)
+    if is_md:
+        out.extend(scan_cross_cli(rel_file, text, fm_end))
 
     def own_file(p: str) -> bool:
         return skill is not None and (skill / p).exists()
@@ -436,7 +531,9 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
 
 
 def scan_structure(files_by_skill: dict[Path, list[Path]], repo: Path = REPO) -> list[Violation]:
-    """Per-skill and per-file structural rules (garden): preamble, fork/dispatch/ask fallbacks."""
+    """Per-skill structural rule (garden): the `## Runtime` preamble. (The Claude-first fallback
+    sentences — fork / dispatch / ask — were retired by L6 B0: the Claude shape itself is now the
+    `claude-dispatch` finding, translated into a Hand-off paragraph by the batches.)"""
     out: list[Violation] = []
     for skill, files in files_by_skill.items():
         skill_md = skill / "SKILL.md"
@@ -446,21 +543,6 @@ def scan_structure(files_by_skill: dict[Path, list[Path]], repo: Path = REPO) ->
         if uses_launcher and RUNTIME_BLOCK not in skill_text:
             out.append(Violation("missing-runtime-preamble", rel_skill_md, 1,
                                  "skill uses `wicked-garden run|python|path` but its SKILL.md lacks the exact `## Runtime` block"))
-        fm = FRONTMATTER_RE.match(skill_text)
-        if fm and CONTEXT_FORK_RE.search(fm.group(1)) and FORK_SENTENCE not in skill_text:
-            out.append(Violation("fork-no-fallback", rel_skill_md, 1,
-                                 "context: fork worker without the 'when your harness cannot fork' sentence"))
-        for f in files:
-            if f.suffix != ".md":
-                continue
-            text = f.read_text(encoding="utf-8")
-            rel = f.relative_to(repo).as_posix()
-            if DISPATCH_RE.search(text) and DISPATCH_SENTENCE not in text:
-                out.append(Violation("dispatch-no-fallback", rel, 1,
-                                     "dispatches with Skill(skill=…) (single- or multi-line) but lacks the harness-fallback sentence"))
-            if "AskUserQuestion" in body_of(text) and not GRX["ask_fallback"].search(text):
-                out.append(Violation("ask-no-fallback", rel, 1,
-                                     "mentions AskUserQuestion without spelling the plain-text fallback"))
     return out
 
 
@@ -473,7 +555,21 @@ def files_by_skill(files: list[Path]) -> dict[Path, list[Path]]:
     return grouped
 
 
-def scan_repo(repo: Path = REPO) -> tuple[list[Violation], dict[str, int]]:
+def apply_baseline(violations: list[Violation]) -> tuple[list[Violation], list[tuple[str, str]]]:
+    """Drop the cross-CLI violations the baseline tolerates; return (residual, stale entries) — a
+    stale entry is a baselined (token, file) that no longer trips and must be deleted."""
+    residual: list[Violation] = []
+    hit: set[tuple[str, str]] = set()
+    for v in violations:
+        if v.token in CROSS_CLI_TOKENS:
+            hit.add((v.token, v.file))
+            if (v.token, v.file) in BASELINE_PAIRS:
+                continue
+        residual.append(v)
+    return residual, sorted(BASELINE_PAIRS - hit)
+
+
+def scan_repo(repo: Path = REPO, baseline: bool = True) -> tuple[list[Violation], dict[str, int], list[tuple[str, str]]]:
     names = declared_names(repo / "skills")
     bundle = Bundle.from_repo(repo)
     files = text_files(repo / "skills")
@@ -492,8 +588,15 @@ def scan_repo(repo: Path = REPO) -> tuple[list[Violation], dict[str, int]]:
         if f.suffix == ".md":
             name_tokens += sum(1 for m in GRX["skill_name"].finditer(text) if "{" not in m.group(1))
     violations.extend(scan_structure(files_by_skill(files), repo))
+    stale: list[tuple[str, str]] = []
+    raw_cross_cli = Counter(v.token for v in violations if v.token in CROSS_CLI_TOKENS)
+    if baseline:
+        violations, stale = apply_baseline(violations)
     counts = {
         "files_scanned": len(files),
+        "baseline_entries": len(BASELINE_PAIRS),
+        "baseline_stale": len(stale),
+        **{f"cross_cli.{t}": c for t, c in sorted(raw_cross_cli.items())},
         "bundle_files": len(bundle.files),
         "skills": len(names),
         "plugin_root_refs": identifier_hits["plugin-root"],
@@ -503,7 +606,38 @@ def scan_repo(repo: Path = REPO) -> tuple[list[Violation], dict[str, int]]:
         "violations": len(violations),
         **{f"violations.{t}": c for t, c in sorted(Counter(v.token for v in violations).items())},
     }
-    return violations, counts
+    return violations, counts, stale
+
+
+def write_baseline(repo: Path = REPO) -> dict:
+    """Regenerate tests/cross_cli_baseline.json from the RAW cross-CLI hits at HEAD (dev tooling:
+    `python3 tests/test_skill_portability.py --write-baseline`). Never run it to silence a new
+    finding — fix the skill; the file only ever shrinks after B0."""
+    raw, _, _ = scan_repo(repo, baseline=False)
+    entries: dict[str, list[str]] = {t: [] for t in CROSS_CLI_TOKENS}
+    for v in raw:
+        if v.token in CROSS_CLI_TOKENS and v.file not in entries[v.token]:
+            entries[v.token].append(v.file)
+    for t in entries:
+        entries[t].sort()
+    head = ""
+    try:
+        import subprocess
+        head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo, capture_output=True,
+                              text=True, check=False).stdout.strip()
+    except OSError:
+        pass
+    data = {
+        "$comment": "L6 B0 cross-CLI baseline — the (token, file) pairs that still carry a Claude-only shape at the "
+                    "generating HEAD (tests/test_skill_portability.py scan_cross_cli). A listed pair is tolerated; an "
+                    "unlisted hit fails; a listed pair that no longer trips is STALE and fails — the qe batches (B3–B17) "
+                    "translate skills and delete their entries in the same change, and B18 deletes this file. Never add an "
+                    "entry to silence the lint; regenerate only with --write-baseline at B0.",
+        "generated_from": head,
+        "entries": entries,
+    }
+    (repo / CROSS_CLI["baseline"]).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return data
 
 
 def _report(violations: list[Violation], counts: dict[str, int]) -> str:
@@ -517,7 +651,7 @@ def _report(violations: list[Violation], counts: dict[str, int]) -> str:
 # Tests
 # ---------------------------------------------------------------------------
 
-_VIOLATIONS, _COUNTS = scan_repo()
+_VIOLATIONS, _COUNTS, _STALE = scan_repo()
 _NAMES = declared_names()
 _BUNDLE = Bundle.from_repo()
 
@@ -530,6 +664,15 @@ def test_fixtures_are_well_formed():
     assert GARDEN["canonical_fixture"] == "tests/portability_rules.json"
     assert RUNTIME_BLOCK.startswith(GARDEN["launcher"]["runtime_heading"] + "\n")
     assert "Relative paths in this skill are relative to the directory that contains this SKILL.md." in RUNTIME_BLOCK
+    # L6 B0: the seven cross-CLI tokens + verdict-spelling are declared; the three Claude-first fallback
+    # tokens are gone; the closed key set is the helper's (one source of truth)
+    declared = {t["token"] for t in GARDEN["tokens"]}
+    assert set(CROSS_CLI_TOKENS) == {"claude-frontmatter-key", "claude-dispatch", "claude-only-prose", "handoff-missing",
+                                     "retired-product-ref", "description-too-long", "skill-too-large"}
+    assert set(CROSS_CLI_TOKENS) | {"verdict-spelling"} <= declared, declared
+    assert not ({"fork-no-fallback", "dispatch-no-fallback", "ask-no-fallback"} & declared), declared
+    assert CLOSED_KEYS == META_CLOSED_KEYS
+    assert set(BASELINE.get("entries", {})) <= set(CROSS_CLI_TOKENS)
 
 
 @pytest.mark.parametrize("case", CANON["cases"], ids=lambda c: c["name"])
@@ -586,18 +729,68 @@ def test_garden_corpus_trips_exactly_its_tokens(entry):
     assert got == set(entry["token"].split("+")), f"expected {entry['token']}, got {got}"
 
 
-@pytest.mark.parametrize("text", [
-    'Skill(skill="wicked-garden-mem", args="recall x")',
-    'Skill(\n  skill="wicked-garden-qe-test-oracle",\n  args="""…"""\n)',
-    'Skill(   skill="x")',
-])
-def test_dispatch_trigger_matches_single_and_multi_line_forms(text):
-    assert DISPATCH_RE.search(text), text
+# ---------------------------------------------------------------------------
+# cross-CLI tokens (L6 B0): one trip + one quiet case per token, and the baseline discipline
+# ---------------------------------------------------------------------------
+
+_FM_OK = "---\nname: wicked-garden-x\ndescription: d\nmetadata:\n  role: worker\n---\n"
 
 
-def test_dispatch_trigger_ignores_non_dispatch_mentions():
-    for text in ["invoke it with the Skill tool", "`Skill(wicked-bus:query, query=…)`", "Skill(\"superpowers:x\")"]:
-        assert not DISPATCH_RE.search(text), text
+def _cross(file: str, text: str) -> set[str]:
+    return {v.token for v in scan_text(file, text, _NAMES, _BUNDLE) if v.token in CROSS_CLI_TOKENS}
+
+
+@pytest.mark.parametrize(("file", "text", "expect"), [
+    # claude-frontmatter-key: any top-level key outside the closed set; the closed set alone is quiet
+    ("skills/x/SKILL.md", "---\nname: wicked-garden-x\ndescription: d\ncontext: fork\nmodel: opus\n---\n# x\n", {"claude-frontmatter-key"}),
+    ("skills/x/SKILL.md", "---\nname: wicked-garden-x\ndescription: d\nlicense: MIT\ncompatibility: any\nmandates:\n  - wicked-garden-core\nmetadata:\n  role: router\n  phases: \"*\"\n---\n# x\n", set()),
+    ("skills/x/refs/a.md", "---\ncontext: fork\n---\nprose\n", set()),  # frontmatter tokens judge SKILL.md only
+    # claude-dispatch (+ handoff-missing when no Hand-off paragraph); a Hand-off paragraph satisfies the pair's second half
+    ("skills/x/SKILL.md", _FM_OK + "Run `Task(subagent_type=\"x\", prompt=\"y\")` first.\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "```\nSkill(\n  skill=\"wicked-garden-qe\",\n  args=\"x\"\n)\n```\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "TaskCreate the follow-ups; TodoWrite(...) is fine\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "Hand-off: open the `wicked-garden-qe` skill and run its `review` action.\n\nThen `Skill(skill=\"wicked-garden-qe\")` was the old shape.\n", {"claude-dispatch"}),
+    ("skills/x/refs/a.md", "the retired trio used `Task(subagent_type=…)` <!-- historical -->\n", set()),
+    ("skills/x/refs/a.md", "a subtask is planned; the agent (a person) skips it\n", set()),
+    # claude-only-prose: tool nouns, .claude/ paths, `Claude Code` — exempt inside a Hand-off paragraph / historical lines
+    ("skills/x/refs/a.md", "Use the Read tool on the file.\n", {"claude-only-prose"}),
+    ("skills/x/refs/a.md", "Dispatch uses the Skill tool on Claude Code (a fresh forked context).\n", {"claude-only-prose"}),
+    ("skills/x/refs/a.md", "settings live in `.claude/settings.json`\n", {"claude-only-prose"}),
+    ("skills/x/refs/a.md", "**Hand-off** — on Claude Code use the Skill tool; on any other seat open the named skill.\nSecond line of the paragraph still mentions Claude Code.\n", set()),
+    ("skills/x/refs/a.md", "Claude Code loaded it via the plugin root <!-- historical -->\n", set()),
+    ("skills/x/refs/a.md", "read the file with your file-edit tool; wicked-crew hands the seat the skills\n", set()),
+    # retired-product-ref
+    ("skills/x/refs/a.md", "run `wicked-testing accept` first\n", {"retired-product-ref"}),
+    ("skills/x/refs/a.md", "the loom peer (`wicked-loom`) re-derives the gate\n", {"retired-product-ref"}),
+    ("skills/x/refs/a.md", "ported from the retired wicked-testing package <!-- historical -->\n", set()),
+    ("skills/x/refs/a.md", "wicked-vault and wicked-estate are live peers\n", set()),
+    # description-too-long / skill-too-large (SKILL.md only)
+    ("skills/x/SKILL.md", "---\nname: wicked-garden-x\ndescription: " + "d" * 1025 + "\nmetadata:\n  role: worker\n---\n# x\n", {"description-too-long"}),
+    ("skills/x/SKILL.md", _FM_OK + "line\n" * 496, {"skill-too-large"}),
+    ("skills/x/SKILL.md", _FM_OK + ("x" * 100 + "\n") * 250, {"skill-too-large"}),
+    ("skills/x/refs/a.md", "line\n" * 600, set()),
+], ids=lambda v: v if isinstance(v, str) and len(v) < 40 and "/" in v else None)
+def test_cross_cli_token_table(file, text, expect):
+    assert _cross(file, text) == expect
+
+
+def test_cross_cli_baseline_has_no_stale_entries():
+    """A baselined (token, file) that no longer trips is stale — the batch that translated the skill
+    must delete the entry in the same change (the baseline only ever shrinks after B0)."""
+    assert not _STALE, f"stale entries in {CROSS_CLI['baseline']} (delete them): {_STALE}"
+
+
+def test_cross_cli_baseline_is_not_vacuous_at_b0():
+    """B0 seeds the baseline from HEAD: every token has hits to translate (B18 deletes the file when
+    they reach zero — at which point this test is deleted with it)."""
+    entries = BASELINE.get("entries", {})
+    assert set(entries) == set(CROSS_CLI_TOKENS), sorted(entries)
+    assert len(entries["claude-frontmatter-key"]) >= 100, len(entries["claude-frontmatter-key"])
+    assert len(entries["claude-dispatch"]) >= 30
+    assert len(entries["claude-only-prose"]) >= 30
+    for t in CROSS_CLI_TOKENS:
+        for f in entries[t]:
+            assert (REPO / f).exists(), f"{t}: baselined file is gone — delete the entry: {f}"
 
 
 # ---------------------------------------------------------------------------
@@ -702,5 +895,11 @@ def test_fence_walk_sees_non_shell_fences_in_the_repo():
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI report for the codemod loop
+    if "--write-baseline" in sys.argv[1:]:
+        data = write_baseline()
+        print(json.dumps({t: len(fs) for t, fs in data["entries"].items()}, indent=2))
+        sys.exit(0)
     print(_report(_VIOLATIONS, _COUNTS))
-    sys.exit(1 if _VIOLATIONS else 0)
+    if _STALE:
+        print(f"STALE baseline entries: {_STALE}")
+    sys.exit(1 if (_VIOLATIONS or _STALE) else 0)

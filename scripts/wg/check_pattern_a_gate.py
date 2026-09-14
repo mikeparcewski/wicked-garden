@@ -39,6 +39,13 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role, split_frontmatter  # noqa: E402
 
 # See module docstring for tuning rationale.
 SHRINK_RATIO = 0.40
@@ -161,10 +168,11 @@ def main() -> int:
         path = new_path
 
         if status.startswith("A") and path.startswith("skills/") and path.endswith("SKILL.md"):
-            # A "new worker" in skills-only is an added SKILL.md declaring
-            # context: fork (the standalone worker skills that replaced agents/).
+            # A "new worker" in skills-only is an added SKILL.md whose role is
+            # worker (metadata.role: worker; legacy context: fork inferred by
+            # _skill_meta.skill_role) — the standalone workers that replaced agents/.
             added_blob = run(["git", "show", f"HEAD:{path}"])
-            if added_blob and re.search(r"^context:\s*fork\s*$", added_blob, re.MULTILINE):
+            if added_blob and skill_role(split_frontmatter(added_blob)[0]) == "worker":
                 new_fork_skills.append(path)
         if status.startswith("A") and path.startswith("scenarios/") and path.endswith(".md"):
             new_scenarios.append(path)

@@ -21,11 +21,13 @@ Rule codes
   PK012  skill name not kebab-case or > 64 chars
   PK013  skill name not prefixed with "{vendor}-"
   PK014  declared domain has no router skill "{vendor}-{domain}"
-  PK015  router skill must not declare context: fork
-  PK016  worker skill "{vendor}-{domain}-{role}" must declare context: fork
+  PK015  router skill must not be a worker (metadata.role: worker / legacy context: fork)
+  PK016  worker skill "{vendor}-{domain}-{role}" must declare metadata.role: worker
+         (a role-less worker-shaped skill FAILS — never a silent drop; the legacy
+         context: fork is inferred during the cross-CLI transition)
   PK017  skill directory name must match frontmatter name
   PK018  skill does not belong to any declared domain
-  PK020  non-fork SKILL.md exceeds 200 lines (tier-2 disclosure cap)
+  PK020  router/module SKILL.md exceeds 200 lines (tier-2 disclosure cap; worker + floor exempt)
   PK021  frontmatter description exceeds ~120 words (tier-1 cap) [warn]
   PK022  refs/ file exceeds 350 lines (tier-3 band is 200-300) [warn]
   PK030  NOT-THIS-WHEN reciprocity: same-pack twin does not point back
@@ -54,6 +56,7 @@ _SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+from _skill_meta import skill_role, split_frontmatter  # noqa: E402
 from _pack_registry import (  # noqa: E402
     MANIFEST_NAME,
     _KEBAB_RE,
@@ -202,7 +205,7 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
         err("PK010", str(skills_dir), "no SKILL.md files found")
         return findings
 
-    skills: dict = {}   # name -> {fm, path, text, is_fork}
+    skills: dict = {}   # name -> {fm, path, text, role}
     for skill_md in skill_files:
         rel = str(skill_md.relative_to(pack_root))
         try:
@@ -223,7 +226,9 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
             err("PK017", rel, f"directory {skill_md.parent.name!r} must match skill name {name!r}")
         skills[name] = {
             "fm": fm, "path": rel, "text": text,
-            "is_fork": fm.get("context", "") == "fork",
+            # ONE reader of role (scripts/_skill_meta): metadata.role first,
+            # legacy context: fork / user-invocable inferred.
+            "role": skill_role(split_frontmatter(text)[0]),
         }
 
     # ---- router / worker shape per declared domain ----------------------
@@ -233,9 +238,10 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
         if router not in skills:
             err("PK014", MANIFEST_NAME,
                 f"domain {d!r} has no router skill {router!r} (one router per domain)")
-        elif skills[router]["is_fork"]:
+        elif skills[router]["role"] == "worker":
             err("PK015", skills[router]["path"],
-                f"router {router!r} must be user-invocable, not context: fork")
+                f"router {router!r} must be a router (metadata.role: router / user-invocable), "
+                "not a worker")
 
     for name, info in skills.items():
         if name in router_names:
@@ -247,14 +253,16 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
                 f"skill {name!r} does not belong to any declared domain "
                 f"(expected {vendor}-{{domain}}-{{role}} with domain in {domain_names})")
             continue
-        if not info["is_fork"]:
+        if info["role"] != "worker":
             err("PK016", info["path"],
-                f"worker {name!r} must declare context: fork (isolated subagent)")
+                f"worker {name!r} must declare metadata.role: worker — a worker-shaped name "
+                f"with role {info['role']!r} is refused, never silently dropped (the legacy "
+                "context: fork is inferred during the cross-CLI transition)")
 
     # ---- disclosure tiers ------------------------------------------------
     for name, info in skills.items():
         line_count = len(info["text"].splitlines())
-        if not info["is_fork"] and line_count > _MAX_BODY_LINES:
+        if info["role"] not in ("worker", "floor") and line_count > _MAX_BODY_LINES:
             err("PK020", info["path"],
                 f"{line_count} lines (tier-2 cap is {_MAX_BODY_LINES}; "
                 "move detail into refs/)")

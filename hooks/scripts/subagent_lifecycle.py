@@ -176,9 +176,9 @@ def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):
       the legacy ``subagent_type`` frontmatter). The domain must be a
       known specialist domain (``specialist_domains`` from
       ``specialist.json``) for the engagement tracker to accept it.
-    * Fork-skill name: ``wicked-garden-{domain}-{role}`` — resolved by
+    * Worker-skill name: ``wicked-garden-{domain}-{role}`` — resolved by
       :mod:`crew.specialist_resolver`, which walks ``skills/**/SKILL.md``
-      (context: fork) frontmatter.
+      frontmatter and keeps role ``worker`` (``_skill_meta.skill_role``).
     * Bare role: ``requirements-analyst`` — resolved the same way. This
       is the path the facilitator emits by default.
 
@@ -203,8 +203,8 @@ def _parse_specialist_from_agent_type(agent_type: str, specialist_domains: set):
 
         return domain, agent_name
 
-    # Fork-skill-name or bare-role path (Issue #573): resolve via
-    # skills/**/SKILL.md (context: fork) frontmatter. Fail-closed to the
+    # Worker-skill-name or bare-role path (Issue #573): resolve via
+    # skills/**/SKILL.md frontmatter (role worker). Fail-closed to the
     # old behavior on any resolver error — engagement tracking is
     # best-effort and the hook must never block the agent.
     try:

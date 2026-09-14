@@ -234,8 +234,9 @@ def _ref_worker_exists(ref_plugin_dir: Path, ref_agent_name: str) -> bool:
 
     Accepts either shape:
       * legacy ``agents/<name>.md`` (plugins that still ship an agents/ tree)
-      * a skills-only worker: a ``skills/**/SKILL.md`` that declares
-        ``context: fork`` and whose declaring directory name equals
+      * a skills-only worker: a ``skills/**/SKILL.md`` whose role is worker
+        (``metadata.role: worker``, legacy ``context: fork`` — see
+        ``scripts/_skill_meta.skill_role``) and whose declaring directory name equals
         ``<name>`` or ends with ``-<name>`` (e.g. ``qe-semantic-reviewer`` for
         ``semantic-reviewer``), OR whose frontmatter ``name`` ends with ``-<name>``.
     """

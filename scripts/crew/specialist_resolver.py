@@ -9,7 +9,7 @@ Three naming systems used to collide for the same concept:
 2. The facilitator rubric (``skills/propose-process/SKILL.md`` Step 4)
    picks bare **role** names like ``requirements-analyst`` or
    ``solution-architect``.
-3. Actual workers are **context:fork skills** named
+3. Actual workers are **skills whose role is ``worker``** named
    ``wicked-garden-{domain}-{role}`` — for example
    ``wicked-garden-product-requirements-analyst`` at
    ``skills/product-requirements-analyst/SKILL.md``. (Before the
@@ -18,9 +18,11 @@ Three naming systems used to collide for the same concept:
    legacy ``subagent_type`` in frontmatter for compatibility.)
 
 This module is the single source of truth that bridges the three. It
-walks ``skills/**/SKILL.md``, keeps only files declaring
-``context: fork``, parses the YAML-like frontmatter by simple line
-scanning (stdlib only — hooks can import it), and returns lookup maps
+walks ``skills/**/SKILL.md``, keeps only files whose role is ``worker``
+(``metadata.role: worker``; the legacy ``context: fork`` is inferred by
+``scripts/_skill_meta.skill_role`` — the one reader of role), parses the
+YAML-like frontmatter by simple line scanning (stdlib only — hooks can
+import it), and returns lookup maps
 keyed by bare role, dash-named skill, and legacy colon subagent_type.
 
 Public API:
@@ -36,7 +38,7 @@ hooks or scripts do not re-walk the skills tree.
 Third-party packs (extension-contract gap 2): after walking garden's own
 skills tree, the builder discovers installed packs via
 ``scripts/_pack_registry.py`` (wicked-pack.json manifests) and indexes
-their ``context: fork`` workers under the same maps — so crew dispatch of
+their ``worker``-role skills under the same maps — so crew dispatch of
 ``{vendor}-{domain}-{role}`` (e.g. ``acme-seo-keyword-analyst``) resolves
 exactly like a first-party worker. Garden walks FIRST, so a pack can never
 shadow a first-party role name; pack discovery is strictly fail-open.
@@ -47,8 +49,15 @@ from __future__ import annotations
 import functools
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Optional, Tuple
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role  # noqa: E402
 
 # Legacy colon prefix (pre-skills-only subagent_type namespace). Callers
 # may still pass ``wicked-garden:{domain}:{role}`` identifiers from old
@@ -77,9 +86,12 @@ _RE_CONTEXT = re.compile(r"^context:\s*(.+?)\s*$")
 
 
 def _parse_skill_frontmatter(path: Path) -> dict:
-    """Return ``{"name": ..., "subagent_type": ..., "context": ...}``.
+    """Return ``{"name": ..., "subagent_type": ..., "context": ..., "role": ...}``.
 
-    Missing keys are omitted from the returned dict (callers treat that
+    ``role`` is always present for a file with frontmatter — the cross-CLI role
+    (``worker`` | ``router`` | ``module`` | ``floor``) from
+    ``_skill_meta.skill_role`` (``metadata.role`` first, legacy keys inferred).
+    Other missing keys are omitted from the returned dict (callers treat that
     as "skip this file"). Unreadable files return ``{}``.
 
     This is NOT a general YAML parser. It scans line-by-line between the
@@ -95,10 +107,12 @@ def _parse_skill_frontmatter(path: Path) -> dict:
         return {}
 
     result: dict = {}
+    fm_lines: list = []
     for line in lines[1:]:
         stripped = line.strip()
         if stripped == _FRONTMATTER_FENCE:
             break
+        fm_lines.append(line)
         name_match = _RE_NAME.match(line)
         if name_match and "name" not in result:
             result["name"] = name_match.group(1).strip()
@@ -111,6 +125,7 @@ def _parse_skill_frontmatter(path: Path) -> dict:
         if context_match and "context" not in result:
             result["context"] = context_match.group(1).strip()
             continue
+    result["role"] = skill_role("\n".join(fm_lines))
     return result
 
 
@@ -147,7 +162,7 @@ def _discover_packs_safe() -> list:
 
 
 def _index_pack_workers(pack, maps: dict, warnings: list) -> None:
-    """Index one pack's ``context: fork`` workers into the resolver maps.
+    """Index one pack's ``worker``-role skills into the resolver maps.
 
     Pack workers are named ``{vendor}-{domain}-{role}``; their specialist
     domain is the qualified ``{vendor}-{domain}`` (so pack domains can never
@@ -162,8 +177,8 @@ def _index_pack_workers(pack, maps: dict, warnings: list) -> None:
         pack_domains = sorted(pack.domain_names(), key=len, reverse=True)
         for skill_path in sorted(skills_dir.rglob("SKILL.md")):
             meta = _parse_skill_frontmatter(skill_path)
-            if meta.get("context") != "fork":
-                continue
+            if meta.get("role") != "worker":
+                continue  # routers / modules / floor are not dispatchable
             skill_name = meta.get("name")
             if not skill_name or not skill_name.startswith(pack.vendor + "-"):
                 continue
@@ -236,8 +251,8 @@ def _build_resolver_cached(plugin_root_str: str) -> dict:
         # filesystem-dependent on some platforms, so we sort explicitly.
         for skill_path in sorted(skills_dir.rglob("SKILL.md")):
             meta = _parse_skill_frontmatter(skill_path)
-            if meta.get("context") != "fork":
-                continue  # only fork-context skills are dispatchable workers
+            if meta.get("role") != "worker":
+                continue  # only role `worker` is dispatchable — never a router, module or the floor
             skill_name = meta.get("name")
             if not skill_name:
                 continue
@@ -301,7 +316,7 @@ def _build_resolver_cached(plugin_root_str: str) -> dict:
 def build_resolver(plugin_root: Path) -> dict:
     """Build the resolver by walking ``skills/**/SKILL.md`` under ``plugin_root``.
 
-    Only skills declaring ``context: fork`` are indexed (they are the
+    Only skills whose role is ``worker`` are indexed (they are the
     dispatchable workers — the former agents/). Returns a dict with:
 
     * ``role_to_skill`` — bare role -> fork-skill name

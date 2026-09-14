@@ -13,9 +13,10 @@ help overview against the skills/ tree:
 
   - FAIL if help advertises a ``wicked-garden-<x>`` skill that no SKILL.md
     declares in its frontmatter ``name:``.
-  - FAIL if a real user-entry skill (top-level skills/<dir>/SKILL.md without
-    ``context: fork`` and not a ``metadata.role: module`` redirect stub) is not
-    mentioned in the help overview.
+  - FAIL if a real user-entry skill (top-level skills/<dir>/SKILL.md whose
+    cross-CLI role is ``router`` — ``scripts/_skill_meta.skill_role``; workers,
+    modules and the floor are not entry points) is not mentioned in the help
+    overview.
   - FAIL if the core action router drops one of the utility actions that
     absorbed the former top-level commands (help/setup/install/reset/
     where-am-i/report-issue).
@@ -28,12 +29,17 @@ mentioned.
 """
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).parent.parent
 SKILLS_DIR = REPO / "skills"
+if str(REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO / "scripts"))
+
+from _skill_meta import skill_role  # noqa: E402
 CORE_SKILL = SKILLS_DIR / "core" / "SKILL.md"
 ARCHETYPE_SKILL = SKILLS_DIR / "archetype" / "SKILL.md"
 ARCHETYPES_JSON = REPO / ".claude-plugin" / "archetypes.json"
@@ -45,7 +51,6 @@ SKILL_TOKEN_RE = re.compile(r"\bwicked-garden-[a-z0-9]+(?:-[a-z0-9]+)*")
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 NAME_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
-CONTEXT_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 
 # The utility actions the core skill absorbed from the former top-level
 # commands/{help,setup,install,reset,where-am-i,report-issue}.md. Dropping one
@@ -76,28 +81,16 @@ def _declared_skill_names() -> set[str]:
     return names
 
 
-METADATA_BLOCK_RE = re.compile(r"^metadata:\s*\n((?:[ \t]+.*\n?)*)", re.MULTILINE)
-
-
-def _metadata_role(fm: str) -> str | None:
-    """``metadata.role`` from the cross-CLI frontmatter closed set (worker | router |
-    module | floor), or None. A ``module`` is a retired redirect stub, not an entry
-    point — the cross-CLI counterpart of the ``context: fork`` scoping below."""
-    block = METADATA_BLOCK_RE.search(fm + "\n")
-    if not block:
-        return None
-    role = re.search(r"^[ \t]+role:\s*(\S+)\s*$", block.group(1), re.MULTILINE)
-    return role.group(1).strip("\"'") if role else None
-
-
 def _entry_skills() -> dict[str, str]:
-    """Top-level user-entry skills: skills/<dir>/SKILL.md without context: fork
-    and not a ``metadata.role: module`` redirect stub.
+    """Top-level user-entry skills: skills/<dir>/SKILL.md whose cross-CLI role is
+    ``router`` (``scripts/_skill_meta.skill_role``: ``metadata.role`` first, legacy
+    ``user-invocable: true`` inferred).
 
-    Fork-context skills are workers reached by dispatch, and module stubs only
-    redirect to their successor — neither is an entry point the
-    operator would look for in help — the same scoping the old suite applied by
-    reading commands/ (entry points) and not agents/ (workers).
+    Workers are reached by dispatch, module stubs only redirect to their
+    successor, and the floor (``wicked-garden-governed-worker``) is handed to
+    governed units — none is an entry point the operator would look for in
+    help — the same scoping the old suite applied by reading commands/ (entry
+    points) and not agents/ (workers).
     """
     entries = {}
     for skill_dir in sorted(p for p in SKILLS_DIR.iterdir() if p.is_dir()):
@@ -105,8 +98,8 @@ def _entry_skills() -> dict[str, str]:
         if not skill_md.exists():
             continue
         fm = _frontmatter(skill_md)
-        if CONTEXT_FORK_RE.search(fm) or _metadata_role(fm) == "module":
-            continue  # workers are reached by dispatch; modules are retired redirects
+        if skill_role(fm) != "router":
+            continue  # workers are dispatched, modules redirect, the floor is handed
         name_match = NAME_RE.search(fm)
         assert name_match, f"{skill_md.relative_to(REPO)}: missing name"
         entries[skill_dir.name] = name_match.group(1).strip()
@@ -136,7 +129,7 @@ def test_every_entry_skill_is_advertised(skill_dir: str, skill_name: str):
     """Every real user-entry skill must appear in the help overview."""
     assert skill_name in _help_text(), (
         f"skills/core/SKILL.md does not mention the entry skill '{skill_name}' "
-        f"(skills/{skill_dir}/SKILL.md, not context:fork). Add it to the help "
+        f"(skills/{skill_dir}/SKILL.md, role router). Add it to the help "
         "overview so operators can discover it."
     )
 
