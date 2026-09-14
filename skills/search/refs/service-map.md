@@ -16,10 +16,11 @@ and code patterns. Generates a service dependency map.
    ```
    Parse found files to extract service names, types, and connections.
 
-2. **Search code for service patterns** — the estate MCP `SearchEntity` tool
-   (when connected) for service/controller/router symbols, plus Grep:
+2. **Search code for service patterns** — the estate `SearchEntity` tool through the read-only
+   shim (the one way on every seat: `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"SearchEntity","arguments":{"name":"<Service|Controller|Router symbol>"}}'`)
+   for service/controller/router symbols, plus a literal-pattern search of the sources:
    ```
-   Grep: @(Service|RestController|Controller|Router|app\.(get|post|put|delete))
+   pattern: @(Service|RestController|Controller|Router|app\.(get|post|put|delete))
    ```
    Suggest `wicked-estate index` to build the code graph for richer service discovery.
 

@@ -25,7 +25,8 @@ archetype_relevance: ["*"]
 
 # wicked-garden:mem — memory + knowledge over wicked-estate
 
-The engine is wicked-estate (`memory.*` / `knowledge.*` MCP tools); the seam
+The engine is wicked-estate (its `memory.*` / `knowledge.*` tools, reached through the
+read-only estate shim the backend script spawns — the one way on every seat); the seam
 is one deterministic backend script. Per estate's DEC-R doctrine, the agent
 reasons (what to store, how to chunk, what an answer means) and the engine
 ranks/persists — the backend only moves JSON. Every action degrades
@@ -39,18 +40,21 @@ wicked-garden run \
 
 Long content: pass `-` as json-args and pipe the JSON via stdin.
 
-**In a governed run** (dispatched as a unit of a wicked-crew run — a phase directive and/or the
-`wicked-garden-governed-worker` skill was handed to you; both carriers stamp `WICKED_RUN_ID` /
-`WICKED_RUN_UNIT` / `WICKED_RUN_AGENT` on your environment since wicked-core 0.7.26 — the
-primary cue, the handed context confirms it; when unsure, treat the session as governed)
-append `--readonly` to every `estate_memory.py` call —
-the backend forwards it to the estate shim, which spawns `wicked-estate-mcp --readonly`
-with the store pinned from the worker environment (`WICKED_ESTATE_DB` / `WICKED_HOME` /
-`WICKED_MEMORY_DB`) or `--db <path>`; an unpinned store is refused
-(`ok: false`), and `store` / `capture-batch` / `ingest` / `write` / `forget` are refused
-by the read-only engine — capture learnings as proposals instead (the
-`wicked-garden-repo-learn` skill's capture contract). `recall` / `review` / `sources` /
-`health` work unchanged. Spell `--readonly` exactly (`--read-only` is a usage error).
+**Every call from a seat carries `--readonly`** — a governed run's unit, a chat turn, any session
+where you are the agent (when in doubt, `--readonly`):
+```bash
+wicked-garden run scripts/mem/estate_memory.py <action> '<json-args>' --readonly
+```
+A human operator at a terminal may omit it to `store` / `ingest` / `forget`. The backend forwards
+`--readonly` to the estate shim (`scripts/_estate_client.py`), which spawns the estate binary
+read-only with the store pinned from
+the environment (`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`; an
+unpinned store is refused (`ok: false`), and `store` / `capture-batch` / `ingest` / `write` /
+`forget` are refused by the read-only engine — capture learnings as proposals instead (the
+`wicked-garden-repo-learn` skill's capture contract). `recall` / `review` / `sources` / `health`
+work unchanged. Spell `--readonly` exactly (`--read-only` is a usage error). This is the one way
+to the stores on every seat and in every session kind: no estate tool is registered on a seat,
+nothing to connect, nothing to fall back to.
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
@@ -111,7 +115,8 @@ knowledge store under `wiki:` scopes (a historical prefix — e.g.
 `wiki:architecture`: planes, storage doctrine, event grammar, ADR
 rationale): recall it with `knowledge.recall` /
 `{"scope_prefix": "wiki:"}` via `answer`, and recall the *enforceable* rules
-behind it with the estate MCP `rules.recall` tool (faceted, severity-ordered,
+behind it with the estate `rules.recall` tool through the read-only shim —
+`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"rules.recall","arguments":{…}}'` — (faceted, severity-ordered,
 each hit citing its source doc). Managing steering (import / chat / edit /
 retire) is operator work — see `crates/wicked-governance/STEERING.md`
 in wicked-core.

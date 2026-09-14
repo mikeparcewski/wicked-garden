@@ -72,11 +72,12 @@ Brain's memory types map onto estate kinds as follows (used by
 
 Memory/knowledge content that quotes an estate SymbolId minted before the
 2026-08 id-scheme migration may be dangling — when a cited SymbolId fails to
-resolve in the graph, fall back to the estate MCP `SearchEntity` tool by name.
+resolve in the graph, resolve it again by name with the estate `SearchEntity` tool through
+the read-only shim (`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"SearchEntity","arguments":{"name":"<symbol>"}}'`).
 
 ## Store resolution (which DB answers)
 
-The estate MCP binary resolves its domain stores per-process:
+The estate binary the shim spawns resolves its domain stores per-process:
 `WICKED_MEMORY_DB` / `WICKED_KNOWLEDGE_DB` env overrides, else
 `~/.wicked/memory.db` and `~/.wicked/knowledge.db`. Tests point these at
 scratch paths; normal sessions inherit the user's real stores. The shim
