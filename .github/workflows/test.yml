@@ -26,9 +26,10 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install pytest
-        # Stdlib-only project; only pytest is needed for the test suite.
-        run: pip install pytest
+      - name: Install pytest + PyYAML
+        # Stdlib-only project; pytest for the suite, pyyaml for the frontmatter guard
+        # (scripts/ci/validate.py mirrors the skills publish's yaml.safe_load).
+        run: pip install pytest pyyaml
 
       - name: Install wicked peers for E2E (required for the trust spine)
         # The trust-spine tests (prove -> loom -> vault) MUST run in CI — a
