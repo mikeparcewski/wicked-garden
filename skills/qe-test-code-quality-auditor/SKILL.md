@@ -307,8 +307,11 @@ top-5 (full list in test-quality-top-n.csv):
   P1 tests/api/retry.test.ts:88   hardcoded-sleep "setTimeout(() => ..., 5000)"
   ...
 
-VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}
+AUDIT: {p0}/{p1}/{p2} REVIEWER: wicked-garden-qe-test-code-quality-auditor RUN_ID: {RUN_ID}
 ```
+
+The audit certifies nothing, so it writes no VERDICT line — the `AUDIT:` line
+is its report line; the ledger record (§5) carries the CONDITIONAL / FAIL.
 
 ## 9. Produced-test review (a PLAN + the tests it claims)
 
@@ -364,16 +367,23 @@ PLAN; the author's "all green" is a claim.
   mutated-or-reasoned with a nameable failing mutation each (duty 3); e2e
   oracles verified (duty 5); `not covered` rows account for the intent
   (duty 6); and the §2 detectors report P0 = P1 = P2 = 0 on the produced files.
-- **`CONDITIONAL`** — no P0, but any P1/P2 (implementation-shaped test, padded
-  total, silent scope gap, style smells): approve with the fixes listed.
+- **`FAIL` with CONDITIONS** — no P0, but any P1/P2 (implementation-shaped
+  test, padded total, silent scope gap, style smells): list the fixes as
+  conditions above the verdict line. There is no conditional pass — the ledger
+  record (§5) may still say `CONDITIONAL`; the output line says `FAIL`.
 - **`FAIL`** — any P0: `[unexecuted-test]`, a red produced test, an
   unsupported `covered` claim, a tautological test, or an impossible oracle
   `[scenario-defect]`.
 
-Report line for this mode (the §8 line stays for the audit):
+Report block for this mode — the §8 `AUDIT:` line stays for the audit; a
+message never carries two VERDICT lines and never quotes another one. The
+verdict is one plain-text line, the LAST line of your output:
 
 ```
-VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}
+MODE: produced-test
+REVIEWER: wicked-garden-qe-test-code-quality-auditor
+RUN_ID: {RUN_ID}
+VERDICT: PASS|FAIL
 ```
 
 ## Helper resolution (`{WT_LIB}`)

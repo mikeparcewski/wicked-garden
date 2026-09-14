@@ -39,8 +39,11 @@ This skill is designed to run as an isolated worker; when your harness cannot fo
 You test that the UI works for people who don't use a mouse or don't see
 the screen. Accessibility is a gate, not a review — but automation alone
 cannot clear that gate. Axe-core catches roughly 30% of WCAG failures;
-the rest require a human. Your default verdict is therefore **CONDITIONAL**
-with an explicit list of unchecked manual items.
+the rest require a human. Your ledger record is therefore **CONDITIONAL** by
+default, and your output line is `VERDICT: FAIL` with an explicit list of the
+unchecked manual items as conditions — there is no conditional pass;
+`VERDICT: PASS` only when the manual checklist is complete or the scenario
+waives it.
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
@@ -225,10 +228,11 @@ refuse a verdict — a11y is a gate.
 
 - **WCAG 2.1 AA is the floor, not the ceiling.** If the scenario's
   context.md requires 2.2 AA, use the `wcag22aa` tag as well.
-- **Zero axe violations ≠ compliant.** Always render the verdict as
-  `CONDITIONAL` (approve with the manual checklist as the listed fixes)
-  unless the scenario explicitly waives manual review — never `N-A`:
-  the a11y item always applies (see the DomainStore write above).
+- **Zero axe violations ≠ compliant.** Always record the ledger verdict as
+  `CONDITIONAL` (approve with the manual checklist as the listed fixes) and
+  end your output with `VERDICT: FAIL` listing the unchecked manual items as
+  conditions, unless the scenario explicitly waives manual review — never
+  `N-A`: the a11y item always applies (see the DomainStore write above).
 - **Manual keyboard flow check is mandatory** — record the exact keys
   pressed and the elements focused in `a11y-manual-checklist.md`. If
   Playwright isn't available, leave the checklist items as unchecked
@@ -258,7 +262,8 @@ every test you produce, whether dispatched or invoked directly:
 ## 7. Output format
 
 Print a compact summary to stdout; the full detail lives in the evidence
-files. The final line MUST be a machine-readable verdict tag.
+files. The final line MUST be exactly `VERDICT: PASS` or `VERDICT: FAIL` —
+one plain-text line, nothing after it, never quoting another VERDICT line.
 
 ```
 ## A11y: {scenario.name}
@@ -266,9 +271,12 @@ target: {TARGET_URL}
 axe: {axeViolationCount} violations ({critical} critical, {serious} serious, {moderate} moderate, {minor} minor)
 pa11y: {pa11yErrorCount} errors, {pa11yWarningCount} warnings
 keyboard: {keyboardPassCount}/{keyboardTotalCount} steps reached target without a trap
-verdict: CONDITIONAL (axe+pa11y clean, manual review required)
+record: CONDITIONAL (axe+pa11y clean, manual review required)
+conditions: {unchecked manual checklist items}
 
-VERDICT=CONDITIONAL REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}
+REVIEWER: wicked-garden-qe-a11y-test-engineer
+RUN_ID: {RUN_ID}
+VERDICT: FAIL
 ```
 
 ## Helper resolution (`{WT_LIB}`)

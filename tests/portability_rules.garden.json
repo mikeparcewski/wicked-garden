@@ -11,7 +11,9 @@
     "slash_form": "(?<![A-Za-z0-9_})/])/wicked-garden:[a-z]",
     "ask_fallback": "plain[- ]text",
     "bare_script_span": "`((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s+[^`]+)`",
-    "bare_script_line": "^(\\s*)(?:\\$ )?((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s.*)?$"
+    "bare_script_line": "^(\\s*)(?:\\$ )?((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s.*)?$",
+    "verdict_line": "^\\s*VERDICT[:=]",
+    "verdict_legacy_footer": "^\\s*VERDICT=(?:PASS|FAIL|\\{PASS\\|FAIL\\}) REVIEWER=wicked-garden-qe-[a-z0-9-]+ RUN_ID=\\{RUN_ID\\}\\s*$"
   },
   "launcher": {
     "bin": "wicked-garden",
@@ -29,6 +31,23 @@
     "dispatch_trigger_regex": "Skill\\(\\s*skill=",
     "skill_name_exemption_marker": "<!-- not-a-skill -->",
     "skill_name_exemption_marker_scope": "token: the marker must directly follow the wicked-garden-<x> token (an optional closing quote/backtick and spaces may sit between); a marker elsewhere on the line exempts nothing"
+  },
+  "verdict_spelling": {
+    "$comment": "verdict-spelling (FIX-IT-ALL L6-0, D-9 text half). wicked-core's evaluator gate reads the LAST line of an evaluator unit's output matching regex.verdict_line and passes ONLY on the token PASS; every other token or a missing line parks the run at the human gate. Garden text therefore asks for nothing but the two spellings (or the template) on such a line. legacy_footer_files: qe specialists still carrying the pre-12.37 `VERDICT=PASS|FAIL|{PASS|FAIL} REVIEWER=… RUN_ID=…` footer — it parses as PASS/FAIL so it is tolerated THERE ONLY; the qe batches (B14-B17) rewrite each footer to the grammar and delete its entry in the same change, and a listed file with no footer left fails tests/test_skill_portability.py (stale baseline). Never add a file here to silence the lint.",
+    "allowed": [
+      "VERDICT: PASS",
+      "VERDICT: FAIL",
+      "VERDICT: PASS|FAIL"
+    ],
+    "legacy_footer_files": [
+      "skills/qe-chaos-test-engineer/SKILL.md",
+      "skills/qe-compliance-test-engineer/SKILL.md",
+      "skills/qe-flaky-test-hunter/SKILL.md",
+      "skills/qe-iac-test-engineer/SKILL.md",
+      "skills/qe-incident-to-scenario-synthesizer/SKILL.md",
+      "skills/qe-mutation-test-engineer/SKILL.md",
+      "skills/qe-visual-regression-engineer/SKILL.md"
+    ]
   },
   "codemod": {
     "shell_langs_extra": [
@@ -84,6 +103,11 @@
     {
       "token": "ask-no-fallback",
       "rule": "a file that mentions AskUserQuestion (outside frontmatter) must also spell the plain-text fallback",
+      "garden": "fail"
+    },
+    {
+      "token": "verdict-spelling",
+      "rule": "a line-leading `VERDICT[:=]` line in any skills/**/*.md (fenced blocks included — the contract templates live in fences) must be exactly `VERDICT: PASS`, `VERDICT: FAIL` or the template `VERDICT: PASS|FAIL`; CONDITIONAL / APPROVE / REJECT / SKIP are not verdicts; the legacy `VERDICT=… REVIEWER=… RUN_ID=…` footer is tolerated only in verdict_spelling.legacy_footer_files; nothing that is not line-leading is judged (`**VERDICT: …**`, a backticked mention, `### Verdict:`, a lowercase `verdict:` record line, a mid-line mention)",
       "garden": "fail"
     }
   ],
@@ -153,6 +177,22 @@
       {
         "file": "skills/draft/refs/self-check.md",
         "text": "`scripts/draft/contrast_check.py` (re-derives the readable floor — a file mention, not a command)"
+      },
+      {
+        "file": "skills/swarm/refs/independent-verification.md",
+        "text": "4. RENDER THE VERDICT: PASS / FAIL / PARTIAL."
+      },
+      {
+        "file": "skills/qe-flaky-test-hunter/SKILL.md",
+        "text": "  const pass=lines.filter(l=>/VERDICT=PASS/.test(l)).length;"
+      },
+      {
+        "file": "skills/governed-worker/SKILL.md",
+        "text": "```\nMODE: produced-test\nREVIEWER: wicked-garden-qe-test-code-quality-auditor\nRUN_ID: {RUN_ID}\nVERDICT: PASS|FAIL\n```"
+      },
+      {
+        "file": "skills/qe-chaos-test-engineer/SKILL.md",
+        "text": "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}"
       }
     ],
     "trips": [
@@ -220,6 +260,26 @@
         "file": "skills/draft/refs/self-check.md",
         "text": "```bash\npython3 \"${CLAUDE_PLUGIN_ROOT}/scripts/draft/self_check.py\" out.html\n```",
         "token": "plugin-root"
+      },
+      {
+        "file": "skills/wickedizer/refs/patterns.md",
+        "text": "```\n| Aspect | Option A | Option B |\n\nVERDICT: [Which wins and why]\n```",
+        "token": "verdict-spelling"
+      },
+      {
+        "file": "skills/qe-security-test-engineer/SKILL.md",
+        "text": "VERDICT={PASS|CONDITIONAL|FAIL|SKIP} REVIEWER=wicked-garden-qe-security-test-engineer RUN_ID={RUN_ID}",
+        "token": "verdict-spelling"
+      },
+      {
+        "file": "skills/governed-worker/SKILL.md",
+        "text": "VERDICT: CONDITIONAL",
+        "token": "verdict-spelling"
+      },
+      {
+        "file": "skills/qe-a11y-test-engineer/SKILL.md",
+        "text": "VERDICT=CONDITIONAL REVIEWER=wicked-garden-qe-a11y-test-engineer RUN_ID={RUN_ID}",
+        "token": "verdict-spelling"
       }
     ]
   }

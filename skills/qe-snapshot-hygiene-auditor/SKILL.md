@@ -233,9 +233,12 @@ findings. Return a PASS with `reason: "no snapshots found"` and
 
 ## 7. Non-negotiable rules
 
-- **Default verdict is CONDITIONAL.** This is a reviewer tool, not a
-  gate. A FAIL is reserved for severe rubber-stamp counts or catastrophic
-  dead-file counts.
+- **Default ledger verdict is CONDITIONAL; the output line is then
+  `VERDICT: FAIL` with the top-N to re-review as conditions.** This is a
+  reviewer tool, not a gate — but there is no conditional pass on the output
+  line: `VERDICT: PASS` only for a clean tree (or the `ERR_NO_SNAPSHOTS_FOUND`
+  noop). The ledger's FAIL is reserved for severe rubber-stamp counts or
+  catastrophic dead-file counts.
 - **Rubber-stamp detection requires git history.** Shallow clones with
   depth < `rubber_stamp_window + 5` trigger `ERR_GIT_LOG_FAILED`; do
   not guess.
@@ -247,6 +250,9 @@ findings. Return a PASS with `reason: "no snapshots found"` and
   ordering must be identical — auditors diff across runs.
 
 ## 8. Output
+
+The final line is exactly `VERDICT: PASS` or `VERDICT: FAIL` — one plain-text
+line, nothing after it, never quoting another VERDICT line.
 
 ```
 ## Snapshot audit: {scenario.name}
@@ -267,7 +273,9 @@ top-5 (full list in snapshot-top-n.csv):
   score=3 tests/cassettes/legacy/old.yaml     (dead)                              action=delete
   ...
 
-VERDICT={CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-snapshot-hygiene-auditor RUN_ID={RUN_ID}
+REVIEWER: wicked-garden-qe-snapshot-hygiene-auditor
+RUN_ID: {RUN_ID}
+VERDICT: PASS|FAIL
 ```
 
 ## Helper resolution (`{WT_LIB}`)

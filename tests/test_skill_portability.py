@@ -75,6 +75,14 @@ FORK_SENTENCE = GARDEN["fallbacks"]["fork_worker_sentence"]
 DISPATCH_SENTENCE = GARDEN["fallbacks"]["dispatch_sentence"]
 DISPATCH_RE = re.compile(GARDEN["fallbacks"]["dispatch_trigger_regex"])
 NOT_A_SKILL = GARDEN["fallbacks"]["skill_name_exemption_marker"]
+# `verdict-spelling` (FIX-IT-ALL L6-0, the D-9 text half): the engine reads an evaluator unit's
+# LAST `^VERDICT[:=]` line and passes ONLY on the token `PASS` — so garden text may ask for
+# nothing but `VERDICT: PASS` / `VERDICT: FAIL` on such a line. The legacy `VERDICT=… REVIEWER=…
+# RUN_ID=…` footers still parse (token PASS/FAIL) and are tolerated ONLY in the files listed —
+# the qe batches (B14–B17) rewrite them and shrink the list; a stale entry fails the build.
+VERDICT_SPELLING = GARDEN["verdict_spelling"]
+VERDICT_ALLOWED = set(VERDICT_SPELLING["allowed"])
+VERDICT_LEGACY_FILES = set(VERDICT_SPELLING["legacy_footer_files"])
 SKIP_NAMES = {"__pycache__", ".DS_Store", "node_modules", ".venv"}
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
@@ -349,6 +357,28 @@ def body_of(text: str) -> str:
     return text[m.end():] if m else text
 
 
+def verdict_spelling_hit(rel_file: str, line: str) -> str | None:
+    """`verdict-spelling`: judge ONLY a line-leading `VERDICT[:=]` line (fenced blocks included —
+    the contract templates live in fences); return the violation detail or None.
+
+    Conformant: exactly `VERDICT: PASS`, `VERDICT: FAIL`, or the template `VERDICT: PASS|FAIL`.
+    Tolerated: the legacy qe footer `VERDICT=PASS|FAIL|{PASS|FAIL} REVIEWER=… RUN_ID=…` in a file
+    listed in `verdict_spelling.legacy_footer_files` (it parses as PASS/FAIL; the batches delete it).
+    Not judged: `**VERDICT: …**`, a backticked mention, `### Verdict:`, `verdict:` (lowercase record
+    lines), a mid-line mention (`4. RENDER THE VERDICT: …`, a JS regex) — none is line-leading.
+    """
+    if not GRX["verdict_line"].match(line):
+        return None
+    if line.strip() in VERDICT_ALLOWED:
+        return None
+    if rel_file in VERDICT_LEGACY_FILES and GRX["verdict_legacy_footer"].match(line):
+        return None
+    return (f"`{line.strip()}` — an evaluator's verdict line is exactly `VERDICT: PASS` or `VERDICT: FAIL` "
+            "(template `VERDICT: PASS|FAIL`): CONDITIONAL / APPROVE / REJECT / SKIP are not verdicts, and a "
+            "`VERDICT=… REVIEWER=… RUN_ID=…` footer is legacy (tolerated only in verdict_spelling.legacy_footer_files "
+            "until the qe batches normalise it)")
+
+
 # ---------------------------------------------------------------------------
 # The garden scan: canonical engine + garden's extras, for one file
 # ---------------------------------------------------------------------------
@@ -388,6 +418,9 @@ def scan_text(rel_file: str, text: str, names: dict[str, Path], bundle: Bundle, 
                     f"`{name}` is not declared by any SKILL.md (an identifier that is not a skill gets `{NOT_A_SKILL}` right after the token)")
             if lineno > fm_end and GRX["slash_form"].search(line):
                 add("slash-form", lineno, "skills are not slash commands on any CLI — name the skill (`wicked-garden-<x>`) instead")
+            verdict_detail = verdict_spelling_hit(rel_file, line)
+            if verdict_detail is not None:
+                add("verdict-spelling", lineno, verdict_detail)
             # bare `scripts/<x>.py <args>` span (prose) / bare shell-fence command line: no interpreter at all
             if not in_fence:
                 for m in GRX["bare_script_span"].finditer(line):
@@ -565,6 +598,96 @@ def test_dispatch_trigger_matches_single_and_multi_line_forms(text):
 def test_dispatch_trigger_ignores_non_dispatch_mentions():
     for text in ["invoke it with the Skill tool", "`Skill(wicked-bus:query, query=…)`", "Skill(\"superpowers:x\")"]:
         assert not DISPATCH_RE.search(text), text
+
+
+# ---------------------------------------------------------------------------
+# verdict-spelling (L6-0): the table the DES asks for — the three F4 sites + the grammar's edges
+# ---------------------------------------------------------------------------
+
+_LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}"
+
+
+@pytest.mark.parametrize(("file", "line", "hit"), [
+    # the three F4 sites (DES-L6 §5): two non-hits (not line-leading), one hit (a template `VERDICT:` line)
+    ("skills/swarm/refs/independent-verification.md", "4. RENDER THE VERDICT: PASS / FAIL / PARTIAL.", False),
+    ("skills/qe-flaky-test-hunter/SKILL.md", "  const pass=lines.filter(l=>/VERDICT=PASS/.test(l)).length;", False),
+    ("skills/wickedizer/refs/patterns.md", "VERDICT: [Which wins and why]", True),
+    # the grammar
+    ("skills/x/SKILL.md", "VERDICT: PASS", False),
+    ("skills/x/SKILL.md", "VERDICT: FAIL", False),
+    ("skills/x/SKILL.md", "VERDICT: PASS|FAIL", False),
+    ("skills/x/SKILL.md", "  VERDICT: PASS", False),  # indented inside a fence is still the contract line
+    ("skills/x/SKILL.md", "VERDICT: PASS ", False),  # trailing whitespace is stripped, like the parser's trim
+    # not verdicts (D-9): every other token, either separator, extra fields
+    ("skills/x/SKILL.md", "VERDICT: CONDITIONAL", True),
+    ("skills/x/SKILL.md", "VERDICT: APPROVE", True),
+    ("skills/x/SKILL.md", "VERDICT: REJECT", True),
+    ("skills/x/SKILL.md", "VERDICT: SKIP", True),
+    ("skills/x/SKILL.md", "VERDICT=FAIL", True),
+    ("skills/x/SKILL.md", "VERDICT: PASS REVIEWER: x", True),
+    ("skills/x/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL|SKIP} REVIEWER=wicked-garden-qe-security-test-engineer RUN_ID={RUN_ID}", True),
+    ("skills/x/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}", True),
+    # the legacy footer: tolerated in a LISTED file, a violation anywhere else
+    ("skills/qe-chaos-test-engineer/SKILL.md", _LEGACY_FOOTER, False),
+    ("skills/qe-chaos-test-engineer/SKILL.md", "VERDICT=PASS REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}", False),
+    ("skills/qe-chaos-test-engineer/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-chaos-test-engineer RUN_ID={RUN_ID}", True),
+    ("skills/x/SKILL.md", _LEGACY_FOOTER, True),
+    # not line-leading → not judged (the parser strips decoration; the TEXT rule forbids it in prose)
+    ("skills/x/SKILL.md", "**VERDICT: PASS**", False),
+    ("skills/x/SKILL.md", "`VERDICT: PASS`", False),
+    ("skills/x/SKILL.md", "### Verdict: {PASS | FAIL}", False),
+    ("skills/x/SKILL.md", "record: CONDITIONAL (axe+pa11y clean, manual review required)", False),
+    ("skills/x/SKILL.md", "verdict: {PASS|CONDITIONAL|FAIL}  reason: {short}", False),
+], ids=lambda v: v if isinstance(v, str) and len(v) < 60 else None)
+def test_verdict_spelling_table(file, line, hit):
+    assert (verdict_spelling_hit(file, line) is not None) is hit, (file, line)
+    got = {v.token for v in scan_text(file, line + "\n", _NAMES, _BUNDLE)}
+    assert ("verdict-spelling" in got) is hit, got
+
+
+def test_verdict_spelling_judges_fenced_lines_too():
+    fenced = "```\nMODE: produced-test\nVERDICT: CONDITIONAL\n```\n"
+    got = [v for v in scan_text("skills/x/SKILL.md", fenced, _NAMES, _BUNDLE) if v.token == "verdict-spelling"]
+    assert [v.line for v in got] == [3], got
+
+
+def test_verdict_spelling_is_md_only():
+    assert not [v for v in scan_text("skills/x/scripts/x.py", "VERDICT: CONDITIONAL\n", _NAMES, _BUNDLE)
+                if v.token == "verdict-spelling"]
+
+
+def test_verdict_legacy_footer_baseline_is_live():
+    """Every listed file still carries a legacy footer — the qe batches (B14–B17) rewrite the footer
+    to the grammar AND delete the entry in the same change; a stale entry is a failure, not a no-op."""
+    stale = []
+    for rel in sorted(VERDICT_LEGACY_FILES):
+        p = REPO / rel
+        lines = p.read_text(encoding="utf-8").split("\n") if p.exists() else []
+        if not any(GRX["verdict_legacy_footer"].match(l) for l in lines):
+            stale.append(rel)
+    assert not stale, f"stale verdict_spelling.legacy_footer_files entries (no legacy footer left): {stale}"
+
+
+def test_verdict_lines_in_repo_are_conformant_or_listed_legacy():
+    """Non-vacuity for the token: the repo carries line-leading VERDICT lines (the contract templates
+    and the not-yet-normalised footers); each is conformant or a listed legacy footer — the whole-repo
+    scan (`test_skills_are_portable`) already fails on anything else."""
+    seen = conformant = legacy = 0
+    for f in text_files():
+        if f.suffix != ".md":
+            continue
+        rel = f.relative_to(REPO).as_posix()
+        for line in f.read_text(encoding="utf-8").split("\n"):
+            if not GRX["verdict_line"].match(line):
+                continue
+            seen += 1
+            if line.strip() in VERDICT_ALLOWED:
+                conformant += 1
+            elif rel in VERDICT_LEGACY_FILES and GRX["verdict_legacy_footer"].match(line):
+                legacy += 1
+    assert seen == conformant + legacy, (seen, conformant, legacy)
+    assert conformant >= 5, conformant  # governed-worker's contract is mirrored by ≥ 5 evaluator templates
+    assert legacy == len(VERDICT_LEGACY_FILES), (legacy, sorted(VERDICT_LEGACY_FILES))
 
 
 def test_fence_walk_sees_non_shell_fences_in_the_repo():
