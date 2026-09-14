@@ -20,14 +20,9 @@ vision. No code needed — review what users actually see.
 
 ## Reading the images
 
-Open PNG, JPG, WEBP and GIF files with your harness's file reader — the image is presented visually:
-
-```
-Read(file_path="/path/to/screenshot.png")
-```
-
-The image is presented visually. Analyze it for design quality, consistency,
-and usability issues without requiring access to source code.
+Open the PNG, JPG, WEBP or GIF file with your harness's file reader — the image is presented
+visually. Analyze it for design quality, consistency, and usability issues without requiring
+access to source code.
 
 ## What to Analyze
 
@@ -67,12 +62,8 @@ and usability issues without requiring access to source code.
 
 ## Comparison with Reference Designs
 
-When a reference image is provided:
-
-```
-Read(file_path="/path/to/reference.png")   # design spec or comp
-Read(file_path="/path/to/implementation.png")  # built UI
-```
+When a reference image is provided, open both with your harness's file reader — the reference
+(design spec or comp) and the implementation (built UI).
 
 Compare:
 - Spacing fidelity (does built match spec proportions?)

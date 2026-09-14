@@ -80,11 +80,8 @@ See [refs/algorithms.md](refs/algorithms.md) for detailed scoring.
    ```bash
    LOCAL_ROOT=$(wicked-garden run scripts/resolve_path.py wicked-garden:product)
    ```
-   Then use the **Glob** tool to find feedback files:
-   ```
-   Glob(pattern="**/*.md", path="${LOCAL_ROOT}/voice/feedback/")
-   ```
-   Read individual files with the **Read** tool to load recent feedback.
+   Then list the feedback files — `${LOCAL_ROOT}/voice/feedback/**/*.md` — with your harness's
+   file search and open the recent ones with its file reader.
 
 2. **Extract Themes**:
    - Keyword frequency analysis

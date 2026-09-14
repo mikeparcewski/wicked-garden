@@ -191,6 +191,7 @@
     "skill-too-large": [
       "skills/agentic-performance-analyst/SKILL.md",
       "skills/agentic-safety-reviewer/SKILL.md"
-    ]
+    ],
+    "claude-tool-call": []
   }
 }
