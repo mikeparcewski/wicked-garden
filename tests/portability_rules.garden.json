@@ -1,5 +1,5 @@
 {
-  "$comment": "GARDEN-ONLY portability rules, layered on top of the CANONICAL parity fixture tests/portability_rules.json (vendored byte-for-byte from wicked-crew packages/crew/tests/fixtures/portability_rules.json — never edit that file here; re-vendor it and update tests/test_portability_fixture_parity.py). The shared tokens (plugin-root, skill-dir-var, cwd-script, relative-link, cross-skill-path, requires-harness:claude) and ALL their semantics — regexes, fence walk, option skipping, existence, ../ resolution — live only in the canonical file and are derived by the same engine crew uses. This file holds what garden's authoring convention adds on top: the exact `## Runtime` block, the harness-fallback sentences, the name-based cross-ref resolver, the slash-form ban, the bare-script-span extension of cwd-script, and the stricter bare-identifier check. Regexes stay in the ECMAScript/Python common subset.",
+  "$comment": "GARDEN-ONLY portability rules, layered on top of the CANONICAL parity fixture tests/portability_rules.json (vendored byte-for-byte from wicked-crew packages/crew/tests/fixtures/portability_rules.json — never edit that file here; re-vendor it and update tests/test_portability_fixture_parity.py). The shared tokens (plugin-root, skill-dir-var, cwd-script, relative-link, cross-skill-path, requires-harness:claude) and ALL their semantics — regexes, fence walk, option skipping, existence, ../ resolution — live only in the canonical file and are derived by the same engine crew uses. This file holds what garden's authoring convention adds on top: the exact `## Runtime` block, the name-based cross-ref resolver, the slash-form ban, the bare-script-span extension of cwd-script, the stricter bare-identifier check, the `verdict-spelling` grammar, and — since L6 B0 (D-21, cross-CLI skill format, docs/cross-cli-skill-format.md) — the seven cross-CLI tokens whose HEAD hits are BASELINED per (token, file) in tests/cross_cli_baseline.json until the qe batches translate each skill (a stale entry fails; B18 deletes the file). The former Claude-first fallback sentences (fork-no-fallback / dispatch-no-fallback / ask-no-fallback) are retired: the Claude shape itself is the finding now. Regexes stay in the ECMAScript/Python common subset.",
   "version": 1,
   "canonical_fixture": "tests/portability_rules.json",
   "identifiers": {
@@ -9,7 +9,6 @@
   "regex": {
     "skill_name": "(?<![A-Za-z0-9_-])(wicked-garden-[a-z0-9]+(?:-[a-z0-9]+)*)(?![A-Za-z0-9_-])",
     "slash_form": "(?<![A-Za-z0-9_})/])/wicked-garden:[a-z]",
-    "ask_fallback": "plain[- ]text",
     "bare_script_span": "`((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s+[^`]+)`",
     "bare_script_line": "^(\\s*)(?:\\$ )?((?:scripts|hooks)/[A-Za-z0-9_./-]+\\.(?:py|mjs|js|cjs|sh))(\\s.*)?$",
     "verdict_line": "^\\s*VERDICT[:=]",
@@ -25,12 +24,38 @@
     "runtime_heading": "## Runtime",
     "runtime_block": "## Runtime\nScript-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `\"$WICKED_GARDEN_ROOT/scripts/wicked-garden\"`.\nIf none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.\nRelative paths in this skill are relative to the directory that contains this SKILL.md."
   },
-  "fallbacks": {
-    "fork_worker_sentence": "This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.",
-    "dispatch_sentence": "Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.",
-    "dispatch_trigger_regex": "Skill\\(\\s*skill=",
-    "skill_name_exemption_marker": "<!-- not-a-skill -->",
-    "skill_name_exemption_marker_scope": "token: the marker must directly follow the wicked-garden-<x> token (an optional closing quote/backtick and spaces may sit between); a marker elsewhere on the line exempts nothing"
+  "skill_names": {
+    "exemption_marker": "<!-- not-a-skill -->",
+    "exemption_marker_scope": "token: the marker must directly follow the wicked-garden-<x> token (an optional closing quote/backtick and spaces may sit between); a marker elsewhere on the line exempts nothing"
+  },
+  "cross_cli": {
+    "$comment": "The seven cross-CLI tokens (L6 B0). Detectors run over every skills/**/*.md body (frontmatter tokens over SKILL.md frontmatter); a line carrying historical_marker is never a hit; prose inside a Hand-off paragraph (a paragraph whose first line matches handoff_regex) is exempt from claude-only-prose — the Hand-off paragraph is the ONE cross-CLI dispatch shape. closed_frontmatter_keys mirrors scripts/_skill_meta.CLOSED_KEYS (the test pins the two equal).",
+    "tokens": [
+      "claude-frontmatter-key",
+      "claude-dispatch",
+      "claude-only-prose",
+      "handoff-missing",
+      "retired-product-ref",
+      "description-too-long",
+      "skill-too-large"
+    ],
+    "baseline": "tests/cross_cli_baseline.json",
+    "closed_frontmatter_keys": [
+      "compatibility",
+      "description",
+      "license",
+      "mandates",
+      "metadata",
+      "name"
+    ],
+    "dispatch_regex": "\\b(?:Task|Skill|Agent|TaskCreate|TaskUpdate|TodoWrite)\\((?=\\s*(?:[\"'`{]|\\.\\.\\.|…|[A-Za-z_][A-Za-z0-9_]*\\s*=|$))|\\bsubagent_type\\b|\\bAskUserQuestion\\b",
+    "prose_regex": "Claude Code|\\.claude/|\\b(?:Read|Write|Edit|MultiEdit|Bash|Glob|Grep|WebFetch|WebSearch|NotebookEdit)\\s+tool\\b|\\bthe\\s+(?:Task|Skill|Agent)\\s+tool\\b",
+    "retired_product_regex": "\\bwicked-(?:testing|brain|signals|loom)\\b",
+    "handoff_regex": "^\\s*(?:\\*\\*|_|#+\\s*)?Hand-off\\b",
+    "historical_marker": "<!-- historical -->",
+    "description_max_chars": 1024,
+    "skill_max_bytes": 24576,
+    "skill_max_lines": 500
   },
   "verdict_spelling": {
     "$comment": "verdict-spelling (FIX-IT-ALL L6-0, D-9 text half). wicked-core's evaluator gate reads the LAST line of an evaluator unit's output matching regex.verdict_line and passes ONLY on the token PASS; every other token or a missing line parks the run at the human gate. Garden text therefore asks for nothing but the two spellings (or the template) on such a line. legacy_footer_files: qe specialists still carrying the pre-12.37 `VERDICT=PASS|FAIL|{PASS|FAIL} REVIEWER=… RUN_ID=…` footer — it parses as PASS/FAIL so it is tolerated THERE ONLY; the qe batches (B14-B17) rewrite each footer to the grammar and delete its entry in the same change, and a listed file with no footer left fails tests/test_skill_portability.py (stale baseline). Never add a file here to silence the lint.",
@@ -91,24 +116,44 @@
       "garden": "fail"
     },
     {
-      "token": "fork-no-fallback",
-      "rule": "a context: fork SKILL.md must carry the fork_worker_sentence",
-      "garden": "fail"
-    },
-    {
-      "token": "dispatch-no-fallback",
-      "rule": "a file that dispatches with Skill(skill=…) — single-line or the multi-line `Skill(\\n  skill=…` form — must carry the dispatch_sentence once",
-      "garden": "fail"
-    },
-    {
-      "token": "ask-no-fallback",
-      "rule": "a file that mentions AskUserQuestion (outside frontmatter) must also spell the plain-text fallback",
-      "garden": "fail"
-    },
-    {
       "token": "verdict-spelling",
       "rule": "a line-leading `VERDICT[:=]` line in any skills/**/*.md (fenced blocks included — the contract templates live in fences) must be exactly `VERDICT: PASS`, `VERDICT: FAIL` or the template `VERDICT: PASS|FAIL`; CONDITIONAL / APPROVE / REJECT / SKIP are not verdicts; the legacy `VERDICT=… REVIEWER=… RUN_ID=…` footer is tolerated only in verdict_spelling.legacy_footer_files; nothing that is not line-leading is judged (`**VERDICT: …**`, a backticked mention, `### Verdict:`, a lowercase `verdict:` record line, a mid-line mention)",
       "garden": "fail"
+    },
+    {
+      "token": "claude-frontmatter-key",
+      "rule": "a SKILL.md whose frontmatter carries a top-level key outside the closed cross-CLI set {name, description, license, compatibility, metadata, mandates} — context, subagent_type, allowed-tools, model, effort, max-turns, color, user-invocable, phase_relevance, … are Claude Code plugin hints no other CLI reads; role/phases/archetypes move under `metadata:` (string→string), the rest are dropped",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "claude-dispatch",
+      "rule": "a body line that calls a Claude Code dispatch primitive — Task(, Skill(, Agent(, TaskCreate(, TaskUpdate(, TodoWrite(, subagent_type, AskUserQuestion — no other seat has them; a `<!-- historical -->` line is exempt; the cross-CLI shape is a Hand-off paragraph naming the skill",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "claude-only-prose",
+      "rule": "a body line with Claude-only prose — a tool noun (`the Read tool`, `the Skill tool`, …), a `.claude/` path or the words `Claude Code` — outside a Hand-off paragraph and not marked `<!-- historical -->`",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "handoff-missing",
+      "rule": "a file that dispatches (any claude-dispatch hit) but carries no `Hand-off` paragraph — the only cross-CLI dispatch shape",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "retired-product-ref",
+      "rule": "a body line naming a retired product (wicked-testing, wicked-brain, wicked-signals, wicked-loom) without `<!-- historical -->` — the batches rewrite them to their successors (qe domain / wicked-estate / the in-process gate)",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "description-too-long",
+      "rule": "a SKILL.md frontmatter description longer than 1024 characters — several CLIs truncate or refuse it",
+      "garden": "fail (baselined per file until translated)"
+    },
+    {
+      "token": "skill-too-large",
+      "rule": "a SKILL.md over 500 lines or 24 KiB — move detail into refs/ (the same bound scripts/ci/validate.py enforces for routers)",
+      "garden": "fail (baselined per file until translated)"
     }
   ],
   "corpus": {

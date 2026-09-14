@@ -2,7 +2,7 @@
 name: wicked-garden-governed-worker
 description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree and paste exit codes, prove any 'pre-existing' claim on the base, regenerate instead of hand-editing, evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
-  role: worker
+  role: floor
   phases: "*"
   roles: "creator,evaluator,neutral"
 ---

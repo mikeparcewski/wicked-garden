@@ -71,7 +71,7 @@ def test_toy_pack_end_to_end(pack_home):
     # 2. the broken variant FAILS with actionable errors
     broken = _run([_NODE, str(_REPO / "install.mjs"), "pack", "check", str(BROKEN)])
     assert broken.returncode == 1
-    for expected in ("PK014", "PK016", "PK030", "context: fork", "one router per domain"):
+    for expected in ("PK014", "PK016", "PK030", "metadata.role: worker", "one router per domain"):
         assert expected in broken.stdout, f"missing {expected!r} in:\n{broken.stdout}"
 
     # 3. registration through the real CLI (the same code path

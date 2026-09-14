@@ -34,7 +34,7 @@ def test_broken_pack_fails_with_expected_codes():
     errors = _codes(findings, "error")
     assert {"PK013",   # wicked-garden-* namespace squat
             "PK014",   # missing router for declared domain
-            "PK016",   # worker without context: fork
+            "PK016",   # worker-shaped name without metadata.role: worker (fails LOUD)
             "PK030",   # non-reciprocal NOT-THIS-WHEN
             "PK040",   # unknown archetype in produces contract
             "PK041",   # non-kebab produces id
@@ -47,7 +47,7 @@ def test_broken_pack_messages_name_the_fix():
     findings = check_pack(BROKEN, garden_root=_REPO)
     rendered = "\n".join(f.render() for f in findings)
     # messages must be actionable, not just codes
-    assert "must declare context: fork" in rendered
+    assert "must declare metadata.role: worker" in rendered
     assert "one router per domain" in rendered
     assert "must be reciprocal" in rendered
     assert '">=X.Y.Z"' in rendered
@@ -166,4 +166,4 @@ def test_cli_pack_check_broken_exits_nonzero_with_useful_errors():
         capture_output=True, text=True, timeout=120,
     )
     assert proc.returncode == 1, proc.stdout + proc.stderr
-    assert "PK016" in proc.stdout and "context: fork" in proc.stdout
+    assert "PK016" in proc.stdout and "metadata.role: worker" in proc.stdout

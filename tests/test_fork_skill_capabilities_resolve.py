@@ -9,8 +9,10 @@ that warning into a hard failure and pins capability declarations to the
 registry (`scripts/_capability_registry.py`).
 
 History: workers used to live in agents/{domain}/*.md; the v12.25 skills-only
-conversion moved them to context-fork skills under skills/, loaded by
-``AgentLoader.load_fork_skills``. Same invariant, new home.
+conversion moved them to worker skills under skills/ (role ``worker`` —
+``metadata.role: worker``, legacy ``context: fork`` inferred by
+``scripts/_skill_meta.skill_role``), loaded by ``AgentLoader.load_fork_skills``.
+Same invariant, new home.
 """
 
 from __future__ import annotations

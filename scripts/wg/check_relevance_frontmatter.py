@@ -66,14 +66,26 @@ def _resolve_mode() -> str:
     return raw
 
 
+# Cross-CLI spelling of the relevance fields (docs/cross-cli-skill-format.md): the
+# legacy top-level keys move under the string→string ``metadata`` mapping. Either
+# spelling satisfies the lint during the transition.
+_METADATA_SPELLING = {"phase_relevance": "phases", "archetype_relevance": "archetypes"}
+_METADATA_BLOCK = re.compile(r"^metadata\s*:\s*\n((?:[ \t]+.*\n?)*)", re.MULTILINE)
+
+
 def _has_field(text: str, field: str) -> bool:
-    """Return True if ``text`` declares ``field`` in its YAML frontmatter."""
+    """True if ``text`` declares ``field`` in its frontmatter — the legacy top-level key
+    or its ``metadata.<key>`` spelling (``phase_relevance`` → ``metadata.phases``,
+    ``archetype_relevance`` → ``metadata.archetypes``)."""
     m = _FRONTMATTER_BLOCK.match(text)
     if not m:
         return False
     block = m.group(1)
-    pattern = re.compile(rf"^{re.escape(field)}\s*:", re.MULTILINE)
-    return bool(pattern.search(block))
+    if re.search(rf"^{re.escape(field)}\s*:", block, re.MULTILINE):
+        return True
+    meta_key = _METADATA_SPELLING.get(field)
+    mb = _METADATA_BLOCK.search(block + "\n")
+    return bool(meta_key and mb and re.search(rf"^[ \t]+{re.escape(meta_key)}\s*:", mb.group(1), re.MULTILINE))
 
 
 def _scan_one(path: Path) -> set[str]:

@@ -2,18 +2,19 @@
 """Pattern A migration validation gate for wg-check (#665).
 
 When a PR shrinks a router skills/**/SKILL.md substantially AND adds a new
-context:fork WORKER skill in the same diff, that's the Pattern A migration
+role-keyed WORKER skill in the same diff, that's the Pattern A migration
 shape from PR #666 (jam slim) and PR #670 (propose-process slim). The gate
 enforces: **every Pattern A migration must ship with a passing acceptance
 scenario** so reviewers can verify the new worker is wired correctly and the
 slimmed router still delegates to the right place.
 
 Skills-only cutover: the former ``agents/`` tree is gone — a "new worker" is
-now a newly-added ``skills/**/SKILL.md`` that declares ``context: fork``
-(the standalone worker skills that replaced agents/).
+now a newly-added ``skills/**/SKILL.md`` whose ``skill_role()`` is ``worker``
+(``metadata.role: worker``; the legacy ``context: fork`` spelling is still
+inferred) — the standalone worker skills that replaced agents/.
 
 Signal: a SKILL.md shrunk by >= 40% (lines-removed / lines-before) AND a new
-context:fork worker SKILL.md added in the same `git diff <base>...HEAD`.
+worker SKILL.md (role-keyed) added in the same `git diff <base>...HEAD`.
 
 Requirement: the same diff must add a scenario file matching:
     scenarios/**/*-pattern-a.md
@@ -39,6 +40,13 @@ import os
 import re
 import subprocess
 import sys
+from pathlib import Path
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role, split_frontmatter  # noqa: E402
 
 # See module docstring for tuning rationale.
 SHRINK_RATIO = 0.40
@@ -161,10 +169,11 @@ def main() -> int:
         path = new_path
 
         if status.startswith("A") and path.startswith("skills/") and path.endswith("SKILL.md"):
-            # A "new worker" in skills-only is an added SKILL.md declaring
-            # context: fork (the standalone worker skills that replaced agents/).
+            # A "new worker" in skills-only is an added SKILL.md whose role is
+            # worker (metadata.role: worker; legacy context: fork inferred by
+            # _skill_meta.skill_role) — the standalone workers that replaced agents/.
             added_blob = run(["git", "show", f"HEAD:{path}"])
-            if added_blob and re.search(r"^context:\s*fork\s*$", added_blob, re.MULTILINE):
+            if added_blob and skill_role(split_frontmatter(added_blob)[0]) == "worker":
                 new_fork_skills.append(path)
         if status.startswith("A") and path.startswith("scenarios/") and path.endswith(".md"):
             new_scenarios.append(path)

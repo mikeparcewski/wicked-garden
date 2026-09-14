@@ -23,7 +23,7 @@ Allowlists covered (when the source-of-truth file exists):
 
 - Phase IDs in ``.claude-plugin/phases.json`` ↔ fork-worker skills in
   ``skills/`` (each phase that declares ``fallback_agent`` should have a
-  matching context:fork SKILL.md or specialist alias).
+  matching worker SKILL.md (metadata.role: worker) or specialist alias).
 - Reviewer identifiers in ``.claude-plugin/gate-policy.json``
   ↔ fork-worker skills in ``skills/**/SKILL.md`` (frontmatter ``name`` /
   legacy ``subagent_type``). External plugin reviewers (``wicked-bus:*``)
@@ -145,6 +145,14 @@ _NON_AGENT_REVIEWERS: Tuple[str, ...] = (
 _FRONTMATTER_RE = re.compile(r"^---\s*$(.*?)^---\s*$", re.DOTALL | re.MULTILINE)
 _KEY_LINE_RE = re.compile(r"^\s*([A-Za-z_][\w-]*)\s*:\s*(.*?)\s*$")
 
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+try:
+    from _skill_meta import skill_role_of
+except ImportError:  # pragma: no cover - path setup only
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from _skill_meta import skill_role_of
+
 
 def _plugin_root() -> Path:
     """Resolve plugin root from CLAUDE_PLUGIN_ROOT, else this file's parent."""
@@ -199,11 +207,14 @@ _SKILL_NAME_PREFIX = "wicked-garden-"
 
 
 def _scan_agents(plugin_root: Path) -> Tuple[Dict[str, Path], List[Dict[str, Any]]]:
-    """Walk skills/**/SKILL.md (context: fork) and return
-    (identifier → path map, malformed findings).
+    """Walk skills/**/SKILL.md and return (identifier → path map, malformed
+    findings) for every WORKER skill.
 
-    The plugin is skills-only: workers are context:fork skills. Each fork
-    skill is indexed under every identifier form a manifest might use:
+    The plugin is skills-only: workers are the skills whose role is ``worker``
+    (``metadata.role: worker``; legacy ``context: fork`` inferred by
+    ``_skill_meta.skill_role`` — one reader). Routers, modules and the
+    ``floor`` skill (``wicked-garden-governed-worker``) are never registered.
+    Each worker is indexed under every identifier form a manifest might use:
 
     * frontmatter ``name`` (``wicked-garden-{domain}-{role}``)
     * legacy colon ``subagent_type`` where the skill kept that key
@@ -236,8 +247,8 @@ def _scan_agents(plugin_root: Path) -> Tuple[Dict[str, Path], List[Dict[str, Any
                 }
             )
             continue
-        if fm.get("context", "").strip() != "fork":
-            continue  # only fork-context skills are dispatchable workers
+        if skill_role_of(md_path) != "worker":
+            continue  # only role `worker` is dispatchable — never a router, module or the floor
         sub = fm.get("subagent_type", "").strip()
         name = fm.get("name", "").strip()
         if name:
@@ -250,7 +261,7 @@ def _scan_agents(plugin_root: Path) -> Tuple[Dict[str, Path], List[Dict[str, Any
                         by_name.setdefault(tail[len(dom) + 1:], md_path)
                         break
         if not sub:
-            # Legacy subagent_type is optional on fork skills — most
+            # Legacy subagent_type is optional on worker skills — most
             # dropped it in the skills-only cutover. Skip silently.
             continue
         if ":" in sub and not sub.startswith("wicked-garden:"):
@@ -383,7 +394,7 @@ def check_phases(plugin_root: Path) -> List[Dict[str, Any]]:
                 "category": CAT_MISSING,
                 "check": "phases.fallback_agent",
                 "target": f"{phase_id} → {fb}",
-                "detail": f"phase '{phase_id}' references fallback_agent '{fb}' but no context:fork SKILL.md declares it",
+                "detail": f"phase '{phase_id}' references fallback_agent '{fb}' but no worker SKILL.md (metadata.role: worker) declares it",
             }
         )
 
@@ -519,7 +530,7 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
                         "detail": (
                             "external plugin reviewer (advisory only)"
                             if outcome == CAT_EXTERNAL
-                            else f"reviewer '{rv}' has no matching context:fork SKILL.md"
+                            else f"reviewer '{rv}' has no matching worker SKILL.md (metadata.role: worker)"
                             if outcome == CAT_MISSING
                             else f"reviewer is not a non-empty string: {rv!r}"
                         ),
@@ -537,7 +548,7 @@ def check_gate_policy(plugin_root: Path) -> List[Dict[str, Any]]:
                         "detail": (
                             "external plugin fallback (advisory only)"
                             if outcome == CAT_EXTERNAL
-                            else f"fallback '{fallback}' has no matching context:fork SKILL.md"
+                            else f"fallback '{fallback}' has no matching worker SKILL.md (metadata.role: worker)"
                             if outcome == CAT_MISSING
                             else f"fallback is not a non-empty string: {fallback!r}"
                         ),

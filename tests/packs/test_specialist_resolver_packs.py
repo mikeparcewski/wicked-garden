@@ -53,7 +53,7 @@ def test_pack_worker_resolves_by_bare_role(pack_env):
 
 def test_pack_router_is_not_a_dispatchable_worker(pack_env):
     resolver = build_resolver(_REPO)
-    # the router is user-invocable, not context:fork — it must NOT resolve
+    # the router's role is router (user-invocable), not worker — it must NOT resolve
     assert resolve_role("acme-seo", resolver) == (None, None)
 
 

@@ -2,9 +2,10 @@
 """Router-vs-worker conflation heuristic for wg-check (#664).
 
 Skills-only cutover: the former "skill vs sibling agent" conflation smell
-(#652 Pattern A) becomes "domain ROUTER skill vs sibling context:fork WORKER
+(#652 Pattern A) becomes "domain ROUTER skill vs sibling WORKER
 skill". The former agents/{domain}/ tree is gone — workers are now standalone
-skills at skills/{domain}-{role}/SKILL.md declaring ``context: fork``.
+skills at skills/{domain}-{role}/SKILL.md declaring ``metadata.role: worker``
+(``context: fork`` is the legacy spelling ``skill_role()`` still infers).
 
 For each domain router (skills/{domain}/SKILL.md — a depth-2, non-fork skill),
 grep it and its sibling fork worker skills (skills/{domain}-*/SKILL.md) for
@@ -29,6 +30,12 @@ from __future__ import annotations
 import re
 import sys
 from pathlib import Path
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role_of  # noqa: E402
 
 # Conflation content classes -- each is a regex probe. A class "matches" a file
 # if the file contains the pattern at least once. If 3+ classes match BOTH the
@@ -55,28 +62,22 @@ PROBES = {
 
 THRESHOLD = 3  # classes shared between router and worker before warning
 
-# Frontmatter fork marker — a worker skill declares ``context: fork``.
-_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
-
-
 def probe(text: str) -> set[str]:
     return {name for name, rx in PROBES.items() if rx.search(text)}
 
 
 def candidate_workers(skills_root: Path, domain: str) -> list[Path]:
-    """Sibling context:fork worker skills for a domain router.
+    """Sibling worker skills for a domain router.
 
     Workers live at skills/{domain}-{role}/SKILL.md (top-level siblings of the
-    router directory skills/{domain}/). Only files declaring ``context: fork``
-    are returned.
+    router directory skills/{domain}/). Only files whose role is ``worker``
+    (``_skill_meta.skill_role``: ``metadata.role: worker``, legacy ``context: fork``
+    inferred) are returned.
     """
     out: list[Path] = []
     for md in sorted(skills_root.glob(f"{domain}-*/SKILL.md")):
-        try:
-            if _FORK_RE.search(md.read_text(errors="replace")):
-                out.append(md)
-        except OSError:
-            continue
+        if skill_role_of(md) == "worker":
+            out.append(md)
     return out
 
 
@@ -99,8 +100,9 @@ def main(repo_root: Path = Path(".")) -> int:
             router_text = skill_md.read_text(errors="replace")
         except OSError:
             continue
-        # A fork worker is not a router — skip.
-        if _FORK_RE.search(router_text):
+        # Only a ROUTER is judged: a top-level worker, the floor and module stubs
+        # are not routers (role via scripts/_skill_meta.skill_role).
+        if skill_role_of(skill_md) != "router":
             continue
         router_classes = probe(router_text)
         if len(router_classes) < THRESHOLD:

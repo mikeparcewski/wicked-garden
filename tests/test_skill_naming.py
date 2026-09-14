@@ -13,7 +13,8 @@ worker to a standalone context-fork skill; the invariants move with them:
      drifts from its directory breaks Skill() dispatch and help discovery.
   2. Any SKILL.md that keeps a legacy ``subagent_type:`` compat key (consumed
      by delegation adapters / specialist resolvers that line-scan frontmatter)
-     must (a) be a fork-context worker, (b) use the well-formed
+     must (a) be a worker (``metadata.role: worker``, legacy ``context: fork``
+     inferred by ``scripts/_skill_meta.skill_role``), (b) use the well-formed
      ``wicked-garden:{domain}:{role}`` shape, and (c) live in the directory
      that shape implies (``{role}`` or ``{domain}-{role}``) so a path-based
      resolver and a name-based resolver agree.
@@ -23,17 +24,21 @@ domain directory and keep short or fully-qualified names by local precedent;
 cross-tree ambiguity is covered by test_skill_name_uniqueness.py.
 """
 import re
+import sys
 from pathlib import Path
 
 import pytest
 
 REPO = Path(__file__).parent.parent
 SKILLS_DIR = REPO / "skills"
+if str(REPO / "scripts") not in sys.path:
+    sys.path.insert(0, str(REPO / "scripts"))
+
+from _skill_meta import skill_role  # noqa: E402
 
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---", re.DOTALL)
 NAME_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
 SUBAGENT_KEY_RE = re.compile(r"^subagent_type:\s*(.+)$", re.MULTILINE)
-CONTEXT_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 SUBAGENT_SHAPE_RE = re.compile(
     r"^wicked-garden:([a-z][a-z0-9-]*):([a-z][a-z0-9-]*)$"
 )
@@ -114,12 +119,13 @@ def test_toplevel_skill_set_is_not_vacuous():
 def test_subagent_compat_key_is_wellformed_and_consistent(
     skill_md: Path, subagent_type: str
 ):
-    """A kept subagent_type compat key must be fork-scoped and path-consistent."""
+    """A kept subagent_type compat key must sit on a WORKER and be path-consistent
+    (transitional: the key itself is a Claude-only shape the batches remove)."""
     fm = _frontmatter(skill_md)
-    assert CONTEXT_FORK_RE.search(fm), (
+    assert skill_role(fm) == "worker", (
         f"{skill_md.relative_to(REPO)}: declares subagent_type "
-        f"'{subagent_type}' but is not context: fork — the compat key only "
-        "makes sense on a dispatchable worker skill"
+        f"'{subagent_type}' but its role is {skill_role(fm)!r}, not worker — the "
+        "compat key only makes sense on a dispatchable worker skill"
     )
     shape = SUBAGENT_SHAPE_RE.match(subagent_type)
     assert shape, (

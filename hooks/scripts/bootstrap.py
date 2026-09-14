@@ -292,7 +292,9 @@ def _suggest_auth_fix(probe_result):
 
 
 def _load_agents():
-    """Load dynamic workers (context:fork skills). Returns (agent_count, agents_dict)."""
+    """Load dynamic workers (skills whose role is ``worker`` — ``metadata.role: worker``,
+    legacy ``context: fork`` inferred by ``_skill_meta.skill_role``). Returns
+    (agent_count, agents_dict)."""
     try:
         from _agents import AgentLoader
         loader = AgentLoader()

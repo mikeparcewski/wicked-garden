@@ -46,6 +46,12 @@ import json
 import re
 import sys
 from pathlib import Path
+
+# scripts/ is not always on sys.path (hooks import by path; CI runs from a subdir).
+_SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
+if _SCRIPTS_DIR not in sys.path:
+    sys.path.append(_SCRIPTS_DIR)
+from _skill_meta import skill_role  # noqa: E402
 from typing import Dict, List, Tuple
 
 _REPO = Path(__file__).resolve().parents[2]
@@ -70,7 +76,6 @@ _ROOT_FILES = {
     _REPO / "hooks" / "hooks.json",
 }
 
-_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 _NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 _SUBAGENT_RE = re.compile(r"^subagent_type:\s*(.+?)\s*$", re.MULTILINE)
 _KNOWN_DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem",
@@ -117,7 +122,8 @@ def _split_domain_role(name: str, dir_name: str, subagent_type: str) -> Tuple[st
 
 
 def _all_workers() -> Dict[str, Worker]:
-    """{name: Worker} for every context:fork SKILL.md under skills/."""
+    """{name: Worker} for every WORKER SKILL.md under skills/ (role via
+    ``_skill_meta.skill_role``: ``metadata.role: worker``, legacy ``context: fork`` inferred)."""
     out: Dict[str, Worker] = {}
     if not _SKILLS_DIR.is_dir():
         return out
@@ -127,7 +133,7 @@ def _all_workers() -> Dict[str, Worker]:
         except OSError:
             continue
         fm = _frontmatter(text)
-        if not _FORK_RE.search(fm):
+        if skill_role(fm) != "worker":
             continue
         nm = _NAME_RE.search(fm)
         name = nm.group(1).strip() if nm else skill_md.parent.name

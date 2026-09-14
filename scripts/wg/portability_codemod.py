@@ -38,7 +38,8 @@ Rewrites (in this order, per line, fence-aware where it matters):
   6. `/wicked-garden:<a>[:<b>]` in skill BODIES → `wicked-garden-<a>-<b>` when that skill exists,
      else `wicked-garden-<a> <b>` (skill + action); frontmatter trigger phrases are left alone.
   7. Inserts (once, exact text from the rules fixture): the `## Runtime` block into every SKILL.md
-     whose skill uses the launcher; the fork-worker sentence into every `context: fork` SKILL.md;
+     whose skill uses the launcher (the retired fork-worker / dispatch fallback sentences are no
+     longer inserted — L6 B0);
      the dispatch-fallback sentence before the first `Skill(skill=` in a file.
 
 Left for a human (reported under "Unresolvable / needs review"): inline-Python heredocs that build
@@ -64,9 +65,9 @@ SKILLS = REPO / "skills"
 CANON = json.loads((REPO / "tests" / "portability_rules.json").read_text(encoding="utf-8"))
 RULES = json.loads((REPO / "tests" / "portability_rules.garden.json").read_text(encoding="utf-8"))
 RUNTIME_BLOCK = RULES["launcher"]["runtime_block"]
-FORK_SENTENCE = RULES["fallbacks"]["fork_worker_sentence"]
-DISPATCH_SENTENCE = RULES["fallbacks"]["dispatch_sentence"]
-DISPATCH_RE = re.compile(RULES["fallbacks"]["dispatch_trigger_regex"])  # single- AND multi-line `Skill(` … `skill=`
+# The Claude-first "fallback sentences" (fork worker / Skill() dispatch) were retired with the
+# cross-CLI format (L6 B0): a Claude dispatch shape is now a lint finding (`claude-dispatch`),
+# translated by the batches into a Hand-off paragraph — the codemod no longer inserts them.
 LAUNCHER_RE = re.compile(CANON["regex"]["launcher_call"])
 BARE_SPAN_RE = re.compile(RULES["regex"]["bare_script_span"])
 BARE_LINE_RE = re.compile(RULES["regex"]["bare_script_line"])
@@ -78,7 +79,6 @@ SHELL_FENCES = {lang.lower() for lang in CANON["fences"]["shell_langs"]} | {l.lo
 VAR = r"\$\{CLAUDE_PLUGIN_ROOT\}"
 FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
 NAME_DECL_RE = re.compile(r"^name:\s*(.+)$", re.MULTILINE)
-CONTEXT_FORK_RE = re.compile(r"^context:\s*fork\s*$", re.MULTILINE)
 SKIP_NAMES = {"__pycache__", ".DS_Store"}
 BASE_DIR_NOTE = " (relative to this skill's base directory)"
 LAUNCHER_PREFIX_BY_FILE = RULES["codemod"]["launcher_prefix_by_file"]
@@ -569,11 +569,6 @@ def insert_runtime_block(text: str) -> str:
     start = text[: m.end()].count("\n") if m else 0
     idx = next((i for i in range(start, len(lines)) if lines[i].startswith("## ")), None)
     block = RUNTIME_BLOCK.split("\n")
-    # A router that also dispatches workers gets the dispatch-fallback sentence as the
-    # block's last line (one paragraph of "how this skill reaches things off-Claude")
-    # instead of a separate paragraph — the non-fork SKILL.md line cap is tight.
-    if DISPATCH_RE.search(text) and DISPATCH_SENTENCE not in text:
-        block = block + [DISPATCH_SENTENCE]
     if idx is None:
         while lines and lines[-1] == "":
             lines.pop()
@@ -582,57 +577,6 @@ def insert_runtime_block(text: str) -> str:
     while before and before[-1] == "":
         before.pop()
     return "\n".join(before + [""] + block + [""] + lines[idx:])
-
-
-def insert_fork_sentence(text: str) -> str:
-    if FORK_SENTENCE in text:
-        return text
-    lines = text.split("\n")
-    m = FRONTMATTER_RE.match(text)
-    start = text[: m.end()].count("\n") if m else 0
-    idx = next((i for i in range(start, len(lines)) if lines[i].startswith("# ")), None)
-    at = (idx + 1) if idx is not None else start
-    insert = ["", FORK_SENTENCE] if idx is not None else [FORK_SENTENCE, ""]
-    return "\n".join(lines[:at] + insert + lines[at:])
-
-
-def first_dispatch_line(lines: list[str]) -> int | None:
-    """Index of the first `Skill(skill=` line, or of a `Skill(` opener whose next non-blank
-    line starts with `skill=` (the multi-line dispatch block)."""
-    for i, l in enumerate(lines):
-        if re.search(r"Skill\(\s*skill=", l):
-            return i
-        if re.search(r"Skill\(\s*$", l):
-            j = i + 1
-            while j < len(lines) and not lines[j].strip():
-                j += 1
-            if j < len(lines) and lines[j].lstrip().startswith("skill="):
-                return i
-    return None
-
-
-def insert_dispatch_sentence(text: str) -> str:
-    if not DISPATCH_RE.search(text) or DISPATCH_SENTENCE in text:
-        return text
-    lines = text.split("\n")
-    first = first_dispatch_line(lines)
-    if first is None:
-        return text
-    # if inside a fence, back up to its opener
-    fence_marker = None
-    opener = None
-    for i in range(first + 1):
-        fm = FENCE_RE.match(lines[i])
-        if fm and fence_marker is None and (fm.group(1) or fm.group(2)):
-            fence_marker, opener = (fm.group(1) or fm.group(2)), i
-        elif fence_marker is not None and re.match(r"^\s*" + re.escape(fence_marker[0]) + "{" + str(len(fence_marker)) + r",}\s*$", lines[i]):
-            fence_marker, opener = None, None
-    at = opener if fence_marker is not None and opener is not None else first
-    indent = re.match(r"\s*", lines[at]).group(0)
-    insert = [indent + DISPATCH_SENTENCE, ""]
-    if at > 0 and lines[at - 1].strip() != "":
-        insert = [""] + insert
-    return "\n".join(lines[:at] + insert + lines[at:])
 
 
 # ---------------------------------------------------------------------------
@@ -661,19 +605,7 @@ def run(write: bool) -> Report:
             if new != text:
                 report.changes.append(Change(str(skill_md.relative_to(REPO)), 0, "insert-runtime", "", "## Runtime block"))
                 text = new
-        fm = FRONTMATTER_RE.match(text)
-        if fm and CONTEXT_FORK_RE.search(fm.group(1)):
-            new = insert_fork_sentence(text)
-            if new != text:
-                report.changes.append(Change(str(skill_md.relative_to(REPO)), 0, "insert-fork", "", "fork-worker sentence"))
-                text = new
         rewritten[skill_md] = text
-    for f in files:
-        if f.suffix == ".md":
-            new = insert_dispatch_sentence(rewritten[f])
-            if new != rewritten[f]:
-                report.changes.append(Change(str(f.relative_to(REPO)), 0, "insert-dispatch", "", "dispatch-fallback sentence"))
-                rewritten[f] = new
     for f in files:
         if rewritten[f] != f.read_text(encoding="utf-8"):
             report.files_changed.add(str(f.relative_to(REPO)))
