@@ -12,7 +12,6 @@ description: |
   a live LLM feature with evidence artifacts + a ledger verdict is
   `wicked-garden-qe-ai-feature-test-engineer` (executor); THIS skill is the
   design-time safety review.
-  - security-scanning
 metadata:
   role: worker
 ---

@@ -11,8 +11,6 @@ description: |
   gate input) — use `wicked-garden-qe-security-test-engineer` (executor).
   Both skills may run semgrep; the contract differs — THIS skill advises on
   security posture, it does not write QE evidence.
-  - security-scanning
-  - version-control
 metadata:
   role: worker
 ---

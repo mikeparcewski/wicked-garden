@@ -28,6 +28,47 @@ if _SCRIPTS_DIR not in sys.path:
 from _skill_meta import skill_role, skill_role_of  # noqa: E402
 
 
+def frontmatter_yaml_error(text: str) -> str | None:
+    """Strict STRUCTURAL check of a SKILL.md ``---`` frontmatter, in stdlib (garden CI runs this leg with a
+    bare interpreter — no PyYAML — so we cannot import the publish's ``yaml.safe_load``; this reproduces the
+    one failure mode that matters). Catches the frontmatter-drop class — removing a mapping key WITHOUT its
+    value lines — in both shapes it takes:
+      * an indented value line left under a SCALAR key (``description: "..."`` then ``  - data-query``) —
+        this is what broke garden 12.37.1's ``yaml.safe_load`` and blocked the whole skills publish;
+      * a bare single-token list item absorbed into a ``|``/``>`` block scalar (valid YAML, corrupt content —
+        ``description: |`` … ``  - security-scanning``), which a plain parse would NOT catch.
+    Returns an error string on a defect, else ``None``. Block keys (``metadata:``, ``mandates:``,
+    ``compatibility:``) and ordinary prose bullets in a description block are accepted."""
+    if not text.startswith("---"):
+        return "missing YAML frontmatter"
+    m = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
+    if not m:
+        return "malformed YAML frontmatter"
+    kind = None   # scalar | literal | nested — of the current top-level key
+    key = None
+    for raw in m.group(1).split("\n"):
+        if not raw.strip() or raw.lstrip().startswith("#"):   # blank / YAML comment — valid anywhere
+            continue
+        top = re.match(r"^([A-Za-z_][\w-]*):(.*)$", raw)
+        if top:
+            key = top.group(1); val = top.group(2).strip()
+            kind = "literal" if val in ("|", ">", "|-", ">-", "|+", ">+") else ("nested" if val == "" else "scalar")
+            continue
+        if raw[:1] in (" ", "\t"):          # an indented / continuation line
+            # under a SCALAR (inline value) key, a block-structure line — a sequence item or a nested
+            # mapping — is an orphaned value a dropped key left behind (plain-scalar text continuations
+            # do not match and are left alone):
+            if kind == "scalar" and re.match(r"^\s+(?:-\s|[\w-]+:)", raw):
+                return (f"orphaned value under scalar key {key!r} ({raw.strip()!r}) — a dropped key must "
+                        "take its value lines with it (frontmatter-drop class)")
+            # inside a ``|``/``>`` block scalar, a bare single-token list item is the silent-orphan shape:
+            if kind == "literal" and re.match(r"^\s+-\s+[\w-]+\s*$", raw):
+                return (f"orphaned list value {raw.strip()!r} absorbed into the {key!r} block scalar — a "
+                        "dropped key must take its value lines with it (frontmatter-drop class)")
+            continue
+        return None
+
+
 def main():
     root = Path(__file__).resolve().parent.parent.parent
     os.chdir(root)
@@ -127,15 +168,16 @@ def main():
     for skill_md in sorted(root.glob("skills/**/SKILL.md")):
         text = skill_md.read_text()
         rel = skill_md.relative_to(root)
-        # Check for YAML frontmatter
-        if not text.startswith("---"):
-            errors.append(f"{rel}: missing YAML frontmatter")
+        # Strict YAML frontmatter guard (runs for EVERY SKILL.md, not just workers): the durable fix for
+        # the frontmatter-drop class that shipped a broken 12.37.1 (data-engineer left an orphaned
+        # `  - data-query` after its key was dropped) — the skills publish `yaml.safe_load`s this block and
+        # refuses the whole publish on a parse error.
+        yaml_err = frontmatter_yaml_error(text)
+        if yaml_err is not None:
+            errors.append(f"{rel}: {yaml_err}")
             continue
-        # Extract frontmatter block
+        # Extract frontmatter block (parse already succeeded above)
         fm_match = re.match(r"^---\n(.*?\n)---", text, re.DOTALL)
-        if not fm_match:
-            errors.append(f"{rel}: malformed YAML frontmatter")
-            continue
         fm = fm_match.group(1)
         # Only worker skills are validated here — they are the former agents/
         # definitions and must declare a description.

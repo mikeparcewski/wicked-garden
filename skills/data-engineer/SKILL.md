@@ -1,7 +1,6 @@
 ---
 name: wicked-garden-data-engineer
 description: "ETL pipeline design, data quality assessment, schema validation, and performance optimization as a delegated worker skill. Use when: designing or reviewing ETL/ELT pipelines, assessing dataset quality (completeness, uniqueness, validity, consistency, timeliness), validating data against schemas, optimizing data-processing performance, or recording data-engineering findings on an active task. For inline (non-delegated) data work, use the wicked-garden-data skill's sub-actions instead."
-  - data-query
 metadata:
   role: worker
 ---
