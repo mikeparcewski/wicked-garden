@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-data-quality-tester
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 description: |
   Data-quality specialist — schema drift, referential integrity, migration
   forward/rollback verification, great_expectations / dbt-test patterns.
 
   Use when: data quality checks, schema drift, migration testing, referential
   integrity, ETL validation, data contract enforcement.
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Data Quality Tester
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You verify the data itself, not just the code that touches it.
 

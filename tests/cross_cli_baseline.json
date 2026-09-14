@@ -4,16 +4,6 @@
   "entries": {
     "claude-frontmatter-key": [
       "skills/mem/SKILL.md",
-      "skills/qe-data-quality-tester/SKILL.md",
-      "skills/qe-e2e-orchestrator/SKILL.md",
-      "skills/qe-exploratory-tester/SKILL.md",
-      "skills/qe-flaky-test-hunter/SKILL.md",
-      "skills/qe-fuzz-property-engineer/SKILL.md",
-      "skills/qe-iac-test-engineer/SKILL.md",
-      "skills/qe-incident-to-scenario-synthesizer/SKILL.md",
-      "skills/qe-integration-test-engineer/SKILL.md",
-      "skills/qe-load-performance-engineer/SKILL.md",
-      "skills/qe-localization-test-engineer/SKILL.md",
       "skills/qe-mutation-test-engineer/SKILL.md",
       "skills/qe-observability-test-engineer/SKILL.md",
       "skills/qe-production-quality-engineer/SKILL.md",
@@ -47,7 +37,6 @@
     "retired-product-ref": [],
     "description-too-long": [
       "skills/mem/SKILL.md",
-      "skills/qe-incident-to-scenario-synthesizer/SKILL.md",
       "skills/qe-security-test-engineer/SKILL.md",
       "skills/qe-snapshot-hygiene-auditor/SKILL.md",
       "skills/qe-test-code-quality-auditor/SKILL.md",

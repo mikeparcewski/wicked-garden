@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-qe-iac-test-engineer
-context: fork
 description: |
   Infrastructure-as-Code specialist — terraform validate/plan, checkov,
   tflint, tfsec, Rego/OPA (opa eval / conftest), Kyverno (kyverno-cli test),
@@ -22,17 +21,11 @@ description: |
   evidence/, classifies plan cleanliness, and records a verdict with the
   exact failing rule ids.</commentary>
   </example>
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Bash, Grep, Glob
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # IaC Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You test the code that provisions infrastructure. A drifted plan or a
 failing policy rule is a defect — the same severity as a failing unit
@@ -240,7 +233,9 @@ top failing rules:
   HIGH  tfsec AWS018         on aws_security_group.web — 0.0.0.0/0 ingress
   MED   opa sec/deny-plaintext on aws_db_instance.primary — storage_encrypted=false
 
-VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-iac-test-engineer RUN_ID={RUN_ID}
+VERDICT: PASS|FAIL
+REVIEWER: wicked-garden-qe-iac-test-engineer
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

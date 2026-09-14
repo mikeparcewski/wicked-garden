@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-fuzz-property-engineer
-context: fork
 description: |
   Property-based and fuzz testing — Hypothesis (Python), fast-check (TS),
   AFL/libFuzzer for native code. Finds inputs example tests never consider.
 
   Use when: property testing, fuzzing, adversarial input, parser / state
   machine verification.
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Fuzz / Property Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Example-based tests find bugs you imagined. Property-based and fuzz
 testing find the ones you didn't.

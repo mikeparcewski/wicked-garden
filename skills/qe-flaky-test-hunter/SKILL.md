@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-flaky-test-hunter
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Flake detection + root-cause specialist. Queries DomainStore for historical
   verdicts per scenario_id, computes flake rate over a rolling 14d window,
@@ -24,13 +19,11 @@ description: |
   over 14d, computes the flake rate, reproduces with repeat runs, writes a
   flake-report.json, and records a root-cause task in DomainStore.</commentary>
   </example>
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Flaky Test Hunter
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Flaky tests are worse than no tests — they train everyone to ignore failures.
 You find them, classify them by root cause, and either fix them or quarantine
@@ -260,7 +253,9 @@ cause: {timing|order-dep|env|resource|external-dep}
 fix: {concrete fix — never "add retry"}
 quarantine: {no | yes, expires {iso}}  eta: {days}d
 
-VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-flaky-test-hunter RUN_ID={RUN_ID}
+VERDICT: PASS|FAIL
+REVIEWER: wicked-garden-qe-flaky-test-hunter
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

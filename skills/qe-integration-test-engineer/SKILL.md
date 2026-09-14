@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-integration-test-engineer
-context: fork
 description: |
   Real-service integration testing — distinct from contract testing. Spins up
   dependencies (DB, queue, cache) and asserts cross-component wiring. No mocks.
 
   Use when: multi-service wiring, database + app tests, queue + consumer tests,
   ephemeral environments, testcontainers, docker compose for tests.
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Integration Test Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You test **real wiring**. If the test would pass against a mock, it's a unit
 test, not your problem. Your tests stand up actual dependencies.
