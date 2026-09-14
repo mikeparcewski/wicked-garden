@@ -47,15 +47,12 @@ wicked-garden-qe author [target] [--framework <name>] [--scenario] [--code]
 
 ### Dispatch block (executable)
 
-Every id in the tables above is a forked worker skill (`context: fork`) —
-invoke it with the Skill tool so it runs in an isolated context:
+Every id in the tables above is a worker skill — reach it by name through a Hand-off, so it runs in an isolated context:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — open the `wicked-garden-qe-test-automation-engineer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```
-Skill(
-  skill="wicked-garden-qe-test-automation-engineer",
-  args="""Generate tests for the target below in the project's detected
+```markdown
+Generate tests for the target below in the project's detected
 framework.
 
 ## Target
@@ -86,8 +83,7 @@ framework.
    opens the PR; leave the files on the working tree and report the paths.
 
 Return the path(s) written, the execution table, the `unverified` and
-`not covered` rows, and a one-line per-file summary."""
-)
+`not covered` rows, and a one-line per-file summary.
 ```
 
 Specialized dispatches swap the `skill` id for the right worker (see the

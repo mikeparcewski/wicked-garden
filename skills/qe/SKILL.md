@@ -1,30 +1,28 @@
 ---
 name: wicked-garden-qe
-user-invocable: true
 description: |
-  Consolidated quality-engineering domain skill: evidence-gated testing from
-  strategy to verdict. Nine actions — setup (per-project init), plan (test
-  strategy, risk, testability, AC quality), author (scenarios, test code,
-  fixtures), campaign (three-lens repo recon → dependency-ordered scenario
-  ladder per campaign-recon format v2), intake (plan proposed as a crew HITL
-  gate — approve/amend/reject), execute (run scenarios/suites, capture
-  evidence), review (independent verdicts, spec alignment, suite quality),
-  insight (ledger stats, flake detection, coverage archaeology), accept
-  (the isolated 3-agent pipeline that eliminates self-grading).
+  Consolidated quality-engineering domain: evidence-gated testing from strategy
+  to verdict. Nine actions — setup, plan (strategy, risk, testability, AC
+  quality), author (scenarios, test code, fixtures), campaign (three-lens repo
+  recon → a dependency-ordered scenario ladder), intake (plan as a crew HITL
+  gate), execute (run scenarios, capture evidence), review (independent
+  verdicts, suite quality), insight (ledger stats, flake detection, coverage
+  archaeology), accept (the isolated 3-agent pipeline that eliminates
+  self-grading).
 
-  Use when: "what should I test", "test strategy", "write tests", "author
-  scenarios", "qe campaign", "test the whole app", "capability inventory",
-  "campaign plan", "run the test", "capture evidence", "prove it works",
-  "acceptance test", "verify it works", "did it pass", "judge the evidence",
-  "verdict", "is this test suite any good", "flake rate", "has this passed
-  recently", "coverage gaps", "release readiness", "initialize testing".
+  Use when: "what should I test", "test strategy", "write tests", "qe
+  campaign", "run the test", "capture evidence", "acceptance test", "did it
+  pass", "judge the evidence", "flake rate", "coverage gaps", "release
+  readiness", "initialize testing".
 
-  NOT for: senior-engineer code review (engineering review action),
-  multi-model deliberation (jam council), in-run crew review
-  (wicked-garden-governed-worker, Evaluator section), or the portable evidence gate stamped into
-  a repo (the prove skill's compile action).
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+  NOT for: senior-engineer code review (engineering review action), multi-model
+  deliberation (jam council), in-run crew review (governed-worker, Evaluator),
+  or the portable evidence gate the prove skill's compile action stamps into a
+  repo.
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # QE — quality engineering
@@ -32,8 +30,8 @@ archetype_relevance: ["*"]
 Evidence-gated testing as a domain: strategy → authoring → execution →
 independent verdict, with a read-only ledger lens. Verdicts are re-derived
 from captured evidence — never self-asserted by the agent that ran the work.
-Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy <!-- historical -->
-`.wicked-testing/` roots still resolve via wicked-ledger's dual-read.
+Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy
+`.wicked-testing/` roots still resolve via wicked-ledger's dual-read. <!-- historical -->
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
@@ -62,11 +60,13 @@ action; multi-model deliberation is `jam` council; in-run crew review is
 `wicked-garden-governed-worker` (Evaluator); spec-meaning judgment is dispatched to
 `wicked-garden-qe-semantic-reviewer`.
 
-## Preflight (all actions except setup)
+## Preflight (writing actions only — author, execute, intake, accept)
+
+Read-only actions (plan, insight, review) never require setup; they read `.wicked-qe/config.json` where present and otherwise proceed without it. A writing action checks for config first:
 
 ```bash
-# dual-read (Phase 6c): a legacy .wicked-testing root still counts
-{ test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"
+# dual-read (Phase 6c): a legacy .wicked-testing root still counts  # <!-- historical -->
+{ test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"  # <!-- historical -->
 ```
 
 On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wicked-qe/` and registers a project record).
@@ -151,10 +151,10 @@ On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wi
 2. Verdict + run rows are written via the wicked-ledger DomainStore and the
    public manifest lands at `.wicked-qe/evidence/<run-id>/manifest.json`.
 
-## Fork workers (dispatch with the Skill tool)
+## Workers
 
 **Dispatch guard (mandatory):** resolve every specialist through
-`wicked-garden run scripts/qe/campaign_dispatch.py <name>` before the Skill call — it
+`wicked-garden run scripts/qe/campaign_dispatch.py <name>` before the hand-off — it
 asserts the resolved worker is a shipped `wicked-garden-qe-*` skill and BLOCKS retired
 `wicked-testing-*` / `wicked-brain-*` names at dispatch with a clear error naming the garden <!-- historical -->
 replacement. Never work around a block; fix the caller.

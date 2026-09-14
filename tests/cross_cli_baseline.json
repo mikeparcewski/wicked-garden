@@ -44,7 +44,6 @@
       "skills/qe-testability-reviewer/SKILL.md",
       "skills/qe-ui-component-test-engineer/SKILL.md",
       "skills/qe-visual-regression-engineer/SKILL.md",
-      "skills/qe/SKILL.md",
       "skills/repo-learn/SKILL.md",
       "skills/search/SKILL.md",
       "skills/search/codebase-narrator/SKILL.md",
@@ -52,48 +51,19 @@
     ],
     "claude-dispatch": [
       "skills/qe-acceptance-test-executor/SKILL.md",
-      "skills/qe-acceptance-test-writer/SKILL.md",
-      "skills/qe/refs/accept.md",
-      "skills/qe/refs/author.md",
-      "skills/qe/refs/campaign.md",
-      "skills/qe/refs/execute.md",
-      "skills/qe/refs/insight.md",
-      "skills/qe/refs/integration.md",
-      "skills/qe/refs/plan.md",
-      "skills/qe/refs/review.md"
+      "skills/qe-acceptance-test-writer/SKILL.md"
     ],
     "claude-only-prose": [
       "skills/qe-acceptance-test-executor/SKILL.md",
       "skills/qe-acceptance-test-reviewer/SKILL.md",
       "skills/qe-acceptance-test-writer/SKILL.md",
-      "skills/qe-scenario-executor/SKILL.md",
-      "skills/qe/SKILL.md",
-      "skills/qe/refs/accept.md",
-      "skills/qe/refs/author.md",
-      "skills/qe/refs/campaign-grading.md",
-      "skills/qe/refs/campaign.md",
-      "skills/qe/refs/execute.md",
-      "skills/qe/refs/insight.md",
-      "skills/qe/refs/plan.md",
-      "skills/qe/refs/review.md"
+      "skills/qe-scenario-executor/SKILL.md"
     ],
     "handoff-missing": [
       "skills/qe-acceptance-test-executor/SKILL.md",
-      "skills/qe-acceptance-test-writer/SKILL.md",
-      "skills/qe/refs/accept.md",
-      "skills/qe/refs/author.md",
-      "skills/qe/refs/campaign.md",
-      "skills/qe/refs/execute.md",
-      "skills/qe/refs/insight.md",
-      "skills/qe/refs/integration.md",
-      "skills/qe/refs/plan.md",
-      "skills/qe/refs/review.md"
+      "skills/qe-acceptance-test-writer/SKILL.md"
     ],
-    "retired-product-ref": [
-      "skills/qe/SKILL.md",
-      "skills/qe/refs/accept.md",
-      "skills/qe/refs/campaign.md"
-    ],
+    "retired-product-ref": [],
     "description-too-long": [
       "skills/mem/SKILL.md",
       "skills/qe-a11y-test-engineer/SKILL.md",
@@ -104,7 +74,6 @@
       "skills/qe-security-test-engineer/SKILL.md",
       "skills/qe-snapshot-hygiene-auditor/SKILL.md",
       "skills/qe-test-code-quality-auditor/SKILL.md",
-      "skills/qe/SKILL.md",
       "skills/repo-learn/SKILL.md"
     ],
     "skill-too-large": [],

@@ -23,14 +23,9 @@ wicked-garden-qe plan [target] [--project <name>] [--json]
 - `--project <name>` — associate strategy with this project
 - `--json` — emit JSON envelope
 
-### Preflight: check config
+### Preflight: config is optional for planning
 
-Verify `.wicked-qe/config.json` exists. If not:
-
-```
-Config not found. Run wicked-garden-qe setup first.
-Code: ERR_NO_CONFIG
-```
+Read `.wicked-qe/config.json` if present; plan is a read-only action, so never run setup from plan. When config is absent, proceed and note it — the writing actions (author, execute, accept) own the setup gate.
 
 ## When to use
 
@@ -61,15 +56,12 @@ AC-quality) runs. Calling `wicked-garden-qe-test-strategist` directly bypasses t
 
 ### Dispatch block (executable)
 
-Every id in the tables above is a forked worker skill (`context: fork`) —
-invoke it with the Skill tool so it runs in an isolated context:
+Every id in the tables above is a worker skill — reach it by name through a Hand-off, so it runs in an isolated context:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — open the `wicked-garden-qe-test-strategist` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```
-Skill(
-  skill="wicked-garden-qe-test-strategist",
-  args="""Generate a comprehensive test strategy for the target below.
+```markdown
+Generate a comprehensive test strategy for the target below.
 
 ## Target
 {file path, directory, or feature description}
@@ -82,12 +74,11 @@ Skill(
 5. Flag any specification gaps discovered.
 
 **MANDATORY**: Every scenario must have BOTH positive AND negative counterpart.
-Return findings in the standard test-strategist format."""
-)
+Return findings in the standard test-strategist format.
 ```
 
 Swap the `skill` id to the matching worker from the table above. For the
-"test everything" path, dispatch all four in parallel (one `Skill(...)` call
+"test everything" path, hand off all four in parallel (one hand-off
 per worker in the same turn) and merge the returned findings.
 
 ## Tier-2 specialists this skill may pull in
@@ -118,7 +109,7 @@ risk+scenario coverage where the generalist agents would miss signal:
 | Test-suite quality itself (smells, dead tests)           | `wicked-garden-qe-test-code-quality-auditor`  |
 | Prod incident -> regression scenario synthesis           | `wicked-garden-qe-incident-to-scenario-synthesizer` |
 
-Every specialist above is an in-catalog garden fork worker — dispatch it with the Skill tool.
+Every specialist above is an in-catalog garden worker skill — reach it by name through a Hand-off.
 
 ## Strategy record
 

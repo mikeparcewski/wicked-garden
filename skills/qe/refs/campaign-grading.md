@@ -44,7 +44,7 @@ campaign orchestrator's conversation.
 
 | CLI | Isolation enforcement |
 |-----|-----------------------|
-| Claude Code | **Hard-enforced** — `allowed-tools: [Read]` is blocked at the host level; the reviewer cannot shell out, browse, or re-run anything even if prompted to |
+| Host-level tool blocking (a host that enforces `allowed-tools`) | **Hard-enforced** — `allowed-tools: [Read]` is blocked at the host level; the reviewer cannot shell out, browse, or re-run anything even if prompted to |
 | Gemini CLI, Codex, Cursor, Kiro | **Advisory** — the skill's dispatch contract still passes paths only, but the host does not block tools; a prompt-injected or misbehaving reviewer could technically reach beyond the evidence |
 
 On advisory hosts the evidence-only dispatch is the only real layer, so:

@@ -50,17 +50,14 @@ Arguments map onto the dispatch table below:
 
 ### Dispatch block (executable)
 
-Every id in the tables above is a forked worker skill (`context: fork`) —
-invoke it with the Skill tool so it runs in an isolated context. For the
+Every id in the tables above is a worker skill — reach it by name through a Hand-off, so it runs in an isolated context. For the
 reviewer this is isolation-critical: the forked context is what guarantees
 it never sees the executor's history.
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — open the `wicked-garden-qe-acceptance-test-reviewer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```
-Skill(
-  skill="wicked-garden-qe-acceptance-test-reviewer",
-  args="""Review the evidence manifest at the path below and render an
+```markdown
+Review the evidence manifest at the path below and render an
 independent verdict.
 
 ## Evidence Directory
@@ -80,8 +77,7 @@ independent verdict.
    reasoning, flag as CONTEXT_CONTAMINATION and return INCONCLUSIVE.
 
 Return the verdict, reasoning per assertion, and next actions.
-DO NOT reference executor conversation context beyond the files above."""
-)
+DO NOT reference executor conversation context beyond the files above.
 ```
 
 For a spec-vs-code divergence review, swap the `skill` id to
@@ -154,13 +150,12 @@ pass. The verdict is one plain-text line, `VERDICT: PASS` or `VERDICT: FAIL`,
 the LAST line of the message; never quote another VERDICT line. Cite
 `file:line` for every finding. The auditor's §9 carries the same rule.
 
-Dispatch fallback as in § Dispatch block above: without a Skill tool, open the
-named skill's `SKILL.md` and carry the args out inline.
+Reach the auditor by name through a Hand-off, exactly as in the § Dispatch block above.
 
-```
-Skill(
-  skill="wicked-garden-qe-test-code-quality-auditor",
-  args="""Review the produced tests named in the PLAN below against the qe
+**Hand-off** — open the `wicked-garden-qe-test-code-quality-auditor` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+
+```markdown
+Review the produced tests named in the PLAN below against the qe
 `review` playbook's "Reviewing produced tests" rules. Re-derive every claim.
 
 ## Mode
@@ -197,8 +192,7 @@ as the LAST line of your message — PASS only with every claim verified at
 path:line, every produced test executed and green, no `unverified`; anything
 less is FAIL with the conditions listed above it; never quote another VERDICT
 line. Do NOT push, open, edit or merge a PR — the run's deliver phase
-delivers."""
-)
+delivers.
 ```
 
 ## Tier-2 specialists this skill routes to
