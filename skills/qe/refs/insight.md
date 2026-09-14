@@ -48,15 +48,12 @@ on the underlying oracle queries.
 
 ### Dispatch block (executable)
 
-Every id in the tables above is a forked worker skill (`context: fork`) —
-invoke it with the Skill tool so it runs in an isolated context:
+Every id in the tables above is a worker skill — reach it by name through a Hand-off, so it runs in an isolated context:
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — open the `wicked-garden-qe-test-oracle` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```
-Skill(
-  skill="wicked-garden-qe-test-oracle",
-  args="""Answer the question below against the qe evidence ledger.
+```markdown
+Answer the question below against the qe evidence ledger.
 
 ## Question
 {natural-language question}
@@ -76,8 +73,7 @@ Skill(
    table (per --json flag).
 5. Include the query name used so the caller can audit.
 
-Do NOT perform state mutations. Do NOT emit bus events."""
-)
+Do NOT perform state mutations. Do NOT emit bus events.
 ```
 
 Swap the `skill` id to the specialist when the trigger matches something the

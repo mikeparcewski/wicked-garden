@@ -50,8 +50,7 @@ in `wicked-garden-qe-test-designer`.
 
 ### Dispatch block (executable)
 
-Every id in the tables above is a forked worker skill (`context: fork`) —
-invoke it with the Skill tool so it runs in an isolated context.
+Every id in the tables above is a worker skill — reach it by name through a Hand-off, so it runs in an isolated context.
 
 **Dispatch guard (TH-7):** resolve the specialist first —
 `wicked-garden run scripts/qe/campaign_dispatch.py <name>` —
@@ -59,12 +58,10 @@ which asserts it is a shipped `wicked-garden-qe-*` worker and BLOCKS retired
 `wicked-testing-*` names at dispatch with a clear error naming the garden <!-- historical -->
 replacement (exit 2). Never dispatch a name the guard refused.
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — open the `wicked-garden-qe-scenario-executor` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```
-Skill(
-  skill="wicked-garden-qe-scenario-executor",
-  args="""Execute the scenario file at the path below and capture evidence.
+```markdown
+Execute the scenario file at the path below and capture evidence.
 
 ## Scenario Path
 {path to scenarios/<name>.md}
@@ -73,7 +70,7 @@ Skill(
 .wicked-qe/evidence/{RUN_ID}/
 
 ## Instructions
-1. Read the scenario via the Read tool.
+1. Open the scenario file with your file reader.
 2. For each step, run the command via Bash with the scenario's timeout
    (enforce via {WT_LIB}/exec-with-timeout.mjs when available — the shell
    fallback chain is `timeout || gtimeout || bare` with a warning log).
@@ -82,13 +79,12 @@ Skill(
 5. Determine per-step outcome: exit 0 = PASS, non-zero = FAIL, CLI missing = SKIPPED.
 
 Do NOT self-grade qualitative outcomes. For acceptance-grade verdicts
-route to wicked-garden-qe accept instead."""
-)
+route to wicked-garden-qe accept instead.
 ```
 
 Swap the `skill` id per the table above. For a scenario that also needs
 contract verification, dispatch `wicked-garden-qe-scenario-executor` and
-`wicked-garden-qe-contract-testing-engineer` in parallel (one `Skill(...)` call each in the
+`wicked-garden-qe-contract-testing-engineer` in parallel (one hand-off each in the
 same turn) and merge results.
 
 ## Tier-2 specialists this skill routes to

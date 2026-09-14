@@ -57,10 +57,7 @@ sees (event→consumer, command→agent):
 
 1. Probe availability first (fail-open, never crash):
    `wicked-garden run scripts/_estate_client.py` — `health` +
-
-   Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
-
-   `stats`; or dispatch `Skill(skill="wicked-garden-search")` for
+   `stats`; or use the `wicked-garden-search` skill for
    blast-radius/lineage questions.
 2. Query surfaces: `SearchEntity` for routes/handlers/components; follow
    injected edges to consumers. Every claim gets a `file:line` citation.
@@ -71,7 +68,7 @@ sees (event→consumer, command→agent):
 
 ### Lens 2 — docs recall (`source: "docs"`, always PROPOSED)
 
-`Skill(skill="wicked-garden-mem")` recall over the target's docs/READMEs/
+the `wicked-garden-mem` skill's recall over the target's docs/READMEs/
 sites for claimed capabilities the graph and probes did not surface.
 **Every doc-derived claim enters as `status: "proposed"`** — pending human
 review, exactly the incident-to-scenario pending-review pattern
@@ -237,7 +234,7 @@ folded into scenario format (`wicked-crew/e2e/campaign/`).
 
 ## Dispatch guard (mandatory for every qe dispatch)
 
-Before ANY `Skill(...)` dispatch from this action (and the other qe
+Before ANY hand-off from this action (and the other qe
 actions), resolve the specialist through the guard — it asserts the resolved
 worker is a garden `wicked-garden-qe-*` skill that ships in the catalog and
 BLOCKS retired surfaces with a clear error (never a silent rewrite):
@@ -247,7 +244,7 @@ BLOCKS retired surfaces with a clear error (never a silent rewrite):
 wicked-garden run scripts/qe/campaign_dispatch.py wicked-garden-qe-scenario-executor
 # → wicked-garden-qe-scenario-executor          (exit 0)
 
-wicked-garden run scripts/qe/campaign_dispatch.py wicked-testing-a11y-test-engineer
+wicked-garden run scripts/qe/campaign_dispatch.py wicked-testing-a11y-test-engineer  # <!-- historical -->
 # → dispatch guard: BLOCKED retired specialist ... (exit 2)
 ```
 <!-- /historical -->

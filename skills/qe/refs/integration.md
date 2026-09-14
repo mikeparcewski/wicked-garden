@@ -192,7 +192,7 @@ the manifest path has `artifact_count` but `verdict_id: null` + `vault_payload_s
 source, id, envelope_hash, payload_sha256, criteria_authored_by, status_at_record }`.
 Distinct from `wicked.test.evidence.captured`, which describes a whole run's artifacts.
 **`wicked.test.contract.published`** — `{ version: "<semver>", agents: [{ skill: "wicked-garden-qe-<name>", tier: 1|2 }] }`
-(The `agents` / `subagent_type` payload field names are retained for wire
+(The `agents` and the legacy `subagent_type` payload field names are retained for wire <!-- historical -->
 compatibility; each entry describes a forked worker skill and the value is its
 skill dispatch name.)
 
