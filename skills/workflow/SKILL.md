@@ -5,14 +5,13 @@ description: |
   rigor tiers, and facilitator rubric. Use when understanding or troubleshooting crew phase
   mechanics (gate config, CONDITIONAL resolution, phase dependencies).
   NOT for starting a project (use crew:start) or proposing a process plan (use propose-process).
-context: fork
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Workflow Skill (v6)
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 **Plain:** wicked-crew v6 — propose-process rubric picks phases and rigor tier;
 gates are hard enforcement; two interaction modes (normal / yolo).
@@ -137,7 +136,7 @@ or crew's `/api/v1` (they are not slash commands on any CLI):
 
 | Store | What |
 |-------|------|
-| Native tasks | TaskCreate/TaskUpdate with validated `metadata` (see `scripts/_event_schema.py`) |
+| Native tasks | the harness's task list with validated `metadata` (see `scripts/_event_schema.py`; `refs/integration.md`) |
 | `wicked-garden-mem` | Cross-session learning at project completion and gate failures |
 | Local JSON | DomainStore fallback; always available |
 

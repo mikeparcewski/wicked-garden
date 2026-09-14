@@ -21,8 +21,6 @@ metadata:
 
 # wicked-garden:ground — Steer Yourself
 
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
-
 You are uncertain. Pull what's known into focus.
 
 ## When to use

@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-swarm
-context: fork
 description: |
   Parallel verification-swarm orchestration playbook: fan out N scoped
   subagents over N units of work (repos / modules / files), then run a
@@ -15,14 +14,13 @@ description: |
   backlog with proof", "apply this across all modules", "audit each
   service"), high-blast-radius changes that need independent verification,
   or any run where a claimed "done" must be re-derivable from receipts.
-status: stable
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["build", "review", "migrate", "modernize", "incident"]
+metadata:
+  role: worker
+  phases: "build,test,review"
+  archetypes: "build,review,migrate,modernize,incident"
 ---
 
 # Swarm — parallel verification swarm
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Orchestrate **N units of work in parallel** (one scoped subagent per unit),
 then **independently verify** every result with a separate wave of agents that
@@ -45,7 +43,7 @@ the garden — reference these, do not duplicate them:
 |------|------------------------------|
 | Per-unit implementer subagent | a worker following `wicked-garden-governed-worker` **Creator** — the repo's checks run in-tree with exit codes pasted, generated artifacts regenerated, evidence in the output |
 | Per-unit recon subagent | a worker following `wicked-garden-governed-worker` **Neutral** — read-only: analyse, plan, name files and risks, never implement |
-| Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` fork skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
+| Independent semantic verdict | `wicked-garden-qe-semantic-reviewer` worker skill (`skills/qe-semantic-reviewer/`) — independent-by-construction; refuses to attest its own work |
 | Fallback reviewer | a worker following `wicked-garden-governed-worker` **Evaluator** — output-only, evaluator ≠ creator, verdict with file:line reasons |
 | Re-derive a claim (the receipt) | `wicked-garden-prove` (run + freeze evidence + gate; fail-closed) |
 | Hard-gate independent sign-off | `wicked-garden-prove --with-attestations` → `wicked-vault attest` (evaluator ≠ creator, G10) |
@@ -63,7 +61,7 @@ the garden — reference these, do not duplicate them:
 1. implement  → N parallel implementer agents (one per unit, self-contained brief)
                 each writes DETAILED artifacts to disk, returns a ~150-word summary
 2. verify     → M parallel verifier agents (SEPARATE from implementers)
-                re-run from clean state, read the ACTUAL diff, render PASS/FAIL/PARTIAL
+                re-run from clean state, read the ACTUAL diff, render PASS/FAIL (partial = FAIL + the gap)
 3. receipts   → wicked-garden-prove per claim; hard gates add --with-attestations
 4. ship       → branch per unit, conventional commits, CI-green, independent review,
                 clean merge tree, tag-driven release  (only when asked)
@@ -78,13 +76,25 @@ auditable.
 - **Detail to disk, summary to context.** Subagents write the full profile /
   plan / diff / receipt to the scratch dir and return ≤150 words. Never let a
   subagent dump raw output into your context.
-- **One message, many Task calls** for each wave — that is what makes it
-  parallel. A serial run with no documented `serial_reason` is a protocol miss.
+- **One wave, many workers.** On a harness that runs parallel sub-agents,
+  dispatch every unit of a wave in ONE turn — one Hand-off per unit. On a seat
+  with no parallel dispatch, run the wave **serially, one Hand-off at a time**,
+  each unit's output in its own scratch file — that is the sanctioned
+  degradation: record `serial_reason: harness has no parallel dispatch` in the
+  scratch dir. A serial run with no `serial_reason` is a protocol miss; a serial
+  run that lets the same agent implement AND verify a unit is a broken swarm.
+
+**Hand-off** — for each unit, open `wicked-garden-governed-worker` (Creator for the
+implementer wave, Evaluator for the verifier wave) with the per-unit brief from
+`refs/fan-out.md` / `refs/independent-verification.md` as the argument; on Claude Code
+this is one Task per unit in one message, on any other seat open the named skill from
+your catalog and run the brief inline, one unit after another, each unit's output in its
+own scratch file, then continue here.
 - **Background long/external work** and synthesize on completion rather than
   blocking the wave.
 - **The verifier is a different agent than the implementer.** If the same agent
   type did the work, the verdict is a self-grade — the `wicked-garden-qe-semantic-reviewer`
-  fork skill and the vault `attest` both refuse `evaluator == creator`.
+  worker skill and the vault `attest` both refuse `evaluator == creator`.
 
 ## The two reusable briefs
 
@@ -100,7 +110,7 @@ Both live in `refs/fan-out.md` (implementer) and `refs/independent-verification.
 - **Verifier brief** (per unit): ignore the implementer's prose → re-run the
   suite/build from clean → read the ACTUAL diff → check over-claims (e.g. a
   claimed "pre-existing failure" must actually fail on the BASE commit) →
-  render PASS / FAIL / PARTIAL → write the authoritative receipt.
+  render PASS / FAIL (a partial result is FAIL with the gap named) → write the authoritative receipt.
 
 ## Honest marking (no padding)
 
@@ -128,6 +138,6 @@ profile/plan/review/receipt files, and a deferred-items log. Exact tree in
 
 - [refs/recon-synthesis.md](refs/recon-synthesis.md) — recon wave, fit-matrix, relevance tiers, the single checkpoint question, scratch-dir layout
 - [refs/fan-out.md](refs/fan-out.md) — parallel implementer wave + the **implementer brief template**, impact analysis, in-scope cleanup
-- [refs/independent-verification.md](refs/independent-verification.md) — the verifier wave + the **verifier brief template**, isolation, over-claim kills, PASS/FAIL/PARTIAL
+- [refs/independent-verification.md](refs/independent-verification.md) — the verifier wave + the **verifier brief template**, isolation, over-claim kills, PASS/FAIL
 - [refs/receipts-and-evidence.md](refs/receipts-and-evidence.md) — verbatim receipts, prove/vault/qe composition, honest GAP/PARTIAL/ALREADY-COVERED marking
 - [refs/ship-discipline.md](refs/ship-discipline.md) — branch-per-unit, conventional commits, CI-green gate, independent review + resolve, clean merge tree, tag-driven release

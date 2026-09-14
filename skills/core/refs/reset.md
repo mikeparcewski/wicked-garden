@@ -18,7 +18,7 @@ State is project-scoped — each working directory gets its own isolated storage
 
 ## Question Mode
 
-Detect whether a native question prompt is usable (INTERACTIVE) or every question goes out as a plain-text list (PLAIN_TEXT):
+Detect whether a native question prompt is usable (INTERACTIVE) or every question goes out as a plain-text list (PLAIN_TEXT). The detector keys on the Claude harness's dangerous-mode flag only — on any other seat read PLAIN_TEXT regardless of its answer:
 
 ```bash
 wicked-garden python -c "

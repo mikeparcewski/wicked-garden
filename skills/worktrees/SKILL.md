@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-worktrees
-context: fork
 description: |
   Git worktree hygiene — when to create, how to clean up, and what fails silently.
   Captures three classes of bug that recur with worktree-based agent isolation:
@@ -12,17 +11,16 @@ description: |
   cleaning up `.claude/worktrees/`, salvaging old crew worktrees, "is this branch
   in main?", verifying agent-claimed commits actually landed, planning multi-agent
   parallel work in worktrees.
-status: stable
-phase_relevance: ["build"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
+  phases: "build"
+  archetypes: "*"
 ---
 
 # Worktrees
 
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
-
 Git worktrees let multiple branches be checked out simultaneously and let
-agent runtimes (Claude Code's `Agent({isolation: 'worktree'})`, crew runners,
+agent runtimes (a harness's worktree-isolated agents, crew runners,
 etc.) make changes in isolation without disturbing the main checkout. Useful —
 and a quiet source of three repeating bugs.
 
@@ -54,7 +52,7 @@ Branch + remote ref state, **not** on-disk worktree presence. Worktree-dir absen
 
 For each candidate branch:
 
-1. **Locate** — `.claude/worktrees/agent-*` and project-specific dirs (e.g. `~/.command_iq/worktrees/crew-*`). Run `git worktree list`.
+1. **Locate** — `git worktree list` (every registered worktree, wherever the harness placed it — agent runtimes keep theirs under the project's hidden tool directory) plus project-specific dirs (e.g. `<project state dir>/worktrees/crew-*`).
 2. **Identify** — branch name + HEAD SHA.
 3. **Classify** using ancestry-based checks (NOT tree-identity diffs — main may have advanced past a fully-merged branch). Verdict table and signals in `refs/recipes.md` §5.
 4. **Act** per verdict:

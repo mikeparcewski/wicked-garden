@@ -127,10 +127,7 @@
       "skills/smaht/discovery/SKILL.md",
       "skills/smaht/intent/SKILL.md",
       "skills/smaht/propose-skills/SKILL.md",
-      "skills/swarm/SKILL.md",
-      "skills/wickedizer/SKILL.md",
-      "skills/workflow/SKILL.md",
-      "skills/worktrees/SKILL.md"
+      "skills/wickedizer/SKILL.md"
     ],
     "claude-dispatch": [
       "skills/agentic-architect/SKILL.md",
@@ -187,10 +184,7 @@
       "skills/qe/refs/review.md",
       "skills/smaht/SKILL.md",
       "skills/smaht/discovery/SKILL.md",
-      "skills/smaht/refs/briefing.md",
-      "skills/swarm/refs/recon-synthesis.md",
-      "skills/workflow/refs/integration.md",
-      "skills/worktrees/SKILL.md"
+      "skills/smaht/refs/briefing.md"
     ],
     "claude-only-prose": [
       "skills/archetype/refs/review.md",
@@ -233,9 +227,7 @@
       "skills/smaht/SKILL.md",
       "skills/smaht/discovery/SKILL.md",
       "skills/smaht/propose-skills/SKILL.md",
-      "skills/smaht/refs/briefing.md",
-      "skills/workflow/refs/integration.md",
-      "skills/worktrees/SKILL.md"
+      "skills/smaht/refs/briefing.md"
     ],
     "handoff-missing": [
       "skills/agentic-architect/SKILL.md",
@@ -291,10 +283,7 @@
       "skills/qe/refs/review.md",
       "skills/smaht/SKILL.md",
       "skills/smaht/discovery/SKILL.md",
-      "skills/smaht/refs/briefing.md",
-      "skills/swarm/refs/recon-synthesis.md",
-      "skills/workflow/refs/integration.md",
-      "skills/worktrees/SKILL.md"
+      "skills/smaht/refs/briefing.md"
     ],
     "retired-product-ref": [
       "skills/archetype/refs/build.md",

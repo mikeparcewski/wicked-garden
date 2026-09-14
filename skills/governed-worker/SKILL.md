@@ -84,7 +84,7 @@ verdict with reasons. You are output-only.
   no scratch. Write analysis only to the notes root the run hands you — a
   location OUTSIDE the repository, never a path inside the checkout — or to your
   final output; a check's output you keep goes there too (`| tee <notes
-  root>/<name>.log`), never into the checkout. Creating a directory or an empty
+  root>/<name>.log`), never into the checkout — an in-tree tee is refused (R7). Creating a directory or an empty
   file inside the repository IS a write. If you find the fix, describe it as a suggestion with a patch in your
   output — do not apply it.
 - **E2 — Never run install or build steps that mutate tracked files.** If a

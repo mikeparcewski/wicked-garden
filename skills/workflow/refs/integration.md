@@ -6,42 +6,34 @@ archetype_relevance: ["*"]
 
 How wicked-crew integrates with utility plugins (graceful degradation).
 
-## Task Management (Claude Native)
+## Task Management (the harness's task list)
 
-Crew uses Claude's native task tools for all task lifecycle operations. **Use the full richness of task fields, including `metadata`, per the event envelope contract in `scripts/_event_schema.py`.** PreToolUse validates every TaskCreate/TaskUpdate against that contract.
+Crew records every task-lifecycle operation in the harness's task list. **Use the full richness of task fields, including `metadata`, per the event envelope contract in `scripts/_event_schema.py`.** The harness's hooks validate every create / update against that contract where it has them (the Hand-off below).
 
 ### Creating Tasks
 
+One task per unit, with these fields (`metadata` per the event envelope contract):
+
 ```
-TaskCreate(
-  subject="{Phase}: {project-name} - {task description}",
-  description="WHY this task exists, what problem it solves, acceptance criteria",
-  activeForm="Working on {task}",
-  metadata={
-    "event_type": "task",          # or coding-task, gate-finding, phase-transition, procedure-trigger, subtask
-    "chain_id": "{project}.{phase}",  # dotted causality: {project}.root, {project}.{phase}, {project}.{phase}.{gate}
-    "source_agent": "{agent-name}",
-    "phase": "{phase}",             # required for coding-task, gate-finding, phase-transition
-    "priority": "P1",               # P0 (critical) through P3 (minor)
-    "assigned_to": "agent-name"     # who owns this
-  }
-)
+subject:      "{Phase}: {project-name} - {task description}"
+description:  "WHY this task exists, what problem it solves, acceptance criteria"
+activeForm:   "Working on {task}"
+metadata:
+  event_type:   task            # or coding-task, gate-finding, phase-transition, procedure-trigger, subtask
+  chain_id:     {project}.{phase}   # dotted causality: {project}.root, {project}.{phase}, {project}.{phase}.{gate}
+  source_agent: {agent-name}
+  phase:        {phase}         # required for coding-task, gate-finding, phase-transition
+  priority:     P1              # P0 (critical) through P3 (minor)
+  assigned_to:  agent-name      # who owns this
 ```
+
+**Hand-off (harness-specific)** — on Claude Code the task-list tools (create / update / list / read) take these fields directly, the PreToolUse hook (`pretool_taskcreate.py`) validates the `metadata` envelope against `scripts/_event_schema.py` on every create / update, and tasks persist under the Claude config directory's `tasks/{session_id}/`; on any other seat keep the same fields in your working notes and report them in your output.
 
 ### Updating Tasks (use full fields)
 
-```
-# Set dependencies between tasks
-TaskUpdate(taskId="{id}", addBlockedBy=["{blocker-id}"])
-TaskUpdate(taskId="{id}", addBlocks=["{dependent-id}"])
-
-# Update with reasoning, not just status
-TaskUpdate(
-  taskId="{id}",
-  status="completed",
-  description="Original desc + \n\n## Outcome\nChose X because Y. Trade-off: Z."
-)
-```
+- Link dependencies between tasks: `blockedBy: [{blocker-id}]` / `blocks: [{dependent-id}]`.
+- Update with reasoning, not just status: `status: completed` + append to the description
+  `## Outcome — Chose X because Y. Trade-off: Z.`
 
 ### Enrichment Guidelines
 
@@ -52,29 +44,19 @@ TaskUpdate(
 
 ### Querying
 
-```
-TaskList()  # filter by subject: (?i)^{phase}[\s:-].*{project-name}
-TaskGet(taskId="{id}")
-```
+List tasks filtered by subject (`(?i)^{phase}[\s:-].*{project-name}`) and read one by id — through the harness's task list (the Hand-off above), else your working notes.
 
-**Validation & persistence**: PreToolUse runs `pretool_taskcreate.py` on every TaskCreate/TaskUpdate, validating the `metadata` dict against `scripts/_event_schema.py` (event_type, chain_id shape, source_agent, required per-type fields). Tasks persist natively under `${CLAUDE_CONFIG_DIR}/tasks/{session_id}/`.
+**Validation & persistence**: covered by the harness-specific Hand-off above — a hook-validated envelope and native persistence where the harness has them; working notes on every other seat.
 
 ## wicked-garden-mem (memory over wicked-estate)
 
 **When available**: Cross-session learning
 
-Dispatch uses the Skill tool on Claude Code (a fresh forked context). On any other harness, open the named skill's `SKILL.md` from your skills catalog and carry out its instructions inline with the given args, then continue here.
+**Hand-off** — store a decision: open the `wicked-garden-mem` skill and run its `store` action with `{decision}` and `kind=fact, about=[{project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-```
-# Store decision
-Skill(skill="wicked-garden-mem", args="store \"{decision}\" (kind=fact, about=[{project}])")
+**Hand-off** — recall past context: the `wicked-garden-mem` skill's `recall` action with `{project pattern}` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-# Recall past context
-Skill(skill="wicked-garden-mem", args="recall \"{project pattern}\"")
-
-# Store episodic memory
-Skill(skill="wicked-garden-mem", args="store \"Encountered {issue}, resolved by {solution}\" (kind=episode, about=[{project}])")
-```
+**Hand-off** — store an episode: the `wicked-garden-mem` skill's `store` action with `Encountered {issue}, resolved by {solution}` and `kind=episode, about=[{project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 **Fallback**: Project files stored locally via DomainStore under the wicked-crew domain
 
@@ -89,7 +71,7 @@ Skill(skill="wicked-garden-mem", args="store \"Encountered {issue}, resolved by 
 
 ## Detection Pattern
 
-Crew uses Claude's native task tools (TaskCreate, TaskUpdate, TaskList, TaskGet) directly — no plugin detection needed for task management. The PreToolUse hook enforces the metadata envelope defined in `scripts/_event_schema.py`.
+Crew records tasks in the harness's task list (§ Task Management above) — no plugin detection needed for task management; the metadata envelope is enforced by the harness's hooks where it has them.
 
 For optional memory storage (wicked-garden-mem), use graceful degradation:
 
@@ -100,7 +82,7 @@ For optional memory storage (wicked-garden-mem), use graceful degradation:
 
 ```
 # In markdown commands, use conditional phrasing:
-# "If the memory layer is available:" → Skill(skill="wicked-garden-mem", args="store ...")
+# "If the memory layer is available:" → a Hand-off to the wicked-garden-mem skill's store action
 # Otherwise, skip the step (no fallback needed)
 ```
 

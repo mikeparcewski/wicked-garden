@@ -11,8 +11,6 @@ metadata:
 
 # Runtime Execution Skill
 
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
-
 Execute Python and Node scripts using the best available package manager.
 
 ## Runtime

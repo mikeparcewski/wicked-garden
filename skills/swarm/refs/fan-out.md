@@ -1,14 +1,20 @@
 # Fan-out — the parallel implementer wave
 
-Dispatch **N independent subagents in parallel**, one per unit of work
-(repo / module / file / service). One message, multiple `Task` calls — that
-is what makes it a swarm and not a loop.
+Dispatch **N independent workers**, one per unit of work (repo / module / file /
+service) — in parallel where your harness runs parallel sub-agents (one turn, one
+Hand-off per unit), serially otherwise (one Hand-off at a time, each unit's output
+in its own scratch file; record `serial_reason`). Parallelism is the speed-up; the
+swarm's substance is one worker per unit and a verifier that is never the
+implementer.
 
 Brief each unit's worker with `wicked-garden-governed-worker` Creator. It already encodes the
 rules that matter here: the repo's checks run in-tree before "done" (exit codes pasted),
 generated artifacts regenerated not hand-edited, structured evidence in the output, and
 the guardrails (never auto-proceed on deploys / deletes / schema migrations). This ref
 adds the **per-unit brief** that scopes each one.
+
+**Hand-off** — for each unit, open `wicked-garden-governed-worker` (Creator section) with that
+unit's brief as the argument; on Claude Code this is one Task per unit in one message, on any other seat open the named skill from your catalog and run the brief inline, one unit after another, each unit's output in its own scratch file, then continue here.
 
 ## When a unit is independent
 
