@@ -106,6 +106,122 @@ def frontmatter_yaml_error(text: str) -> str | None:
     return None
 
 
+# --- Core-closure guard: the skills-publish "core-by-reference closure" (wicked-crew
+#     packages/crew/src/skills/core-closure.ts) ---
+# The skills publish computes a REGISTERED-REFERENCE CLOSURE: from every workflow phase's `skill_ref`
+# it follows each skill's mandates — the frontmatter `mandates:` list AND the SKILL.md BODY's
+# qualified-name mentions (`wicked-garden-<x>` / `wicked-garden:<x>`) — and REFUSES the whole publish
+# when a reference names no catalog skill (`core-missing`, blocking, fail-closed). Crucially the body
+# scan does NOT honor the `<!-- not-a-skill -->` HTML-comment shield that garden's own
+# tests/test_skill_portability.py `unresolved-skill-name` check honors: to the publish, a shielded
+# prose mention of a DELETED skill is still a dangling ref. That divergence shipped the garden 12.38.0
+# blocker — skills/governed-worker/SKILL.md named three skills batch B18 (#1169) deleted; the shield
+# satisfied garden's own linters, but the daemon's core-closure refused the publish (crew 0.7.38 smoke
+# S02, both legs; it passed on 12.37.2, which still had the stub skills). This guard mirrors the
+# publish's rule so garden CI catches the class BEFORE publish.
+#
+# Scope: garden cannot know which skills the workflow registry (in wicked-core / wicked-crew) makes
+# core-reachable, and a dangling ref becomes a live publish-blocker the moment its skill enters the
+# closure, so this guard scans EVERY catalog skill (a superset of the publish's reachable-only check)
+# — the safe, self-contained garden-side mirror.
+
+_PLUGIN_NAME = "wicked-garden"
+_SKILL_NAME_PREFIX = _PLUGIN_NAME + "-"
+# crew core-closure.ts NAME_TOKEN_RE: `wicked-garden-<x>` / `wicked-garden:<x>` not glued to a preceding
+# name character; a trailing `-`/`_` is a glob/prefix (not a name); a `:`-continued token is a Claude
+# subagent type (not a skill). Ported verbatim; the `<!-- not-a-skill -->` shield is NOT honored.
+_NAME_TOKEN_RE = re.compile(
+    r"(?<![A-Za-z0-9_-])" + re.escape(_PLUGIN_NAME) + r"[:-]([A-Za-z0-9_-]+)(:?)"
+)
+
+
+def _body_with_frontmatter_blanked(text: str) -> str:
+    """``text`` with its ``---``-fenced frontmatter replaced by blank chars (newlines preserved, so a
+    prose line number is the file line number). Mirror of crew frontmatter.ts::bodyWithFrontmatterBlanked
+    — a frontmatter scalar is the parser's business, not a prose mention."""
+    src = text.replace("\r\n", "\n")
+    if not src.startswith("---\n"):
+        return src
+    m = re.match(r"^---\n.*?\n---", src, re.DOTALL)
+    if not m:
+        return src
+    end = m.end()
+    return re.sub(r"[^\n]", "", src[:end]) + src[end:]
+
+
+def _prose_mentions(body: str) -> list[tuple[str, int]]:
+    """Every well-formed qualified-name token in ``body`` with its 1-based line. Glob/prefix tokens
+    (trailing ``-``/``_``) and ``:``-continued subagent types are not names. Mirror of
+    crew core-closure.ts::mentionedTokens. Callers hand this the frontmatter-blanked body."""
+    out: list[tuple[str, int]] = []
+    for i, line in enumerate(body.split("\n"), start=1):
+        for m in _NAME_TOKEN_RE.finditer(line):
+            raw = m.group(1) or ""
+            if m.group(2) == ":" or raw.endswith("-") or raw.endswith("_"):
+                continue
+            out.append((_SKILL_NAME_PREFIX + raw, i))
+    return out
+
+
+def _declared_mandate_names(text: str) -> list[tuple[str, int]]:
+    """The frontmatter ``mandates:`` entries as (normalized catalog name, 1-based line). The Claude
+    plugin form ``wicked-garden:x`` normalizes to ``wicked-garden-x``. Mirror of the declared half of
+    crew core-closure.ts::mandateMentions (frontmatter.ts::declaredMandates). Best-effort without YAML."""
+    m = re.match(r"^---\n(.*?\n)---", text.replace("\r\n", "\n"), re.DOTALL)
+    if not m:
+        return []
+    block = m.group(1)
+    try:
+        import yaml
+        data = yaml.safe_load(block)
+    except Exception:
+        return []
+    if not isinstance(data, dict) or not isinstance(data.get("mandates"), list):
+        return []
+    block_lines = block.split("\n")
+    out: list[tuple[str, int]] = []
+    for entry in data["mandates"]:
+        if not isinstance(entry, str) or entry == "":
+            continue
+        name = (
+            _SKILL_NAME_PREFIX + entry[len(_PLUGIN_NAME) + 1:]
+            if entry.startswith(_PLUGIN_NAME + ":")
+            else entry
+        )
+        ln = 2
+        for j, bl in enumerate(block_lines):
+            if bl.strip() in (f"- {entry}", f'- "{entry}"', f"- '{entry}'"):
+                ln = 2 + j
+                break
+        out.append((name, ln))
+    return out
+
+
+def catalog_skill_names(skills_root: Path) -> set[str]:
+    """Every catalog skill name — ``wicked-garden-<dir path under skills/ joined by '-'>`` for each
+    ``skills/**/SKILL.md``. Matches wicked-core's derived_name and crew's one-name-per-skill manifest."""
+    names: set[str] = set()
+    for skill_md in Path(skills_root).glob("**/SKILL.md"):
+        rel = skill_md.parent.relative_to(skills_root).as_posix()
+        names.add(_SKILL_NAME_PREFIX + rel.replace("/", "-"))
+    return names
+
+
+def dangling_skill_refs(skill_md_text: str, self_name: str, catalog: set[str]) -> list[tuple[str, int]]:
+    """The qualified skill references in one SKILL.md (declared ``mandates:`` + BODY prose mentions) that
+    name NO catalog skill — the publish's ``absentMandates``. Self-references are excluded. The
+    ``<!-- not-a-skill -->`` shield is NOT honored: the publish does not honor it, so neither does this
+    guard (that shield hiding a deleted-skill mention IS the class the guard exists to catch)."""
+    mentions = _declared_mandate_names(skill_md_text) + _prose_mentions(
+        _body_with_frontmatter_blanked(skill_md_text)
+    )
+    out: list[tuple[str, int]] = []
+    for name, line in mentions:
+        if name != self_name and name not in catalog:
+            out.append((name, line))
+    return out
+
+
 def main():
     root = Path(__file__).resolve().parent.parent.parent
     os.chdir(root)
@@ -232,6 +348,26 @@ def main():
             continue
         if "description:" not in fm:
             errors.append(f"{rel}: missing 'description' in frontmatter")
+
+    # --- 4b. Core-closure: no dangling skill references (skills-publish blocker class) ---
+    # Mirror the skills publish's core-by-reference closure (see the module comment above): a SKILL.md
+    # that mandates or names a skill absent from the catalog makes the daemon refuse the whole publish,
+    # even when a `<!-- not-a-skill -->` shield satisfies garden's own linters. Scanned over EVERY
+    # catalog skill so garden CI fails here first (garden 12.38.0 / crew 0.7.38 smoke S02 regression).
+    skills_root = root / "skills"
+    catalog = catalog_skill_names(skills_root)
+    for skill_md in sorted(skills_root.glob("**/SKILL.md")):
+        rel = skill_md.relative_to(root)
+        dir_rel = skill_md.parent.relative_to(skills_root).as_posix()
+        self_name = _SKILL_NAME_PREFIX + dir_rel.replace("/", "-")
+        for name, line in dangling_skill_refs(
+            skill_md.read_text(encoding="utf-8"), self_name, catalog
+        ):
+            errors.append(
+                f"{rel}:{line}: references skill `{name}`, which is not in the catalog — the skills "
+                f"publish's core-by-reference closure refuses this (a `<!-- not-a-skill -->` shield does "
+                f"NOT exempt it); remove the reference or fix the name"
+            )
 
     # --- 5. No stale prezzie/presentation references ---
     stale_pattern = re.compile(
