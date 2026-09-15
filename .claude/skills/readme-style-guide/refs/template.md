@@ -72,7 +72,7 @@ claude plugins install wicked-{name}
 | `/wicked-garden:{domain}-{cmd2}` | {Trigger condition — when this is the right choice} |
 
 <!-- CONDITIONAL: Include only when the internal mechanism IS the value proposition.
-     Examples: wicked-mem decay math, wicked-smaht routing tiers, wicked-crew signal scoring.
+     Examples: wicked-mem decay math, wicked-search ranking tiers, wicked-crew signal scoring.
      Omit when: mechanism is just implementation detail. -->
 ## How It Works
 

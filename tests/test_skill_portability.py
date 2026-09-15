@@ -744,7 +744,7 @@ def test_non_vacuity_inverted():
     """The pre-12.33 guard asserted > 20 plugin-root refs; the portable tree asserts the inverse."""
     assert _COUNTS["files_scanned"] > 300, _COUNTS
     assert _COUNTS["bundle_files"] > 500, _COUNTS
-    assert _COUNTS["skills"] >= 137, _COUNTS  # B18 retired the crew-* trio stubs (was 140)
+    assert _COUNTS["skills"] >= 133, _COUNTS  # B18 retired the crew-* trio (140→137); smaht retirement (137→133)
     assert _COUNTS["plugin_root_refs"] == 0, f"plugin-root refs under skills/: {_COUNTS['plugin_root_refs']}"
     assert _COUNTS["skill_dir_var_refs"] == 0, f"skill-dir-var refs under skills/: {_COUNTS['skill_dir_var_refs']}"
     assert _COUNTS["launcher_calls"] > 200, (

@@ -26,7 +26,7 @@ Maps tool names to install commands per platform. Used by `prereq_doctor.py`.
 | Package | Import | Install | Used By |
 |---------|--------|---------|---------|
 | rapidfuzz | `from rapidfuzz import ...` | `uv sync` (from root pyproject.toml) | search |
-| pydantic | `from pydantic import ...` | `uv sync` | search, smaht |
+| pydantic | `from pydantic import ...` | `uv sync` | search |
 | tree-sitter | `import tree_sitter` | `uv sync` | search |
 | aiofiles | `import aiofiles` | `uv sync` | search |
 | pyyaml | `import yaml` | `uv sync` | search |

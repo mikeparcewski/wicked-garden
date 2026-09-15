@@ -125,7 +125,7 @@ Command and skill body files MUST stay slim — they load into the parent contex
 
 | Pattern | Lines | When                                | Example                  |
 |---------|-------|-------------------------------------|--------------------------|
-| A — Advisory/State | ≤8  | State mutation, no dispatch | smaht `intent` action (`skills/smaht/intent/`) |
+| A — Advisory/State | ≤8  | State mutation, no dispatch | session-intent auto-detect (`hooks/scripts/prompt_submit.py`) |
 | B — Write Brief + Dispatch | ≤30 | Session-specific brief needed | (any archetype skill)    |
 | C — Interactive Branch + Dispatch | ≤35 | User decision before dispatch | (planned)                |
 

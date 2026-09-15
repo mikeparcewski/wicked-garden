@@ -2,8 +2,7 @@
 """
 SessionStart hook — wicked-garden unified bootstrap.
 
-Consolidates: crew session_start, mem session_start,
-search session_start, smaht session_start.
+Consolidates: crew session_start, mem session_start, search session_start.
 
 Flow:
 1. Read config from ~/.something-wicked/wicked-garden/config.json
@@ -1434,11 +1433,8 @@ def main():
                 is_active = active_phase not in ("", "complete", "done", "archived")
                 state.update(active_project_id=project_name if is_active else None)
 
-                # v9.2.4: also write active_chain_id so smaht's chain-aware
-                # event scoring (CLAUDE.md "Chain-aware smaht scoring") actually
-                # works. Field declared in v9.2.3, producer was missing — events
-                # got the 0.1 baseline instead of the documented 0.8+ chain
-                # boost. Format mirrors the chain_id convention in CLAUDE.md
+                # v9.2.4: also write active_chain_id so chain-aware event
+                # scoring works. Format mirrors the chain_id convention in CLAUDE.md
                 # "Native Tasks as Dual-Purpose Event Queue":
                 #   {slug}.root            for the root chain
                 #   {slug}.{phase}         per active phase

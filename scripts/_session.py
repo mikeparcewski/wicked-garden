@@ -233,18 +233,11 @@ class SessionState:
     #
     # Lifecycle:
     #   - None     : not yet detected (turn 1 before _detect_intent runs)
-    #   - <value>  : auto-detected on turn 1-2 OR explicitly set by skill
-    #
-    # `intent_explicit` is True only when the wicked-garden-smaht-intent skill set
-    # the value (or a caller self-declared via that skill). Used to decide
-    # whether to echo the bare `<wg intent="X" t=N />` label in the
-    # system-reminder — auto-detected values stay invisible to prevent
-    # confirmation-bias drift.
+    #   - <value>  : auto-detected on turn 1-2
     #
     # Sticky for the session. SessionEnd hook (stop.py) resets via delete().
     # Design record: brainstorms/v10-session-01-intent-and-hook-gating.md
     intent: str | None = None
-    intent_explicit: bool = False
 
     # v11: LLM-classified work-shape archetype + signals.
     # Populated by the wicked-garden-classify skill. When set, the
@@ -346,11 +339,8 @@ class SessionState:
     # `getattr(state, "X", ...)` call sites in hooks/ and scripts/.
     #
     # active_chain_id: string identifier of the active crew chain (e.g.
-    #   "{slug}.root" or "{slug}.{phase}"). Read by smaht events_adapter for
-    #   chain-aware scoring (CLAUDE.md "Chain-aware smaht scoring"). Producer
-    #   was never wired — the smaht scoring has been silently degraded. The
-    #   field declaration here makes the read return None cleanly until a
-    #   producer is added.
+    #   "{slug}.root" or "{slug}.{phase}"). Written by the SessionStart hook
+    #   for chain-aware event scoring; None when no crew project is active.
     # crew_project: REMOVED in v9.2.5. The single read site in post_tool.py
     #   was a phantom — nothing ever wrote the field. Replaced the read with
     #   `getattr(state, "active_project_id", None)` which is the same intent

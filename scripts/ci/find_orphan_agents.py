@@ -79,7 +79,7 @@ _ROOT_FILES = {
 _NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 _SUBAGENT_RE = re.compile(r"^subagent_type:\s*(.+?)\s*$", re.MULTILINE)
 _KNOWN_DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem",
-                  "persona", "platform", "product", "qe", "search", "smaht")
+                  "persona", "platform", "product", "qe", "search")
 _SKILL_PREFIX = "wicked-garden-"
 
 

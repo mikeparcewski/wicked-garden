@@ -15,7 +15,7 @@ Results are persisted via DomainStore("wicked-observability").
 
 Usage:
     python3 assert_contracts.py
-    python3 assert_contracts.py --plugin wicked-smaht
+    python3 assert_contracts.py --plugin wicked-crew
     python3 assert_contracts.py --json
 """
 
@@ -211,7 +211,7 @@ def _find_script(plugin_name: str, script_name: str) -> Path | None:
         if candidate.exists():
             return candidate
 
-        # Also check scripts/v2/ sub-directory (wicked-smaht pattern)
+        # Also check scripts/v2/ sub-directory (legacy nested-scripts pattern)
         candidate_v2 = scripts_dir / "v2" / target
         if candidate_v2.exists():
             return candidate_v2

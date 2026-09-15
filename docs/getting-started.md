@@ -77,7 +77,7 @@ All ten are available: `triage`, `explore`, `specify`, `decide`, `ship`, `review
 
 ### 3. Use a Domain Skill Directly
 
-Archetypes invoke the domain skills (engineering, platform, product, data, jam, search, agentic, persona, smaht) under the hood, but you can call them directly when you want a single focused pass. Each domain is one skill with routed actions:
+Archetypes invoke the domain skills (engineering, platform, product, data, jam, search, agentic, persona) under the hood, but you can call them directly when you want a single focused pass. Each domain is one skill with routed actions:
 
 ```bash
 /wicked-garden-engineering review                          # senior-perspective code review
@@ -193,7 +193,7 @@ To list everything:
 
 When you submit a prompt, a `UserPromptSubmit` hook runs the archetype detector and emits a steering reminder for the matched work-shape(s). The selected archetype then drives its own phase shape — there is no universal pipeline forcing every kind of work through the same gates.
 
-A context assembly layer called **smaht** enriches prompts with relevant context — recent memory, active work, native tasks, and code intelligence. Every `TaskCreate` / `TaskUpdate` carries a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) validated by a PreToolUse hook, and a SubagentStart hook injects the matching procedure bundle — R1–R6 bulletproof standards for coding tasks, the Gate Finding Protocol for review findings, and per-role procedures otherwise.
+Every `TaskCreate` / `TaskUpdate` carries a structured metadata envelope (`chain_id`, `event_type`, `source_agent`, `phase`, `archetype`) validated by a PreToolUse hook, and a SubagentStart hook injects the matching procedure bundle — R1–R6 bulletproof standards for coding tasks, the Gate Finding Protocol for review findings, and per-role procedures otherwise.
 
 Gates re-derive every claim through wicked-loom — which re-runs the verifier via wicked-vault — and fail closed if loom is unavailable: "done" is *re-derived from evidence*, never self-asserted. Hard gates (incident mitigate, migrate cutover, review final-verdict) require explicit human approval; discrete gates auto-pass only when their produces contract is met.
 

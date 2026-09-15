@@ -70,7 +70,7 @@ _SKILL_PREFIX = "wicked-garden-"
 # Known plugin domains (mirrors .claude-plugin/components.json "domains").
 # Used to split ``{domain}-{role}`` skill names deterministically.
 _DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem", "persona",
-            "platform", "product", "qe", "search", "smaht")
+            "platform", "product", "qe", "search")
 
 # Frontmatter fences: a leading ``---`` starts the YAML-like block and a
 # trailing ``---`` closes it. We stop at the second fence so nothing in

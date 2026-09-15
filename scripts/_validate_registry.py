@@ -200,7 +200,7 @@ def _parse_agent_frontmatter(path: Path) -> Tuple[Dict[str, str], Optional[str]]
 # Known plugin domains (mirrors .claude-plugin/components.json "domains").
 # Used to derive bare roles from ``wicked-garden-{domain}-{role}`` names.
 _KNOWN_DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem",
-                  "persona", "platform", "product", "qe", "search", "smaht")
+                  "persona", "platform", "product", "qe", "search")
 
 # Canonical dash prefix of fork-skill names.
 _SKILL_NAME_PREFIX = "wicked-garden-"

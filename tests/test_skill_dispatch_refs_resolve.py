@@ -245,8 +245,7 @@ def test_reference_extraction_is_not_vacuous():
     ``Task(subagent_type="wicked-garden:...")`` *call-forms* from skill bodies:
     skill-to-skill dispatch is now a Hand-off paragraph (wave-2, D-21); the
     legacy Task ``subagent_type:`` call-form and the Skill( call-form are both retired. The compat key survives in
-    fork-skill *frontmatter* (line-scanned by the delegation adapter,
-    ``scripts/smaht/adapters/delegation_adapter.py``). So ``_task_ref_params()``
+    fork-skill *frontmatter* (the frontmatter resolution index). So ``_task_ref_params()``
     is legitimately empty now — ``test_task_subagent_ref_resolves_to_fork_skill``
     still validates any body call-form that reappears, and the Task-dispatch
     machinery's real non-vacuity signal is its frontmatter resolution index,

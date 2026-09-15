@@ -6,7 +6,7 @@ Work is shaped by the **archetypes** (triage, explore, specify, decide, ship, re
 
 The plugin is **skills-only** (v12.25). Each domain is one consolidated, user-invokable skill — `skills/{domain}/SKILL.md`, frontmatter name `wicked-garden-{domain}` — that routes to its **actions** (the former `/wicked-garden:{domain}:{command}` surfaces) and loads rubrics on demand from `skills/{domain}/refs/` and nested knowledge modules. The former dispatch agents are **fork worker skills** — `skills/{domain}-{role}/SKILL.md` with `context: fork`, frontmatter name `wicked-garden-{domain}-{role}` — reached by `Skill()`/`Task()` dispatch, never invoked as entry points. Invoke a domain action as `/wicked-garden-{domain} {action} [args]` (or just describe what you want — the skill descriptions carry the triggers).
 
-There are **9 domains**: engineering, platform, product, data, jam, search, agentic, persona, smaht.
+There are **8 domains**: engineering, platform, product, data, jam, search, agentic, persona.
 
 > **v12 cleanup (ADR 0002).** Most former domain commands were *rubric-wrappers* — a checklist the agent already applies. These were **collapsed**: the rubric moved to an on-demand `skills/{domain}/refs/{name}.md` and the action now loads it and works **inline** (no `Task` dispatch hop). Dispatch is kept only where it earns it — real parallelism (multiple lenses at once), a real external tool, or an independent gate. The dispatch-only agents that nothing reaches anymore were removed; workers still referenced by a surviving action, skill, scenario, or the specialist registry live on as fork skills. Capability is preserved; only the token-burning hop is gone.
 
@@ -160,21 +160,6 @@ They do not overlap; pick by target:
 | `list` | List all available personas (Methodology vs Generic tiers) |
 
 **Worker**: none — the former `wicked-garden-persona-agent` worker is retired into `refs/as.md` (wave-2 B9): the `as` action builds the profile from the registry at runtime and embodies it inline. `define` runs inline from `refs/define.md`; the no-op `persona:submit` stub was deleted.
-
-## smaht — Context Assembly
-
-`wicked-garden-smaht` — on-demand context assembly over the wicked-estate knowledge layer and the search index. A pull-model skill — archetypes and subagents call it when they need a briefing, rather than pushing context onto every prompt.
-
-| Action | What It Does |
-|--------|-------------|
-| `briefing` | What happened since the last session — recent events and updates |
-| `state` | Snapshot and report current session state |
-| `events-import` | Import existing domain JSON records into the event log |
-| `intent` | Set or inspect the active session intent (nested `intent` sub-skill) |
-
-> `briefing` and `events-import` are real event-store tools and stay; `state` runs inline from `refs/state.md` (its dead v6 half dropped). Nested sub-skills: `discovery`, `intent`, `propose-skills`.
-
----
 
 ## How archetypes invoke domains
 

@@ -108,8 +108,8 @@ def test_every_shipped_skill_has_a_role_and_the_catalog_shape_holds():
     assert [p.parent.name for p in roles["floor"]] == ["governed-worker"]
     # Vacuity floor, not a census: a broken `skill_role()` or loader would give ~0. The cross-CLI
     # batches shrink the set ON PURPOSE and never silently — wave-2 B10 took it 72 → 69 by retiring
-    # integration-discovery and engineering-conformance-reviewer and by making smaht a router
-    # (it had been a `context: fork`-inferred worker). Lower the floor with the batch; never delete it.
+    # integration-discovery and engineering-conformance-reviewer. The smaht domain was retired whole
+    # (2026-09-15). Lower the floor with the batch; never delete it.
     assert len(roles["worker"]) >= 65, len(roles["worker"])
     assert sum(p.parent.parent.name == "skills" for p in roles["router"]) >= 15, len(roles["router"])
     # a nested router is one that declared itself (user-invocable / metadata.role) — the same

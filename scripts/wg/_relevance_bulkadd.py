@@ -40,7 +40,6 @@ DEFAULTS_BY_DOMAIN: dict[tuple[str, str], list[str]] = {
     ("skills", "wickedizer"): ["*"],
     ("skills", "workflow"): ["*"],
     ("skills", "data"): ["design", "build"],
-    ("skills", "smaht"): ["*"],
     ("skills", "jam"): ["clarify", "design"],
     ("skills", "worktrees"): ["build"],
     ("skills", "search"): ["*"],
