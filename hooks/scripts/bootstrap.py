@@ -305,22 +305,6 @@ def _load_agents():
         return 0, {}
 
 
-def _resolve_capabilities(agents, config=None):
-    """Run capability resolution for pre-loaded agents.
-
-    Returns dict[agent_name, tool_list] or empty dict on any error.
-    Fails open — never blocks bootstrap.
-    """
-    try:
-        from _capability_resolver import resolve_all_agents, discover_mcp_servers
-
-        mcp_servers = discover_mcp_servers()
-        return resolve_all_agents(agents, config, mcp_servers)
-    except Exception as e:
-        print(f"[wicked-garden] capability resolution error: {e}", file=sys.stderr)
-        return {}
-
-
 def _find_active_crew_project(workspace: str = ""):
     """Return (project_data, project_name) for most recently updated active crew project
     scoped to the given workspace.
@@ -1305,11 +1289,6 @@ def main():
         agents_loaded, agents_dict = _load_agents()
         if state is not None:
             state.update(agents_loaded=agents_loaded)
-
-        # 3b. Resolve tool-capabilities for agents that declare them
-        resolutions = _resolve_capabilities(agents_dict, config)
-        if resolutions and state is not None:
-            state.update(resolved_capabilities=resolutions)
 
         # 4. Load last crew project for this workspace
         workspace = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name

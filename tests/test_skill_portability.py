@@ -744,7 +744,7 @@ def test_non_vacuity_inverted():
     """The pre-12.33 guard asserted > 20 plugin-root refs; the portable tree asserts the inverse."""
     assert _COUNTS["files_scanned"] > 300, _COUNTS
     assert _COUNTS["bundle_files"] > 500, _COUNTS
-    assert _COUNTS["skills"] >= 140, _COUNTS
+    assert _COUNTS["skills"] >= 137, _COUNTS  # B18 retired the crew-* trio stubs (was 140)
     assert _COUNTS["plugin_root_refs"] == 0, f"plugin-root refs under skills/: {_COUNTS['plugin_root_refs']}"
     assert _COUNTS["skill_dir_var_refs"] == 0, f"skill-dir-var refs under skills/: {_COUNTS['skill_dir_var_refs']}"
     assert _COUNTS["launcher_calls"] > 200, (
@@ -799,6 +799,12 @@ def _cross(file: str, text: str) -> set[str]:
     ("skills/x/refs/a.md", "```typescript\nconst agent = new Agent({ model: 'x' });\n```\n", set()),
     ("skills/x/refs/a.md", "factory=lambda: Agent(tools=[code_review])\n", set()),
     ("skills/x/refs/a.md", "report = Agent(prompt=\"Recon the estate\")\n", set()),
+    # #1157 (B18): a bare CAPITALISED first positional arg FOLLOWED BY MORE ARGS is a real Claude-only
+    # dispatch/tool-call the lookahead used to miss; a lone `X(Cap)` prose noun and plurals stay quiet.
+    ("skills/x/refs/a.md", "Agent(Explore, prompt=\"find the callers\")\n", {"claude-dispatch", "handoff-missing"}),
+    ("skills/x/refs/a.md", "Read(FilePath, encoding)\n", {"claude-tool-call"}),
+    ("skills/x/refs/a.md", "recall replaces Grep/Glob/Agent(Explore) here\n", set()),
+    ("skills/x/refs/a.md", "Task(s) and Agent(s) are queued; a Read(s) list follows\n", set()),
     ("skills/x/refs/a.md", "```python\nAgent(prompt=\"summarise\")\n```\n", {"claude-dispatch", "handoff-missing"}),
     # review-garden-1154 H1: the Claude-only nouns are unconditional — assignment and label forms still trip (BC-38)
     ("skills/x/refs/a.md", "plan = Skill(skill=\"wicked-garden-qe\", args=\"plan\")\n", {"claude-dispatch", "handoff-missing"}),
@@ -875,13 +881,8 @@ def test_cross_cli_baseline_is_well_formed():
 # Files whose fences do not pair at HEAD (all pre-existing). SHRINK-ONLY: the batch that translates a
 # file fixes its fences and deletes its entry; an entry whose file pairs again is STALE and fails.
 FENCE_PAIRING_BASELINE = {
-    "skills/engineering/architecture/refs/architecture-template-design.md",
     "skills/engineering/architecture/refs/examples-saas-trading.md",  # swallowed-sections class (review-garden-1154 M1)
-    "skills/engineering/debugging/refs/process.md",
     "skills/engineering/integration/refs/event-schemas-best-practices.md",
-    "skills/engineering/system-design/refs/component-template-structure.md",
-    "skills/engineering/system-design/refs/interface-template-maintenance.md",
-    "skills/engineering/system-design/refs/interface-template-structure.md",
     "skills/qe/refs/scenario-format.md",
     "skills/qe-incident-to-scenario-synthesizer/SKILL.md",  # swallowed-sections class (review-garden-1154 M1)
 }

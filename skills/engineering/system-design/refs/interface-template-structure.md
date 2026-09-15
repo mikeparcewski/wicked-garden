@@ -8,7 +8,7 @@ Template for documenting component interfaces, contracts, and integration points
 
 ## Template Structure
 
-```markdown
+````markdown
 # Interface Name
 
 ## Overview
@@ -266,4 +266,4 @@ Warning: 299 - "This API version is deprecated"
 Sunset: Mon, 01 Jan 2026 00:00:00 GMT
 Link: <https://docs.example.com/migration>; rel="deprecation"
 ```
-```
+````

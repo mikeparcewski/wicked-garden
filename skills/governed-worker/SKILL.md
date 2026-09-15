@@ -151,6 +151,6 @@ Rules cite the acceptance-program findings that motivated them.
 | E2 | program rule — the floor provisions |
 | N1 | F-RC2-038 |
 
-History: `wicked-garden-crew-implementer`, `wicked-garden-crew-reviewer` and
-`wicked-garden-crew-researcher` (Claude Code fork-agent definitions <!-- historical -->) were folded
+History: `wicked-garden-crew-implementer` <!-- not-a-skill -->, `wicked-garden-crew-reviewer` <!-- not-a-skill --> and
+`wicked-garden-crew-researcher` <!-- not-a-skill --> (Claude Code fork-agent definitions <!-- historical -->) were folded
 into Creator, Evaluator and Neutral above and retired in 2026-09.

@@ -165,11 +165,6 @@ class SessionState:
     # None means discovery has not run yet this session.
     integration_tools: dict | None = None
 
-    # Resolved tool lists from capability-based routing.
-    # Maps agent_name -> list of resolved tool names.
-    # None means resolution has not run yet this session.
-    resolved_capabilities: dict | None = None
-
     # Context-backend dependency check (set by bootstrap.py at SessionStart).
     # True  — the wicked-estate MCP binary resolves.
     # False — not installed; bootstrap emits an install hint to the briefing.

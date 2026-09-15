@@ -52,6 +52,18 @@ def _frontmatter_structure_error(block: str) -> str | None:
     return None
 
 
+def ci_yaml_requirement_error(yaml_available: bool, env) -> str | None:
+    """N1 durability guard: in a CI context the frontmatter guard MUST run the real ``yaml.safe_load``
+    (the publish's parser), never the weaker stdlib fallback — so a future edit that drops
+    ``pip install pyyaml`` from a workflow can never silently re-weaken the guard. Locally (no CI env) the
+    graceful stdlib fallback stays. Returns an error string when PyYAML is missing in CI, else ``None``."""
+    if not yaml_available and (env.get("CI") or env.get("GITHUB_ACTIONS")):
+        return ("PyYAML is not importable in a CI context — the SKILL.md frontmatter guard requires the real "
+                "yaml.safe_load (the skills-publish parser), not the stdlib fallback; add `pip install pyyaml` "
+                "to the workflow (validate.yml / test.yml / release.yml)")
+    return None
+
+
 def frontmatter_yaml_error(text: str) -> str | None:
     """Strict frontmatter guard — the EXACT mirror of the skills publish's parser. Runs ``yaml.safe_load``
     on the ``---`` block (PyYAML is installed on the ``validate`` / ``test`` / release pre-publish CI legs,
@@ -100,6 +112,16 @@ def main():
 
     errors = []
     warnings = []
+
+    # N1: in CI, refuse to run the frontmatter guard on the weaker stdlib fallback (PyYAML must be installed).
+    try:
+        import yaml as _yaml_probe  # noqa: F401
+        _yaml_ok = True
+    except ImportError:
+        _yaml_ok = False
+    _ci_err = ci_yaml_requirement_error(_yaml_ok, os.environ)
+    if _ci_err:
+        errors.append(_ci_err)
 
     # --- 1. plugin.json validity ---
     plugin_json = root / ".claude-plugin" / "plugin.json"

@@ -80,7 +80,7 @@ archetype_relevance: ["*"]
 
 ## Output Template
 
-```markdown
+````markdown
 ## Debug Analysis: {Issue}
 
 ### Problem Summary
@@ -115,7 +115,7 @@ archetype_relevance: ["*"]
 ### Prevention
 - {How to avoid}
 - {Tests to add}
-```
+````
 
 ## Tools by Environment
 

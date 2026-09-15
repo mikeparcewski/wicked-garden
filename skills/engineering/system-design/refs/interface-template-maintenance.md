@@ -8,7 +8,7 @@ Complete User Service interface example and tips for documenting interfaces.
 
 ## Example: User Service Interface
 
-```markdown
+````markdown
 # User Service Interface
 
 ## Overview
@@ -200,7 +200,7 @@ const newUser = await client.createUser({
   password: 'SecurePass123!'
 });
 ```
-```
+````
 
 ## Tips for Documenting Interfaces
 

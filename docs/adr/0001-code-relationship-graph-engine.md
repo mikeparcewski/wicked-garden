@@ -30,7 +30,7 @@ reference, so neither `grep` nor a static call-graph can see them:
 |---|---|
 | event producer → consumer | `emit_event("wicked.x")` + `_bus_consumers.json` `event_filter` |
 | command/Task → agent | `subagent_type:` frontmatter |
-| agent → tool | `tool-capabilities` + `_capability_registry` |
+| agent → tool | `tool-capabilities` frontmatter (the `_capability_registry` runtime router was retired 2026-09, #1156) |
 | hook event → script | `hooks.json` |
 | archetype → playbook/gate | `archetypes.json` + `refs/` |
 

@@ -5,7 +5,7 @@ LLM CLIs that wicked-garden's council can convene.
 
 This is the single source of truth for "which command-line LLM tools exist,
 how do you invoke them headlessly, and what auth/trust do they need". It
-mirrors the dataclass + stdlib-only pattern of ``scripts/_capability_registry.py``:
+follows a dataclass + stdlib-only pattern:
 no third-party imports, ``from __future__ import annotations``, ``@dataclass``,
 detection via ``shutil.which``.
 

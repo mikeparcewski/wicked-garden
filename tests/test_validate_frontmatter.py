@@ -22,6 +22,7 @@ _spec = importlib.util.spec_from_file_location("wg_validate", _REPO / "scripts" 
 _validate = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_validate)
 frontmatter_yaml_error = _validate.frontmatter_yaml_error
+ci_yaml_requirement_error = _validate.ci_yaml_requirement_error
 
 pytest.importorskip("yaml", reason="the guard mirrors the publish's yaml.safe_load; CI installs pyyaml")
 
@@ -100,3 +101,21 @@ def test_every_shipped_skill_frontmatter_is_valid():
         if err is not None:
             broken[f.relative_to(_REPO).as_posix()] = err
     assert not broken, broken
+
+
+# --- N1 (#1156 batch): in a CI context the guard MUST run the real yaml.safe_load, never the weaker stdlib
+#     fallback, so a future edit dropping `pip install pyyaml` from a workflow can't silently re-weaken it.
+#     Locally (no CI env) the graceful fallback stays. ---
+@pytest.mark.parametrize(
+    "yaml_available,env,expect_error",
+    [
+        (False, {"CI": "true"}, True),
+        (False, {"GITHUB_ACTIONS": "true"}, True),
+        (False, {}, False),          # local dev: graceful fallback, no hard-fail
+        (True, {"CI": "true"}, False),  # CI with pyyaml installed: the intended state
+        (True, {}, False),
+    ],
+)
+def test_ci_yaml_requirement_hard_fails_only_in_ci(yaml_available, env, expect_error):
+    err = ci_yaml_requirement_error(yaml_available, env)
+    assert (err is not None) is expect_error, (yaml_available, env, err)
