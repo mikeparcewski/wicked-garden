@@ -187,6 +187,11 @@ READONLY_ENV = "WICKED_ESTATE_READONLY"       # explicit read-only opt-in outsid
 STORE_PIN_ENV = ("WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB")
 READONLY_FLAG = "--readonly"                  # exact token — the MCP matches it literally
 DB_FLAG = "--db"
+# The run's studio project id, stamped on the worker env by wicked-core's WRAPPED
+# carrier since core-ts 0.7.29 (BC-79). When set, it is the authoritative scope for
+# capture proposals (`facets.project`), overriding whatever the worker self-derived;
+# absent/blank (older cores, or a non-run invocation) it changes nothing.
+RUN_PROJECT_ENV = "WICKED_RUN_PROJECT"
 
 _readonly_flag: bool = False                  # set by --readonly / set_readonly()
 _governed_flag: bool = False                  # set by --governed / set_governed()
@@ -879,6 +884,25 @@ def knowledge_recall(query: str, token_budget: int = 2000, timeout: float = 8.0)
     return call("knowledge.recall", {"query": query, "token_budget": token_budget}, timeout=timeout)
 
 
+def _scope_facets_to_run_project(facets: Optional[dict]) -> Optional[dict]:
+    """Scope a proposal to the run's studio project (BC-79, reader half).
+
+    When the governed run stamps `WICKED_RUN_PROJECT` (the run's project id, set on
+    the worker env by wicked-core's WRAPPED carrier since core-ts 0.7.29), that id is
+    authoritative: it becomes `facets.project`, overriding whatever the worker
+    self-derived, so approved captures land at the run's project scope instead of the
+    state-home default. Absent or blank (an older core that does not stamp it, or a
+    non-run invocation) → `facets` is returned UNCHANGED, preserving today's behavior
+    (the worker's own `facets.project`, or none). The caller's dict is never mutated.
+    """
+    run_project = os.environ.get(RUN_PROJECT_ENV, "").strip()
+    if not run_project:
+        return facets
+    scoped = dict(facets) if facets else {}
+    scoped["project"] = run_project
+    return scoped
+
+
 def propose(
     kind_type: str,
     payload: dict,
@@ -894,6 +918,7 @@ def propose(
     objects in the deliverable file / report instead). `provenance` is NEVER sent:
     the server stamps it from its own `WICKED_RUN_*` environment.
     """
+    facets = _scope_facets_to_run_project(facets)
     arguments: dict = {"kind_type": kind_type, "payload": payload}
     if facets:
         arguments["facets"] = facets
