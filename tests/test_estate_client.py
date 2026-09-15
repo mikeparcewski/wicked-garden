@@ -235,6 +235,79 @@ def test_recall_scope_prefix_on_the_wire():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BC-79 (reader half) — propose() scopes facets.project to WICKED_RUN_PROJECT
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _capture_proposal_wire(monkeypatch, *, run_project=None):
+    """Drive propose() through the transport seam; return the list of `arguments`
+    dicts that reached `proposal.submit` on the wire. `run_project` sets (or, None,
+    clears) WICKED_RUN_PROJECT in the environment."""
+    seen: list = []
+
+    def fake_dispatch(requests, *, db, timeout):
+        out = {1: {"jsonrpc": "2.0", "id": 1,
+                   "result": {"serverInfo": {"name": "wicked-estate"}}}}
+        for r in requests:
+            if r.get("method") == "tools/call":
+                seen.append(r["params"]["arguments"])
+                env = _envelope({"id": "prop-1"})
+                env["id"] = r["id"]
+                out[r["id"]] = env
+        return out
+
+    if run_project is None:
+        monkeypatch.delenv(_estate_client.RUN_PROJECT_ENV, raising=False)
+    else:
+        monkeypatch.setenv(_estate_client.RUN_PROJECT_ENV, run_project)
+    _estate_client.set_dispatch(fake_dispatch)
+    return seen
+
+
+def test_propose_scopes_facet_to_run_project_when_stamped(monkeypatch):
+    """WICKED_RUN_PROJECT set → it is the authoritative `facets.project` on the wire,
+    overriding the worker's self-derived value; sibling facets are untouched."""
+    seen = _capture_proposal_wire(monkeypatch, run_project="proj_X")
+    res = _estate_client.propose(
+        "memory", {"text": "x"}, {"repo": "wicked-bus", "project": "something-wicked"}
+    )
+    assert res == {"ok": True, "id": "prop-1"}
+    assert seen[0]["facets"] == {"repo": "wicked-bus", "project": "proj_X"}
+
+
+def test_propose_attaches_project_when_worker_sent_no_facets(monkeypatch):
+    """A stamped run attaches the project scope even when the worker proposed none."""
+    seen = _capture_proposal_wire(monkeypatch, run_project="proj_X")
+    _estate_client.propose("memory", {"text": "x"})
+    assert seen[0]["facets"] == {"project": "proj_X"}
+
+
+def test_propose_preserves_worker_facet_when_run_project_absent(monkeypatch):
+    """No stamp (older core / non-run) → today's behavior exactly: the worker's own
+    facets.project is forwarded verbatim, unchanged."""
+    seen = _capture_proposal_wire(monkeypatch, run_project=None)
+    _estate_client.propose(
+        "memory", {"text": "x"}, {"repo": "wicked-bus", "project": "something-wicked"}
+    )
+    assert seen[0]["facets"] == {"repo": "wicked-bus", "project": "something-wicked"}
+
+
+def test_propose_blank_run_project_is_ignored(monkeypatch):
+    """A blank/whitespace stamp is treated as absent — no override, no regression."""
+    seen = _capture_proposal_wire(monkeypatch, run_project="   ")
+    _estate_client.propose("memory", {"text": "x"}, {"project": "something-wicked"})
+    assert seen[0]["facets"] == {"project": "something-wicked"}
+
+
+def test_propose_does_not_mutate_callers_facets(monkeypatch):
+    """The override copies: the caller's dict is left exactly as passed."""
+    _capture_proposal_wire(monkeypatch, run_project="proj_X")
+    original = {"project": "something-wicked"}
+    _estate_client.propose("memory", {"text": "x"}, original)
+    assert original == {"project": "something-wicked"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # The transport seam — a broker can replace spawn-per-call transparently
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -631,6 +704,7 @@ _GOVERNED_ENV = (
     _estate_client.GOVERNED_MARKERS
     + (_estate_client.GOVERNED_ENV, _estate_client.READONLY_ENV)
     + _estate_client.STORE_PIN_ENV
+    + (_estate_client.RUN_PROJECT_ENV,)
 )
 
 
