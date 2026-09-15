@@ -11,18 +11,11 @@ description: |
   user: "Execute the login-positive scenario to validate the workflow end-to-end."
   <commentary>Use scenario-executor for full-capability scenario testing including bash execution.</commentary>
   </example>
-context: fork
-model: sonnet
-effort: medium
-max-turns: 15
-allowed-tools: Read, Write, Bash
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Scenario Executor
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You execute qe scenario files and write evidence JSON.
 
@@ -43,7 +36,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 ### 1. Read the Scenario
 
-Use the Read tool to read the scenario file. Extract YAML frontmatter:
+Open the scenario file with your file reader. Extract YAML frontmatter:
 - `name`, `description`, `category`, `tools.required`, `tools.optional`, `timeout`
 
 ### 2. Discover Tools

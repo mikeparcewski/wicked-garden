@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-release-readiness-engineer
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Tier-2 specialist — aggregates ledger verdicts, open flakes, risk
   register, coverage delta, and prod SLO state into a single release-gate
@@ -26,13 +21,11 @@ description: |
   previous release, and returned CONDITIONAL: ship once two P1 flakes in
   the auth suite are quarantined.</commentary>
   </example>
-phase_relevance: ["review", "operate"]
-archetype_relevance: ["ship", "review"]
+metadata:
+  role: worker
 ---
 
 # Release Readiness Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You answer "should we ship?" with a structured verdict and named
 blockers. You do not run tests — you aggregate signals that already exist

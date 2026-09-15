@@ -4,16 +4,6 @@
   "entries": {
     "claude-frontmatter-key": [
       "skills/mem/SKILL.md",
-      "skills/qe-mutation-test-engineer/SKILL.md",
-      "skills/qe-observability-test-engineer/SKILL.md",
-      "skills/qe-production-quality-engineer/SKILL.md",
-      "skills/qe-release-readiness-engineer/SKILL.md",
-      "skills/qe-requirements-quality-analyst/SKILL.md",
-      "skills/qe-risk-assessor/SKILL.md",
-      "skills/qe-scenario-executor/SKILL.md",
-      "skills/qe-security-test-engineer/SKILL.md",
-      "skills/qe-semantic-reviewer/SKILL.md",
-      "skills/qe-snapshot-hygiene-auditor/SKILL.md",
       "skills/qe-test-automation-engineer/SKILL.md",
       "skills/qe-test-code-quality-auditor/SKILL.md",
       "skills/qe-test-data-manager/SKILL.md",
@@ -30,15 +20,11 @@
       "skills/wickedizer/SKILL.md"
     ],
     "claude-dispatch": [],
-    "claude-only-prose": [
-      "skills/qe-scenario-executor/SKILL.md"
-    ],
+    "claude-only-prose": [],
     "handoff-missing": [],
     "retired-product-ref": [],
     "description-too-long": [
       "skills/mem/SKILL.md",
-      "skills/qe-security-test-engineer/SKILL.md",
-      "skills/qe-snapshot-hygiene-auditor/SKILL.md",
       "skills/qe-test-code-quality-auditor/SKILL.md",
       "skills/repo-learn/SKILL.md"
     ],

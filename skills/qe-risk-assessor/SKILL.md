@@ -6,18 +6,11 @@ description: |
 
   Use when: risk identification, failure-mode analysis, technical-risk review,
   mitigation planning before build.
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Grep, Glob, Bash
-phase_relevance: ["clarify", "design", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Risk Assessor
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You enumerate what can go wrong and how bad it would be, then propose
 mitigations. Output is a risk matrix, not a lecture.
