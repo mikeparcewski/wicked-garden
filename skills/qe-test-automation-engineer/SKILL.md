@@ -14,18 +14,11 @@ description: |
   - Authoring cross-module integration tests (DB, message bus, service-to-service contracts) — use `wicked-garden-qe-integration-test-engineer`
   - Orchestrating browser-driven end-to-end flows (Playwright/Cypress user journeys, multi-page scenarios) — use `wicked-garden-qe-e2e-orchestrator`
   - Producing the scenarios themselves (not the code) — use `wicked-garden-qe-test-strategist` or `wicked-garden-qe-test-designer`
-context: fork
-model: sonnet
-effort: medium
-max-turns: 12
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Test Automation Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You turn scenarios and coverage strategy into runnable test code and wire it
 into the project's test infrastructure.

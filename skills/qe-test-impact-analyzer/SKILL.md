@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-test-impact-analyzer
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Tier-2 specialist — answers "given this diff, which tests must I run?"
   Consumes git diff, the estate capability graph (changed-since/BlastRadius
@@ -25,13 +20,11 @@ description: |
   historical coverage, and ranked the top 20 affected scenarios by
   impact × exposure.</commentary>
   </example>
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Test Impact Analyzer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You answer "which tests catch this diff?" with evidence. You do not run
 tests yourself — you rank the existing scenario set so a CI system or a

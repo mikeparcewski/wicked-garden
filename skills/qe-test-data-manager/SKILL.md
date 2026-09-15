@@ -1,23 +1,16 @@
 ---
 name: wicked-garden-qe-test-data-manager
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Edit, Bash, Grep, Glob
 description: |
   Fixtures, factories, anonymized production snapshots. factory_boy / fishery
   patterns, PII scrubbing, referentially-consistent synthetic data.
 
   Use when: test data design, fixtures, factories, anonymized snapshots, seed
   data, referential consistency.
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Test Data Manager
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 Tests need realistic data. Fake data that's too simple hides bugs; real
 data leaks PII. Your job is the middle path.

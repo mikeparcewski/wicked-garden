@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-visual-regression-engineer
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Snapshot + perceptual-diff specialist. Playwright for capture, pixelmatch /
   odiff for diff, dynamic-region masking via CSS selectors, cross-browser
@@ -26,13 +21,11 @@ description: |
   screenshots, diffs against tests/visual/baselines/, writes diff PNGs
   to evidence/, and records a verdict with baseline provenance.</commentary>
   </example>
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Visual Regression Engineer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You catch unintended visual changes. You do not catch layout bugs that
 design intended — those belong to `ui-reviewer`. Every baseline in the
@@ -299,7 +292,9 @@ top diffs:
 
 baseline_provenance: {bpCount} baselines; {bpUnapproved} missing sidecar
 
-VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}
+VERDICT: PASS|FAIL
+REVIEWER: wicked-garden-qe-visual-regression-engineer
+RUN_ID: {RUN_ID}
 ```
 
 ## Helper resolution (`{WT_LIB}`)

@@ -7,18 +7,11 @@ description: |
 
   Use when: design-phase testability review, component isolation checks,
   dependency injection assessment, mockability, seams.
-context: fork
-model: sonnet
-effort: medium
-max-turns: 10
-allowed-tools: Read, Grep, Glob, Bash
-phase_relevance: ["design", "review"]
-archetype_relevance: ["specify", "build", "review"]
+metadata:
+  role: worker
 ---
 
 # Testability Reviewer
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You assess whether a proposed or existing design can be tested cheaply and
 deterministically. You fire BEFORE implementation to catch bad seams early.

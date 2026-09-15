@@ -4,16 +4,6 @@
   "entries": {
     "claude-frontmatter-key": [
       "skills/mem/SKILL.md",
-      "skills/qe-test-automation-engineer/SKILL.md",
-      "skills/qe-test-code-quality-auditor/SKILL.md",
-      "skills/qe-test-data-manager/SKILL.md",
-      "skills/qe-test-designer/SKILL.md",
-      "skills/qe-test-impact-analyzer/SKILL.md",
-      "skills/qe-test-oracle/SKILL.md",
-      "skills/qe-test-strategist/SKILL.md",
-      "skills/qe-testability-reviewer/SKILL.md",
-      "skills/qe-ui-component-test-engineer/SKILL.md",
-      "skills/qe-visual-regression-engineer/SKILL.md",
       "skills/repo-learn/SKILL.md",
       "skills/search/SKILL.md",
       "skills/search/codebase-narrator/SKILL.md",
@@ -25,7 +15,6 @@
     "retired-product-ref": [],
     "description-too-long": [
       "skills/mem/SKILL.md",
-      "skills/qe-test-code-quality-auditor/SKILL.md",
       "skills/repo-learn/SKILL.md"
     ],
     "skill-too-large": [],

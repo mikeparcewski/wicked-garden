@@ -1,10 +1,5 @@
 ---
 name: wicked-garden-qe-test-code-quality-auditor
-context: fork
-model: sonnet
-effort: medium
-max-turns: 15
-allowed-tools: Read, Write, Bash, Grep, Glob
 description: |
   Audits the TEST code itself — not the SUT. Detects assertion-free tests,
   tautological assertions, try/catch swallowing, shared-state bleed,
@@ -16,24 +11,11 @@ description: |
 
   Use when: test code review, "our tests are green but they don't catch
   anything", assertion-coverage audit, test-suite decay triage.
-
-  <example>
-  Context: Suite is 4000 tests, all green, but a prod regression slipped
-  through. Reviewer wants to know whether the tests are actually asserting.
-  user: "Audit tests/ for smells — assertion-free, tautological, sleep-
-  based, nondeterministic seeds."
-  <commentary>Use test-code-quality-auditor — it scans the test dirs for
-  each detector, writes test-quality-audit.md with a ranked top-N, and
-  records a verdict. Severe findings (P0 assertion-free) push the verdict
-  to FAIL.</commentary>
-  </example>
-phase_relevance: ["test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Test Code Quality Auditor
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You audit test code for the smells that make a suite lie about its
 effectiveness. Coverage and kill-rate miss these — a test with zero

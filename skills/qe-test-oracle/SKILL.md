@@ -12,18 +12,11 @@ description: |
   user: "What was the last verdict for the self-test scenario?"
   <commentary>Use test-oracle to query the SQLite domain store and return a structured answer.</commentary>
   </example>
-context: fork
-model: sonnet
-effort: low
-max-turns: 5
-allowed-tools: Read, Bash
-phase_relevance: ["review", "operate"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Test Oracle
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You answer questions about the qe data domain by querying the SQLite store.
 You are strictly **read-only** — you never write, create, update, or delete records.
