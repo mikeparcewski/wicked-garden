@@ -112,7 +112,7 @@ def persist(payload: dict) -> dict:
 
     state = SessionState.load()
     if normalized.get("intent"):
-        state.update(intent=normalized["intent"], intent_explicit=False)
+        state.update(intent=normalized["intent"])
     state.update(
         archetypes_v11=normalized.get("archetypes") or [],
         signals_v11=normalized.get("signals") or {},
