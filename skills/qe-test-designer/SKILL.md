@@ -13,18 +13,11 @@ description: |
   DO NOT use when: the verdict needs trustworthy provenance (audit, CI gate,
   crew phase sign-off, customer evidence). Use `wicked-garden-qe accept` —
   it runs the 3-agent isolated pipeline with enforced reviewer independence.
-context: fork
-model: sonnet
-effort: medium
-max-turns: 15
-allowed-tools: Read, Write, Bash, Grep, Glob
-phase_relevance: ["build", "test", "review"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
 ---
 
 # Test Designer — Dev-Loop Fast Path
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 > ⚠️ **Self-grading agent.** Plan, execution, and verdict are all rendered
 > by this single role. There is no independent reviewer. Any verdict you

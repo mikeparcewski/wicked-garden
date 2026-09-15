@@ -66,9 +66,7 @@
       "VERDICT: FAIL",
       "VERDICT: PASS|FAIL"
     ],
-    "legacy_footer_files": [
-      "skills/qe-visual-regression-engineer/SKILL.md"
-    ]
+    "legacy_footer_files": []
   },
   "codemod": {
     "shell_langs_extra": [
@@ -235,10 +233,6 @@
       {
         "file": "skills/governed-worker/SKILL.md",
         "text": "```\nMODE: produced-test\nREVIEWER: wicked-garden-qe-test-code-quality-auditor\nRUN_ID: {RUN_ID}\nVERDICT: PASS|FAIL\n```"
-      },
-      {
-        "file": "skills/qe-visual-regression-engineer/SKILL.md",
-        "text": "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}"
       }
     ],
     "trips": [

@@ -960,7 +960,10 @@ def test_fence_pairing_walk_table(text, ok):
 # verdict-spelling (L6-0): the table the DES asks for — the three F4 sites + the grammar's edges
 # ---------------------------------------------------------------------------
 
-_LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}"
+# a legacy-footer-SHAPED line; verdict_spelling.legacy_footer_files is EMPTY after B17 (all 40 qe workers
+# converted), so this shape is now a verdict-spelling hit in EVERY file (row below). Kept as a generic
+# example, not tied to a real skill.
+_LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-example RUN_ID={RUN_ID}"
 
 
 @pytest.mark.parametrize(("file", "line", "hit"), [
@@ -983,11 +986,10 @@ _LEGACY_FOOTER = "VERDICT={PASS|FAIL} REVIEWER=wicked-garden-qe-visual-regressio
     ("skills/x/SKILL.md", "VERDICT: PASS REVIEWER: x", True),
     ("skills/x/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL|SKIP} REVIEWER=wicked-garden-qe-security-test-engineer RUN_ID={RUN_ID}", True),
     ("skills/x/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} MODE=produced-test REVIEWER=wicked-garden-qe-test-code-quality-auditor RUN_ID={RUN_ID}", True),
-    # the legacy footer: tolerated in a LISTED file, a violation anywhere else
-    ("skills/qe-visual-regression-engineer/SKILL.md", _LEGACY_FOOTER, False),
-    ("skills/qe-visual-regression-engineer/SKILL.md", "VERDICT=PASS REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}", False),
-    ("skills/qe-visual-regression-engineer/SKILL.md", "VERDICT={PASS|CONDITIONAL|FAIL} REVIEWER=wicked-garden-qe-visual-regression-engineer RUN_ID={RUN_ID}", True),
+    # B17 converted qe-visual-regression-engineer (the last legacy footer); legacy_footer_files is now EMPTY,
+    # so a legacy-footer-shaped line is a verdict-spelling violation in EVERY file:
     ("skills/x/SKILL.md", _LEGACY_FOOTER, True),
+    ("skills/qe-visual-regression-engineer/SKILL.md", _LEGACY_FOOTER, True),
     # not line-leading → not judged (the parser strips decoration; the TEXT rule forbids it in prose)
     ("skills/x/SKILL.md", "**VERDICT: PASS**", False),
     ("skills/x/SKILL.md", "`VERDICT: PASS`", False),

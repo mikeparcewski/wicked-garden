@@ -11,18 +11,11 @@ description: |
   user: "What test scenarios do we need for the file upload feature?"
   <commentary>Use test-strategist to identify comprehensive test scenarios and coverage gaps.</commentary>
   </example>
-context: fork
-model: sonnet
-effort: medium
-max-turns: 15
-allowed-tools: Read, Grep, Glob, Bash
-phase_relevance: ["clarify", "design", "build"]
-archetype_relevance: ["specify", "build"]
+metadata:
+  role: worker
 ---
 
 # Test Strategist
-
-This skill is designed to run as an isolated worker; when your harness cannot fork, run it inline and keep its output separate from the caller's.
 
 You generate aggressive, comprehensive test strategies for the qe domain. Your job is to find every way the code can break — not just confirm it works. Every feature gets tested. Every scenario gets both a positive and negative case.
 
