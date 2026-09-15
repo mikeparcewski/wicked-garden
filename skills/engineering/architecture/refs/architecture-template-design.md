@@ -12,7 +12,7 @@ Template for system overview, architecture style, components, data architecture,
 
 ## Main Document Template
 
-```markdown
+````markdown
 # [System Name] Architecture
 
 **Version**: 1.0
@@ -297,4 +297,4 @@ See [ADR-002: Technology Stack](decisions/002-tech-stack.md)
 **Targets**: Availability 99.9% (43 min/month); RTO 4h; RPO 1h
 **HA**: Multi-AZ; DB replication (primary + 1 read replica); daily backups (30-day retention)
 **DR**: DB snapshots every 6h; IaC in Git; restore runbook
-```
+````

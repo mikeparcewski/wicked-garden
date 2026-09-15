@@ -15,7 +15,7 @@ can get a real answer out of it". A CLI can be installed yet 401, or print
 "no provider configured", or fail to reach a local daemon. Those seats must
 NOT be counted toward quorum.
 
-Safety / cross-platform contract (mirrors _capability_registry.py + CLAUDE.md):
+Safety / cross-platform contract (per CLAUDE.md):
   * stdlib only — no third-party imports.
   * detection via ``shutil.which``.
   * each probe runs with ``subprocess.run(..., timeout=N, stdin=DEVNULL,

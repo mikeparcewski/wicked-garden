@@ -21,7 +21,7 @@ So "is this worker used?" is a reachability question, not a grep count. This too
   1. ROOTS — a worker is rooted if a *real* (non-generated, non-doc) surface that
      is NOT another worker references it: a domain router skill or its refs, a
      scenario, or a registry (specialist_resolver.py, specialist.json,
-     _capability_registry*, _bus_consumers.json, hooks.json).
+     _bus_consumers.json, hooks.json).
      Reference forms counted: the dash skill name ``wicked-garden-{domain}-{role}``,
      the legacy colon ``wicked-garden:{domain}:{role}``, the ``subagent_type: …``
      dispatch, the skill directory name ``{domain}-{role}``, or the bare
@@ -191,7 +191,7 @@ def analyze() -> Tuple[List[str], Dict[str, str]]:
             return False
         if any((_REPO / d) in p.parents for d in _ROOT_DIRS):
             return True
-        if p in _ROOT_FILES or p.name.startswith("_capability_registry"):
+        if p in _ROOT_FILES:
             return True
         return False
 

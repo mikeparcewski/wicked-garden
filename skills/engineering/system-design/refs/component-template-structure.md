@@ -8,7 +8,7 @@ Template for documenting individual system components with clear structure and i
 
 ## Template Structure
 
-```markdown
+````markdown
 # Component Name
 
 ## Overview
@@ -273,4 +273,4 @@ Response: 200 OK
   }
 }
 ```
-```
+````
