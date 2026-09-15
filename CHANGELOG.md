@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.38.1] — 2026-09-15
+
+### Fixed
+- **Drop dangling `wicked-garden-crew-*` / `wicked-garden:propose-process` skill references from `governed-worker` (and a latent workflow ref) that blocked a fresh skills publish (12.38.0 regression).** B18 deleted those `crew-*` / `propose-process` skills, but crew's core-closure body scan doesn't honor the not-a-skill shield, so the vestigial refs failed a fresh skills publish (garden 12.38.0 / crew 0.7.38 smoke S02). Also adds a `scripts/ci/validate.py` dangling-skill-ref guard mirroring crew core-closure, so a dangling reference fails CI at source (#1174).
+
 ## [12.38.0] — 2026-09-15
 
 ### Changed
@@ -928,7 +933,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.1...HEAD
+[12.38.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.0...v12.38.1
 [12.38.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.37.2...v12.38.0
 [12.37.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.37.1...v12.37.2
 [12.37.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.37.0...v12.37.1
