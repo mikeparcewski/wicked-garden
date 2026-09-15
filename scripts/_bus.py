@@ -290,9 +290,9 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.yolo",
         "description": "Yolo auto-approval revoked due to scope-increase mutation (audit + observability)",
     },
-    # Smaht domain — fact_extractor.py → brain auto-memorize subscriber
+    # Garden fact stream — scripts/mem/session_fact_extractor.py → auto-memorize subscriber
     "wicked.garden.fact.extracted": {
-        "domain": "smaht",
+        "domain": "wicked-garden",
         "subdomain": "facts",
         "description": "Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain -> estate memory)",
     },
@@ -799,7 +799,7 @@ def _resolve_bus_db_path() -> Optional[str]:
 def tail_events(limit: int = 10) -> List[Dict[str, Any]]:
     """Return the most recent ``limit`` bus events, newest first. Read-only.
 
-    This is a *display* helper (e.g. the wicked-garden-smaht skill's state action). It does
+    This is a *display* helper (e.g. a session-state inspection). It does
     NOT register a subscriber, advance a cursor, or mutate the bus in any way:
     the wicked-bus ``replay`` command resets a cursor rather than returning
     rows, and ``list`` returns subscribers, so neither yields event rows

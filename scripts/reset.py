@@ -8,7 +8,7 @@ Use --all-projects to see/clear data across all projects.
 Usage:
     python3 scripts/reset.py --json                          # scan current project
     python3 scripts/reset.py --confirm --all --json          # clear everything (current project)
-    python3 scripts/reset.py --confirm --only smaht crew     # clear specific domains
+    python3 scripts/reset.py --confirm --only crew jam      # clear specific domains
     python3 scripts/reset.py --confirm --all --keep mem      # clear all except memories
     python3 scripts/reset.py --list-projects --json          # list all projects
     python3 scripts/reset.py --confirm --all --all-projects  # clear ALL projects
@@ -30,7 +30,6 @@ _WG_ROOT = Path.home() / ".something-wicked" / "wicked-garden"
 # All known domain state locations (relative to project root)
 _DOMAIN_NAMES = {
     "config": "Setup configuration",
-    "smaht": "Session history and context cache",
     "crew": "Crew project data",
     "mem": "Memory store (v7 local-JSON; v8.0.0 cut the surface commands — entry retained for data cleanup)",
     "search": "Search index (SQLite)",
@@ -41,7 +40,6 @@ _DOMAIN_NAMES = {
 # Map domain names to their directory names under the project root
 _DOMAIN_DIRS = {
     "config": None,  # special: global config.json
-    "smaht": "wicked-smaht",
     "crew": "wicked-crew",
     "mem": "wicked-garden:mem",
     "search": "wicked-garden:search",

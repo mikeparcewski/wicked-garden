@@ -195,10 +195,6 @@
         "text": "`scripts/gh_ops.py diagnose --suggest-fixes` (skill-local, stdlib-only)"
       },
       {
-        "file": "skills/smaht/intent/SKILL.md",
-        "text": "```bash\nwicked-garden python - \"$ARG\" <<'PY'\nimport os, sys\nsys.path.insert(0, os.path.join(os.environ[\"WICKED_GARDEN_ROOT\"], \"scripts\"))\nPY\n```"
-      },
-      {
         "file": "skills/core/refs/runtime.md",
         "text": "```bash\nuv run python script.py [args]\npython3 script.py [args]\n```"
       },

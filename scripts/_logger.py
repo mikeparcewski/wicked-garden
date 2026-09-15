@@ -9,7 +9,7 @@ Usage:
     from _logger import log
 
     log("bootstrap", "normal", "onboarding.status", ok=True, detail={"has_memories": True})
-    log("smaht", "verbose", "prompt.routed", detail={"path": "fast", "turn": 1})
+    log("prompt", "verbose", "intent.resolved", detail={"intent": "feature", "turn": 1})
     log("post_tool", "debug", "hook.end", ms=1.23)
 
 Level hierarchy: normal (0) < verbose (1) < debug (2)
@@ -94,7 +94,7 @@ def log(
     """Write a structured log entry to the session ops JSONL file.
 
     Args:
-        domain: Source domain, e.g. "bootstrap", "smaht", "crew"
+        domain: Source domain, e.g. "bootstrap", "prompt", "crew"
         level:  Log level — "normal", "verbose", or "debug"
         event:  Dot-separated event name, e.g. "onboarding.status"
         ok:     Outcome indicator (default True)

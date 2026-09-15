@@ -2,12 +2,11 @@
 """
 Notification hook — wicked-garden context limit adaptation.
 
-Issue #343: Detect context limit warnings and adjust smaht behavior.
+Issue #343: Detect context limit warnings and warn Claude.
 
 When Claude Code emits notifications about approaching context limits,
-this hook adjusts session state to:
-  - Force smaht to use the HOT path (skip expensive adapters)
-  - Reduce context assembly scope
+this hook returns a systemMessage nudging Claude to:
+  - Minimize context — keep only what the current step needs
   - Encourage delegation over inline execution
   - Log the context pressure event for observability
 
@@ -80,31 +79,13 @@ def _is_context_limit_notification(payload: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 def _handle_context_limit(payload: dict) -> str:
-    """Adapt smaht behavior when context limits are approaching.
+    """Warn Claude when context limits are approaching.
 
-    Sets session state flags that smaht's orchestrator checks:
-    - context_pressure: True — forces HOT path (skip expensive adapters)
-    - context_pressure_since: ISO timestamp
-    - force_delegation: True — encourages delegation over inline work
-
-    Returns a systemMessage with guidance for Claude.
+    Returns a systemMessage with guidance for Claude (prefer delegation,
+    keep responses concise, save critical context before compaction).
     """
     _log("notification", "warn", "context.limit_approaching",
          detail={"payload_type": payload.get("type", ""), "message": (payload.get("message", "") or "")[:100]})
-
-    # Update session state
-    try:
-        from _session import SessionState
-        from datetime import datetime, timezone
-
-        state = SessionState.load()
-        state.update(
-            context_pressure=True,
-            context_pressure_since=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            force_delegation=True,
-        )
-    except Exception:
-        pass
 
     # Name the memory surface (estate memory.capture). Fail-open to the
     # same wording.
@@ -117,8 +98,8 @@ def _handle_context_limit(payload: dict) -> str:
     return json.dumps({
         "systemMessage": (
             "[Context Pressure] Context limit is approaching. Adapting behavior:\n"
-            "1. Smaht context assembly is now in HOT-path-only mode (minimal context injection)\n"
-            "2. Prefer delegation to subagents via Task() over inline execution\n"
+            "1. Minimize context — keep only what the current step needs\n"
+            "2. Prefer delegation to subagents over inline execution\n"
             "3. Keep responses concise — avoid large code dumps\n"
             "4. If in a crew project, consider completing the current phase before starting new work\n"
             f"5. Use {_mem_target} to save critical context before compaction"

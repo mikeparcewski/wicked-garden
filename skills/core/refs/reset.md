@@ -65,10 +65,9 @@ Show a numbered list of domains that have state, plus an "All" option:
 Found {n} domain(s) with local data:
 
   1. config — Setup configuration (52 B)
-  2. smaht — Session history and context cache (12 KB)
-  3. crew — Crew project data (4 KB)
-  4. mem — Memory store (8 KB)
-  5. search — Search index (2.1 MB)
+  2. crew — Crew project data (4 KB)
+  3. mem — Memory store (8 KB)
+  4. search — Search index (2.1 MB)
   a. All of the above
 
 Which domains would you like to reset? (comma-separated numbers, or 'a' for all)
@@ -84,7 +83,7 @@ Parse the user's reply:
 - Single number → that domain only
 - Comma-separated numbers (e.g., "1,3,5") → those domains
 - "a" or "all" → all found domains
-- Domain names (e.g., "smaht, crew") → those domains directly
+- Domain names (e.g., "crew, jam") → those domains directly
 
 Echo back: "You selected: **{domain list}**."
 
@@ -126,7 +125,7 @@ Parse the JSON output and show:
 ```
 ## Reset complete
 
-Cleared: smaht, crew
+Cleared: crew, jam
 Kept: config, mem, search, delivery, jam
 Errors: none
 

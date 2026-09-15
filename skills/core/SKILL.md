@@ -60,7 +60,6 @@ grep can't see, and otherwise stays out of the harness's way.
 | `wicked-garden-prove` | Re-derive "done" from recorded evidence (the produces-gate). Its `compile` action emits a self-contained, vault-backed gate into any repo. |
 | `wicked-garden-core` | This skill — setup, install, reset, where-am-i, report-issue, help. |
 | `wicked-garden-deliberate` | Critically analyze a request before doing the work — challenge assumptions, find root causes, propose better approaches. |
-| `wicked-garden-smaht` | On-demand context assembly + session briefing; its `intent` action sets or inspects the active session intent. |
 | `wicked-garden-archetype` | The v11 work-shape playbooks (below). |
 | `wicked-garden-governed-worker` | The discipline every governed unit follows, by role (creator / evaluator / neutral): the repo's checks run in-tree with exit codes pasted, evaluators output-only, honest counts, no questions into a headless run. |
 
@@ -101,7 +100,6 @@ Each domain is one consolidated skill that routes to its actions.
 | `wicked-garden-qe` | Evidence-gated quality engineering: strategy, scenario authoring, execution, independent verdicts, ledger insight, and the 3-agent acceptance pipeline | setup · plan · author · execute · review · insight · accept |
 | `wicked-garden-repo-learn` | Learn an unfamiliar repo (churn → hotspots → read the load-bearing intersection) and capture BOTH memories and policies as inert estate proposals a human reviews | churn · hotspots · read · capture |
 | `wicked-garden-search` | Structural code search, lineage, blast-radius, and codebase intelligence | blast-radius · lineage · hotspots · service-map · index |
-| `wicked-garden-smaht` | On-demand context assembly + session briefing from the knowledge layer, search, and the event log | briefing · state · events-import · intent |
 
 > **Cross-session memory + knowledge is the `wicked-garden-mem` domain**
 > (wicked-estate is the engine): `store` / `recall` / `answer` / `ingest`
@@ -126,10 +124,10 @@ Each domain is one consolidated skill that routes to its actions.
 1. Every prompt is classified into one or more **archetypes** by the
    `UserPromptSubmit` hook; each archetype owns its own phase shape, HITL
    discipline, and cost band (steering, not a fixed pipeline).
-2. **smaht** assembles context on demand (pull-model) from the knowledge
-   layer, search, and the unified event log — there is no per-prompt push.
-3. **Specialist domains** (engineering, platform, product, qe, data, agentic,
-   jam, search) provide deep expertise the harness routes into.
+2. **Specialist domains** (engineering, platform, product, qe, data, agentic,
+   jam, search) provide deep expertise the harness routes into. Context is
+   assembled on demand (pull-model) via the `wicked-garden-mem` skill — there
+   is no per-prompt push.
 4. **`wicked-garden-prove`** re-derives an archetype's "done" through the
    evidence gate rather than trusting a "tests pass" claim.
 5. **State** persists across sessions via wicked-estate memory, search

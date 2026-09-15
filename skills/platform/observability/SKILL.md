@@ -150,6 +150,5 @@ Detection uses `command -v` — no external dependencies.
 
 ## Integration
 
-- **smaht** (domain): Context assembly uses trace data to detect degraded adapters
 - **crew** (domain): Health probes run during execution gates
 - **DomainStore**: Traces stored via DomainStore (local JSON), with SqliteStore for search

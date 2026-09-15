@@ -367,7 +367,7 @@ def _parse_simple_yaml(text: str) -> dict[str, Any]:
 
 # Known plugin domains (mirrors .claude-plugin/components.json "domains")
 _DOMAINS = ("agentic", "crew", "data", "engineering", "jam", "mem", "persona",
-            "platform", "product", "qe", "search", "smaht")
+            "platform", "product", "qe", "search")
 
 
 def _infer_domain(path: Path) -> str:

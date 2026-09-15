@@ -607,7 +607,7 @@ def _check_onboarding_gate(prompt: str) -> str | None:
 # ---------------------------------------------------------------------------
 # The intent variable names what five overlapping classifiers were collectively
 # detecting. Auto-detected on turn 1-2 from existing complexity/risk signals,
-# sticky for the session, overridable via the wicked-garden-smaht-intent skill.
+# sticky for the session (auto-detected from the first turn's prompt).
 # Hooks gate directive emission on intent. Design: brainstorms/v10-session-01-intent-and-hook-gating.md.
 
 _INTENT_VALUES = ("simple-edit", "feature", "rigor", "research")
@@ -637,15 +637,13 @@ def _detect_intent(prompt: str, complexity: float, is_risky: bool, state) -> str
     """Auto-detect session intent from prompt + complexity/risk signals.
 
     Called once per session on turn 1-2. Result is sticky — subsequent turns
-    read state.intent directly. User overrides via the wicked-garden-smaht-intent
-    skill, which sets state.intent_explicit=True.
+    read state.intent directly.
 
     Detection priority:
       1. Rigor invocations (wicked-garden-crew* skills, /wg-issue, /wg-test) → rigor
       2. Research signals (explain how, why does, walk me through) → research
       3. Risk OR complexity ≥ threshold OR technical verb → feature
-      4. Default → simple-edit (conservative; user can raise it via the
-         wicked-garden-smaht-intent skill)
+      4. Default → simple-edit (conservative)
     """
     if not prompt or not prompt.strip():
         return "simple-edit"
@@ -679,7 +677,7 @@ def _ensure_intent_set(prompt: str, state, complexity: float, is_risky: bool) ->
     ``state.intent`` for a turn. On turn ≤ _AUTO_DETECT_TURN_LIMIT and
     intent is None → detect via ``_detect_intent``, persist via
     ``state.update``, return. On later turns or when intent is already
-    set → return existing value. Never overwrites an explicit override.
+    set → return existing value.
 
     Returns the effective intent value (always a string from _INTENT_VALUES).
     """
@@ -696,30 +694,26 @@ def _ensure_intent_set(prompt: str, state, complexity: float, is_risky: bool) ->
     detected = _detect_intent(prompt, complexity, is_risky, state)
     try:
         if state:
-            state.update(intent=detected, intent_explicit=False)
+            state.update(intent=detected)
     except Exception:
         pass  # fail open — return value still usable for this turn
     return detected
 
 
-def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=None) -> str:
+def _build_intent_directive(intent: str, turn_count: int, state=None) -> str:
     """Build the system-reminder directive for a given intent.
 
     Output rules (brainstorm decision):
-      simple-edit + auto-detect → empty string (silence is the signal)
-      simple-edit + explicit    → bare label only ("user said simple-edit")
-      feature                   → synthesis directive (+ label if explicit)
-      research                  → synthesis directive (+ label if explicit)
-      rigor                     → synthesis directive + chain context (+ label if explicit)
+      simple-edit → empty string (silence is the signal)
+      feature     → synthesis directive
+      research    → synthesis directive
+      rigor       → synthesis directive + chain context
 
-    The label-only-on-explicit rule prevents confirmation-bias drift —
-    auto-detected intent stays invisible to the model so it doesn't
+    Auto-detected intent stays invisible to the model so it doesn't
     second-guess the framework's silent classification.
     """
-    label = f'<wg intent="{intent}" t={turn_count} />' if explicit else ""
-
     if intent == "simple-edit":
-        return label  # empty when auto-detected
+        return ""  # silence is the signal
 
     # synthesis directive shared by feature / research / rigor.
     # Fail-open to a matching inline copy if the backend module cannot be
@@ -748,10 +742,7 @@ def _build_intent_directive(intent: str, turn_count: int, explicit: bool, state=
         )
     directive_lines.append("Only after grounding is complete, answer the original prompt.")
 
-    directive = "\n".join(directive_lines)
-    if label:
-        return f"{label}\n{directive}"
-    return directive
+    return "\n".join(directive_lines)
 
 
 # ---------------------------------------------------------------------------
@@ -793,7 +784,7 @@ def _build_wip_recovery_block(session_id: str, project: str) -> str:
     # (current_task, decisions, file_scope, active_constraints, open_questions)
     # are gone. If nothing is in-progress, emit nothing.
     if not in_progress_tasks:
-        _log("smaht", "debug", "wip_recovery.empty")
+        _log("prompt", "debug", "wip_recovery.empty")
         return ""
 
     parts = ["## [Recovery] Work in progress\n"]
@@ -808,7 +799,7 @@ def _build_wip_recovery_block(session_id: str, project: str) -> str:
     if len(block) > 1000:
         block = block[:997] + "..."
 
-    _log("smaht", "debug", "wip_recovery.done", detail={"chars": len(block)})
+    _log("prompt", "debug", "wip_recovery.done", detail={"chars": len(block)})
     return block
 
 
@@ -818,7 +809,7 @@ def _build_wip_recovery_block(session_id: str, project: str) -> str:
 
 def main():
     _t0 = time.monotonic()
-    _log("smaht", "debug", "hook.start")
+    _log("prompt", "debug", "hook.start")
 
     try:
         raw = sys.stdin.read()
@@ -938,7 +929,6 @@ def main():
         _log("prompt", "debug", "intent.resolved",
              detail={
                  "intent": intent,
-                 "explicit": bool(getattr(state, "intent_explicit", False)),
                  "complexity": round(complexity, 2),
                  "risk": is_risky,
                  "turn": turn_count,
@@ -950,12 +940,10 @@ def main():
         # block runs from the onboarding-pending branch where no intent was
         # computed) drives directive emission. Auto-detected simple-edit
         # turns produce an empty directive; feature/research/rigor produce
-        # the synthesis directive. Explicit overrides additionally echo a
-        # bare label so the model knows the user steered the framework.
+        # the synthesis directive.
         _intent = getattr(state, "intent", None) if state else None
-        _intent_explicit = bool(getattr(state, "intent_explicit", False)) if state else False
         intent_directive = _build_intent_directive(
-            _intent or "simple-edit", turn_count, _intent_explicit, state
+            _intent or "simple-edit", turn_count, state
         )
 
         # WIP recovery: surface native in-progress tasks (v5 ticket rail gone)
@@ -1024,8 +1012,8 @@ def main():
 
         merged_context = f"<system-reminder>\n{chr(10).join(all_parts)}\n</system-reminder>"
 
-        _log("smaht", "debug", "prompt.intent_directive",
-             detail={"intent": _intent, "explicit": _intent_explicit, "turn": turn_count,
+        _log("prompt", "debug", "prompt.intent_directive",
+             detail={"intent": _intent, "turn": turn_count,
                      "directive_bytes": len(intent_directive.encode("utf-8"))})
 
         output = {
@@ -1035,7 +1023,7 @@ def main():
             },
             "continue": True,
         }
-        _log("smaht", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
+        _log("prompt", "debug", "hook.end", ms=int((time.monotonic() - _t0) * 1000))
         print(json.dumps(output))
 
     except Exception as e:

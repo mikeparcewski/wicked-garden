@@ -21,7 +21,7 @@ Usage:
 
     # For truly ephemeral files (caches, temp session state) only:
     from _domain_store import get_local_path
-    cache_dir = get_local_path("wicked-smaht", "cache", "context7")
+    cache_dir = get_local_path("wicked-crew", "cache", "sessions")
 
 hook_mode=True:
     When True, skips integration-discovery entirely and operates local-only.
@@ -71,7 +71,7 @@ DOMAIN_MCP_PATTERNS: dict[str, list[str]] = {
     ],
     "wicked-crew": ["jira", "linear", "github", "rally", "ado", "azure-devops", "project"],
     "wicked-garden:search": ["elasticsearch", "algolia", "typesense", "search"],
-    # wicked-smaht, wicked-qe, wicked-patch: local-only (no MCP patterns)
+    # wicked-qe, wicked-patch: local-only (no MCP patterns)
 }
 
 

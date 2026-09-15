@@ -225,7 +225,7 @@ Domains are discovered dynamically from `.claude-plugin/components.json`
 they appear in the manifest / skills tree.
 
 Current domains: agentic, crew, data, engineering, jam, mem, persona, platform,
-product, qe, search, smaht.
+product, qe, search.
 
 ### Template Variables
 
