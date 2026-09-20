@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **`claims_scan.py`: a `data-source="path:N"` on an existing file now verifies that the cited lines carry the block's own text — a mismatch is reported as `cite-off` ("data-source README.md:7 does not carry this text — nearest match: line 4") and fails the floor exactly like `dangling-source` (#1176).** Path-only citations remain valid; inherited (ancestor-level) citations are not checked for line content — only per-element citations are verified. The summary line gains `cited_lines (N cite-off)` counts. `skills/draft/SKILL.md` §3 Grounded now instructs authors to re-open the file at the line before writing the citation, and the verdict table's FAIL row lists `cite-off`. `self_check.py` surfaces `cite-off` automatically (it calls `claims_scan.run`).
+
 ## [12.38.1] — 2026-09-15
 
 ### Fixed
