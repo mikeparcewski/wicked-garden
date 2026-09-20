@@ -150,7 +150,12 @@ def test_repo_check_verifies_urls_and_source_paths(tmp_path: Path):
             "<p data-source='README.md:1'>Live at https://live.example.com/app</p></body>")
     findings, stats = cs.scan_document(html, [str(repo)])
     kinds = sorted((f.kind, f.text) for f in findings)
-    assert kinds == [("dangling-source", "docs/missing.md:4"), ("unsourced-url", "https://live.example.com/app")]
+    # README.md:1 ("# studio") shares no tokens with "Live at https://…" → cite-off
+    assert kinds == [
+        ("cite-off", "Live at https://live.example.com/app"),
+        ("dangling-source", "docs/missing.md:4"),
+        ("unsourced-url", "https://live.example.com/app"),
+    ]
     assert stats["repos"] == [str(repo)]
 
 
@@ -190,6 +195,112 @@ def test_recon_brochure_passes_once_claims_are_disciplined():
     fixed = fixed.replace('<div class="mockup-kpi">', '<div class="mockup-kpi" data-illustrative><div>Illustrative — not measured data</div>', 1)
     findings, _ = cs.scan_document(fixed)
     assert [f.as_dict() for f in findings] == []
+
+
+# ── cite-off (line-level citation verification) ───────────────────────────────────────────────
+
+BROCHURE_FIXTURE = Path(__file__).parent / "fixtures" / "brochure-cite-off.html"
+# README used by the brochure fixture: text is on line 4, fixture cites line 7
+_BROCHURE_README = (
+    "# studio\n"
+    "Node >= 22\n"
+    "Install: npm install\n"
+    "Fast: sub-second execution\n"
+    "More details here.\n"
+    "Another detail line.\n"
+    "Extended detail line here\n"
+)
+
+
+def test_cite_off_wrong_line_produces_finding(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(_BROCHURE_README, encoding="utf-8")
+    html = '<body><p data-source="README.md:7">Fast: sub-second execution</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    cite_offs = [f for f in findings if f.kind == "cite-off"]
+    assert len(cite_offs) == 1
+    assert "README.md:7" in cite_offs[0].detail
+    assert "nearest match" in cite_offs[0].detail
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 0
+
+
+def test_cite_off_correct_line_is_clean(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(_BROCHURE_README, encoding="utf-8")
+    html = '<body><p data-source="README.md:4">Fast: sub-second execution</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+    assert stats["cited_lines"] == 1
+    assert stats["cite_off"] == 0
+
+
+def test_cite_off_path_only_is_clean(tmp_path: Path):
+    """A path-only data-source (no :N) is always valid — no cite-off check."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\n", encoding="utf-8")
+    html = '<body><p data-source="README.md">Fast: sub-second execution 3 s</p></body>'
+    findings, _ = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+
+
+def test_cite_off_frontmatter_delimiter_for_absent_prose(tmp_path: Path):
+    """A --- frontmatter line cited for prose that isn't in that line → cite-off."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("---\nname: my-skill\n---\n# Title\n", encoding="utf-8")
+    html = '<body><p data-source="README.md:1">Processes 1000 requests per second</p></body>'
+    findings, _ = cs.scan_document(html, [str(repo)])
+    cite_offs = [f for f in findings if f.kind == "cite-off"]
+    assert len(cite_offs) == 1
+    assert "README.md:1" in cite_offs[0].detail
+
+
+def test_cite_off_inherited_citation_not_checked(tmp_path: Path):
+    """A data-source on an ancestor section is NOT checked for cite-off."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\nSomething else entirely\n", encoding="utf-8")
+    # section data-source="README.md:2" — child p text has no overlap with line 2
+    html = ('<body><section data-source="README.md:2">'
+            '<p>Fast: sub-second execution 3 s</p></section></body>')
+    findings, _ = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+
+
+def test_cite_off_line_range_passes_when_text_in_range(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\nLine two\nFast: sub-second execution\nLine four\n", encoding="utf-8")
+    html = '<body><p data-source="README.md:2-4">Fast: sub-second execution</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+    assert stats["cited_lines"] == 1
+
+
+def test_brochure_fixture_fails_then_passes_once_citation_corrected(tmp_path: Path):
+    """The checked-in fixture cites line 7 for text that lives on line 4 → cite-off.
+    Correcting the citation to :4 makes the scan clean."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(_BROCHURE_README, encoding="utf-8")
+
+    # RED: fixture has the wrong line citation
+    report_wrong = cs.run(str(BROCHURE_FIXTURE), repos=[str(repo)])
+    assert report_wrong["ok"] is False
+    assert report_wrong["by_kind"].get("cite-off", 0) >= 1
+    cite_off_findings = [f for f in report_wrong["findings"] if f["kind"] == "cite-off"]
+    assert any("nearest match" in f["detail"] for f in cite_off_findings)
+
+    # GREEN: correct the citation in-memory → clean
+    fixed_html = BROCHURE_FIXTURE.read_text(encoding="utf-8").replace(
+        'data-source="README.md:7"', 'data-source="README.md:4"'
+    )
+    fixed_findings, _ = cs.scan_document(fixed_html, repos=[str(repo)])
+    assert all(f.kind != "cite-off" for f in fixed_findings)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────────────────────
