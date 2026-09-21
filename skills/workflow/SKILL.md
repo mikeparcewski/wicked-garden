@@ -18,7 +18,7 @@ gates are hard enforcement; two interaction modes (normal / yolo).
 
 Facilitator-rubric orchestration with hard quality gates.
 
-## Decision Engine — `wicked-garden:propose-process`
+## Decision Engine — `propose-process`
 
 ```
 User project description

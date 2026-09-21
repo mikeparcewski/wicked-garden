@@ -10,6 +10,7 @@ illustrative only inside an HTML comment, and the SC-S02/SC-S03 latencies ("with
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -150,7 +151,12 @@ def test_repo_check_verifies_urls_and_source_paths(tmp_path: Path):
             "<p data-source='README.md:1'>Live at https://live.example.com/app</p></body>")
     findings, stats = cs.scan_document(html, [str(repo)])
     kinds = sorted((f.kind, f.text) for f in findings)
-    assert kinds == [("dangling-source", "docs/missing.md:4"), ("unsourced-url", "https://live.example.com/app")]
+    # README.md:1 ("# studio") shares no tokens with "Live at https://…" → cite-off
+    assert kinds == [
+        ("cite-off", "Live at https://live.example.com/app"),
+        ("dangling-source", "docs/missing.md:4"),
+        ("unsourced-url", "https://live.example.com/app"),
+    ]
     assert stats["repos"] == [str(repo)]
 
 
@@ -190,6 +196,353 @@ def test_recon_brochure_passes_once_claims_are_disciplined():
     fixed = fixed.replace('<div class="mockup-kpi">', '<div class="mockup-kpi" data-illustrative><div>Illustrative — not measured data</div>', 1)
     findings, _ = cs.scan_document(fixed)
     assert [f.as_dict() for f in findings] == []
+
+
+# ── cite-off (line-level citation verification) ───────────────────────────────────────────────
+
+BROCHURE_FIXTURE = Path(__file__).parent / "fixtures" / "brochure-cite-off.html"
+# README used by the brochure fixture: text is on line 4, fixture cites line 7
+_BROCHURE_README = (
+    "# studio\n"
+    "Node >= 22\n"
+    "Install: npm install\n"
+    "Fast: sub-second execution\n"
+    "More details here.\n"
+    "Another detail line.\n"
+    "Extended detail line here\n"
+)
+
+
+def test_cite_off_wrong_line_produces_finding(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(_BROCHURE_README, encoding="utf-8")
+    html = '<body><p data-source="README.md:7">Fast: sub-second execution</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    cite_offs = [f for f in findings if f.kind == "cite-off"]
+    assert len(cite_offs) == 1
+    assert "README.md:7" in cite_offs[0].detail
+    assert "nearest match" in cite_offs[0].detail
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 0
+
+
+def test_cite_off_correct_line_is_clean(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(_BROCHURE_README, encoding="utf-8")
+    html = '<body><p data-source="README.md:4">Fast: sub-second execution</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+    assert stats["cited_lines"] == 1
+    assert stats["cite_off"] == 0
+
+
+def test_cite_off_path_only_is_clean(tmp_path: Path):
+    """A path-only data-source (no :N) is always valid — no cite-off check."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\n", encoding="utf-8")
+    html = '<body><p data-source="README.md">Fast: sub-second execution 3 s</p></body>'
+    findings, _ = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+
+
+def test_cite_off_frontmatter_delimiter_for_absent_prose(tmp_path: Path):
+    """A --- frontmatter line cited for prose that isn't in that line → cite-off."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("---\nname: my-skill\n---\n# Title\n", encoding="utf-8")
+    html = '<body><p data-source="README.md:1">Processes 1000 requests per second</p></body>'
+    findings, _ = cs.scan_document(html, [str(repo)])
+    cite_offs = [f for f in findings if f.kind == "cite-off"]
+    assert len(cite_offs) == 1
+    assert "README.md:1" in cite_offs[0].detail
+
+
+def test_cite_off_inherited_citation_not_checked(tmp_path: Path):
+    """A data-source on an ancestor section is NOT checked for cite-off."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\nSomething else entirely\n", encoding="utf-8")
+    # section data-source="README.md:2" — child p text has no overlap with line 2
+    html = ('<body><section data-source="README.md:2">'
+            '<p>Fast: sub-second execution 3 s</p></section></body>')
+    findings, _ = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+
+
+def test_cite_off_line_range_passes_when_text_in_range(tmp_path: Path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\nLine two\nFast: sub-second execution\nLine four\n", encoding="utf-8")
+    html = '<body><p data-source="README.md:2-4">Fast: sub-second execution</p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+    assert stats["cited_lines"] == 1
+
+
+def test_brochure_fixture_fails_then_passes_once_citation_corrected(tmp_path: Path):
+    """The checked-in fixture cites line 7 for text that lives on line 4 → cite-off.
+    Correcting the citation to :4 makes the scan clean."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(_BROCHURE_README, encoding="utf-8")
+
+    # RED: fixture has the wrong line citation
+    report_wrong = cs.run(str(BROCHURE_FIXTURE), repos=[str(repo)])
+    assert report_wrong["ok"] is False
+    assert report_wrong["by_kind"].get("cite-off", 0) >= 1
+    cite_off_findings = [f for f in report_wrong["findings"] if f["kind"] == "cite-off"]
+    assert any("nearest match" in f["detail"] for f in cite_off_findings)
+
+    # GREEN: correct the citation in-memory → clean
+    fixed_html = BROCHURE_FIXTURE.read_text(encoding="utf-8").replace(
+        'data-source="README.md:7"', 'data-source="README.md:4"'
+    )
+    fixed_findings, _ = cs.scan_document(fixed_html, repos=[str(repo)])
+    assert all(f.kind != "cite-off" for f in fixed_findings)
+
+
+# ── cite-off new bug fixes (#1178, #1179, #1181) ─────────────────────────────────────────────
+
+
+def test_out_of_range_line_spec_is_cite_off(tmp_path: Path):
+    """#1178 — a line number past EOF must fail, not clamp to the last line.
+
+    Red on main: max(0, min(9999-1, 2)) = 2 → reads line 3 "last words here" → overlap → None →
+    cited_lines=1, findings=[]. Green after fix: 9999 > 3 → detail "past end of file (3 lines)" →
+    cite-off finding, cited_lines=0.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("line1\nline2\nlast words here\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:9999">last words here</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "past end of file (3 lines)" in coffs[0].detail
+    assert stats["cited_lines"] == 0
+
+
+def test_out_of_range_range_spec_end_is_cite_off(tmp_path: Path):
+    """#1178 — a range whose end exceeds EOF must fail, not clamp.
+
+    Red on main: end clamped to min(2, 998)=2 → reads line 3 → overlap → None → cited_lines=1.
+    Green after fix: e_int=999 > 3 → detail "past end of file (3 lines)" → cite-off, cited_lines=0.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("line1\nline2\nlast words here\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:3-999">last words here</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "past end of file (3 lines)" in coffs[0].detail
+    assert stats["cited_lines"] == 0
+
+
+def test_stopword_only_shared_token_is_cite_off(tmp_path: Path):
+    """#1179 — a citation whose text is on a different line than cited must fail even when the
+    two lines share stopwords.
+
+    Red on main: block_tokens ∩ line2_tokens = {"for", "the"} → nonzero → None → cited_lines=1.
+    Green after fix: cited_score=2, best_score=line1=7 → best_score > cited_score → cite-off.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(
+        "Fast sub-second execution for the enterprise\nfor the document\n",
+        encoding="utf-8")
+    # text lives on line 1; cited at line 2 which shares only "for", "the"
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:2">Fast sub-second execution for the enterprise</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "nearest match" in coffs[0].detail
+    assert stats["cited_lines"] == 0
+
+
+def test_inline_wrapped_citation_is_checked(tmp_path: Path):
+    """#1181-A — a citation on a block whose text is wrapped in an inline tag must still be checked.
+
+    Red on main: span has no data-source; li.direct_text()="" so li is not in _claim_blocks;
+    citation is invisible → findings=[], cited_lines=0 (neither verified nor flagged).
+    Green after fix: block=li is found via block_sources; cite-off produced for wrong line.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("nothing here\nfast execution\n", encoding="utf-8")
+    # data-source on li (line 1 doesn't match "fast execution")
+    html = '<body><ul><li data-source="README.md:1"><span>fast execution</span></li></ul></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+
+
+def test_inline_wrapped_citation_guard_no_false_positive(tmp_path: Path):
+    """#1181-A guard — <p data-source="README.md:4">Requirement: <strong>v22</strong></p> must NOT
+    produce cite-off when line 4 = "v22" (inline child text IS on the cited line).
+
+    Red on main: el=<p>, own="Requirement: ", _cite_tokens("Requirement: ")={"requirement"},
+    line 4 "v22" has no "requirement" → cite-off (false positive, cite_off=1).
+    Green after fix: block_text="Requirement: v22" → {"requirement","v22"} ∩ {"v22"} = {"v22"} → verified;
+    dedup prevents the p element from re-checking the same (source, block) pair.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("intro\nsomething\nelse\nv22\n", encoding="utf-8")
+    html = '<body><p data-source="README.md:4">Requirement: <strong>v22</strong></p></body>'
+    findings, stats = cs.scan_document(html, [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+    assert stats["cited_lines"] == 1
+
+
+def test_single_digit_token_is_not_vacuously_verified(tmp_path: Path):
+    """#1181-B — a block whose text is a single digit must not cite any line vacuously.
+
+    Red on main: _cite_tokens("7")={} → if not block_tokens: return None → cited_lines=1 (BUG).
+    Green after fix: "7".isdigit() → block_tokens={"7"}; line 999>4 → past-end-of-file cite-off.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("line1\nline2\nline3\nline4\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:999">7</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert stats["cited_lines"] == 0
+
+
+def test_directory_as_file_fails_closed(tmp_path: Path):
+    """#1181-C — a data-source that names a directory must be treated as unverifiable.
+
+    Red on main: _path_exists_in_repos("docs") True (dir); p.read_text() → IsADirectoryError →
+    return None → cited_lines=1 (BUG). Green after fix: p.is_file() False → _UNVERIFIABLE → cite-off.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "docs").mkdir()          # docs is a directory, not a file
+    findings, stats = cs.scan_document(
+        '<body><p data-source="docs:5">some words here</p></body>',
+        [str(repo)])
+    assert any(f.kind == "cite-off" for f in findings)
+    assert stats["cited_lines"] == 0
+
+
+def test_oserror_continues_to_next_repo(tmp_path: Path, monkeypatch):
+    """#1181-C — an OSError reading one repo must try the next repo, not abort.
+
+    repo1/README.md raises PermissionError (monkeypatched — works at every euid including root).
+    repo2/README.md = file that does NOT carry the block text → cite-off produced.
+
+    Red on original: p.exists() True → p.read_text() → PermissionError → return None →
+    cited_lines=1 (aborted at repo1, reported verified despite never reading the file).
+    Green after fix: PermissionError → continue → repo2 tried → no match → cite_off=1.
+    """
+    repo1 = tmp_path / "repo1"
+    repo1.mkdir()
+    readme1 = repo1 / "README.md"
+    readme1.write_text("fast execution sub-second\n", encoding="utf-8")
+    repo2 = tmp_path / "repo2"
+    repo2.mkdir()
+    (repo2 / "README.md").write_text("unrelated content here\n", encoding="utf-8")
+    _orig_read_text = Path.read_text
+
+    def _failing_read_text(self, *args, **kwargs):
+        if self.resolve() == readme1.resolve():
+            raise PermissionError("permission denied")
+        return _orig_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _failing_read_text)
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1">fast execution sub-second</p></body>',
+        [str(repo1), str(repo2)])
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 0
+
+
+# ── PR #1183 review follow-ups ────────────────────────────────────────────────────────────────
+
+
+def test_sibling_elements_each_checked_for_cite_off(tmp_path: Path):
+    """PR #1183 review item 1 — silent sibling skip: two sibling <li> with the same source
+    must each be independently checked. Previously checked_cite_off keyed on (s, block.path()),
+    but path() has no sibling index — both <li> shared a key and the second was never checked.
+    Fix: key on (s, id(block)) so each node is distinct regardless of path().
+
+    Two-sibling <li> shape: first element matches line 1 (verified); second element has no
+    token overlap with line 1 (genuine cite-off, was silently skipped before the fix).
+
+    Red on b868483a: cite_off=0, cited_lines=1 — second <li> key-collides with first, skipped.
+    Green after fix: cite_off=1, cited_lines=1 — first verified, second independently checked.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("fast execution\n", encoding="utf-8")
+    html = (
+        '<body><ul>'
+        '<li data-source="README.md:1">fast execution</li>'
+        '<li data-source="README.md:1">slow throughput</li>'
+        '</ul></body>'
+    )
+    findings, stats = cs.scan_document(html, [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 1
+
+
+def test_check_cite_off_path_only_returns_none_and_is_skipped(tmp_path, monkeypatch):
+    """PR #1183 review item 2 — latent contract: _check_cite_off with a path-only source
+    returns None; the caller's explicit `if detail is None: pass` arm treats None as skip
+    (no cited_lines increment, no cite-off finding). The None branch is currently unreachable
+    from scan_document (the :307 _LINE_SPEC_RE guard filters path-only sources first), so the
+    caller arm is pinned via monkeypatch: _check_cite_off is forced to return None for a
+    line-spec source so the arm IS reached and asserted. Passes before and after the
+    latent-contract fix; that is correct and expected (latent-contract exemption — say so plainly).
+    """
+    # direct contract: path-only source → None
+    assert cs._check_cite_off("README.md", "some text", []) is None
+
+    # caller-ordering pin: _check_cite_off forced to return None → cited_lines must stay 0
+    # Red when `if detail is None: pass` arm is absent (None falls to else → cited_lines=1).
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("some text here\n", encoding="utf-8")
+    monkeypatch.setattr(cs, "_check_cite_off", lambda source, block_text, repos: None)
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1">some text here</p></body>',
+        [str(repo)])
+    assert stats["cited_lines"] == 0
+    assert all(f.kind != "cite-off" for f in findings)
+
+
+def test_inverted_range_is_invalid(tmp_path: Path):
+    """PR #1183 review item 4 — inverted range: README.md:3-1 previously passed both bounds
+    checks (3≥1, 1≥1, both ≤3), produced an empty slice, and mischaracterised as
+    'does not carry this text'. Fix: add s_int > e_int guard with a distinct 'invalid range'
+    detail, distinct from past-end-of-file and does-not-carry-this-text.
+
+    Red on b868483a: detail contains 'does not carry this text — nearest match: line 1'.
+    Green after fix: detail contains 'invalid range (3 > 1)'.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("line one\nline two\nline three\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:3-1">line three</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "invalid range" in coffs[0].detail
+    assert "3 > 1" in coffs[0].detail
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 0
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────────────────────
