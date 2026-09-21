@@ -144,3 +144,4 @@ scripts/compiler/**/__pycache__/
 .codegraph/
 .wicked/
 !.wicked/checks.json
+.product/
