@@ -145,3 +145,5 @@ scripts/compiler/**/__pycache__/
 .wicked/
 !.wicked/checks.json
 .product/
+node_modules/
+tmp/
