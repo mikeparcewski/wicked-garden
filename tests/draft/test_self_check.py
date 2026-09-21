@@ -110,3 +110,27 @@ def test_cli_survives_a_cp1252_console():
     proc = subprocess.run([sys.executable, str(SCRIPT), str(FIXTURE), "--no-pages"], capture_output=True, env=env)
     assert proc.returncode == 1 and b"Traceback" not in proc.stderr
     assert b"draft self-check: FAIL" in proc.stdout
+
+
+# ── cite-off surfaces through self_check ──────────────────────────────────────────────────────
+
+def test_cite_off_surfaces_in_self_check_and_fails(tmp_path: Path):
+    """A cite-off finding in claims causes self_check to report verdict FAIL and exit 1."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    # Line 1 = "# Title", line 2 = "Fast: sub-second execution"
+    (repo / "README.md").write_text("# Title\nFast: sub-second execution\n", encoding="utf-8")
+    html_path = tmp_path / "doc.html"
+    # data-source says line 1 ("# Title") but block text is about line 2 → cite-off
+    html_path.write_text(
+        "<!doctype html><html><head><style>body{color:#111;background:#fff}</style></head>"
+        "<body><p data-source='README.md:1'>Fast: sub-second execution</p></body></html>",
+        encoding="utf-8",
+    )
+    report = sc.run(str(html_path), repos=[str(repo)], check_pages=False, min_font_pt=0, mode="screen")
+    assert report["verdict"] == "FAIL"
+    assert "cite-off" in report["checks"]["claims"]["by_kind"]
+    assert sc.main([
+        str(html_path), "--repo", str(repo),
+        "--no-pages", "--min-font-pt", "0", "--mode", "screen",
+    ]) == 1

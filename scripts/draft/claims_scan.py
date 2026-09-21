@@ -20,9 +20,17 @@ container). A label that lives only in an HTML comment is the F-RECON-009 defect
 
 Findings (all fail the floor): ``placeholder`` · ``uncited-number`` · ``mock-label-hidden`` ·
 ``mock-unlabelled`` · ``dangling-source`` (``data-source`` path missing under ``--repo``) ·
+``cite-off`` (``data-source path:N`` exists but the cited lines share no tokens with the block's
+own text — the author read a different line than they cited) ·
 ``unsourced-url`` (a URL in the visible text that no file under ``--repo`` mentions) ·
 ``uncited-url`` (a URL with no ``--repo`` to check against and no ``data-source``).
 Exit: 0 clean, 1 findings, 2 usage / unreadable input. Stdlib only.
+
+Inherited ``data-source`` attributes (on an ancestor element) are checked only for path existence
+(``dangling-source``), never for ``cite-off`` — a section-level citation covers many descendants
+whose text cannot all appear on those lines.  A per-element ``data-source`` with a ``:N`` suffix is
+checked exactly: the cited lines must carry the block's own text (token overlap, ``\\W+`` split so
+unicode variants like ``≥`` and ``>=`` produce the same tokens).
 
 CLI:
     claims_scan.py <file.html> [--repo <dir> …] [--json]
@@ -79,6 +87,10 @@ STRUCTURE_RES = [
 LONE_ORDINAL_RE = re.compile(r"^\d{1,2}$")
 SOURCE_ATTRS = ("data-source", "data-sources", "data-src-path", "data-cite")
 SKIP_DIRS = {".git", "node_modules", ".venv", "target", "dist", "build", "__pycache__", ".next"}
+# matches path:N or path:N-M at end of a source string; group 1 = path, group 2 = line spec
+_LINE_SPEC_RE = re.compile(r'^(.*?):(\d+(?:-\d+)?)$')
+# sentinel returned by _check_cite_off: file found but could not verify → treated as cite-off
+_UNVERIFIABLE = object()
 
 
 @dataclass
@@ -100,6 +112,71 @@ def _sources_on(node: Node) -> list[str]:
             if v:
                 out.extend(re.split(r"[\s,;]+", v))
     return [s for s in out if s]
+
+
+def _direct_sources_on(node: Node) -> list[str]:
+    """Sources declared directly on this element only (not inherited from ancestors)."""
+    out: list[str] = []
+    for attr in SOURCE_ATTRS:
+        v = node.attrs.get(attr, "").strip()
+        if v:
+            out.extend(re.split(r"[\s,;]+", v))
+    return [s for s in out if s]
+
+
+def _cite_tokens(text: str) -> set[str]:
+    """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase."""
+    return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
+
+
+def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | None | object:
+    """Check whether source's cited lines carry block_text tokens.
+
+    Returns:
+      None            — path-only citation (no :N suffix); caller skips it.
+      ""              — verified clean: cited line is the best or tied-best match.
+      _UNVERIFIABLE   — file unreadable, empty token set, or not found; caller treats as cite-off.
+      non-empty str   — cite-off detail message; caller reports a finding.
+    """
+    m = _LINE_SPEC_RE.match(source)
+    if m is None:
+        return None                     # path-only, nothing to verify
+    rel_path, line_spec = m.group(1), m.group(2)
+    block_tokens = _cite_tokens(block_text)
+    if not block_tokens:
+        return _UNVERIFIABLE            # token set empty after filtering — cannot verify
+    for repo in repos:
+        p = Path(repo) / rel_path
+        if not p.is_file():             # rejects directories; p.exists() was accepting them
+            continue
+        try:
+            lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
+        except OSError:
+            continue                    # try next repo; formerly aborted the whole search
+        if '-' in line_spec:
+            s_int, e_int = (int(x) for x in line_spec.split('-', 1))
+            if s_int > e_int:
+                return f"data-source {source} has invalid range ({s_int} > {e_int})"
+            if s_int < 1 or s_int > len(lines) or e_int < 1 or e_int > len(lines):
+                return f"data-source {source} is past end of file ({len(lines)} lines)"
+            start, end = s_int - 1, e_int - 1
+        else:
+            lnum = int(line_spec)
+            if lnum < 1 or lnum > len(lines):
+                return f"data-source {source} is past end of file ({len(lines)} lines)"
+            start = end = lnum - 1
+        cited_text = "\n".join(lines[start:end + 1])
+        cited_score = len(block_tokens & _cite_tokens(cited_text))
+        best_n, best_score = None, 0
+        for i, line in enumerate(lines):
+            score = len(block_tokens & _cite_tokens(line))
+            if score > best_score:
+                best_score, best_n = score, i + 1
+        if cited_score > 0 and best_score <= cited_score:
+            return ""                   # verified: cited line is best or tied-best match
+        hint = f" — nearest match: line {best_n}" if best_n else ""
+        return f"data-source {source} does not carry this text{hint}"
+    return _UNVERIFIABLE                # file not found in any repo
 
 
 def _illustrative_container(node: Node) -> Node | None:
@@ -198,8 +275,8 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
     seen: set[tuple] = set()
     has_sources = _has_sources_block(doc)
     repo_files = _repo_files(repos) if repos else []
-    stats = {"blocks": 0, "numbers": 0, "urls": 0, "cited_numbers": 0, "sources_block": has_sources,
-             "repos": repos}
+    stats = {"blocks": 0, "numbers": 0, "urls": 0, "cited_numbers": 0, "cited_lines": 0, "cite_off": 0,
+             "sources_block": has_sources, "repos": repos}
 
     def add(kind: str, node: Node, text: str, detail: str) -> None:
         key = (kind, node.path(), text[:60])
@@ -209,6 +286,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         findings.append(Finding(kind, node.path(), text[:100], detail))
 
     checked_sources: set[str] = set()
+    checked_cite_off: set[tuple] = set()   # (source, id(block)) — one check per source per block-level element; inline siblings sharing one enclosing block are NOT distinguished (see #1184)
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -222,6 +300,29 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                 checked_sources.add(s)
                 if not _path_exists_in_repos(s, repos):
                     add("dangling-source", el, s, "data-source names a path that does not exist under --repo")
+        # cite-off: check direct citations on this element and on its enclosing block
+        # (block != el when el is an inline tag — covers the invisible-citation case #1181-A)
+        if repos:
+            el_sources = _direct_sources_on(el)
+            block_sources = _direct_sources_on(block) if block is not el else []
+            for s in list(dict.fromkeys(el_sources + block_sources)):
+                m = _LINE_SPEC_RE.match(s)
+                if m and _path_exists_in_repos(m.group(1), repos):
+                    cite_key = (s, id(block))
+                    if cite_key in checked_cite_off:
+                        continue
+                    checked_cite_off.add(cite_key)
+                    detail = _check_cite_off(s, block_text, repos)
+                    if detail is None:
+                        pass                        # path-only: not a line citation, count nothing
+                    elif detail is _UNVERIFIABLE:
+                        stats["cite_off"] += 1
+                        add("cite-off", el, own, f"data-source {s} could not be verified")
+                    elif detail:
+                        stats["cite_off"] += 1
+                        add("cite-off", el, own, detail)
+                    else:
+                        stats["cited_lines"] += 1
         inline_paths = PATH_RE.findall(block_text)
         cited = bool(sources) or bool(inline_paths) or (has_sources and bool(FOOTNOTE_RE.search(block_text)))
         illustrative = _illustrative_container(el)
@@ -279,7 +380,7 @@ def run(path: str, repos: list[str] | None = None) -> dict:
         "findings": [f.as_dict() for f in findings],
         "summary": (
             f"claims: {stats['blocks']} text blocks, {stats['numbers']} numbers ({stats['cited_numbers']} cited), "
-            f"{stats['urls']} URLs — "
+            f"{stats['urls']} URLs, {stats['cited_lines']} cited lines ({stats['cite_off']} cite-off) — "
             + ("clean" if not findings else ", ".join(f"{v} {k}" for k, v in sorted(by_kind.items())))
         ),
     }

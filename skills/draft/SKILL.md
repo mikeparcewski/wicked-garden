@@ -98,6 +98,10 @@ One command runs all three (§ Self-check). Details and worked examples: `refs/d
   percentages, latencies, feature lists, quotes, URLs. Put `data-source="README.md:87"`
   on the element or its block (invisible in print, survives instrumentation) and list
   the sources for the reader in a visible **Sources** strip (`refs/claims.md`).
+  **Cite the line you actually read** — re-open the file at that line before you write the
+  citation; a Read with an offset does not number lines from 1. The check verifies the
+  cited lines carry the block's text and reports `cite-off` with the nearest-match line
+  if they don't.
 - **A URL claim must say what the source says.** `ws.wickedagile.com` documented as a
   static product site is a "Product site", never a "live instance". Quote the source
   line before you characterise a link.
@@ -123,7 +127,7 @@ wicked-garden run scripts/draft/self_check.py <out.html> --pages 2 --exact --ren
 | Verdict | Exit | Meaning | What you do |
 |---------|------|---------|-------------|
 | `PASS` | 0 | every floor met and every pair/page evaluated | **done** — end your reply with the verdict line |
-| `FAIL` | 1 | a pair below the floor, text under 7pt (after any zoom/scale), pages over budget, a placeholder, an uncited number/URL, a hidden mock label, a dangling source | **never done** — fix the document (not the check, not the flags), re-run |
+| `FAIL` | 1 | a pair below the floor, text under 7pt (after any zoom/scale), pages over budget, a placeholder, an uncited number/URL, a hidden mock label, a dangling source, a `cite-off` (cited line doesn't carry the block's text) | **never done** — fix the document (not the check, not the flags), re-run |
 | `UNVERIFIED` | 3 | no floor failed, but something could not be evaluated: the page count (no PDF and no renderer on this seat), or a colour pair (unsupported colour function, image-only background, an unevaluable transform) | **done only with disclosure** — copy the `DISCLOSE` line(s) the check prints into the deliverable's notes and your reply |
 
 There are exactly two "done" states: `PASS`, or `UNVERIFIED` with the disclosure. `FAIL`
