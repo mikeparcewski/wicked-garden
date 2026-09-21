@@ -434,33 +434,100 @@ def test_directory_as_file_fails_closed(tmp_path: Path):
     assert stats["cited_lines"] == 0
 
 
-@pytest.mark.skipif(os.name == "nt", reason="chmod 0 not reliable on Windows")
-def test_oserror_continues_to_next_repo(tmp_path: Path):
+def test_oserror_continues_to_next_repo(tmp_path: Path, monkeypatch):
     """#1181-C — an OSError reading one repo must try the next repo, not abort.
 
-    repo1/README.md = real file chmod 0 (PermissionError on read). repo2/README.md = file that
-    does NOT carry the block text → cite-off produced.
+    repo1/README.md raises PermissionError (monkeypatched — works at every euid including root).
+    repo2/README.md = file that does NOT carry the block text → cite-off produced.
 
-    Red on main: p.exists() True → p.read_text() → PermissionError → return None → cited_lines=1
-    (aborted at repo1, reported verified despite never reading the file).
+    Red on original: p.exists() True → p.read_text() → PermissionError → return None →
+    cited_lines=1 (aborted at repo1, reported verified despite never reading the file).
     Green after fix: PermissionError → continue → repo2 tried → no match → cite_off=1.
     """
     repo1 = tmp_path / "repo1"
     repo1.mkdir()
     readme1 = repo1 / "README.md"
     readme1.write_text("fast execution sub-second\n", encoding="utf-8")
-    readme1.chmod(0o000)            # make unreadable
     repo2 = tmp_path / "repo2"
     repo2.mkdir()
     (repo2 / "README.md").write_text("unrelated content here\n", encoding="utf-8")
-    try:
-        findings, stats = cs.scan_document(
-            '<body><p data-source="README.md:1">fast execution sub-second</p></body>',
-            [str(repo1), str(repo2)])
-        assert stats["cite_off"] == 1
-        assert stats["cited_lines"] == 0
-    finally:
-        readme1.chmod(0o644)        # restore so tmp cleanup works
+    _orig_read_text = Path.read_text
+
+    def _failing_read_text(self, *args, **kwargs):
+        if self.resolve() == readme1.resolve():
+            raise PermissionError("permission denied")
+        return _orig_read_text(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _failing_read_text)
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1">fast execution sub-second</p></body>',
+        [str(repo1), str(repo2)])
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 0
+
+
+# ── PR #1183 review follow-ups ────────────────────────────────────────────────────────────────
+
+
+def test_sibling_elements_each_checked_for_cite_off(tmp_path: Path):
+    """PR #1183 review item 1 — silent sibling skip: two sibling <li> with the same source
+    must each be independently checked. Previously checked_cite_off keyed on (s, block.path()),
+    but path() has no sibling index — both <li> shared a key and the second was never checked.
+    Fix: key on (s, id(block)) so each node is distinct regardless of path().
+
+    Two-sibling <li> shape: first element matches line 1 (verified); second element has no
+    token overlap with line 1 (genuine cite-off, was silently skipped before the fix).
+
+    Red on b868483a: cite_off=0, cited_lines=1 — second <li> key-collides with first, skipped.
+    Green after fix: cite_off=1, cited_lines=1 — first verified, second independently checked.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("fast execution\n", encoding="utf-8")
+    html = (
+        '<body><ul>'
+        '<li data-source="README.md:1">fast execution</li>'
+        '<li data-source="README.md:1">slow throughput</li>'
+        '</ul></body>'
+    )
+    findings, stats = cs.scan_document(html, [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 1
+
+
+def test_check_cite_off_path_only_returns_none_and_is_skipped():
+    """PR #1183 review item 2 — latent contract: _check_cite_off with a path-only source
+    returns None; the caller's explicit branch treats None as skip (no cited_lines increment).
+    This branch is currently unreachable from scan_document (the :307 _LINE_SPEC_RE guard
+    filters path-only sources before calling _check_cite_off), so this test pins the contract
+    directly. It passes before and after the latent-contract fix; that is correct and expected.
+    """
+    assert cs._check_cite_off("README.md", "some text", []) is None
+
+
+def test_inverted_range_is_invalid(tmp_path: Path):
+    """PR #1183 review item 4 — inverted range: README.md:3-1 previously passed both bounds
+    checks (3≥1, 1≥1, both ≤3), produced an empty slice, and mischaracterised as
+    'does not carry this text'. Fix: add s_int > e_int guard with a distinct 'invalid range'
+    detail, distinct from past-end-of-file and does-not-carry-this-text.
+
+    Red on b868483a: detail contains 'does not carry this text — nearest match: line 1'.
+    Green after fix: detail contains 'invalid range (3 > 1)'.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("line one\nline two\nline three\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:3-1">line three</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "invalid range" in coffs[0].detail
+    assert "3 > 1" in coffs[0].detail
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 0
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────────────────────

@@ -155,6 +155,8 @@ def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | Non
             continue                    # try next repo; formerly aborted the whole search
         if '-' in line_spec:
             s_int, e_int = (int(x) for x in line_spec.split('-', 1))
+            if s_int > e_int:
+                return f"data-source {source} has invalid range ({s_int} > {e_int})"
             if s_int < 1 or s_int > len(lines) or e_int < 1 or e_int > len(lines):
                 return f"data-source {source} is past end of file ({len(lines)} lines)"
             start, end = s_int - 1, e_int - 1
@@ -284,7 +286,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         findings.append(Finding(kind, node.path(), text[:100], detail))
 
     checked_sources: set[str] = set()
-    checked_cite_off: set[tuple[str, str]] = set()   # (source, block.path()) — prevents double-report
+    checked_cite_off: set[tuple] = set()   # (source, id(block)) — id() gives each sibling node a distinct key
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -306,12 +308,14 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
             for s in list(dict.fromkeys(el_sources + block_sources)):
                 m = _LINE_SPEC_RE.match(s)
                 if m and _path_exists_in_repos(m.group(1), repos):
-                    cite_key = (s, block.path())
+                    cite_key = (s, id(block))
                     if cite_key in checked_cite_off:
                         continue
                     checked_cite_off.add(cite_key)
                     detail = _check_cite_off(s, block_text, repos)
-                    if detail is _UNVERIFIABLE:
+                    if detail is None:
+                        pass                        # path-only: not a line citation, count nothing
+                    elif detail is _UNVERIFIABLE:
                         stats["cite_off"] += 1
                         add("cite-off", el, own, f"data-source {s} could not be verified")
                     elif detail:
