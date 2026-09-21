@@ -497,14 +497,29 @@ def test_sibling_elements_each_checked_for_cite_off(tmp_path: Path):
     assert stats["cited_lines"] == 1
 
 
-def test_check_cite_off_path_only_returns_none_and_is_skipped():
+def test_check_cite_off_path_only_returns_none_and_is_skipped(tmp_path, monkeypatch):
     """PR #1183 review item 2 — latent contract: _check_cite_off with a path-only source
-    returns None; the caller's explicit branch treats None as skip (no cited_lines increment).
-    This branch is currently unreachable from scan_document (the :307 _LINE_SPEC_RE guard
-    filters path-only sources before calling _check_cite_off), so this test pins the contract
-    directly. It passes before and after the latent-contract fix; that is correct and expected.
+    returns None; the caller's explicit `if detail is None: pass` arm treats None as skip
+    (no cited_lines increment, no cite-off finding). The None branch is currently unreachable
+    from scan_document (the :307 _LINE_SPEC_RE guard filters path-only sources first), so the
+    caller arm is pinned via monkeypatch: _check_cite_off is forced to return None for a
+    line-spec source so the arm IS reached and asserted. Passes before and after the
+    latent-contract fix; that is correct and expected (latent-contract exemption — say so plainly).
     """
+    # direct contract: path-only source → None
     assert cs._check_cite_off("README.md", "some text", []) is None
+
+    # caller-ordering pin: _check_cite_off forced to return None → cited_lines must stay 0
+    # Red when `if detail is None: pass` arm is absent (None falls to else → cited_lines=1).
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("some text here\n", encoding="utf-8")
+    monkeypatch.setattr(cs, "_check_cite_off", lambda source, block_text, repos: None)
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1">some text here</p></body>',
+        [str(repo)])
+    assert stats["cited_lines"] == 0
+    assert all(f.kind != "cite-off" for f in findings)
 
 
 def test_inverted_range_is_invalid(tmp_path: Path):
