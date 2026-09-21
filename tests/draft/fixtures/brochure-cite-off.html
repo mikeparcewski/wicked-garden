@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Brochure — cite-off fixture</title>
+<style>body{color:#111;background:#fff;font-size:10pt}</style>
+</head>
+<body>
+<section class="page">
+  <h2>Key Capabilities</h2>
+  <ul>
+    <!-- The true text "Fast: sub-second execution" lives on line 4 of README.md.
+         This citation says line 7, which reads "Extended detail line here" —
+         three lines below the actual line.  The cite-off check must flag this. -->
+    <li data-source="README.md:7">Fast: sub-second execution</li>
+  </ul>
+  <footer><p>Sources: README.md</p></footer>
+</section>
+</body>
+</html>
