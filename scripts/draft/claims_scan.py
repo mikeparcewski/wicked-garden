@@ -286,7 +286,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         findings.append(Finding(kind, node.path(), text[:100], detail))
 
     checked_sources: set[str] = set()
-    checked_cite_off: set[tuple] = set()   # (source, id(block)) — id() gives each sibling node a distinct key
+    checked_cite_off: set[tuple] = set()   # (source, id(block)) — one check per source per block-level element; inline siblings sharing one enclosing block are NOT distinguished (see #1184)
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
