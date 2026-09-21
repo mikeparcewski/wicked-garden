@@ -89,6 +89,8 @@ SOURCE_ATTRS = ("data-source", "data-sources", "data-src-path", "data-cite")
 SKIP_DIRS = {".git", "node_modules", ".venv", "target", "dist", "build", "__pycache__", ".next"}
 # matches path:N or path:N-M at end of a source string; group 1 = path, group 2 = line spec
 _LINE_SPEC_RE = re.compile(r'^(.*?):(\d+(?:-\d+)?)$')
+# sentinel returned by _check_cite_off: file found but could not verify → treated as cite-off
+_UNVERIFIABLE = object()
 
 
 @dataclass
@@ -123,48 +125,58 @@ def _direct_sources_on(node: Node) -> list[str]:
 
 
 def _cite_tokens(text: str) -> set[str]:
-    """Token set for citation overlap — split on \\W+, keep tokens of length ≥ 2, lowercase."""
-    return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2}
+    """Token set for citation overlap — split on \\W+, keep tokens len≥2 or digit-only, lowercase."""
+    return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
 
 
-def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | None:
-    """Return a detail message if source's cited lines share no tokens with block_text; else None.
+def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | None | object:
+    """Check whether source's cited lines carry block_text tokens.
 
-    Only called when _path_exists_in_repos already confirmed the file exists.
-    A path-only source (no :N suffix) always returns None — path-only citations are valid.
+    Returns:
+      None            — path-only citation (no :N suffix); caller skips it.
+      ""              — verified clean: cited line is the best or tied-best match.
+      _UNVERIFIABLE   — file unreadable, empty token set, or not found; caller treats as cite-off.
+      non-empty str   — cite-off detail message; caller reports a finding.
     """
     m = _LINE_SPEC_RE.match(source)
     if m is None:
-        return None
+        return None                     # path-only, nothing to verify
     rel_path, line_spec = m.group(1), m.group(2)
     block_tokens = _cite_tokens(block_text)
     if not block_tokens:
-        return None
+        return _UNVERIFIABLE            # token set empty after filtering — cannot verify
     for repo in repos:
         p = Path(repo) / rel_path
-        if not p.exists():
+        if not p.is_file():             # rejects directories; p.exists() was accepting them
             continue
         try:
             lines = p.read_text(encoding="utf-8", errors="ignore").splitlines()
         except OSError:
-            return None
+            continue                    # try next repo; formerly aborted the whole search
         if '-' in line_spec:
-            s, e = line_spec.split('-', 1)
-            start, end = max(0, int(s) - 1), min(len(lines) - 1, int(e) - 1)
+            s_int, e_int = (int(x) for x in line_spec.split('-', 1))
+            if s_int > e_int:
+                return f"data-source {source} has invalid range ({s_int} > {e_int})"
+            if s_int < 1 or s_int > len(lines) or e_int < 1 or e_int > len(lines):
+                return f"data-source {source} is past end of file ({len(lines)} lines)"
+            start, end = s_int - 1, e_int - 1
         else:
-            start = end = max(0, min(int(line_spec) - 1, len(lines) - 1))
+            lnum = int(line_spec)
+            if lnum < 1 or lnum > len(lines):
+                return f"data-source {source} is past end of file ({len(lines)} lines)"
+            start = end = lnum - 1
         cited_text = "\n".join(lines[start:end + 1])
-        if block_tokens & _cite_tokens(cited_text):
-            return None
-        # Find the line with the most token overlap to give a useful hint
+        cited_score = len(block_tokens & _cite_tokens(cited_text))
         best_n, best_score = None, 0
         for i, line in enumerate(lines):
             score = len(block_tokens & _cite_tokens(line))
             if score > best_score:
                 best_score, best_n = score, i + 1
+        if cited_score > 0 and best_score <= cited_score:
+            return ""                   # verified: cited line is best or tied-best match
         hint = f" — nearest match: line {best_n}" if best_n else ""
         return f"data-source {source} does not carry this text{hint}"
-    return None
+    return _UNVERIFIABLE                # file not found in any repo
 
 
 def _illustrative_container(node: Node) -> Node | None:
@@ -274,6 +286,7 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
         findings.append(Finding(kind, node.path(), text[:100], detail))
 
     checked_sources: set[str] = set()
+    checked_cite_off: set[tuple] = set()   # (source, id(block)) — one check per source per block-level element; inline siblings sharing one enclosing block are NOT distinguished (see #1184)
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -287,13 +300,25 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                 checked_sources.add(s)
                 if not _path_exists_in_repos(s, repos):
                     add("dangling-source", el, s, "data-source names a path that does not exist under --repo")
-        # cite-off: check per-element (non-inherited) line citations against the block's own text
+        # cite-off: check direct citations on this element and on its enclosing block
+        # (block != el when el is an inline tag — covers the invisible-citation case #1181-A)
         if repos:
-            for s in _direct_sources_on(el):
+            el_sources = _direct_sources_on(el)
+            block_sources = _direct_sources_on(block) if block is not el else []
+            for s in list(dict.fromkeys(el_sources + block_sources)):
                 m = _LINE_SPEC_RE.match(s)
                 if m and _path_exists_in_repos(m.group(1), repos):
-                    detail = _check_cite_off(s, own, repos)
-                    if detail:
+                    cite_key = (s, id(block))
+                    if cite_key in checked_cite_off:
+                        continue
+                    checked_cite_off.add(cite_key)
+                    detail = _check_cite_off(s, block_text, repos)
+                    if detail is None:
+                        pass                        # path-only: not a line citation, count nothing
+                    elif detail is _UNVERIFIABLE:
+                        stats["cite_off"] += 1
+                        add("cite-off", el, own, f"data-source {s} could not be verified")
+                    elif detail:
                         stats["cite_off"] += 1
                         add("cite-off", el, own, detail)
                     else:
