@@ -13,7 +13,7 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/react": "^6.0.0",
+    "@astrojs/react": "^7.0.0",
     "@fontsource-variable/archivo": "^5.2.8",
     "@fontsource-variable/hanken-grotesk": "^5.0.0",
     "@fontsource-variable/jetbrains-mono": "^5.0.0",
