@@ -1,0 +1,17 @@
+{
+  "name": "demo-video-recording",
+  "private": true,
+  "type": "module",
+  "description": "Engine for the demo-video-recording agent skill: captioned, chaptered product demo videos from a storyline file.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "record": "node record.mjs",
+    "setup": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.58.0"
+  }
+}
