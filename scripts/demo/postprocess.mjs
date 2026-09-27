@@ -1,4 +1,4 @@
-// Part of the demo-video-recording skill. Turns a recorded timeline (frames + marks) into a 1080p H.264 MP4 with chapter markers.
+// Part of the wicked-garden-demo skill. Turns a recorded timeline (frames + marks) into a 1080p H.264 MP4 with chapter markers.
 //
 // Each screencast frame lasts until the next one; spans marked by Stage.fast() are compressed by their factor,
 // so long model waits play as a visible time-lapse while the on-screen badge states the real elapsed time.

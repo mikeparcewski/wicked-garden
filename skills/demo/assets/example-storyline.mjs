@@ -1,11 +1,11 @@
-// Example storyline for the demo-video-recording skill (see references/storyline-api.md).
+// Example storyline for the wicked-garden-demo skill (see refs/storyline-api.md).
 //
 // A hypothetical app "Acme Console" at http://localhost:3000 with a dashboard, search, a long-running report job and an
 // assistant chat. Copy this file next to your project, then replace the segments with your own chapters.
 //
-//   node <skill>/scripts/record.mjs demo/storyline.mjs --list
-//   node <skill>/scripts/record.mjs demo/storyline.mjs 01-dashboard     # record one segment first, review its stills
-//   node <skill>/scripts/record.mjs demo/storyline.mjs --all            # then everything
+//   wicked-garden run scripts/demo/record.mjs demo/storyline.mjs --list
+//   wicked-garden run scripts/demo/record.mjs demo/storyline.mjs 01-dashboard     # record one segment first, review its stills
+//   wicked-garden run scripts/demo/record.mjs demo/storyline.mjs --all            # then everything
 import { spawnSync } from "node:child_process";
 
 /** Resets the demo records a segment uses, via the app's own admin CLI (placeholder). Cross-platform: no shell tricks. */

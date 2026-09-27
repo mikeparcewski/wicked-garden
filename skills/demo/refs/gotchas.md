@@ -126,8 +126,8 @@ locator scoped to `main`).
 
 **A probe script can't import Playwright.**
 Cause: Playwright is installed in the skill's `scripts/node_modules`, not in your project.
-Fix: use `node <skill>/scripts/probe.mjs`, or import it by path: `import { chromium } from
-"<skill>/scripts/node_modules/playwright/index.mjs"`.
+Fix: use `wicked-garden run scripts/demo/probe.mjs`, or resolve the scripts directory with
+`wicked-garden path scripts/demo` and import from `<scripts-dir>/node_modules/playwright/index.mjs`.
 
 **Shell loops mangle arguments (for example stills at timestamps).**
 Cause: shells differ (zsh doesn't word-split variables; PowerShell quoting differs from bash).

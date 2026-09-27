@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Records a captioned product demo as independent segments and stitches them into one MP4 with chapters
-// (part of the demo-video-recording skill; see references/storyline-api.md).
+// (part of the wicked-garden-demo skill; see skills/demo/refs/storyline-api.md).
 //
 //   node record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>] [--keep-closing]
 //

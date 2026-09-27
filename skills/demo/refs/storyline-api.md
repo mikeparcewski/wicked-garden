@@ -4,13 +4,13 @@ A demo video is described by one **storyline module** (plain JavaScript, ESM). T
 own, then stitches them into one MP4 with chapters.
 
 ```sh
-cd <skill>/scripts && npm install && npx playwright install chromium    # once
-node <skill>/scripts/record.mjs path/to/storyline.mjs              # record missing segments, then stitch
-node <skill>/scripts/record.mjs path/to/storyline.mjs 03-search    # (re)record one or more segments, restitch
-node <skill>/scripts/record.mjs path/to/storyline.mjs --all        # re-record everything
-node <skill>/scripts/record.mjs path/to/storyline.mjs --stitch     # only stitch what exists
-node <skill>/scripts/record.mjs path/to/storyline.mjs --reencode   # rebuild every segment from saved frames, restitch
-node <skill>/scripts/record.mjs path/to/storyline.mjs --list       # segments and whether each is recorded
+cd "$(wicked-garden path scripts/demo)" && npm install && npx playwright install chromium   # once
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs              # record missing segments, then stitch
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs 03-search    # (re)record one or more segments, restitch
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --all        # re-record everything
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --stitch     # only stitch what exists
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --reencode   # rebuild every segment from saved frames, restitch
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --list       # segments and whether each is recorded
 ```
 
 Options: `--out <dir>` (default: `demo-video/` next to the storyline), `--keep-closing` (see below). Environment: `FFMPEG` (path to ffmpeg; ffprobe
@@ -98,7 +98,7 @@ that). Keep the last segment short (a wrap-up) for that reason.
 
 - Wait on **network responses** (`waitForResponse` / `waitForPost`), then on the result element (`waitVisible`), never on
   fixed sleeps, for anything the app computes. After a click that changes page, wait with `waitForPath` or `waitVisible`.
-- Probe first: `node <skill>/scripts/probe.mjs <baseUrl> /page ...` lists headings, sections, buttons with roles,
+- Probe first: `wicked-garden run scripts/demo/probe.mjs <baseUrl> /page ...` lists headings, sections, buttons with roles,
   inputs and links, read-only, and saves a screenshot per page.
 - Put the **caption before the navigation** it describes, with a short `readMs`, so the words and the picture change together.
 - Keep every segment **self-contained**: it navigates from `startPath`, resets what it uses in `beforeSegment`, and never

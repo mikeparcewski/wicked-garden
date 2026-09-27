@@ -1,8 +1,8 @@
 {
-  "name": "demo-video-recording",
+  "name": "wicked-garden-demo-scripts",
   "private": true,
   "type": "module",
-  "description": "Engine for the demo-video-recording agent skill: captioned, chaptered product demo videos from a storyline file.",
+  "description": "Engine for the wicked-garden-demo skill: captioned, chaptered product demo videos from a storyline file.",
   "license": "MIT",
   "engines": {
     "node": ">=20"

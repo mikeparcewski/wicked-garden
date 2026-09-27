@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-// Read-only selector probe for writing a storyline (part of the demo-video-recording skill).
+// Read-only selector probe for writing a storyline (part of the wicked-garden-demo skill).
 //
-//   node probe.mjs <baseUrl> <path> [path ...] [--out <dir>] [--width 1600] [--height 862]
+//   wicked-garden run scripts/demo/probe.mjs <baseUrl> <path> [path ...] [--out <dir>] [--width 1600] [--height 862]
 //
 // For each page: loads it (no clicks, no typing), waits for the network to settle, saves a full-page screenshot and
 // prints what a storyline can target: headings (with level), <section> titles as ctx.section() will see them, buttons
 // with their ARIA role and state (tabs and toggles are often role=radio), inputs with placeholders, and the first
 // links. Writes the same as <out>/<slug>.json. Uses the Playwright installed next to this script, so it runs from
-// anywhere: `node <skill>/scripts/probe.mjs http://localhost:3000 / /reports`.
+// anywhere: `wicked-garden run scripts/demo/probe.mjs http://localhost:3000 / /reports`.
 import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";

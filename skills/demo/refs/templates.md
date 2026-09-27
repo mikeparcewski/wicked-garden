@@ -1,3 +1,7 @@
+# Demo templates
+
+## Presenter-script template
+
 # <PRODUCT> demo script
 
 For the presenter and <TEAM>. Rehearsed on <DATE> against <ENVIRONMENT> with <MODEL / VERSION>. Timings marked
@@ -31,7 +35,7 @@ control. What gets faster.>
 | Fresh cases | `<command to list fresh/used cases>` should show all fresh |
 | Reset after a demo | `<command to reset all>` / `<command to reset named cases>`; <how long it takes> |
 | Last resort | `<command to rebuild data>` (<what it wipes>) |
-| Recorded demo | `<command to record the video>` (see the demo-video-recording skill) |
+| Recorded demo | `<command to record the video>` (see the `wicked-garden-demo` `record` action) |
 
 **Pre-flight, 10 minutes before:**
 1. List cases; reset any that are not fresh.
@@ -53,7 +57,7 @@ Pre-bake: **<CASES>** (<which step>). Everything else runs live.
 
 Short on time? <Which segments can be dropped and how the rest still flows.>
 
-<!-- One block per segment, from assets/segment-template.md -->
+<!-- One block per segment, from the segment block template below -->
 
 ### Segment 1: <Title>
 
@@ -103,3 +107,26 @@ Short on time? <Which segments can be dropped and how the rest still flows.>
 | Who can teach it new rules? | <proposal vs validation; separation of duties> |
 | Is this real customer data? | <synthetic; what is simulated> |
 | How do we know an answer is right? | <evidence, citations, deterministic checks> |
+
+---
+
+## Segment block template
+
+### Segment <N>: <TITLE>
+
+**Case:** <CASE-KEY>, <CUSTOMER / ENTITY>. Fresh alternates: **<ALT-1>**, **<ALT-2>**. Act as **<PERSONA>**.
+<!-- Omit "Case" for read-only chapters and say "(read-only)" in the heading instead. -->
+
+1. **Click:** <what to open or press, exact UI labels in bold>.
+   **Say:** "<one or two sentences for the presenter>"
+2. **Click:** **<Button>**. **Measured: <seconds> s** (<where measured: rehearsal / recording, date>).
+3. **The audience sees:**
+   - **<Section label>**: "<key sentence as shown on screen>"
+   - **<Section label>**: <counts, statuses, what passed or failed>
+
+- **What is happening under the hood:** <which parts are deterministic rules, which part the model does, what is
+  written where, what is gated behind a person, what is audited>.
+- **How this speeds up execution:** it replaces <manual work>. **Estimate:** <range> (team to validate).
+  **Measured:** <seconds> s.
+
+> <Optional rough-edge note: what may vary between runs and what to say if it does.>

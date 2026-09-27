@@ -1,4 +1,4 @@
-// Recording stage for captioned product demo videos (part of the demo-video-recording skill).
+// Recording stage for captioned product demo videos (part of the wicked-garden-demo skill).
 //
 // The app runs inside a 1600x900 browser-window frame on a 1920x1080 stage page; the lower-third caption band,
 // cursor, callouts and title cards are stage DOM, so captions never cover the product UI and everything is
