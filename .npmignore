@@ -55,6 +55,8 @@ memory/
 .wicked-estate-extractors/
 renovate.json
 package-lock.json
+# ...except the demo skill's Playwright pin, which scripts/demo/setup.mjs installs from
+!scripts/demo/package-lock.json
 
 # Dev artifacts — design/requirements docs and run evidence are not runtime files (#1137)
 .product/
