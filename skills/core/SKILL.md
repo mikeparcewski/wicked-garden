@@ -89,6 +89,7 @@ Each domain is one consolidated skill that routes to its actions.
 |-------|-------------|-------------|
 | `wicked-garden-agentic` | Design, review, and audit agentic AI systems | review · design · audit · frameworks |
 | `wicked-garden-data` | Data analysis, pipelines, ML, and ontology recommendations | analyze · pipeline · ml · ontology |
+| `wicked-garden-demo` | Plan, record and review a polished product demo video — presenter script, per-chapter recordings, and contact-sheet QA | plan · record · review |
 | `wicked-garden-engineering` | Architecture, code review, debugging, docs, planning, and deterministic multi-file code transformations | review · debug · arch · plan · apply |
 | `wicked-garden-jam` | Multi-model brainstorming + structured council (independent second opinion) | council · brainstorm · quick · revisit |
 | `wicked-garden-domain` | Extract a codebase's domain model — business rules + provenance, entities, requirements on the estate graph — a foundational substrate build/migrate/review/modernize all consume (none own) | extractor · modeler · coverage |
