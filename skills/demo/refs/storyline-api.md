@@ -4,7 +4,7 @@ A demo video is described by one **storyline module** (plain JavaScript, ESM). T
 own, then stitches them into one MP4 with chapters.
 
 ```sh
-cd "$(wicked-garden path scripts/demo)" && npm install && npx playwright install chromium   # once
+wicked-garden run scripts/demo/setup.mjs   # once: Playwright + Chromium into a per-user cache dir
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs              # record missing segments, then stitch
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs 03-search    # (re)record one or more segments, restitch
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --all        # re-record everything

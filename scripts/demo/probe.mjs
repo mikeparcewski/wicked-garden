@@ -6,18 +6,18 @@
 // For each page: loads it (no clicks, no typing), waits for the network to settle, saves a full-page screenshot and
 // prints what a storyline can target: headings (with level), <section> titles as ctx.section() will see them, buttons
 // with their ARIA role and state (tabs and toggles are often role=radio), inputs with placeholders, and the first
-// links. Writes the same as <out>/<slug>.json. Uses the Playwright installed next to this script, so it runs from
+// links. Writes the same as <out>/<slug>.json. Uses the Playwright installed by setup.mjs (see _playwright.mjs), so it runs from
 // anywhere: `wicked-garden run scripts/demo/probe.mjs http://localhost:3000 / /reports`.
 import fs from "node:fs";
 import path from "node:path";
-import { chromium } from "playwright";
+import { loadChromium } from "./_playwright.mjs";
 
 const argv = process.argv.slice(2);
 const opt = (name, dflt) => { const i = argv.indexOf(name); return i >= 0 ? argv[i + 1] : dflt; };
 const positional = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].startsWith("--")));
 const [base, ...paths] = positional;
 if (!base || !paths.length) {
-  console.error("usage: node probe.mjs <baseUrl> <path> [path ...] [--out <dir>] [--width 1600] [--height 862]");
+  console.error("usage: wicked-garden run scripts/demo/probe.mjs <baseUrl> <path> [path ...] [--out <dir>] [--width 1600] [--height 862]");
   process.exit(2);
 }
 const out = path.resolve(opt("--out", "probe-out"));
@@ -25,7 +25,7 @@ fs.mkdirSync(out, { recursive: true });
 // 1600x862 is the app viewport inside the recording stage's window (1600x900 minus the 38 px title bar).
 const viewport = { width: Number(opt("--width", 1600)), height: Number(opt("--height", 862)) };
 
-const browser = await chromium.launch();
+const browser = await (await loadChromium()).launch();
 const page = await (await browser.newContext({ viewport })).newPage();
 for (const p of paths) {
   const url = base.replace(/\/$/, "") + p;

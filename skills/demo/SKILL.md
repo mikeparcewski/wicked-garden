@@ -121,7 +121,12 @@ Use the templates in `refs/templates.md`:
 
 Style: skimmable. Tables and short bullets, exact UI labels in **bold**, quotes in *italics*, one idea per line.
 
-### 8. Hand off to record
+### 8. Keep it in sync, then hand off to record
+
+- **Keep the script in sync with rehearsal changes**: after any fix lands, update the affected segment and add a
+  **Changes since the rehearsal** block at the top of the script — what changed, whether it was seen in a browser,
+  and which timings predate it.
+- Re-rehearse chapters whose behaviour changed; replace numbers only with new measurements.
 
 For each chapter write:
 - **Key**: `NN-slug` (`01-dashboard`) — stable, used for files and re-recording.
@@ -131,6 +136,19 @@ For each chapter write:
 - **Resets**: the cases it changes.
 
 That list becomes the `segments` array in the storyline file for the `record` action.
+
+### Checklist (acceptance gate)
+
+`plan` is done only when every item is checked:
+
+- [ ] Audience, pitch, three-sentence use case written
+- [ ] Capabilities listed; one chapter each, ordered as a story
+- [ ] Hero case + fresh alternates per chapter; state-consuming chapters marked
+- [ ] Per-case reset and fresh/used listing work; pre-flight written
+- [ ] Every chapter rehearsed live; timings and audience-visible results logged; rough edges triaged
+- [ ] Script written from the template; measured vs estimate labelled everywhere
+- [ ] Cases reset and confirmed fresh after rehearsal
+- [ ] Chapter list ready for recording (keys, titles, blurbs, tags, resets)
 
 ---
 
@@ -143,7 +161,7 @@ and the web app running and reachable.
 ### Install (once per machine)
 
 ```sh
-cd "$(wicked-garden path scripts/demo)" && npm install && npx playwright install chromium
+wicked-garden run scripts/demo/setup.mjs
 ```
 
 Confirm: `ffmpeg -version` and `ffprobe -version` both work.
@@ -183,9 +201,25 @@ Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`.
 
 Record one segment first, review its stills with the `review` action, then record the rest.
 
+### Restore the app
+
+Reset whatever the recording consumed (run the per-case reset for every segment's `resets`) so the live demo
+starts fresh, and confirm the cases list as fresh again.
+
 Deliverable: `<out>/<slug>.mp4` (stitched), `chapters.md`, `timings.json`, `segments/<key>/`.
 
 Hard-won failure modes and fixes: `refs/gotchas.md`.
+
+### Before you call it done (acceptance gate)
+
+`record` is done only when every item is checked:
+
+- [ ] Every segment probed read-only, then recorded without errors; `--list` shows all recorded.
+- [ ] Stills reviewed: opening slides, each caption against its picture, callouts on target, joins, closing card.
+- [ ] No caption claims something the video doesn't show; waits are badged; the closing card shows measured numbers.
+- [ ] Simulated systems and synthetic data are labelled where the audience could mistake them for real.
+- [ ] The app's data is reset afterwards; services you didn't start are still running.
+- [ ] The MP4 plays from start to end with chapters (`ffprobe -show_chapters <file>`).
 
 ---
 
@@ -205,6 +239,11 @@ wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --every 20 --cols 4 
 wicked-garden run scripts/demo/contact_sheet.py <video.mp4> --at 1:02,1:05   # zoom in on a moment
 wicked-garden run scripts/demo/contact_sheet.py segments/05/segment.mp4 --every 8  # one segment alone
 ```
+
+Options: `--offset` (seconds into each chapter, default 2), `--join-gap` (seconds either side of a boundary for
+`--joins`, default 0.6), `--end-span` (seconds before the end for `--end`, default 6), `--cols` (tiles per row,
+default 3), `--width` (tile width in px, default 640), `--out` (output PNG; default `<video>-sheet.png` next to the
+video). Full list: `wicked-garden run scripts/demo/contact_sheet.py --help`.
 
 Also check format: `ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -show_chapters <video.mp4>`.
 
@@ -232,6 +271,14 @@ Report findings as: `timestamp · chapter · what's wrong · verdict`.
 Re-review only the changed segments plus the joins on either side, then run `--end` again.
 
 Deliverable: contact-sheet PNGs + findings table with verdicts.
+
+### Checklist (acceptance gate)
+
+`review` is done only when every item is checked:
+
+- [ ] All five review passes run, in order, on the final file.
+- [ ] Every finding reported as `timestamp · chapter · what's wrong · verdict`.
+- [ ] After fixes: changed segments and the joins on either side re-reviewed, and `--end` run again.
 
 ---
 

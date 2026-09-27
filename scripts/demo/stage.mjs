@@ -6,7 +6,7 @@
 // wall-clock timestamps) instead of Playwright's built-in recorder, whose fixed ~1 Mbps VP8 blurs text at
 // 1080p. postprocess.mjs turns the frames into an H.264 MP4, time-lapsing the marked waits and embedding
 // chapter markers.
-import { chromium } from "playwright";
+import { loadChromium } from "./_playwright.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -157,7 +157,7 @@ export class Stage {
     fs.mkdirSync(path.join(this.outDir, "frames"), { recursive: true });
     for (const f of fs.readdirSync(path.join(this.outDir, "frames"))) fs.unlinkSync(path.join(this.outDir, "frames", f));
     this.frames = [];
-    this.browser = await chromium.launch({ headless: !this.headful, args: ["--force-color-profile=srgb", "--hide-scrollbars"] });
+    this.browser = await (await loadChromium()).launch({ headless: !this.headful, args: ["--force-color-profile=srgb", "--hide-scrollbars"] });
     this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}) });
     this.page = await this.context.newPage();
     const html = stageHtml(this.brand, this.baseUrl + firstPath);

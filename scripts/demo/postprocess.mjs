@@ -2,7 +2,7 @@
 //
 // Each screencast frame lasts until the next one; spans marked by Stage.fast() are compressed by their factor,
 // so long model waits play as a visible time-lapse while the on-screen badge states the real elapsed time.
-// Usage: node postprocess.mjs <outDir> [output.mp4]
+// Usage: wicked-garden run scripts/demo/postprocess.mjs <outDir> [output.mp4]
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";

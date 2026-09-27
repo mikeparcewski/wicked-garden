@@ -20,7 +20,7 @@ function resetRecords(keys) {
 export default {
   title: "Acme Console demo",
   baseUrl: "http://localhost:3000",
-  brand: { name: "Acme Console", logo: "./brand/logo.svg", accent: "#e4002b" },
+  brand: { name: "Acme Console", accent: "#e4002b" }, // optional: logo: "./brand/logo.svg" (path relative to this file)
   startPath: "/",
 
   // Runs behind each segment's opening slide: reset what the segment uses and pick the persona it is told from.

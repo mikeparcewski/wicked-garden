@@ -2,7 +2,7 @@
 // Records a captioned product demo as independent segments and stitches them into one MP4 with chapters
 // (part of the wicked-garden-demo skill; see skills/demo/refs/storyline-api.md).
 //
-//   node record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>] [--keep-closing]
+//   wicked-garden run scripts/demo/record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>] [--keep-closing]
 //
 // Each non-intro segment opens on its own chapter slide (the storyline's beforeSegment hook runs behind it) and ends
 // on the plain stage background, so segments join with a clean cut. Frames and timelines are kept per segment, so a
@@ -19,7 +19,7 @@ const FFPROBE = FFMPEG.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
 
 function usage(msg) {
   if (msg) console.error(`error: ${msg}\n`);
-  console.error("usage: node record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>]");
+  console.error("usage: wicked-garden run scripts/demo/record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>]");
   process.exit(2);
 }
 
@@ -41,10 +41,19 @@ const slug = (story.title || "demo").toLowerCase().replace(/[^a-z0-9]+/g, "-").r
 const FINAL = path.join(OUT, `${slug}.mp4`);
 const BASE = process.env.DEMO_BASE_URL || story.baseUrl;
 if (!BASE) usage("the storyline needs a baseUrl (or set DEMO_BASE_URL)");
+function readLogo(rel) {
+  if (!rel) return "";
+  const p = path.resolve(storyDir, rel);
+  if (!fs.existsSync(p)) {
+    console.warn(`warning: brand.logo not found, recording without a logo: ${p}`);
+    return "";
+  }
+  return fs.readFileSync(p, "utf8");
+}
 const brand = {
   name: story.brand?.name ?? story.title ?? "Demo",
   accent: story.brand?.accent ?? "#ee0000",
-  logoSvg: story.brand?.logo ? fs.readFileSync(path.resolve(storyDir, story.brand.logo), "utf8") : "",
+  logoSvg: readLogo(story.brand?.logo),
 };
 const SEGMENTS = story.segments;
 for (const s of SEGMENTS) if (!/^[a-z0-9][a-z0-9-]*$/.test(s.key ?? "")) usage(`segment key must be lowercase letters, digits and hyphens: ${s.key}`);
