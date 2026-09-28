@@ -159,9 +159,10 @@ export class Stage {
     for (const f of fs.readdirSync(path.join(this.outDir, "frames"))) fs.unlinkSync(path.join(this.outDir, "frames", f));
     this.frames = [];
     this.browser = await (await loadChromium()).launch({ headless: !this.headful, args: ["--force-color-profile=srgb", "--hide-scrollbars"] });
-    this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}) });
-    // Read-only unless DEMO_ALLOW_WRITES=1 (readonly.mjs): the page routes below still win for the stage itself.
     this.readOnly = !writesAllowed();
+    // A service worker answers requests the context's routes never see, so a read-only recording runs without one.
+    this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}), ...(this.readOnly ? { serviceWorkers: "block" } : {}) });
+    // Read-only unless DEMO_ALLOW_WRITES=1 (readonly.mjs): the page routes below still win for the stage itself.
     this.blocked = await armReadOnly(this.context, !this.readOnly);
     this.page = await this.context.newPage();
     const html = stageHtml(this.brand, this.baseUrl + firstPath);

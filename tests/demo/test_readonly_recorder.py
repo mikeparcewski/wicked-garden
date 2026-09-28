@@ -209,9 +209,12 @@ def test_a_blocked_write_that_times_out_the_storylines_wait_still_fails_typed_an
     assert _App.writes == []
     assert not (seg / "segment.mp4").exists(), "the earlier take must not survive to be stitched"
     assert not (seg / "timeline.json").exists(), "a failed take leaves no timeline to re-encode"
-    # --reencode and --stitch fail closed on the blocked take instead of rebuilding or stitching it.
-    for flag in ("--reencode", "--stitch"):
-        (seg / "segment.mp4").write_bytes(b"not this take")
+    # --reencode and --stitch fail closed on the blocked take instead of rebuilding it, stitching it,
+    # or stitching around it: with a video beside its guard and without one.
+    for flag, video in (("--reencode", True), ("--stitch", True), ("--stitch", False)):
+        (seg / "segment.mp4").unlink(missing_ok=True)
+        if video:
+            (seg / "segment.mp4").write_bytes(b"not this take")
         again = subprocess.run(
             ["node", str(DEMO / "record.mjs"), str(tmp_path / "storyline.mjs"), flag, "--out", str(tmp_path / "demo-video")],
             capture_output=True, text=True, timeout=120)

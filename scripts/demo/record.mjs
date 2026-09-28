@@ -186,12 +186,17 @@ function readGuard(key) {
   try { return JSON.parse(fs.readFileSync(path.join(segDir(key), "guard.json"), "utf8")); } catch { return null; }
 }
 
-function stitch() {
-  // A segment whose last take was blocked is never stitched, whatever video sits beside it.
+/** A segment whose last take was blocked stops a re-encode or a stitch until it is re-recorded (or its
+ *  directory is removed): it is never re-encoded, stitched around, or left out quietly. */
+function refuseBlockedTakes() {
   for (const s of SEGMENTS) {
-    const blocked = fs.existsSync(segVideo(s.key)) ? (readGuard(s.key)?.blocked ?? []) : [];
+    const blocked = readGuard(s.key)?.blocked ?? [];
     if (blocked.length) throw sideEffectError(s.key, blocked);
   }
+}
+
+function stitch() {
+  refuseBlockedTakes();
   const segs = SEGMENTS.filter((s) => fs.existsSync(segVideo(s.key)));
   const missing = SEGMENTS.filter((s) => !fs.existsSync(segVideo(s.key))).map((s) => s.key);
   if (!segs.length) throw new Error("no segments recorded yet");
@@ -234,9 +239,8 @@ if (flags.has("--list")) {
   process.exit(0);
 }
 if (flags.has("--reencode")) {
+  refuseBlockedTakes();
   for (const s of SEGMENTS.filter((x) => fs.existsSync(path.join(segDir(x.key), "timeline.json")))) {
-    const blocked = readGuard(s.key)?.blocked ?? [];
-    if (blocked.length) throw sideEffectError(s.key, blocked);
     const r = buildVideo(segDir(s.key), segVideo(s.key), { trimStart: 0.9, ffmpeg: FFMPEG });
     console.log(`  ${s.key}: ${r.seconds.toFixed(1)} s`);
   }
