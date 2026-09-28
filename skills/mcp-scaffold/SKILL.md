@@ -56,13 +56,14 @@ Each tool is one entry in the `TOOLS` table: `description`, `inputSchema` (JSON 
 `type: object`), `annotations` and a `handler`. A handler returns text; a bad call raises
 `ToolError`, which comes back as `isError` so the caller's turn continues.
 
-**Annotations decide the tool's class**, and the class decides its posture:
+**The broker derives each tool's class from its annotations** (an operator override in the
+registry wins), and the class decides its posture:
 
 | Annotations | Class |
 |---|---|
 | `readOnlyHint: true` | read |
-| `readOnlyHint` false or absent, `destructiveHint` true or absent | destructive |
-| `readOnlyHint: false`, `destructiveHint: false` | write |
+| an `annotations` object with `readOnlyHint` false or absent and `destructiveHint` true or absent | destructive |
+| an `annotations` object with `readOnlyHint: false` and `destructiveHint: false` | write |
 | no `annotations` object at all | **write** |
 
 - Set `readOnlyHint: true` only when the tool changes nothing anywhere: no files, no
@@ -121,12 +122,14 @@ that holds the secret (never its value).
 
 What happens after registration is policy, not your server's code:
 
-- **The first call to a new server, and to a tool whose schema changed, always waits for
-  the operator's approval**, in every run mode. An approval is an audited steering edit.
+- **The first time any run uses the server, and again when a tool's schema changes, the
+  call waits for the operator's approval**, in every run mode. An approval is an audited
+  policy edit that adds the server or tool to the approved set.
 - After approval the run mode decides: *Gate every step* asks on every write call; *Gate
   by risk* runs reads and asks on writes; *Auto* runs reads and writes.
-- In every mode: evaluator phases never call write or destructive tools; unregistered
-  servers and tools are denied; every call is recorded, or refused if it cannot be.
+- In every mode: evaluator phases never call write or destructive tools; an unannotated
+  tool counts as write; secrets stay in the broker; unregistered servers and tools are
+  denied; every call is recorded, or refused if it cannot be.
 - A denied call is blocked and disclosed to the worker; the unit continues.
 
 ## In a governed run
