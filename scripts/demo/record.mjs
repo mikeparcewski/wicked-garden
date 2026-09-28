@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Stage } from "./stage.mjs";
 import { buildVideo } from "./postprocess.mjs";
+import { sideEffectError } from "./readonly.mjs";
 
 const FFMPEG = process.env.FFMPEG || "ffmpeg";
 const FFPROBE = FFMPEG.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
@@ -144,6 +145,12 @@ async function recordSegment(seg) {
     }
   } finally {
     await stage.close();
+    fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({ readOnly: stage.readOnly, blocked: stage.blocked }, null, 2));
+  }
+  // A blocked write fails the segment before it becomes video: it is never stitched as if it were fine.
+  if (stage.blocked.length) {
+    fs.rmSync(segVideo(seg.key), { force: true });
+    throw sideEffectError(seg.key, stage.blocked);
   }
   const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
   fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
@@ -183,6 +190,13 @@ function stitch() {
   if (r.status !== 0) throw new Error(`stitch failed: ${r.stderr?.toString().slice(-1500)}`);
   fs.writeFileSync(path.join(OUT, "chapters.md"), rows.join("\n") + "\n");
   fs.writeFileSync(path.join(OUT, "timings.json"), JSON.stringify(Object.fromEntries(SEGMENTS.map((s) => [s.key, readTimings(s.key)])), null, 2));
+  // How the stitched segments were recorded: read-only only when every one of them was (a segment recorded
+  // before the guard existed has no guard.json and counts as unknown, not read-only).
+  const guards = segs.map((s) => { try { return JSON.parse(fs.readFileSync(path.join(segDir(s.key), "guard.json"), "utf8")); } catch { return null; } });
+  fs.writeFileSync(path.join(OUT, "recording.json"), JSON.stringify({
+    readOnly: guards.every((g) => g?.readOnly === true),
+    segments: Object.fromEntries(segs.map((s, i) => [s.key, guards[i] === null ? "unknown" : guards[i].readOnly ? "read-only" : "writes-allowed"])),
+  }, null, 2));
   console.log(`stitched ${segs.length} segments -> ${FINAL} (${Math.round(at)} s)${missing.length ? `; missing: ${missing.join(", ")}` : ""}`);
 }
 

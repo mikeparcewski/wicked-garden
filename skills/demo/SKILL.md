@@ -197,7 +197,14 @@ wicked-garden run scripts/demo/record.mjs <storyline.mjs> --list       # which s
 ```
 
 Options: `--out <dir>` (default `demo-video/` next to the storyline).
-Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`.
+Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`, `DEMO_ALLOW_WRITES=1`.
+
+**Read-only by default.** While it records, the browser sends no writes: every request that is not
+GET, HEAD or OPTIONS is aborted, and the segment fails `side_effect_blocked`, naming each request.
+So a recording can never launch, approve, create or delete anything on the app it films. Show a control
+without pressing it. `DEMO_ALLOW_WRITES=1` lifts the guard, but only for a disposable target you started
+for the demo (a fixture server or a scratch database), never for a live system. `recording.json` records
+how each stitched segment was recorded.
 
 Record one segment first, review its stills with the `review` action, then record the rest.
 
@@ -206,7 +213,7 @@ Record one segment first, review its stills with the `review` action, then recor
 Reset whatever the recording consumed (run the per-case reset for every segment's `resets`) so the live demo
 starts fresh, and confirm the cases list as fresh again.
 
-Deliverable: `<out>/<slug>.mp4` (stitched), `chapters.md`, `timings.json`, `segments/<key>/`.
+Deliverable: `<out>/<slug>.mp4` (stitched), `chapters.md`, `timings.json`, `recording.json`, `segments/<key>/`.
 
 Hard-won failure modes and fixes: `refs/gotchas.md`.
 
@@ -218,6 +225,7 @@ Hard-won failure modes and fixes: `refs/gotchas.md`.
 - [ ] Stills reviewed: opening slides, each caption against its picture, callouts on target, joins, closing card.
 - [ ] No caption claims something the video doesn't show; waits are badged; the closing card shows measured numbers.
 - [ ] Simulated systems and synthetic data are labelled where the audience could mistake them for real.
+- [ ] Recorded read-only (`recording.json` says `"readOnly": true`), unless the target is disposable.
 - [ ] The app's data is reset afterwards; services you didn't start are still running.
 - [ ] The MP4 plays from start to end with chapters (`ffprobe -show_chapters <file>`).
 
