@@ -86,19 +86,29 @@ def test_scaffolded_server_serves_calls_and_rejects_unknowns(tmp_path, lang):
          "params": {"name": "counter_increment", "arguments": {"by": 2}}},
         {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "nope"}},
         {"jsonrpc": "2.0", "id": 5, "method": "no/such/method"},
+        {"jsonrpc": "2.0", "id": 6, "method": "tools/call",
+         "params": {"name": "echo", "arguments": "oops"}},
+        {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": None},
+        {"jsonrpc": "2.0", "id": 8, "method": "initialize", "params": []},
+        {"jsonrpc": "2.0", "id": 9, "method": "tools/call",
+         "params": {"name": "echo", "arguments": {"text": 7}}},
     ]
     stdin = "".join(json.dumps(f) + "\n" for f in frames)
     proc = subprocess.run(_server_command(tmp_path, lang), input=stdin,
                           capture_output=True, text=True, timeout=TIMEOUT_S)
     replies = {r["id"]: r for r in map(json.loads, proc.stdout.splitlines())}
 
-    assert sorted(replies) == [1, 2, 3, 4, 5], "a notification must get no reply"
+    assert sorted(replies) == list(range(1, 10)), "a notification must get no reply"
     # An unsupported client version is answered with the server's own latest, not echoed.
     assert replies[1]["result"]["protocolVersion"] != "1999-01-01"
     assert replies[2]["result"]["content"] == [{"type": "text", "text": "hi"}]
     assert replies[3]["result"]["content"] == [{"type": "text", "text": "2"}]
     assert replies[4]["error"]["code"] == -32602
     assert replies[5]["error"]["code"] == -32601
+    # Malformed params/arguments are the same -32602 in both templates, never -32603.
+    assert [replies[i]["error"]["code"] for i in (6, 7, 8)] == [-32602] * 3
+    # A well-formed call with a bad value is a tool error: the caller's turn continues.
+    assert replies[9]["result"]["isError"] is True
 
 
 def test_probe_derives_tool_class_like_the_broker(tmp_path):

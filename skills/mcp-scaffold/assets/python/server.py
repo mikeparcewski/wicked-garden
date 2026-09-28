@@ -106,8 +106,12 @@ def call_tool(params):
     tool = TOOLS.get(params.get("name"))
     if tool is None:
         raise RpcError(-32602, "unknown tool: %s" % params.get("name"))
+    args = params.get("arguments")
+    args = {} if args is None else args
+    if not isinstance(args, dict):
+        raise RpcError(-32602, "arguments must be an object")
     try:
-        text = tool["handler"](params.get("arguments") or {})
+        text = tool["handler"](args)
     except ToolError as err:
         return {"content": [{"type": "text", "text": str(err)}], "isError": True}
     return {"content": [{"type": "text", "text": text}]}
@@ -133,7 +137,11 @@ def handle(line):
     try:
         if method is None:
             raise RpcError(-32601, "method not found: %s" % msg.get("method"))
-        send({"id": msg["id"], "result": method(msg.get("params") or {})})
+        params = msg.get("params")
+        params = {} if params is None else params
+        if not isinstance(params, dict):
+            raise RpcError(-32602, "params must be an object")
+        send({"id": msg["id"], "result": method(params)})
     except RpcError as err:
         send({"id": msg["id"], "error": {"code": err.code, "message": str(err)}})
     except Exception as err:  # noqa: BLE001 — one bad request must not end the server

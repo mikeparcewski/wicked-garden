@@ -61,7 +61,9 @@ class RpcError extends Error {
   }
 }
 
-function initialize(params = {}) {
+const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+function initialize(params) {
   const asked = params.protocolVersion;
   return {
     protocolVersion: SUPPORTED.includes(asked) ? asked : SUPPORTED[0],
@@ -78,11 +80,13 @@ function listTools() {
   };
 }
 
-function callTool(params = {}) {
+function callTool(params) {
   const tool = Object.hasOwn(TOOLS, params.name) ? TOOLS[params.name] : undefined;
   if (!tool) throw new RpcError(-32602, `unknown tool: ${params.name}`);
+  const args = params.arguments ?? {};
+  if (!isObject(args)) throw new RpcError(-32602, 'arguments must be an object');
   try {
-    return { content: [{ type: 'text', text: tool.handler(params.arguments ?? {}) }] };
+    return { content: [{ type: 'text', text: tool.handler(args) }] };
   } catch (err) {
     if (!(err instanceof ToolError)) throw err;
     return { content: [{ type: 'text', text: err.message }], isError: true };
@@ -109,7 +113,9 @@ function handle(line) {
   const method = Object.hasOwn(METHODS, msg.method) ? METHODS[msg.method] : undefined;
   try {
     if (!method) throw new RpcError(-32601, `method not found: ${msg.method}`);
-    send({ id: msg.id, result: method(msg.params) });
+    const params = msg.params ?? {};
+    if (!isObject(params)) throw new RpcError(-32602, 'params must be an object');
+    send({ id: msg.id, result: method(params) });
   } catch (err) {
     if (err instanceof RpcError) {
       send({ id: msg.id, error: { code: err.code, message: err.message } });
