@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **`mcp-scaffold` skill: build an MCP server the wicked-crew broker can register and govern (DES-MCP-TOOLS-001 S5b).** `skills/mcp-scaffold/` ships two zero-dependency stdio templates (`assets/node/server.mjs`, `assets/python/server.py`) that answer `initialize` (with version negotiation), `ping`, `tools/list` and `tools/call`, with one read and one write example tool. `scripts/mcp/scaffold.py` stamps a template into a directory and never overwrites; `scripts/mcp/probe.py` spawns any stdio server with a minimal environment, runs `initialize` + `tools/list` (following `nextCursor`) and derives each tool's class the way the broker does (`readOnlyHint: true` is read, `destructiveHint` absent or true is destructive, otherwise write; no annotations is write). The skill states the rules the broker relies on: honest annotations, secrets only from the injected environment, stdout for protocol frames only, and first-use approval before any call runs. `tests/mcp/test_mcp_scaffold.py` proves both templates answer initialize + tools/list in CI.
+
 ### Fixed
 - **`claims_scan.py` cite-off dedup: this file has now produced the same defect class at three layers — `return None` meaning "verified", then the double-report, then this sibling skip (keying the dedup on `path()` instead of node identity) — each fix introducing the next; the next reader should approach this code expecting that pattern.**
 - **`claims_scan.py` #1178: a `data-source="path:N"` whose line number is past end-of-file (or ≤ 0) is now a `cite-off` finding instead of silently clamping to the last line and reporting clean.** Both the single-line spec `N` and the range spec `N-M` fail closed when `N > len(lines)`, `N < 1`, or (for the range) `M > len(lines)`, with a detail naming the real file length (e.g., `"data-source README.md:9999 is past end of file (3 lines)"`).
