@@ -70,8 +70,15 @@ def test_the_failure_is_typed_and_names_the_request():
 
 
 def _deps_installed() -> bool:
-    cache = os.environ.get("WICKED_DEMO_DEPS") or str(Path.home() / ".cache" / "wicked-garden" / "demo-deps")
-    return (Path(cache) / "node_modules" / "playwright").is_dir()
+    """Where the recorder itself looks (scripts/demo/_playwright.mjs DEPS_DIR), so a cache placed by
+    WICKED_GARDEN_CACHE_DIR or XDG_CACHE_HOME is found too."""
+    if shutil.which("node") is None:
+        return False
+    out = subprocess.run(
+        ["node", "--input-type=module", "-e", "import { DEPS_DIR } from './_playwright.mjs'; console.log(DEPS_DIR);"],
+        cwd=DEMO, capture_output=True, text=True, timeout=60,
+    )
+    return out.returncode == 0 and (Path(out.stdout.strip()) / "node_modules" / "playwright").is_dir()
 
 
 class _App(http.server.BaseHTTPRequestHandler):

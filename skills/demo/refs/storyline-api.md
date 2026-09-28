@@ -82,7 +82,7 @@ that). Keep the last segment short (a wrap-up) for that reason.
 | `ctx.type(locator, text, { delay? })` | Click, then type visibly. |
 | `ctx.fast(label, factor, fn)` | Run `fn` (a wait on the app or a model) as a time-lapse: shows a "`factor`× · label · m:ss real time" badge and compresses the span in post. |
 | `ctx.waitForResponse(regex, { method?, timeout? })` | Wait for a response from the app whose URL matches (any method unless `method` is given, e.g. `"GET"`). Create the promise **before** the click that triggers it. |
-| `ctx.waitForPost(regex, timeout?)` | Shorthand for a POST response. |
+| `ctx.waitForPost(regex, timeout?)` | Shorthand for a POST response. The recorder is read-only by default, so a POST (any non-GET request, any WebSocket frame the page sends) is blocked and fails the segment `side_effect_blocked`: use this only with `DEMO_ALLOW_WRITES=1` against a disposable target you started. |
 | `ctx.waitVisible(locator, timeout?)` | Wait until an element is on screen, e.g. results that replace loading placeholders after the response arrives. |
 | `ctx.waitForPath(regex, timeout?)` | Wait until the app's path (+ query) matches. Client-side routing changes the URL without a page load, so "network idle" can return while the old page is still showing. |
 | `ctx.time(label, fn)` | Run `fn`, record its wall-clock seconds under `label` in this segment's timings, return `fn`'s result. |
