@@ -117,7 +117,10 @@ async function recordSegment(seg) {
     headful: process.env.DEMO_HEADFUL === "1", locale: story.locale, timezoneId: story.timezoneId });
   const timings = {};
   const ctx = makeCtx(stage, timings);
+  // A take that fails never leaves the previous one behind to be stitched as if it were this one.
+  fs.rmSync(segVideo(seg.key), { force: true });
   await stage.open(story.startPath || "/");
+  let failure = null;
   try {
     if (seg.intro) {
       await seg.run(ctx);
@@ -143,15 +146,22 @@ async function recordSegment(seg) {
     } else if (!seg.intro) {
       await stage.card("", 1100); // end on the plain background: the next chapter slide cuts in cleanly
     }
+  } catch (e) {
+    failure = e;
   } finally {
     await stage.close();
     fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({ readOnly: stage.readOnly, blocked: stage.blocked }, null, 2));
   }
   // A blocked write fails the segment before it becomes video: it is never stitched as if it were fine.
+  // Checked whatever the segment did: a blocked write usually makes the storyline's own wait time out, and
+  // that timeout must not hide the write it was waiting for.
   if (stage.blocked.length) {
     fs.rmSync(segVideo(seg.key), { force: true });
-    throw sideEffectError(seg.key, stage.blocked);
+    const err = sideEffectError(seg.key, stage.blocked);
+    if (failure !== null) err.cause = failure;
+    throw err;
   }
+  if (failure !== null) throw failure;
   const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
   fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
   fs.writeFileSync(path.join(segDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));

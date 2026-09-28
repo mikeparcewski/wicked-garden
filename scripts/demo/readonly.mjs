@@ -3,7 +3,8 @@
 // A demo recording must never do work on the app it films: no run launched, no gate approved, no
 // record created or deleted as a by-product of making a video (wicked-crew#565). So while it records,
 // the browser sends no writes — every request whose method is not GET, HEAD or OPTIONS is aborted,
-// whatever its origin, and the segment then fails `side_effect_blocked`, naming each request.
+// whatever its origin, and so is every WebSocket frame the page sends (what the server pushes still
+// arrives, so a live view keeps updating). The segment then fails `side_effect_blocked`, naming each.
 //
 // DEMO_ALLOW_WRITES=1 lifts it, for a disposable target you started for the demo (a fixture server,
 // a scratch database) — never for a live system someone else uses.
@@ -35,6 +36,17 @@ export async function armReadOnly(context, allowWrites = writesAllowed()) {
       return route.abort("blockedbyclient");
     }
     return route.fallback();
+  });
+  // An app can launch or approve over a WebSocket as well as over HTTP: fail closed on the page's frames.
+  if (typeof context.routeWebSocket !== "function") {
+    throw new Error("the read-only recorder needs Playwright 1.48 or newer (BrowserContext.routeWebSocket)");
+  }
+  await context.routeWebSocket(/.*/, (ws) => {
+    ws.connectToServer();
+    // With a page-side handler set, the page's frames are no longer forwarded; the server's still are.
+    ws.onMessage(() => {
+      blocked.push(`WS send ${ws.url()}`);
+    });
   });
   return blocked;
 }
