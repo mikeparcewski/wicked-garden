@@ -6,6 +6,11 @@
 //   wicked-garden run scripts/demo/record.mjs demo/storyline.mjs --list
 //   wicked-garden run scripts/demo/record.mjs demo/storyline.mjs 01-dashboard     # record one segment first, review its stills
 //   wicked-garden run scripts/demo/record.mjs demo/storyline.mjs --all            # then everything
+//
+// The recorder is READ-ONLY by default: every non-GET request and every WebSocket frame the page sends is blocked and
+// fails the segment `side_effect_blocked`. Chapters 01-02 only read. Chapters 03-04 press buttons that POST (a report
+// build, a chat message), so they record only with DEMO_ALLOW_WRITES=1 against a disposable target you started for
+// the demo. Against a live system, show such a control without pressing it (point at it, caption what it does).
 import { spawnSync } from "node:child_process";
 
 /** Resets the demo records a segment uses, via the app's own admin CLI (placeholder). Cross-platform: no shell tricks. */
@@ -88,6 +93,7 @@ export default {
       async run(ctx) {
         await ctx.go("/reports/REPORT-SEPT");
         await ctx.caption("Reports", "Month-end, one click", "The job reads the ledger, reconciles it and drafts the summary.", 2600);
+        // Writes: needs DEMO_ALLOW_WRITES=1 and a disposable target (see the header).
         // Register the wait before the click that triggers the POST, so a fast response can't be missed.
         const done = ctx.waitForPost(/\/api\/reports\/[^/]+\/build/);
         await ctx.click(ctx.app.getByRole("button", { name: "Build report" }), { after: 200 });
@@ -109,6 +115,7 @@ export default {
       async run(ctx) {
         await ctx.go("/requests/REQ-1042");
         await ctx.caption("Assistant", "Ask in plain language", "Suggested questions are tailored to the record.", 2400);
+        // Writes: needs DEMO_ALLOW_WRITES=1 and a disposable target (see the header).
         const answered = ctx.waitForPost(/\/chat$/);
         const starter = ctx.button(/^What is blocking this/);
         if (await starter.count()) {

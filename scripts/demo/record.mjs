@@ -13,6 +13,7 @@ import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Stage } from "./stage.mjs";
 import { buildVideo } from "./postprocess.mjs";
+import { sideEffectError } from "./readonly.mjs";
 
 const FFMPEG = process.env.FFMPEG || "ffmpeg";
 const FFPROBE = FFMPEG.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
@@ -116,7 +117,10 @@ async function recordSegment(seg) {
     headful: process.env.DEMO_HEADFUL === "1", locale: story.locale, timezoneId: story.timezoneId });
   const timings = {};
   const ctx = makeCtx(stage, timings);
+  // A take that fails never leaves the previous one behind to be stitched as if it were this one.
+  fs.rmSync(segVideo(seg.key), { force: true });
   await stage.open(story.startPath || "/");
+  let failure = null;
   try {
     if (seg.intro) {
       await seg.run(ctx);
@@ -142,9 +146,26 @@ async function recordSegment(seg) {
     } else if (!seg.intro) {
       await stage.card("", 1100); // end on the plain background: the next chapter slide cuts in cleanly
     }
+  } catch (e) {
+    failure = e;
   } finally {
     await stage.close();
+    fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({ readOnly: stage.readOnly, blocked: stage.blocked }, null, 2));
   }
+  // A blocked write fails the segment before it becomes video: it is never stitched as if it were fine.
+  // Checked whatever the segment did: a blocked write usually makes the storyline's own wait time out, and
+  // that timeout must not hide the write it was waiting for.
+  // A failed take keeps only its guard.json (the evidence): no video, and no timeline --reencode could rebuild one from.
+  if (stage.blocked.length || failure !== null) {
+    fs.rmSync(segVideo(seg.key), { force: true });
+    fs.rmSync(path.join(segDir(seg.key), "timeline.json"), { force: true });
+  }
+  if (stage.blocked.length) {
+    const err = sideEffectError(seg.key, stage.blocked);
+    if (failure !== null) err.cause = failure;
+    throw err;
+  }
+  if (failure !== null) throw failure;
   const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
   fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
   fs.writeFileSync(path.join(segDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));
@@ -160,7 +181,22 @@ function probeSeconds(file) {
   return Number(r.stdout.trim());
 }
 
+/** A segment's guard.json (how its last take was recorded), or null when it has none. */
+function readGuard(key) {
+  try { return JSON.parse(fs.readFileSync(path.join(segDir(key), "guard.json"), "utf8")); } catch { return null; }
+}
+
+/** A segment whose last take was blocked stops a re-encode or a stitch until it is re-recorded (or its
+ *  directory is removed): it is never re-encoded, stitched around, or left out quietly. */
+function refuseBlockedTakes() {
+  for (const s of SEGMENTS) {
+    const blocked = readGuard(s.key)?.blocked ?? [];
+    if (blocked.length) throw sideEffectError(s.key, blocked);
+  }
+}
+
 function stitch() {
+  refuseBlockedTakes();
   const segs = SEGMENTS.filter((s) => fs.existsSync(segVideo(s.key)));
   const missing = SEGMENTS.filter((s) => !fs.existsSync(segVideo(s.key))).map((s) => s.key);
   if (!segs.length) throw new Error("no segments recorded yet");
@@ -183,6 +219,13 @@ function stitch() {
   if (r.status !== 0) throw new Error(`stitch failed: ${r.stderr?.toString().slice(-1500)}`);
   fs.writeFileSync(path.join(OUT, "chapters.md"), rows.join("\n") + "\n");
   fs.writeFileSync(path.join(OUT, "timings.json"), JSON.stringify(Object.fromEntries(SEGMENTS.map((s) => [s.key, readTimings(s.key)])), null, 2));
+  // How the stitched segments were recorded: read-only only when every one of them was (a segment recorded
+  // before the guard existed has no guard.json and counts as unknown, not read-only).
+  const guards = segs.map((s) => readGuard(s.key));
+  fs.writeFileSync(path.join(OUT, "recording.json"), JSON.stringify({
+    readOnly: guards.every((g) => g?.readOnly === true && Array.isArray(g.blocked) && g.blocked.length === 0),
+    segments: Object.fromEntries(segs.map((s, i) => [s.key, guards[i] === null ? "unknown" : guards[i].readOnly ? "read-only" : "writes-allowed"])),
+  }, null, 2));
   console.log(`stitched ${segs.length} segments -> ${FINAL} (${Math.round(at)} s)${missing.length ? `; missing: ${missing.join(", ")}` : ""}`);
 }
 
@@ -196,6 +239,7 @@ if (flags.has("--list")) {
   process.exit(0);
 }
 if (flags.has("--reencode")) {
+  refuseBlockedTakes();
   for (const s of SEGMENTS.filter((x) => fs.existsSync(path.join(segDir(x.key), "timeline.json")))) {
     const r = buildVideo(segDir(s.key), segVideo(s.key), { trimStart: 0.9, ffmpeg: FFMPEG });
     console.log(`  ${s.key}: ${r.seconds.toFixed(1)} s`);
