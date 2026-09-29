@@ -18,6 +18,7 @@ Checks (skills-only layout: former commands/ + agents/ are now skills/):
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -222,8 +223,76 @@ def dangling_skill_refs(skill_md_text: str, self_name: str, catalog: set[str]) -
     return out
 
 
-def main():
-    root = Path(__file__).resolve().parent.parent.parent
+def resolve_root(argv: list[str] | None = None) -> Path:
+    """The checkout to validate: ``--root <path>`` when given, else the repo this script lives in.
+
+    #1180: an operator running the validator from a main checkout that also holds a governed-run
+    worktree (or any other nested checkout) had no way to say WHICH tree to judge. The default is
+    unchanged — the tree this file belongs to."""
+    args = list(sys.argv[1:] if argv is None else argv)
+    root: Path | None = None
+    while args:
+        arg = args.pop(0)
+        if arg == "--root":
+            if not args:
+                raise SystemExit("--root needs a path")
+            root = Path(args.pop(0))
+        elif arg.startswith("--root="):
+            root = Path(arg.split("=", 1)[1])
+        elif arg in ("-h", "--help"):
+            print("usage: validate.py [--root <checkout>]")
+            raise SystemExit(0)
+        else:
+            raise SystemExit(f"unknown argument {arg!r} (usage: validate.py [--root <checkout>])")
+    if root is None:
+        return Path(__file__).resolve().parent.parent.parent
+    resolved = root.expanduser().resolve()
+    if not resolved.is_dir():
+        raise SystemExit(f"--root {root} is not a directory")
+    return resolved
+
+
+def json_files_to_check(root: Path) -> tuple[list[Path], str | None]:
+    """Every JSON file that BELONGS to this checkout, and a warning when git could not say.
+
+    #1180: a plain ``root.glob('**/*.json')`` descends into gitignored scratch (``tmp/``, ~11.5k
+    files after a governed run) and into nested checkouts — governed-run worktrees live inside the
+    repo — so it validated other trees' files and pytest's deliberately-malformed fixtures, and
+    reported errors a correct tree could not avoid. git's own index is the answer: ``--cached``
+    plus ``--others --exclude-standard`` is exactly "tracked, or new and not ignored", and git
+    reports a nested repository as one opaque entry instead of walking into it.
+
+    Returns ``(files, warning)``. Outside a git work tree (the published plugin directory) the
+    glob is the only option available, so it is used and the caller is told."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others",
+             "--exclude-standard", "--", "*.json"],
+            capture_output=True, check=True, timeout=60,
+        )
+        rels = [p for p in out.stdout.decode("utf-8", "replace").split("\0") if p]
+    except Exception as exc:  # not a git work tree, or no git binary
+        files = []
+        for json_file in sorted(root.glob("**/*.json")):
+            parts = json_file.relative_to(root).parts
+            if any(p in (".git", "node_modules", "__pycache__", ".venv") for p in parts):
+                continue
+            files.append(json_file)
+        return files, (
+            f"JSON validation fell back to a filesystem walk ({type(exc).__name__}): {root} is not "
+            "a readable git work tree, so gitignored scratch and nested checkouts cannot be excluded"
+        )
+    files = []
+    for rel in sorted(rels):
+        path = root / rel
+        # `--others` lists paths git has not been told about, including a deleted-but-staged one.
+        if path.is_file():
+            files.append(path)
+    return files, None
+
+
+def main(argv: list[str] | None = None):
+    root = resolve_root(argv)
     os.chdir(root)
 
     errors = []
@@ -460,19 +529,18 @@ def main():
             errors.append(f"specialist.json is invalid JSON: {e}")
 
     # --- 8. All JSON files valid ---
-    for json_file in sorted(root.glob("**/*.json")):
-        # Skip node_modules, .git, __pycache__
+    # Scoped to this checkout's own files (#1180) — see json_files_to_check().
+    json_files, json_scope_warning = json_files_to_check(root)
+    if json_scope_warning:
+        warnings.append(json_scope_warning)
+    for json_file in json_files:
         rel = json_file.relative_to(root)
-        parts = rel.parts
-        if any(
-            p in (".git", "node_modules", "__pycache__", ".venv")
-            for p in parts
-        ):
-            continue
         try:
             json.loads(json_file.read_text())
         except json.JSONDecodeError as e:
             errors.append(f"{rel}: invalid JSON: {e}")
+        except OSError as e:
+            errors.append(f"{rel}: unreadable: {e}")
 
     # --- Report ---
     print("=" * 60)
