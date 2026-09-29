@@ -56,7 +56,10 @@ gone). If the shim answers `{"ok": false, …}` or the fence denies the call, em
 proposal you derived as **one fenced `json` block** of exact `{kind_type, payload, facets}`
 objects in your output, write `estate: not available (<reason>)`, and continue — that
 block is the ONLY record; a human can submit from it. Report the counts:
-derived N / submitted M / failed K.
+derived N / submitted M / failed K — and, in a governed run, as the machine-readable last
+line `wicked-capture-report {"derived": N, "submitted": N, "failed": N}` (wicked-core#535;
+see the SKILL's "In a governed run" step 3). A degrade is `submitted 0 / failed N`, which
+the engine's capture-report floor denies into the human gate on purpose.
 
 ### `<type>` for policies (the seven steering types)
 
@@ -191,3 +194,7 @@ Policy (development, language-scoped, from a stable core with a clear guardrail)
 - Report captures honestly: "**proposed** N memories, M policies (pending
   review)", never "recorded" or "stored" — nothing is in the record until an
   operator approves it.
+- **Always emit the machine-readable report line last** —
+  `wicked-capture-report {"derived": N, "submitted": N, "failed": N}` — including on a
+  degrade and on a legitimate 0. It is the engine's only evidence that the capture ran
+  (wicked-core#535): no line, no pass.
