@@ -735,3 +735,45 @@ def test_a_range_citation_is_disclosed_in_the_stats(tmp_path: Path):
     assert stats["cited_lines"] == 1
     assert stats["cited_ranges"] == 1
     assert all(f.kind != "cite-off" for f in findings)
+
+
+# ── #1184 codex review follow-ups ─────────────────────────────────────────────────────────────
+
+
+def test_two_identical_sibling_carriers_are_two_findings(tmp_path: Path):
+    """Codex on #1184 — `path()` has no sibling index, so two siblings with the same tag, text and
+    bad source produced ONE finding while stats counted two.
+
+    Red before the review fix: cite_off=2 but len(findings)=1 (the second `add` key-collided).
+    Green: 2 findings, 2 cite_off — the findings list and the stats agree.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("alpha only here\n", encoding="utf-8")
+    html = ('<body><ul><li>'
+            '<span data-source="README.md:1">zzz qqq</span> '
+            '<span data-source="README.md:1">zzz qqq</span>'
+            '</li></ul></body>')
+    findings, stats = cs.scan_document(html, [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert stats["cite_off"] == 2
+    assert len(coffs) == 2
+
+
+def test_a_stopword_rich_line_does_not_beat_the_cited_content_word(tmp_path: Path):
+    """Codex on #1184 — the span score counted stopwords, so a line sharing only "it is" outscored
+    the cited line that carries the claim's one content word, and a CORRECT citation was reported
+    as cite-off.
+
+    Red before the review fix: cited line 1 scores 1 ({fast}), line 2 "it is" scores 2 →
+    best_score > overlap → cite-off (false positive).
+    Green: both sides are scored on content tokens only → cited 1, best 1 → verified.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("fast\nit is\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1">It is fast</p></body>',
+        [str(repo)])
+    assert all(f.kind != "cite-off" for f in findings)
+    assert stats["cited_lines"] == 1

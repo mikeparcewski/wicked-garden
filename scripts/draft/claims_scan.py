@@ -46,8 +46,9 @@ THE CITATION RULE (#1184) — what text a ``data-source="path:N"`` is verified a
 
   A citation is VERIFIED when both hold: the cited text shares at least one CONTENT token with
   the claim (an overlap of common words verifies nothing), and no other span of the SAME WIDTH
-  in the file scores higher (so a range is judged against the best range of its own width —
-  scoring a multi-line union against single lines let any wide range tie). Tokens are ``\\W+``
+  in the file shares MORE of them (so a range is judged against the best range of its own width —
+  scoring a multi-line union against single lines let any wide range tie — and both sides are
+  scored on content tokens, so a line rich in common words cannot outscore the cited one). Tokens are ``\\W+``
   split, so unicode variants like ``≥`` and ``>=`` produce the same tokens. A verified range is
   a weaker assertion than a verified line, and the summary says how many there were
   (``cited_ranges``).
@@ -159,16 +160,18 @@ def _cite_tokens(text: str) -> set[str]:
     return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
 
 
-def _best_span(lines: list[str], claim_tokens: set[str], width: int) -> tuple[int | None, int]:
-    """The (1-based start, score) of the span of ``width`` lines that best matches claim_tokens.
+def _best_span(lines: list[str], content_tokens: set[str], width: int) -> tuple[int | None, int]:
+    """The (1-based start, score) of the span of ``width`` lines that best matches content_tokens.
 
-    Scoring a span against spans of its OWN width is the rule (#1184-B): a range's cited text is
-    the union of its lines, so comparing it with single lines let any wide range tie or win.
-    For width 1 this is the per-line scan it replaces.
+    Two rules meet here. Scoring a span against spans of its OWN width (#1184-B): a range's cited
+    text is the union of its lines, so comparing it with single lines let any wide range tie or
+    win; for width 1 this is the per-line scan it replaces. And scoring on CONTENT tokens only
+    (codex on #1184): counting stopwords let a line that shares nothing but "it is" outscore the
+    line that carries the claim's one content word, and report a correct citation as cite-off.
     """
     best_n, best_score = None, 0
     for i in range(max(1, len(lines) - width + 1)):
-        score = len(claim_tokens & _cite_tokens("\n".join(lines[i:i + width])))
+        score = len(content_tokens & _cite_tokens("\n".join(lines[i:i + width])))
         if score > best_score:
             best_score, best_n = score, i + 1
     return best_n, best_score
@@ -212,10 +215,13 @@ def _check_cite_off(source: str, claim_text: str, repos: list[str]) -> str | Non
             if lnum < 1 or lnum > len(lines):
                 return f"data-source {source} is past end of file ({len(lines)} lines)"
             start = end = lnum - 1
-        overlap = claim_tokens & _cite_tokens("\n".join(lines[start:end + 1]))
-        best_n, best_score = _best_span(lines, claim_tokens, end - start + 1)
+        # Only CONTENT tokens are evidence, on both sides of the comparison: an overlap of common
+        # words verifies nothing, and a line rich in them must not outscore the cited one.
+        content = claim_tokens - STOPWORDS
+        overlap = content & _cite_tokens("\n".join(lines[start:end + 1]))
+        best_n, best_score = _best_span(lines, content, end - start + 1)
         hint = f" — nearest match: line {best_n}" if best_n and best_n != start + 1 else ""
-        if not overlap - STOPWORDS:
+        if not overlap:
             return (f"data-source {source} shares only common words with this text — a citation "
                     f"verifies nothing without a content word in common{hint}")
         if best_score > len(overlap):
@@ -339,9 +345,11 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
              "cited_ranges": 0, "cite_off": 0, "sources_block": has_sources, "repos": repos}
 
     def add(kind: str, node: Node, text: str, detail: str) -> None:
-        # the detail is part of the key: two different bad citations on one element are two
-        # findings, so the findings list and stats["cite_off"] can never disagree (#1184)
-        key = (kind, node.path(), text[:60], detail)
+        # The key is the NODE (identity, not `path()` — which carries no sibling index) plus the
+        # detail: two sibling carriers with the same tag, text and bad source are two findings, and
+        # two different bad citations on one element are two findings, so the findings list and
+        # stats["cite_off"] can never disagree (#1184; codex review).
+        key = (kind, id(node), text[:60], detail)
         if key in seen:
             return
         seen.add(key)
