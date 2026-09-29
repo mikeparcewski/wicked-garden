@@ -26,11 +26,31 @@ own text — the author read a different line than they cited) ·
 ``uncited-url`` (a URL with no ``--repo`` to check against and no ``data-source``).
 Exit: 0 clean, 1 findings, 2 usage / unreadable input. Stdlib only.
 
-Inherited ``data-source`` attributes (on an ancestor element) are checked only for path existence
-(``dangling-source``), never for ``cite-off`` — a section-level citation covers many descendants
-whose text cannot all appear on those lines.  A per-element ``data-source`` with a ``:N`` suffix is
-checked exactly: the cited lines must carry the block's own text (token overlap, ``\\W+`` split so
-unicode variants like ``≥`` and ``>=`` produce the same tokens).
+THE CITATION RULE (#1184) — what text a ``data-source="path:N"`` is verified against:
+
+  **A citation asserts the text of the element that carries it, and is verified against that
+  element's own text (its inline children included) — never a sibling's text, never a wider
+  block.** So:
+
+  * on the element itself → that element's text;
+  * on an inline wrapper (``<b>``, ``<span>``, …) or on the enclosing block → that wrapper's or
+    that block's text, because a citation on a block asserts the whole block;
+  * on an ancestor ABOVE the block (a ``<section>``) → *inherited*: checked only for path
+    existence (``dangling-source``), never for ``cite-off``, because a section-level citation
+    covers many descendants whose text cannot all appear on those lines;
+  * path-only (no ``:N``) → provenance only, checked only for existence.
+
+  One check per (source, carrier): the carrier IS the unit of verification, so two inline
+  siblings that carry the same source are two checks against two different texts, and a
+  block-level citation is one check against the block.
+
+  A citation is VERIFIED when both hold: the cited text shares at least one CONTENT token with
+  the claim (an overlap of common words verifies nothing), and no other span of the SAME WIDTH
+  in the file scores higher (so a range is judged against the best range of its own width —
+  scoring a multi-line union against single lines let any wide range tie). Tokens are ``\\W+``
+  split, so unicode variants like ``≥`` and ``>=`` produce the same tokens. A verified range is
+  a weaker assertion than a verified line, and the summary says how many there were
+  (``cited_ranges``).
 
 CLI:
     claims_scan.py <file.html> [--repo <dir> …] [--json]
@@ -91,6 +111,16 @@ SKIP_DIRS = {".git", "node_modules", ".venv", "target", "dist", "build", "__pyca
 _LINE_SPEC_RE = re.compile(r'^(.*?):(\d+(?:-\d+)?)$')
 # sentinel returned by _check_cite_off: file found but could not verify → treated as cite-off
 _UNVERIFIABLE = object()
+# Common words carry no evidence: a citation whose only overlap with the claim is drawn from this
+# set has verified nothing (#1184-B). Digits are never stopwords — a figure IS the claim.
+STOPWORDS = frozenset("""
+a about across after again all also an and any are as at be been before being between both but by
+can could did do does down during each every few for from had has have how if in into is it its
+just may might more most much must no not of off on once one only or other our out over per same
+should since so some still such than that the their them then there these they this those through
+to too under until up us very was we were what when where which while who will with within would
+you your
+""".split())
 
 
 @dataclass
@@ -129,12 +159,29 @@ def _cite_tokens(text: str) -> set[str]:
     return {t.lower() for t in re.split(r'\W+', text) if len(t) >= 2 or t.isdigit()}
 
 
-def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | None | object:
-    """Check whether source's cited lines carry block_text tokens.
+def _best_span(lines: list[str], claim_tokens: set[str], width: int) -> tuple[int | None, int]:
+    """The (1-based start, score) of the span of ``width`` lines that best matches claim_tokens.
+
+    Scoring a span against spans of its OWN width is the rule (#1184-B): a range's cited text is
+    the union of its lines, so comparing it with single lines let any wide range tie or win.
+    For width 1 this is the per-line scan it replaces.
+    """
+    best_n, best_score = None, 0
+    for i in range(max(1, len(lines) - width + 1)):
+        score = len(claim_tokens & _cite_tokens("\n".join(lines[i:i + width])))
+        if score > best_score:
+            best_score, best_n = score, i + 1
+    return best_n, best_score
+
+
+def _check_cite_off(source: str, claim_text: str, repos: list[str]) -> str | None | object:
+    """Check whether source's cited lines carry claim_text — the text of the element that carries
+    the citation (THE RULE, see the module docstring).
 
     Returns:
       None            — path-only citation (no :N suffix); caller skips it.
-      ""              — verified clean: cited line is the best or tied-best match.
+      ""              — verified clean: a content word is shared and no same-width span elsewhere
+                        in the file matches the claim better.
       _UNVERIFIABLE   — file unreadable, empty token set, or not found; caller treats as cite-off.
       non-empty str   — cite-off detail message; caller reports a finding.
     """
@@ -142,8 +189,8 @@ def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | Non
     if m is None:
         return None                     # path-only, nothing to verify
     rel_path, line_spec = m.group(1), m.group(2)
-    block_tokens = _cite_tokens(block_text)
-    if not block_tokens:
+    claim_tokens = _cite_tokens(claim_text)
+    if not claim_tokens:
         return _UNVERIFIABLE            # token set empty after filtering — cannot verify
     for repo in repos:
         p = Path(repo) / rel_path
@@ -165,17 +212,15 @@ def _check_cite_off(source: str, block_text: str, repos: list[str]) -> str | Non
             if lnum < 1 or lnum > len(lines):
                 return f"data-source {source} is past end of file ({len(lines)} lines)"
             start = end = lnum - 1
-        cited_text = "\n".join(lines[start:end + 1])
-        cited_score = len(block_tokens & _cite_tokens(cited_text))
-        best_n, best_score = None, 0
-        for i, line in enumerate(lines):
-            score = len(block_tokens & _cite_tokens(line))
-            if score > best_score:
-                best_score, best_n = score, i + 1
-        if cited_score > 0 and best_score <= cited_score:
-            return ""                   # verified: cited line is best or tied-best match
-        hint = f" — nearest match: line {best_n}" if best_n else ""
-        return f"data-source {source} does not carry this text{hint}"
+        overlap = claim_tokens & _cite_tokens("\n".join(lines[start:end + 1]))
+        best_n, best_score = _best_span(lines, claim_tokens, end - start + 1)
+        hint = f" — nearest match: line {best_n}" if best_n and best_n != start + 1 else ""
+        if not overlap - STOPWORDS:
+            return (f"data-source {source} shares only common words with this text — a citation "
+                    f"verifies nothing without a content word in common{hint}")
+        if best_score > len(overlap):
+            return f"data-source {source} does not carry this text{hint}"
+        return ""                       # verified: best or tied-best span of its own width
     return _UNVERIFIABLE                # file not found in any repo
 
 
@@ -213,6 +258,21 @@ def _block_of(node: Node) -> Node:
     while n.parent is not None and n.parent.tag != "" and n.tag in _INLINE_TAGS:
         n = n.parent
     return n
+
+
+def _citation_carriers(el: Node, block: Node) -> list[Node]:
+    """Every element that can carry a line citation covering el's text: el itself, each inline
+    wrapper between el and its block, then the block. A citation on anything above the block is
+    inherited and is existence-checked only (THE RULE, see the module docstring)."""
+    chain = [el]
+    node = el
+    while node is not block:
+        parent = node.parent
+        if parent is None or parent.tag == "":
+            break                       # block is not an ancestor — nothing further to walk
+        node = parent
+        chain.append(node)
+    return chain
 
 
 def _nearby_comments(el: Node, block: Node) -> list[str]:
@@ -275,18 +335,22 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
     seen: set[tuple] = set()
     has_sources = _has_sources_block(doc)
     repo_files = _repo_files(repos) if repos else []
-    stats = {"blocks": 0, "numbers": 0, "urls": 0, "cited_numbers": 0, "cited_lines": 0, "cite_off": 0,
-             "sources_block": has_sources, "repos": repos}
+    stats = {"blocks": 0, "numbers": 0, "urls": 0, "cited_numbers": 0, "cited_lines": 0,
+             "cited_ranges": 0, "cite_off": 0, "sources_block": has_sources, "repos": repos}
 
     def add(kind: str, node: Node, text: str, detail: str) -> None:
-        key = (kind, node.path(), text[:60])
+        # the detail is part of the key: two different bad citations on one element are two
+        # findings, so the findings list and stats["cite_off"] can never disagree (#1184)
+        key = (kind, node.path(), text[:60], detail)
         if key in seen:
             return
         seen.add(key)
         findings.append(Finding(kind, node.path(), text[:100], detail))
 
     checked_sources: set[str] = set()
-    checked_cite_off: set[tuple] = set()   # (source, id(block)) — one check per source per block-level element; inline siblings sharing one enclosing block are NOT distinguished (see #1184)
+    # (source, id(carrier)) — one check per source per carrying element: two inline siblings that
+    # carry the same source are two distinct checks, a block-level citation is checked once (#1184)
+    checked_cite_off: set[tuple] = set()
     for el in _claim_blocks(doc):
         stats["blocks"] += 1
         own = el.direct_text()
@@ -300,29 +364,32 @@ def scan_document(html: str, repos: list[str] | None = None) -> tuple[list[Findi
                 checked_sources.add(s)
                 if not _path_exists_in_repos(s, repos):
                     add("dangling-source", el, s, "data-source names a path that does not exist under --repo")
-        # cite-off: check direct citations on this element and on its enclosing block
-        # (block != el when el is an inline tag — covers the invisible-citation case #1181-A)
+        # cite-off: every carrier of a line citation — el, its inline wrappers, its block — is
+        # verified against ITS OWN text (THE RULE, #1184; the block carrier covers #1181-A)
         if repos:
-            el_sources = _direct_sources_on(el)
-            block_sources = _direct_sources_on(block) if block is not el else []
-            for s in list(dict.fromkeys(el_sources + block_sources)):
-                m = _LINE_SPEC_RE.match(s)
-                if m and _path_exists_in_repos(m.group(1), repos):
-                    cite_key = (s, id(block))
+            for carrier in _citation_carriers(el, block):
+                carrier_text = carrier.all_text()
+                for s in _direct_sources_on(carrier):
+                    m = _LINE_SPEC_RE.match(s)
+                    if not (m and _path_exists_in_repos(m.group(1), repos)):
+                        continue
+                    cite_key = (s, id(carrier))
                     if cite_key in checked_cite_off:
                         continue
                     checked_cite_off.add(cite_key)
-                    detail = _check_cite_off(s, block_text, repos)
+                    detail = _check_cite_off(s, carrier_text, repos)
                     if detail is None:
                         pass                        # path-only: not a line citation, count nothing
                     elif detail is _UNVERIFIABLE:
                         stats["cite_off"] += 1
-                        add("cite-off", el, own, f"data-source {s} could not be verified")
+                        add("cite-off", carrier, carrier_text, f"data-source {s} could not be verified")
                     elif detail:
                         stats["cite_off"] += 1
-                        add("cite-off", el, own, detail)
+                        add("cite-off", carrier, carrier_text, detail)
                     else:
                         stats["cited_lines"] += 1
+                        if "-" in m.group(2):
+                            stats["cited_ranges"] += 1
         inline_paths = PATH_RE.findall(block_text)
         cited = bool(sources) or bool(inline_paths) or (has_sources and bool(FOOTNOTE_RE.search(block_text)))
         illustrative = _illustrative_container(el)
@@ -380,7 +447,9 @@ def run(path: str, repos: list[str] | None = None) -> dict:
         "findings": [f.as_dict() for f in findings],
         "summary": (
             f"claims: {stats['blocks']} text blocks, {stats['numbers']} numbers ({stats['cited_numbers']} cited), "
-            f"{stats['urls']} URLs, {stats['cited_lines']} cited lines ({stats['cite_off']} cite-off) — "
+            f"{stats['urls']} URLs, {stats['cited_lines']} cited lines "
+            # a range verifies a span, not a line — a weaker assertion, so it is named (#1184)
+            f"({stats['cited_ranges']} by line range, {stats['cite_off']} cite-off) — "
             + ("clean" if not findings else ", ".join(f"{v} {k}" for k, v in sorted(by_kind.items())))
         ),
     }

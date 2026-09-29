@@ -594,3 +594,144 @@ def test_cli_survives_a_cp1252_console():
     proc = subprocess.run([sys.executable, str(SCRIPT), str(FIXTURE)], capture_output=True, env=env)
     assert proc.returncode == 1 and b"Traceback" not in proc.stderr
     assert b"[placeholder]" in proc.stdout
+
+
+# ── #1184 — the rule: a citation is verified against the text of its CARRIER ──────────────────
+
+
+def test_inline_sibling_citation_is_verified_against_its_own_text(tmp_path: Path):
+    """#1184 A — two inline siblings in one block, same source: each is verified against its OWN
+    text, so a sibling's text can never carry an unrelated claim.
+
+    Red on 91e2734: both spans dedup to (source, id(li)) and the one check runs against
+    block.all_text() = "alpha only here zzz qqq", which satisfies line 1 on the second span's
+    behalf -> cite_off=0, cited_lines=1.
+    Green: span 1 verified against "alpha only here"; span 2 checked against "zzz qqq" -> cite-off.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("alpha only here\n", encoding="utf-8")
+    html = ('<body><ul><li>'
+            '<span data-source="README.md:1">alpha only here</span> '
+            '<span data-source="README.md:1">zzz qqq</span>'
+            '</li></ul></body>')
+    findings, stats = cs.scan_document(html, [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "zzz qqq" in coffs[0].text
+    assert stats["cite_off"] == 1
+    assert stats["cited_lines"] == 1
+
+
+def test_citation_on_an_inline_wrapper_is_checked(tmp_path: Path):
+    """#1184 — a citation on an inline wrapper BETWEEN the text element and its block is a
+    carrier like any other; it must be checked, not dropped.
+
+    Red on 91e2734: el=<span> has no direct source and block=<li> has none either (the source is
+    on the intermediate <em>), so the citation is never checked -> cite_off=0, cited_lines=0.
+    Green: the <em> carrier is checked against its own text -> cite-off for the wrong line.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("nothing here\nfast execution\n", encoding="utf-8")
+    html = ('<body><ul><li><em data-source="README.md:1">'
+            '<span>fast execution</span></em></li></ul></body>')
+    findings, stats = cs.scan_document(html, [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert stats["cite_off"] == 1
+
+
+def test_range_is_scored_against_the_best_span_of_its_own_width(tmp_path: Path):
+    """#1184 B — a range's cited text is the union of its lines, so scoring it against single
+    lines lets a wide range tie or beat any one line. Score it against the best span of the SAME
+    width instead.
+
+    Red on 91e2734: cited 3-4 scores 2 ({alpha, beta}); best PER LINE is also 2 -> verified,
+    although lines 1-2 carry the whole claim.
+    Green: the best 2-line window (lines 1-2) scores 4 > 2 -> cite-off.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text(
+        "alpha beta\ngamma delta\nalpha zzz\nqqq beta\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:3-4">alpha beta gamma delta</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "nearest match" in coffs[0].detail
+    assert stats["cited_lines"] == 0
+
+
+def test_range_whose_overlap_is_only_common_words_is_cite_off(tmp_path: Path):
+    """#1184 B — a citation verifies nothing when every shared token is a common word. The cited
+    span here IS the best span of its width, so width-fair scoring alone cannot catch it.
+
+    Red on 91e2734: overlap {the, is, under} -> cited_score=3, best per line=2 -> verified.
+    Green: no content word is shared -> cite-off naming the reason.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("the is under\nnothing relevant\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1-2">Latency under the gate is 2 s</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "common words" in coffs[0].detail
+    assert stats["cited_lines"] == 0
+
+
+def test_single_line_overlap_of_only_common_words_is_cite_off(tmp_path: Path):
+    """#1184 B — the same rule on a single line: a stopword-only overlap is not verification.
+
+    Red on 91e2734: cited line 2 shares {the, is} (score 2) and no line scores higher -> verified.
+    Green: cite-off, because no content word of the claim is on the cited line.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("zzz qqq\nthe is\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:2">The gate is 2 s</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert len(coffs) == 1
+    assert "common words" in coffs[0].detail
+    assert stats["cited_lines"] == 0
+
+
+def test_two_bad_citations_on_one_element_are_two_findings(tmp_path: Path):
+    """#1184 — add()'s dedup key must distinguish two different bad citations on one element,
+    or stats["cite_off"] counts two while the reader is shown one.
+
+    Red on 91e2734: key=(kind, path, text[:60]) collapses both -> 1 finding, cite_off=2.
+    Green: 2 findings, cite_off=2.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("alpha\nbeta\ngamma delta\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:1 README.md:2">gamma delta</p></body>',
+        [str(repo)])
+    coffs = [f for f in findings if f.kind == "cite-off"]
+    assert stats["cite_off"] == 2
+    assert len(coffs) == 2
+    assert sorted(f.detail.split()[1] for f in coffs) == ["README.md:1", "README.md:2"]
+
+
+def test_a_range_citation_is_disclosed_in_the_stats(tmp_path: Path):
+    """#1184 B — a range is a weaker assertion than a line; the summary says how many verified
+    citations were ranges.
+
+    Red on 91e2734: stats has no cited_ranges key (KeyError).
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "README.md").write_text("# Title\nLine two\nfast execution here\n", encoding="utf-8")
+    findings, stats = cs.scan_document(
+        '<body><p data-source="README.md:2-3">fast execution here</p></body>',
+        [str(repo)])
+    assert stats["cited_lines"] == 1
+    assert stats["cited_ranges"] == 1
+    assert all(f.kind != "cite-off" for f in findings)

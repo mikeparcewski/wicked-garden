@@ -23,6 +23,29 @@ The scan judges numbers and URLs mechanically; you judge the rest by the same ru
 3. **A footnote marker (`[3]`, `†`) AND a visible Sources block** — a `Sources` / `References`
    heading (or an element with `data-sources`) followed by the repo paths.
 
+## What a citation is verified against (the rule)
+
+A `data-source="path:N"` asserts **the text of the element that carries it**, so the scan verifies
+it against that element's own text — its inline children included, a sibling's text never:
+
+| Where the citation sits | Verified against |
+|---|---|
+| the element with the text | that element's text |
+| an inline wrapper (`<b>`, `<span>`) around it | the wrapper's text |
+| the enclosing block (`<li>`, `<p>`) | the whole block's text |
+| an ancestor above the block (`<section>`) | nothing — inherited, path existence only |
+| path-only, no `:N` | nothing — provenance, path existence only |
+
+Two `<span>`s in one `<li>`, each with its own `data-source`, are therefore two separate claims:
+the first one's text cannot satisfy the second one's citation. Put the citation on the element
+whose text it proves.
+
+A citation passes only when the cited text shares a **content** word with the claim — an overlap
+of common words alone ("the", "is", "under") verifies nothing and is reported. A range
+(`path:23-24`) is judged against the best span of its own width, so a wide range cannot tie its
+way to a pass; cite the narrowest span that carries the text, and expect ranges to be counted
+separately in the summary ("N by line range") because they assert less than a line does.
+
 Give the reader a visible **Sources** strip as well (form 3's block, or a footer line listing
 the paths): the invisible attribute proves the claim; the strip lets a human check it.
 
