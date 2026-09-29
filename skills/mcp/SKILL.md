@@ -83,19 +83,23 @@ report it honestly.
   start an MCP server yourself, and never call an upstream API directly to get around a
   refusal. A native MCP tool your CLI happens to offer is judged the same way and an
   unregistered one is denied.
-- **The token is a credential.** Never print `WICKED_MCP_TOKEN`, paste it into output, a
-  file or a commit, or pass it to another process. The shim never prints it.
+- **The token is a credential.** Never print `WICKED_MCP_TOKEN`, put it on a command line,
+  or paste it into output, a file or a commit. The shim never prints it.
 - **Evaluators read, creators write.** In a review, verify or recon unit only read tools
   are offered and a write is denied by the engine, whatever the run mode.
 - **Say what you called.** List each MCP call you relied on (subject, outcome, `callId`)
   in your output; the evaluator and the run's Governance panel read the same record.
 
-**Manual alternative** (no launcher or no Python): send the same request with any HTTP
-client, reading both values from the environment and never echoing the token:
+**Manual alternative** (no launcher or no Python): send the same request with `curl`,
+passing the body on stdin so the token never appears on a command line:
 
 ```
-curl -s -X POST "$WICKED_CREW_URL/api/v1/mcp/tools" -H 'Content-Type: application/json' -d "{\"token\": \"$WICKED_MCP_TOKEN\"}"
-curl -s -X POST "$WICKED_CREW_URL/api/v1/mcp/call" -H 'Content-Type: application/json' -d "{\"token\": \"$WICKED_MCP_TOKEN\", \"subject\": \"mcp:<server>/<tool>\", \"args\": {}}"
+curl -s -X POST "$WICKED_CREW_URL/api/v1/mcp/tools" -H 'Content-Type: application/json' --data-binary @- <<BODY
+{"token": "$WICKED_MCP_TOKEN"}
+BODY
+curl -s -X POST "$WICKED_CREW_URL/api/v1/mcp/call" -H 'Content-Type: application/json' --data-binary @- <<BODY
+{"token": "$WICKED_MCP_TOKEN", "subject": "mcp:<server>/<tool>", "args": {}}
+BODY
 ```
 
 The answers are the JSON objects described above; the HTTP status stands in for the exit

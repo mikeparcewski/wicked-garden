@@ -166,6 +166,15 @@ def test_bad_arguments_are_refused_before_anything_is_sent(broker, args):
     assert FakeBroker.received == []
 
 
+@pytest.mark.parametrize("args", [("call",), ("nope",), ()])
+def test_a_usage_error_is_still_one_json_object(broker, args):
+    code, out, _ = _shim(*args, url=broker)
+    assert code == 2
+    assert out["code"] == "bad_request"
+    assert out["reason"].startswith("usage:")
+    assert FakeBroker.received == []
+
+
 def test_an_unreachable_broker_is_a_failure_not_a_result():
     code, out, raw = _shim("list", url="http://127.0.0.1:9", token=TOKEN)
     assert code == 1

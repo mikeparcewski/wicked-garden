@@ -162,11 +162,18 @@ def run_call(url: str, token: str, subject: str, args: dict, timeout_s: float,
     return {"ok": False, "status": status, **body}, EXIT_FAIL
 
 
+class _Parser(argparse.ArgumentParser):
+    """Usage errors become the shim's one JSON object (exit 2), never argparse's bare stderr."""
+
+    def error(self, message: str):
+        raise ShimError("bad_request", f"usage: {message}", EXIT_USAGE)
+
+
 def parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="wicked-garden run scripts/mcp/shim.py",
-                                description="Reach MCP tools through the wicked-crew broker.")
+    p = _Parser(prog="wicked-garden run scripts/mcp/shim.py",
+                description="Reach MCP tools through the wicked-crew broker.")
     p.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_S, help="seconds to wait for the broker")
-    sub = p.add_subparsers(dest="verb", required=True)
+    sub = p.add_subparsers(dest="verb", required=True, parser_class=_Parser)
     sub.add_parser("list", help="the tools this unit may try")
     call = sub.add_parser("call", help="call one tool")
     call.add_argument("subject", help="mcp:<server>/<tool>")
@@ -176,8 +183,8 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None, env: dict | None = None, opener=urllib.request.urlopen) -> int:
-    ns = parser().parse_args(argv)
     try:
+        ns = parser().parse_args(argv)
         if ns.timeout <= 0:
             raise ShimError("bad_request", "--timeout must be positive", EXIT_USAGE)
         if ns.verb == "call":
