@@ -43,7 +43,11 @@ evaluator, then creator) and say which you chose in your output.
 - **A3 — Headless: never ask and wait.** No "Shall I proceed?". Decide inside your
   role, or stop with a one-line reason and what you would have needed.
 - **A4 — Honest counts.** Report "derived N / submitted M / failed K". A bare
-  "done" when N > 0 and M = 0 is a false report.
+  "done" when N > 0 and M = 0 is a false report. A unit that submits proposals also
+  ends with the machine-readable line
+  `wicked-capture-report {"derived": N, "submitted": M, "failed": K}` — always,
+  including a degrade and a legitimate 0; the engine's capture-report floor
+  (wicked-core#535) denies a declared capture phase that emits none.
 - **A5 — A denied call is final.** When the fence denies a command, do not retry
   it with variants, wrappers or another path. Record the denial and go on.
 - **A6 — No secrets, no personal data.** Never paste tokens, credentials,

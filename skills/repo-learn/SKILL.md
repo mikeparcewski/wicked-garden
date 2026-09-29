@@ -185,7 +185,20 @@ default; the shim refuses an unpinned store — report that, never guess one.
    `estate: not available (<reason>)`, and continue — that block is the ONLY record
    (governed-worker A4); a human can submit from it.
 3. **Report** honest counts: derived N / submitted M / failed K (governed-worker A4), and
-   whether the shim answered.
+   whether the shim answered. **End the capture unit's output with the machine-readable
+   report line** (wicked-core#535 — the engine's capture-report floor reads it; a capture
+   phase whose output carries no such line is DENIED into the human gate, because 0
+   proposals cannot otherwise be told apart from a skill that never ran):
+
+   ```text
+   wicked-capture-report {"derived": 7, "submitted": 7, "failed": 0}
+   ```
+
+   Emit it **always** — including a degrade and a legitimate 0 (`{"derived": 0,
+   "submitted": 0, "failed": 0}` is an honest report and PASSES). `submitted` below
+   `derived`, or any `failed`, is a loss the gate stops, so the numbers must be the ones
+   you actually observed: count a proposal as `submitted` only when the shim answered
+   `{"ok": true, …}` for it.
 
 ## Degrade + honesty
 
@@ -194,6 +207,12 @@ default; the shim refuses an unpinned store — report that, never guess one.
   in your output and report the gap — never a grep approximation presented as the graph
   answer, never a retry of a denied call. In a human session the search skill's
   human ladder (estate tools → CLI → grep) applies instead.
+- **Every degrade still reports.** Whatever happened — estate unreachable, a denied call,
+  nothing worth capturing — the last line of the capture unit's output is the
+  `wicked-capture-report {"derived": N, "submitted": M, "failed": K}` line with the real
+  counts (a degrade is typically `derived N / submitted 0 / failed N`, which the engine
+  denies into the human gate ON PURPOSE: the learnings are in your fenced `json` block and
+  a human must act on them).
 - **`proposal.submit` fails (a JSON-RPC error, e.g. -32602 / -32603)**: do NOT silently drop the learning.
   Emit the derived memories and policies as one fenced `json` block of exact
   `{kind_type, payload, facets}` objects in your report so a human can
