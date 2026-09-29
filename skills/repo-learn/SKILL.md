@@ -209,7 +209,7 @@ default; the shim refuses an unpinned store — report that, never guess one.
   human ladder (estate tools → CLI → grep) applies instead.
 - **Every degrade still reports.** Whatever happened — estate unreachable, a denied call,
   nothing worth capturing — the last line of the capture unit's output is the
-  `wicked-capture-report {"derived": N, "submitted": N, "failed": N}` line with the real
+  `wicked-capture-report {"derived": N, "submitted": M, "failed": K}` line with the real
   counts (a degrade is typically `derived N / submitted 0 / failed N`, which the engine
   denies into the human gate ON PURPOSE: the learnings are in your fenced `json` block and
   a human must act on them).
