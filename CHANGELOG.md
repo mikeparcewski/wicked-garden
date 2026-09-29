@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.39.0] — 2026-09-29
+
 ### Added
 - **`repo-learn` + `governed-worker`: a capture unit ends with a machine-readable capture report (wicked-core#535, BC-80).** A capture-learnings run whose skill loaded but never ran produced 0 proposals and reported `completed` — nothing told that apart from a repository with nothing worth capturing. The capture unit's output now ends with `wicked-capture-report {"derived": N, "submitted": M, "failed": K}`, **always**, including a degrade and a legitimate 0 (an honest `0/0/0` is a pass). A proposal counts as `submitted` only when the shim answered `{"ok": true, …}`, so `submitted` below `derived`, or any `failed`, is the loss the engine's capture-report floor stops — the derived items are in the unit's fenced `json` block and a human must act on them. Stated in `skills/repo-learn/SKILL.md` ("In a governed run" step 3 and the degrade rules), `skills/repo-learn/refs/capture-proposals.md` and `governed-worker` A4, so every carrier of the honest-counts rule spells it the same way.
 - **`mcp` skill: a governed unit reaches MCP tools through the wicked-crew broker on every seat (DES-MCP-TOOLS-001 S4).** `scripts/mcp/shim.py list` answers the tools the unit's capability token (`WICKED_MCP_TOKEN`) may try, each with its class and whether a call runs (`allow`) or waits for approval (`ask`); `scripts/mcp/shim.py call mcp:<server>/<tool> --args JSON` sends the call to the broker (`WICKED_CREW_URL`, `POST /api/v1/mcp/call`) and prints its answer. It prints one JSON object and exits by outcome: `0` ok, `3` denied or withheld, `4` pending approval, `5` unavailable (budget, breaker, upstream), `2` no MCP channel or bad arguments, `1` anything else. The token is never printed. Standard library only. `skills/mcp/SKILL.md` names the commands, the exit codes and the rules (only through the broker, the token is a credential, a denied call is final); `tests/mcp/test_mcp_shim.py` pins the shim against a broker-shaped HTTP server.
@@ -949,7 +951,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.1...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.39.0...HEAD
+[12.39.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.1...v12.39.0
 [12.38.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.0...v12.38.1
 [12.38.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.37.2...v12.38.0
 [12.37.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.37.1...v12.37.2
