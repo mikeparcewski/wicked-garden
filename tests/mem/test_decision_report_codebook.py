@@ -56,6 +56,10 @@ def test_the_block_example_is_valid_json_with_every_field_and_only_known_values(
     item = block["items"][0]
     assert list(item) == FIELDS
     assert item["type"] in TYPES and item["steering_type"] in STEERING
+    # The example is a go-ahead with an amendment: a confirmation of the seat's proposal, not a standing rule,
+    # and its decision text is the proposal plus the amendment, not the operator's words.
+    assert (item["type"], item["approves_proposal"], item["codify"]) == ("confirmation", True, False)
+    assert item["decision_text"] != item["quote"]
 
 
 def test_it_names_the_whole_vocabulary_and_the_pair_rule():
@@ -64,8 +68,10 @@ def test_it_names_the_whole_vocabulary_and_the_pair_rule():
         assert f"`{word}`" in text, word
     flat = " ".join(text.split()).lower()
     # The unit is the pair, and the decision is written from the approved proposal, not the reply's words.
-    assert "your previous reply" in flat and "from the proposal" in flat
-    assert "never from the reply's words" in flat
+    assert "your previous reply" in flat
+    assert ("write it from your approved proposal plus any amendment, never from the operator's short wording"
+            in flat)
+    assert "never emit an item with it" in flat  # `none` is crew's, so "one item per decision" stays consistent
     # Labels are suggestions: crew decides what is remembered.
     assert "crew decides" in flat
 
