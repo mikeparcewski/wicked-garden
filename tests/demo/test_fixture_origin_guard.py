@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import http.server
 import json
+import os
 import subprocess
 import threading
 
@@ -171,6 +172,34 @@ def test_a_failed_take_keeps_its_video_and_failure_and_is_never_stitched(tmp_pat
         assert again.returncode != 0, (flag, again.stdout)
         assert "failed_take: segment 01-launch" in again.stderr and "failed-2" in again.stderr, (flag, again.stderr[-1500:])
     assert not (tmp_path / "demo-video" / "demo.mp4").exists()
+
+
+@needs_node
+@needs_recorder
+def test_a_take_whose_video_fails_to_encode_is_a_failed_take(tmp_path):
+    """The take counts as failed until its video is built: an encoder crash never leaves a take a stitch accepts."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "ffmpeg"
+    fake.write_text("#!/bin/sh\n[ \"$1\" = -version ] && exit 0\nprintf 'partial' > \"$(eval echo \\${$#})\"\necho boom >&2\nexit 1\n")
+    fake.chmod(0o755)
+    server, base = _serve(_App)
+    try:
+        story = tmp_path / "storyline.mjs"
+        story.write_text("export default { title: 'demo', baseUrl: %s, segments: [\n"
+                         "  { key: '01-launch', title: 'Launch a run', async run(ctx) { await ctx.hold(300); } },\n"
+                         "] };\n" % json.dumps(base))
+        out = subprocess.run(
+            ["node", str(DEMO / "record.mjs"), str(story), "--out", str(tmp_path / "demo-video")],
+            capture_output=True, text=True, timeout=120, env={**os.environ, "FFMPEG": str(fake)})
+    finally:
+        server.shutdown()
+    assert out.returncode != 0, out.stdout
+    seg = tmp_path / "demo-video" / "segments" / "01-launch"
+    assert not (seg / "segment.mp4").exists(), "a partial encode must not survive to be stitched"
+    assert json.loads((seg / "guard.json").read_text())["failed"] is True
+    failure = json.loads((seg / "failed-1" / "failure.json").read_text())
+    assert failure["take"] == 1 and "ffmpeg failed" in failure["message"]
 
 
 if __name__ == "__main__":

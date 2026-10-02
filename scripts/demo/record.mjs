@@ -180,18 +180,29 @@ async function recordSegment(seg) {
     err = sideEffectError(seg.key, stage.blocked);
     if (failure !== null) err.cause = failure;
   }
-  fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({
-    take, failed: err !== null, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin, blocked: stage.blocked,
+  const writeGuard = (failed) => fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({
+    take, failed, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin, blocked: stage.blocked,
   }, null, 2));
+  // The take counts as failed until its video is built: guard.json says so first, so a crash in between never
+  // leaves a take that a stitch would accept.
+  writeGuard(true);
   if (err !== null) {
     keepFailedTake(seg.key, take, err, stage, failedAt);
     throw err;
   }
-  const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
-  fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
-  fs.writeFileSync(path.join(segDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));
-  // Trim the set-up behind the opening slide: the segment starts on the slide, fully faded in.
-  const r = buildVideo(segDir(seg.key), segVideo(seg.key), { trimStart: TRIM_START, ffmpeg: FFMPEG });
+  let r;
+  try {
+    const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
+    fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
+    fs.writeFileSync(path.join(segDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));
+    // Trim the set-up behind the opening slide: the segment starts on the slide, fully faded in.
+    r = buildVideo(segDir(seg.key), segVideo(seg.key), { trimStart: TRIM_START, ffmpeg: FFMPEG });
+  } catch (e) {
+    fs.rmSync(segVideo(seg.key), { force: true }); // a partial encode is never stitched
+    keepFailedTake(seg.key, take, e, stage, null);
+    throw e;
+  }
+  writeGuard(false);
   console.log(`  ${seg.key}: ${r.seconds.toFixed(1)} s${Object.keys(timings).length ? " " + JSON.stringify(timings) : ""}`);
 }
 
