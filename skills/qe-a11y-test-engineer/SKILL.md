@@ -175,6 +175,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-a11y-test-engineer",
   reason: `axe: ${axeViolationCount} violations (${criticalCount} critical, ${seriousCount} serious); pa11y: ${pa11yErrorCount} errors. Manual WCAG review still required — see a11y-manual-checklist.md.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // Open a follow-up task for the human-only WCAG checks.

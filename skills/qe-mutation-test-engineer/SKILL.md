@@ -162,6 +162,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-mutation-test-engineer",
   reason: `kill_rate=${(killRate*100).toFixed(1)}% (threshold ${(threshold*100).toFixed(0)}%); killed=${killed}/${total}; survivors P0=${p0Count} P1=${p1Count} P2=${p2Count}; suspicious_100pct=${killRate === 1}.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One task per P0/P1 survivor cluster so they show up in test-oracle's

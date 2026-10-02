@@ -173,6 +173,8 @@ store.create("verdicts", {
     controls_unsatisfied: unsatisfied.map(c => c.id),
     controls_out_of_scope: outOfScope.map(c => c.id),
   },
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One open task per unsatisfied in-scope control.

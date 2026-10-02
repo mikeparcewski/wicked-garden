@@ -180,6 +180,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-snapshot-hygiene-auditor",
   reason: `stale=${stale.length} over_broad=${overBroad.length} rubber_stamped=${rubberStamped.length} dead=${dead.length}; top_n=${topN.length}. See snapshot-audit.md for the ranked remediation list.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One open task per top-N item so they surface in the reviewer's queue.

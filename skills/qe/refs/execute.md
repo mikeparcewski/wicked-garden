@@ -121,7 +121,8 @@ SKIP with reason `trust-level-insufficient`.
 - `manifest.json` is written per `docs/EVIDENCE.md` (produced by `wicked-ledger`'s `buildManifest`)
 - The run + verdict are written to the SQLite ledger
 - Inside a governed wicked-crew run (`WICKED_RUN_ID` set) every run and verdict row carries
-  `crew_run_id`, so crew's acceptance attributes the QE run by stamp (the runner and the gate do it)
+  `crew_run_id`, so crew's acceptance attributes the QE run by stamp (the runner, the gate and every
+  specialist's verdict write do it)
 - Bus events emitted (when bus present): `wicked.test.run.started`,
   `wicked.test.run.completed`, `wicked.evidence.captured`, and finally
   `wicked.test.verdict.created`. These names are the wicked-ledger

@@ -163,6 +163,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-iac-test-engineer",
   reason: `iac_kind=${iacKind} plan_clean=${planClean} policy_failures=${totalPolicyFailures} (checkov=${checkovFails}, tflint=${tflintFails}, tfsec=${tfsecFails}, opa=${opaFails}, kyverno=${kyvernoFails}, cfn-guard=${cfnGuardFails}).`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One task per failing rule cluster so they show up in the queue.

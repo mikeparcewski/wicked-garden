@@ -158,6 +158,8 @@ store.create("verdicts", {
     ? `Steady state held under ${injector} (blast ${blastPct}%); rollback in ${rollbackMs}ms.`
     : `Steady state VIOLATED at t=${violationSec}s: ${violatedExpr}. Rollback executed.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // 2. Task record with specialist-specific assignee. This is how the

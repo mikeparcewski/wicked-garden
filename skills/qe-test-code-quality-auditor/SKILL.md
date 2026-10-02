@@ -215,6 +215,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-test-code-quality-auditor",
   reason: `P0=${p0.length} (assertion-free / tautological) P1=${p1.length} (swallowing / shared-state / sleeps / nondet) P2=${p2.length} (dup-setup / slow-ratio / dead). See test-quality-audit.md.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One task per P0 finding (individual); P1/P2 clustered by rule+file.

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -167,13 +168,27 @@ def test_outside_a_governed_run_nothing_is_stamped(tmp_path):
     assert _crew_reads(repo, "crew-run-g4") == {run_id: {"kind": "unstamped"}}
 
 
-def test_the_accept_playbook_stamps_every_run_and_verdict_it_writes():
-    """The accept trio's ledger writes are playbook code the agent runs: each create carries the stamp."""
+_CREATE = re.compile(r"store\.create\(\s*['\"](runs|verdicts)['\"]")
+_STAMPS = ("crewRunStamp(", "...CREW_RUN", "crew_run_id: process.env.WICKED_RUN_ID")
+
+
+def test_every_run_and_verdict_garden_writes_carries_the_stamp():
+    """Every ledger run/verdict write in garden's scripts and skills (the runner, the gate, the accept playbook,
+    every specialist that records a verdict) carries the stamp, so none of them stays unattributed."""
+    out = subprocess.run(["git", "grep", "-l", "-E", r"store\.create\(\s*['\"](runs|verdicts)['\"]", "--", "scripts", "skills"],
+                         cwd=ROOT, capture_output=True, text=True, check=True).stdout.split()
+    files = [f for f in out if "/test/" not in f]
+    assert len(files) >= 15, files  # the runner, the gate, accept.md and the 13 specialists
+    unstamped = []
+    for f in files:
+        text = (ROOT / f).read_text(encoding="utf-8")
+        for m in _CREATE.finditer(text):
+            block = text[m.start():text.index("});", m.start())]
+            if not any(s in block for s in _STAMPS):
+                unstamped.append(f"{f}:{text.count(chr(10), 0, m.start()) + 1}")
+    assert not unstamped, unstamped
+
+
+def test_the_accept_playbook_defines_its_stamp_from_the_governed_run():
     text = (ROOT / "skills" / "qe" / "refs" / "accept.md").read_text(encoding="utf-8")
-    creates = [i for i in range(len(text)) if text.startswith("store.create('runs'", i)
-               or text.startswith("store.create('verdicts'", i)]
-    assert len(creates) == 2, creates
-    for i in creates:
-        block = text[i:text.index("});", i)]
-        assert "...CREW_RUN" in block, block
     assert "const CREW_RUN = process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {};" in text
