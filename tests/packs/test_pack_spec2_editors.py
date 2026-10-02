@@ -260,7 +260,7 @@ def test_the_entry_suffix_is_lowercase_html_as_in_the_schema(tmp_path):
 
 
 @pytest.mark.parametrize("field,value", [
-    ("title", ""), ("version", "one"), ("protocol", []), ("protocol", ["1"]),
+    ("title", ""), ("version", "one"), ("version", "1.2.3garbage"), ("version", "1.2"), ("protocol", []), ("protocol", ["1"]),
     ("panels", ["comments"]), ("sha256", "abc"),
 ])
 def test_a_malformed_editor_field_is_refused(tmp_path, field, value):
@@ -355,6 +355,7 @@ def test_the_schema_accepts_an_editor_only_spec2_pack():
     lambda m: m["editors"][0].update(sizes=["pane"]),
     lambda m: m["editors"][0]["permissions"].append({"id": "network.fetch", "why": "x"}),
     lambda m: m["blocks"][0].update(id="wicked-review"),
+    lambda m: m["editors"][0].update(version="1.2.3garbage"),
 ])
 def test_the_schema_refuses_what_pack_check_refuses(mutate):
     m = json.loads((SPEC2 / "wicked-pack.json").read_text())

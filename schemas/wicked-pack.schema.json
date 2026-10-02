@@ -146,8 +146,8 @@
           },
           "version": {
             "type": "string",
-            "pattern": "^\\d+\\.\\d+\\.\\d+",
-            "description": "The editor's own semver."
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+            "description": "The editor's own SemVer, anchored."
           },
           "protocol": {
             "type": "array",

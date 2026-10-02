@@ -102,6 +102,8 @@ _BACKTICK_NAME_RE = re.compile(r"`([a-z0-9][a-z0-9-]*)`")
 # ---- manifest spec 2: editors + blocks (DES-artifact-editor-plugins §5.1, §5.2, §6.1, §8.5) ----
 _KIND_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+# An editor's own version is full SemVer, anchored (a pack's version keeps its spec-1 prefix rule).
+_EDITOR_SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
 _EDITOR_SIZES = ("inline", "pane", "full")
 _EDITOR_PANELS = ("checks",)
 # §6.1: what a plugin can ask for. Anything else (network calls, agents, gates, other artifacts) has no permission.
@@ -316,7 +318,7 @@ def _check_editors(manifest: dict, pack_root: Path, err) -> None:
                 seen.add(eid)
         if "title" in ed and (not isinstance(ed["title"], str) or not ed["title"].strip()):
             err("PK060", where, "title must be plain words shown in Settings → Editors (got an empty value)")
-        if "version" in ed and (not isinstance(ed["version"], str) or not re.match(r"^\d+\.\d+\.\d+", ed["version"])):
+        if "version" in ed and (not isinstance(ed["version"], str) or not _EDITOR_SEMVER_RE.match(ed["version"])):
             err("PK060", where, f"version must be the editor's semver (got {ed['version']!r})")
         protocol = ed.get("protocol")
         if "protocol" in ed and (not isinstance(protocol, list) or not protocol
