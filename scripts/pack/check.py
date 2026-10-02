@@ -226,21 +226,53 @@ def _inside(pack_root: Path, rel: object) -> "Path | None":
     return target
 
 
-class _ExternalRefs(HTMLParser):
-    """Collects the tags that would load something from outside the entry file itself."""
+_LOADER_RELS = {"stylesheet", "preload", "modulepreload", "prefetch", "import", "manifest"}
+_CSS_IMPORT_RE = re.compile(r"@import\b", re.IGNORECASE)
 
-    def __init__(self):
+
+class _ExternalRefs(HTMLParser):
+    """Collects what would load code, styles or documents from outside the entry file itself.
+
+    An early, explained refusal: the editor CSP (§8.2) is what actually enforces it. Images and fonts are
+    not listed here; they are the `network.media` permission's concern.
+    """
+
+    def __init__(self, depth: int = 0):
         super().__init__(convert_charrefs=True)
         self.found: list = []
+        self._depth = depth
+        self._in_style = False
 
     def handle_starttag(self, tag, attrs):
         a = {k.lower(): (v or "") for k, v in attrs}
+        rels = set(a.get("rel", "").lower().split())
         if tag == "script" and a.get("src", "").strip():
             self.found.append(f'<script src="{a["src"]}">')
-        elif tag == "iframe" and a.get("src", "").strip() not in ("", "about:blank"):
-            self.found.append(f'<iframe src="{a["src"]}">')
-        elif tag == "link" and "stylesheet" in a.get("rel", "").lower().split() and a.get("href", "").strip():
-            self.found.append(f'<link rel="stylesheet" href="{a["href"]}">')
+        elif tag in ("iframe", "frame") and a.get("src", "").strip() not in ("", "about:blank"):
+            self.found.append(f'<{tag} src="{a["src"]}">')
+        elif tag == "link" and rels & _LOADER_RELS and a.get("href", "").strip():
+            self.found.append(f'<link rel="{a["rel"]}" href="{a["href"]}">')
+        elif tag == "object" and a.get("data", "").strip():
+            self.found.append(f'<object data="{a["data"]}">')
+        elif tag == "embed" and a.get("src", "").strip():
+            self.found.append(f'<embed src="{a["src"]}">')
+        if _CSS_IMPORT_RE.search(a.get("style", "")):
+            self.found.append(f"<{tag} style> with @import")
+        if tag == "iframe" and a.get("srcdoc") and self._depth < 3:
+            inner = _ExternalRefs(self._depth + 1)
+            inner.feed(a["srcdoc"])
+            inner.close()
+            self.found.extend(f"<iframe srcdoc> containing {x}" for x in inner.found)
+        if tag == "style":
+            self._in_style = True
+
+    def handle_endtag(self, tag):
+        if tag == "style":
+            self._in_style = False
+
+    def handle_data(self, data):
+        if self._in_style and _CSS_IMPORT_RE.search(data):
+            self.found.append("<style> with @import")
 
 
 def _check_editors(manifest: dict, pack_root: Path, err) -> None:
@@ -419,7 +451,9 @@ def _check_blocks(manifest: dict, pack_root: Path, skill_names: set, err) -> Non
             err("PK070", where, "skills must be a list of this pack's skill names")
             skills = []
         for name in skills:
-            if name not in skill_names:
+            if not isinstance(name, str) or not name:
+                err("PK070", where, f"skills must list this pack's skill names as strings (got {name!r})")
+            elif name not in skill_names:
                 err("PK071", where, f"skill {name!r} is not a skill in this pack "
                     "(a block may only name skills the pack ships, so they are approved together)")
 

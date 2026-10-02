@@ -177,6 +177,12 @@ def test_the_entry_must_fit_its_own_limit_and_the_hosts(tmp_path):
     '<link rel="stylesheet" href="https://cdn.example.com/x.css">',
     '<iframe src="https://example.com/"></iframe>',
     "<script src='app.js'></script>",
+    "<style>@import url(https://cdn.example.com/x.css);</style>",
+    '<div style="background: red; @import url(x.css)"></div>',
+    '<iframe srcdoc="&lt;script src=https://cdn.example.com/x.js&gt;&lt;/script&gt;"></iframe>',
+    '<link rel="modulepreload" href="https://cdn.example.com/m.js">',
+    '<object data="https://example.com/x.swf"></object>',
+    '<embed src="https://example.com/x.pdf">',
 ])
 def test_an_entry_that_loads_anything_outside_itself_is_refused(tmp_path, tag):
     root = _copy(tmp_path)
@@ -245,6 +251,25 @@ def test_each_block_refusal_has_its_message(tmp_path, change, code, needle):
     _write(root, m)
     out = _rendered(root)
     assert code in out and needle in out, out
+
+
+@pytest.mark.parametrize("skills", [[{}], [None], [["acme-terms-checker"]], "acme-terms-checker"])
+def test_a_malformed_block_skills_value_is_a_finding_not_a_crash(tmp_path, skills):
+    root = _copy(tmp_path)
+    m = _manifest(root)
+    m["blocks"][0]["skills"] = skills
+    _write(root, m)
+    out = _rendered(root)
+    assert "PK070" in out or "PK071" in out, out
+
+
+@pytest.mark.parametrize("field,value", [("editors", [None, "x"]), ("blocks", [None])])
+def test_non_object_entries_are_findings_not_crashes(tmp_path, field, value):
+    root = _copy(tmp_path)
+    m = _manifest(root)
+    m[field] = value
+    _write(root, m)
+    assert ("PK060" if field == "editors" else "PK070") in _rendered(root)
 
 
 def test_a_preset_that_is_not_a_json_object_is_refused(tmp_path):
