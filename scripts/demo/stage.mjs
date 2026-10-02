@@ -7,7 +7,7 @@
 // 1080p. postprocess.mjs turns the frames into an H.264 MP4, time-lapsing the marked waits and embedding
 // chapter markers.
 import { loadChromium } from "./_playwright.mjs";
-import { armReadOnly, writesAllowed } from "./readonly.mjs";
+import { armGuard } from "./readonly.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -139,8 +139,9 @@ export class Stage {
    * @param {{name: string, logoSvg?: string, accent?: string}} o.brand
    * @param {number} [o.stickyOffset=88]  px to leave above a tall element when scrolling it into view (app header)
    * @param {boolean} [o.headful=false]   show the browser window while recording
+   * @param {string|null} [o.writableOrigin=null]  the fixture origin writes may go to (readonly.mjs fixtureOrigin); null = read-only
    */
-  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId }) {
+  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.brand = { name: brand?.name ?? "Demo", logoSvg: brand?.logoSvg ?? "", accent: brand?.accent ?? "#ee0000" };
@@ -149,6 +150,9 @@ export class Stage {
     this.headful = headful;
     this.locale = locale;
     this.timezoneId = timezoneId;
+    this.writableOrigin = writableOrigin;
+    this.readOnly = !writableOrigin;
+    this.blocked = [];
     this.marks = { chapters: [], speed: [], captions: [] };
     this.frameCount = 0;
     this.chapterIndex = -1;
@@ -159,11 +163,10 @@ export class Stage {
     for (const f of fs.readdirSync(path.join(this.outDir, "frames"))) fs.unlinkSync(path.join(this.outDir, "frames", f));
     this.frames = [];
     this.browser = await (await loadChromium()).launch({ headless: !this.headful, args: ["--force-color-profile=srgb", "--hide-scrollbars"] });
-    this.readOnly = !writesAllowed();
-    // A service worker answers requests the context's routes never see, so a read-only recording runs without one.
-    this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}), ...(this.readOnly ? { serviceWorkers: "block" } : {}) });
-    // Read-only unless DEMO_ALLOW_WRITES=1 (readonly.mjs): the page routes below still win for the stage itself.
-    this.blocked = await armReadOnly(this.context, !this.readOnly);
+    // A service worker answers requests the context's routes never see, so a guarded recording runs without one.
+    this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}), serviceWorkers: "block" });
+    // No writes except to the fixture origin, if one is named (readonly.mjs): the page routes below still win for the stage itself.
+    this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
     this.page = await this.context.newPage();
     const html = stageHtml(this.brand, this.baseUrl + firstPath);
     await this.page.route(this.baseUrl + STAGE_PATH, (route) => route.fulfill({ status: 200, contentType: "text/html", body: html }));
@@ -295,13 +298,19 @@ export class Stage {
   }
 
   async close() {
-    await sleep(600);
-    await this.cdp.send("Page.stopScreencast").catch(() => {});
-    await sleep(300);
-    const meta = { t0: this.t0, tEnd: this.now(), frames: this.frames, marks: this.marks, size: { w: W, h: H } };
-    fs.writeFileSync(path.join(this.outDir, "timeline.json"), JSON.stringify(meta, null, 1));
-    await this.context.close();
-    await this.browser.close();
+    // Also after an open() that failed part-way: close what was opened, and write a timeline only once recording began.
+    let meta = null;
+    if (this.cdp) {
+      await sleep(600);
+      await this.cdp.send("Page.stopScreencast").catch(() => {});
+      await sleep(300);
+    }
+    if (this.t0 !== undefined) {
+      meta = { t0: this.t0, tEnd: this.now(), frames: this.frames, marks: this.marks, size: { w: W, h: H } };
+      fs.writeFileSync(path.join(this.outDir, "timeline.json"), JSON.stringify(meta, null, 1));
+    }
+    await this.context?.close().catch(() => {});
+    await this.browser?.close().catch(() => {});
     return meta;
   }
 }

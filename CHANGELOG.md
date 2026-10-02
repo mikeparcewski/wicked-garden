@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **Demo recorder: the fixture origin is the one write door, and a failed take keeps its evidence (WT-G1, DES-walkthrough-proof).** `scripts/demo/readonly.mjs` `armGuard(context, { writableOrigin })` replaces `armReadOnly`: with `record.mjs --fixture-origin <origin>` (a loopback http(s) origin you started for the recording; anything else is refused before recording), writes and page WebSocket frames to exactly that origin pass, and every other write is still aborted and listed. With no fixture origin a recording stays fully read-only. The environment switch that lifted the guard is deleted. A take that fails now keeps its timeline, a video built from the frames it has, and `failure.json` (error, blocked requests, `failed_at_sec`) under `segments/<key>/failed-<take>/`; the stitch and `--reencode` refuse a segment whose last take failed (`failed_take`). `guard.json` gains `take`, `failed` and `writableOrigin`; `recording.json` labels a segment `fixture-writable`.
+
 ## [12.39.0] — 2026-09-29
 
 ### Added

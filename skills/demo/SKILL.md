@@ -196,18 +196,29 @@ wicked-garden run scripts/demo/record.mjs <storyline.mjs> --reencode   # rebuild
 wicked-garden run scripts/demo/record.mjs <storyline.mjs> --list       # which segments are recorded
 ```
 
-Options: `--out <dir>` (default `demo-video/` next to the storyline).
-Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`, `DEMO_ALLOW_WRITES=1`.
+Options: `--out <dir>` (default `demo-video/` next to the storyline), `--fixture-origin <origin>` (see below).
+Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`.
 
 **Read-only by default.** While it records, the browser sends no writes: every request that is not
 GET, HEAD or OPTIONS is aborted, and so is every WebSocket frame the page sends (frames the server pushes
-still arrive). The segment fails `side_effect_blocked`, naming each request. A failed take deletes that
-segment's old `segment.mp4`, and while any segment's last take was blocked, `--reencode` and `--stitch`
-refuse to run: re-record it (or remove its directory) first. Service workers are blocked while recording.
-So a recording can never launch, approve, create or delete anything on the app it films. Show a control
-without pressing it. `DEMO_ALLOW_WRITES=1` lifts the guard, but only for a disposable target you started
-for the demo (a fixture server or a scratch database), never for a live system. `recording.json` records
-how each stitched segment was recorded.
+still arrive). The segment fails `side_effect_blocked`, naming each request. Service workers are blocked
+while recording. So a recording can never launch, approve, create or delete anything on the app it films.
+Show a control without pressing it.
+
+**The one door: `--fixture-origin`.** To film writes, start a disposable app for the demo (a fixture
+server, a scratch database) on a loopback port and name its origin, e.g.
+`--fixture-origin http://127.0.0.1:4310`. Writes and page WebSocket frames to exactly that origin (scheme,
+host and port) pass; a write to any other origin is still aborted and listed. A non-loopback origin is
+refused before recording. Never point it at a live system someone else uses. There is no environment
+switch. `recording.json` records how each stitched segment was recorded (`read-only` or
+`fixture-writable`), and each segment's `guard.json` names the origin.
+
+**A failed take keeps its evidence.** When a take fails (an error, or a blocked write), its timeline,
+a video built from the frames it has, and `failure.json` (the error, any blocked requests,
+`failed_at_sec`) are kept in `segments/<key>/failed-<take>/`. Nothing of it is left where a stitch could
+use it: the segment's old `segment.mp4` is deleted, and while any segment's last take failed, `--reencode`
+and `--stitch` refuse to run (`failed_take`, or `side_effect_blocked` for a blocked write). Re-record it
+(or remove its directory) first.
 
 Record one segment first, review its stills with the `review` action, then record the rest.
 
