@@ -14,6 +14,7 @@ import http.server
 import json
 import os
 import subprocess
+import sys
 import threading
 
 import pytest
@@ -176,6 +177,7 @@ def test_a_failed_take_keeps_its_video_and_failure_and_is_never_stitched(tmp_pat
 
 @needs_node
 @needs_recorder
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake encoder is a POSIX shell script")
 def test_a_take_whose_video_fails_to_encode_is_a_failed_take(tmp_path):
     """The take counts as failed until its video is built: an encoder crash never leaves a take a stitch accepts."""
     bindir = tmp_path / "bin"
