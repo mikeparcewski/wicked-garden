@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.40.0] — 2026-10-02
+
 ### Added
 - **QE ledger rows name the governed crew run they were written in (WT-G4, DES-walkthrough-proof §4.14).** Inside a wicked-crew run (`WICKED_RUN_ID` set), the qe-runner's `runs` row (`scripts/qe/runner/src/evidence.mjs`), the gate's `verdicts` row (`scripts/qe/lib/gate.mjs`), the accept playbook's run and verdict rows and every QE specialist's verdict write carry a top-level `crew_run_id`, so crew's acceptance reader attributes the QE run `kind: 'stamped'` instead of inferring it from the run's lifetime. Outside a governed run nothing is stamped. One helper, `scripts/qe/lib/crew-run.mjs`.
 - **`mem`: the decision-report codebook for wicked-crew's chat recorder (DC-S5, DES-decision-capture §4.3.3).** `skills/mem/refs/decision-report.md` (under 2 KB, strict frontmatter) tells a chat seat how to end its reply with a fenced `wicked-decisions` JSON block: `quote`, `decision_text`, `type`, `codify`, `ambiguous`, `steering_type`, `approves_proposal`, `same_as`. The unit is the (previous reply, operator message) pair: when the operator approves or picks from the seat's proposal, `decision_text` is written from the approved proposal plus any amendment, never from the operator's short wording. Labels are suggestions; crew decides what is remembered. `tests/mem/test_decision_report_codebook.py` pins the size, the parse, the vocabulary and the pair rule, plus a local-only copy guard against the operator corpus.
@@ -959,7 +961,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.39.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.40.0...HEAD
+[12.40.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.39.0...v12.40.0
 [12.39.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.1...v12.39.0
 [12.38.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.0...v12.38.1
 [12.38.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.37.2...v12.38.0
