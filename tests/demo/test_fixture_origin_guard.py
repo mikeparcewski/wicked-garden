@@ -198,8 +198,33 @@ def test_a_take_whose_video_fails_to_encode_is_a_failed_take(tmp_path):
     seg = tmp_path / "demo-video" / "segments" / "01-launch"
     assert not (seg / "segment.mp4").exists(), "a partial encode must not survive to be stitched"
     assert json.loads((seg / "guard.json").read_text())["failed"] is True
-    failure = json.loads((seg / "failed-1" / "failure.json").read_text())
+    failed = seg / "failed-1"
+    failure = json.loads((failed / "failure.json").read_text())
     assert failure["take"] == 1 and "ffmpeg failed" in failure["message"]
+    # Its own video could not be built either: no partial output, and the frames stay so it can be rebuilt.
+    assert failure["video"] is None and "ffmpeg failed" in failure["video_error"]
+    assert not (failed / "segment.mp4").exists(), "a partial encode is not evidence"
+    assert any((failed / "frames").iterdir()), "the frames are dropped only once a video is built"
+
+
+@needs_node
+@needs_recorder
+def test_failed_at_sec_is_a_position_in_the_failed_takes_video_after_a_time_lapse(tmp_path):
+    server, base = _serve(_App)
+    body = ("      await ctx.fast('Waiting', 8, () => ctx.hold(6000));\n"
+            "      await ctx.waitVisible(ctx.app.getByText('No such heading'), 1000);")
+    try:
+        out = _record(tmp_path, base, body)
+    finally:
+        server.shutdown()
+    assert out.returncode != 0, out.stdout
+    failed = tmp_path / "demo-video" / "segments" / "01-launch" / "failed-1"
+    failure = json.loads((failed / "failure.json").read_text())
+    probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                            str(failed / "segment.mp4")], capture_output=True, text=True, timeout=30)
+    duration = float(probe.stdout.strip())
+    # The 6 s wait plays in 0.75 s: a wall-clock offset would land past the end of the video.
+    assert 0 < failure["failed_at_sec"] <= duration, (failure["failed_at_sec"], duration)
 
 
 if __name__ == "__main__":

@@ -17,7 +17,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Stage } from "./stage.mjs";
-import { buildVideo } from "./postprocess.mjs";
+import { buildVideo, videoClock } from "./postprocess.mjs";
 import { fixtureOrigin, sideEffectError } from "./readonly.mjs";
 
 const FFMPEG = process.env.FFMPEG || "ffmpeg";
@@ -206,6 +206,17 @@ async function recordSegment(seg) {
   console.log(`  ${seg.key}: ${r.seconds.toFixed(1)} s${Object.keys(timings).length ? " " + JSON.stringify(timings) : ""}`);
 }
 
+/** Where `failedAt` (wall clock, seconds) falls in the failed take's video; null when it has no frames or no instant. */
+function failedAtInVideo(dir, failedAt) {
+  if (failedAt === null) return null;
+  try {
+    const tl = JSON.parse(fs.readFileSync(path.join(dir, "timeline.json"), "utf8"));
+    return Math.max(0, Math.round(videoClock(tl, TRIM_START).outAt(failedAt) * 10) / 10);
+  } catch {
+    return null;
+  }
+}
+
 /** A failed take keeps its evidence in segments/<key>/failed-<take>/: its timeline, the video built from the frames
  *  it has, and failure.json. Nothing of it stays where --reencode or a stitch would pick it up. */
 function keepFailedTake(key, take, err, stage, failedAt) {
@@ -221,16 +232,17 @@ function keepFailedTake(key, take, err, stage, failedAt) {
     try {
       buildVideo(dir, path.join(dir, "segment.mp4"), { trimStart: TRIM_START, ffmpeg: FFMPEG });
       video = "segment.mp4";
+      // The video is the evidence; the raw frames would only double the take's size on disk.
+      fs.rmSync(path.join(dir, "frames"), { recursive: true, force: true });
+      fs.rmSync(path.join(dir, "frames.ffconcat"), { force: true });
     } catch (e) {
+      // No video: a partial encode is not evidence, and the frames stay so the take can still be rebuilt.
       videoError = e.message;
+      fs.rmSync(path.join(dir, "segment.mp4"), { force: true });
     }
-    // The video is the evidence; the raw frames would only double the take's size on disk.
-    fs.rmSync(path.join(dir, "frames"), { recursive: true, force: true });
-    fs.rmSync(path.join(dir, "frames.ffconcat"), { force: true });
   } else {
     videoError = "the take failed before recording began";
   }
-  const t0 = stage.t0;
   const failure = {
     segment: key,
     take,
@@ -238,8 +250,8 @@ function keepFailedTake(key, take, err, stage, failedAt) {
     message: err.message,
     cause: err.cause?.message ?? null,
     blocked: stage.blocked,
-    // Seconds into this take's video (the timeline clock less the trimmed set-up), when the failure is placed in it.
-    failed_at_sec: t0 !== undefined && failedAt !== null ? Math.max(0, Math.round((failedAt - t0 - TRIM_START) * 10) / 10) : null,
+    // Seconds into this take's video (the same clock buildVideo uses: set-up trimmed, time-lapses compressed).
+    failed_at_sec: failedAtInVideo(dir, failedAt),
     video,
     ...(videoError ? { video_error: videoError } : {}),
   };
