@@ -1,2 +1,5 @@
 # Windows command twins must keep CRLF line endings; everything else stays LF.
 *.cmd text eol=crlf
+
+# Pack editor fixtures are pinned by sha256: never rewrite their line endings.
+tests/fixtures/packs/**/editors/** -text

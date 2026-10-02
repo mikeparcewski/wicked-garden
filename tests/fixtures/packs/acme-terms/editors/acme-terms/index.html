@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Terms checker</title>
+<style>body{font:14px system-ui;margin:12px}</style></head>
+<body>
+<h1>Terms checker</h1>
+<ul id="hits"></ul>
+<script>
+// A self-contained editor: everything it runs is inline.
+window.addEventListener("message", (e) => {
+  const port = e.ports && e.ports[0];
+  if (port) port.postMessage({ type: "ready", protocol: 1 });
+});
+</script>
+</body>
+</html>

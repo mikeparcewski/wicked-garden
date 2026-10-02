@@ -52,7 +52,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 MANIFEST_NAME = "wicked-pack.json"
-SPEC_VERSION = 1
+SPEC_VERSION = 1          # the registered-pack file's own format
+# Manifest specs this garden reads. Spec 2 adds ``editors[]`` (artifact editors) and ``blocks[]``
+# (the preset that produces the pack's kind), keeps every spec-1 field, and makes ``domains``
+# optional when ``editors`` is present (DES-artifact-editor-plugins §5.2). Spec-1 packs stay valid.
+MANIFEST_SPECS = (1, 2)
 
 # ``wicked`` is the reserved first-party vendor prefix — third-party packs
 # must never claim it (ruling naming rule #3).
@@ -126,8 +130,20 @@ def structural_errors(manifest: dict, root: Path) -> list:
     errors: list = []
 
     spec = manifest.get("spec")
-    if spec != SPEC_VERSION:
-        errors.append(f"spec must be {SPEC_VERSION} (got {spec!r})")
+    if spec not in MANIFEST_SPECS or isinstance(spec, bool):
+        errors.append(f"spec must be 1 or 2 (got {spec!r})")
+    editors = manifest.get("editors")
+    if spec == 1 and ("editors" in manifest or "blocks" in manifest):
+        errors.append("editors and blocks need manifest spec 2 (this pack declares spec 1)")
+    # A wicked* editor id is refused in EVERY pack, here (not only in `pack check`) so that even a
+    # forced registration cannot carry one: first-party editors ship inside studio, never as a pack.
+    for editor in editors if isinstance(editors, list) else []:
+        eid = editor.get("id") if isinstance(editor, dict) else None
+        if isinstance(eid, str) and any(eid == r or eid.startswith(r + "-") for r in RESERVED_VENDOR_PREFIXES):
+            errors.append(
+                f"editor id {eid!r} uses the reserved prefix 'wicked' (first-party editors ship "
+                "inside studio, never in a pack)"
+            )
 
     name = manifest.get("name")
     vendor = manifest.get("vendor")
@@ -165,15 +181,17 @@ def structural_errors(manifest: dict, root: Path) -> list:
             or normalized.startswith("/")
             or bool(re.match(r"^[A-Za-z]:", skills_rel))
         )
+    # Spec 2: an editor-only pack (editors, no domains) may ship no skills at all.
+    editor_only = spec == 2 and isinstance(editors, list) and bool(editors) and "domains" not in manifest
     if escapes_root:
         errors.append(f"skills_dir must be a relative path inside the pack (got {skills_rel!r})")
-    else:
+    elif not editor_only:
         skills_dir = Path(root) / skills_rel
         if not skills_dir.is_dir():
             errors.append(f"skills dir not found: {skills_dir}")
 
     domains = manifest.get("domains")
-    if not isinstance(domains, list) or not domains:
+    if not editor_only and (not isinstance(domains, list) or not domains):
         errors.append("domains must be a non-empty array")
 
     return errors
