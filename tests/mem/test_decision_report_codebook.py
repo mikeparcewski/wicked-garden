@@ -16,6 +16,7 @@ import json
 import os
 import re
 import sys
+from collections import deque
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ from validate import frontmatter_yaml_error  # noqa: E402
 CODEBOOK = _REPO_ROOT / "skills" / "mem" / "refs" / "decision-report.md"
 TYPES = ["confirmation", "choice", "rule", "correction", "scope", "exception", "none"]
 STEERING = ["architecture", "development", "security", "testing", "operations", "compliance", "design-ux"]
+_CORPUS_BYTES_CAP = 512 * 1024 * 1024  # the copy guard refuses to scan more than this
 FIELDS = ["quote", "decision_text", "type", "codify", "ambiguous", "steering_type", "approves_proposal", "same_as"]
 
 
@@ -94,7 +96,16 @@ def test_no_operator_corpus_text_was_copied_in():
     # The controlled vocabulary (type, steering type and field names) is a schema, not corpus text.
     vocab = set(_words(" ".join(TYPES + STEERING + FIELDS)))
     mine = {sh for sh in _shingles(_words(_text())) if not set(sh.split()) <= vocab}
+    # Streamed with a rolling 6-word window, and bounded: the guard never materialises the corpus.
+    total = sum(p.stat().st_size for p in files)
+    assert total <= _CORPUS_BYTES_CAP, f"corpus is {total} bytes, over the guard's {_CORPUS_BYTES_CAP} cap"
     hits = set()
     for p in files:
-        hits |= mine & _shingles(_words(p.read_text(encoding="utf-8", errors="ignore")))
+        window: deque = deque(maxlen=6)
+        with p.open(encoding="utf-8", errors="ignore") as fh:
+            for line in fh:
+                for w in _words(line):
+                    window.append(w)
+                    if len(window) == 6 and " ".join(window) in mine:
+                        hits.add(" ".join(window))
     assert not hits, sorted(hits)[:10]
