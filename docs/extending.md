@@ -80,6 +80,23 @@ A complete working example (used as garden's own e2e fixture):
 7. **Events** (if you emit them): 4-segment
    `wicked.<domain>.<noun>.<past-verb>` — bus SPEC.md is the authority.
 
+### Spec 2: editors and blocks
+
+Manifest `spec: 2` keeps every spec-1 field and adds two arrays. A spec-1 pack stays valid as it is.
+
+- `editors[]`: artifact editors the pack ships. Each one is **one self-contained HTML file** inside the
+  pack (`entry`), pinned by its `sha256`, with an `id`, a plain-words `title`, its own `version`, the
+  `protocol` versions it speaks, the artifact `kinds` it opens, the `sizes` it supports (`inline` is
+  required), and the `permissions` it asks for, each with a `why` shown at install. An optional
+  `limits.bundleBytes` may only be lower than the host's cap (5 MiB). With `editors` present, `domains`
+  is optional: an editor-only pack ships no skills.
+- `blocks[]`: the block that **produces** the pack's kind: an `id`, a `label`, a `preset` JSON file
+  inside the pack, the `produces_kind`, and the pack `skills` it uses (approved together at install).
+
+`wicked` and `wicked-*` editor and block ids are refused in every pack: first-party editors ship inside
+wicked-studio and first-party blocks are core presets. Example (garden's own spec-2 fixture):
+[`tests/fixtures/packs/acme-terms/`](../tests/fixtures/packs/acme-terms/).
+
 ## Validate: the shipped conformance gate
 
 ```bash
@@ -90,8 +107,9 @@ npx wicked-garden pack check ./acme-seo-pack --json   # CI
 Exit 0 = conformant (warnings allowed), 1 = errors. The gate checks the
 manifest, router/worker shape, naming, disclosure tiers, NOT-THIS-WHEN
 reciprocity, produces contracts (archetype names must exist in garden's
-catalog), and peer-floor syntax — rule codes PK001–PK050, each with an
-actionable message. It runs anywhere Python ≥ 3.10 exists; no garden install
+catalog), peer-floor syntax, and for spec 2 every editor (inside the pack, one `.html` file, its
+hash, its size, nothing loaded from outside it, kinds, sizes, permissions) and block (preset file,
+produced kind, pack skills): rule codes PK001–PK072, each with an actionable message. It runs anywhere Python ≥ 3.10 exists; no garden install
 required (`scripts/pack/check.py` ships in the npm package).
 
 ## Install + register

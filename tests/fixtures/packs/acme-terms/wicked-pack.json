@@ -1,0 +1,35 @@
+{
+  "$schema": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/wicked-pack.schema.json",
+  "spec": 2,
+  "name": "acme-terms",
+  "vendor": "acme",
+  "version": "0.1.0",
+  "description": "ACME's terms pack: a terms-check domain, an editor that shows the hits, and the block that produces the checked document. Test fixture for manifest spec 2.",
+  "skills_dir": "skills",
+  "domains": [{ "name": "terms" }],
+  "editors": [
+    {
+      "id": "acme-terms",
+      "title": "Terms checker",
+      "version": "0.1.0",
+      "protocol": [1],
+      "kinds": ["document", "rfp-response"],
+      "entry": "editors/acme-terms/index.html",
+      "sha256": "ce7ba7897e3595f14f6e16483735288cf54ea9fae6e2efa83f2ffc48e36d801d",
+      "sizes": ["inline", "pane", "full"],
+      "panels": ["checks"],
+      "permissions": [
+        { "id": "artifact.read", "why": "to read the document's text" },
+        { "id": "selection.chip", "why": "to point at a sentence in the message box" },
+        { "id": "artifact.write", "why": "to replace a banned term everywhere, as one version" },
+        { "id": "checks.contribute", "why": "to list the terms it found" }
+      ],
+      "limits": { "bundleBytes": 2000000 }
+    }
+  ],
+  "blocks": [
+    { "id": "acme-terms-review", "label": "Check our terms", "preset": "presets/terms-review.json",
+      "produces_kind": "document", "skills": ["acme-terms-checker"] }
+  ],
+  "provenance": { "source": "https://github.com/acme/acme-terms-pack", "publisher": "acme", "license": "MIT" }
+}

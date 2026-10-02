@@ -1,15 +1,19 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/wicked-pack.schema.json",
-  "title": "wicked-pack.json — third-party skill-pack manifest",
-  "description": "Drop-in registration manifest for a third-party pack (extension contract, SKILL-RATIONALIZATION §5). Placed at the pack root next to its skills/ tree. Garden discovers it at runtime from WICKED_PACK_PATH, the registered-pack file, Claude Code plugin dirs, and <project>/.wicked/packs/ — no garden PR required. Executable validation: `npx wicked-garden pack check <dir>` (scripts/pack/check.py).",
+  "title": "wicked-pack.json — third-party pack manifest (skills, editors, blocks)",
+  "description": "Drop-in registration manifest for a third-party pack (extension contract, SKILL-RATIONALIZATION §5). Spec 2 adds editors[] and blocks[] (DES-artifact-editor-plugins §5.2); spec-1 packs stay valid. Placed at the pack root next to its skills/ tree. Garden discovers it at runtime from WICKED_PACK_PATH, the registered-pack file, Claude Code plugin dirs, and <project>/.wicked/packs/ — no garden PR required. Executable validation: `npx wicked-garden pack check <dir>` (scripts/pack/check.py).",
   "type": "object",
-  "required": ["spec", "name", "vendor", "version", "domains"],
+  "required": ["spec", "name", "vendor", "version"],
   "additionalProperties": false,
   "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Optional pointer to this schema, for editors."
+    },
     "spec": {
-      "const": 1,
-      "description": "Manifest spec version. Currently 1."
+      "enum": [1, 2],
+      "description": "Manifest spec version. 1: skills only. 2: adds editors[] and blocks[]; domains becomes optional when editors is present."
     },
     "name": {
       "type": "string",
@@ -40,7 +44,7 @@
     "domains": {
       "type": "array",
       "minItems": 1,
-      "description": "The domains this pack contributes. Each declared domain must have exactly one router skill named {vendor}-{domain}; its workers are {vendor}-{domain}-{role} fork skills.",
+      "description": "The domains this pack contributes. Each declared domain must have exactly one router skill named {vendor}-{domain}; its workers are {vendor}-{domain}-{role} fork skills. Required, except in a spec-2 pack that declares editors.",
       "items": {
         "type": "object",
         "required": ["name"],
@@ -104,20 +108,189 @@
     "peers": {
       "type": "object",
       "description": "Peer version floors (extension-contract gap 6), e.g. {\"wicked-garden\": \">=12.29.0\", \"wicked-vault\": \">=0.5.0\"}. Checked FAIL-OPEN: violations are surfaced at SessionStart and by `pack floors`, never blocked on.",
-      "additionalProperties": {
-        "type": "string",
-        "pattern": "^(>=|\\^)\\s*\\d+\\.\\d+\\.\\d+$"
-      }
+      "additionalProperties": { "type": "string", "pattern": "^(>=|\\^)\\s*\\d+\\.\\d+\\.\\d+$" }
     },
     "provenance": {
       "type": "object",
       "description": "Declared provenance (extension-contract gap 4 — minimal + honest). Registration additionally records a sha256 of this manifest and a content hash of the skills tree. There is NO signing: hashes detect post-registration drift, they do not prove authorship. Install packs only from sources you trust — skills carry shell.",
       "additionalProperties": false,
       "properties": {
-        "source": { "type": "string", "description": "Canonical origin URL (git repo or npm page)." },
+        "source": {
+          "type": "string",
+          "description": "Canonical origin URL (git repo or npm page)."
+        },
         "publisher": { "type": "string", "description": "Vendor / maintainer identity as published." },
         "license": { "type": "string" }
       }
+    },
+    "editors": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Spec 2. Artifact editors this pack ships (DES-artifact-editor-plugins §5.2). Each is ONE self-contained HTML entry inside the pack, pinned by sha256. `pack check` also verifies the file: inside the pack, the hash, the size, and no script/stylesheet/frame loaded from outside it.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "permissions"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!wicked($|-))[a-z0-9]+(-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "Unique per install. 'wicked' and 'wicked-*' are refused in every pack: first-party editors ship inside studio."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S",
+            "description": "Plain words, shown in Settings → Editors."
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+            "description": "The editor's own SemVer, anchored."
+          },
+          "protocol": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "integer", "minimum": 1 },
+            "description": "wicked.editor protocol versions it speaks."
+          },
+          "kinds": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,40}$" },
+            "description": "Artifact kinds it can open."
+          },
+          "entry": {
+            "type": "string",
+            "pattern": "\\.html$",
+            "description": "Relative path of the single HTML file (scripts inline)."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "sha256 of the entry file; pinned at install."
+          },
+          "sizes": {
+            "type": "array",
+            "items": {
+              "enum": ["inline", "pane", "full"]
+            },
+            "contains": { "const": "inline" },
+            "description": "'inline' is required; a missing 'pane' morphs inline to full."
+          },
+          "panels": {
+            "type": "array",
+            "items": {
+              "enum": ["checks"]
+            },
+            "description": "Optional host-fed panels it renders."
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "why"],
+              "properties": {
+                "id": {
+                  "enum": ["artifact.read", "artifact.write", "selection.chip", "composer.draft", "checks.read", "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media"]
+                },
+                "why": {
+                  "type": "string",
+                  "pattern": "\\S",
+                  "description": "The reason shown at install."
+                }
+              }
+            },
+            "description": "What it asks for (§6.1), each with its reason."
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bundleBytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5242880,
+                "description": "May only be lower than the host's cap (5 MiB)."
+              }
+            }
+          }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "description": "Spec 2. Blocks that PRODUCE this pack's kind (DES-artifact-editor-plugins §9.2): each names a crew preset file inside the pack and the pack skills it uses, approved together at install.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "preset", "produces_kind"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!wicked($|-))[a-z0-9]+(-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "'wicked' and 'wicked-*' are refused: first-party blocks are core presets."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S",
+            "description": "Plain words the block is offered with."
+          },
+          "preset": {
+            "type": "string",
+            "description": "Relative path of the preset JSON inside the pack."
+          },
+          "produces_kind": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,40}$" },
+          "skills": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+            "description": "Skills of this pack the block uses."
+          }
+        }
+      }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "spec": { "const": 1 }
+        }
+      },
+      "then": {
+        "required": ["domains"],
+        "not": {
+          "anyOf": [
+            {
+              "required": ["editors"]
+            },
+            {
+              "required": ["blocks"]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "spec": { "const": 2 }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": ["domains"]
+          },
+          {
+            "required": ["editors"]
+          }
+        ]
+      }
+    }
+  ]
 }
