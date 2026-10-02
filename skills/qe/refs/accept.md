@@ -127,6 +127,9 @@ import { basename } from 'node:path';
 const LEDGER_ROOT = resolveLedgerRoot(process.cwd());
 const WICKED_DIR  = basename(LEDGER_ROOT);                 // '.wicked-qe' (or legacy)
 const store = createDomainStore({ root: LEDGER_ROOT });
+// Inside a governed wicked-crew run (WICKED_RUN_ID set), stamp every run and verdict row with it, so
+// crew's acceptance attributes this QE run to that run by stamp, not by inference from its lifetime.
+const CREW_RUN = process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {};
 
 // Ensure project + scenario exist, then:
 const run = store.create('runs', {
@@ -134,6 +137,7 @@ const run = store.create('runs', {
   scenario_id: scenario.id,
   started_at: new Date().toISOString(),
   status: 'running',
+  ...CREW_RUN,
 });
 const RUN_ID       = run.id;                               // canonical UUID
 const EVIDENCE_DIR = `${WICKED_DIR}/evidence/${RUN_ID}`;
@@ -386,6 +390,7 @@ const verdictRecord = store.create('verdicts', {
   reviewer: 'acceptance-test-reviewer',
   reason: reviewerSummary,
   ...(reviewerEquivalence ? { equivalence_json: JSON.stringify(reviewerEquivalence) } : {}),
+  ...CREW_RUN,
 });
 
 // 3. Materialize the public manifest at the contract path

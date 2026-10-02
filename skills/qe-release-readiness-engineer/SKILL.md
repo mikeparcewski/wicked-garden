@@ -169,6 +169,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-release-readiness-engineer",
   reason: `Release gate: ${gateDecision}. Blockers: ${blockers.length}. Window: ${WINDOW_DAYS}d.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // Open a task per blocker so downstream ownership is explicit.

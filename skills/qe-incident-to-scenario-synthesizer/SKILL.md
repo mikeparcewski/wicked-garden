@@ -187,6 +187,8 @@ store.create("verdicts", {
   reviewer: "wicked-garden-qe-incident-to-scenario-synthesizer",
   reason: `Authored scenarios/${incidentId}.md (pending-review) from ${sourcePath}.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // 2. Task — human review is mandatory before the scenario goes active.

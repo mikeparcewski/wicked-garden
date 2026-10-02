@@ -372,6 +372,8 @@ store.create("verdicts", {
     ? `insufficient-authorization: trust_level=${trustLevel || "none"}, change_ticket=${changeTicket || "none"}, target=${target}.`
     : `no automated findings across SAST (${sastCount} rules), DAST (${dastCount} probes), secrets (${secretsCount} scanners). Manual pen-test coverage still required.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One follow-up task per High finding for remediation; one task for the

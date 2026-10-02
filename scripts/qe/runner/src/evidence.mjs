@@ -42,6 +42,7 @@ import {
   compileExtraFields,
   compileExtraPatterns,
 } from "./redact.mjs";
+import { crewRunStamp } from "../../lib/crew-run.mjs";
 
 const require = createRequire(import.meta.url);
 const RUNNER_VERSION = JSON.parse(
@@ -141,6 +142,7 @@ export function resolveLedgerRoot(repoRoot, env = process.env) {
  *                                     (written straight into the evidence
  *                                     dir by the runner)
  * @param {string} [opts.runError]     fatal error text when the run crashed
+ * @param {object} [opts.env]          environment to read WICKED_RUN_ID from (default process.env)
  * @returns {{ runId, evidenceDir, manifestPath, claim, preflight }}
  */
 export function writeEvidence(opts) {
@@ -314,6 +316,8 @@ export function writeEvidence(opts) {
     finished_at: opts.finishedAt ?? new Date().toISOString(),
     status,
     evidence_path: evidenceDir,
+    // Inside a governed crew run, the run row names it (WT-G4): crew attributes this QE run by stamp.
+    ...crewRunStamp(opts.env ?? process.env),
   });
 
   // Executor CLAIM only — not a graded verdict; no verdicts row (TH-10).

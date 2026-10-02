@@ -192,6 +192,8 @@ store.create("verdicts", {
     ? `${exceededCount}/${totalComparisons} diffs exceeded threshold (worst: ${worstPage} ${worstBrowser} ${worstPct}%).`
     : `${totalComparisons} comparisons within threshold; ${newBaselineCount} new baselines pending approval.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // Pending-approval tasks — never auto-merge baselines. A "new baseline"

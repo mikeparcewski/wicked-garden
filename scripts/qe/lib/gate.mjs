@@ -89,6 +89,7 @@ import { parseArgs } from "node:util";
 
 import { buildExclusionsClause } from "./flake-policy.mjs";
 import { resolveVaultModule, applyVaultIntegrity, VaultEvidenceError } from "./vault-evidence.mjs";
+import { crewRunStamp } from "./crew-run.mjs";
 
 // --- wicked-ledger resolution (cwd-anchored; mirrors wicked-vault's bus.mjs) ---
 
@@ -494,6 +495,8 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
         // Presence makes DomainStore emit wicked.test.evidence.captured too.
         ...(vaultInfo?.payload_sha256 ? { vault_payload_sha: vaultInfo.payload_sha256 } : {}),
         ...(Object.keys(meta).length ? { equivalence_json: JSON.stringify(meta) } : {}),
+        // Inside a governed crew run, the verdict names it (WT-G4): crew attributes it by stamp.
+        ...crewRunStamp(),
       });
     } catch (err) {
       process.stderr.write(`[wicked-garden-qe] domain store write failed (non-fatal): ${err.message}\n`);

@@ -166,6 +166,8 @@ store.create("verdicts", {
     ? `Flake rate ${(flakeRate*100).toFixed(1)}% over 14d; cause=${cause}; fix=${proposedFix}.`
     : `Stable over 14d (${totalRuns} runs, ${failCount} fails — all explained).`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // Root-cause task under the specialist's own assignee_skill so `wicked-garden-qe-test-oracle`

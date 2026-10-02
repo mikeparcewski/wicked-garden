@@ -286,6 +286,8 @@ store.create("verdicts", {
     ? `hallucination_drift=${(driftRate*100).toFixed(1)}% (baseline ${(baseline*100).toFixed(1)}%); citation_bad_rate=${(citBadRate*100).toFixed(1)}%. Ship with monitoring.`
     : `direct/indirect/smuggling/multiturn/jailbreak all rejected. Refusal rate=${(refRate*100).toFixed(1)}%. Schema 100%. Manual red-team still required.`,
   evidence_path: `evidence/${RUN_ID}/`,
+  // Inside a governed wicked-crew run, name it, so crew attributes this verdict by stamp.
+  ...(process.env.WICKED_RUN_ID ? { crew_run_id: process.env.WICKED_RUN_ID } : {}),
 });
 
 // One task per failing family for a targeted fix;
