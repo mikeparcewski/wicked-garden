@@ -2,17 +2,19 @@
 
 A spec-2 manifest keeps every spec-1 field and adds `editors[]` (an artifact editor: one self-contained HTML
 entry pinned by sha256) and `blocks[]` (the preset that produces the pack's kind). `domains` becomes optional
-when `editors` is present. Spec-1 packs stay valid. No pack may declare a `wicked*` editor id: first-party
+when `editors` is present. Spec-1 packs stay valid. No pack may declare a `wicked` or `wicked-*` editor id
+(a name that merely starts with the letters, like `wickedly-terms`, is allowed, as for vendors): first-party
 editors ship inside studio, never as packs.
 
 Pinned here: every spec-1 fixture still validates (check + schema), the spec-2 fixture validates, each §5.2
-refusal has its own code and message, a `wicked*` editor id is refused in every pack (even registered with
---force), and the vendor pattern is unchanged.
+refusal has its own code and message, a `wicked`/`wicked-*` editor id is refused in every pack (even registered
+with --force), and the vendor pattern is unchanged.
 """
 
 from __future__ import annotations
 
 import hashlib
+import html
 import json
 import shutil
 import sys
@@ -58,6 +60,13 @@ def _editor(root: Path, **changes) -> Path:
 
 def _rendered(root: Path) -> str:
     return "\n".join(f.render() for f in _errors(check_pack(root, garden_root=_REPO)))
+
+
+def _nested_srcdoc(levels: int) -> str:
+    inner = '<script src="https://cdn.example.com/x.js"></script>'
+    for _ in range(levels):
+        inner = '<iframe srcdoc="' + html.escape(inner, quote=True) + '"></iframe>'
+    return inner
 
 
 # ---- what passes ------------------------------------------------------------------------------------------------
@@ -183,6 +192,8 @@ def test_the_entry_must_fit_its_own_limit_and_the_hosts(tmp_path):
     '<link rel="modulepreload" href="https://cdn.example.com/m.js">',
     '<object data="https://example.com/x.swf"></object>',
     '<embed src="https://example.com/x.pdf">',
+    '<script src="https://cdn.example.com/x.js" src=""></script>',  # the browser uses the FIRST src
+    _nested_srcdoc(5),  # nested deeper than the check inspects: it fails closed
 ])
 def test_an_entry_that_loads_anything_outside_itself_is_refused(tmp_path, tag):
     root = _copy(tmp_path)
@@ -216,6 +227,36 @@ def test_permissions_must_be_known_and_explained(tmp_path, perm, needle):
     root = _editor(_copy(tmp_path), permissions=[perm])
     out = _rendered(root)
     assert "PK068" in out and needle in out, out
+
+
+def test_an_oversized_entry_is_refused_without_being_read(tmp_path, monkeypatch):
+    root = _copy(tmp_path)
+    entry = root / "editors" / "acme-terms" / "index.html"
+    with entry.open("ab") as fh:
+        fh.truncate(6 * 1024 * 1024)  # sparse: over the host cap
+    _editor(root, limits=None)
+    m = _manifest(root)
+    del m["editors"][0]["limits"]
+    _write(root, m)
+    read = []
+    real = Path.read_bytes
+    monkeypatch.setattr(Path, "read_bytes", lambda self: read.append(self.name) or real(self))
+    out = _rendered(root)
+    assert "PK063" in out and "host cap" in out, out
+    assert "index.html" not in read, "an entry over the cap must not be read into memory"
+
+
+def test_a_permission_with_an_unknown_field_is_refused(tmp_path):
+    root = _editor(_copy(tmp_path), permissions=[{"id": "artifact.read", "why": "to read it", "reason": "typo"}])
+    out = _rendered(root)
+    assert "PK068" in out and "unknown field" in out, out
+
+
+def test_the_entry_suffix_is_lowercase_html_as_in_the_schema(tmp_path):
+    root = _copy(tmp_path)
+    (root / "editors" / "acme-terms" / "index.html").rename(root / "editors" / "acme-terms" / "index.HTML")
+    _editor(root, entry="editors/acme-terms/index.HTML")
+    assert "PK062" in _rendered(root)
 
 
 @pytest.mark.parametrize("field,value", [

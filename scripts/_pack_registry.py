@@ -135,8 +135,10 @@ def structural_errors(manifest: dict, root: Path) -> list:
     editors = manifest.get("editors")
     if spec == 1 and ("editors" in manifest or "blocks" in manifest):
         errors.append("editors and blocks need manifest spec 2 (this pack declares spec 1)")
-    # A wicked* editor id is refused in EVERY pack, here (not only in `pack check`) so that even a
-    # forced registration cannot carry one: first-party editors ship inside studio, never as a pack.
+    # An editor id that is exactly "wicked" or starts with "wicked-" is refused in EVERY pack, here (not
+    # only in `pack check`) so that even a forced registration cannot carry one: first-party editors ship
+    # inside studio, never as a pack. As for vendors, a name that merely starts with the letters
+    # ("wickedly-terms") is allowed.
     for editor in editors if isinstance(editors, list) else []:
         eid = editor.get("id") if isinstance(editor, dict) else None
         if isinstance(eid, str) and any(eid == r or eid.startswith(r + "-") for r in RESERVED_VENDOR_PREFIXES):

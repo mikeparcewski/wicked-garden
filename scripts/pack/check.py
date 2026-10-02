@@ -228,6 +228,7 @@ def _inside(pack_root: Path, rel: object) -> "Path | None":
 
 _LOADER_RELS = {"stylesheet", "preload", "modulepreload", "prefetch", "import", "manifest"}
 _CSS_IMPORT_RE = re.compile(r"@import\b", re.IGNORECASE)
+_MAX_SRCDOC_DEPTH = 3
 
 
 class _ExternalRefs(HTMLParser):
@@ -244,7 +245,10 @@ class _ExternalRefs(HTMLParser):
         self._in_style = False
 
     def handle_starttag(self, tag, attrs):
-        a = {k.lower(): (v or "") for k, v in attrs}
+        # The browser honours the FIRST occurrence of a duplicated attribute: so does this check.
+        a: dict = {}
+        for k, v in attrs:
+            a.setdefault(k.lower(), v or "")
         rels = set(a.get("rel", "").lower().split())
         if tag == "script" and a.get("src", "").strip():
             self.found.append(f'<script src="{a["src"]}">')
@@ -258,11 +262,15 @@ class _ExternalRefs(HTMLParser):
             self.found.append(f'<embed src="{a["src"]}">')
         if _CSS_IMPORT_RE.search(a.get("style", "")):
             self.found.append(f"<{tag} style> with @import")
-        if tag == "iframe" and a.get("srcdoc") and self._depth < 3:
-            inner = _ExternalRefs(self._depth + 1)
-            inner.feed(a["srcdoc"])
-            inner.close()
-            self.found.extend(f"<iframe srcdoc> containing {x}" for x in inner.found)
+        if tag == "iframe" and a.get("srcdoc"):
+            if self._depth >= _MAX_SRCDOC_DEPTH:
+                # Fail closed: what this check cannot inspect is refused, not assumed clean.
+                self.found.append(f"<iframe srcdoc> nested deeper than {_MAX_SRCDOC_DEPTH} levels (not inspected)")
+            else:
+                inner = _ExternalRefs(self._depth + 1)
+                inner.feed(a["srcdoc"])
+                inner.close()
+                self.found.extend(f"<iframe srcdoc> containing {x}" for x in inner.found)
         if tag == "style":
             self._in_style = True
 
@@ -349,6 +357,8 @@ def _check_editors(manifest: dict, pack_root: Path, err) -> None:
             else:
                 for perm in perms:
                     pid = perm.get("id") if isinstance(perm, dict) else perm
+                    for key in sorted(set(perm) - {"id", "why"}) if isinstance(perm, dict) else []:
+                        err("PK068", where, f"permission {pid!r} has an unknown field {key!r} (fields: id, why)")
                     if pid not in EDITOR_PERMISSIONS:
                         err("PK068", where, f"unknown permission {pid!r} (known: {', '.join(EDITOR_PERMISSIONS)})")
                     why = perm.get("why") if isinstance(perm, dict) else None
@@ -375,16 +385,18 @@ def _check_editors(manifest: dict, pack_root: Path, err) -> None:
         if path is None:
             err("PK062", where, f"entry must be a relative path inside the pack (got {entry!r})")
             continue
-        if path.suffix.lower() != ".html":
+        if path.suffix != ".html" or not str(entry).endswith(".html"):
             err("PK062", where, f"entry must be a single .html file with its scripts inline (got {entry!r})")
             continue
         if not path.is_file():
             err("PK062", where, f"entry not found: {entry!r}")
             continue
-        data = path.read_bytes()
-        if len(data) > limit:
+        size = path.stat().st_size
+        if size > limit:
             which = "limits.bundleBytes" if limit < HOST_BUNDLE_CAP else "the host cap"
-            err("PK063", where, f"entry is {len(data)} bytes, over {which} ({limit}; bundleBytes may only lower the host's)")
+            err("PK063", where, f"entry is {size} bytes, over {which} ({limit}; bundleBytes may only lower the host's)")
+            continue  # never read an oversized entry into memory
+        data = path.read_bytes()
         if sha_ok and hashlib.sha256(data).hexdigest() != sha:
             err("PK064", where, f"sha256 {sha} does not match the entry file "
                 f"({hashlib.sha256(data).hexdigest()}): pin the hash of the file you ship")
