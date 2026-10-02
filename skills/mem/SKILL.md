@@ -77,6 +77,9 @@ Relative paths in this skill are relative to the directory that contains this SK
 Scope conventions, kind/tier vocabulary, and the brain-migration layout:
 [refs/scopes.md](refs/scopes.md).
 
+A chat seat asked by wicked-crew to label the operator's decisions reads
+[refs/decision-report.md](refs/decision-report.md) and ends its reply with that block.
+
 ## Store
 
 1. Distill the learning into 1–3 self-contained sentences (the *why* and
