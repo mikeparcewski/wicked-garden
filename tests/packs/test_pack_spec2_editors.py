@@ -272,6 +272,15 @@ def test_non_object_entries_are_findings_not_crashes(tmp_path, field, value):
     assert ("PK060" if field == "editors" else "PK070") in _rendered(root)
 
 
+@pytest.mark.parametrize("domains", [42, "terms", {"name": "terms"}])
+def test_a_non_list_domains_value_is_a_finding_not_a_crash(tmp_path, domains):
+    root = _copy(tmp_path)
+    m = _manifest(root)
+    m["domains"] = domains
+    _write(root, m)
+    assert "domains must be a non-empty array" in _rendered(root)
+
+
 def test_a_preset_that_is_not_a_json_object_is_refused(tmp_path):
     root = _copy(tmp_path)
     (root / "presets" / "terms-review.json").write_text("[1, 2]", encoding="utf-8")

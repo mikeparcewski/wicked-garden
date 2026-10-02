@@ -484,8 +484,9 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
 
     vendor = str(manifest.get("vendor", ""))
     skills_dir = pack_root / str(manifest.get("skills_dir", "skills"))
-    domain_names = [d.get("name", "") for d in manifest.get("domains", []) or []
-                    if isinstance(d, dict)]
+    # A malformed domains value is already reported (PK002); never iterate a non-list.
+    domains = manifest.get("domains") if isinstance(manifest.get("domains"), list) else []
+    domain_names = [d.get("name", "") for d in domains if isinstance(d, dict)]
 
     # ---- walk the skills tree -------------------------------------------
     skill_files = sorted(skills_dir.rglob("SKILL.md")) if skills_dir.is_dir() else []
@@ -598,7 +599,7 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
 
     # ---- produces contracts + specialist blocks ---------------------------
     archetypes = _known_archetypes(garden_root)
-    for domain in manifest.get("domains", []) or []:
+    for domain in domains:
         if not isinstance(domain, dict):
             continue
         d = domain.get("name", "?")
