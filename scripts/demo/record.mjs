@@ -2,7 +2,12 @@
 // Records a captioned product demo as independent segments and stitches them into one MP4 with chapters
 // (part of the wicked-garden-demo skill; see skills/demo/refs/storyline-api.md).
 //
-//   wicked-garden run scripts/demo/record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>] [--keep-closing]
+//   wicked-garden run scripts/demo/record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>]
+//       [--fixture-origin <loopback origin>] [--keep-closing]
+//
+// The browser sends no writes while it records (readonly.mjs), except to the --fixture-origin: a disposable app
+// started on a loopback port for this recording. A take that fails keeps its video and failure.json under
+// segments/<key>/failed-<take>/ and is never stitched.
 //
 // Each non-intro segment opens on its own chapter slide (the storyline's beforeSegment hook runs behind it) and ends
 // on the plain stage background, so segments join with a clean cut. Frames and timelines are kept per segment, so a
@@ -12,23 +17,33 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Stage } from "./stage.mjs";
-import { buildVideo } from "./postprocess.mjs";
-import { sideEffectError } from "./readonly.mjs";
+import { buildVideo, videoClock } from "./postprocess.mjs";
+import { fixtureOrigin, sideEffectError } from "./readonly.mjs";
 
 const FFMPEG = process.env.FFMPEG || "ffmpeg";
 const FFPROBE = FFMPEG.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
 
 function usage(msg) {
   if (msg) console.error(`error: ${msg}\n`);
-  console.error("usage: wicked-garden run scripts/demo/record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>]");
+  console.error("usage: wicked-garden run scripts/demo/record.mjs <storyline.mjs> [segment-key ...] [--all | --stitch | --reencode | --list] [--out <dir>] [--fixture-origin <loopback origin>]");
   process.exit(2);
 }
 
 // ---------------------------------------------------------------------------------------------------------------- args
 const argv = process.argv.slice(2);
-const flags = new Set(argv.filter((a) => a.startsWith("--") && a !== "--out"));
+const VALUED = ["--out", "--fixture-origin"];
+const valueAt = new Set(VALUED.map((f) => argv.indexOf(f)).filter((i) => i >= 0).map((i) => i + 1));
+const flags = new Set(argv.filter((a) => a.startsWith("--") && !VALUED.includes(a)));
 const outIdx = argv.indexOf("--out");
-const positional = argv.filter((a, i) => !a.startsWith("--") && !(outIdx >= 0 && i === outIdx + 1));
+const fixtureIdx = argv.indexOf("--fixture-origin");
+const positional = argv.filter((a, i) => !a.startsWith("--") && !valueAt.has(i));
+let FIXTURE = null;
+try {
+  FIXTURE = fixtureIdx >= 0 ? fixtureOrigin(argv[fixtureIdx + 1] ?? "") : null;
+  if (fixtureIdx >= 0 && !FIXTURE) throw new Error("--fixture-origin needs a value");
+} catch (e) {
+  usage(e.message);
+}
 const storyPath = positional[0] ? path.resolve(positional[0]) : usage("missing storyline path");
 if (!fs.existsSync(storyPath)) usage(`storyline not found: ${storyPath}`);
 const named = positional.slice(1);
@@ -63,6 +78,7 @@ const LAST = SEGMENTS[SEGMENTS.length - 1].key;
 
 const segDir = (key) => path.join(SEG_DIR, key);
 const segVideo = (key) => path.join(segDir(key), "segment.mp4");
+const TRIM_START = 0.9; // the set-up behind the opening slide is trimmed from every take's video
 const readTimings = (key) => { try { return JSON.parse(fs.readFileSync(path.join(segDir(key), "timings.json"), "utf8")); } catch { return {}; } };
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
@@ -112,16 +128,20 @@ function makeCtx(stage, timings) {
 // ---------------------------------------------------------------------------------------------------------------- record
 async function recordSegment(seg) {
   const n = CHAPTERS.indexOf(seg.title);
-  console.log(`● ${seg.key}`);
+  const take = (readGuard(seg.key)?.take ?? 0) + 1;
+  console.log(`● ${seg.key} (take ${take})`);
   const stage = new Stage({ baseUrl: BASE, outDir: segDir(seg.key), chapters: CHAPTERS, brand, stickyOffset: story.stickyOffset,
-    headful: process.env.DEMO_HEADFUL === "1", locale: story.locale, timezoneId: story.timezoneId });
+    headful: process.env.DEMO_HEADFUL === "1", locale: story.locale, timezoneId: story.timezoneId, writableOrigin: FIXTURE });
   const timings = {};
   const ctx = makeCtx(stage, timings);
-  // A take that fails never leaves the previous one behind to be stitched as if it were this one.
+  fs.mkdirSync(segDir(seg.key), { recursive: true });
+  // A take that fails never leaves the previous one behind to be stitched or re-encoded as if it were this one.
   fs.rmSync(segVideo(seg.key), { force: true });
-  await stage.open(story.startPath || "/");
+  fs.rmSync(path.join(segDir(seg.key), "timeline.json"), { force: true });
   let failure = null;
+  let failedAt = null;
   try {
+    await stage.open(story.startPath || "/");
     if (seg.intro) {
       await seg.run(ctx);
     } else {
@@ -148,30 +168,95 @@ async function recordSegment(seg) {
     }
   } catch (e) {
     failure = e;
+    failedAt = Date.now() / 1000;
   } finally {
-    await stage.close();
-    fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({ readOnly: stage.readOnly, blocked: stage.blocked }, null, 2));
+    await stage.close().catch(() => {});
   }
   // A blocked write fails the segment before it becomes video: it is never stitched as if it were fine.
   // Checked whatever the segment did: a blocked write usually makes the storyline's own wait time out, and
   // that timeout must not hide the write it was waiting for.
-  // A failed take keeps only its guard.json (the evidence): no video, and no timeline --reencode could rebuild one from.
-  if (stage.blocked.length || failure !== null) {
-    fs.rmSync(segVideo(seg.key), { force: true });
-    fs.rmSync(path.join(segDir(seg.key), "timeline.json"), { force: true });
-  }
+  let err = failure;
   if (stage.blocked.length) {
-    const err = sideEffectError(seg.key, stage.blocked);
+    err = sideEffectError(seg.key, stage.blocked);
     if (failure !== null) err.cause = failure;
+  }
+  const writeGuard = (failed) => fs.writeFileSync(path.join(segDir(seg.key), "guard.json"), JSON.stringify({
+    take, failed, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin, blocked: stage.blocked,
+  }, null, 2));
+  // The take counts as failed until its video is built: guard.json says so first, so a crash in between never
+  // leaves a take that a stitch would accept.
+  writeGuard(true);
+  if (err !== null) {
+    keepFailedTake(seg.key, take, err, stage, failedAt);
     throw err;
   }
-  if (failure !== null) throw failure;
-  const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
-  fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
-  fs.writeFileSync(path.join(segDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));
-  // Trim the set-up behind the opening slide: the segment starts on the slide, fully faded in.
-  const r = buildVideo(segDir(seg.key), segVideo(seg.key), { trimStart: 0.9, ffmpeg: FFMPEG });
+  let r;
+  try {
+    const tl = JSON.parse(fs.readFileSync(path.join(segDir(seg.key), "timeline.json"), "utf8"));
+    fs.writeFileSync(path.join(segDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
+    fs.writeFileSync(path.join(segDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));
+    // Trim the set-up behind the opening slide: the segment starts on the slide, fully faded in.
+    r = buildVideo(segDir(seg.key), segVideo(seg.key), { trimStart: TRIM_START, ffmpeg: FFMPEG });
+  } catch (e) {
+    fs.rmSync(segVideo(seg.key), { force: true }); // a partial encode is never stitched
+    keepFailedTake(seg.key, take, e, stage, null);
+    throw e;
+  }
+  writeGuard(false);
   console.log(`  ${seg.key}: ${r.seconds.toFixed(1)} s${Object.keys(timings).length ? " " + JSON.stringify(timings) : ""}`);
+}
+
+/** Where `failedAt` (wall clock, seconds) falls in the failed take's video; null when it has no frames or no instant. */
+function failedAtInVideo(dir, failedAt) {
+  if (failedAt === null) return null;
+  try {
+    const tl = JSON.parse(fs.readFileSync(path.join(dir, "timeline.json"), "utf8"));
+    return Math.max(0, Math.round(videoClock(tl, TRIM_START).outAt(failedAt) * 10) / 10);
+  } catch {
+    return null;
+  }
+}
+
+/** A failed take keeps its evidence in segments/<key>/failed-<take>/: its timeline, the video built from the frames
+ *  it has, and failure.json. Nothing of it stays where --reencode or a stitch would pick it up. */
+function keepFailedTake(key, take, err, stage, failedAt) {
+  const dir = path.join(segDir(key), `failed-${take}`);
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const tlPath = path.join(segDir(key), "timeline.json");
+  let video = null;
+  let videoError = null;
+  if (fs.existsSync(tlPath)) {
+    fs.renameSync(tlPath, path.join(dir, "timeline.json"));
+    if (fs.existsSync(path.join(segDir(key), "frames"))) fs.renameSync(path.join(segDir(key), "frames"), path.join(dir, "frames"));
+    try {
+      buildVideo(dir, path.join(dir, "segment.mp4"), { trimStart: TRIM_START, ffmpeg: FFMPEG });
+      video = "segment.mp4";
+      // The video is the evidence; the raw frames would only double the take's size on disk.
+      fs.rmSync(path.join(dir, "frames"), { recursive: true, force: true });
+      fs.rmSync(path.join(dir, "frames.ffconcat"), { force: true });
+    } catch (e) {
+      // No video: a partial encode is not evidence, and the frames stay so the take can still be rebuilt.
+      videoError = e.message;
+      fs.rmSync(path.join(dir, "segment.mp4"), { force: true });
+    }
+  } else {
+    videoError = "the take failed before recording began";
+  }
+  const failure = {
+    segment: key,
+    take,
+    code: err.code ?? null,
+    message: err.message,
+    cause: err.cause?.message ?? null,
+    blocked: stage.blocked,
+    // Seconds into this take's video (the same clock buildVideo uses: set-up trimmed, time-lapses compressed).
+    failed_at_sec: failedAtInVideo(dir, failedAt),
+    video,
+    ...(videoError ? { video_error: videoError } : {}),
+  };
+  fs.writeFileSync(path.join(dir, "failure.json"), JSON.stringify(failure, null, 2));
+  console.error(`  ${key}: take ${take} failed; evidence kept in ${dir}`);
 }
 
 // ---------------------------------------------------------------------------------------------------------------- stitch
@@ -186,17 +271,24 @@ function readGuard(key) {
   try { return JSON.parse(fs.readFileSync(path.join(segDir(key), "guard.json"), "utf8")); } catch { return null; }
 }
 
-/** A segment whose last take was blocked stops a re-encode or a stitch until it is re-recorded (or its
+/** A segment whose last take was blocked or failed stops a re-encode or a stitch until it is re-recorded (or its
  *  directory is removed): it is never re-encoded, stitched around, or left out quietly. */
-function refuseBlockedTakes() {
+function refuseFailedTakes() {
   for (const s of SEGMENTS) {
-    const blocked = readGuard(s.key)?.blocked ?? [];
+    const guard = readGuard(s.key);
+    const blocked = guard?.blocked ?? [];
     if (blocked.length) throw sideEffectError(s.key, blocked);
+    if (guard?.failed === true) {
+      const err = new Error(`failed_take: segment ${s.key}'s last take (${guard.take}) failed; its evidence is in ` +
+        `${path.join(segDir(s.key), `failed-${guard.take}`)}. Re-record the segment (or remove its directory) first.`);
+      err.code = "failed_take";
+      throw err;
+    }
   }
 }
 
 function stitch() {
-  refuseBlockedTakes();
+  refuseFailedTakes();
   const segs = SEGMENTS.filter((s) => fs.existsSync(segVideo(s.key)));
   const missing = SEGMENTS.filter((s) => !fs.existsSync(segVideo(s.key))).map((s) => s.key);
   if (!segs.length) throw new Error("no segments recorded yet");
@@ -220,11 +312,13 @@ function stitch() {
   fs.writeFileSync(path.join(OUT, "chapters.md"), rows.join("\n") + "\n");
   fs.writeFileSync(path.join(OUT, "timings.json"), JSON.stringify(Object.fromEntries(SEGMENTS.map((s) => [s.key, readTimings(s.key)])), null, 2));
   // How the stitched segments were recorded: read-only only when every one of them was (a segment recorded
-  // before the guard existed has no guard.json and counts as unknown, not read-only).
+  // before the guard existed has no guard.json and counts as unknown, not read-only). A segment recorded with
+  // --fixture-origin is "fixture-writable"; its guard.json names the origin.
   const guards = segs.map((s) => readGuard(s.key));
+  const mode = (g) => (g === null ? "unknown" : g.readOnly === true ? "read-only" : g.writableOrigin ? "fixture-writable" : "unknown");
   fs.writeFileSync(path.join(OUT, "recording.json"), JSON.stringify({
     readOnly: guards.every((g) => g?.readOnly === true && Array.isArray(g.blocked) && g.blocked.length === 0),
-    segments: Object.fromEntries(segs.map((s, i) => [s.key, guards[i] === null ? "unknown" : guards[i].readOnly ? "read-only" : "writes-allowed"])),
+    segments: Object.fromEntries(segs.map((s, i) => [s.key, mode(guards[i])])),
   }, null, 2));
   console.log(`stitched ${segs.length} segments -> ${FINAL} (${Math.round(at)} s)${missing.length ? `; missing: ${missing.join(", ")}` : ""}`);
 }
@@ -239,9 +333,9 @@ if (flags.has("--list")) {
   process.exit(0);
 }
 if (flags.has("--reencode")) {
-  refuseBlockedTakes();
+  refuseFailedTakes();
   for (const s of SEGMENTS.filter((x) => fs.existsSync(path.join(segDir(x.key), "timeline.json")))) {
-    const r = buildVideo(segDir(s.key), segVideo(s.key), { trimStart: 0.9, ffmpeg: FFMPEG });
+    const r = buildVideo(segDir(s.key), segVideo(s.key), { trimStart: TRIM_START, ffmpeg: FFMPEG });
     console.log(`  ${s.key}: ${r.seconds.toFixed(1)} s`);
   }
 } else if (!flags.has("--stitch")) {

@@ -10,8 +10,11 @@ import { pathToFileURL } from "node:url";
 
 const FPS = 30;
 
-export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ffmpeg", tail = 0.2, trimStart = 0 } = {}) {
-  const tl = JSON.parse(fs.readFileSync(path.join(outDir, "timeline.json"), "utf8"));
+/**
+ * The video clock of a timeline: the frames buildVideo keeps, the time-lapse spans, and `outAt(t)`, the
+ * position in the built video (seconds) of a wall-clock instant `t`. Throws when no frame is kept.
+ */
+export function videoClock(tl, trimStart = 0) {
   const frames = tl.frames.filter((f) => f.t >= tl.t0 + trimStart);
   if (!frames.length) throw new Error("no frames recorded");
   const speed = [...tl.marks.speed].sort((a, b) => a.start - b.start);
@@ -26,6 +29,12 @@ export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ff
     }
     return out;
   };
+  return { frames, speed, outAt };
+}
+
+export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ffmpeg", tail = 0.2, trimStart = 0 } = {}) {
+  const tl = JSON.parse(fs.readFileSync(path.join(outDir, "timeline.json"), "utf8"));
+  const { frames, speed, outAt } = videoClock(tl, trimStart);
 
   // Resample to constant frame rate: output tick k shows the newest frame captured at or before k/FPS, and each
   // run of identical picks becomes one concat entry lasting (run length / FPS). Bursts collapse, gaps hold.
