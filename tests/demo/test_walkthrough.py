@@ -1563,5 +1563,98 @@ def test_ledger_store_broken_downgrades_pass_to_inconclusive(tmp_path, session_l
     assert result["overall"] == "FAIL", result
 
 
+def _fake_vault(tmp_path: Path, record_exit: int, cross_check: dict, cross_exit: int) -> Path:
+    """A fake wicked-vault CLI: declare-contract succeeds, record exits `record_exit`,
+    cross-check prints `cross_check` and exits `cross_exit`."""
+    fv = tmp_path / "fake-vault-2.mjs"
+    fv.write_text("""#!/usr/bin/env node
+const args = process.argv.slice(2);
+let cmd = null;
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--cwd') { i++; continue; }
+  if (!args[i].startsWith('-')) { cmd = args[i]; break; }
+}
+if (cmd === 'record') {
+  if (%d !== 0) process.exit(%d);
+  process.stdout.write(JSON.stringify({id: "fake-1"}) + "\\n");
+  process.exit(0);
+}
+if (cmd === 'cross-check') {
+  process.stdout.write(%s + "\\n");
+  process.exit(%d);
+}
+process.exit(0);
+""" % (record_exit, record_exit, json.dumps(json.dumps(cross_check)), cross_exit))
+    fv.chmod(0o755)
+    return fv
+
+
+@needs_node
+def test_unsafe_identifiers_refuse_the_storyline(tmp_path):
+    """A segment key or check id that could escape <root> refuses the storyline; nothing is recorded."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""export default {
+  title: "Unsafe",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [
+    { key: "../../escape", proves: ["p1"], checks: [{ id: "g", kind: "guard" }],
+      async run(ctx) { await ctx.check("g"); } },
+    { key: "02-ok", proves: ["p2"], checks: [{ id: "../x", kind: "guard" }],
+      async run(ctx) { await ctx.check("../x"); } },
+  ],
+};
+""")
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo), timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused", result
+    assert [c["verdict"] for c in result["chapters"]] == ["INCONCLUSIVE", "INCONCLUSIVE"], result
+    assert not (tmp_path / "escape").exists()
+    # only the pre-created vault anchor; no chapter contract or capture was written
+    vault_entries = [p.name for p in (root / "vault").iterdir()] if (root / "vault").exists() else []
+    assert vault_entries in ([], [".wicked-vault"]), vault_entries
+
+
+@needs_node
+def test_vault_pass_without_this_runs_record_is_not_pass(tmp_path):
+    """The vault says PASS but this run's record call failed: the PASS is not ours -> INCONCLUSIVE."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = _make_minimal_storyline(repo, tree)
+    fv = _fake_vault(tmp_path, record_exit=1,
+                     cross_check={"overall": "PASS", "claims": [{"claim_id": "guard_check", "result": "PASS"}]},
+                     cross_exit=0)
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
+    assert out.returncode == 0, out.stderr
+    chapters = {c["key"]: c["verdict"] for c in json.loads((root / "result.json").read_text())["chapters"]}
+    assert chapters.get("01-chapter") == "INCONCLUSIVE", chapters
+
+
+@needs_node
+def test_vault_error_with_no_checks_is_not_pass(tmp_path):
+    """A chapter with no checks is judged by the vault's overall: ERROR is INCONCLUSIVE, never PASS."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""export default {
+  title: "No checks",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [
+    { key: "01-empty", proves: ["p1"], checks: [], async run(ctx) { await ctx.hold(100); } },
+  ],
+};
+""")
+    fv = _fake_vault(tmp_path, record_exit=0, cross_check={"overall": "ERROR", "claims": []}, cross_exit=1)
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
+    assert out.returncode == 0, out.stderr
+    chapters = {c["key"]: c["verdict"] for c in json.loads((root / "result.json").read_text())["chapters"]}
+    assert chapters.get("01-empty") == "INCONCLUSIVE", chapters
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))

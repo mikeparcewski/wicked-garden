@@ -254,11 +254,12 @@ function runVaultCrossCheck(scope, phase, vaultBin, vaultDir) {
 
 /** Shell wicked-vault declare-contract for scope/phase. The spec path is the contract.json written by writeContract. */
 function runVaultDeclareContract(scope, phase, contractPath, vaultBin, vaultDir) {
-  if (!vaultBin) return;
+  if (!vaultBin) return false;
   const prefix = vaultBin.endsWith(".mjs") || vaultBin.endsWith(".js")
     ? ["node", vaultBin] : [vaultBin];
   const argv = [...prefix, "declare-contract", "--scope", scope, "--phase", phase, "--spec", contractPath];
-  spawnSync(argv[0], argv.slice(1), { cwd: vaultDir, encoding: "utf8", timeout: 30_000 });
+  const res = spawnSync(argv[0], argv.slice(1), { cwd: vaultDir, encoding: "utf8", timeout: 30_000 });
+  return !res.error && res.status === 0;
 }
 
 /** Shell wicked-vault record for a captured check. Returns the artifact id or null. */
@@ -450,7 +451,7 @@ async function runCollector(def, { stage, root, dataDir, seg, id, priorCaptures,
  * @param {object} opts.crossCheck - vault cross-check result {available, overall, claims}
  * @param {object} opts.vaultEntries - {[checkId]: vaultEntryId | null}
  */
-function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntries = {} } = {}) {
+function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntries = {}, declared = true } = {}) {
   const defs = seg.checks ?? [];
   const claims = [];
   let verdict = "PASS";
@@ -489,6 +490,9 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
         claimVerdict = r === "PASS" ? "PASS"
           : r === "MISSING" || r === "FAIL" ? "FAIL"
           : "INCONCLUSIVE";
+        // A PASS must rest on evidence THIS run recorded; if our record call failed the vault's
+        // PASS is not ours to claim.
+        if (claimVerdict === "PASS" && !vaultEntries[def.id]) claimVerdict = "INCONCLUSIVE";
       }
     }
 
@@ -505,8 +509,10 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
     });
   }
 
-  // Vault unavailable → chapter INCONCLUSIVE regardless of check count.
-  if (!vaultAvailable) verdict = "INCONCLUSIVE";
+  // Vault unavailable or errored → chapter INCONCLUSIVE regardless of check count. A PASS also
+  // needs the vault's own overall PASS and a contract this run declared; anything else is not proven.
+  if (!vaultAvailable || vaultError) verdict = "INCONCLUSIVE";
+  else if (verdict === "PASS" && (crossCheck.overall !== "PASS" || !declared)) verdict = "INCONCLUSIVE";
 
   return { verdict, claims, failed_at_sec: failedAtSec ?? null, proves: seg.proves ?? [] };
 }
@@ -590,14 +596,17 @@ function buildWalkthroughManifest(seg, chapterResult, runId, projectId, scenario
     artifacts: [],
     scenario_evidence: scenarioEvidence,
   };
-  const valResult = validateManifest(checkManifest);
-  if (!valResult.ok) {
+  let valResult;
+  try { valResult = validateManifest(checkManifest); } catch (e) {
+    return { ok: false, skipped: false, violations: [{ field: "$", message: e.message }], manifest: null, manifestPath: null };
+  }
+  if (!valResult?.ok) {
     return { ok: false, skipped: false, violations: valResult.violations, manifest: null, manifestPath: null };
   }
   if (validateOnly) return { ok: true, skipped: false, violations: [], manifest: null, manifestPath: null };
 
-  fs.mkdirSync(evidenceDir, { recursive: true });
   try {
+    fs.mkdirSync(evidenceDir, { recursive: true });
     const { manifest, path: manifestPath } = buildManifest({
       runRecord,
       scenarioRecord,
@@ -774,6 +783,22 @@ async function main() {
     process.exit(0);
   }
 
+  // Chapter keys and check ids become path segments under <root>; refuse anything that could escape.
+  const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+  const badIds = [];
+  for (const s of story.segments) {
+    if (!s.intro && !SAFE_ID.test(String(s.key ?? ""))) badIds.push(`segment key ${JSON.stringify(s.key)}`);
+    for (const c of s.checks ?? []) if (!SAFE_ID.test(String(c.id ?? ""))) badIds.push(`check id ${JSON.stringify(c.id)}`);
+  }
+  if (badIds.length) {
+    const chapters = story.segments.filter((s) => !s.intro).map((s) => ({ key: s.key, verdict: "INCONCLUSIVE" }));
+    writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: `unsafe identifiers: ${badIds.join(", ")}`, chapters });
+    writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
+    const sha = computeBundleSha(ROOT);
+    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: storySha, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters }) + "\n");
+    process.exit(0);
+  }
+
   // 2. Git archive WICKED_TREE into <root>/app/
   const appDir = path.join(ROOT, "app");
   const allChapters = story.segments.filter((s) => !s.intro).map((s) => ({ key: s.key, verdict: "INCONCLUSIVE" }));
@@ -824,11 +849,16 @@ async function main() {
     fixtureProc.on("error", (err) => { _fixtureSpawnErr = err; reject(err); });
   });
 
+  // Always kill the fixture's whole process group. SIGKILL: the recorder exits right after,
+  // so there is no time to wait out a SIGTERM the fixture might ignore.
   const killFixture = () => {
-    try { process.kill(-fixtureProc.pid, "SIGTERM"); } catch { /* already gone */ }
-    try { fixtureProc.kill("SIGTERM"); } catch { /* already gone */ }
+    try { process.kill(-fixtureProc.pid, "SIGKILL"); } catch { /* already gone */ }
+    try { fixtureProc.kill("SIGKILL"); } catch { /* already gone */ }
   };
   process.on("exit", killFixture);
+  for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+    process.on(sig, () => { killFixture(); process.exit(130); });
+  }
 
   try {
     await Promise.race([pollFixtureReady(story.fixture, fixtureOriginStr), _spawnErrPromise]);
@@ -925,6 +955,7 @@ async function main() {
 
   const chapterResults = {};
   const contractShas = {};
+  const contractDeclared = {};
   const takeMap = {};
   let diskCapHit = false;
 
@@ -959,8 +990,9 @@ async function main() {
     // Write the vault contract before recording, then declare it with the vault CLI
     const checkDefs = seg.checks ?? [];
     contractShas[seg.key] = writeContract(ROOT, seg.key, checkDefs);
+    contractDeclared[seg.key] = false;
     if (_vaultBin) {
-      runVaultDeclareContract(
+      contractDeclared[seg.key] = runVaultDeclareContract(
         `run:${RUN_ID}/step:${STEP_ID}`, `chapter:${seg.key}`,
         path.join(ROOT, "vault", seg.key, "contract.json"), _vaultBin, _vaultDir,
       );
@@ -1008,7 +1040,7 @@ async function main() {
       seg,
       chapterCaptures[seg.key] ?? {},
       failedAtSec,
-      { crossCheck, vaultEntries: chapterVaultEntries[seg.key] ?? {} },
+      { crossCheck, vaultEntries: chapterVaultEntries[seg.key] ?? {}, declared: contractDeclared[seg.key] === true },
     );
   }
 
