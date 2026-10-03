@@ -208,7 +208,8 @@ export function makeSegmentRecorder({
     } finally {
       await stage.close().catch(() => {});
     }
-    let err = failure;
+    // An encoder that failed while close() drained it is a failed take too: its master may be short of the end.
+    let err = failure ?? stage.encoderError ?? null;
     if (stage.blocked.length) {
       err = sideEffectError(seg.key, stage.blocked);
       if (failure !== null) err.cause = failure;

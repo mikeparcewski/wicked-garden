@@ -281,6 +281,41 @@ def test_an_encoder_that_dies_during_the_take_fails_it_at_the_next_step_and_keep
 
 @needs_node
 @needs_recorder
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake encoder is a POSIX shell script")
+def test_an_encoder_that_fails_as_the_take_closes_makes_a_failed_take_whose_master_is_still_cut(tmp_path):
+    """The live encoder records the whole master for real, then exits 1 at EOF (a trailer it could not write, say).
+    The storyline itself succeeded, but the take is failed evidence, not a segment a stitch accepts: its master is
+    cut into failed-1/segment.mp4 and failure.json names the encoder's exit."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "ffmpeg"
+    real = shutil.which("ffmpeg")
+    fake.write_text("#!/bin/sh\n[ \"$1\" = -version ] && exit 0\n"
+                    f"case \"$*\" in *image2pipe*) {real} \"$@\"; echo trailer >&2; exit 1;; esac\nexec {real} \"$@\"\n")
+    fake.chmod(0o755)
+    os.symlink(shutil.which("ffprobe"), bindir / "ffprobe")
+    server, base = _serve()
+    story = tmp_path / "storyline.mjs"
+    story.write_text("export default { title: 'demo', baseUrl: %s, segments: [\n"
+                     "  { key: '01-launch', title: 'Launch a run', async run(ctx) { await ctx.hold(1500); } },\n] };\n" % json.dumps(base))
+    try:
+        out = subprocess.run(["node", str(DEMO / "record.mjs"), str(story), "--out", str(tmp_path / "demo-video")],
+                             capture_output=True, text=True, timeout=180, env={**os.environ, "FFMPEG": str(fake)})
+    finally:
+        server.shutdown()
+    assert out.returncode != 0, out.stdout
+    seg = tmp_path / "demo-video" / "segments" / "01-launch"
+    assert not (seg / "segment.mp4").exists() and json.loads((seg / "guard.json").read_text())["failed"] is True
+    failure = json.loads((seg / "failed-1" / "failure.json").read_text())
+    assert failure["code"] == "encoder_failed" and "ffmpeg failed (1): trailer" in failure["message"], failure
+    assert failure["video"] == "segment.mp4" and failure["failed_at_sec"] is None, failure
+    cut = _probe(seg / "failed-1" / "segment.mp4")
+    assert cut["frames"] > 2 * FPS and cut["codec"] == "h264", cut
+    assert not (seg / "failed-1" / "capture.mp4").exists(), "the master is dropped once its video is cut"
+
+
+@needs_node
+@needs_recorder
 def test_chapters_and_the_time_lapse_are_cut_from_the_master_and_the_contact_sheet_reads_it(tmp_path):
     server, base = _serve()
     try:

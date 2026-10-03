@@ -32,9 +32,12 @@ export function videoClock(tl, trimStart = 0) {
   if (typeof tl.capture?.frames === "number" && tl.capture.frames <= inFrame) throw new Error("no frames recorded");
   const toFrame = (t) => Math.round((t - tl.t0) * fps);
   // Inside a span only frame a and every frame where floor((k - a) / factor) advances are kept: one in `factor`.
-  const spans = [...tl.marks.speed].sort((x, y) => x.start - y.start)
-    .map((s) => ({ a: Math.max(inFrame, toFrame(s.start)), b: toFrame(s.end), f: s.factor }))
-    .filter((s) => s.b > s.a && s.f > 1);
+  // Spans never overlap here: a later span starts where the one before it ends (a nested Stage.fast() counts once).
+  const spans = [];
+  for (const s of [...tl.marks.speed].sort((x, y) => x.start - y.start)) {
+    const a = Math.max(inFrame, toFrame(s.start), spans.length ? spans[spans.length - 1].b : 0), b = toFrame(s.end);
+    if (b > a && s.factor > 1) spans.push({ a, b, f: s.factor });
+  }
   const keptIn = (a, b, f) => (b > a ? Math.floor((b - a - 1) / f) + 1 : 0);
   const keptBefore = (k) => {
     let kept = Math.max(0, k - inFrame);
@@ -81,7 +84,8 @@ export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ff
   const kept = keptBefore(nFrames);
   const total = kept / fps + tail;
 
-  const chapters = tl.marks.chapters.map((c) => ({ ...c, out: Math.max(0, outAt(c.t)) }));
+  // A chapter marked after the master's last frame (a take killed within the second) sits at the end, not past it.
+  const chapters = tl.marks.chapters.map((c) => ({ ...c, out: Math.min(Math.max(0, outAt(c.t)), kept / fps) }));
   const meta = [";FFMETADATA1", `title=${(tl.title || "Demo").replace(/[=;#\\\n]/g, " ")}`];
   chapters.forEach((c, i) => {
     const start = Math.round(c.out * 1000), end = Math.round((i + 1 < chapters.length ? chapters[i + 1].out : total) * 1000);
