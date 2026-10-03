@@ -180,12 +180,19 @@ def test_a_failed_take_keeps_its_video_and_failure_and_is_never_stitched(tmp_pat
 @needs_recorder
 @pytest.mark.skipif(sys.platform == "win32", reason="the fake encoder is a POSIX shell script")
 def test_a_take_whose_video_fails_to_encode_is_a_failed_take(tmp_path):
-    """The take counts as failed until its video is built: an encoder crash never leaves a take a stitch accepts."""
+    """The take counts as failed until its video is built: an encoder crash never leaves a take a stitch accepts.
+    The fake ffmpeg records the live master for real (it passes `image2pipe` runs to the real binary) and fails
+    only the cut, so the master is there to be rebuilt from."""
+    import shutil
     bindir = tmp_path / "bin"
     bindir.mkdir()
     fake = bindir / "ffmpeg"
-    fake.write_text("#!/bin/sh\n[ \"$1\" = -version ] && exit 0\nprintf 'partial' > \"$(eval echo \\${$#})\"\necho boom >&2\nexit 1\n")
+    real = shutil.which("ffmpeg")
+    fake.write_text("#!/bin/sh\n[ \"$1\" = -version ] && exit 0\n"
+                    f"case \"$*\" in *image2pipe*) exec {real} \"$@\";; esac\n"
+                    "printf 'partial' > \"$(eval echo \\${$#})\"\necho boom >&2\nexit 1\n")
     fake.chmod(0o755)
+    os.symlink(shutil.which("ffprobe"), bindir / "ffprobe")
     server, base = _serve(_App)
     try:
         story = tmp_path / "storyline.mjs"

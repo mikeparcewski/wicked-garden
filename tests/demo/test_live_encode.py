@@ -248,6 +248,39 @@ def test_a_recorder_killed_mid_take_leaves_a_playable_master_the_cut_can_rebuild
 
 @needs_node
 @needs_recorder
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake encoder is a POSIX shell script")
+def test_an_encoder_that_dies_during_the_take_fails_it_at_the_next_step_and_keeps_what_it_left(tmp_path):
+    """The live encoder exits at once: the take fails `encoder_failed` instead of filming into nothing, its failure
+    names ffmpeg's exit, and whatever the encoder left stays as evidence (no video could be cut from it)."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    fake = bindir / "ffmpeg"
+    fake.write_text("#!/bin/sh\n[ \"$1\" = -version ] && exit 0\nprintf 'partial' > \"$(eval echo \\${$#})\"\necho boom >&2\nexit 1\n")
+    fake.chmod(0o755)
+    os.symlink(shutil.which("ffprobe"), bindir / "ffprobe")
+    server, base = _serve()
+    story = tmp_path / "storyline.mjs"
+    story.write_text("export default { title: 'demo', baseUrl: %s, segments: [\n"
+                     "  { key: '01-launch', title: 'Launch a run', async run(ctx) { await ctx.hold(20000); } },\n] };\n" % json.dumps(base))
+    t0 = time.time()
+    try:
+        out = subprocess.run(["node", str(DEMO / "record.mjs"), str(story), "--out", str(tmp_path / "demo-video")],
+                             capture_output=True, text=True, timeout=120, env={**os.environ, "FFMPEG": str(fake)})
+    finally:
+        server.shutdown()
+    assert out.returncode != 0, out.stdout
+    assert time.time() - t0 < 20, "the take did not stop when its encoder died"
+    seg = tmp_path / "demo-video" / "segments" / "01-launch"
+    failure = json.loads((seg / "failed-1" / "failure.json").read_text())
+    assert failure["code"] == "encoder_failed" and "ffmpeg failed (1): boom" in failure["message"], failure
+    assert failure["video"] is None and "ffmpeg failed (1): boom" in failure["video_error"], failure
+    assert (seg / "failed-1" / "capture.mp4").exists() and not (seg / "failed-1" / "segment.mp4").exists()
+    tl = json.loads((seg / "failed-1" / "timeline.json").read_text())
+    assert "ffmpeg failed (1): boom" in tl["capture"]["error"]
+
+
+@needs_node
+@needs_recorder
 def test_chapters_and_the_time_lapse_are_cut_from_the_master_and_the_contact_sheet_reads_it(tmp_path):
     server, base = _serve()
     try:

@@ -20,27 +20,32 @@ export const CAPTURE = "capture.mp4";
 export const ffprobeOf = (ffmpeg) => ffmpeg.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
 
 /**
- * The video clock of a timeline: the first master frame the cut keeps (`inFrame`), the time-lapse spans, and
- * `outAt(t)`, the position in the cut video (seconds) of a wall-clock instant `t`. Throws when the timeline says
- * nothing was recorded past the trim; a timeline a killed take left (no frame count) is clocked from its t0.
+ * The video clock of a timeline, in master frames so it agrees with the cut to the frame: `inFrame`, the first
+ * master frame kept; `spans`, the time-lapse spans as [a, b) frame ranges with their factor; `keptBefore(k)`, how many
+ * cut frames precede master frame k; and `outAt(t)`, the position in the cut video (seconds) of a wall-clock instant.
+ * Throws when a closed take says nothing was recorded past the trim; a timeline a killed take left (no frame count)
+ * is clocked from its t0 and the master is counted by buildVideo.
  */
 export function videoClock(tl, trimStart = 0) {
   const fps = tl.capture?.fps ?? FPS;
   const inFrame = Math.max(0, Math.ceil(trimStart * fps - 1e-9));
   if (typeof tl.capture?.frames === "number" && tl.capture.frames <= inFrame) throw new Error("no frames recorded");
-  const origin = tl.t0 + inFrame / fps;
-  const speed = [...tl.marks.speed].sort((a, b) => a.start - b.start);
-
-  // Output time for a wall-clock instant: integrate 1/factor over the marked spans.
-  const outAt = (t) => {
-    let out = t - origin;
-    for (const s of speed) {
-      const a = Math.max(s.start, origin), b = Math.min(s.end, t);
-      if (b > a) out -= (b - a) * (1 - 1 / s.factor);
+  const toFrame = (t) => Math.round((t - tl.t0) * fps);
+  // Inside a span only frame a and every frame where floor((k - a) / factor) advances are kept: one in `factor`.
+  const spans = [...tl.marks.speed].sort((x, y) => x.start - y.start)
+    .map((s) => ({ a: Math.max(inFrame, toFrame(s.start)), b: toFrame(s.end), f: s.factor }))
+    .filter((s) => s.b > s.a && s.f > 1);
+  const keptIn = (a, b, f) => (b > a ? Math.floor((b - a - 1) / f) + 1 : 0);
+  const keptBefore = (k) => {
+    let kept = Math.max(0, k - inFrame);
+    for (const s of spans) {
+      const b = Math.min(s.b, k);
+      if (b > s.a) kept -= (b - s.a) - keptIn(s.a, b, s.f);
     }
-    return out;
+    return kept;
   };
-  return { origin, inFrame, fps, speed, outAt };
+  const outAt = (t) => keptBefore(toFrame(t)) / fps;
+  return { inFrame, fps, spans, keptIn, keptBefore, outAt, speed: tl.marks.speed };
 }
 
 /** Frames in the master, by demuxing it (exact for a master whose writer died: the complete packets count). */
@@ -55,27 +60,25 @@ function countFrames(ffprobe, file) {
 
 export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ffmpeg", tail = 0.2, trimStart = 0 } = {}) {
   const tl = JSON.parse(fs.readFileSync(path.join(outDir, "timeline.json"), "utf8"));
-  if (tl.capture?.error) throw new Error(tl.capture.error);
   const capture = path.join(outDir, tl.capture?.file ?? CAPTURE);
   if (!fs.existsSync(capture)) {
-    throw new Error(`${path.basename(capture)} not found in ${outDir}` +
+    throw new Error(tl.capture?.error ?? `${path.basename(capture)} not found in ${outDir}` +
       (Array.isArray(tl.frames) && !tl.capture ? " (recorded from frames by an earlier version; re-record the segment)" : ""));
   }
-  const { inFrame, fps, speed, outAt } = videoClock(tl, trimStart);
-  const nFrames = countFrames(ffprobeOf(ffmpeg), capture);
-  if (nFrames <= inFrame) throw new Error("no frames recorded");
+  const { inFrame, fps, spans, keptBefore, outAt, speed } = videoClock(tl, trimStart);
+  // What the master holds is what counts: an encoder that died late still left playable fragments to cut, and its
+  // failure is the explanation only when nothing can be.
+  let nFrames;
+  try { nFrames = countFrames(ffprobeOf(ffmpeg), capture); } catch (e) { throw new Error(tl.capture?.error ?? e.message); }
+  if (nFrames <= inFrame) throw new Error(tl.capture?.error ?? "no frames recorded");
 
-  // Master frame k is the picture at t0 + k/fps. Inside a marked span only every factor-th frame is kept; the kept
-  // frames are re-timed back to back at fps. In the select expression n counts frames after the trim (n = k - inFrame).
-  const toFrame = (t) => Math.round((t - tl.t0) * fps);
-  const spans = speed.map((s) => ({ a: Math.max(inFrame, toFrame(s.start)), b: Math.min(nFrames, toFrame(s.end)), f: s.factor }))
-    .filter((s) => s.b > s.a && s.f > 1);
-  const keptIn = (s) => Math.floor((s.b - s.a - 1) / s.f) + 1; // frames whose floor((k - a) / f) advances
-  const keep = spans.reduce((rest, s) => {
-    const a = s.a - inFrame, b = s.b - inFrame - 1;
+  // Master frame k is the picture at t0 + k/fps. Inside a marked span one frame in `factor` is kept; the kept frames
+  // are re-timed back to back at fps. In the select expression n counts frames after the trim (n = k - inFrame).
+  const keep = spans.filter((s) => s.a < nFrames).reduce((rest, s) => {
+    const a = s.a - inFrame, b = Math.min(s.b, nFrames) - inFrame - 1;
     return `if(between(n\\,${a}\\,${b})\\,gt(floor((n-${a})/${s.f})\\,floor((n-${a}-1)/${s.f}))\\,${rest})`;
   }, "1");
-  const kept = nFrames - inFrame - spans.reduce((dropped, s) => dropped + (s.b - s.a) - keptIn(s), 0);
+  const kept = keptBefore(nFrames);
   const total = kept / fps + tail;
 
   const chapters = tl.marks.chapters.map((c) => ({ ...c, out: Math.max(0, outAt(c.t)) }));

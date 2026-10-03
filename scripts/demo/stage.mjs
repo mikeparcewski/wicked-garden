@@ -145,8 +145,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // The master: near-lossless, fast enough to keep up with 30 fps on a busy host, a keyframe (= a fragment) every second.
 const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-tune", "stillimage", "-g", String(FPS), "-keyint_min", String(FPS),
   "-pix_fmt", "yuv420p", "-movflags", "+frag_keyframe+empty_moov+default_base_moof"];
-// Unsent frames waiting on the encoder above this many bytes are reported: the encoder is slower than real time.
+// Frames waiting on the encoder: above WARN the take says so when it closes; above FAIL (about half a minute of
+// 1080p pictures) the host cannot encode live and the take fails rather than grow without bound.
 const BACKLOG_WARN = 32 * 1024 * 1024;
+const BACKLOG_FAIL = 256 * 1024 * 1024;
 
 function encoderFailure(message) {
   const e = new Error(message);
@@ -231,6 +233,8 @@ export class Stage {
     let gotFirst;
     const first = new Promise((resolve) => { gotFirst = resolve; });
     this.cdp.on("Page.screencastFrame", (ev) => {
+      // Frames due before this picture existed show the previous one: a change lands at its own time, never early.
+      if (this.ticker) this.emitUpTo(Math.min(ev.metadata.timestamp, this.now()));
       this.latest = Buffer.from(ev.data, "base64");
       if (this.keepFrames) {
         const name = `f${String(this.frames.length).padStart(6, "0")}.jpg`;
@@ -242,11 +246,12 @@ export class Stage {
     });
     await this.cdp.send("Page.startScreencast", { format: "jpeg", quality: 95, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
     await withTimeout(first, 15_000, "the screencast delivered no frame within 15 s");
-    // The master: frame k is the picture at t0 + k/FPS. The ticker sends whatever is due (normally one frame; more
-    // after a late tick, so a slow event loop costs no time), always the newest picture.
+    // The master: frame k is the picture at t0 + k/FPS. Frames fall due with the clock; whatever is due is sent at
+    // each tick and before each new picture (so a late tick costs no time and shifts nothing earlier).
     this.encoder = this.startEncoder();
-    this.t0 = Date.now() / 1000;
-    this.ticker = setInterval(() => this.tick(), 1000 / FPS);
+    this.t0 = this.now();
+    this.ticker = setInterval(() => this.emitUpTo(this.now()), 1000 / FPS);
+    this.emitUpTo(this.t0); // frame 0
     this.writeTimeline(false);
     this.cursorAt = { x: FRAME.x + FRAME.w / 2, y: FRAME.y + FRAME.h / 2 };
     await this.stage((s, c) => s.cursor(c.x, c.y, false), this.cursorAt);
@@ -268,19 +273,27 @@ export class Stage {
     return { child, done };
   }
 
-  tick() {
+  /** Hands the encoder every master frame due by wall-clock instant t, each showing the current picture. */
+  emitUpTo(t) {
     if (this.encoderError || !this.latest) return;
-    const due = Math.floor((this.now() - this.t0) * FPS) + 1 - this.emitted;
-    for (let i = 0; i < due; i++) this.encoder.child.stdin.write(this.latest);
-    if (due > 0) this.emitted += due;
-    this.maxBacklog = Math.max(this.maxBacklog, this.encoder.child.stdin.writableLength);
+    const due = Math.floor((t - this.t0) * FPS) + 1 - this.emitted;
+    if (due <= 0) return;
+    const { stdin } = this.encoder.child;
+    for (let i = 0; i < due; i++) stdin.write(this.latest);
+    this.emitted += due;
+    this.maxBacklog = Math.max(this.maxBacklog, stdin.writableLength);
+    if (stdin.writableLength > BACKLOG_FAIL) {
+      this.encoderError = encoderFailure(`ffmpeg fell ${Math.round(stdin.writableLength / 1048576)} MB of frames behind real time: this host cannot encode 1080p at 30 fps live`);
+      this.encoder.child.kill("SIGKILL");
+    }
   }
 
-  /** The take's clock and marks so far (tEnd null until close): a killed take still leaves what the cut needs. */
+  /** The take's clock and marks so far (tEnd and the frame count only once closed): a killed take still leaves what
+   *  the cut needs, and postprocess counts the master's frames itself. */
   writeTimeline(final) {
     const meta = {
       t0: this.t0, tEnd: final ? this.tEnd : null,
-      capture: { file: CAPTURE, fps: FPS, frames: this.emitted, maxBacklogBytes: this.maxBacklog, ...(this.encoderError ? { error: this.encoderError.message } : {}) },
+      capture: { file: CAPTURE, fps: FPS, ...(final ? { frames: this.emitted } : {}), maxBacklogBytes: this.maxBacklog, ...(this.encoderError ? { error: this.encoderError.message } : {}) },
       marks: this.marks, size: { w: W, h: H },
       ...(this.keepFrames ? { frames: this.frames } : {}),
     };
@@ -404,8 +417,8 @@ export class Stage {
       await sleep(600); // the last picture settles before the master stops
       clearInterval(this.ticker);
       this.ticker = null;
-      this.tick();
       this.tEnd = this.now();
+      this.emitUpTo(this.tEnd);
     }
     if (this.cdp) await this.cdp.send("Page.stopScreencast").catch(() => {});
     if (this.encoder) {
