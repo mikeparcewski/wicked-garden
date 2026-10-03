@@ -5,17 +5,24 @@ time; read this before the first long run.
 
 ## Capture and encoding
 
+**The disk fills while recording (gigabytes per take).**
+Cause: a screencast frame written to disk as a JPEG per change is ~8 MB/s at 1080p: about 5 GB per 10-minute take.
+Fix: encode while recording. The engine feeds the newest picture to ffmpeg at 30 fps and keeps only the H.264 master
+(`capture.mp4`, near-lossless) plus the cut; a take leaves about two videos' worth of bytes. `DEMO_KEEP_FRAMES=1`
+brings the frame files back for a short debugging take only.
+
 **The last seconds of a segment are missing (closing card cut off).**
 Cause: the Chrome screencast only emits a frame when the picture changes, so a static hold at the end has no frame.
-Fix: end each clip at the moment recording stopped, not at the last captured frame (the engine does this).
+Fix: the master is fed at a constant rate until the moment recording stops, so a hold is in the video (the engine does this).
 
 **The video runs longer than the recording, or plays in jerks.**
 Cause: bursts of frames with near-identical timestamps each padded to a minimum duration.
-Fix: resample to a constant frame rate: for each output tick, show the newest frame captured at or before it.
+Fix: a constant frame rate: at each tick, the newest picture (the engine's 30 fps ticker does exactly this, live).
 
 **Text is soft or smeared.**
 Cause: Playwright's built-in `recordVideo` encodes VP8 at a low fixed bitrate.
-Fix: capture DevTools screencast frames (JPEG q95) and encode H.264 yourself (CRF ~17, `yuv420p`, `+faststart`).
+Fix: take DevTools screencast pictures (JPEG q95) and encode H.264 yourself: a near-lossless master (CRF 12) while
+recording, then one CRF 17 pass for the cut (`yuv420p`, `+faststart`). The master is never the step that softens text.
 
 **The time-lapse compressed the wrong part.**
 Cause: speed marks and frame timestamps on different clocks.
@@ -85,7 +92,7 @@ Fix: create `ctx.waitForResponse(re, { method: "GET" })` before the action, then
 and time the whole thing with `ctx.time`.
 
 **The closing card shows an old number after re-recording one segment.**
-Cause: the closing card is baked into the last segment's frames when it is recorded.
+Cause: the closing card is baked into the last segment's master when it is recorded.
 Fix: the runner now re-records the last segment automatically whenever another segment is re-recorded (keep that
 segment short); `--keep-closing` opts out. Check the end of the video after every partial re-record.
 
@@ -107,7 +114,7 @@ Fix: record per segment; re-record only the one that failed. Test risky segments
 **Fonts differ between machines or render as a fallback offline.**
 Cause: the stage loads a web font from a CDN.
 Fix: record with network access, or vendor the font files next to the stage and reference them locally. The
-finished video is offline-safe either way: the fonts are baked into the frames.
+finished video is offline-safe either way: the fonts are baked into the picture.
 
 **Local storage or cookies behave oddly inside the frame.**
 Cause: a stage page on a different origin partitions the app's storage.

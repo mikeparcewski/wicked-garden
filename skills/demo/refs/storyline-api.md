@@ -9,15 +9,17 @@ wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs              # r
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs 03-search    # (re)record one or more segments, restitch
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --all        # re-record everything
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --stitch     # only stitch what exists
-wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --reencode   # rebuild every segment from saved frames, restitch
+wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --reencode   # re-cut every segment from its saved master, restitch
 wicked-garden run scripts/demo/record.mjs path/to/storyline.mjs --list       # segments and whether each is recorded
 ```
 
 Options: `--out <dir>` (default: `demo-video/` next to the storyline), `--keep-closing` (see below). Environment: `FFMPEG` (path to ffmpeg; ffprobe
-is found next to it), `DEMO_BASE_URL` (overrides `baseUrl`), `DEMO_HEADFUL=1` (show the browser while recording).
+is found next to it), `DEMO_BASE_URL` (overrides `baseUrl`), `DEMO_HEADFUL=1` (show the browser while recording),
+`DEMO_KEEP_FRAMES=1` (also dump every screencast frame to `frames/`, for debugging a short take).
 
 Output in `<out>/`: `<slug>.mp4` (stitched, one chapter per segment), `chapters.md`, `timings.json`, and per segment
-`segments/<key>/segment.mp4` plus the raw capture (`frames/`, `timeline.json`) that `--reencode` rebuilds from.
+`segments/<key>/segment.mp4` plus the raw capture (`capture.mp4`, the 30 fps master encoded live while the take ran, and
+`timeline.json`) that `--reencode` re-cuts from. No frame files are written.
 The MP4 holds one video stream plus a small data stream: the chapter track ffmpeg writes for players that read
 QuickTime-style chapters. That is expected.
 

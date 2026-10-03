@@ -10,14 +10,15 @@
 // segments/<key>/failed-<take>/ and is never stitched.
 //
 // Each non-intro segment opens on its own chapter slide (the storyline's beforeSegment hook runs behind it) and ends
-// on the plain stage background, so segments join with a clean cut. Frames and timelines are kept per segment, so a
-// segment can be re-recorded alone and the whole video re-encoded without recording again.
+// on the plain stage background, so segments join with a clean cut. Each segment keeps its master (capture.mp4,
+// encoded live while it recorded) and timeline.json, so a segment can be re-recorded alone and the whole video
+// re-cut (--reencode) without recording again. No frame files are written (DEMO_KEEP_FRAMES=1 dumps them for debugging).
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Stage } from "./stage.mjs";
-import { buildVideo, videoClock } from "./postprocess.mjs";
+import { buildVideo, videoClock, CAPTURE, ffprobeOf } from "./postprocess.mjs";
 import { fixtureOrigin, sideEffectError } from "./readonly.mjs";
 
 // ---- module-level constants (used by exports) --------------------------------------------------
@@ -125,12 +126,15 @@ export function makeSegmentRecorder({
     let videoError = null;
     if (fs.existsSync(tlPath)) {
       fs.renameSync(tlPath, path.join(dir, "timeline.json"));
-      if (fs.existsSync(path.join(localSegDir(key), "frames"))) fs.renameSync(path.join(localSegDir(key), "frames"), path.join(dir, "frames"));
+      // The master (and the frames dump, if any) go with the timeline; they are dropped once a video is built from them.
+      for (const f of [CAPTURE, "frames"]) {
+        if (fs.existsSync(path.join(localSegDir(key), f))) fs.renameSync(path.join(localSegDir(key), f), path.join(dir, f));
+      }
       try {
         buildVideo(dir, path.join(dir, "segment.mp4"), { trimStart, ffmpeg: FFMPEG_BIN });
         video = "segment.mp4";
+        fs.rmSync(path.join(dir, CAPTURE), { force: true });
         fs.rmSync(path.join(dir, "frames"), { recursive: true, force: true });
-        fs.rmSync(path.join(dir, "frames.ffconcat"), { force: true });
       } catch (e) {
         videoError = e.message;
         fs.rmSync(path.join(dir, "segment.mp4"), { force: true });
@@ -159,14 +163,15 @@ export function makeSegmentRecorder({
     console.log(`● ${seg.key} (take ${take})`);
     const stage = new Stage({
       baseUrl, outDir: localSegDir(seg.key), chapters: CHAPTERS_LIST, brand,
-      stickyOffset: story.stickyOffset, headful: process.env.DEMO_HEADFUL === "1",
-      locale: story.locale, timezoneId: story.timezoneId, writableOrigin, consoleHandler,
+      stickyOffset: story.stickyOffset, headful: process.env.DEMO_HEADFUL === "1", keepFrames: process.env.DEMO_KEEP_FRAMES === "1",
+      locale: story.locale, timezoneId: story.timezoneId, writableOrigin, consoleHandler, ffmpeg: FFMPEG_BIN,
     });
     const timings = {};
     let ctx = makeCtx(stage, timings);
     fs.mkdirSync(localSegDir(seg.key), { recursive: true });
     fs.rmSync(localSegVideo(seg.key), { force: true });
     fs.rmSync(path.join(localSegDir(seg.key), "timeline.json"), { force: true });
+    fs.rmSync(path.join(localSegDir(seg.key), CAPTURE), { force: true });
     let failure = null;
     let failedAt = null;
     try {
@@ -235,7 +240,7 @@ export function makeSegmentRecorder({
 // ---- CLI entry point (only runs when invoked directly) -----------------------------------------
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const FFMPEG = process.env.FFMPEG || "ffmpeg";
-  const FFPROBE = FFMPEG.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
+  const FFPROBE = ffprobeOf(FFMPEG);
 
   function usage(msg) {
     if (msg) console.error(`error: ${msg}\n`);

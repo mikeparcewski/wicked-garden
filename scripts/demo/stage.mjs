@@ -2,14 +2,26 @@
 //
 // The app runs inside a 1600x900 browser-window frame on a 1920x1080 stage page; the lower-third caption band,
 // cursor, callouts and title cards are stage DOM, so captions never cover the product UI and everything is
-// rendered with real fonts and CSS transitions. Frames come from the Chrome DevTools screencast (JPEG q95,
-// wall-clock timestamps) instead of Playwright's built-in recorder, whose fixed ~1 Mbps VP8 blurs text at
-// 1080p. postprocess.mjs turns the frames into an H.264 MP4, time-lapsing the marked waits and embedding
-// chapter markers.
+// rendered with real fonts and CSS transitions. Pictures come from the Chrome DevTools screencast (JPEG q95, one
+// per change) instead of Playwright's built-in recorder, whose fixed ~1 Mbps VP8 blurs text at 1080p.
+//
+// Nothing raw touches disk. A 30 fps ticker hands the newest screencast picture to an ffmpeg child over stdin
+// (`-f image2pipe`), which encodes the master `capture.mp4` while the take runs: H.264 at a near-lossless CRF 12
+// (so the master is never the step that softens text; the final CRF 17 pass happens once, in the cut), one-second
+// fragments (a take that dies leaves a file that plays up to its last complete second). Master frame k is the
+// picture at t0 + k/30, so wall clock → master time is one straight line and postprocess.mjs cuts the master into
+// segment.mp4: the opening trim, the marked waits time-lapsed, chapter markers, and the clock videoClock() gives.
+// The ticker re-sends the current picture when nothing changed, which is the constant-frame-rate resampling the
+// cut used to do from timestamps ("the newest frame at or before each tick"), done live. Before this, every
+// changed frame was written as a JPEG and encoded afterwards: ~8 MB/s, about 5 GB per 10-minute take.
+// DEMO_KEEP_FRAMES=1 (keepFrames) also writes every screencast frame to frames/ with its timestamp in
+// timeline.json, for looking at what the screencast delivered; the master is still what gets cut.
 import { loadChromium } from "./_playwright.mjs";
 import { armGuard } from "./readonly.mjs";
+import { CAPTURE, FPS } from "./postprocess.mjs";
 import fs from "node:fs";
 import path from "node:path";
+import { spawn } from "node:child_process";
 
 // Served from the app's own origin (route interception), so the app iframe is same-origin with the stage.
 const STAGE_PATH = "/__demo_stage__";
@@ -130,6 +142,26 @@ window.__stage={
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The master: near-lossless, fast enough to keep up with 30 fps on a busy host, a keyframe (= a fragment) every second.
+const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-tune", "stillimage", "-g", String(FPS), "-keyint_min", String(FPS),
+  "-pix_fmt", "yuv420p", "-movflags", "+frag_keyframe+empty_moov+default_base_moof"];
+// Unsent frames waiting on the encoder above this many bytes are reported: the encoder is slower than real time.
+const BACKLOG_WARN = 32 * 1024 * 1024;
+
+function encoderFailure(message) {
+  const e = new Error(message);
+  e.code = "encoder_failed";
+  return e;
+}
+
+function withTimeout(promise, ms, message) {
+  let timer;
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(message)), ms); }),
+  ]);
+}
+
 export class Stage {
   /**
    * @param {object} o
@@ -140,10 +172,15 @@ export class Stage {
    * @param {number} [o.stickyOffset=88]  px to leave above a tall element when scrolling it into view (app header)
    * @param {boolean} [o.headful=false]   show the browser window while recording
    * @param {string|null} [o.writableOrigin=null]  the fixture origin writes may go to (readonly.mjs fixtureOrigin); null = read-only
+   * @param {string} [o.ffmpeg]           ffmpeg binary for the live master (default FFMPEG env or "ffmpeg")
+   * @param {boolean} [o.keepFrames=false]  also write every screencast frame to frames/ (debugging; DEMO_KEEP_FRAMES=1)
    */
-  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null }) {
+  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
+    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
+    this.ffmpeg = ffmpeg;
+    this.keepFrames = keepFrames;
     this.brand = { name: brand?.name ?? "Demo", logoSvg: brand?.logoSvg ?? "", accent: brand?.accent ?? "#ee0000" };
     this.chapterNames = chapters;
     this.stickyOffset = stickyOffset;
@@ -155,13 +192,18 @@ export class Stage {
     this.blocked = [];
     this.consoleHandler = consoleHandler;
     this.marks = { chapters: [], speed: [], captions: [] };
-    this.frameCount = 0;
     this.chapterIndex = -1;
+    this.latest = null; // the newest screencast picture (JPEG bytes)
+    this.emitted = 0; // master frames handed to the encoder
+    this.maxBacklog = 0; // most bytes ever waiting on the encoder
+    this.encoderError = null;
   }
 
   async open(firstPath = "/") {
-    fs.mkdirSync(path.join(this.outDir, "frames"), { recursive: true });
-    for (const f of fs.readdirSync(path.join(this.outDir, "frames"))) fs.unlinkSync(path.join(this.outDir, "frames", f));
+    fs.mkdirSync(this.outDir, { recursive: true });
+    fs.rmSync(path.join(this.outDir, "frames"), { recursive: true, force: true });
+    fs.rmSync(path.join(this.outDir, CAPTURE), { force: true });
+    if (this.keepFrames) fs.mkdirSync(path.join(this.outDir, "frames"));
     this.frames = [];
     this.browser = await (await loadChromium()).launch({ headless: !this.headful, args: ["--force-color-profile=srgb", "--hide-scrollbars"] });
     // A service worker answers requests the context's routes never see, so a guarded recording runs without one.
@@ -184,23 +226,79 @@ export class Stage {
     this.app = this.page.frameLocator("#app");
     this.appFrame = await (await this.page.$("#app")).contentFrame();
     await this.appFrame.waitForLoadState("networkidle").catch(() => {});
-    // Screencast: every changed frame with its wall-clock timestamp (seconds).
+    // Screencast: every changed picture, kept as "the newest" for the ticker (and on disk only with keepFrames).
     this.cdp = await this.context.newCDPSession(this.page);
-    this.cdp.on("Page.screencastFrame", async (ev) => {
-      const name = `f${String(this.frameCount++).padStart(6, "0")}.jpg`;
-      fs.writeFileSync(path.join(this.outDir, "frames", name), Buffer.from(ev.data, "base64"));
-      this.frames.push({ file: name, t: ev.metadata.timestamp });
-      await this.cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
+    let gotFirst;
+    const first = new Promise((resolve) => { gotFirst = resolve; });
+    this.cdp.on("Page.screencastFrame", (ev) => {
+      this.latest = Buffer.from(ev.data, "base64");
+      if (this.keepFrames) {
+        const name = `f${String(this.frames.length).padStart(6, "0")}.jpg`;
+        fs.writeFileSync(path.join(this.outDir, "frames", name), this.latest);
+        this.frames.push({ file: name, t: ev.metadata.timestamp });
+      }
+      gotFirst();
+      this.cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
     });
     await this.cdp.send("Page.startScreencast", { format: "jpeg", quality: 95, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
+    await withTimeout(first, 15_000, "the screencast delivered no frame within 15 s");
+    // The master: frame k is the picture at t0 + k/FPS. The ticker sends whatever is due (normally one frame; more
+    // after a late tick, so a slow event loop costs no time), always the newest picture.
+    this.encoder = this.startEncoder();
     this.t0 = Date.now() / 1000;
+    this.ticker = setInterval(() => this.tick(), 1000 / FPS);
+    this.writeTimeline(false);
     this.cursorAt = { x: FRAME.x + FRAME.w / 2, y: FRAME.y + FRAME.h / 2 };
     await this.stage((s, c) => s.cursor(c.x, c.y, false), this.cursorAt);
   }
 
+  startEncoder() {
+    const child = spawn(this.ffmpeg, ["-y", "-v", "error", "-f", "image2pipe", "-framerate", String(FPS), "-i", "-", ...MASTER_ARGS, path.join(this.outDir, CAPTURE)],
+      { stdio: ["pipe", "ignore", "pipe"] });
+    let stderr = "";
+    child.stderr.on("data", (d) => { stderr = (stderr + d).slice(-2000); });
+    child.stdin.on("error", () => {}); // EPIPE once the encoder is gone: the exit handler reports why
+    const done = new Promise((resolve) => {
+      child.on("error", (e) => { this.encoderError ??= encoderFailure(`ffmpeg failed to start: ${e.message}`); resolve(); });
+      child.on("exit", (code, signal) => {
+        if (code !== 0) this.encoderError ??= encoderFailure(`ffmpeg failed (${signal ?? code}): ${stderr.trim()}`);
+        resolve();
+      });
+    });
+    return { child, done };
+  }
+
+  tick() {
+    if (this.encoderError || !this.latest) return;
+    const due = Math.floor((this.now() - this.t0) * FPS) + 1 - this.emitted;
+    for (let i = 0; i < due; i++) this.encoder.child.stdin.write(this.latest);
+    if (due > 0) this.emitted += due;
+    this.maxBacklog = Math.max(this.maxBacklog, this.encoder.child.stdin.writableLength);
+  }
+
+  /** The take's clock and marks so far (tEnd null until close): a killed take still leaves what the cut needs. */
+  writeTimeline(final) {
+    const meta = {
+      t0: this.t0, tEnd: final ? this.tEnd : null,
+      capture: { file: CAPTURE, fps: FPS, frames: this.emitted, maxBacklogBytes: this.maxBacklog, ...(this.encoderError ? { error: this.encoderError.message } : {}) },
+      marks: this.marks, size: { w: W, h: H },
+      ...(this.keepFrames ? { frames: this.frames } : {}),
+    };
+    fs.writeFileSync(path.join(this.outDir, "timeline.json"), JSON.stringify(meta, null, 1));
+    return meta;
+  }
+
+  mark(kind, m) {
+    this.marks[kind].push(m);
+    if (this.t0 !== undefined) this.writeTimeline(false);
+  }
+
+  /** A dead encoder fails the take at its next step instead of filming ten minutes into nothing. */
+  check() { if (this.encoderError) throw this.encoderError; }
+
   now() { return Date.now() / 1000; }
-  stage(fn, arg) { return this.page.evaluate(`(${fn.toString()})(window.__stage, ${JSON.stringify(arg ?? null)})`); }
-  hold(ms) { return sleep(ms); }
+  stage(fn, arg) { this.check(); return this.page.evaluate(`(${fn.toString()})(window.__stage, ${JSON.stringify(arg ?? null)})`); }
+  hold(ms) { this.check(); return sleep(ms); }
 
   async card(html, ms) {
     await this.stage((s, h) => s.card(h), html);
@@ -210,13 +308,13 @@ export class Stage {
 
   async chapter(i) {
     this.chapterIndex = i;
-    this.marks.chapters.push({ t: this.now(), title: this.chapterNames[i] });
+    this.mark("chapters", { t: this.now(), title: this.chapterNames[i] });
     await this.stage((s, a) => s.progress(a.n, a.i, a.label), { n: this.chapterNames.length, i, label: `Chapter ${i + 1} of ${this.chapterNames.length} · ${this.chapterNames[i]}` });
   }
 
   /** Lower-third caption. body may contain <em>. readMs is how long the viewer needs it (scaled by length when omitted). */
   async caption(kicker, title, body = "", readMs) {
-    this.marks.captions.push({ t: this.now(), kicker, title, body });
+    this.mark("captions", { t: this.now(), kicker, title, body });
     await this.stage((s, c) => s.caption(c), { kicker, title, body });
     await sleep(readMs ?? Math.min(9000, 2200 + (title.length + body.length) * 38));
   }
@@ -292,7 +390,7 @@ export class Stage {
     await sleep(600);
     const t = this.now();
     try { return await fn(); } finally {
-      this.marks.speed.push({ start: t, end: this.now(), factor, label });
+      this.mark("speed", { start: t, end: this.now(), factor, label });
       await sleep(400);
       await this.stage((s) => s.speed(false));
       await sleep(400);
@@ -302,15 +400,24 @@ export class Stage {
   async close() {
     // Also after an open() that failed part-way: close what was opened, and write a timeline only once recording began.
     let meta = null;
-    if (this.cdp) {
-      await sleep(600);
-      await this.cdp.send("Page.stopScreencast").catch(() => {});
-      await sleep(300);
+    if (this.ticker) {
+      await sleep(600); // the last picture settles before the master stops
+      clearInterval(this.ticker);
+      this.ticker = null;
+      this.tick();
+      this.tEnd = this.now();
     }
-    if (this.t0 !== undefined) {
-      meta = { t0: this.t0, tEnd: this.now(), frames: this.frames, marks: this.marks, size: { w: W, h: H } };
-      fs.writeFileSync(path.join(this.outDir, "timeline.json"), JSON.stringify(meta, null, 1));
+    if (this.cdp) await this.cdp.send("Page.stopScreencast").catch(() => {});
+    if (this.encoder) {
+      // EOF, then the encoder writes what it still holds and closes the file.
+      this.encoder.child.stdin.end();
+      await withTimeout(this.encoder.done, 120_000, "ffmpeg did not finish").catch((e) => {
+        this.encoderError ??= encoderFailure(`${e.message}: killed`);
+        this.encoder.child.kill("SIGKILL");
+      });
+      if (this.maxBacklog > BACKLOG_WARN) console.warn(`  encoder fell behind real time (up to ${Math.round(this.maxBacklog / 1048576)} MB of frames waited); the master is complete`);
     }
+    if (this.t0 !== undefined) meta = this.writeTimeline(true);
     await this.context?.close().catch(() => {});
     await this.browser?.close().catch(() => {});
     return meta;

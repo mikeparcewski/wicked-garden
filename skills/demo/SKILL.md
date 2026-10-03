@@ -6,8 +6,8 @@ description: |
   alternates, runs a live rehearsal with measured timings, and writes a
   presenter script with a chapter list ready for recording.
   record — records each chapter as its own captioned, chaptered segment via
-  Playwright + ffmpeg (DevTools frames at JPEG q95, H.264 CRF 17), then
-  stitches them into one MP4 with chapter markers.
+  Playwright + ffmpeg (DevTools screencast encoded live to H.264, no frame
+  files on disk, final CRF 17), then stitches them into one MP4 with chapters.
   review — generates labelled contact sheets of stills (at chapter slides,
   joins, and the end) and delivers a per-issue verdict: re-encode, re-record
   one segment, or fix the app.
@@ -192,12 +192,21 @@ wicked-garden run scripts/demo/record.mjs <storyline.mjs>              # record 
 wicked-garden run scripts/demo/record.mjs <storyline.mjs> 03-search    # (re)record one segment, restitch
 wicked-garden run scripts/demo/record.mjs <storyline.mjs> --all        # re-record everything
 wicked-garden run scripts/demo/record.mjs <storyline.mjs> --stitch     # stitch existing segments only
-wicked-garden run scripts/demo/record.mjs <storyline.mjs> --reencode   # rebuild from saved frames, restitch
+wicked-garden run scripts/demo/record.mjs <storyline.mjs> --reencode   # re-cut from each segment's saved master, restitch
 wicked-garden run scripts/demo/record.mjs <storyline.mjs> --list       # which segments are recorded
 ```
 
 Options: `--out <dir>` (default `demo-video/` next to the storyline), `--fixture-origin <origin>` (see below).
-Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`.
+Environment: `FFMPEG`, `DEMO_BASE_URL`, `DEMO_HEADFUL=1`, `DEMO_KEEP_FRAMES=1` (debugging only, see below).
+
+**Encoded while it records; no frame files.** The screencast is fed to ffmpeg at 30 fps as the take runs and lands
+as `segments/<key>/capture.mp4`, a near-lossless H.264 master (CRF 12, one-second fragments) whose frame k is the
+picture at t0 + k/30; the segment video is a cut of that master (opening trim, time-lapsed waits, chapters, CRF 17).
+A take leaves about two videos' worth of bytes, not a JPEG per frame (which was ~8 MB/s, ~5 GB per 10-minute take).
+A take that is killed still leaves a master that plays up to its last complete second, and the timeline written so
+far, so `--reencode` can cut it. `DEMO_KEEP_FRAMES=1` additionally writes every screencast frame to
+`segments/<key>/frames/` (with timestamps in `timeline.json`) to look at what the screencast delivered — use it on a
+short take only; the master is still what gets cut.
 
 **Read-only by default.** While it records, the browser sends no writes: every request that is not
 GET, HEAD or OPTIONS is aborted, and so is every WebSocket frame the page sends (frames the server pushes
@@ -214,7 +223,7 @@ switch. `recording.json` records how each stitched segment was recorded (`read-o
 `fixture-writable`), and each segment's `guard.json` names the origin.
 
 **A failed take keeps its evidence.** When a take fails (an error, or a blocked write), its timeline,
-a video built from the frames it has, and `failure.json` (the error, any blocked requests,
+a video cut from the master it has, and `failure.json` (the error, any blocked requests,
 `failed_at_sec`) are kept in `segments/<key>/failed-<take>/`. Nothing of it is left where a stitch could
 use it: the segment's old `segment.mp4` is deleted, and while any segment's last take failed, `--reencode`
 and `--stitch` refuse to run (`failed_take`, or `side_effect_blocked` for a blocked write). Re-record it

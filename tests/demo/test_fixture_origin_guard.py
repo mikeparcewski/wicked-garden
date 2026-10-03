@@ -160,7 +160,8 @@ def test_a_failed_take_keeps_its_video_and_failure_and_is_never_stitched(tmp_pat
         assert failure["segment"] == "01-launch" and failure["take"] == take
         assert "No such heading" in failure["message"] and failure["blocked"] == []
         assert failure["failed_at_sec"] >= 0
-        assert not (failed / "frames").exists(), "the failed take's raw frames are not kept beside its video"
+        assert not (failed / "capture.mp4").exists(), "the failed take's master is not kept beside its video"
+        assert not (failed / "frames").exists()
     assert not (seg / "segment.mp4").exists()
     assert not (seg / "timeline.json").exists()
     assert json.loads((seg / "guard.json").read_text())["failed"] is True
@@ -203,10 +204,10 @@ def test_a_take_whose_video_fails_to_encode_is_a_failed_take(tmp_path):
     failed = seg / "failed-1"
     failure = json.loads((failed / "failure.json").read_text())
     assert failure["take"] == 1 and "ffmpeg failed" in failure["message"]
-    # Its own video could not be built either: no partial output, and the frames stay so it can be rebuilt.
+    # Its own video could not be built either: no partial output, and the master stays so it can be rebuilt.
     assert failure["video"] is None and "ffmpeg failed" in failure["video_error"]
     assert not (failed / "segment.mp4").exists(), "a partial encode is not evidence"
-    assert any((failed / "frames").iterdir()), "the frames are dropped only once a video is built"
+    assert (failed / "capture.mp4").exists(), "the master is dropped only once a video is built"
 
 
 @needs_node
