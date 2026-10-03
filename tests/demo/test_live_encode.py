@@ -297,14 +297,22 @@ def test_chapters_and_the_time_lapse_are_cut_from_the_master_and_the_contact_she
     # The 4 s wait plays in about 1 s: the video is about 3 s shorter than the trimmed wall clock.
     saved = (clock["wall"] - TRIM) - clock["end"]
     assert 2.6 <= saved <= 3.4, saved
-    # Chapter markers, embedded and listed, at the clock's position.
+    # Chapter markers: written at the clock's position (chapters.ffmeta, chapters.md) and embedded in the segment.
+    # ffmpeg's mov muxer (8.0.1) writes a segment's single chapter as one sample at time 0 with the chapter's length,
+    # dropping the lead-in (reproduced with ffmpeg alone on a testsrc; the 12.41.0 recipe had the same), so the
+    # embedded marker is checked by title and length; the stitched video below rebuilds chapters from segment offsets.
+    meta = (seg / "chapters.ffmeta").read_text()
+    start_ms = int(re.search(r"^START=(\d+)$", meta, re.M).group(1))
+    end_ms = int(re.search(r"^END=(\d+)$", meta, re.M).group(1))
+    assert abs(start_ms / 1000 - clock["chapters"][0]) <= 0.001, (start_ms, clock["chapters"])
+    assert abs(end_ms / 1000 - cut["duration"]) <= 0.002, (end_ms, cut["duration"])
     assert [c["title"] for c in cut["chapters"]] == ["Launch a run"], cut["chapters"]
-    assert abs(cut["chapters"][0]["start"] - clock["chapters"][0]) <= 0.05, (cut["chapters"], clock["chapters"])
-    assert abs(cut["chapters"][0]["end"] - cut["duration"]) <= 0.05
-    assert "| Launch a run |" in (seg / "chapters.md").read_text()
-    # The stitched video carries them too.
+    assert abs((cut["chapters"][0]["end"] - cut["chapters"][0]["start"]) - (end_ms - start_ms) / 1000) <= 0.002, cut["chapters"]
+    assert "| 0:0%d | Launch a run |" % int(clock["chapters"][0]) in (seg / "chapters.md").read_text()
+    # The stitched video carries the segment as one chapter spanning it whole.
     final = tmp_path / "demo-video" / "demo.mp4"
-    assert [c["title"] for c in _probe(final)["chapters"]] == ["Launch a run"]
+    stitched = _probe(final)["chapters"]
+    assert [c["title"] for c in stitched] == ["Launch a run"] and stitched[0]["start"] == 0 and abs(stitched[0]["end"] - cut["duration"]) <= 0.002, stitched
     # Review still works from the video alone (there are no frame files to read).
     sheet = tmp_path / "sheet.png"
     r = subprocess.run([sys.executable, str(DEMO / "contact_sheet.py"), str(seg / "segment.mp4"), "--every", "1", "--out", str(sheet)],
