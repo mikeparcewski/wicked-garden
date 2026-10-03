@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.41.0] — 2026-10-03
+
 ### Added
 - **Demo: `walkthrough.mjs record` turns a storyline into a sealed, vault-checked proof (WT-G2, DES-walkthrough-proof §4.4–4.7).** `wicked-garden run scripts/demo/walkthrough.mjs record` reads `WICKED_EVIDENCE_ROOT`, `WICKED_RUN_ID`, `WICKED_RUN_UNIT` and `WICKED_TREE` and copies the storyline into the root. It `git archive`s the tree into `<root>/app/`, starts the fixture by argv on a free loopback port with `DATA_DIR=<root>/data`, and records each segment through the existing recorder with the fixture origin as the one writable origin. At each `ctx.check(id)` it captures by collector: `locator`, `probe` (parses json, jsonl, sqlite-json or text), `artifact` (under `DATA_DIR` only; absolute paths and `../` are refused), `guard` (foreign writes, console errors) or `join`. Captures are recorded into a vault anchored at `<root>/vault/`, never an ancestor vault, under a contract derived from the storyline, and each chapter is cross-checked. A chapter is PASS only from the vault's cross-check. A failing verifier or a check that is never reached is FAIL. A vault, `jq` or ledger that is missing or failing makes the chapter INCONCLUSIVE, never PASS. `unjailed_host`, `fixture_unavailable`, `storyline_refused` and the disk cap list every chapter as INCONCLUSIVE. Ledger rows (`crew_run_id`, `step_id`, `tree`, `take`) and a 2.1 manifest per chapter with `scenario_evidence.walkthrough` go under `<root>/.wicked-qe/`. Last, the tool writes `result.json` and `progress.json` and prints `WALKTHROUGH-SEAL` (`tree`, `storyline_sha`, `contract_shas`, `bundle_sha` over every file except `app/` and `data/`, `overall`, `chapters`). `seal --root` recomputes it. `record.mjs` exports `makeSegmentRecorder` and `stage.mjs` takes a console handler that is attached before navigation. Tests: `tests/demo/test_walkthrough.py` against `tests/demo/fixtures/`.
 
@@ -964,7 +966,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.40.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.41.0...HEAD
+[12.41.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.40.0...v12.41.0
 [12.40.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.39.0...v12.40.0
 [12.39.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.1...v12.39.0
 [12.38.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.38.0...v12.38.1
