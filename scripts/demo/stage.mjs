@@ -141,7 +141,7 @@ export class Stage {
    * @param {boolean} [o.headful=false]   show the browser window while recording
    * @param {string|null} [o.writableOrigin=null]  the fixture origin writes may go to (readonly.mjs fixtureOrigin); null = read-only
    */
-  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null }) {
+  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.brand = { name: brand?.name ?? "Demo", logoSvg: brand?.logoSvg ?? "", accent: brand?.accent ?? "#ee0000" };
@@ -153,6 +153,7 @@ export class Stage {
     this.writableOrigin = writableOrigin;
     this.readOnly = !writableOrigin;
     this.blocked = [];
+    this.consoleHandler = consoleHandler;
     this.marks = { chapters: [], speed: [], captions: [] };
     this.frameCount = 0;
     this.chapterIndex = -1;
@@ -168,6 +169,7 @@ export class Stage {
     // No writes except to the fixture origin, if one is named (readonly.mjs): the page routes below still win for the stage itself.
     this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
     this.page = await this.context.newPage();
+    if (this.consoleHandler) this.page.on("console", this.consoleHandler);
     const html = stageHtml(this.brand, this.baseUrl + firstPath);
     await this.page.route(this.baseUrl + STAGE_PATH, (route) => route.fulfill({ status: 200, contentType: "text/html", body: html }));
     this.page.on("framenavigated", (f) => {

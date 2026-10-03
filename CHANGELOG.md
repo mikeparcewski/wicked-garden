@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **Demo: `walkthrough.mjs record` turns a storyline into a sealed, vault-checked proof (WT-G2, DES-walkthrough-proof §4.4–4.7).** `wicked-garden run scripts/demo/walkthrough.mjs record` reads `WICKED_EVIDENCE_ROOT`, `WICKED_RUN_ID`, `WICKED_RUN_UNIT` and `WICKED_TREE` and copies the storyline into the root. It `git archive`s the tree into `<root>/app/`, starts the fixture by argv on a free loopback port with `DATA_DIR=<root>/data`, and records each segment through the existing recorder with the fixture origin as the one writable origin. At each `ctx.check(id)` it captures by collector: `locator`, `probe` (parses json, jsonl, sqlite-json or text), `artifact` (under `DATA_DIR` only; absolute paths and `../` are refused), `guard` (foreign writes, console errors) or `join`. Captures are recorded into a vault anchored at `<root>/vault/`, never an ancestor vault, under a contract derived from the storyline, and each chapter is cross-checked. A chapter is PASS only from the vault's cross-check. A failing verifier or a check that is never reached is FAIL. A vault, `jq` or ledger that is missing or failing makes the chapter INCONCLUSIVE, never PASS. `unjailed_host`, `fixture_unavailable`, `storyline_refused` and the disk cap list every chapter as INCONCLUSIVE. Ledger rows (`crew_run_id`, `step_id`, `tree`, `take`) and a 2.1 manifest per chapter with `scenario_evidence.walkthrough` go under `<root>/.wicked-qe/`. Last, the tool writes `result.json` and `progress.json` and prints `WALKTHROUGH-SEAL` (`tree`, `storyline_sha`, `contract_shas`, `bundle_sha` over every file except `app/` and `data/`, `overall`, `chapters`). `seal --root` recomputes it. `record.mjs` exports `makeSegmentRecorder` and `stage.mjs` takes a console handler that is attached before navigation. Tests: `tests/demo/test_walkthrough.py` against `tests/demo/fixtures/`.
+
 ## [12.40.0] — 2026-10-02
 
 ### Added
