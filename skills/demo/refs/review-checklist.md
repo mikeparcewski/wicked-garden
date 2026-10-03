@@ -15,8 +15,8 @@ Each item is **symptom → likely cause → fix** and a verdict: **[encode]** re
   re-apply the speed factors. [encode]
 - [ ] **Stutter, judder or variable frame rate** → frames encoded with their raw capture durations → resample to a
   constant 30 fps before encoding. [encode]
-- [ ] **Blurry text** → a low-bitrate recorder (browser automation built-in video is often ~1 Mbps VP8) → capture frames
-  as high-quality JPEG/PNG and encode H.264 at low CRF, `yuv420p`, `+faststart`. [encode]
+- [ ] **Blurry text** → a low-bitrate recorder (browser automation built-in video is often ~1 Mbps VP8) → take the
+  screencast as high-quality JPEG, encode a near-lossless H.264 master live, cut at low CRF, `yuv420p`, `+faststart`. [encode]
 
 ## Openings, joins and the end
 
