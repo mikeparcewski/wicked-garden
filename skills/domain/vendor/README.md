@@ -15,7 +15,7 @@ is history, not the contract.
 
 | | |
 |---|---|
-| Bundle version (`VERSION`) | `1.2.0` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-09-11 from wicked-core `main` @ `e421e87`) |
+| Bundle version (`VERSION`) | `1.2.1` — mirrors the owner's `schemas/VERSION` (synced 2026-10-04 to wicked-core `main` @ `0f419c3`; `domain-model.schema.json` byte-unchanged since the 2026-09-11 re-vendor) |
 | Schema contract version (`$id` / `metadata.schema_version`) | `1.0.0` |
 | Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.0.0` |
 | Canonical source | `wicked-core/crates/wicked-governance/schemas/domain-model.schema.json` |
@@ -26,7 +26,9 @@ is history, not the contract.
 The **bundle** `VERSION` bumps when ANY schema in the owner's 4-file bundle
 changes (the 1.0.0→1.1.0 bump added `conformance-rules.schema.json` to the
 bundle; the 1.1.0→1.2.0 bump was the STEERING unification's optional fields on
-`conformance-rules.schema.json` — this file was byte-untouched both times). The
+`conformance-rules.schema.json`; the 1.2.0→1.2.1 bump was conformance-rules 1.2.0's
+optional DC-S1 project-rule fields, wicked-core#699 — this file was byte-untouched
+every time). The
 **contract version** a document carries (`metadata.schema_version`,
 const-pinned by the schema, matching the `$id` segment) is independent — the
 schemas document that independence themselves. Documents emitted here still carry

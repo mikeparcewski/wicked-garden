@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- **Domain vendor: the schema bundle `VERSION` follows the owner to 1.2.1.** wicked-core#699 bumped its governance schema bundle to 1.2.1 (conformance-rules 1.2.0 declares the DC-S1 project-rule fields it already documented). `skills/domain/vendor/VERSION` now matches, so `tests/domain/test_schema_vendor_pin.py` passes again against a current wicked-core checkout. `domain-model.schema.json` is byte-unchanged, and documents still carry `schema_version: "1.0.0"`.
+
 ## [12.42.0] — 2026-10-03
 
 ### Changed
