@@ -21,6 +21,8 @@
 //   capture/, vault/, .wicked-qe/, storyline.mjs — the checks' evidence, contracts and ledger
 // The seal's bundle_sha is the form crew recomputes: sha256 over the lines "<sha256 hex>  <posix relative
 // path>\n" of every regular file under the root except top-level app/ and data/, sorted in UTF-8 byte order.
+// A link or a non-regular entry anywhere else, or an unreadable file, makes the root UNSEALABLE (crew refuses
+// it too): result.json becomes INCONCLUSIVE(unsealable_root) and the seal line carries bundle_sha: null.
 //
 // Runtime: wicked-garden run scripts/demo/walkthrough.mjs <action> [args]
 //   Manual alternative: node scripts/demo/walkthrough.mjs <action> [args]
@@ -55,7 +57,11 @@ if (action !== "record" && action !== "seal") {
 if (action === "seal") {
   const sealRoot = argVal("--root") ?? process.env.WICKED_EVIDENCE_ROOT;
   if (!sealRoot) { process.stderr.write("seal: --root <dir> required\n"); process.exit(2); }
-  const sha = computeBundleSha(path.resolve(sealRoot));
+  let sha;
+  try { sha = computeBundleSha(path.resolve(sealRoot)); } catch (e) {
+    process.stderr.write(`seal: ${e.message}\n`);
+    process.exit(1);
+  }
   process.stdout.write(JSON.stringify({ bundle_sha: sha }) + "\n");
   process.exit(0);
 }
@@ -98,11 +104,7 @@ if (!process.env.WICKED_WALKTHROUGH_JAIL) {
   const unjailedChapters = tryStaticSegmentKeys(_earlyStoryPath);
   writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "unjailed_host", chapters: unjailedChapters });
   writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "unjailed_host" });
-  const sha = computeBundleSha(ROOT);
-  process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({
-    tree: TREE, storyline_sha: null, contract_shas: {}, bundle_sha: sha,
-    overall: "INCONCLUSIVE", cause: "unjailed_host", chapters: unjailedChapters,
-  }) + "\n");
+  finishWithSeal(ROOT, { tree: TREE, storyline_sha: null, contract_shas: {}, overall: "INCONCLUSIVE", cause: "unjailed_host", chapters: unjailedChapters });
   process.exit(0);
 }
 
@@ -159,7 +161,9 @@ function writeChaptersJson(root, story) {
  * The seal crew recomputes at every read (`walkthrough-acceptance.ts` computeBundleSha): sha256 over one line
  * `<sha256 hex of the file>  <posix relative path>\n` (two spaces, as `sha256sum` prints) per regular file under
  * the root except the top-level `app/` and `data/` subtrees, sorted in UTF-8 byte order (`LC_ALL=C sort`).
- * Any other form reads as "walkthrough evidence changed after it was sealed" on crew's side.
+ * Any other form reads as "walkthrough evidence changed after it was sealed" on crew's side. Like crew, it
+ * refuses (throws, `code: "unsealable_root"`) a link or a non-regular entry outside app/ and data/, and an
+ * entry it cannot read — crew would compute no seal for such a root, so none is claimed here either.
  */
 function computeBundleSha(root) {
   const pairs = [];
@@ -170,17 +174,48 @@ function computeBundleSha(root) {
   return h.digest("hex");
 }
 
+function unsealable(why) {
+  const err = new Error(`unsealable proof root: ${why}`);
+  err.code = "unsealable_root";
+  return err;
+}
+
 function walkForSeal(root, dir, out) {
   let entries;
-  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) {
+    throw unsealable(`${path.relative(root, dir).split(path.sep).join("/") || "."} could not be read: ${e.message}`);
+  }
   for (const e of entries) {
     const full = path.join(dir, e.name);
     const rel = path.relative(root, full).split(path.sep).join("/");
     const top = rel.split("/")[0];
     if (top === "app" || top === "data") continue;
+    if (e.isSymbolicLink()) throw unsealable(`the proof root holds a link at ${rel}`);
     if (e.isDirectory()) { walkForSeal(root, full, out); }
-    else if (e.isFile()) { try { out.push([rel, sha256File(full)]); } catch { /* skip unreadable */ } }
+    else if (e.isFile()) {
+      try { out.push([rel, sha256File(full)]); } catch (err) { throw unsealable(`${rel} could not be read: ${err.message}`); }
+    } else throw unsealable(`the proof root holds a non-regular entry at ${rel}`);
   }
+}
+
+/**
+ * The one way out of `record`: seal the root and print the WALKTHROUGH-SEAL line. When the root cannot be
+ * sealed, result.json and progress.json are rewritten as INCONCLUSIVE(unsealable_root) with every chapter
+ * INCONCLUSIVE and the line carries `bundle_sha: null` — crew reads that as "not sealed" and denies.
+ */
+function finishWithSeal(root, { tree, storyline_sha, contract_shas, overall, cause, reason, chapters }) {
+  let bundle_sha;
+  try { bundle_sha = computeBundleSha(root); } catch (e) {
+    process.stderr.write(`walkthrough: ${e.message}\n`);
+    overall = "INCONCLUSIVE"; cause = "unsealable_root"; reason = e.message; bundle_sha = null;
+    chapters = chapters.map((c) => ({ ...c, verdict: "INCONCLUSIVE" }));
+    writeResult(root, { overall, tree, cause, reason, chapters });
+    writeProgress(root, { overall, cause, chapters: chapters.map(({ key, verdict }) => ({ key, verdict })) });
+  }
+  const seal = { tree, storyline_sha, contract_shas, bundle_sha, overall };
+  if (cause) seal.cause = cause;
+  seal.chapters = chapters.map(({ key, verdict }) => ({ key, verdict }));
+  process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify(seal) + "\n");
 }
 
 async function freePort() {
@@ -823,8 +858,7 @@ async function main() {
   if (!fs.existsSync(storyPath)) {
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: `storyline not found: ${storyPath}`, chapters: [] });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
-    const sha = computeBundleSha(ROOT);
-    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: null, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: [] }) + "\n");
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: null, contract_shas: {}, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: [] });
     process.exit(0);
   }
 
@@ -841,8 +875,7 @@ async function main() {
     const refusedChapters = tryStaticSegmentKeys(storyPath);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: e.message, chapters: refusedChapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
-    const sha = computeBundleSha(ROOT);
-    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: storySha, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: refusedChapters }) + "\n");
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: refusedChapters });
     process.exit(0);
   }
 
@@ -850,8 +883,7 @@ async function main() {
     const chapters = chapterStubs(story);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: "storyline missing fixture.start or segments[]", chapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
-    const sha = computeBundleSha(ROOT);
-    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: storySha, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters }) + "\n");
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: chapters });
     process.exit(0);
   }
 
@@ -869,8 +901,7 @@ async function main() {
     const chapters = chapterStubs(story);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: `unsafe identifiers: ${badIds.join(", ")}`, chapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
-    const sha = computeBundleSha(ROOT);
-    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: storySha, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters }) + "\n");
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: chapters });
     process.exit(0);
   }
 
@@ -886,8 +917,7 @@ async function main() {
   } catch (e) {
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable", reason: `git archive failed: ${e.message}`, chapters: allChapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable" });
-    const sha = computeBundleSha(ROOT);
-    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: storySha, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "fixture_unavailable", chapters: allChapters }) + "\n");
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "fixture_unavailable", chapters: allChapters });
     process.exit(0);
   }
 
@@ -946,8 +976,7 @@ async function main() {
     const chapters = chapterStubs(story);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable", reason: e.message, chapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable" });
-    const sha = computeBundleSha(ROOT);
-    process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({ tree: TREE, storyline_sha: storySha, contract_shas: {}, bundle_sha: sha, overall: "INCONCLUSIVE", cause: "fixture_unavailable", chapters }) + "\n");
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "fixture_unavailable", chapters: chapters });
     process.exit(0);
   }
 
@@ -1129,6 +1158,16 @@ async function main() {
 
   writeProgress(ROOT, { state: "judging" });
 
+  // A chapter whose take failed has its video only under failed-<take>/; crew's view reads a chapter as
+  // recorded from demo-video/segments/<key>/segment.mp4 alone, so the kept take is published there too (a
+  // regular-file copy — a link would make the root unsealable). guard.json (failed: true) and
+  // failed-<take>/failure.json keep saying what it is.
+  for (const seg of storyChapters(story)) {
+    const canonical = path.join(segmentsDir, seg.key, "segment.mp4");
+    const kept = path.join(segmentsDir, seg.key, `failed-${takeMap[seg.key] ?? 1}`, "segment.mp4");
+    if (!fs.existsSync(canonical) && fs.existsSync(kept)) fs.copyFileSync(kept, canonical);
+  }
+
   // 6. Validate per-chapter manifests BEFORE writing ledger rows.
   //    Any manifest violation makes the chapter INCONCLUSIVE — including FAIL chapters.
   for (const seg of story.segments.filter((s) => !s.intro)) {
@@ -1207,14 +1246,12 @@ async function main() {
       : "INCONCLUSIVE";
   }
 
-  // 7. The take as crew's view plays it: each chapter's kept video (the good take, else the failed take
-  //    the recorder kept), stitched in order with chapter markers and a poster; a FAIL chapter's frame.
+  // 7. The take as crew's view plays it: each chapter's video (the good take, or the failed take published
+  //    above), stitched in order with chapter markers and a poster; a FAIL chapter's frame.
   const FFMPEG_BIN = process.env.FFMPEG || "ffmpeg";
   const segVideoOf = (seg) => {
-    const good = path.join(segmentsDir, seg.key, "segment.mp4");
-    if (fs.existsSync(good)) return good;
-    const kept = path.join(segmentsDir, seg.key, `failed-${takeMap[seg.key] ?? 1}`, "segment.mp4");
-    return fs.existsSync(kept) ? kept : null;
+    const video = path.join(segmentsDir, seg.key, "segment.mp4");
+    return fs.existsSync(video) ? video : null;
   };
   const failedFrames = {};
   for (const seg of storyChapters(story)) {
@@ -1267,15 +1304,7 @@ async function main() {
   writeProgress(ROOT, { overall: finalOverall, chapters: resultChapters.map(({ key, verdict }) => ({ key, verdict })) });
 
   // 9. Print WALKTHROUGH-SEAL
-  const bundleSha = computeBundleSha(ROOT);
-  process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({
-    tree: TREE,
-    storyline_sha: storySha,
-    contract_shas: contractShas,
-    bundle_sha: bundleSha,
-    overall: finalOverall,
-    chapters: resultChapters.map(({ key, verdict }) => ({ key, verdict })),
-  }) + "\n");
+  finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: contractShas, overall: finalOverall, chapters: resultChapters });
 
   killFixture();
   process.exit(0);
