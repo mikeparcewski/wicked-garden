@@ -1020,3 +1020,133 @@ def test_main_mode_probe_reports_without_spawning(monkeypatch, tmp_path, capsys)
     assert out["refusal"] and "--db" in out["refusal"]
     code, out = _main(capsys, ["--db", "/srv/x.db", "mode"])
     assert out["store_pinned"] is True and out["db"] == "/srv/x.db" and out["refusal"] is None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Both content blocks (wicked-garden#1211): estate's RetrievalTools put their
+# diagnostics (STALENESS / CLAMPED / LEXICAL-FALLBACK lines) in a SECOND text
+# block; the shim used to read content[0] only, so a seat could never tell a
+# stale or clamped answer from a fresh, complete one.
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _two_block_envelope(payload, diagnostics, is_error=False):
+    return {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {
+            "content": [
+                {"type": "text", "text": json.dumps(payload)},
+                {"type": "text", "text": "\n".join(diagnostics)},
+            ],
+            "isError": is_error,
+        },
+    }
+
+
+def test_unwrap_blocks_returns_payload_and_diagnostic_lines():
+    env = _two_block_envelope(
+        {"hotspots": [{"name": "Foo"}], "total": 1},
+        ["STALENESS: commits_behind=3 — re-run `wicked-estate index` to refresh",
+         "CLAMPED: limit=999 exceeds the ceiling; used limit=200"],
+    )
+    payload, diagnostics = _estate_client._unwrap_blocks(env)
+    assert payload == {"hotspots": [{"name": "Foo"}], "total": 1}
+    assert diagnostics == [
+        "STALENESS: commits_behind=3 — re-run `wicked-estate index` to refresh",
+        "CLAMPED: limit=999 exceeds the ceiling; used limit=200",
+    ]
+
+
+def test_unwrap_blocks_without_a_second_block_has_no_diagnostics():
+    payload, diagnostics = _estate_client._unwrap_blocks(_envelope({"matches": [], "total": 0}))
+    assert payload == {"matches": [], "total": 0}
+    assert diagnostics == []
+
+
+def test_unwrap_blocks_fails_open_like_unwrap():
+    assert _estate_client._unwrap_blocks(None) == (None, [])
+    assert _estate_client._unwrap_blocks({"result": {}}) == (None, [])
+    assert _estate_client._unwrap_blocks(_two_block_envelope({"x": 1}, ["STALENESS: 1"], is_error=True)) == (None, [])
+
+
+def test_unwrap_still_returns_the_first_block_only():
+    # The one-value seam keeps its contract; callers that want the diagnostics ask for both blocks.
+    env = _two_block_envelope({"a": 1}, ["STALENESS: commits_behind=2"])
+    assert _estate_client._unwrap(env) == {"a": 1}
+
+
+def test_call_blocks_carries_the_diagnostics_through_the_transport():
+    def fake_dispatch(requests, *, db, timeout):
+        out = {}
+        for r in requests:
+            if r.get("method") == "initialize":
+                out[r["id"]] = {"jsonrpc": "2.0", "id": r["id"],
+                                "result": {"serverInfo": {"name": "wicked-estate"}}}
+            elif r.get("method") == "tools/call":
+                out[r["id"]] = _two_block_envelope(
+                    {"hotspots": [], "total": 0, "truncated": True},
+                    ["STALENESS: commits_behind=3 — re-run `wicked-estate index` to refresh",
+                     "CLAMPED: max_nodes=5000 exceeds the ceiling; used max_nodes=1000"],
+                )
+        return out
+
+    _estate_client.set_dispatch(fake_dispatch)
+    res = _estate_client.call_blocks("RankHotspots", {"limit": 20})
+    assert res == {
+        "result": {"hotspots": [], "total": 0, "truncated": True},
+        "diagnostics": [
+            "STALENESS: commits_behind=3 — re-run `wicked-estate index` to refresh",
+            "CLAMPED: max_nodes=5000 exceeds the ceiling; used max_nodes=1000",
+        ],
+    }
+
+
+def test_call_blocks_fails_open_to_none():
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
+    assert _estate_client.call_blocks("RankHotspots", {}) is None
+
+
+def test_cli_call_prints_the_diagnostics_beside_the_result(capsys, monkeypatch):
+    """`_estate_client.py call …` — the command every skill names — carries the second block
+    in-band as `diagnostics`, so the seat that reads stdout sees the STALENESS marker."""
+    monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    monkeypatch.delenv("WICKED_RUN_UNIT", raising=False)
+
+    def fake_dispatch(requests, *, db, timeout):
+        out = {}
+        for r in requests:
+            if r.get("method") == "initialize":
+                out[r["id"]] = {"jsonrpc": "2.0", "id": r["id"],
+                                "result": {"serverInfo": {"name": "wicked-estate"}}}
+            elif r.get("method") == "tools/call":
+                out[r["id"]] = _two_block_envelope({"hotspots": [{"name": "Foo"}]},
+                                                   ["STALENESS: commits_behind=3 — re-run `wicked-estate index` to refresh"])
+        return out
+
+    _estate_client.set_dispatch(fake_dispatch)
+    rc = _estate_client.main(["call", json.dumps({"tool": "RankHotspots", "arguments": {"limit": 1}})])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["result"] == {"hotspots": [{"name": "Foo"}]}
+    assert out["diagnostics"] == ["STALENESS: commits_behind=3 — re-run `wicked-estate index` to refresh"]
+
+
+def test_cli_call_without_diagnostics_prints_an_empty_list(capsys, monkeypatch):
+    monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    monkeypatch.delenv("WICKED_RUN_UNIT", raising=False)
+
+    def fake_dispatch(requests, *, db, timeout):
+        out = {}
+        for r in requests:
+            if r.get("method") == "initialize":
+                out[r["id"]] = {"jsonrpc": "2.0", "id": r["id"],
+                                "result": {"serverInfo": {"name": "wicked-estate"}}}
+            elif r.get("method") == "tools/call":
+                out[r["id"]] = _envelope({"matches": [], "total": 0})
+        return out
+
+    _estate_client.set_dispatch(fake_dispatch)
+    rc = _estate_client.main(["call", json.dumps({"tool": "SearchEntity", "arguments": {"name": "x"}})])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out == {"result": {"matches": [], "total": 0}, "diagnostics": []}

@@ -7,7 +7,8 @@ god-objects, coupling hotspots, and high-impact refactor targets.
 
 ## Instructions
 
-1. **Freshness** — read the `STALENESS` marker the result carries and report it. The graph is
+1. **Freshness** — read the `STALENESS` marker the result carries (the shim's `call` output lists
+   it under `diagnostics`, with any `CLAMPED:` line) and report it. The graph is
    rebuilt by an operator at a terminal (`wicked-estate index <path>` — the search skill's
    `index` action), never from a seat.
 2. **The estate `RankHotspots` tool through the read-only shim** — the one way, on every seat
