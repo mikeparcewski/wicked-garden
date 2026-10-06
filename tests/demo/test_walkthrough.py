@@ -1678,18 +1678,24 @@ if __name__ == "__main__":
 def _crew_bundle_sha(root: Path) -> str:
     """crew's `computeBundleSha` (packages/crew/src/qe/walkthrough-acceptance.ts), in Python — including
     its refusals: a link or a non-regular entry outside top-level app/ and data/ is an error, not a skip."""
-    files = []
-    for p in sorted(root.rglob("*")):
-        rel = p.relative_to(root).as_posix()
-        if rel.split("/")[0] in ("app", "data"):
-            continue
-        if p.is_symlink():
-            raise ValueError(f"the proof root holds a link at {rel}")
-        if p.is_dir():
-            continue
-        if not p.is_file():
-            raise ValueError(f"the proof root holds a non-regular entry at {rel}")
-        files.append(rel)
+    files: list[str] = []
+
+    def walk(d: Path, rel: str) -> None:
+        with os.scandir(d) as it:                      # a directory that cannot be read raises, as crew's does
+            for e in sorted(it, key=lambda e: e.name):
+                r = e.name if rel == "" else f"{rel}/{e.name}"
+                if rel == "" and e.name in ("app", "data"):
+                    continue                           # pruned before descent, as crew prunes
+                if e.is_symlink():
+                    raise ValueError(f"the proof root holds a link at {r}")
+                if e.is_dir(follow_symlinks=False):
+                    walk(Path(e.path), r)
+                elif e.is_file(follow_symlinks=False):
+                    files.append(r)
+                else:
+                    raise ValueError(f"the proof root holds a non-regular entry at {r}")
+
+    walk(root, "")
     files.sort(key=lambda r: r.encode("utf-8"))
     outer = hashlib.sha256()
     for rel in files:
@@ -2047,16 +2053,20 @@ def test_failed_at_sec_is_the_earliest_failing_check_and_the_frame_is_the_on_scr
   segments: [{{
     key: "01-two", title: "Two Failures", proves: ["build"],
     checks: [
-      {{ id: "false_guard", kind: "guard", sentence: "Fails first", verify: {{ kind: "jq_pred", params: {{ expr: "false" }} }} }},
-      {{ id: "probe_ok", kind: "probe", name: "check_run", sentence: "The probe answers" }},
+      {{ id: "loc_later", kind: "locator", selector: "#never-exists-later", sentence: "Fails last, on screen" }},
       {{ id: "loc_absent", kind: "locator", selector: "#never-exists-xyz", sentence: "Fails later, on screen" }},
+      {{ id: "probe_ok", kind: "probe", name: "check_run", sentence: "The probe answers" }},
+      {{ id: "false_guard", kind: "guard", sentence: "Fails first", verify: {{ kind: "jq_pred", params: {{ expr: "false" }} }} }},
     ],
+    // Declared in the reverse of the order they run: the earliest failure is the LAST declared check.
     async run(ctx) {{
       await ctx.hold(200);
       await ctx.check("false_guard");
       await ctx.check("probe_ok");
       await ctx.hold(1200);
       await ctx.check("loc_absent");
+      await ctx.hold(1200);
+      await ctx.check("loc_later");
     }},
   }}],
 }};
@@ -2070,10 +2080,14 @@ def test_failed_at_sec_is_the_earliest_failing_check_and_the_frame_is_the_on_scr
     assert checks["false_guard"]["passed"] is False
     assert checks["loc_absent"]["passed"] is False
     assert checks["probe_ok"]["passed"] is True, checks["probe_ok"]
-    assert checks["false_guard"]["at_sec"] < checks["loc_absent"]["at_sec"]
+    assert checks["loc_later"]["passed"] is False
+    assert checks["false_guard"]["at_sec"] < checks["loc_absent"]["at_sec"] < checks["loc_later"]["at_sec"]
+    # The minimum, not the first declared (loc_later) nor the first on-screen one by declaration.
     assert chapter["failed_at_sec"] == checks["false_guard"]["at_sec"]
+    # The EARLIEST failing on-screen check's frame, not the first declared on-screen failure's.
     assert chapter["failed_frame"] == "capture/loc_absent.png"
     assert checks["loc_absent"]["evidence"] == ["capture/loc_absent.png"]
+    assert checks["loc_later"]["evidence"] == ["capture/loc_later.png"]
     assert checks["probe_ok"]["evidence"] == ["capture/probe_ok.parsed.json"]
     for c in checks.values():
         for e in c["evidence"]:

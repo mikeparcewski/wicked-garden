@@ -12,7 +12,7 @@
 // wicked-garden#1208):
 //   chapters.json   the planned list, written before the app starts: [{key, title, blurb, tags, resets}]
 //   progress.json   while it runs: {state: "starting_app"} → {state: "recording", chapter, index, total}
-//                   → {state: "judging"}; at the end {overall, chapters}
+//                   → {state: "judging"}; at the end {state: "judging", overall, chapters}
 //   result.json     {overall, tree, cause?, reason?, chapters: [{key, title, verdict, takes, failed_at_sec,
 //                   failed_frame, proves, legs, checks: [{id, kind, sentence, passed, at_sec, evidence[],
 //                   vault_entry, detail}]}]} — evidence[] and failed_frame are root-relative paths
@@ -1301,7 +1301,9 @@ async function main() {
   const resultObj = { overall: finalOverall, tree: TREE, chapters: resultChapters };
   if (diskCapHit) resultObj.cause = "disk_cap";
   writeResult(ROOT, resultObj);
-  writeProgress(ROOT, { overall: finalOverall, chapters: resultChapters.map(({ key, verdict }) => ({ key, verdict })) });
+  // `state` stays "judging" so crew's view (which reads progress only while the unit is distributed) does not
+  // snap back to "Starting the app" between this write and the unit completing.
+  writeProgress(ROOT, { state: "judging", overall: finalOverall, chapters: resultChapters.map(({ key, verdict }) => ({ key, verdict })) });
 
   // 9. Print WALKTHROUGH-SEAL
   finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: contractShas, overall: finalOverall, chapters: resultChapters });
