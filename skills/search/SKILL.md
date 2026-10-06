@@ -71,7 +71,8 @@ external engine, no Node version floor.
 where you are the agent): the graph is handed to you already indexed and the write CLI is **never**
 yours: never `wicked-estate index`, never `wicked-estate scip|tfstate|import-telemetry|compact|watch`,
 never `wicked-estate clusters --annotate`. A stale graph is *reported* through its
-`STALENESS` marker, not rebuilt. Binary resolution: `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`.
+`STALENESS` marker, not rebuilt — the shim's `call` prints it under `diagnostics`, beside any
+`CLAMPED:` line (a bound the server lowered), so read that list before trusting a result. Binary resolution: `WICKED_ESTATE_BIN` env → `PATH` → `~/.local/bin`.
 
 ## Resolving symbols + the one way to the graph (shared by every action)
 

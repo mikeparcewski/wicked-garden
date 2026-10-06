@@ -1658,3 +1658,232 @@ def test_vault_error_with_no_checks_is_not_pass(tmp_path):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+# ---- wicked-garden#1208: the proof root crew's walkthrough view reads ---------------------------
+#
+# crew `packages/crew/src/api/recording.ts` (WT-W1) reads from the proof root: `chapters.json` (the
+# planned list), `progress.json` `{state: starting_app|recording|judging, chapter?}` while the tool
+# runs, `result.json` chapters with title/takes/failed_frame/proves/legs/checks[{id, kind, sentence,
+# passed, at_sec, evidence[], vault_entry, detail}] and a top-level `tree`, the segments under
+# `demo-video/segments/<key>/segment.mp4`, and the stitched take `demo-video/demo.mp4` with
+# `demo-video/poster.jpg` + `demo-video/chapters.md`. crew's acceptance (WT-W2) recomputes the seal
+# as sha256 over the sorted (UTF-8 byte order) lines "<sha256 hex>  <posix relative path>\n" of every
+# regular file under the root except top-level app/ and data/.
+
+def _crew_bundle_sha(root: Path) -> str:
+    """crew's `computeBundleSha` (packages/crew/src/qe/walkthrough-acceptance.ts), in Python."""
+    files = []
+    for p in root.rglob("*"):
+        if not p.is_file() or p.is_symlink():
+            continue
+        rel = p.relative_to(root).as_posix()
+        if rel.split("/")[0] in ("app", "data"):
+            continue
+        files.append(rel)
+    files.sort(key=lambda r: r.encode("utf-8"))
+    outer = hashlib.sha256()
+    for rel in files:
+        inner = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+        outer.update(f"{inner}  {rel}\n".encode("utf-8"))
+    return outer.hexdigest()
+
+
+@needs_node
+def test_seal_form_is_the_one_crew_recomputes(tmp_path):
+    """`seal --root` must equal crew's recompute byte for byte, or every live take is denied as
+    'walkthrough evidence changed after it was sealed'."""
+    root = tmp_path / "evidence"
+    (root / "capture").mkdir(parents=True)
+    (root / "demo-video" / "segments" / "01-a").mkdir(parents=True)
+    (root / "app").mkdir()
+    (root / "data").mkdir()
+    (root / "result.json").write_text('{"overall":"PASS"}')
+    (root / "capture" / "c1.png").write_bytes(b"\x89PNG\r\n")
+    (root / "capture" / "Zed.json").write_text("{}")          # 'Z' sorts before 'c' in byte order
+    (root / "capture" / "é.json").write_text("{}")            # non-ASCII: byte order, not locale order
+    (root / "demo-video" / "segments" / "01-a" / "segment.mp4").write_bytes(b"mp4")
+    (root / "app" / "ignored.js").write_text("1")
+    (root / "data" / "db.sqlite").write_bytes(b"\x00")
+
+    out = _run_wt(["seal", "--root", str(root)], {**os.environ})
+    assert out.returncode == 0, out.stderr
+    assert json.loads(out.stdout.strip())["bundle_sha"] == _crew_bundle_sha(root)
+
+
+@needs_node
+def test_chapters_json_is_written_before_the_app_starts(tmp_path):
+    """The planned chapter list (crew's `chapters.json`: key, title, blurb, tags) exists even when
+    the fixture never comes up, so the view can show the chapters while the tool runs."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""export default {
+  title: "Never Starts",
+  fixture: { start: ["definitely-not-a-binary-xyz-1208"], ready: "/ready" },
+  segments: [
+    { key: "01-first", title: "First chapter", blurb: "What it proves", tags: ["pay"], proves: ["build"],
+      checks: [{ id: "g", kind: "guard" }], async run(ctx) { await ctx.check("g"); } },
+    { key: "02-second", title: "Second chapter", proves: [],
+      checks: [{ id: "g2", kind: "guard" }], async run(ctx) { await ctx.check("g2"); } },
+  ],
+};
+""")
+    env = _wt_env(root, tree, repo)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=90)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "fixture_unavailable"
+    chapters_path = root / "chapters.json"
+    assert chapters_path.exists(), "chapters.json (the planned list) was not written"
+    chapters = json.loads(chapters_path.read_text())
+    assert chapters == [
+        {"key": "01-first", "title": "First chapter", "blurb": "What it proves", "tags": ["pay"], "resets": []},
+        {"key": "02-second", "title": "Second chapter", "blurb": "", "tags": [], "resets": []},
+    ]
+    # A refusal still carries the planned titles in result.json (crew falls back to the key otherwise).
+    assert [c["title"] for c in result["chapters"]] == ["First chapter", "Second chapter"]
+
+
+@needs_node
+def test_segment_key_rule_matches_the_demo_recorder_and_crew(tmp_path):
+    """record.mjs and crew's reader accept `^[a-z0-9][a-z0-9-]*$` only; a key outside it would be
+    dropped by the view silently, so the tool refuses the storyline and says which key."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""export default {
+  title: "Bad Key",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [
+    { key: "Chapter_One", title: "One", checks: [{ id: "g", kind: "guard" }], async run(ctx) { await ctx.check("g"); } },
+  ],
+};
+""")
+    env = _wt_env(root, tree, repo)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["overall"] == "INCONCLUSIVE"
+    assert result["cause"] == "storyline_refused"
+    assert "Chapter_One" in result["reason"]
+    assert not (root / "app").exists(), "refused before the tree was materialised"
+
+
+@needs_recorder
+def test_progress_json_names_the_chapter_being_recorded(tmp_path):
+    """While a chapter records, progress.json reads {state: 'recording', chapter, index, total};
+    the storyline copies what it sees mid-take so the test can read it afterwards."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""import fs from "node:fs";
+import path from "node:path";
+export default {
+  title: "Progress Story",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [
+    { key: "01-chapter", title: "Chapter One", proves: ["build"],
+      checks: [{ id: "g", kind: "guard" }],
+      async run(ctx) {
+        const root = process.env.WICKED_EVIDENCE_ROOT;
+        fs.copyFileSync(path.join(root, "progress.json"), path.join(root, "data", "progress-seen.json"));
+        await ctx.hold(100);
+        await ctx.check("g");
+      } },
+  ],
+};
+""")
+    env = _wt_env(root, tree, repo)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=120)
+    assert out.returncode == 0, out.stderr
+    seen_path = root / "data" / "progress-seen.json"
+    assert seen_path.exists(), f"the storyline never ran; stderr={out.stderr[-500:]}"
+    seen = json.loads(seen_path.read_text())
+    assert seen == {"state": "recording", "chapter": "01-chapter", "index": 1, "total": 1}
+
+
+@needs_recorder
+@needs_vault
+def test_result_json_and_demo_video_are_what_crews_view_reads(tmp_path, session_ledger):
+    """Two chapters (PASS, then a vault-verified FAIL): result.json carries the tree, titles, takes,
+    the checks with sentence/passed/detail and root-relative evidence paths, the failing chapter's
+    failed_at_sec + failed_frame; the segments and the stitched take sit under demo-video/; and
+    the seal equals crew's recompute over the finished root."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""export default {
+  title: "Rich Result",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [
+    {
+      key: "01-passes", title: "Chapter Passes", blurb: "The clean one", proves: ["build"],
+      legs: [{ leg: "provider", claim_level: "machinery-verified", reason: "the provider is a sink" }],
+      checks: [{ id: "clean_guard", kind: "guard", sentence: "Nothing else was written" }],
+      async run(ctx) { await ctx.hold(200); await ctx.check("clean_guard"); },
+    },
+    {
+      key: "02-fails", title: "Chapter Fails", proves: ["test"],
+      checks: [{ id: "false_guard", kind: "guard", sentence: "This one must fail",
+                 verify: { kind: "jq_pred", params: { expr: "false" } } }],
+      async run(ctx) { await ctx.hold(200); await ctx.check("false_guard"); },
+    },
+  ],
+};
+""")
+    env = _wt_env(root, tree, repo, NODE_PATH=session_ledger)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=180)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["overall"] == "FAIL", result
+    assert result["tree"] == tree
+    by_key = {c["key"]: c for c in result["chapters"]}
+
+    passed = by_key["01-passes"]
+    assert passed["verdict"] == "PASS"
+    assert passed["title"] == "Chapter Passes"
+    assert passed["takes"] == 1
+    assert passed["proves"] == ["build"]
+    assert passed["legs"] == [{"leg": "provider", "claim_level": "machinery-verified", "reason": "the provider is a sink"}]
+    assert passed["failed_at_sec"] is None and passed["failed_frame"] is None
+    (check,) = passed["checks"]
+    assert check["id"] == "clean_guard" and check["kind"] == "guard"
+    assert check["sentence"] == "Nothing else was written"
+    assert check["passed"] is True
+    assert isinstance(check["at_sec"], (int, float))
+    assert isinstance(check["evidence"], list) and all(isinstance(e, str) for e in check["evidence"])
+    assert check["vault_entry"], "the vault recorded the claim, so the entry id is set"
+
+    failed = by_key["02-fails"]
+    assert failed["verdict"] == "FAIL"
+    assert failed["title"] == "Chapter Fails"
+    (fcheck,) = failed["checks"]
+    assert fcheck["passed"] is False
+    assert fcheck["sentence"] == "This one must fail"
+    assert isinstance(fcheck["detail"], str) and fcheck["detail"]
+    # DES §4.5: failed_at_sec is the earliest at_sec among the failing checks.
+    assert failed["failed_at_sec"] == fcheck["at_sec"]
+    assert failed["failed_frame"], "a failing chapter names its failing frame"
+    frame = root / failed["failed_frame"]
+    assert frame.is_file() and frame.stat().st_size > 0 and frame.suffix in (".jpg", ".png")
+    assert not Path(failed["failed_frame"]).is_absolute()
+
+    # The segments where crew looks for them, and the stitched take with its markers and poster.
+    assert (root / "demo-video" / "segments" / "01-passes" / "segment.mp4").is_file()
+    assert (root / "demo-video" / "segments" / "02-fails" / "segment.mp4").is_file()
+    demo = root / "demo-video" / "demo.mp4"
+    assert demo.is_file() and demo.stat().st_size > 0
+    assert (root / "demo-video" / "poster.jpg").is_file()
+    rows = [l for l in (root / "demo-video" / "chapters.md").read_text().splitlines() if re.match(r"^\|\s*\d+:\d{2}\s*\|", l)]
+    assert [re.sub(r"^\|\s*\d+:\d{2}\s*\|\s*(.+?)\s*\|\s*$", r"\1", r) for r in rows] == ["Chapter Passes", "Chapter Fails"]
+    assert not (root / "segments").exists(), "segments moved under demo-video/"
+
+    # The seal covers the finished root (video included) in crew's form.
+    seal = _parse_seal(out.stdout)
+    assert seal["bundle_sha"] == _crew_bundle_sha(root)
+    assert seal["chapters"] == [{"key": "01-passes", "verdict": "PASS"}, {"key": "02-fails", "verdict": "FAIL"}]

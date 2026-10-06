@@ -79,6 +79,49 @@ export function failedAtInVideo(dir, failedAt, trimStart = SEGMENT_TRIM_START) {
   }
 }
 
+// ---- exported stitch ---------------------------------------------------------------------------
+/**
+ * Join segment videos (same codec, size and frame rate — every take is cut by buildVideo) into one MP4 with
+ * chapter metadata, without re-encoding. `parts` = [{ title, file }] in take order; `workDir` holds the two
+ * ffmpeg list files. Returns the `| m:ss | Title |` marker rows (chapters.md) and the total seconds.
+ */
+export function stitchParts(parts, outFile, { ffmpeg = "ffmpeg", title = "Demo", workDir }) {
+  const ffprobe = ffprobeOf(ffmpeg);
+  const probeSeconds = (file) => {
+    const r = spawnSync(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" });
+    if (r.status !== 0) throw new Error(`ffprobe failed on ${file}: ${r.stderr}`);
+    return Number(r.stdout.trim());
+  };
+  if (!parts.length) throw new Error("no segments recorded yet");
+  fs.mkdirSync(workDir, { recursive: true });
+  const list = path.join(workDir, "concat.txt");
+  fs.writeFileSync(list, parts.map((p) => `file '${p.file.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n") + "\n");
+  let at = 0;
+  const meta = [";FFMETADATA1", `title=${String(title).replace(/[=;#\\\n]/g, " ")}`];
+  const rows = ["| Time | Chapter |", "|---|---|"];
+  for (const p of parts) {
+    const d = probeSeconds(p.file);
+    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${Math.round(at * 1000)}`, `END=${Math.round((at + d) * 1000)}`, `title=${String(p.title).replace(/[=;#\\\n]/g, " ")}`);
+    rows.push(`| ${Math.floor(at / 60)}:${String(Math.floor(at % 60)).padStart(2, "0")} | ${p.title} |`);
+    at += d;
+  }
+  const metaFile = path.join(workDir, "chapters.ffmeta");
+  fs.writeFileSync(metaFile, meta.join("\n") + "\n");
+  const r = spawnSync(ffmpeg, ["-y", "-f", "concat", "-safe", "0", "-i", list, "-i", metaFile, "-map", "0", "-map_metadata", "1",
+    "-map_chapters", "1", "-map", "-0:d", "-c", "copy", "-movflags", "+faststart", outFile], { stdio: ["ignore", "ignore", "pipe"] });
+  if (r.status !== 0) throw new Error(`stitch failed: ${r.stderr?.toString().slice(-1500)}`);
+  return { seconds: at, rows };
+}
+
+/** One frame of a video as a JPEG (`atSec` into it); false when ffmpeg could not decode one there. */
+export function extractFrame(video, atSec, outFile, { ffmpeg = "ffmpeg" } = {}) {
+  const r = spawnSync(ffmpeg, ["-y", "-ss", String(Math.max(0, atSec)), "-i", video, "-frames:v", "1", "-q:v", "3", outFile],
+    { stdio: ["ignore", "ignore", "pipe"] });
+  const ok = r.status === 0 && fs.existsSync(outFile) && fs.statSync(outFile).size > 0;
+  if (!ok) fs.rmSync(outFile, { force: true });
+  return ok;
+}
+
 // ---- exported recorder factory -----------------------------------------------------------------
 /**
  * Build a reusable per-segment recorder bound to a story context.
@@ -241,7 +284,6 @@ export function makeSegmentRecorder({
 // ---- CLI entry point (only runs when invoked directly) -----------------------------------------
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const FFMPEG = process.env.FFMPEG || "ffmpeg";
-  const FFPROBE = ffprobeOf(FFMPEG);
 
   function usage(msg) {
     if (msg) console.error(`error: ${msg}\n`);
@@ -302,12 +344,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const readTimings = (key) => { try { return JSON.parse(fs.readFileSync(path.join(segDir(key), "timings.json"), "utf8")); } catch { return {}; } };
 
   // ---- stitch ----
-  function probeSeconds(file) {
-    const r = spawnSync(FFPROBE, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", file], { encoding: "utf8" });
-    if (r.status !== 0) throw new Error(`ffprobe failed on ${file}: ${r.stderr}`);
-    return Number(r.stdout.trim());
-  }
-
   /** A segment's guard.json (how its last take was recorded), or null when it has none. */
   function readGuard(key) {
     try { return JSON.parse(fs.readFileSync(path.join(segDir(key), "guard.json"), "utf8")); } catch { return null; }
@@ -333,24 +369,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     refuseFailedTakes();
     const segs = SEGMENTS.filter((s) => fs.existsSync(segVideo(s.key)));
     const missing = SEGMENTS.filter((s) => !fs.existsSync(segVideo(s.key))).map((s) => s.key);
-    if (!segs.length) throw new Error("no segments recorded yet");
-    const list = path.join(SEG_DIR, "concat.txt");
-    fs.writeFileSync(list, segs.map((s) => `file '${segVideo(s.key).replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n") + "\n");
-    let at = 0;
-    const meta = [";FFMETADATA1", `title=${(story.title || "Demo").replace(/[=;#\\\n]/g, " ")}`];
-    const rows = ["| Time | Chapter |", "|---|---|"];
-    for (const s of segs) {
-      const d = probeSeconds(segVideo(s.key));
-      const title = s.intro ? "Introduction" : s.title;
-      meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${Math.round(at * 1000)}`, `END=${Math.round((at + d) * 1000)}`, `title=${title.replace(/[=;#\\\n]/g, " ")}`);
-      rows.push(`| ${Math.floor(at / 60)}:${String(Math.floor(at % 60)).padStart(2, "0")} | ${title} |`);
-      at += d;
-    }
-    fs.writeFileSync(path.join(SEG_DIR, "chapters.ffmeta"), meta.join("\n") + "\n");
-    // Segments share codec, size and frame rate, so they join without re-encoding.
-    const r = spawnSync(FFMPEG, ["-y", "-f", "concat", "-safe", "0", "-i", list, "-i", path.join(SEG_DIR, "chapters.ffmeta"), "-map", "0", "-map_metadata", "1",
-      "-map_chapters", "1", "-map", "-0:d", "-c", "copy", "-movflags", "+faststart", FINAL], { stdio: ["ignore", "ignore", "pipe"] });
-    if (r.status !== 0) throw new Error(`stitch failed: ${r.stderr?.toString().slice(-1500)}`);
+    const { seconds: at, rows } = stitchParts(
+      segs.map((s) => ({ title: s.intro ? "Introduction" : s.title, file: segVideo(s.key) })),
+      FINAL, { ffmpeg: FFMPEG, title: story.title || "Demo", workDir: SEG_DIR },
+    );
     fs.writeFileSync(path.join(OUT, "chapters.md"), rows.join("\n") + "\n");
     fs.writeFileSync(path.join(OUT, "timings.json"), JSON.stringify(Object.fromEntries(SEGMENTS.map((s) => [s.key, readTimings(s.key)])), null, 2));
     // How the stitched segments were recorded: read-only only when every one of them was (a segment recorded

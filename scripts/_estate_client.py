@@ -727,31 +727,51 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
     return responses.get(2)
 
 
-def _unwrap(envelope: Optional[dict]) -> Optional[Any]:
-    """Extract a tool's payload from an MCP tools/call envelope.
+def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]":
+    """Extract a tool's payload AND its diagnostics from an MCP tools/call envelope.
 
-    Estate wraps results as {"result": {"content": [{"type":"text","text": …}],
-    "isError": bool}}. The text is usually the tool's own JSON string, which is
-    parsed and returned; a tool that emits plain (non-JSON) text gets its text
-    handed back verbatim as a str. Returns None on error / isError=true /
-    a malformed envelope shape.
+    Estate wraps results as {"result": {"content": [{"type":"text","text": …}, …],
+    "isError": bool}}. `content[0]` is the tool's own JSON string, which is parsed
+    and returned (a tool that emits plain, non-JSON text gets its text handed back
+    verbatim as a str). `content[1]`, when present, is the diagnostics block the
+    estate MCP server appends (`wicked-estate-mcp/src/lib.rs`, "Append diagnostics
+    as a second text block"): one line each — `STALENESS: …` (W7.4 freshness),
+    `CLAMPED: …` (estate#242, a bound the server lowered), `LEXICAL-FALLBACK: …`.
+    They are returned as a list of lines so a caller can tell a stale or clamped
+    answer from a fresh, complete one (wicked-garden#1211).
+
+    Returns (None, []) on error / isError=true / a malformed envelope shape.
     """
     if not isinstance(envelope, dict):
-        return None
+        return None, []
     result = envelope.get("result")
     if not isinstance(result, dict) or result.get("isError"):
-        return None
+        return None, []
     content = result.get("content")
     if not isinstance(content, list) or not content:
-        return None
+        return None, []
     text = content[0].get("text") if isinstance(content[0], dict) else None
     if text is None:
-        return None
+        return None, []
     try:
-        return json.loads(text)
+        payload: Any = json.loads(text)
     except (json.JSONDecodeError, TypeError):
         # Some tools may return plain text; hand it back verbatim.
-        return text
+        payload = text
+    diagnostics: list[str] = []
+    for block in content[1:]:
+        more = block.get("text") if isinstance(block, dict) else None
+        if isinstance(more, str):
+            diagnostics.extend(line for line in more.split("\n") if line.strip())
+    return payload, diagnostics
+
+
+def _unwrap(envelope: Optional[dict]) -> Optional[Any]:
+    """The payload alone (`content[0]` parsed) — see `_unwrap_blocks` for both blocks.
+
+    Returns None on error / isError=true / a malformed envelope shape.
+    """
+    return _unwrap_blocks(envelope)[0]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -789,6 +809,24 @@ def call(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> O
         return _unwrap(env)
     except Exception:
         return None
+
+
+def call_blocks(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> Optional[dict]:
+    """Like `call`, but keep the diagnostics block (wicked-garden#1211).
+
+    Returns {"result": <parsed payload>, "diagnostics": [<line>, …]} — the
+    `STALENESS:` / `CLAMPED:` / `LEXICAL-FALLBACK:` lines estate rides in the
+    second content block — or None when estate is unreachable or the tool
+    errored (the same fail-open shape as `call`).
+    """
+    try:
+        env = _rpc("tools/call", {"name": tool, "arguments": arguments or {}}, timeout=timeout)
+    except Exception:
+        return None
+    payload, diagnostics = _unwrap_blocks(env)
+    if payload is None and not diagnostics:
+        return None
+    return {"result": payload, "diagnostics": diagnostics}
 
 
 def call_raw(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> Optional[dict]:
@@ -1053,7 +1091,11 @@ def main(argv: list) -> int:
         if not tool:
             _emit({"error": "call requires {\"tool\": \"<ToolName>\", \"arguments\": {...}}"})
             return 1
-        _emit({"result": call(tool, args.get("arguments", {}))})
+        # Both blocks, in-band (wicked-garden#1211): the seat reading stdout sees the
+        # `STALENESS:` / `CLAMPED:` lines beside the payload, as the MCP caller does.
+        blocks = call_blocks(tool, args.get("arguments", {}))
+        _emit({"result": blocks["result"] if blocks else None,
+               "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":
         kind_type = args.get("kind_type")
         payload = args.get("payload")

@@ -7,6 +7,21 @@
 // Required env for record: WICKED_EVIDENCE_ROOT, WICKED_RUN_ID, WICKED_RUN_UNIT, WICKED_TREE
 // Safety: WICKED_WALKTHROUGH_JAIL must be set; without it writes INCONCLUSIVE(unjailed_host) and exits 0.
 //
+// What the proof root holds is ONE contract with crew's walkthrough view and acceptance
+// (wicked-crew `packages/crew/src/api/recording.ts` WT-W1, `qe/walkthrough-acceptance.ts` WT-W2;
+// wicked-garden#1208):
+//   chapters.json   the planned list, written before the app starts: [{key, title, blurb, tags, resets}]
+//   progress.json   while it runs: {state: "starting_app"} → {state: "recording", chapter, index, total}
+//                   → {state: "judging"}; at the end {overall, chapters}
+//   result.json     {overall, tree, cause?, reason?, chapters: [{key, title, verdict, takes, failed_at_sec,
+//                   failed_frame, proves, legs, checks: [{id, kind, sentence, passed, at_sec, evidence[],
+//                   vault_entry, detail}]}]} — evidence[] and failed_frame are root-relative paths
+//   demo-video/     segments/<key>/segment.mp4 (a kept failed take: segments/<key>/failed-<take>/), the
+//                   stitched take demo.mp4, poster.jpg, chapters.md (`| m:ss | Title |` markers)
+//   capture/, vault/, .wicked-qe/, storyline.mjs — the checks' evidence, contracts and ledger
+// The seal's bundle_sha is the form crew recomputes: sha256 over the lines "<sha256 hex>  <posix relative
+// path>\n" of every regular file under the root except top-level app/ and data/, sorted in UTF-8 byte order.
+//
 // Runtime: wicked-garden run scripts/demo/walkthrough.mjs <action> [args]
 //   Manual alternative: node scripts/demo/walkthrough.mjs <action> [args]
 
@@ -19,7 +34,7 @@ import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 
-import { makeSegmentRecorder, failedAtInVideo, SEGMENT_TRIM_START } from "./record.mjs";
+import { makeSegmentRecorder, failedAtInVideo, stitchParts, extractFrame, SEGMENT_TRIM_START } from "./record.mjs";
 import { fixtureOrigin } from "./readonly.mjs";
 import { crewRunStamp } from "../qe/lib/crew-run.mjs";
 
@@ -117,13 +132,41 @@ function writeProgress(root, obj) {
   fs.writeFileSync(path.join(root, "progress.json"), JSON.stringify(obj, null, 2) + "\n");
 }
 
-/** sha256 over sorted (rel:sha\n) of every file under root except app/ and data/. */
+/** The storyline's chapters (non-intro segments), in order. */
+function storyChapters(story) {
+  return (Array.isArray(story?.segments) ? story.segments : []).filter((s) => !s.intro);
+}
+
+/** Every chapter as INCONCLUSIVE, with its title — what a refusal after the storyline loaded lists. */
+function chapterStubs(story) {
+  return storyChapters(story).map((s) => ({ key: s.key, title: s.title ?? s.key, verdict: "INCONCLUSIVE" }));
+}
+
+/** The planned list crew's view shows while the tool runs (the demo chapter shape). */
+function writeChaptersJson(root, story) {
+  const strs = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === "string") : []);
+  const chapters = storyChapters(story).map((s) => ({
+    key: s.key,
+    title: typeof s.title === "string" ? s.title : s.key,
+    blurb: typeof s.blurb === "string" ? s.blurb : "",
+    tags: strs(s.tags),
+    resets: strs(s.resets),
+  }));
+  fs.writeFileSync(path.join(root, "chapters.json"), JSON.stringify(chapters, null, 2) + "\n");
+}
+
+/**
+ * The seal crew recomputes at every read (`walkthrough-acceptance.ts` computeBundleSha): sha256 over one line
+ * `<sha256 hex of the file>  <posix relative path>\n` (two spaces, as `sha256sum` prints) per regular file under
+ * the root except the top-level `app/` and `data/` subtrees, sorted in UTF-8 byte order (`LC_ALL=C sort`).
+ * Any other form reads as "walkthrough evidence changed after it was sealed" on crew's side.
+ */
 function computeBundleSha(root) {
   const pairs = [];
   walkForSeal(root, root, pairs);
-  pairs.sort((a, b) => a[0].localeCompare(b[0]));
+  pairs.sort((a, b) => Buffer.compare(Buffer.from(a[0], "utf8"), Buffer.from(b[0], "utf8")));
   const h = crypto.createHash("sha256");
-  for (const [rel, sha] of pairs) h.update(`${rel}:${sha}\n`);
+  for (const [rel, sha] of pairs) h.update(`${sha}  ${rel}\n`, "utf8");
   return h.digest("hex");
 }
 
@@ -132,8 +175,8 @@ function walkForSeal(root, dir, out) {
   try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
   for (const e of entries) {
     const full = path.join(dir, e.name);
-    const rel = path.relative(root, full);
-    const top = rel.split(path.sep)[0];
+    const rel = path.relative(root, full).split(path.sep).join("/");
+    const top = rel.split("/")[0];
     if (top === "app" || top === "data") continue;
     if (e.isDirectory()) { walkForSeal(root, full, out); }
     else if (e.isFile()) { try { out.push([rel, sha256File(full)]); } catch { /* skip unreadable */ } }
@@ -502,10 +545,14 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
     claims.push({
       id: def.id,
       kind: def.kind,
+      sentence: typeof def.sentence === "string" ? def.sentence : "",
       verdict: claimVerdict,
+      passed: claimVerdict === "PASS" ? true : claimVerdict === "FAIL" ? false : null,
       at_sec: cap?.at_sec ?? null,
       evidence: cap ? evidenceListForCapture(cap, def) : [],
+      evidence_paths: cap ? evidencePathsForCapture(cap, def) : [],
       vault_entry: vaultEntries[def.id] ?? null,
+      detail: claimDetail(claimVerdict, cap, vaultAvailable && !vaultError ? vaultClaimsMap[def.id] : undefined, vaultAvailable, vaultError),
     });
   }
 
@@ -514,7 +561,34 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
   if (!vaultAvailable || vaultError) verdict = "INCONCLUSIVE";
   else if (verdict === "PASS" && (crossCheck.overall !== "PASS" || !declared)) verdict = "INCONCLUSIVE";
 
-  return { verdict, claims, failed_at_sec: failedAtSec ?? null, proves: seg.proves ?? [] };
+  // DES §4.5: failed_at_sec is the earliest at_sec among the failing checks, otherwise the take's failure.json.
+  const failingAt = claims.filter((c) => c.verdict === "FAIL" && typeof c.at_sec === "number").map((c) => c.at_sec);
+  const failed_at_sec = failingAt.length ? Math.min(...failingAt) : failedAtSec ?? null;
+
+  return { verdict, claims, failed_at_sec, proves: seg.proves ?? [], legs: Array.isArray(seg.legs) ? seg.legs : [] };
+}
+
+/** One sentence on why a check is not a plain PASS (crew's `checks[].detail`); null for a PASS without a note. */
+function claimDetail(claimVerdict, cap, vaultClaim, vaultAvailable, vaultError) {
+  if (!vaultAvailable) return "vault unavailable: no cross-check could run";
+  if (vaultError) return "vault cross-check returned ERROR";
+  if (cap?._verifier_error) return `collector error: ${cap._verifier_error}`;
+  if (!cap) return "never reached: ctx.check was not called for this id";
+  if (!vaultClaim) return "not recorded in the vault";
+  if (claimVerdict === "PASS") return null;
+  const status = vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict;
+  const why = [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
+  return why ? `vault ${status}: ${why}` : `vault ${status}`;
+}
+
+/** The root-relative files behind a capture, as crew serves them (`/walkthrough/file?path=`). */
+function evidencePathsForCapture(capture, def) {
+  switch (def.kind) {
+    case "locator": return capture.frame ? [capture.frame] : [];
+    case "probe": return capture.parsed_path ? [capture.parsed_path] : [];
+    case "artifact": return capture.path && capture.sha256 ? [path.posix.join("data", capture.path.split(path.sep).join("/"))] : [];
+    default: return [];
+  }
 }
 
 // ---- manifest writing ----------------------------------------------------------
@@ -773,9 +847,7 @@ async function main() {
   }
 
   if (!story?.fixture?.start || !Array.isArray(story?.segments)) {
-    const chapters = Array.isArray(story?.segments)
-      ? story.segments.filter((s) => !s.intro).map((s) => ({ key: s.key, verdict: "INCONCLUSIVE" }))
-      : [];
+    const chapters = chapterStubs(story);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: "storyline missing fixture.start or segments[]", chapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
     const sha = computeBundleSha(ROOT);
@@ -783,15 +855,18 @@ async function main() {
     process.exit(0);
   }
 
-  // Chapter keys and check ids become path segments under <root>; refuse anything that could escape.
+  // Chapter keys and check ids become path segments under <root>; refuse anything that could escape. A
+  // segment key is also what record.mjs and crew's view accept (`^[a-z0-9][a-z0-9-]*$`): a key outside it
+  // would be dropped by the view silently, so it is refused here, by name.
+  const SEGMENT_KEY = /^[a-z0-9][a-z0-9-]*$/;
   const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
   const badIds = [];
   for (const s of story.segments) {
-    if (!s.intro && !SAFE_ID.test(String(s.key ?? ""))) badIds.push(`segment key ${JSON.stringify(s.key)}`);
+    if (!SEGMENT_KEY.test(String(s.key ?? ""))) badIds.push(`segment key ${JSON.stringify(s.key)} (lowercase letters, digits and hyphens only)`);
     for (const c of s.checks ?? []) if (!SAFE_ID.test(String(c.id ?? ""))) badIds.push(`check id ${JSON.stringify(c.id)}`);
   }
   if (badIds.length) {
-    const chapters = story.segments.filter((s) => !s.intro).map((s) => ({ key: s.key, verdict: "INCONCLUSIVE" }));
+    const chapters = chapterStubs(story);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: `unsafe identifiers: ${badIds.join(", ")}`, chapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
     const sha = computeBundleSha(ROOT);
@@ -799,9 +874,13 @@ async function main() {
     process.exit(0);
   }
 
+  // The planned list for the view, then the first running state — before anything slow.
+  writeChaptersJson(ROOT, story);
+  writeProgress(ROOT, { state: "starting_app" });
+
   // 2. Git archive WICKED_TREE into <root>/app/
   const appDir = path.join(ROOT, "app");
-  const allChapters = story.segments.filter((s) => !s.intro).map((s) => ({ key: s.key, verdict: "INCONCLUSIVE" }));
+  const allChapters = chapterStubs(story);
   try {
     await gitArchive(TREE, appDir);
   } catch (e) {
@@ -864,7 +943,7 @@ async function main() {
     await Promise.race([pollFixtureReady(story.fixture, fixtureOriginStr), _spawnErrPromise]);
   } catch (e) {
     killFixture();
-    const chapters = story.segments.filter((s) => !s.intro).map((s) => ({ key: s.key, verdict: "INCONCLUSIVE" }));
+    const chapters = chapterStubs(story);
     writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable", reason: e.message, chapters });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "fixture_unavailable" });
     const sha = computeBundleSha(ROOT);
@@ -873,7 +952,8 @@ async function main() {
   }
 
   const writableOrigin = fixtureOrigin(fixtureOriginStr);
-  const segmentsDir = path.join(ROOT, "segments");
+  const demoVideoDir = path.join(ROOT, "demo-video");
+  const segmentsDir = path.join(demoVideoDir, "segments");
   const brand = { name: story.title || "Walkthrough", accent: story.brand?.accent ?? "#ee0000", logoSvg: story.brand?.logoSvg ?? "" };
 
   // 4-5. Record each segment with check capture
@@ -968,6 +1048,7 @@ async function main() {
         claims: chapterResults[s.key]?.claims ?? [],
         failed_at_sec: chapterResults[s.key]?.failed_at_sec ?? null,
         proves: s.proves ?? [],
+        legs: Array.isArray(s.legs) ? s.legs : [],
         _cause: cause,
       };
       if (!(s.key in contractShas)) {
@@ -976,10 +1057,12 @@ async function main() {
     }
   }
 
+  const chapterOrder = storyChapters(story).map((s) => s.key);
   for (const seg of story.segments) {
     if (seg.intro) continue;
     consoleErrBuf.current = [];
     if (!chapterCaptures[seg.key]) chapterCaptures[seg.key] = {};
+    writeProgress(ROOT, { state: "recording", chapter: seg.key, index: chapterOrder.indexOf(seg.key) + 1, total: chapterOrder.length });
 
     // Check disk cap before each chapter — a global cause that makes EVERY chapter INCONCLUSIVE
     if (DISK_CAP > 0 && dirSizeBytes(ROOT) > DISK_CAP) {
@@ -1043,6 +1126,8 @@ async function main() {
       { crossCheck, vaultEntries: chapterVaultEntries[seg.key] ?? {}, declared: contractDeclared[seg.key] === true },
     );
   }
+
+  writeProgress(ROOT, { state: "judging" });
 
   // 6. Validate per-chapter manifests BEFORE writing ledger rows.
   //    Any manifest violation makes the chapter INCONCLUSIVE — including FAIL chapters.
@@ -1122,14 +1207,66 @@ async function main() {
       : "INCONCLUSIVE";
   }
 
-  // 7. Write result.json + progress.json
-  const resultChapters = Object.entries(chapterResults).map(([key, r]) => ({ key, verdict: r.verdict, failed_at_sec: r.failed_at_sec }));
-  const resultObj = { overall: finalOverall, chapters: resultChapters };
+  // 7. The take as crew's view plays it: each chapter's kept video (the good take, else the failed take
+  //    the recorder kept), stitched in order with chapter markers and a poster; a FAIL chapter's frame.
+  const FFMPEG_BIN = process.env.FFMPEG || "ffmpeg";
+  const segVideoOf = (seg) => {
+    const good = path.join(segmentsDir, seg.key, "segment.mp4");
+    if (fs.existsSync(good)) return good;
+    const kept = path.join(segmentsDir, seg.key, `failed-${takeMap[seg.key] ?? 1}`, "segment.mp4");
+    return fs.existsSync(kept) ? kept : null;
+  };
+  const failedFrames = {};
+  for (const seg of storyChapters(story)) {
+    const r = chapterResults[seg.key];
+    if (!r || r.verdict !== "FAIL") continue;
+    // The earliest failing on-screen check already has its frame; otherwise cut one from the take.
+    const failing = r.claims.filter((c) => c.verdict === "FAIL" && typeof c.at_sec === "number").sort((a, b) => a.at_sec - b.at_sec);
+    const withFrame = failing.find((c) => c.evidence_paths.some((e) => e.endsWith(".png")));
+    if (withFrame) { failedFrames[seg.key] = withFrame.evidence_paths.find((e) => e.endsWith(".png")); continue; }
+    const video = segVideoOf(seg);
+    if (video && typeof r.failed_at_sec === "number") {
+      const out = path.join(segmentsDir, seg.key, "failed-frame.jpg");
+      if (extractFrame(video, r.failed_at_sec, out, { ffmpeg: FFMPEG_BIN })) failedFrames[seg.key] = path.relative(ROOT, out).split(path.sep).join("/");
+    }
+  }
+  const parts = story.segments.map((seg) => ({ seg, file: segVideoOf(seg) })).filter((p) => p.file !== null)
+    .map((p) => ({ title: p.seg.intro ? "Introduction" : p.seg.title, file: p.file }));
+  if (parts.length) {
+    try {
+      const { rows } = stitchParts(parts, path.join(demoVideoDir, "demo.mp4"), { ffmpeg: FFMPEG_BIN, title: story.title || "Walkthrough", workDir: segmentsDir });
+      fs.writeFileSync(path.join(demoVideoDir, "chapters.md"), rows.join("\n") + "\n");
+      extractFrame(path.join(demoVideoDir, "demo.mp4"), 1.0, path.join(demoVideoDir, "poster.jpg"), { ffmpeg: FFMPEG_BIN })
+        || extractFrame(path.join(demoVideoDir, "demo.mp4"), 0, path.join(demoVideoDir, "poster.jpg"), { ffmpeg: FFMPEG_BIN });
+    } catch (e) {
+      // The verdicts stand without a stitched take; crew shows no video rather than a wrong one.
+      process.stderr.write(`walkthrough: stitch skipped: ${e.message}\n`);
+      fs.rmSync(path.join(demoVideoDir, "demo.mp4"), { force: true });
+    }
+  }
+
+  // 8. Write result.json + progress.json — the chapters as crew's view reads them.
+  const titleOf = Object.fromEntries(storyChapters(story).map((s) => [s.key, s.title ?? s.key]));
+  const resultChapters = Object.entries(chapterResults).map(([key, r]) => ({
+    key,
+    title: titleOf[key] ?? key,
+    verdict: r.verdict,
+    takes: takeMap[key] ?? 1,
+    failed_at_sec: r.failed_at_sec ?? null,
+    failed_frame: failedFrames[key] ?? null,
+    proves: r.proves ?? [],
+    legs: r.legs ?? [],
+    checks: (r.claims ?? []).map((c) => ({
+      id: c.id, kind: c.kind, sentence: c.sentence, passed: c.passed, at_sec: c.at_sec,
+      evidence: c.evidence_paths, vault_entry: c.vault_entry, detail: c.detail,
+    })),
+  }));
+  const resultObj = { overall: finalOverall, tree: TREE, chapters: resultChapters };
   if (diskCapHit) resultObj.cause = "disk_cap";
   writeResult(ROOT, resultObj);
-  writeProgress(ROOT, { overall: finalOverall, chapters: resultChapters });
+  writeProgress(ROOT, { overall: finalOverall, chapters: resultChapters.map(({ key, verdict }) => ({ key, verdict })) });
 
-  // 8. Print WALKTHROUGH-SEAL
+  // 9. Print WALKTHROUGH-SEAL
   const bundleSha = computeBundleSha(ROOT);
   process.stdout.write("WALKTHROUGH-SEAL " + JSON.stringify({
     tree: TREE,
