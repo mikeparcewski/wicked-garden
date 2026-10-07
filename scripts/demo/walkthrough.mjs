@@ -610,16 +610,17 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
 function claimDetail(claimVerdict, cap, vaultClaim, vaultAvailable, vaultError) {
   if (!vaultAvailable) return "vault unavailable: no cross-check could run";
   if (vaultError) return "vault cross-check returned ERROR";
+  const why = vaultClaim && [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
+  const vaultSays = (status) => (why ? `vault ${status}: ${why}` : `vault ${status}`);
+  // The vault verified an artifact for this claim: its finding names the cause, whatever the capture
+  // looked like (mirrors the verdict precedence in judgeChapter).
+  if (vaultClaim?.hash_ok === false) return vaultSays("hash mismatch");
+  if (vaultClaim && String(vaultClaim.verifier_status ?? "").toUpperCase() === "ERROR") return vaultSays("verifier error");
   if (cap?._verifier_error) return `collector error: ${cap._verifier_error}`;
   if (!cap) return "never reached: ctx.check was not called for this id";
   if (!vaultClaim) return "not recorded in the vault";
   if (claimVerdict === "PASS") return null;
-  const verifierError = vaultClaim.hash_ok !== false && String(vaultClaim.verifier_status ?? "").toUpperCase() === "ERROR";
-  const status = vaultClaim.hash_ok === false ? "hash mismatch"
-    : verifierError ? "verifier error"
-    : (vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict);
-  const why = [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
-  return why ? `vault ${status}: ${why}` : `vault ${status}`;
+  return vaultSays(vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict);
 }
 
 /** The root-relative files behind a capture, as crew serves them (`/walkthrough/file?path=`). */
