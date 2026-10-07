@@ -560,14 +560,14 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
         // Claim not recorded in vault (never reached)
         claimVerdict = "FAIL";
       } else {
-        // verifier_status: "pass"|"fail"|"error" (lowercase) — the verifier's own outcome. The vault
-        // folds a verifier *error* (jq absent, verifier crashed) into `result: "FAIL"`, but DES
-        // §4.5 says an environment fault is INCONCLUSIVE, never a product failure — so the judge
-        // reads verifier_status first and only then the folded `result` ("PASS"|"MISSING"|"FAIL"|
-        // "ERROR", uppercase), which still carries hash integrity and the missing / pin-mismatch cases.
+        // Precedence: (1) hash_ok === false — a tampered / mismatched payload is a FAIL whatever
+        // the verifier said; (2) verifier_status "error" (jq absent, verifier crashed) — the vault
+        // folds it into `result: "FAIL"`, but DES §4.5 says an environment fault is INCONCLUSIVE,
+        // never a product failure; (3) the folded `result` ("PASS"|"MISSING"|"FAIL"|"ERROR",
+        // uppercase), falling back to verifier_status ("pass"|"fail"|"error") for an older vault.
         const res = vc.result?.toUpperCase();
         const vs = vc.verifier_status?.toUpperCase();
-        const r = vs === "ERROR" ? "ERROR" : (res ?? vs);
+        const r = vc.hash_ok === false ? "FAIL" : vs === "ERROR" ? "ERROR" : (res ?? vs);
         claimVerdict = r === "PASS" ? "PASS"
           : r === "MISSING" || r === "FAIL" ? "FAIL"
           : "INCONCLUSIVE";
@@ -614,8 +614,10 @@ function claimDetail(claimVerdict, cap, vaultClaim, vaultAvailable, vaultError) 
   if (!cap) return "never reached: ctx.check was not called for this id";
   if (!vaultClaim) return "not recorded in the vault";
   if (claimVerdict === "PASS") return null;
-  const verifierError = String(vaultClaim.verifier_status ?? "").toUpperCase() === "ERROR";
-  const status = verifierError ? "verifier error" : (vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict);
+  const verifierError = vaultClaim.hash_ok !== false && String(vaultClaim.verifier_status ?? "").toUpperCase() === "ERROR";
+  const status = vaultClaim.hash_ok === false ? "hash mismatch"
+    : verifierError ? "verifier error"
+    : (vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict);
   const why = [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
   return why ? `vault ${status}: ${why}` : `vault ${status}`;
 }

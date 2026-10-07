@@ -1706,9 +1706,10 @@ def test_verifier_error_folded_into_result_fail_is_inconclusive(tmp_path):
 
 
 @needs_node
-def test_verifier_pass_with_hash_mismatch_stays_fail(tmp_path):
-    """verifier_status pass but hash_ok false → vault result FAIL is authoritative: a tampered
-    artifact is a FAIL, not a PASS read off verifier_status alone (guards the #1214 fix)."""
+@pytest.mark.parametrize("verifier_status", ["pass", "error"])
+def test_hash_mismatch_stays_fail(tmp_path, verifier_status):
+    """hash_ok false → FAIL whatever the verifier said: a tampered artifact is neither a PASS read
+    off verifier_status "pass" nor an INCONCLUSIVE read off verifier_status "error" (#1214 guard)."""
     root = tmp_path / "evidence"
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
@@ -1716,12 +1717,15 @@ def test_verifier_pass_with_hash_mismatch_stays_fail(tmp_path):
     fv = _fake_vault(tmp_path, record_exit=0, cross_exit=1, cross_check={
         "overall": "FAIL",
         "claims": [{"claim_id": "guard_check", "artifact_id": "fake-1", "hash_ok": False,
-                    "verifier_status": "pass", "result": "FAIL", "detail": "payload hash mismatch"}],
+                    "verifier_status": verifier_status, "result": "FAIL", "detail": "payload hash mismatch"}],
     })
     out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
     assert out.returncode == 0, out.stderr
-    chapters = {c["key"]: c["verdict"] for c in json.loads((root / "result.json").read_text())["chapters"]}
-    assert chapters.get("01-chapter") == "FAIL", chapters
+    chapter = next(c for c in json.loads((root / "result.json").read_text())["chapters"] if c["key"] == "01-chapter")
+    assert chapter["verdict"] == "FAIL", chapter
+    check = next(c for c in chapter["checks"] if c["id"] == "guard_check")
+    assert check["passed"] is False, check
+    assert "hash mismatch" in (check.get("detail") or ""), check
 
 
 if __name__ == "__main__":
