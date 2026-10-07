@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-wickedizer
-context: fork
 description: |
   Writing humanizer / AI-tell remover (the team's house writing-cleanup skill).
   Use when writing, rewriting, or humanizing content: strips AI tells (fluff, hedging,
@@ -10,10 +9,10 @@ description: |
   Use when: humanizing AI-sounding prose, "remove AI tells", "make this sound human",
   drafting a PR description or commit message, or aligning written output to team voice.
   Aliases: humanize, humanizer, dejargonize, writing-cleanup.
-portability: portable
-status: experimental
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: worker
+  phases: "*"
+  archetypes: "*"
 ---
 
 # Wickedizer: Clear, Credible, Human Writing

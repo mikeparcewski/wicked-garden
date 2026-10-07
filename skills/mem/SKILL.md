@@ -1,8 +1,7 @@
 ---
 name: wicked-garden-mem
-user-invocable: true
 description: |
-  Cross-session memory + knowledge over wicked-estate (FOLD-1, Phase 5-S7).
+  Cross-session memory + knowledge over wicked-estate.
   One skill, routed actions: store (capture a decision/pattern/gotcha as a
   memory), recall (query memories across every scope), answer (cited
   synthesis from the knowledge + memory stores), review (browse coverage by
@@ -16,11 +15,12 @@ description: |
   knowledge base" / "ask the record"; "review my memories" / "what have I
   stored"; "forget this" / "erase that scope"; "consolidate memories";
   "ingest this file/pdf/directory" / "add this document to the knowledge
-  base"; "capture what we learned" / session teardown. Replaces the retired
-  brain product's memory/review/forget/ingest/session-teardown skill cluster —
-  wicked-estate is the engine, this is the agent surface.
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+  base"; "capture what we learned" / session teardown. wicked-estate is the
+  engine; this skill is the agent surface.
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # wicked-garden:mem — memory + knowledge over wicked-estate

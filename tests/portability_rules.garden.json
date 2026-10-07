@@ -1,5 +1,5 @@
 {
-  "$comment": "GARDEN-ONLY portability rules, layered on top of the CANONICAL parity fixture tests/portability_rules.json (vendored byte-for-byte from wicked-crew packages/crew/tests/fixtures/portability_rules.json — never edit that file here; re-vendor it and update tests/test_portability_fixture_parity.py). The shared tokens (plugin-root, skill-dir-var, cwd-script, relative-link, cross-skill-path, requires-harness:claude) and ALL their semantics — regexes, fence walk, option skipping, existence, ../ resolution — live only in the canonical file and are derived by the same engine crew uses. This file holds what garden's authoring convention adds on top: the exact `## Runtime` block, the name-based cross-ref resolver, the slash-form ban, the bare-script-span extension of cwd-script, the stricter bare-identifier check, the `verdict-spelling` grammar, and — since L6 B0 (D-21, cross-CLI skill format, docs/cross-cli-skill-format.md) — the seven cross-CLI tokens whose HEAD hits are BASELINED per (token, file) in tests/cross_cli_baseline.json until the qe batches translate each skill (a stale entry fails; B18 deletes the file). The former Claude-first fallback sentences (fork-no-fallback / dispatch-no-fallback / ask-no-fallback) are retired: the Claude shape itself is the finding now. Regexes stay in the ECMAScript/Python common subset.",
+  "$comment": "GARDEN-ONLY portability rules, layered on top of the CANONICAL parity fixture tests/portability_rules.json (vendored byte-for-byte from wicked-crew packages/crew/tests/fixtures/portability_rules.json — never edit that file here; re-vendor it and update tests/test_portability_fixture_parity.py). The shared tokens (plugin-root, skill-dir-var, cwd-script, relative-link, cross-skill-path, requires-harness:claude) and ALL their semantics — regexes, fence walk, option skipping, existence, ../ resolution — live only in the canonical file and are derived by the same engine crew uses. This file holds what garden's authoring convention adds on top: the exact `## Runtime` block, the name-based cross-ref resolver, the slash-form ban, the bare-script-span extension of cwd-script, the stricter bare-identifier check, the `verdict-spelling` grammar, and — since L6 B0 (D-21, cross-CLI skill format, docs/cross-cli-skill-format.md) — the eight cross-CLI tokens — strict since B18 (2026-10): every hit fails; the per-(token, file) baseline that tolerated HEAD hits while the qe batches translated the catalog is gone. The former Claude-first fallback sentences (fork-no-fallback / dispatch-no-fallback / ask-no-fallback) are retired: the Claude shape itself is the finding now. Regexes stay in the ECMAScript/Python common subset.",
   "version": 1,
   "canonical_fixture": "tests/portability_rules.json",
   "identifiers": {
@@ -40,7 +40,6 @@
       "skill-too-large",
       "claude-tool-call"
     ],
-    "baseline": "tests/cross_cli_baseline.json",
     "closed_frontmatter_keys": [
       "compatibility",
       "description",
@@ -117,42 +116,42 @@
     {
       "token": "claude-frontmatter-key",
       "rule": "a SKILL.md whose frontmatter carries a top-level key outside the closed cross-CLI set {name, description, license, compatibility, metadata, mandates} — context, subagent_type, allowed-tools, model, effort, max-turns, color, user-invocable, phase_relevance, … are Claude Code plugin hints no other CLI reads; role/phases/archetypes move under `metadata:` (string→string), the rest are dropped",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "claude-dispatch",
       "rule": "a body line that calls a Claude Code dispatch primitive — Task(, Skill(, Agent(, TaskCreate(, TaskUpdate(, TodoWrite(, subagent_type, AskUserQuestion — no other seat has them; a `<!-- historical -->` line is exempt; for the framework-ambiguous nouns `Task(` / `Agent(` ONLY, an assignment / constructor / lambda context (`x = Agent(`, `new Agent({`, `lambda: Agent(`) is framework code in a sample, not a dispatch (B8, the agentic domain's CrewAI / AutoGen / ADK samples) — `Skill(`, `TaskCreate(`, `TaskUpdate(`, `TodoWrite(` trip in every context (BC-38: the lint fails any skill on `Skill(`); the cross-CLI shape is a Hand-off paragraph naming the skill A bare capitalised first positional argument followed by more args (`Agent(Explore, prompt=…)`) also trips (B18, issue #1157); a lone `X(Cap)` prose noun and plurals `Task(s)`/`Agent(s)` stay quiet.",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "claude-only-prose",
       "rule": "Claude-only prose — a tool noun (`the Read tool`, `the Skill tool`, …), a `.claude/` path or the words `Claude Code` — outside a Hand-off paragraph and not marked `<!-- historical -->`; matched over the PARAGRAPH with intra-paragraph newlines normalised to spaces, so a token split across a line wrap (`multiple Bash` / `tool calls`) cannot hide from the line-based scan (review-garden-1158 M1)",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "handoff-missing",
       "rule": "a file that dispatches (any claude-dispatch hit) but carries no `Hand-off` paragraph — the only cross-CLI dispatch shape",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "retired-product-ref",
       "rule": "a body line naming a retired product (wicked-testing, wicked-brain, wicked-signals, wicked-loom) without `<!-- historical -->` — the batches rewrite them to their successors (qe domain / wicked-estate / the in-process gate)",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "description-too-long",
       "rule": "a SKILL.md frontmatter description longer than 1024 characters — several CLIs truncate or refuse it",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "skill-too-large",
       "rule": "a SKILL.md over 500 lines or 24 KiB — move detail into refs/ (the same bound scripts/ci/validate.py enforces for routers)",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     },
     {
       "token": "claude-tool-call",
       "rule": "a body line that calls a Claude Code tool — Read(, Write(, Edit(, MultiEdit(, Bash(, Glob(, Grep(, WebFetch(, WebSearch(, NotebookEdit( with an argument shape after the paren — no other seat has the call; say what to do with your harness's file reader / shell / file search instead; a `<!-- historical -->` line is exempt (review-garden-1153 M1: the class was lint-blind for two batches)",
-      "garden": "fail (baselined per file until translated)"
+      "garden": "fail"
     }
   ],
   "corpus": {
