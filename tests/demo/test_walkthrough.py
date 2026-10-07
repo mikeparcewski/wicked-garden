@@ -1706,10 +1706,15 @@ def test_verifier_error_folded_into_result_fail_is_inconclusive(tmp_path):
 
 
 @needs_node
-@pytest.mark.parametrize("verifier_status", ["pass", "error"])
-def test_hash_mismatch_stays_fail(tmp_path, verifier_status):
+@pytest.mark.parametrize("claim_fields", [
+    {"verifier_status": "pass", "result": "FAIL"},
+    {"verifier_status": "error", "result": "FAIL"},
+    {"verifier_status": "pass"},  # older vault: no folded `result` at all
+], ids=["pass+result", "error+result", "pass-no-result"])
+def test_hash_mismatch_stays_fail(tmp_path, claim_fields):
     """hash_ok false → FAIL whatever the verifier said: a tampered artifact is neither a PASS read
-    off verifier_status "pass" nor an INCONCLUSIVE read off verifier_status "error" (#1214 guard)."""
+    off verifier_status "pass" (with or without a folded result) nor an INCONCLUSIVE read off
+    verifier_status "error" (#1214 guard)."""
     root = tmp_path / "evidence"
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
@@ -1717,7 +1722,7 @@ def test_hash_mismatch_stays_fail(tmp_path, verifier_status):
     fv = _fake_vault(tmp_path, record_exit=0, cross_exit=1, cross_check={
         "overall": "FAIL",
         "claims": [{"claim_id": "guard_check", "artifact_id": "fake-1", "hash_ok": False,
-                    "verifier_status": verifier_status, "result": "FAIL", "detail": "payload hash mismatch"}],
+                    "detail": "payload hash mismatch", **claim_fields}],
     })
     out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
     assert out.returncode == 0, out.stderr
