@@ -1,6 +1,5 @@
 ---
 name: wicked-garden-repo-learn
-user-invocable: true
 description: |
   Learn an unfamiliar repo the way a senior engineer does: follow where the code
   actually churns, find what that churn touches that the rest of the system leans
@@ -8,22 +7,20 @@ description: |
   (memories) and what should hold (policies) — as inert estate proposals a human
   reviews, never as asserted fact.
 
-  Three BOUNDED phases — one wicked-crew unit each: (1) CHURN — SAMPLED git-churn →
-  ranked active areas (explicit top-N cap + a sampling rule for large histories —
-  never streams every commit); (2) HOTSPOTS — hotspots + blast-radius via
-  wicked-garden-search cross-referenced with churn to isolate load-bearing volatile
-  code, then READ the intersection through the estate graph (FetchContent /
-  RetrieveEntity / TraverseGraph) for genuine technical understanding; (3) CAPTURE —
-  DERIVE memories AND policies and submit them through the estate shim's `propose`
-  (`proposal.submit`: inert queue, safe under --readonly; the only record).
+  Three BOUNDED phases, one wicked-crew unit each: (1) CHURN — sampled git churn →
+  ranked active areas (top-N cap); (2) HOTSPOTS — hotspots + blast-radius via
+  wicked-garden-search cross-referenced with churn, then READ the intersection
+  through the estate graph (FetchContent, RetrieveEntity, TraverseGraph, Path);
+  (3) CAPTURE — derive memories AND policies and submit them through the estate
+  shim's `propose` (inert queue, safe under --readonly).
 
-  Use when: "learn this repo", "onboard me to this codebase", "study the active
-  areas", "what should I know before working here", "derive memories / policies
-  from this repo", "capture what matters about this codebase". Durable
-  orientation + capture — for a read-only narrative with no capture, use
-  wicked-garden-search `narrate` instead.
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+  Use when: "learn this repo", "onboard me to this codebase", "what should I know
+  before working here", "derive memories / policies from this repo". For a
+  read-only narrative with no capture, use wicked-garden-search `narrate`.
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # wicked-garden-repo-learn — churn-led repo learning that captures back
@@ -117,7 +114,11 @@ listing — via the estate tools (all read-only; in a governed run through the s
    source slice (read the code, don't infer from names).
 3. `TraverseGraph` (bounded — it carries `max_depth`/`max_nodes`) or `Lineage` →
    how the target connects: what it calls, what calls it, which events/commands
-   inject edges into it.
+   inject edges into it. For "how does A reach B" ask `Path` (`{"from": "<A>",
+   "to": "<B>"}`) — the ordered hops, each with edge kind + confidence — instead of
+   hand-assembling a route from `TraverseGraph` edge lists; `found: false` with
+   `depth_bounded` or `node_bounded` set is a bounded search, not proof there is no
+   route (widen `depth` / `max_nodes` or say "no route within the bound").
 4. Recall what's already known before writing anything new: `wicked-garden-mem`
    `recall` (`scope_prefix: ""`) so you extend the record rather than duplicate it.
 

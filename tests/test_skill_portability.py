@@ -77,10 +77,10 @@ IDENTIFIERS = GARDEN["identifiers"]
 GRX = {name: re.compile(src) for name, src in GARDEN["regex"].items()}
 RUNTIME_BLOCK = GARDEN["launcher"]["runtime_block"]
 NOT_A_SKILL = GARDEN["skill_names"]["exemption_marker"]
-# The eight cross-CLI tokens (L6 B0, D-21 — docs/cross-cli-skill-format.md; `claude-tool-call` from the B7 fold). The Claude-only shapes a
-# skill still carries at HEAD are BASELINED per (token, file) in tests/cross_cli_baseline.json:
-# tolerated there ONLY; the qe batches (B3–B17) translate skills and delete their entries in the same
-# change; an entry that no longer trips is STALE and fails; B18 deletes the file (strict).
+# The eight cross-CLI tokens (L6 B0, D-21 — docs/cross-cli-skill-format.md; `claude-tool-call` from the B7 fold).
+# STRICT since B18 (2026-10): every hit fails. The per-(token, file) baseline (tests/cross_cli_baseline.json)
+# that tolerated the shapes a skill still carried at HEAD while the qe batches (B3–B17) translated the
+# catalog is deleted — a new Claude-only shape is fixed in the skill text, never tolerated.
 CROSS_CLI = GARDEN["cross_cli"]
 CROSS_CLI_TOKENS = tuple(CROSS_CLI["tokens"])
 CLOSED_KEYS = frozenset(CROSS_CLI["closed_frontmatter_keys"])
@@ -90,10 +90,6 @@ PROSE_RE = re.compile(CROSS_CLI["prose_regex"])
 RETIRED_RE = re.compile(CROSS_CLI["retired_product_regex"])
 HANDOFF_RE = re.compile(CROSS_CLI["handoff_regex"])
 HISTORICAL = CROSS_CLI["historical_marker"]
-BASELINE_PATH = REPO / CROSS_CLI["baseline"]
-BASELINE = (json.loads(BASELINE_PATH.read_text(encoding="utf-8")) if BASELINE_PATH.exists()
-            else {"entries": {}})
-BASELINE_PAIRS = {(t, f) for t, files in BASELINE.get("entries", {}).items() for f in files}
 # `verdict-spelling` (FIX-IT-ALL L6-0, the D-9 text half): the engine reads an evaluator unit's
 # LAST `^VERDICT[:=]` line and passes ONLY on the token `PASS` — so garden text may ask for
 # nothing but `VERDICT: PASS` / `VERDICT: FAIL` on such a line. The legacy `VERDICT=… REVIEWER=…
@@ -593,21 +589,7 @@ def files_by_skill(files: list[Path]) -> dict[Path, list[Path]]:
     return grouped
 
 
-def apply_baseline(violations: list[Violation]) -> tuple[list[Violation], list[tuple[str, str]]]:
-    """Drop the cross-CLI violations the baseline tolerates; return (residual, stale entries) — a
-    stale entry is a baselined (token, file) that no longer trips and must be deleted."""
-    residual: list[Violation] = []
-    hit: set[tuple[str, str]] = set()
-    for v in violations:
-        if v.token in CROSS_CLI_TOKENS:
-            hit.add((v.token, v.file))
-            if (v.token, v.file) in BASELINE_PAIRS:
-                continue
-        residual.append(v)
-    return residual, sorted(BASELINE_PAIRS - hit)
-
-
-def scan_repo(repo: Path = REPO, baseline: bool = True) -> tuple[list[Violation], dict[str, int], list[tuple[str, str]]]:
+def scan_repo(repo: Path = REPO) -> tuple[list[Violation], dict[str, int]]:
     names = declared_names(repo / "skills")
     bundle = Bundle.from_repo(repo)
     files = text_files(repo / "skills")
@@ -626,14 +608,9 @@ def scan_repo(repo: Path = REPO, baseline: bool = True) -> tuple[list[Violation]
         if f.suffix == ".md":
             name_tokens += sum(1 for m in GRX["skill_name"].finditer(text) if "{" not in m.group(1))
     violations.extend(scan_structure(files_by_skill(files), repo))
-    stale: list[tuple[str, str]] = []
     raw_cross_cli = Counter(v.token for v in violations if v.token in CROSS_CLI_TOKENS)
-    if baseline:
-        violations, stale = apply_baseline(violations)
     counts = {
         "files_scanned": len(files),
-        "baseline_entries": len(BASELINE_PAIRS),
-        "baseline_stale": len(stale),
         **{f"cross_cli.{t}": c for t, c in sorted(raw_cross_cli.items())},
         "bundle_files": len(bundle.files),
         "skills": len(names),
@@ -644,38 +621,7 @@ def scan_repo(repo: Path = REPO, baseline: bool = True) -> tuple[list[Violation]
         "violations": len(violations),
         **{f"violations.{t}": c for t, c in sorted(Counter(v.token for v in violations).items())},
     }
-    return violations, counts, stale
-
-
-def write_baseline(repo: Path = REPO) -> dict:
-    """Regenerate tests/cross_cli_baseline.json from the RAW cross-CLI hits at HEAD (dev tooling:
-    `python3 tests/test_skill_portability.py --write-baseline`). Never run it to silence a new
-    finding — fix the skill; the file only ever shrinks after B0."""
-    raw, _, _ = scan_repo(repo, baseline=False)
-    entries: dict[str, list[str]] = {t: [] for t in CROSS_CLI_TOKENS}
-    for v in raw:
-        if v.token in CROSS_CLI_TOKENS and v.file not in entries[v.token]:
-            entries[v.token].append(v.file)
-    for t in entries:
-        entries[t].sort()
-    head = ""
-    try:
-        import subprocess
-        head = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo, capture_output=True,
-                              text=True, check=False).stdout.strip()
-    except OSError:
-        pass
-    data = {
-        "$comment": "L6 B0 cross-CLI baseline — the (token, file) pairs that still carry a Claude-only shape at the "
-                    "generating HEAD (tests/test_skill_portability.py scan_cross_cli). A listed pair is tolerated; an "
-                    "unlisted hit fails; a listed pair that no longer trips is STALE and fails — the qe batches (B3–B17) "
-                    "translate skills and delete their entries in the same change, and B18 deletes this file. Never add an "
-                    "entry to silence the lint; regenerate only with --write-baseline at B0.",
-        "generated_from": head,
-        "entries": entries,
-    }
-    (repo / CROSS_CLI["baseline"]).write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return data
+    return violations, counts
 
 
 def _report(violations: list[Violation], counts: dict[str, int]) -> str:
@@ -689,7 +635,7 @@ def _report(violations: list[Violation], counts: dict[str, int]) -> str:
 # Tests
 # ---------------------------------------------------------------------------
 
-_VIOLATIONS, _COUNTS, _STALE = scan_repo()
+_VIOLATIONS, _COUNTS = scan_repo()
 _NAMES = declared_names()
 _BUNDLE = Bundle.from_repo()
 
@@ -710,7 +656,7 @@ def test_fixtures_are_well_formed():
     assert set(CROSS_CLI_TOKENS) | {"verdict-spelling"} <= declared, declared
     assert not ({"fork-no-fallback", "dispatch-no-fallback", "ask-no-fallback"} & declared), declared
     assert CLOSED_KEYS == META_CLOSED_KEYS
-    assert set(BASELINE.get("entries", {})) <= set(CROSS_CLI_TOKENS)
+    assert "baseline" not in CROSS_CLI, "the cross-CLI baseline was deleted at B18 — the lint is strict"
 
 
 @pytest.mark.parametrize("case", CANON["cases"], ids=lambda c: c["name"])
@@ -768,7 +714,7 @@ def test_garden_corpus_trips_exactly_its_tokens(entry):
 
 
 # ---------------------------------------------------------------------------
-# cross-CLI tokens (L6 B0): one trip + one quiet case per token, and the baseline discipline
+# cross-CLI tokens (L6 B0): one trip + one quiet case per token; strict since B18 (no baseline)
 # ---------------------------------------------------------------------------
 
 _FM_OK = "---\nname: wicked-garden-x\ndescription: d\nmetadata:\n  role: worker\n---\n"
@@ -849,26 +795,12 @@ def test_cross_cli_token_table(file, text, expect):
     assert _cross(file, text) == expect
 
 
-def test_cross_cli_baseline_has_no_stale_entries():
-    """A baselined (token, file) that no longer trips is stale — the batch that translated the skill
-    must delete the entry in the same change (the baseline only ever shrinks after B0)."""
-    assert not _STALE, f"stale entries in {CROSS_CLI['baseline']} (delete them): {_STALE}"
-
-
-def test_cross_cli_baseline_is_well_formed():
-    """The baseline is SHRINK-ONLY after B0 (a batch deletes the entries it translated), so its size is
-    never asserted here — a numeric floor would turn CI red on a batch that did exactly what the design
-    asks (review-L6-B H1). What holds for the file's whole life: it names the HEAD it was generated
-    from, carries every token (an empty list is a token with nothing left to translate), and every
-    listed file still exists (a gone file = delete the entry). B18 deletes the file and this test."""
-    generated_from = BASELINE.get("generated_from")
-    assert isinstance(generated_from, str) and re.fullmatch(r"[0-9a-f]{7,40}", generated_from), generated_from
-    entries = BASELINE.get("entries", {})
-    assert set(entries) == set(CROSS_CLI_TOKENS), sorted(entries)
-    assert all(isinstance(v, list) for v in entries.values())
-    for t in CROSS_CLI_TOKENS:
-        for f in entries[t]:
-            assert (REPO / f).exists(), f"{t}: baselined file is gone — delete the entry: {f}"
+def test_cross_cli_baseline_is_gone():
+    """B18: the per-(token, file) baseline is deleted and the lint is strict — no file, no rule key,
+    nothing left to tolerate a Claude-only shape with. A re-introduced baseline is a regression."""
+    assert not (REPO / "tests" / "cross_cli_baseline.json").exists()
+    assert "baseline" not in CROSS_CLI
+    assert not [v for v in _VIOLATIONS if v.token in CROSS_CLI_TOKENS], _report(_VIOLATIONS, _COUNTS)
 
 
 # ---------------------------------------------------------------------------
@@ -1084,11 +1016,5 @@ def test_search_and_mem_have_one_rung_and_no_mcp_residue():
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI report for the codemod loop
-    if "--write-baseline" in sys.argv[1:]:
-        data = write_baseline()
-        print(json.dumps({t: len(fs) for t, fs in data["entries"].items()}, indent=2))
-        sys.exit(0)
     print(_report(_VIOLATIONS, _COUNTS))
-    if _STALE:
-        print(f"STALE baseline entries: {_STALE}")
-    sys.exit(1 if (_VIOLATIONS or _STALE) else 0)
+    sys.exit(1 if _VIOLATIONS else 0)

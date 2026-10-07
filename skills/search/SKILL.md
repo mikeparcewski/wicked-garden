@@ -1,24 +1,26 @@
 ---
 name: wicked-garden-search
-user-invocable: true
 description: |
   Code-intelligence search over wicked-estate's static + injected
   code-relationship graph (ADR 0005): index (build/refresh), blast-radius
-  (dependents), lineage (data/dependency flow), hotspots (PageRank
-  centrality), service-map (infra + code), narrate (orientation walkthrough).
+  (dependents), lineage (data/dependency flow), path (the ordered hops from
+  A to B), hotspots (PageRank centrality), service-map (infra + code),
+  narrate (orientation walkthrough).
   Every graph read is ONE call on every seat, in every session kind — the
   read-only estate shim (`wicked-garden run scripts/_estate_client.py
   --readonly call …`).
 
   Use when: "index the codebase"; "what breaks if I change X" / "blast
   radius" / "impact analysis"; "trace lineage" / "upstream or downstream of a
-  symbol"; "most-referenced symbols" / "god objects" / "coupling hotspots";
-  "map the services"; "architecture walkthrough" / "narrate this codebase".
+  symbol"; "how does A reach B" / "does A ever call B"; "most-referenced
+  symbols" / "god objects" / "coupling hotspots"; "map the services"; "architecture walkthrough" / "narrate this codebase".
 
   NOT for concept/memory search — use `wicked-garden-mem`; a bare symbol
   lookup is the estate `SearchEntity` tool through the same shim.
-phase_relevance: ["*"]
-archetype_relevance: ["*"]
+metadata:
+  role: router
+  phases: "*"
+  archetypes: "*"
 ---
 
 # wicked-garden:search — code-intelligence over the estate graph
@@ -40,6 +42,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `index` | build/refresh the code-intelligence index | § Index / freshness |
 | `blast-radius` | "what breaks if I change X?" (dependents) | § Blast radius |
 | `lineage` | "where does this flow from / to?" (data flow) | § Lineage |
+| `path` | "how does A reach B?" — the ordered hops between two symbols | § Path |
 | `hotspots` | most-central symbols, god-objects | [refs/hotspots.md](refs/hotspots.md) |
 | `service-map` | service architecture from infra + code | [refs/service-map.md](refs/service-map.md) |
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
@@ -158,6 +161,8 @@ estate default 8, max 24).
      `{"symbol": "<name>"}` → `dependents`.
    - **both**: run both and present each direction. (A bounded multi-hop walk
      with edge-kind filters is available via the **`TraverseGraph`** tool.)
+   - **a route between two named symbols** ("how does A reach B?"): the `path`
+     action (§ Path) — never hand-assemble it from `TraverseGraph` edge lists.
    Each result includes injected edges (e.g. a consumer reached via a bus
    rule, an archetype via `extractor:archetype-playbook`) with confidence +
    provenance per edge.
@@ -166,6 +171,41 @@ estate default 8, max 24).
    injected hops, gaps, and **which path answered** (`shim` / `ungrounded`).
 
 Examples: `lineage scripts/_bus.py --direction upstream` · `lineage User.email --direction both`.
+
+## Path — "how does A reach B?"
+
+The ordered hops from one symbol to another — the route itself, not a reachability set you
+search by hand. Use it whenever the question names two ends ("how does this handler reach the
+DB write?", "does A ever call B, and through what?"); never reassemble a route from
+`TraverseGraph`'s edge list.
+
+**Arguments**: `from` and `to` (required — an exact symbol name, or a SymbolId as handed back
+by `SearchEntity` / `TraverseGraph`); `depth` (optional; estate default 8, max 16); `max_nodes`
+(optional; estate default 1000, max 5000).
+
+1. **Freshness** (§ Index / freshness) — report the `STALENESS` marker; never rebuild from a seat.
+2. **Resolve both ends** (§ Resolving symbols) when either name is ambiguous.
+3. **Query the route** — the estate **`Path`** tool through the shim:
+   ```bash
+   wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"Path","arguments":{"from":"<symbol-A>","to":"<symbol-B>","depth":8}}'
+   ```
+   `hops[]` is the route in order; each hop carries `kind`, `confidence`, `provenance` and
+   `resolved_by`, with both endpoints denormalized (`name`, `file`, `line`) — name the
+   intermediate functions and open only those files.
+4. **Read `found` together with its bound flags — a bounded absence is not proof of absence.**
+   `found: false` with `depth_bounded: false` AND `node_bounded: false` is a **proven** absence
+   in the indexed graph. `found: false` with `depth_bounded` or `node_bounded` set means the
+   search hit its depth or node budget: report "no route within depth N / M nodes", never "A
+   never reaches B"; widen `depth` / `max_nodes` (within the caps) or try the reverse direction
+   before concluding. `unresolved: "from"` / `"to"` names an operand estate could not resolve —
+   an input problem, not a route verdict: resolve the name (§ Resolving symbols) and retry.
+   A hop with low `confidence` is heuristic — say so when you report it.
+5. **Which path answered**: the shim (§ Resolving symbols + the one way to the graph) — or
+   `ungrounded`, said so.
+6. Report the hops in order (source → target, edge kind, confidence, file:line at each end), the
+   bound flags, the graph's staleness, and **which path answered** (`shim` / `ungrounded`).
+
+Examples: `path handle_request write_row` · `path scripts/_bus.py scripts/_estate_client.py --depth 12`.
 
 ## Hotspots — most-central symbols
 
