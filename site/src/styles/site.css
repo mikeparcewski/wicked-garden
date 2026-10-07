@@ -36,6 +36,13 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   flex-direction: column;
   justify-content: safe center;
 }
+/* Reduced motion: snapping moves the viewport for you — the motion the preference asks us to
+   suppress. The chrome (wicked-web tokens.css) carries the same rule, but this file re-declares
+   `scroll-snap-type` on html at equal specificity later in the cascade, so the guard must live
+   here too (wicked-web#31). */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-snap-type: none; }
+}
 @media (max-width: 1023px) {
   html { scroll-snap-type: none; }
   .gd-section { min-height: 0; }

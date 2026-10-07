@@ -16,6 +16,14 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
   await page.goto('/');
   await expect(page.locator('h1')).toContainText('The tools your coding agent');
 
+  // No scroll snapping under reduced motion (wicked-web#31): at desktop width the page snaps
+  // (`y proximity`, owned by site.css); the preference must turn it off — not just the <=1023px
+  // rule. Assert at a width where snapping would otherwise be on.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  expect(await page.evaluate(() => window.innerWidth)).toBeGreaterThanOrEqual(1024);
+  expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(true);
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).scrollSnapType)).toBe('none');
+
   // Walk every section; Reveal short-circuits to visible under reduced motion.
   const sections: Array<[string, RegExp]> = [
     ['#toolbox', /Six gaps your agent/],
