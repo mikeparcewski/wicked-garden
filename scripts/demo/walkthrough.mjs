@@ -560,11 +560,14 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
         // Claim not recorded in vault (never reached)
         claimVerdict = "FAIL";
       } else {
-        // result field (vault ≥0.7.0): "PASS"|"MISSING"|"FAIL"|"ERROR" (uppercase)
-        // verifier_status (older vault): "pass"|"fail"|"error" (lowercase)
+        // verifier_status: "pass"|"fail"|"error" (lowercase) — the verifier's own outcome. The vault
+        // folds a verifier *error* (jq absent, verifier crashed) into `result: "FAIL"`, but DES
+        // §4.5 says an environment fault is INCONCLUSIVE, never a product failure — so the judge
+        // reads verifier_status first and only then the folded `result` ("PASS"|"MISSING"|"FAIL"|
+        // "ERROR", uppercase), which still carries hash integrity and the missing / pin-mismatch cases.
         const res = vc.result?.toUpperCase();
         const vs = vc.verifier_status?.toUpperCase();
-        const r = res ?? vs;
+        const r = vs === "ERROR" ? "ERROR" : (res ?? vs);
         claimVerdict = r === "PASS" ? "PASS"
           : r === "MISSING" || r === "FAIL" ? "FAIL"
           : "INCONCLUSIVE";
@@ -611,7 +614,8 @@ function claimDetail(claimVerdict, cap, vaultClaim, vaultAvailable, vaultError) 
   if (!cap) return "never reached: ctx.check was not called for this id";
   if (!vaultClaim) return "not recorded in the vault";
   if (claimVerdict === "PASS") return null;
-  const status = vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict;
+  const verifierError = String(vaultClaim.verifier_status ?? "").toUpperCase() === "ERROR";
+  const status = verifierError ? "verifier error" : (vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict);
   const why = [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
   return why ? `vault ${status}: ${why}` : `vault ${status}`;
 }
