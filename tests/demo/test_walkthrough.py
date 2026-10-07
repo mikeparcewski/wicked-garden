@@ -1428,18 +1428,26 @@ def test_missing_jq_causes_inconclusive(tmp_path):
     if jq_bin is None:
         pytest.skip("jq not installed (can't construct missing-jq PATH)")
 
-    # Build tmp_bin with node and wicked-vault only (no jq).
+    # Build tmp_bin with exactly what the recorder spawns by name -- node, wicked-vault, git and
+    # tar (`git archive | tar -x` stages the fixture) -- and no jq. On macOS git and tar live in
+    # /usr/bin beside the system jq, so they must be re-exposed here.
     from pathlib import Path as _P
     tmp_bin = tmp_path / "bin"
     tmp_bin.mkdir()
     (tmp_bin / "node").symlink_to(_P(node_bin).resolve())
     (tmp_bin / "wicked-vault").symlink_to(_P(vault_bin).resolve())
+    for tool in ("git", "tar"):
+        found = shutil.which(tool)
+        if found is None:
+            pytest.skip(f"{tool} not installed")
+        (tmp_bin / tool).symlink_to(_P(found).resolve())
 
-    # Build a PATH that has tmp_bin first and excludes the directory containing jq.
-    jq_dir = str(_P(jq_bin).parent.resolve())
+    # Build a PATH that has tmp_bin first and excludes EVERY directory holding a jq executable
+    # (macOS ships /usr/bin/jq beside the homebrew one; dropping only shutil.which's directory
+    # leaves the system jq visible and the vault happily passes the claim).
     path_dirs = [str(tmp_bin)]
     for d in os.environ.get("PATH", "").split(os.pathsep):
-        if d and str(_P(d).resolve()) != jq_dir:
+        if d and not (_P(d) / "jq").exists():
             path_dirs.append(d)
     restricted_path = os.pathsep.join(path_dirs)
 
@@ -1448,7 +1456,12 @@ def test_missing_jq_causes_inconclusive(tmp_path):
     repo, tree = _make_tree(tmp_path)
     sl = _make_minimal_storyline(repo, tree)  # guard check with jq_pred verifier
 
-    env = _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(tmp_bin / "wicked-vault"))
+    # jq usually shares its directory with ffmpeg (homebrew, apt), so excluding that directory
+    # also hides the encoder -- the chapter would then die on encoder_failed before ctx.check ran
+    # (vault MISSING -> FAIL), proving nothing about the judge. Hand the recorder ffmpeg by
+    # absolute path (ffprobe is resolved beside it); only jq stays absent.
+    env = _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(tmp_bin / "wicked-vault"),
+                  FFMPEG=str(_P(shutil.which("ffmpeg")).resolve()))
     env["PATH"] = restricted_path
 
     out = _run_wt(["record", "--storyline", str(sl)], env, timeout=120)
@@ -1458,6 +1471,12 @@ def test_missing_jq_causes_inconclusive(tmp_path):
     assert chapters.get("01-chapter") == "INCONCLUSIVE", (
         f"missing jq must cause vault ERROR → chapter INCONCLUSIVE, got {chapters}"
     )
+    # The INCONCLUSIVE must come from the claim itself (verifier_status error), not from a
+    # side effect of the restricted PATH: the check is neither passed nor failed.
+    chapter = next(c for c in result["chapters"] if c["key"] == "01-chapter")
+    check = next(c for c in chapter["checks"] if c["id"] == "guard_check")
+    assert check["passed"] is None, check
+    assert "verifier error" in (check.get("detail") or ""), check
 
 
 @needs_recorder
@@ -1658,6 +1677,60 @@ def test_vault_error_with_no_checks_is_not_pass(tmp_path):
     assert out.returncode == 0, out.stderr
     chapters = {c["key"]: c["verdict"] for c in json.loads((root / "result.json").read_text())["chapters"]}
     assert chapters.get("01-empty") == "INCONCLUSIVE", chapters
+
+
+@needs_node
+def test_verifier_error_folded_into_result_fail_is_inconclusive(tmp_path):
+    """The vault folds a verifier *error* (jq absent) into `result: FAIL`; the judge must read
+    `verifier_status` and call the claim INCONCLUSIVE (passed is None), not FAIL (#1214).
+
+    Pins what test_missing_jq_causes_inconclusive proves against the real binary, without
+    needing wicked-vault, jq or ffmpeg — so CI runs it."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = _make_minimal_storyline(repo, tree)
+    fv = _fake_vault(tmp_path, record_exit=0, cross_exit=1, cross_check={
+        "overall": "FAIL",
+        "claims": [{"claim_id": "guard_check", "artifact_id": "fake-1", "hash_ok": True,
+                    "verifier_status": "error", "result": "FAIL", "detail": "jq: command not found"}],
+    })
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    chapter = next(c for c in result["chapters"] if c["key"] == "01-chapter")
+    assert chapter["verdict"] == "INCONCLUSIVE", chapter
+    check = next(c for c in chapter["checks"] if c["id"] == "guard_check")
+    assert check["passed"] is None, check  # INCONCLUSIVE, not False (FAIL)
+    assert "verifier error" in (check.get("detail") or ""), check
+
+
+@needs_node
+@pytest.mark.parametrize("claim_fields", [
+    {"verifier_status": "pass", "result": "FAIL"},
+    {"verifier_status": "error", "result": "FAIL"},
+    {"verifier_status": "pass"},  # older vault: no folded `result` at all
+], ids=["pass+result", "error+result", "pass-no-result"])
+def test_hash_mismatch_stays_fail(tmp_path, claim_fields):
+    """hash_ok false → FAIL whatever the verifier said: a tampered artifact is neither a PASS read
+    off verifier_status "pass" (with or without a folded result) nor an INCONCLUSIVE read off
+    verifier_status "error" (#1214 guard)."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = _make_minimal_storyline(repo, tree)
+    fv = _fake_vault(tmp_path, record_exit=0, cross_exit=1, cross_check={
+        "overall": "FAIL",
+        "claims": [{"claim_id": "guard_check", "artifact_id": "fake-1", "hash_ok": False,
+                    "detail": "payload hash mismatch", **claim_fields}],
+    })
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
+    assert out.returncode == 0, out.stderr
+    chapter = next(c for c in json.loads((root / "result.json").read_text())["chapters"] if c["key"] == "01-chapter")
+    assert chapter["verdict"] == "FAIL", chapter
+    check = next(c for c in chapter["checks"] if c["id"] == "guard_check")
+    assert check["passed"] is False, check
+    assert "hash mismatch" in (check.get("detail") or ""), check
 
 
 if __name__ == "__main__":

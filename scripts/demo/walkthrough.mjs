@@ -560,11 +560,14 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
         // Claim not recorded in vault (never reached)
         claimVerdict = "FAIL";
       } else {
-        // result field (vault ≥0.7.0): "PASS"|"MISSING"|"FAIL"|"ERROR" (uppercase)
-        // verifier_status (older vault): "pass"|"fail"|"error" (lowercase)
+        // Precedence: (1) hash_ok === false — a tampered / mismatched payload is a FAIL whatever
+        // the verifier said; (2) verifier_status "error" (jq absent, verifier crashed) — the vault
+        // folds it into `result: "FAIL"`, but DES §4.5 says an environment fault is INCONCLUSIVE,
+        // never a product failure; (3) the folded `result` ("PASS"|"MISSING"|"FAIL"|"ERROR",
+        // uppercase), falling back to verifier_status ("pass"|"fail"|"error") for an older vault.
         const res = vc.result?.toUpperCase();
         const vs = vc.verifier_status?.toUpperCase();
-        const r = res ?? vs;
+        const r = vc.hash_ok === false ? "FAIL" : vs === "ERROR" ? "ERROR" : (res ?? vs);
         claimVerdict = r === "PASS" ? "PASS"
           : r === "MISSING" || r === "FAIL" ? "FAIL"
           : "INCONCLUSIVE";
@@ -607,13 +610,17 @@ function judgeChapter(seg, captures, failedAtSec, { crossCheck = null, vaultEntr
 function claimDetail(claimVerdict, cap, vaultClaim, vaultAvailable, vaultError) {
   if (!vaultAvailable) return "vault unavailable: no cross-check could run";
   if (vaultError) return "vault cross-check returned ERROR";
+  const why = vaultClaim && [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
+  const vaultSays = (status) => (why ? `vault ${status}: ${why}` : `vault ${status}`);
+  // The vault verified an artifact for this claim: its finding names the cause, whatever the capture
+  // looked like (mirrors the verdict precedence in judgeChapter).
+  if (vaultClaim?.hash_ok === false) return vaultSays("hash mismatch");
+  if (vaultClaim && String(vaultClaim.verifier_status ?? "").toUpperCase() === "ERROR") return vaultSays("verifier error");
   if (cap?._verifier_error) return `collector error: ${cap._verifier_error}`;
   if (!cap) return "never reached: ctx.check was not called for this id";
   if (!vaultClaim) return "not recorded in the vault";
   if (claimVerdict === "PASS") return null;
-  const status = vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict;
-  const why = [vaultClaim.reason, vaultClaim.message, vaultClaim.detail].find((v) => typeof v === "string" && v);
-  return why ? `vault ${status}: ${why}` : `vault ${status}`;
+  return vaultSays(vaultClaim.result ?? vaultClaim.verifier_status ?? claimVerdict);
 }
 
 /** The root-relative files behind a capture, as crew serves them (`/walkthrough/file?path=`). */
