@@ -316,7 +316,7 @@ def test_typescript_template_installs_builds_tests_and_probes(tmp_path):
         done = subprocess.run([npm, *step], cwd=out, capture_output=True, text=True, timeout=600,
                               env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
         assert done.returncode == 0, (step, done.stdout[-4000:], done.stderr[-4000:])
-    proc = subprocess.run([sys.executable, str(PROBE), "--env", "ACME_NOTES_TOKEN", "--", "node",
+    proc = subprocess.run([sys.executable, str(PROBE), "--timeout", "30", "--env", "ACME_NOTES_TOKEN", "--", "node",
                            str(out / "dist" / "server.js")], capture_output=True, text=True,
                           timeout=TIMEOUT_S, env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
     probed = json.loads(proc.stdout)
