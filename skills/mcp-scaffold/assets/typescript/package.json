@@ -1,0 +1,46 @@
+{
+  "name": "__SERVER_NAME__",
+  "version": "0.1.0",
+  "description": "__SERVER_NAME__ MCP server (fastmcp, OpenTelemetry, loglayer)",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "main": "dist/server.js",
+  "files": [
+    "dist",
+    "tools.json",
+    "mcp-server.config.json"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src test",
+    "test": "vitest run",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@loglayer/plugin-opentelemetry": "^3.3.0",
+    "@loglayer/plugin-redaction": "^4.1.0",
+    "@loglayer/transport-opentelemetry": "^4.3.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.223.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.223.0",
+    "@opentelemetry/exporter-metrics-otlp-http": "^0.223.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
+    "@opentelemetry/sdk-logs": "^0.223.0",
+    "@opentelemetry/sdk-node": "^0.223.0",
+    "fastmcp": "^4.22.4",
+    "loglayer": "^9.4.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.0.0",
+    "eslint": "^10.12.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}

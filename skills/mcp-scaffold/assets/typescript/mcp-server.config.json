@@ -1,0 +1,14 @@
+{
+  "key": "__SERVER_NAME__",
+  "version": "0.1.0",
+  "transport": "stdio",
+  "baseUrl": "https://api.example.com",
+  "auth": {
+    "scheme": "bearer",
+    "header": "Authorization",
+    "tokenUrl": null,
+    "scopes": [],
+    "clientId": null
+  },
+  "rateLimitPerMin": 60
+}
