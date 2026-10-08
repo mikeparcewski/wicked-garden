@@ -15,7 +15,8 @@ description: |
   Use when: "plan a demo", "demo script", "presenter notes", "run of show",
   "rehearse a demo", "record a demo video", "walkthrough video", "feature
   tour", "re-record a segment", "stitch segments", "review the demo video",
-  "QA the recording", "contact sheet", "demo workflow", "offline demo".
+  "QA the recording", "contact sheet", "demo workflow", "offline demo",
+  "walkthrough storyline", "walkthrough lint", "walkthrough_plan".
 metadata:
   role: router
   phases: "*"
@@ -175,6 +176,24 @@ own data in `beforeSegment`, and never relies on another segment's state.
 Full module shape and the `ctx` API: `refs/storyline-api.md`.
 Visual system (stage layout, captions, callouts, chapter slides, time-lapse): `refs/stage-design.md`.
 
+### Walkthrough author (a crew run's `walkthrough_plan` step)
+
+When a governed run hands you the `walkthrough_plan` step, the storyline is the proof the builder's work is
+judged by, not a demo. Write exactly one file, `<author dir>/storyline.mjs` — the path your step prompt names
+(`<evidence root>/author/<your step id>/`); write nothing in the worktree. The step's pinned validator lints it:
+
+```sh
+wicked-garden run scripts/demo/walkthrough.mjs lint --root <author dir> [--tree <worktree>] [--steps <plan step ids>]
+```
+
+Exit 0 means no finding; exit 1 prints `{ok, storyline, findings: [{rule, where, detail}]}` — fix each and lint
+again until it exits 0. The rules, in short: `baseUrl: "fixture"`; `fixture.start` is an argv starting a script
+the tree declares (no `-e`/`-c`, nothing outside the tree, no secret-shaped env name); every chapter `proves` plan
+step ids and has a `locator` check, a `probe` or `artifact` check, and a `join` of the two; the walkthrough has a
+`guard` check; every check carries `negative` samples its `jq_pred` verifier FAILS on. The record tool
+(`walkthrough_review`) reads the same file through `WICKED_WALKTHROUGH_AUTHOR`. Full rules and a passing
+example: `refs/walkthrough-author.md`.
+
 ### Probe selectors (read-only)
 
 Before writing `run()` bodies, load each page without clicking to confirm every locator:
@@ -320,5 +339,6 @@ Deliverable: contact-sheet PNGs + findings table with verdicts.
 - `refs/templates.md` — presenter-script template and per-segment block template
 - `refs/stage-design.md` — the visual system: layout, typography, captions, callouts, chapter slides, time-lapse badge
 - `refs/storyline-api.md` — storyline module shape, all `ctx` methods, rules of thumb
+- `refs/walkthrough-author.md` — the `walkthrough_plan` author contract: where the storyline goes, every lint rule, a passing example
 - `refs/gotchas.md` — failure modes and fixes: capture, clicking, scrolling, timing, environment
 - `refs/review-checklist.md` — full QA checklist with symptom → cause → fix → verdict per item

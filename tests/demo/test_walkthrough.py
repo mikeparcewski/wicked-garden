@@ -2166,3 +2166,75 @@ def test_failed_at_sec_is_the_earliest_failing_check_and_the_frame_is_the_on_scr
         for e in c["evidence"]:
             assert not Path(e).is_absolute() and (root / e).is_file(), e
     assert chapter["verdict"] == "FAIL"
+
+
+# ---- wicked-garden#1231: record reads the storyline from WICKED_WALKTHROUGH_AUTHOR ----------
+
+@needs_node
+def test_record_reads_the_storyline_from_the_author_dir_the_engine_hands_it(tmp_path):
+    """The engine hands WICKED_WALKTHROUGH_AUTHOR = <evidence>/author/<plan step>; WICKED_RUN_UNIT is the ordinal."""
+    evidence = tmp_path / "ev"
+    root = evidence / "walkthrough_review"
+    root.mkdir(parents=True)
+    author = evidence / "author" / "walkthrough_plan"
+    author.mkdir(parents=True)
+    repo, tree = _make_tree(tmp_path)
+    # An unloadable storyline: the refusal lists its chapters, which proves the tool read THIS file.
+    (author / "storyline.mjs").write_text("""export default {
+  segments: [ { key: "01-from-author", title: "A", async run(ctx) {} } ],
+  __SYNTAX_ERROR__
+};
+""")
+    env = _wt_env(root, tree, repo, step_id="4", WICKED_WALKTHROUGH_AUTHOR=str(author))
+    out = _run_wt(["record"], env, timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused"
+    assert "storyline not found" not in result.get("reason", "")
+    assert [c["key"] for c in result["chapters"]] == ["01-from-author"]
+
+
+@needs_node
+def test_record_names_the_author_path_when_the_storyline_is_absent(tmp_path):
+    root = tmp_path / "ev" / "walkthrough_review"
+    root.mkdir(parents=True)
+    author = tmp_path / "ev" / "author" / "walkthrough_plan"
+    repo, tree = _make_tree(tmp_path)
+    env = _wt_env(root, tree, repo, step_id="4", WICKED_WALKTHROUGH_AUTHOR=str(author))
+    out = _run_wt(["record"], env)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused"
+    assert result["reason"] == f"storyline not found: {author / 'storyline.mjs'}"
+
+
+@needs_node
+def test_record_without_a_storyline_source_refuses_by_name(tmp_path):
+    """No --storyline and no WICKED_WALKTHROUGH_AUTHOR: no guess from the unit ordinal."""
+    root = tmp_path / "ev" / "walkthrough_review"
+    root.mkdir(parents=True)
+    repo, tree = _make_tree(tmp_path)
+    env = _wt_env(root, tree, repo, step_id="4")
+    env.pop("WICKED_WALKTHROUGH_AUTHOR", None)
+    out = _run_wt(["record"], env)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused"
+    assert "WICKED_WALKTHROUGH_AUTHOR" in result["reason"]
+
+
+@needs_node
+def test_unjailed_record_lists_the_author_storylines_chapters(tmp_path):
+    root = tmp_path / "ev" / "walkthrough_review"
+    root.mkdir(parents=True)
+    author = tmp_path / "ev" / "author" / "walkthrough_plan"
+    author.mkdir(parents=True)
+    (author / "storyline.mjs").write_text('export default { segments: [ { key: "01-a" }, { key: "02-b" } ] };\n')
+    env = {**os.environ, "WICKED_EVIDENCE_ROOT": str(root), "WICKED_RUN_ID": "r", "WICKED_RUN_UNIT": "4",
+           "WICKED_TREE": "abc", "WICKED_WALKTHROUGH_AUTHOR": str(author)}
+    env.pop("WICKED_WALKTHROUGH_JAIL", None)
+    out = _run_wt(["record"], env)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "unjailed_host"
+    assert [c["key"] for c in result["chapters"]] == ["01-a", "02-b"]
