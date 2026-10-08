@@ -83,7 +83,7 @@ def _scaffold_directory(name: str, lang: str, out: Path) -> int:
         target.parent.mkdir(parents=True, exist_ok=True)
         with target.open("x", encoding="utf-8", newline="\n") as fh:
             fh.write(_stamp(src.read_text(encoding="utf-8"), name))
-    secret = f"{env_prefix(name)}_TOKEN"
+    env_name = f"{env_prefix(name)}_TOKEN"  # a variable NAME; the value is never read here
     server = out / "dist" / "server.js"
     print(json.dumps({
         "ok": True,
@@ -91,9 +91,9 @@ def _scaffold_directory(name: str, lang: str, out: Path) -> int:
         "lang": lang,
         "path": str(out),
         "files": [rel.as_posix() for _, rel in files],
-        "secret": secret,
+        "envNames": [env_name],
         "run": "npm install && npm run build && node dist/server.js",
-        "probe": f'wicked-garden run scripts/mcp/probe.py --env {secret} -- node "{server}"',
+        "probe": f'wicked-garden run scripts/mcp/probe.py --env {env_name} -- node "{server}"',
     }, indent=2))
     return 0
 

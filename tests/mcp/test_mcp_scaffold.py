@@ -197,7 +197,7 @@ def test_typescript_is_the_default_and_stamps_the_name(tmp_path):
     report = json.loads(made.stdout)
 
     assert report["lang"] == "typescript"
-    assert report["secret"] == "ACME_NOTES_TOKEN"
+    assert report["envNames"] == ["ACME_NOTES_TOKEN"]
     assert report["run"] == "npm install && npm run build && node dist/server.js"
     assert report["probe"].startswith("wicked-garden run scripts/mcp/probe.py --env ACME_NOTES_TOKEN -- node ")
     assert report["probe"].endswith(f'"{tmp_path / "dist" / "server.js"}"')
