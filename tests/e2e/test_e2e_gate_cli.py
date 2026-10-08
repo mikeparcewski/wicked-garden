@@ -16,9 +16,10 @@ Outcomes asserted (positive + negative pairing — the plugin's own doctrine):
   - claimed-but-false 'done'     → satisfied:false, re_derived:true,  REJECT
   - backend disabled (cutover)   → satisfied:false, re_derived:false, unavailable
 
-Skips (does not fake-pass) when node / wicked-loom / wicked-vault are not
-resolvable — the same hermetic posture the rest of the suite uses. CI installs
-the peers (see .github/workflows/test.yml) so this RUNS rather than skips.
+Skips (does not fake-pass) when node / wicked-vault are not resolvable — the
+same hermetic posture the rest of the suite uses (loom is in-process since its
+absorption into scripts/loom/). CI installs wicked-vault (see
+.github/workflows/test.yml) so this RUNS rather than skips.
 """
 
 from __future__ import annotations
@@ -57,12 +58,14 @@ def _locate(env_var: str, *sibling_parts: str) -> str | None:
 
 
 _VAULT = _locate("WICKED_VAULT_BIN", "wicked-vault", "bin", "wicked-vault.mjs")
-_LOOM = _locate("WICKED_LOOM_BIN", "wicked-loom", "bin", "loom.mjs") or shutil.which("wicked-loom")
+# Loom runs in-process (scripts/loom/, absorbed from the retired wicked-loom package);
+# WICKED_LOOM_BIN is honoured only as an explicit override.
+_LOOM = os.environ.get("WICKED_LOOM_BIN")
 
 
-@unittest.skipIf(_VAULT is None or _LOOM is None,
-                 "needs runnable wicked-vault + wicked-loom (sibling checkout, "
-                 "PATH, or WICKED_*_BIN) — E2E gate is an integration test")
+@unittest.skipIf(_VAULT is None,
+                 "needs runnable wicked-vault (sibling checkout, PATH, or "
+                 "WICKED_VAULT_BIN) — E2E gate is an integration test")
 class GateCliEndToEndTests(unittest.TestCase):
     """Drive the gate the way the archetype playbooks tell agents to."""
 
@@ -97,7 +100,9 @@ class GateCliEndToEndTests(unittest.TestCase):
         # production CLI sees. project_dir is passed as an arg.
         env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
         env["WICKED_VAULT_BIN"] = _VAULT
-        env["WICKED_LOOM_BIN"] = _LOOM
+        env.pop("WICKED_LOOM_BIN", None)
+        if _LOOM:
+            env["WICKED_LOOM_BIN"] = _LOOM
         for k, v in extra_env_pairs:
             env[k] = v
         proc = subprocess.run(

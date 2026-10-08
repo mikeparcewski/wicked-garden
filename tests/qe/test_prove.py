@@ -1,9 +1,11 @@
 """Tests for prove.py — the one-line re-derivation verb.
 
 Unit layer (no peers): verifier parsing + fail-closed when the backend is
-disabled (deterministic). Integration layer (skip when node/loom/vault are
-absent): real PASS / REJECT through the actual CLI, proving the verb re-derives
-rather than asserts.
+disabled (deterministic). Integration layer (skip when node/vault are absent):
+real PASS / REJECT through the actual CLI, proving the verb re-derives rather
+than asserts. Loom is in-process (scripts/loom/, absorbed from the retired
+wicked-loom package); ``WICKED_LOOM_BIN`` is honoured only as an explicit
+override.
 """
 
 from __future__ import annotations
@@ -63,8 +65,17 @@ def _resolve_vault_argv():
 
 
 _VAULT_ARGV, _VAULT = _resolve_vault_argv()
-_LOOM = os.environ.get("WICKED_LOOM_BIN") or shutil.which("wicked-loom")
-_PEERS = bool(shutil.which("node") and _VAULT_ARGV and _LOOM)
+# Loom runs in-process (scripts/loom/); an external binary is only an explicit override.
+_LOOM = os.environ.get("WICKED_LOOM_BIN")
+_PEERS = bool(shutil.which("node") and _VAULT_ARGV)
+
+
+def _peer_env() -> dict:
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "WICKED_LOOM_BIN")}
+    env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_CUTOVER="on")
+    if _LOOM:
+        env["WICKED_LOOM_BIN"] = _LOOM
+    return env
 
 
 class VerifierParsingTests(unittest.TestCase):
@@ -147,12 +158,12 @@ def _e2e_guard(cls):
             self.fail(
                 "WICKED_REQUIRE_E2E is set but the trust-spine peers are not "
                 f"resolvable (node={bool(shutil.which('node'))}, "
-                f"vault_argv={_VAULT_ARGV}, loom={_LOOM}). These ProveEndToEnd "
+                f"vault_argv={_VAULT_ARGV}). These ProveEndToEnd "
                 "tests MUST run in CI — a skip here is the GREEN-BUT-HOLLOW "
-                "regression. Install: npm i -g wicked-vault wicked-loom.")
+                "regression. Install: npm i -g wicked-vault.")
         return type(cls.__name__, (unittest.TestCase,),
                     {"test_e2e_peers_required": _fail})
-    return unittest.skip("needs node + wicked-loom + wicked-vault")(cls)
+    return unittest.skip("needs node + wicked-vault")(cls)
 
 
 @_e2e_guard
@@ -170,9 +181,7 @@ class ProveEndToEndTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def _prove(self, command: str):
-        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-        env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_BIN=_LOOM,
-                   WICKED_LOOM_CUTOVER="on")
+        env = _peer_env()
         proc = subprocess.run(
             [sys.executable, str(_PROVE_CLI), "tests-pass", "--by", command,
              "--project-dir", str(self.proj)],
@@ -205,9 +214,7 @@ class ProveEndToEndTests(unittest.TestCase):
         # strong (created_by_source='explicit'). That is what lets an INDEPENDENT
         # reviewer (a DIFFERENT explicit actor) attest with no weak-identity flag
         # — while the vault still rejects a self-grade (evaluator == the doer).
-        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-        env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_BIN=_LOOM,
-                   WICKED_LOOM_CUTOVER="on")
+        env = _peer_env()
         # doer-only run → REJECT / UNATTESTED
         proc = subprocess.run(
             [sys.executable, str(_PROVE_CLI), "tests-pass", "--by", "true",
@@ -270,9 +277,7 @@ class ProveEndToEndTests(unittest.TestCase):
     # --- OUTPUT validation (not just exit codes): the capability the gate
     #     needs to be useful for produced artifacts, final or interim. ---
     def _prove_out(self, claim, command, verifier, phase):
-        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-        env.update(WICKED_VAULT_BIN=_VAULT, WICKED_LOOM_BIN=_LOOM,
-                   WICKED_LOOM_CUTOVER="on")
+        env = _peer_env()
         proc = subprocess.run(
             [sys.executable, str(_PROVE_CLI), claim, "--by", command,
              "--verifier", verifier, "--kind", "doc", "--scope", "s",
