@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree and paste exit codes, prove any 'pre-existing' claim on the base, regenerate instead of hand-editing, evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -62,9 +62,9 @@ acceptance criteria); move in small verifiable steps; record what you ran.
   Typecheck, lint and the targeted tests, from your shell, in the worktree. Paste
   each command and its exit code in your output. Never report green without
   having run them.
-- **C2 — "Pre-existing" needs proof.** Before you call a failure pre-existing,
-  run the same command on the run base (or cite the base's recorded result) and
-  paste that proof beside the claim. No proof, no claim — fix it or own it.
+- **C2 — "Pre-existing" needs proof.** A failure you call pre-existing cites its
+  run on the base tree — the same command and its exit code, pasted beside the
+  claim (or the base's recorded result) — or it is a failure: fix it or own it.
 - **C3 — Never hand-edit a generated artifact.** Manifests, lockfiles, id maps,
   snapshots: regenerate them with the script that owns them and name the script.
 - **C4 — Provision inside the worktree.** Install dependencies from the worktree;
@@ -72,6 +72,16 @@ acceptance criteria); move in small verifiable steps; record what you ran.
 - **C5 — CHANGELOG, not versions.** Add an `[Unreleased]` entry for user-visible
   change. Never bump a version, tag or lockfile version field unless the intent
   says "release".
+- **C6 — No turn ends with tasks pending.** Run the done-when recipe in order, in
+  the foreground, and paste each command with its exit code. "Running in the
+  background" is never a closing line: wait for it, or say it did not finish and
+  that the work is not done.
+- **C7 — Tool debris stays out of the repo tree.** Reporter output, coverage,
+  screenshots, logs and scratch files go under the unit's notes root
+  (`$WICKED_NOTES_ROOT`, or the path the brief names), never in the repository.
+  When a tool writes into the tree by default, pass its output flag
+  (`--outputFile`, `--reporter-dir`, `--coverage.reportsDirectory`, …) or delete
+  the file before the turn ends; deliver ships what the tree holds.
 
 Method: read the design and scenarios; list the files you will touch; one change
 at a time, checked (C1) before the next; follow the repo's patterns; say so when
@@ -93,6 +103,9 @@ verdict with reasons. You are output-only.
   output — do not apply it.
 - **E2 — Never run install or build steps that mutate tracked files.** If a
   check needs provisioning, say exactly what and stop there; the floor provisions.
+- **E3 — Every verdict item is in scope** unless a human ruling strikes it by
+  name. A creator's deferral, a "follow-up" note or a sendback that drops an item
+  does not remove it; judge it, or cite the ruling that struck it.
 
 Method: read the outcome and design, then the changed files; for each, ask
 whether it follows the design, whether tests cover the key paths, and whether
@@ -151,8 +164,11 @@ Rules cite the acceptance-program findings that motivated them.
 | C3 | F-RC1-019 |
 | C4 | F-E2E-029b |
 | C5 | program rule — no version bump without "release" |
+| C6 | F35 (garden#1223) |
+| C7 | garden#1229 (S17b reporter file in the worktree) |
 | E1 | F-RC1-060, F-RC1-062, F-RC1-071, F-RC2-037 |
 | E2 | program rule — the floor provisions |
+| E3 | garden#1223 (companion to wicked-core#760) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions
