@@ -48,11 +48,24 @@ Off by default: the OpenTelemetry SDK runs with no exporter unless
 ## Tools
 
 - **Generated (branch A):** `tools.json` holds the tools wicked-crew's conversion service
-  derived from an OpenAPI 3 document. `src/tools/generated.ts` registers each one; calls go
-  through `src/rest.ts`, pinned to `baseUrl`, allowlisted arguments only, no redirects.
+  derived from an OpenAPI 3 document — run
+  `wicked-garden run scripts/mcp/openapi.py --name __SERVER_NAME__ --base-url <url> --spec-url <url> --out .`
+  `src/tools/generated.ts` registers each one; calls go through `src/rest.ts`, pinned to
+  `baseUrl`, allowlisted arguments only, no redirects.
 - **Hand-written (branch B):** add a file like `src/tools/example.ts`: a zod schema, honest
   annotations, registered through `defineTool` (span, child logger, metrics, rate limit and
   `canAccess` come with it).
 
 Every tool gets a contract test (copy `test/contract/example.test.ts`); `npm test` also
 runs the stdio conformance smoke (`test/conformance.test.ts`).
+
+## Install
+
+```
+wicked-garden run scripts/mcp/install.py --dir .
+```
+
+builds and stages the server under `~/.wicked/mcp-servers/__SERVER_NAME__/current/`, probes
+it, registers it in wicked-crew's MCP registry (`auth.ref: env:__SERVER_ENV___TOKEN` — no value
+is ever sent), writes it into your CLI MCP configs through `wicked-installer mcp upsert` and
+records `installed.json`. Re-running it updates the installed copy in place, by key.
