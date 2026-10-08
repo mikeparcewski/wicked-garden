@@ -21,7 +21,7 @@ jobs:
 
       - name: Setup Node
         # Needed so the E2E gate/resilience tests (tests/e2e/) can resolve the
-        # wicked-loom / wicked-vault peers and RUN rather than skip.
+        # wicked-vault peer and RUN rather than skip (loom is in-process: scripts/loom/).
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: "24"
@@ -31,12 +31,14 @@ jobs:
         # (scripts/ci/validate.py mirrors the skills publish's yaml.safe_load).
         run: pip install pytest pyyaml
 
-      - name: Install wicked peers for E2E (required for the trust spine)
+      - name: Install wicked-vault for E2E (required for the trust spine)
         # The trust-spine tests (prove -> loom -> vault) MUST run in CI — a
-        # globally-installed vault now satisfies their peer requirement (the
-        # GREEN-BUT-HOLLOW fix). The install must succeed: if it fails, the
-        # trust spine cannot be exercised and the build is meaningless.
-        run: npm i -g wicked-vault wicked-loom
+        # globally-installed vault satisfies their peer requirement (the
+        # GREEN-BUT-HOLLOW fix); loom runs in-process (scripts/loom/, absorbed
+        # from the retired wicked-loom package, so it is no longer installed).
+        # The install must succeed: if it fails, the trust spine cannot be
+        # exercised and the build is meaningless.
+        run: npm i -g wicked-vault
 
       - name: Run v11 test suite (incl. tests/e2e/ — real-surface gate + resilience)
         # WICKED_REQUIRE_E2E=1 turns a SKIP of the trust-spine ProveEndToEnd
