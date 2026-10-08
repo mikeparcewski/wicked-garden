@@ -8,11 +8,14 @@ description: |
   broker injects, then probe it — initialize + tools/list, with each tool's
   class (read / write / destructive) derived exactly as the broker derives it.
 
-  Use when: "build an MCP server", "scaffold an MCP server", "wrap this
-  service as MCP tools", "new MCP tool server", "check my MCP server
-  answers", "probe an MCP server", or the studio MCP tools "Build a server"
-  run. NOT for registering or approving a server (studio MCP tools does
-  that) or for wrapping a plain REST API (studio MCP tools, Wrap an API).
+  Use when: "build an MCP server", "scaffold an MCP server", "make an MCP
+  server for this API", "from this OpenAPI document", "wrap this service as
+  MCP tools", "new MCP tool server", "check my MCP server answers", "probe
+  an MCP server", "install this MCP server for running", "update the
+  installed MCP server", the studio MCP tools "Build a server" run, or a
+  phase of the `mcp-server` workflow. NOT for approving a server's tools
+  (studio MCP tools does that) or for wrapping a plain REST API with no
+  server of its own (studio MCP tools, Wrap an API).
 metadata:
   role: router
   phases: "*"
@@ -21,7 +24,8 @@ metadata:
 
 # MCP scaffold
 
-Scaffold → add tools → probe → hand over for registration. The server you build is an
+Scaffold → generate tools from an OpenAPI document (or write them) → probe → install for
+running (or hand over for registration). The server you build is an
 **upstream** of the wicked-crew broker: the broker holds its connection and its secrets,
 judges every call through steering policy, and records every call. Your server only has
 to speak MCP over stdio and describe its tools honestly.
@@ -61,7 +65,31 @@ The one-file templates answer `initialize` (negotiating the protocol version), `
 (read) and `counter_increment` (write). The TypeScript template ships `echo` (read) plus
 whatever `tools.json` holds. Replace the examples with your own.
 
-## 2. Add tools: the contract
+## 2. Generate tools from an OpenAPI document (`openapi`)
+
+```
+wicked-garden run scripts/mcp/openapi.py --name <key> --base-url <url> (--spec <file> | --spec-url <url>) [--operations a,b] --out <dir> [--crew-url <origin>]
+```
+
+The conversion service is wicked-crew's (`POST /api/v1/mcp/servers/preview`, kind `rest`) —
+the same one studio's *Wrap an API* uses, so there is one OpenAPI reading in the platform.
+The daemon origin is `--crew-url`, else `$WICKED_CREW_URL` (set in every governed unit),
+else `http://127.0.0.1:7701`. One tool per operation; the class comes from the method
+(GET/HEAD/OPTIONS read, POST write, PUT/PATCH/DELETE destructive); 1 MB and 10 s bounds;
+external `$ref`s are not followed.
+
+- It writes `<dir>/tools.json` as `{"source": {specUrl | specFile, baseUrl, convertedAt},
+  "tools": [{name, description, inputSchema, annotations, class, rest}], "skipped": [...]}`
+  and sets `baseUrl` in `<dir>/mcp-server.config.json`. It refuses to overwrite a
+  `tools.json` that is not the empty template.
+- A local `--spec` is sent as JSON (YAML only when PyYAML is installed; otherwise it exits 2
+  telling you to pass `--spec-url`).
+- It never reads or sends a secret, and prints one JSON summary: tool count, classes,
+  skipped operations. Report the `skipped` list; each is an operation with no tool.
+- **No daemon answering → exit 2**: the conversion service is the wicked-crew daemon; write
+  the tools by hand (branch B). Never invent tools.
+
+## 3. Add tools: the contract
 
 **TypeScript (the skeleton's contract):**
 
@@ -124,7 +152,7 @@ or a config file.
 **stdout carries protocol frames only.** Log to stderr (the template's `log()`); one stray
 `print` on stdout breaks the session.
 
-## 3. Probe
+## 4. Probe
 
 ```
 wicked-garden run scripts/mcp/probe.py --timeout 30 --env <SERVER>_TOKEN -- node <dir>/dist/server.js
@@ -154,12 +182,50 @@ check that two replies come back, with `tools` in the second:
 {"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
 ```
 
-Then derive each tool's class by hand from the table in step 2.
+Then derive each tool's class by hand from the table in step 3.
 
-## 4. Hand over for registration
+## 5. Install for running (`install`)
 
-You do not register the server; the operator does, in studio **MCP tools**, **Add
-existing**: paste the run command and the secret. The preview lists every tool with its
+```
+wicked-garden run scripts/mcp/install.py (--from-run | --dir <server dir>) [--key <key>] [--from-npm <pkg>@<version>] [--cli all|claude,codex,opencode,antigravity,pi|none] [--crew-url <origin>] [--install-root <dir>] [--json]
+wicked-garden run scripts/mcp/install.py --uninstall <key>
+```
+
+Installs the built TypeScript server — or updates the installed copy — idempotent by the
+config's `key`:
+
+1. **Locate**: `--from-run` finds the one `mcp-server.config.json` under `$WICKED_TREE`
+   (else the cwd), outside `node_modules`/`dist`; more or fewer than one exits 2 naming the
+   candidates. `--dir` names it. The version is the config's `version`.
+2. **Stage**: `npm ci --ignore-scripts && npm run build` in the server dir, then `dist/`,
+   `package.json`, `package-lock.json`, `tools.json` and `mcp-server.config.json` are copied
+   to `<root>/<key>/next/` and `npm ci --omit=dev --ignore-scripts` runs there. The root is
+   `--install-root`, else `$WICKED_MCP_INSTALL_ROOT`, else `~/.wicked/mcp-servers`.
+   `--from-npm` installs a published package there instead.
+3. **Smoke**: the probe, passing `<SERVER>_TOKEN` through. A failure naming that variable is
+   `smoke: "pending_credential"` (disclosed, not failed); any other failure exits 1 with
+   `next/` removed and nothing else touched.
+4. **Swap**: `current/` → `previous/`, `next/` → `current/`. The command
+   `node <root>/<key>/current/dist/server.js` never changes across updates.
+5. **Register** in crew's MCP registry with `auth: {ref: "env:<SERVER>_TOKEN"}` — a reference
+   the daemon resolves from its own environment, never a value. A daemon missing the
+   variable answers `secret_missing`: the record says `registered: false`, `missing`, and two
+   remedies (export it in the daemon's environment and re-run; or studio **MCP tools → Add
+   existing** with the secret, stored in the OS keychain). No daemon: `registered: false`
+   with the reason. Re-registering the same key is the update (`registered: "updated"`).
+6. **CLI configs** through `wicked-installer mcp upsert` (never written by this script); an
+   installer without the verb is reported as `clis: "skipped: …"`, not failed.
+7. **Record** `<root>/<key>/installed.json` `{key, version, source, command, args,
+   envNames, installedAt, registered, smoke}` and print it with `probe`, `registry` and `clis`.
+
+Exit 0 when staged (even with a pending credential or no daemon — both are disclosed), 1 on
+a staging, smoke or registry failure, 2 on bad arguments. The first use of a newly
+registered server still waits for the operator's approval (step 6).
+
+## 6. Hand over for registration (when you do not install)
+
+The operator registers it in studio **MCP tools**, **Add existing**: paste the run command
+and the secret. The preview lists every tool with its
 class and what each phase role and seat would be allowed, asked or denied. Tell the
 operator the command, the tool list with classes, and the name of the environment variable
 that holds the secret (never its value).
@@ -183,12 +249,35 @@ skill was handed to you (`WICKED_RUN_ID` is set). This is the studio **Build a s
 run. Follow `wicked-garden-governed-worker`, and:
 
 - Write the server into the run's deliverable directory with step 1. Implement the tools
-  the intent names, annotated per step 2.
-- Probe it (step 3) and put the probe's JSON in your output as the evidence that it
+  the intent names, annotated per step 3.
+- Probe it (step 4) and put the probe's JSON in your output as the evidence that it
   answers. A probe failure is a finding to fix, not to report as done.
 - Do not register the server, add it to any CLI's MCP configuration, or start it outside
-  the probe. Do not put a secret anywhere: name the environment variable instead. On
-  deliver, studio offers the operator **Register**.
+  the probe — outside the `mcp-server` workflow's `install` phase. Do not put a secret
+  anywhere: name the environment variable instead.
+
+**The `mcp-server` workflow, phase by phase:**
+
+- **scope** — settle what to expose, the auth scheme, the transport (stdio unless a remote
+  client needs httpStream) and the **target directory**: the root of a near-empty repo, or a
+  subdirectory of an existing one. A repository that is not registered must be created and
+  registered by the operator first — say so, do not create it. Record whether an OpenAPI
+  document was given and whether to install when complete (the operator still decides at
+  the install gate).
+- **source-discovery** — with an OpenAPI document, run the `openapi` action (step 2) and
+  report the tool count, the classes and every `skipped` operation; without one, inventory
+  the integration surface (endpoints, SDK calls) the tools will wrap.
+- **design** — the tool table (name, schema, annotations, class), the auth plan (scheme and
+  the one `<SERVER>_TOKEN`, every non-secret parameter in `mcp-server.config.json`) and the
+  observability plan, each checked against the MCPS rules below.
+- **build** — scaffold (step 1), then branch A (generated tools from `tools.json`) or branch
+  B (hand-written tools through `defineTool`), with a contract test per tool and
+  `npm test` green; probe it (step 4).
+- **install** — a Tool phase runs `install.py --from-run` after an unconditional operator
+  gate (step 5). Read its record: `smoke` (`ok` or `pending_credential`), `registered`
+  (`true`, `"updated"`, or `false` with `missing`/`remedy` or `reason`) and `clis` (per-CLI
+  results, or why they were skipped). Exit 0 means staged; a disclosed pending credential is
+  not a failure.
 
 ## Steering this server follows
 
