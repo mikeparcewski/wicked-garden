@@ -18,13 +18,14 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-export const CHECK_CLASS = {
+export const CHECK_CLASS = Object.freeze({
+  __proto__: null,
   locator: "on_screen",
   probe: "state",
   artifact: "state",
   guard: "must_not_happen",
   join: "cross_check",
-};
+});
 
 /** The verifier the record tool hands the vault for a check (kept in step with walkthrough.mjs verifierForCheck). */
 export function defaultVerifier(kind) {
@@ -46,6 +47,11 @@ const SECRET_ENV = /(SECRET|TOKEN|PASSWORD|PASSWD|PASSPHRASE|API_?KEY|ACCESS_?KE
 // Inline-code flags: `node -e`, `python -c`, `sh -c`, ... — the fixture must be a script the tree declares.
 const INLINE_FLAGS = new Set(["-e", "-c", "--eval", "-p", "--print", "--command"]);
 const SCRIPT_LIKE = /\.(?:m?js|cjs|ts|mts|py|sh|rb|pl)$/i;
+
+/** The first line of a thrown value's message; never throws itself (a storyline can throw anything). */
+function why(e) {
+  try { return String(e?.message ?? e).split("\n")[0]; } catch { return "the storyline threw a value that cannot be read"; }
+}
 
 function hasDotDot(p) { return /(?:^|[\\/])\.\.(?:[\\/]|$)/.test(p); }
 
@@ -149,7 +155,7 @@ export function lintStoryline(story, { tree = null, steps = null, jq = "jq" } = 
       checkCount += 1;
       if (!SAFE_ID.test(String(c.id ?? ""))) add("check_id", cw, `id ${JSON.stringify(c.id)}: letters, digits, '.', '_' and '-' only`);
       else if (byId.has(c.id)) add("check_id", cw, `id ${JSON.stringify(c.id)} is used twice in this chapter`);
-      const cls = CHECK_CLASS[c.kind];
+      const cls = typeof c.kind === "string" && Object.hasOwn(CHECK_CLASS, c.kind) ? CHECK_CLASS[c.kind] : null;
       if (!cls) { add("check_kind", cw, `kind ${JSON.stringify(c.kind)} is not one of ${Object.keys(CHECK_CLASS).join(", ")}`); return; }
       classes[cls].push(c.id);
       if (cls === "must_not_happen") mustNotHappen += 1;
@@ -229,8 +235,14 @@ export async function lintAction({ root, storyline, tree, steps }) {
   try {
     story = (await import(pathToFileURL(storyPath).href)).default;
   } catch (e) {
-    return report([{ rule: "storyline_unloadable", where: storyPath, detail: String(e?.message ?? e).split("\n")[0] }]);
+    return report([{ rule: "storyline_unloadable", where: storyPath, detail: why(e) }]);
   }
-  const { findings, chapters, checks } = lintStoryline(story, { tree: tree ? path.resolve(tree) : null, steps });
-  return report(findings, { chapters, checks });
+  let result;
+  try {
+    result = lintStoryline(story, { tree: tree ? path.resolve(tree) : null, steps });
+  } catch (e) {
+    // A storyline that throws while being read (a getter, a proxy) is a finding, never a crash without a report.
+    return report([{ rule: "storyline_unreadable", where: storyPath, detail: why(e) }]);
+  }
+  return report(result.findings, { chapters: result.chapters, checks: result.checks });
 }

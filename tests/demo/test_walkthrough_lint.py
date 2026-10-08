@@ -230,3 +230,24 @@ def test_the_skills_documented_example_passes(tmp_path):
     code, report, err = _lint("--root", str(_author(tmp_path, example)))
     assert code == 0, err
     assert report["chapters"] == 1 and report["checks"] == 4
+
+
+@pytest.mark.parametrize("kind", ["toString", "constructor", "__proto__"])
+def test_an_inherited_property_name_is_an_unknown_kind_not_a_crash(tmp_path, kind):
+    text = VALID.replace('kind: "guard"', f'kind: "{kind}"')
+    code, report, _ = _lint("--root", str(_author(tmp_path, text)))
+    assert code == 1 and "check_kind" in _rules(report)
+
+
+def test_a_storyline_that_throws_while_read_is_a_finding(tmp_path):
+    text = 'export default { baseUrl: "fixture", get segments() { throw new Error("boom"); } };'
+    code, report, _ = _lint("--root", str(_author(tmp_path, text)))
+    assert code == 1 and _rules(report) == {"storyline_unreadable"}
+    assert report["findings"][0]["detail"] == "boom"
+
+
+def test_an_unprintable_throw_is_still_a_finding(tmp_path):
+    text = ('export default { baseUrl: "fixture", get segments() { throw { get message() { throw 1; }, '
+            'toString() { throw 2; } }; } };')
+    code, report, _ = _lint("--root", str(_author(tmp_path, text)))
+    assert code == 1 and _rules(report) == {"storyline_unreadable"}
