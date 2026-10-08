@@ -3,8 +3,12 @@
 //
 //   wicked-garden run scripts/demo/walkthrough.mjs record [--storyline <path>]
 //   wicked-garden run scripts/demo/walkthrough.mjs seal   --root <dir>
+//   wicked-garden run scripts/demo/walkthrough.mjs lint   --root <author dir> [--storyline <path>] [--tree <dir>] [--steps <id,...>]
 //
 // Required env for record: WICKED_EVIDENCE_ROOT, WICKED_RUN_ID, WICKED_RUN_UNIT, WICKED_TREE
+// The storyline: --storyline <path>, else $WICKED_WALKTHROUGH_AUTHOR/storyline.mjs (the walkthrough_plan step's
+// author dir, which the engine hands the record tool); with neither, record refuses (storyline_refused).
+// lint (walkthrough-lint.mjs, DES §4.5) is the walkthrough_plan step's pinned validator: exit 0 = no finding.
 // Safety: WICKED_WALKTHROUGH_JAIL must be set; without it writes INCONCLUSIVE(unjailed_host) and exits 0.
 //
 // What the proof root holds is ONE contract with crew's walkthrough view and acceptance
@@ -39,6 +43,7 @@ import { tmpdir } from "node:os";
 import { makeSegmentRecorder, failedAtInVideo, stitchParts, extractFrame, SEGMENT_TRIM_START } from "./record.mjs";
 import { fixtureOrigin } from "./readonly.mjs";
 import { crewRunStamp } from "../qe/lib/crew-run.mjs";
+import { lintAction } from "./walkthrough-lint.mjs";
 
 // ---- arg parsing ---------------------------------------------------------------
 const [action, ...rawArgs] = process.argv.slice(2);
@@ -48,9 +53,20 @@ function argVal(flag) {
   return i >= 0 ? rawArgs[i + 1] ?? null : null;
 }
 
-if (action !== "record" && action !== "seal") {
-  process.stderr.write("usage: walkthrough.mjs <record|seal> [--storyline <path>] [--root <dir>]\n");
+if (action !== "record" && action !== "seal" && action !== "lint") {
+  process.stderr.write("usage: walkthrough.mjs <record|seal|lint> [--storyline <path>] [--root <dir>]\n");
   process.exit(2);
+}
+
+// ---- lint action (standalone; the walkthrough_plan step's pinned validator) ------
+if (action === "lint") {
+  const steps = argVal("--steps");
+  process.exit(await lintAction({
+    root: argVal("--root") ?? process.env.WICKED_EVIDENCE_ROOT ?? null,
+    storyline: argVal("--storyline"),
+    tree: argVal("--tree"),
+    steps: steps ? steps.split(",").map((x) => x.trim()).filter(Boolean) : null,
+  }));
 }
 
 // ---- seal action (standalone, no env required) ---------------------------------
@@ -92,10 +108,13 @@ function tryStaticSegmentKeys(filePath) {
 }
 
 // Resolve storyline path early so the jail check can enumerate chapters.
+// --storyline wins; else the author dir the engine hands the record tool (wicked-core `record_launch`). Not the
+// unit ordinal (WICKED_RUN_UNIT): the author writes under its own plan step's id (wicked-garden#1231).
+const AUTHOR_DIR = process.env.WICKED_WALKTHROUGH_AUTHOR ? path.resolve(process.env.WICKED_WALKTHROUGH_AUTHOR) : null;
 const _earlyStoryPath = (() => {
   const arg = argVal("--storyline");
   if (arg) return path.resolve(arg);
-  return path.join(path.dirname(ROOT), "author", STEP_ID, "storyline.mjs");
+  return AUTHOR_DIR ? path.join(AUTHOR_DIR, "storyline.mjs") : null;
 })();
 
 // ---- jail check ----------------------------------------------------------------
@@ -852,18 +871,12 @@ async function main() {
     ? parseInt(process.env.WICKED_WALKTHROUGH_DISK_CAP, 10) : 0;
 
   // Locate storyline
-  const storyArgPath = argVal("--storyline");
-  let storyPath;
-  if (storyArgPath) {
-    storyPath = path.resolve(storyArgPath);
-  } else {
-    const authorDir = path.join(path.dirname(ROOT), "author", STEP_ID);
-    const autoPath = path.join(authorDir, "storyline.mjs");
-    storyPath = autoPath;
-  }
+  const storyPath = _earlyStoryPath;
 
-  if (!fs.existsSync(storyPath)) {
-    writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: `storyline not found: ${storyPath}`, chapters: [] });
+  if (!storyPath || !fs.existsSync(storyPath)) {
+    const reason = storyPath ? `storyline not found: ${storyPath}`
+      : "no storyline: pass --storyline <path> or set WICKED_WALKTHROUGH_AUTHOR (the walkthrough_plan author dir)";
+    writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason, chapters: [] });
     writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
     finishWithSeal(ROOT, { tree: TREE, storyline_sha: null, contract_shas: {}, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: [] });
     process.exit(0);
