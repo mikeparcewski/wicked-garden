@@ -20,7 +20,8 @@ function converse(env: NodeJS.ProcessEnv, frames: object[], want: number[]): Pro
     const child = spawn(process.execPath, [SERVER], { env, stdio: ["pipe", "pipe", "pipe"] });
     const replies = new Map<number, any>();
     let buf = "";
-    const timer = setTimeout(() => { child.kill(); reject(new Error(`timed out; got ${[...replies.keys()]}`)); }, 20_000);
+    // Generous: loading fastmcp + the OpenTelemetry SDK takes seconds on a loaded host.
+    const timer = setTimeout(() => { child.kill(); reject(new Error(`timed out; got ${[...replies.keys()]}`)); }, 60_000);
     child.stdout.on("data", (chunk: Buffer) => {
       buf += chunk.toString("utf8");
       let nl: number;
@@ -91,7 +92,7 @@ describe("httpStream", () => {
     });
     try {
       let status = 0;
-      for (let i = 0; i < 100 && status === 0; i++) {
+      for (let i = 0; i < 240 && status === 0; i++) {
         try {
           const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
             method: "POST",
