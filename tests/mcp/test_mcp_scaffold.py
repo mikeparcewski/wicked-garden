@@ -15,6 +15,9 @@ and the scaffold refuses a bad name or an existing file instead of overwriting i
 from __future__ import annotations
 
 import json
+import os
+import re
+import shutil
 import subprocess
 import sys
 import textwrap
@@ -173,3 +176,149 @@ def test_skill_names_both_scripts_through_the_launcher():
 
     assert "wicked-garden run scripts/mcp/scaffold.py" in body
     assert "wicked-garden run scripts/mcp/probe.py" in body
+
+
+# ── The TypeScript template (fastmcp + OpenTelemetry + loglayer) ─────────────────────────────
+
+TS_SCRIPTS = {"build", "typecheck", "lint", "test", "start"}
+SPDX_LINE = "// SPDX-License-Identifier: MIT"
+
+
+def _scaffold_ts(out: Path, name: str = "acme-notes", *extra: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(SCAFFOLD), "--name", name, "--out", str(out), *extra],
+        capture_output=True, text=True, timeout=TIMEOUT_S,
+    )
+
+
+def test_typescript_is_the_default_and_stamps_the_name(tmp_path):
+    made = _scaffold_ts(tmp_path)
+    assert made.returncode == 0, made.stderr
+    report = json.loads(made.stdout)
+
+    assert report["lang"] == "typescript"
+    assert report["secret"] == "ACME_NOTES_TOKEN"
+    assert report["run"] == "npm install && npm run build && node dist/server.js"
+    assert report["probe"].startswith("wicked-garden run scripts/mcp/probe.py --env ACME_NOTES_TOKEN -- node ")
+    assert report["probe"].endswith(f'"{tmp_path / "dist" / "server.js"}"')
+    package = json.loads((tmp_path / "package.json").read_text(encoding="utf-8"))
+    assert package["name"] == "acme-notes"
+    assert TS_SCRIPTS <= set(package["scripts"])
+    assert package["engines"]["node"].startswith(">=22")
+    assert package["type"] == "module"
+    assert set(package["files"]) == {"dist", "tools.json", "mcp-server.config.json"}
+    config = json.loads((tmp_path / "mcp-server.config.json").read_text(encoding="utf-8"))
+    assert config["key"] == "acme-notes" and config["version"] == "0.1.0"
+    assert config["auth"]["scheme"] == "bearer"
+    assert json.loads((tmp_path / "tools.json").read_text(encoding="utf-8")) == {"tools": []}
+    assert "__SERVER_NAME__" not in (tmp_path / "src" / "server.ts").read_text(encoding="utf-8")
+    assert "acme-notes" in (tmp_path / "src" / "server.ts").read_text(encoding="utf-8")
+    assert (tmp_path / ".gitignore").is_file() and (tmp_path / ".env.example").is_file()
+    assert "ACME_NOTES_TOKEN=" in (tmp_path / ".env.example").read_text(encoding="utf-8")
+
+
+def test_typescript_files_carry_spdx_and_no_placeholder_or_secret(tmp_path):
+    assert _scaffold_ts(tmp_path).returncode == 0
+    files = [p for p in tmp_path.rglob("*") if p.is_file()]
+    ts_files = [p for p in files if p.suffix == ".ts"]
+    assert len(ts_files) >= 10
+    env_names = [line.split("=", 1)[0].lstrip("# ").strip()
+                 for line in (tmp_path / ".env.example").read_text(encoding="utf-8").splitlines()
+                 if "=" in line]
+    assert "ACME_NOTES_TOKEN" in env_names
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        rel = path.relative_to(tmp_path)
+        for marker in ("__SERVER_NAME__", "__SERVER_ENV__", "__YEAR__"):
+            assert marker not in text, f"{rel} keeps {marker}"
+        for leak in ("AKIA", "sk-"):
+            assert leak not in text, f"{rel} carries {leak!r}"
+        # `Bearer ${...}` builds the header from the secret; a literal token never appears.
+        assert not re.search(r"Bearer [A-Za-z0-9._~+/=-]{12,}", text), f"{rel} carries a bearer value"
+        for name in env_names:  # .env.example names a variable, never a value
+            for line in text.splitlines():
+                stripped = line.strip().lstrip("# ")
+                if stripped.startswith(f"{name}="):
+                    assert stripped == f"{name}=", f"{rel} sets a value for {name}"
+    for path in ts_files:
+        assert path.read_text(encoding="utf-8").splitlines()[0] == SPDX_LINE, path
+
+
+def test_typescript_scaffolds_into_a_dir_holding_unrelated_files(tmp_path):
+    (tmp_path / "README.other.md").write_text("keep me", encoding="utf-8")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "unrelated.py").write_text("x = 1\n", encoding="utf-8")
+
+    made = _scaffold_ts(tmp_path, "acme-notes", "--lang", "typescript")
+
+    assert made.returncode == 0, made.stderr
+    assert (tmp_path / "README.other.md").read_text(encoding="utf-8") == "keep me"
+    assert (tmp_path / "src" / "unrelated.py").is_file()
+    assert (tmp_path / "src" / "server.ts").is_file()
+
+
+def test_typescript_refuses_a_collision_before_writing_anything(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "server.ts").write_text("mine\n", encoding="utf-8")
+
+    made = _scaffold_ts(tmp_path)
+
+    assert made.returncode == 2
+    assert "server.ts" in made.stderr and "exists" in made.stderr
+    assert (tmp_path / "src" / "server.ts").read_text(encoding="utf-8") == "mine\n"
+    assert not (tmp_path / "package.json").exists(), "nothing is written when one file collides"
+
+
+def test_probe_passes_only_the_named_variable_and_reports_it_by_name(tmp_path, monkeypatch):
+    server = tmp_path / "needs_token.py"
+    server.write_text(textwrap.dedent('''
+        import json, os, sys
+        if not os.environ.get("ACME_NOTES_TOKEN"):
+            sys.stderr.write("ACME_NOTES_TOKEN is not set\\n")
+            sys.exit(1)
+        assert "OTHER_SECRET" not in os.environ
+        for line in sys.stdin:
+            msg = json.loads(line)
+            if "id" not in msg:
+                continue
+            if msg["method"] == "initialize":
+                result = {"protocolVersion": msg["params"]["protocolVersion"],
+                          "capabilities": {"tools": {}}, "serverInfo": {"name": "t", "version": "0"}}
+            else:
+                result = {"tools": []}
+            print(json.dumps({"jsonrpc": "2.0", "id": msg["id"], "result": result}), flush=True)
+    '''), encoding="utf-8")
+    monkeypatch.setenv("OTHER_SECRET", "nope")
+    monkeypatch.delenv("ACME_NOTES_TOKEN", raising=False)
+
+    missing = subprocess.run([sys.executable, str(PROBE), "--env", "ACME_NOTES_TOKEN", "--",
+                              sys.executable, str(server)], capture_output=True, text=True,
+                             timeout=TIMEOUT_S)
+    monkeypatch.setenv("ACME_NOTES_TOKEN", "dummy-value")
+    present = subprocess.run([sys.executable, str(PROBE), "--env", "ACME_NOTES_TOKEN", "--",
+                              sys.executable, str(server)], capture_output=True, text=True,
+                             timeout=TIMEOUT_S)
+
+    assert missing.returncode == 1
+    assert json.loads(missing.stdout)["stderrNames"] == ["ACME_NOTES_TOKEN"]
+    assert present.returncode == 0, present.stdout
+    assert "dummy-value" not in present.stdout + missing.stdout
+
+
+@pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") != "1",
+                    reason="needs the npm registry: set WICKED_GARDEN_E2E_NPM=1")
+def test_typescript_template_installs_builds_tests_and_probes(tmp_path):
+    out = tmp_path / "acme"
+    assert _scaffold_ts(out).returncode == 0
+    npm = shutil.which("npm")
+    for step in (["install", "--no-audit", "--no-fund"], ["run", "build"], ["run", "lint"],
+                 ["test"]):
+        done = subprocess.run([npm, *step], cwd=out, capture_output=True, text=True, timeout=600,
+                              env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
+        assert done.returncode == 0, (step, done.stdout[-4000:], done.stderr[-4000:])
+    proc = subprocess.run([sys.executable, str(PROBE), "--env", "ACME_NOTES_TOKEN", "--", "node",
+                           str(out / "dist" / "server.js")], capture_output=True, text=True,
+                          timeout=TIMEOUT_S, env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
+    probed = json.loads(proc.stdout)
+    assert probed["ok"] is True, probed
+    assert {t["name"]: t["class"] for t in probed["tools"]} == {"echo": "read"}

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Probe a stdio MCP server: does it answer ``initialize`` and ``tools/list``?
 
-    wicked-garden run scripts/mcp/probe.py [--timeout 10] -- <command> [args...]
+    wicked-garden run scripts/mcp/probe.py [--timeout 10] [--env NAME]... -- <command> [args...]
 
 Spawns ``<command>`` with a minimal environment (PATH, HOME and the OS system/temp
-variables only — no secrets, no ambient tokens), runs the MCP handshake, lists every tool
+variables only — no secrets, no ambient tokens) plus exactly the variables named with
+``--env`` (passed through from the caller's environment when set; a value is never
+printed), runs the MCP handshake, lists every tool
 (following ``nextCursor``) and derives each tool's class the way the wicked-crew broker does
 (DES-MCP-TOOLS-001 §4.2):
 
@@ -14,7 +16,9 @@ variables only — no secrets, no ambient tokens), runs the MCP handshake, lists
     no annotations at all     -> write         (default D-4)
 
 Prints one JSON object on stdout and exits 0 when the server answered both requests, 1
-otherwise. The server's stderr is discarded, never echoed. Standard library only.
+otherwise. The server's stderr is never echoed: on a failure the report lists only which
+``--env`` NAMES it mentioned (``stderrNames``) — how a server that refuses to start without
+its secret is told apart from a broken one. Standard library only.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 ENV_KEEP = ("PATH", "PATHEXT", "HOME", "USERPROFILE", "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR",
             "COMSPEC", "TEMP", "TMP", "TMPDIR", "LANG")
 MAX_PAGES = 50
+STDERR_CAP = 64 * 1024
 STOP_GRACE_S = 2.0
 
 
@@ -53,19 +58,34 @@ def tool_class(tool: dict) -> str:
 class Session:
     """One spawned server; frames are newline-delimited JSON-RPC on its stdio."""
 
-    def __init__(self, command: list[str], timeout_s: float):
-        env = {k: os.environ[k] for k in ENV_KEEP if k in os.environ}
+    def __init__(self, command: list[str], timeout_s: float, pass_env: tuple[str, ...] = ()):
+        env = {k: os.environ[k] for k in (*ENV_KEEP, *pass_env) if k in os.environ}
         try:
             self.proc = subprocess.Popen(
                 command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                stderr=subprocess.DEVNULL, env=env, text=True, encoding="utf-8", bufsize=1,
+                stderr=subprocess.PIPE, env=env, text=True, encoding="utf-8",
+                errors="replace", bufsize=1,
             )
         except OSError as err:
             raise ProbeError(f"cannot start server: {err}") from err
+        self.stderr = ""
+        self._stderr_done = threading.Event()
+        threading.Thread(target=self._drain_stderr, daemon=True).start()
         self.deadline = time.monotonic() + timeout_s
         self.lines: queue.Queue[str | None] = queue.Queue()
         self.next_id = 0
         threading.Thread(target=self._pump, daemon=True).start()
+
+    def _drain_stderr(self) -> None:
+        # Kept in memory, capped, for the stderrNames check only; never printed.
+        for line in self.proc.stderr:
+            if len(self.stderr) < STDERR_CAP:
+                self.stderr += line
+        self._stderr_done.set()
+
+    def stderr_names(self, names: tuple[str, ...]) -> list[str]:
+        self._stderr_done.wait(timeout=STOP_GRACE_S)
+        return [n for n in names if n in self.stderr]
 
     def _pump(self) -> None:
         for line in self.proc.stdout:
@@ -125,8 +145,8 @@ class Session:
             self.proc.wait()
 
 
-def probe(command: list[str], timeout_s: float) -> dict:
-    session = Session(command, timeout_s)
+def probe(command: list[str], timeout_s: float, pass_env: tuple[str, ...] = ()) -> dict:
+    session = Session(command, timeout_s, pass_env)
     try:
         init = session.request("initialize", {
             "protocolVersion": PROTOCOL_VERSIONS[0],
@@ -153,6 +173,10 @@ def probe(command: list[str], timeout_s: float) -> dict:
                 break
         else:
             raise ProbeError(f"tools/list did not finish within {MAX_PAGES} pages")
+    except ProbeError as err:
+        session.close()
+        err.stderr_names = session.stderr_names(pass_env)
+        raise
     finally:
         session.close()
     return _report(init, version, tools)
@@ -189,15 +213,20 @@ def _report(init: dict, version: str, tools: list[dict]) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--timeout", type=float, default=10.0, help="seconds for the whole probe")
+    parser.add_argument("--env", action="append", default=[], metavar="NAME",
+                        help="pass this one variable through to the server (repeatable)")
     parser.add_argument("command", nargs=argparse.REMAINDER, help="-- <command> [args...]")
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
     if not command:
         parser.error("give the server command after --")
     try:
-        report = probe(command, args.timeout)
+        report = probe(command, args.timeout, tuple(args.env))
     except ProbeError as err:
-        print(json.dumps({"ok": False, "error": str(err)}, indent=2))
+        failed = {"ok": False, "error": str(err)}
+        if args.env:
+            failed["stderrNames"] = getattr(err, "stderr_names", [])
+        print(json.dumps(failed, indent=2))
         return 1
     print(json.dumps(report, indent=2))
     return 0
