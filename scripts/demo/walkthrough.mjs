@@ -531,7 +531,8 @@ async function runCollector(def, { stage, root, dataDir, seg, id, priorCaptures,
       const joined = {};
       for (const srcId of (def.sources ?? [])) {
         const cap = (priorCaptures ?? {})[srcId];
-        joined[srcId] = cap?.parsed ?? cap?.inner_text ?? null;
+        // An artifact source joins as its sha256 — present iff the artifact verifier passed it (garden#1246).
+        joined[srcId] = cap?.parsed ?? cap?.inner_text ?? cap?.sha256 ?? null;
       }
       return { joined };
     }
