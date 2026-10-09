@@ -27,7 +27,9 @@ async function main(): Promise<void> {
   });
 
   const generated = registerGeneratedTools(server, config, () => upstreamHeaders(config, secret));
-  registerExampleTools(server, config);
+  // The example `echo` tool only stands in while tools.json is empty: a server with generated
+  // tools exposes exactly those (plus whatever you register by hand).
+  if (generated === 0) registerExampleTools(server, config);
   root.withMetadata({ generated, transport: config.transport }).info("starting");
 
   const stop = async () => {

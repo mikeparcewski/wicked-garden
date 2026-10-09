@@ -322,3 +322,43 @@ def test_typescript_template_installs_builds_tests_and_probes(tmp_path):
     probed = json.loads(proc.stdout)
     assert probed["ok"] is True, probed
     assert {t["name"]: t["class"] for t in probed["tools"]} == {"echo": "read"}
+
+    # Branch A (garden#1249): with a generated tools.json the BUILT server must still start and
+    # list exactly the generated tools — a raw JSON Schema handed to fastmcp kills it at startup.
+    (out / "tools.json").write_text(json.dumps({"tools": [GENERATED_TOOL]}), encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(PROBE), "--timeout", "30", "--env", "ACME_NOTES_TOKEN", "--", "node",
+                           str(out / "dist" / "server.js")], capture_output=True, text=True,
+                          timeout=TIMEOUT_S * 2, env={**os.environ, "ACME_NOTES_TOKEN": "dummy"})
+    probed = json.loads(proc.stdout)
+    assert probed["ok"] is True, probed
+    assert {t["name"]: t["class"] for t in probed["tools"]} == {"get_note": "read"}
+
+
+GENERATED_TOOL = {
+    "name": "get_note", "description": "Read one note", "class": "read",
+    "inputSchema": {"type": "object", "properties": {"id": {"type": "string", "format": "uuid"}},
+                    "required": ["id"]},
+    "rest": {"method": "GET", "pathTemplate": "/notes/{id}", "pathMap": {"id": "id"}, "queryMap": {},
+             "headerMap": {}, "bodyMap": None, "bodyArg": None, "argAllowlist": ["id"],
+             "timeoutMs": 5000},
+}
+
+
+def test_typescript_generated_tools_reach_fastmcp_as_a_standard_schema(tmp_path):
+    """garden#1249, pinned without npm: generated tools go through jsonSchemaAdapter (ajv is a
+    direct dependency, not a hoisting accident), the example tool only stands in while
+    tools.json is empty, upstream error bodies are scrubbed, and the base-URL override keeps
+    the committed origin. The npm E2E above and the template's own conformance suite boot it."""
+    assert _scaffold_ts(tmp_path).returncode == 0
+    generated = (tmp_path / "src" / "tools" / "generated.ts").read_text(encoding="utf-8")
+    assert "parameters: jsonSchemaAdapter(" in generated
+    assert "t.inputSchema as unknown as ToolParameters" not in generated
+    assert "upstreamError(result.status" in generated
+    deps = json.loads((tmp_path / "package.json").read_text(encoding="utf-8"))["dependencies"]
+    assert {"ajv", "ajv-formats"} <= set(deps)
+    server = (tmp_path / "src" / "server.ts").read_text(encoding="utf-8")
+    assert "if (generated === 0) registerExampleTools(server, config);" in server
+    assert "committed baseUrl origin" in (tmp_path / "src" / "config.ts").read_text(encoding="utf-8")
+    conformance = (tmp_path / "test" / "conformance.test.ts").read_text(encoding="utf-8")
+    assert "generated tools (branch A)" in conformance
+

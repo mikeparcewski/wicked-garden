@@ -31,6 +31,8 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
     "@opentelemetry/sdk-logs": "^0.223.0",
     "@opentelemetry/sdk-node": "^0.223.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "fastmcp": "^4.22.4",
     "loglayer": "^9.4.0",
     "zod": "^4.6.5"

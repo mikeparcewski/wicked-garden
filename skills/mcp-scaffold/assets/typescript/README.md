@@ -35,7 +35,8 @@ registry inject exactly one environment variable into a stdio server. See `.env.
 
 Optional overrides: `MCP_TRANSPORT` (`stdio` | `httpStream`), `MCP_HOST` (default
 `127.0.0.1`), `MCP_PORT`,
-`__SERVER_ENV___BASE_URL`. httpStream requires `MCP_SERVER_BEARER`: every request must carry
+`__SERVER_ENV___BASE_URL` (the path may change, the origin may not: the secret follows the base
+URL, so a different host is a reviewed edit to `mcp-server.config.json`). httpStream requires `MCP_SERVER_BEARER`: every request must carry
 `Authorization: Bearer <it>` or is refused with 401.
 
 ## Telemetry
@@ -50,8 +51,11 @@ Off by default: the OpenTelemetry SDK runs with no exporter unless
 - **Generated (branch A):** `tools.json` holds the tools wicked-crew's conversion service
   derived from an OpenAPI 3 document — run
   `wicked-garden run scripts/mcp/openapi.py --name __SERVER_NAME__ --base-url <url> --spec-url <url> --out .`
-  `src/tools/generated.ts` registers each one; calls go through `src/rest.ts`, pinned to
-  `baseUrl`, allowlisted arguments only, no redirects.
+  `src/tools/generated.ts` registers each one (its JSON Schema wrapped in fastmcp's
+  `jsonSchemaAdapter`, validated with `ajv`); calls go through `src/rest.ts`, pinned to
+  `baseUrl`, allowlisted arguments only, no redirects. An upstream 4xx/5xx reaches the caller
+  as a tool error carrying the status and a bounded body excerpt with the credential scrubbed.
+  The example `echo` tool is registered only while `tools.json` is empty.
 - **Hand-written (branch B):** add a file like `src/tools/example.ts`: a zod schema, honest
   annotations, registered through `defineTool` (span, child logger, metrics, rate limit and
   `canAccess` come with it).

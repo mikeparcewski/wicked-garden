@@ -111,7 +111,8 @@ def rig(tmp_path):
     return r
 
 
-def _registry(daemon: FakeDaemon, diff=None):
+def _registry(daemon: FakeDaemon, diff=None, servers=None):
+    daemon.routes[("GET", SAVE)] = (200, {"servers": servers or [], "discovered": []})
     daemon.routes[("POST", PREVIEW)] = (200, {"previewHash": "ph-1", "diff": diff, "policies": {"read": "allow"},
                                               "tools": [{"name": "echo"}, {"name": "counter_increment"}]})
     daemon.routes[("POST", SAVE)] = (200, {"name": "acme-notes"})
@@ -130,7 +131,8 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
     assert out["registry"] == {"server": "acme-notes", "tools": 2, "policies": {"read": "allow"}}
     assert out["command"] == "node" and out["args"] == [str(current_js)]
     assert out["envNames"] == [VAR]
-    preview, save = daemon.requests
+    listed, preview, save = daemon.requests
+    assert (listed["method"], listed["path"]) == ("GET", SAVE), "the key is checked before staging"
     assert preview["path"] == PREVIEW and preview["body"] == {
         "name": "acme-notes", "kind": "mcp-stdio", "command": "node", "args": [str(current_js)],
         "auth": {"ref": f"env:{VAR}", "env": VAR}}
@@ -163,7 +165,8 @@ def test_second_install_updates_in_place(rig):
     assert json.loads((rig.root / "current" / "tools.json").read_text(encoding="utf-8"))["v"] == 2
     first, second = rig.calls("wicked-installer")
     assert first["argv"] == second["argv"], "the CLI entry never changes on an update"
-    assert daemon.requests[0]["body"]["args"] == daemon.requests[2]["body"]["args"]
+    posts = [r for r in daemon.requests if r["method"] == "POST"]
+    assert posts[0]["body"]["args"] == posts[2]["body"]["args"]
 
 
 def test_secret_missing_is_disclosed_not_failed(rig):
@@ -175,7 +178,7 @@ def test_secret_missing_is_disclosed_not_failed(rig):
     assert out["registered"] is False and out["missing"] == [VAR]
     assert len(out["remedy"]) == 2
     assert VAR in out["remedy"][0] and "Add existing" in out["remedy"][1]
-    assert [r["path"] for r in daemon.requests] == [PREVIEW], "nothing is saved"
+    assert [r["path"] for r in daemon.requests if r["method"] == "POST"] == [PREVIEW], "nothing is saved"
     assert (rig.root / "current" / "dist" / "server.js").is_file()
 
 
@@ -211,7 +214,8 @@ def test_a_probe_failure_exits_1_and_leaves_current_untouched(rig):
     assert code == 1 and out["ok"] is False and "smoke" in out["error"]
     assert (rig.root / "current" / "dist" / "server.js").read_text(encoding="utf-8") == before
     assert not (rig.root / "next").exists() and not (rig.root / "previous").exists()
-    assert len(daemon.requests) == 2, "the failed install never reached the registry"
+    assert len([r for r in daemon.requests if r["method"] == "POST"]) == 2, \
+        "the failed install never reached the registry"
 
 
 def test_an_installer_without_the_verb_is_skipped(rig):
@@ -286,3 +290,49 @@ def test_uninstall_keeps_everything_when_the_registry_refuses(rig):
 
     assert code == 1 and "store locked" in out["error"]
     assert (rig.root / "current" / "dist" / "server.js").is_file()
+
+
+def _theirs(**over):
+    return {"name": "acme-notes", "kind": "rest", "command": None, "args": [],
+            "url": "https://petstore.example/v3", **over}
+
+
+@pytest.mark.parametrize("existing", [
+    _theirs(),                                                     # another kind (the dogfood case)
+    _theirs(kind="mcp-stdio", command="node", args=["/elsewhere/server.js"], url=None),
+])
+def test_a_different_server_under_the_key_refuses_before_writing(rig, existing):
+    """garden#1250: the same key is an update only of THIS install; another server under the
+    key (a REST entry named the same, or a stdio server elsewhere) refuses, writing nothing."""
+    with FakeDaemon() as daemon:
+        _registry(daemon, servers=[existing])
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+
+    assert code == 1, out
+    assert "different server under the key 'acme-notes'" in out["error"]
+    assert existing["kind"] in out["error"] and "--uninstall acme-notes" in out["error"]
+    assert [r["method"] for r in daemon.requests] == ["GET"], "nothing was previewed or saved"
+    assert rig.calls("npm") == [] and rig.calls("wicked-installer") == []
+    assert not rig.root.exists(), "nothing staged"
+
+
+def test_the_same_install_under_the_key_is_the_update(rig):
+    current_js = rig.root / "current" / "dist" / "server.js"
+    with FakeDaemon() as daemon:
+        _registry(daemon, diff={"registered": [], "gone": []}, servers=[
+            _theirs(kind="mcp-stdio", command="node", args=[str(current_js)], url=None)])
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+
+    assert code == 0, out
+    assert out["registered"] == "updated"
+
+
+def test_an_unreadable_registry_refuses_before_writing(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        daemon.routes[("GET", SAVE)] = (503, {"error": "registry unavailable"})
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+
+    assert code == 1, out
+    assert "cannot read the registry" in out["error"] and "registry unavailable" in out["error"]
+    assert rig.calls("npm") == [] and not rig.root.exists()

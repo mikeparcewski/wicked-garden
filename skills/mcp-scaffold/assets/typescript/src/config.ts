@@ -62,9 +62,17 @@ export function secretVar(key: string): string {
   return `${envPrefix(key)}_TOKEN`;
 }
 
+function originOf(url: string): string | null {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Load mcp-server.config.json, apply the env overrides (MCP_TRANSPORT, MCP_HOST, MCP_PORT,
- * <SERVER>_BASE_URL) and validate. Fails naming the field — never a value.
+ * <SERVER>_BASE_URL, same origin only) and validate. Fails naming the field — never a value.
  */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, root: string = SERVER_ROOT): ServerConfig {
   const file = join(root, "mcp-server.config.json");
@@ -79,7 +87,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, root: string = 
   if (env.MCP_PORT) raw.port = Number(env.MCP_PORT);
   if (env.MCP_HOST) raw.host = env.MCP_HOST;
   const baseOverride = key ? env[`${envPrefix(key)}_BASE_URL`] : undefined;
-  if (baseOverride) raw.baseUrl = baseOverride;
+  if (baseOverride) {
+    // The upstream credential follows baseUrl, so an override may change the path but never
+    // the origin: repinning egress to another host is a reviewed edit to the committed config.
+    const committed = typeof raw.baseUrl === "string" ? originOf(raw.baseUrl) : null;
+    if (committed === null || originOf(baseOverride) !== committed) {
+      throw new Error(`${envPrefix(key)}_BASE_URL must keep the committed baseUrl origin; edit mcp-server.config.json to change the host`);
+    }
+    raw.baseUrl = baseOverride;
+  }
   const parsed = ConfigSchema.safeParse(raw);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];

@@ -9,7 +9,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -48,6 +48,14 @@ jobs:
         env:
           WICKED_REQUIRE_E2E: "1"
         run: python -m pytest tests/ -q
+
+      - name: MCP TypeScript template E2E (install, build, lint, test, probe incl. generated tools)
+        # garden#1249: the template's own tools.json is empty, so only a real npm install + build
+        # proves a server WITH generated tools starts and lists them (and the template's vitest
+        # suite boots a branch-A copy). Needs the npm registry, hence opt-in outside CI.
+        env:
+          WICKED_GARDEN_E2E_NPM: "1"
+        run: python -m pytest tests/mcp/test_mcp_scaffold.py -q -k installs_builds_tests_and_probes
 
       - name: Run wicked-patch tests (conformance + estate adapter + E2E flow)
         # Self-contained suite under scripts/engineering/patch/tests/ — run as a

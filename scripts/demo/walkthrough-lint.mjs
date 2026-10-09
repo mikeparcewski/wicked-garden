@@ -47,6 +47,10 @@ const SECRET_ENV = /(SECRET|TOKEN|PASSWORD|PASSWD|PASSPHRASE|API_?KEY|ACCESS_?KE
 // Inline-code flags: `node -e`, `python -c`, `sh -c`, ... — the fixture must be a script the tree declares.
 const INLINE_FLAGS = new Set(["-e", "-c", "--eval", "-p", "--print", "--command"]);
 const SCRIPT_LIKE = /\.(?:m?js|cjs|ts|mts|py|sh|rb|pl)$/i;
+// The recorder starts the fixture on a FREE port and hands PORT + BASE_URL to the fixture's probes
+// (garden#1248): a storyline that pins either, or a probe URL with a literal loopback port, cannot pass.
+const RECORDER_ENV = new Set(["PORT", "BASE_URL"]);
+const LITERAL_PORT = /(?:127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\]):\d+/i;
 
 /** The first line of a thrown value's message; never throws itself (a storyline can throw anything). */
 function why(e) {
@@ -103,11 +107,19 @@ export function lintStoryline(story, { tree = null, steps = null, jq = "jq" } = 
       } else {
         for (const name of Object.keys(fixture.env)) {
           if (SECRET_ENV.test(name)) add("secret_env", `fixture.env.${name}`, "a secret-shaped env name is refused: no credential reaches the jailed app");
+          if (RECORDER_ENV.has(name)) add("fixture_env", `fixture.env.${name}`, `${name} is set by the recorder (the fixture runs on a free port): read it, do not pin it`);
         }
       }
     }
     if (fixture.probes !== undefined && (!fixture.probes || typeof fixture.probes !== "object" || Array.isArray(fixture.probes))) {
       add("fixture_probes", "fixture.probes", "fixture.probes must be an object of name: argv");
+    } else if (fixture.probes) {
+      for (const [name, argv] of Object.entries(fixture.probes)) {
+        const literal = Array.isArray(argv) ? argv.find((a) => typeof a === "string" && LITERAL_PORT.test(a)) : undefined;
+        if (literal !== undefined) {
+          add("probe_port", `fixture.probes.${name}`, `${JSON.stringify(literal)} hard-codes a port, but the recorder starts the fixture on a free one: read $BASE_URL (or $PORT), e.g. ["sh", "-c", "curl -sf \\"$BASE_URL/charges\\""]`);
+        }
+      }
     }
   }
   const probes = fixture && typeof fixture.probes === "object" && fixture.probes ? fixture.probes : {};

@@ -251,3 +251,27 @@ def test_an_unprintable_throw_is_still_a_finding(tmp_path):
             'toString() { throw 2; } }; } };')
     code, report, _ = _lint("--root", str(_author(tmp_path, text)))
     assert code == 1 and _rules(report) == {"storyline_unreadable"}
+
+
+def test_a_probe_with_a_literal_loopback_port_is_refused(tmp_path):
+    """garden#1248: the recorder starts the fixture on a free port; a pinned URL reaches nothing."""
+    text = VALID.replace('probes: { run: ["node", "probe.mjs"] }',
+                         'probes: { run: ["curl", "-s", "http://127.0.0.1:4173/charges"] }')
+    code, report, _ = _lint("--root", str(_author(tmp_path, text)))
+    assert code == 1 and _rules(report) == {"probe_port"}
+    (finding,) = report["findings"]
+    assert finding["where"] == "fixture.probes.run" and "$BASE_URL" in finding["detail"]
+
+
+def test_a_probe_reading_base_url_passes(tmp_path):
+    text = VALID.replace('probes: { run: ["node", "probe.mjs"] }',
+                         'probes: { run: ["sh", "-c", "curl -sf \\"$BASE_URL/charges\\""] }')
+    code, report, err = _lint("--root", str(_author(tmp_path, text)))
+    assert code == 0, (report, err)
+
+
+@pytest.mark.parametrize("name", ["PORT", "BASE_URL"])
+def test_pinning_a_recorder_variable_in_fixture_env_is_refused(tmp_path, name):
+    text = VALID.replace('env: { LOG_LEVEL: "info" }', f'env: {{ LOG_LEVEL: "info", {name}: "4173" }}')
+    code, report, _ = _lint("--root", str(_author(tmp_path, text)))
+    assert code == 1 and _rules(report) == {"fixture_env"}
