@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.47.0] — 2026-10-09
+
+### Changed
+- **governed-worker evaluator rule E4: "the same as X" is judged on values, from both sides (wicked-garden#1253, PR #1254).** For an acceptance item that says the new work matches an existing surface ("the form's posture", "the same body as the launch form"), the evaluator derives the value X actually produces — from X's own code path or the run's recorded output — quotes it with `file:line` beside the new code's value for the same inputs, and compares them. Field presence, a matching label or a creator-pinned test value is never the evidence; a difference is a Critical, and an underived X-side value is not a PASS. The rule carries the S19a case (`before:1` pinned by the creator vs the form's `before:2`) as its worked FAIL example, and the review archetype's assess step points parity items at it.
+
 ## [12.46.0] — 2026-10-09
 
 ### Fixed
@@ -1006,7 +1011,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.46.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.47.0...HEAD
+[12.47.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.46.0...v12.47.0
 [12.46.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.45.0...v12.46.0
 [12.45.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.44.0...v12.45.0
 [12.44.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.43.0...v12.44.0
