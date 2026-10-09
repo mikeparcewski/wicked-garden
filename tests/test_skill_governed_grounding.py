@@ -21,8 +21,8 @@ the skill on every CLI):
   write CLI stays legitimate (a human session indexes its own repo).
 * ``governed-unknown-verb`` — inside a governed block, a CODE invocation (a backtick span or
   a shell-fence line) of ``wicked-estate <verb>`` whose verb is not in the fence's read
-  allowlist (``query blast-radius rank stats source semantic cross-graph subscribe`` and
-  ``clusters``) — including no verb at all (``wicked-estate --help``, the shape that killed
+  allowlist (``query blast-radius rank hotspots stats source semantic cross-graph subscribe
+  lineage traverse`` and ``clusters``) — including no verb at all (``wicked-estate --help``, the shape that killed
   pipeline attempt L4: the fence denies it ``unknown-verb``, fail-closed) — unless prohibited
   on the same line. Prose mentions (no code span) are not invocations.
 * ``governed-mcp-not-readonly`` — inside a governed block, a CODE invocation of
@@ -40,6 +40,7 @@ the report: ``python3 tests/test_skill_governed_grounding.py``.
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -69,11 +70,14 @@ PROHIBITION_RE = re.compile(
     r"\b(?:never|not a rung|do not|must not|don't|denied|refus(?:e|ed|es)|forbidden)\b",
     re.IGNORECASE,
 )
-# The fence's read allowlist (wicked-core `ESTATE_READ_VERBS` + `clusters` without --annotate).
-# Anything else — `hotspots` (an alias the fence does not know), `nodes`, `--help` (no verb) —
-# is denied fail-closed, so a governed rung must not coach it.
+# The fence's read allowlist: wicked-core `ESTATE_READ_VERBS` (src/gate_hook.rs; `hotspots`,
+# `lineage`, `traverse` joined in wicked-core#729) + `clusters` without --annotate. Anything else —
+# estate's `rules-inventory` / `rules-recall` (read-only, but not on the fence's list yet — wicked-core#797), the mixed
+# read/write `supports`, `nodes`, `--help` (no verb) — is denied fail-closed, so a governed rung
+# must not coach it.
 ESTATE_READ_VERBS = frozenset({
-    "query", "blast-radius", "rank", "stats", "source", "semantic", "cross-graph", "subscribe", "clusters",
+    "query", "blast-radius", "rank", "hotspots", "stats", "source", "semantic", "cross-graph",
+    "subscribe", "lineage", "traverse", "clusters",
 })
 # `wicked-estate` followed by whitespace and its argv tokens (stops at a closing backtick / quote /
 # bracket). `wicked-estate-mcp` and `wicked-estate` immediately followed by a backtick do not match.
@@ -358,8 +362,11 @@ _TRIPS = [
     ("MCP started without --readonly in a governed rung",
      "In a governed run start `wicked-estate-mcp --db x` then query.\n",
      "governed-mcp-not-readonly"),
-    ("non-allowlisted read alias (hotspots) in a governed rung",
-     "In a governed run rank with `wicked-estate hotspots --limit 20`.\n",
+    ("read verb the fence does not list yet (rules-recall) in a governed rung",
+     "In a governed run recall rules with `wicked-estate rules-recall --limit 20`.\n",
+     "governed-unknown-verb"),
+    ("mixed read/write verb (supports) in a governed rung",
+     "In a governed run check ownership with `wicked-estate supports owners X`.\n",
      "governed-unknown-verb"),
     ("one bad alternative in a pipe list",
      "In a governed run: `wicked-estate rank|nodes <x>`.\n",
@@ -391,6 +398,8 @@ _QUIET = [
      "In a governed run the wicked-estate CLI is read-only for you; the shim answers.\n"),
     ("pipe list of allowlisted read verbs",
      "In a governed run: `wicked-estate blast-radius|query|rank|stats|source|semantic|cross-graph …`\n"),
+    ("the verbs wicked-core#729 added to the fence",
+     "In a governed run: `wicked-estate hotspots --limit 20`, `wicked-estate lineage X`, `wicked-estate traverse X`.\n"),
     ("read verb with flags first",
      "In a governed run: `wicked-estate --db x stats` and `wicked-estate clusters --json`.\n"),
     ("wicked-crew run mention with only the shim",
@@ -429,3 +438,32 @@ def test_ladder_probe_needs_shim_and_readonly_on_one_governed_line():
 if __name__ == "__main__":  # pragma: no cover - CLI report
     print(_report(_VIOLATIONS, _COUNTS))
     sys.exit(1 if _VIOLATIONS else 0)
+
+
+# ---- the mirror against its owner (wicked-garden#1217) ---------------------------------------------
+# wicked-core owns the list (`ESTATE_READ_VERBS` in src/gate_hook.rs). When a core checkout is
+# reachable — a sibling `../wicked-core`, or `WICKED_CORE_DIR` — the mirror must equal it plus
+# `clusters` (allowed by the fence separately, without --annotate). Without one the check skips: the
+# owner's absence never fails garden's suite.
+_CORE_LIST_RE = re.compile(r"pub const ESTATE_READ_VERBS: \[&str; \d+\] = \[(.*?)\];", re.S)
+
+
+def _core_gate_hook() -> Path | None:
+    roots = [os.environ.get("WICKED_CORE_DIR"), str(REPO.parent / "wicked-core")]
+    for root in roots:
+        if root and (Path(root) / "src" / "gate_hook.rs").is_file():
+            return Path(root) / "src" / "gate_hook.rs"
+    return None
+
+
+def test_mirror_equals_wicked_core_estate_read_verbs():
+    gate_hook = _core_gate_hook()
+    if gate_hook is None:
+        pytest.skip("no wicked-core checkout (sibling ../wicked-core or WICKED_CORE_DIR) — mirror check skipped")
+    m = _CORE_LIST_RE.search(gate_hook.read_text(encoding="utf-8"))
+    assert m, f"ESTATE_READ_VERBS not found in {gate_hook}"
+    core = set(re.findall(r'"([^"]+)"', m.group(1)))
+    assert ESTATE_READ_VERBS == core | {"clusters"}, (
+        f"mirror drifted from wicked-core: only here {sorted(ESTATE_READ_VERBS - core - {'clusters'})}, "
+        f"only in core {sorted(core - ESTATE_READ_VERBS)}"
+    )
