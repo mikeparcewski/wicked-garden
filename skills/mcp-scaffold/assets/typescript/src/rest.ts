@@ -16,10 +16,16 @@ export interface RestMapping {
   timeoutMs: number;
 }
 
+/** Every credential a request carries: header(s) and/or query parameter(s). */
+export interface Credentials {
+  headers: Record<string, string>;
+  query: Record<string, string>;
+}
+
 export interface RestContext {
   baseUrl: string;
-  /** The upstream auth header(s) — its name is also forbidden to arguments. */
-  headers: () => Promise<Record<string, string>>;
+  /** The upstream credentials — their header and query names are also forbidden to arguments. */
+  credentials: () => Promise<Credentials>;
   /** Read tools are retried on 429/5xx; write and destructive tools never are. */
   readOnly: boolean;
   fetchImpl?: typeof fetch;
@@ -66,8 +72,9 @@ export function buildRequest(
   baseUrl: string,
   mapping: RestMapping,
   args: Record<string, unknown>,
-  authHeaders: Record<string, string>,
+  creds: Credentials = { headers: {}, query: {} },
 ): { url: URL; init: RequestInit } {
+  const authHeaders = creds.headers;
   const base = new URL(baseUrl);
   const allowed = new Set(mapping.argAllowlist);
   const sent = Object.fromEntries(Object.entries(args).filter(([k]) => allowed.has(k)));
@@ -84,9 +91,11 @@ export function buildRequest(
   url.pathname = `${basePath(base)}${filled}`;
   const escape = escapes(base, url);
   if (escape !== null) throw new BoundaryError(escape);
+  const authQuery = new Set(Object.keys(creds.query));
   for (const [arg, q] of Object.entries(mapping.queryMap)) {
     const v = sent[arg];
-    if (v === undefined || v === null) continue;
+    // An argument never sets (or doubles) the credential's query parameter.
+    if (v === undefined || v === null || authQuery.has(q)) continue;
     for (const item of Array.isArray(v) ? v : [v]) url.searchParams.append(q, scalar(item, `the query argument ${arg}`));
   }
   const deny = new Set(DENY_HEADERS);
@@ -109,6 +118,8 @@ export function buildRequest(
   }
   if (body !== undefined) headers["content-type"] = "application/json";
   Object.assign(headers, authHeaders);
+  // After the boundary check (a query never moves the origin or path): the credential last.
+  for (const [q, value] of Object.entries(creds.query)) url.searchParams.set(q, value);
   return { url, init: { method: mapping.method, headers, ...(body !== undefined ? { body } : {}) } };
 }
 
@@ -129,7 +140,7 @@ async function readBody(res: Response): Promise<unknown> {
  * 429/5xx twice for read tools only. One child span `http.client.request` per call.
  */
 export async function callRest(mapping: RestMapping, args: Record<string, unknown>, ctx: RestContext): Promise<RestResult> {
-  const { url, init } = buildRequest(ctx.baseUrl, mapping, args, await ctx.headers());
+  const { url, init } = buildRequest(ctx.baseUrl, mapping, args, await ctx.credentials());
   const fetchImpl = ctx.fetchImpl ?? fetch;
   return tracer.startActiveSpan(
     "http.client.request",

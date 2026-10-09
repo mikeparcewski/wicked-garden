@@ -3,6 +3,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 import { secretVar, type ServerConfig } from "./config.js";
+import type { Credentials } from "./rest.js";
 
 /** The authenticated MCP client of an httpStream session. */
 export type Session = { principal: string };
@@ -24,26 +25,31 @@ export function loadSecret(config: ServerConfig, env: NodeJS.ProcessEnv = proces
 type FetchLike = typeof fetch;
 let cached: { key: string; token: string; expiresAt: number } | undefined;
 
-/** The header(s) the upstream API expects, built from the secret plus the committed config. */
-export async function upstreamHeaders(
+/**
+ * Every credential the upstream API expects — header(s), or a query parameter for an api-key
+ * with `auth.queryParam` — built from the secret plus the committed config. ONE carrier: the
+ * request builder sends exactly these, and the error scrub removes exactly these.
+ */
+export async function upstreamCredentials(
   config: ServerConfig,
   secret: string,
   fetchImpl: FetchLike = fetch,
-): Promise<Record<string, string>> {
+): Promise<Credentials> {
   const { auth } = config;
+  const header = (value: string): Credentials => ({ headers: { [auth.header]: value }, query: {} });
   switch (auth.scheme) {
     case "bearer":
-      return { [auth.header]: `Bearer ${secret}` };
+      return header(`Bearer ${secret}`);
     case "api-key":
-      return { [auth.header]: secret };
+      return auth.queryParam !== null ? { headers: {}, query: { [auth.queryParam]: secret } } : header(secret);
     case "basic":
-      return { [auth.header]: `Basic ${Buffer.from(`${auth.user}:${secret}`).toString("base64")}` };
+      return header(`Basic ${Buffer.from(`${auth.user}:${secret}`).toString("base64")}`);
     case "oauth2-client-credentials": {
       const key = `${auth.tokenUrl} ${auth.clientId} ${auth.scopes.join(" ")}`;
       if (!cached || cached.key !== key || cached.expiresAt <= Date.now()) {
         cached = { key, ...(await exchange(config, secret, fetchImpl)) };
       }
-      return { [auth.header]: `Bearer ${cached.token}` };
+      return header(`Bearer ${cached.token}`);
     }
   }
 }

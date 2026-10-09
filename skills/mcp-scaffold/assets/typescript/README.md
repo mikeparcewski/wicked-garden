@@ -29,7 +29,10 @@ The probe starts the server with a minimal environment plus only the variables n
 The server reads exactly ONE secret: `__SERVER_ENV___TOKEN` — the bearer token, the API key, the
 basic-auth password or the OAuth2 client secret, as `auth.scheme` in `mcp-server.config.json`
 says. Everything else about auth (header name, basic user, token URL, scopes, client id) is
-committed, non-secret configuration in `mcp-server.config.json`. A missing secret fails at
+committed, non-secret configuration in `mcp-server.config.json`. An API key the upstream takes
+as a QUERY parameter is `"auth": {"scheme": "api-key", "queryParam": "<name>"}` — sent after the
+boundary check, never settable by an argument, and scrubbed from upstream error bodies like any
+header credential. A missing secret fails at
 startup naming the variable. One variable is the contract because wicked-crew's broker and
 registry inject exactly one environment variable into a stdio server. See `.env.example`.
 

@@ -2,9 +2,23 @@
 """The ``install`` action: install or update a built MCP server for running, idempotent by key.
 
     wicked-garden run scripts/mcp/install.py (--from-run | --dir <server dir>) [--key <key>]
-        [--from-npm <pkg>@<version>] [--cli all|claude,codex,opencode,antigravity,pi|none]
+        [--from-npm <pkg>@<version>] [--target worker|operator] [--dry-run]
+        [--cli all|claude,codex,opencode,antigravity,pi|none]
         [--crew-url <origin>] [--install-root <dir>] [--json]
-    wicked-garden run scripts/mcp/install.py --uninstall <key> [--cli ...] [--crew-url ...]
+    wicked-garden run scripts/mcp/install.py --uninstall <key> [--target ...] [--cli ...] [--crew-url ...]
+
+**Target** (core#820, operator ruling 2026-10-09): ``--target worker`` (the default) writes only
+program-owned places: the staged copy under the install root, the crew registry, and the worker
+seats' CLI configs under the worker home (``$WICKED_WORKER_HOME``, else ``~/.wicked-worker``:
+``claude/.claude.json``, ``codex/config.toml``, ``opencode/config/opencode/``). ``--target
+operator`` does all of that AND registers the server in the operator's own CLI configs.
+``--dry-run`` writes nothing and prints ONE JSON line, the plan the consent gate shows:
+``{"dry_run": true, "key", "choices": [{"id", "label", "default"?, "writes": [{"path", "what",
+"cli"?, "operator_owned"}]}], "skipped": [{"cli", "why"}]}``.
+
+**Daemon origin** (garden#1258): ``--crew-url``, else ``$WICKED_CREW_URL`` (crew sets it to its own
+bound URL for every governed unit). There is no port default: a guessed ``:7701`` reached another
+daemon's registry. Neither set exits 2 naming the remedy.
 
 1. **Locate** the server: ``--from-run`` finds the one ``mcp-server.config.json`` under
    ``$WICKED_TREE`` (else the cwd), outside node_modules/dist; ``--dir`` names it. The key and
@@ -51,7 +65,6 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PROBE = HERE / "probe.py"
-DEFAULT_ORIGIN = "http://127.0.0.1:7701"
 CONFIG_NAME = "mcp-server.config.json"
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 NPM_SPEC_RE = re.compile(r"^(?P<pkg>(?:@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*)@(?P<version>[^@\s]+)$")
@@ -82,7 +95,50 @@ def env_name_for(key: str) -> str:
 
 
 def crew_origin(flag: str | None) -> str:
-    return (flag or os.environ.get("WICKED_CREW_URL") or DEFAULT_ORIGIN).rstrip("/")
+    """The daemon THIS run belongs to — never a guessed port (garden#1258)."""
+    origin = flag or os.environ.get("WICKED_CREW_URL")
+    if not origin:
+        raise Failure(2, "no wicked-crew origin: $WICKED_CREW_URL is unset (crew sets it for every "
+                         "governed unit) and no --crew-url was given; pass --crew-url <the daemon's "
+                         "URL> — never assume a port")
+    return origin.rstrip("/")
+
+
+TARGETS = ("worker", "operator")
+CHOICE_LABELS = {"worker": "Install for workers", "operator": "Also install into my CLIs"}
+
+
+def worker_home() -> Path:
+    """The ONE worker home every daemon's seats run from (``$WICKED_WORKER_HOME``)."""
+    env = os.environ.get("WICKED_WORKER_HOME")
+    return Path(env) if env else Path.home() / ".wicked-worker"
+
+
+def worker_home_args() -> list[str]:
+    """wicked-installer's per-CLI home flags pointed at the worker seats' config roots — the
+    layout the engine spawns seats with (wicked-apps-core ``seat_config_in``): claude's
+    ``CLAUDE_CONFIG_DIR``, codex's ``CODEX_HOME``, opencode's ``XDG_CONFIG_HOME/opencode``,
+    pi's agent dir, antigravity's root."""
+    base = worker_home()
+    return ["--claude-home", str(base / "claude"), "--codex-home", str(base / "codex"),
+            "--opencode-home", str(base / "opencode" / "config" / "opencode"),
+            "--pi-home", str(base / "pi"), "--gemini-home", str(base / "agy")]
+
+
+def operator_owned(path: str, root: Path) -> bool:
+    """Is ``path`` outside the program-owned roots (``~/.wicked*``, the worker home, the install
+    root)? A URL (the registry) is the daemon's, never the operator's files."""
+    if "://" in path:
+        return False
+    p = Path(os.path.abspath(os.path.expanduser(path)))
+    owned = [worker_home(), root, Path.home() / ".wicked"]
+    if any(p == o or o in p.parents for o in (Path(os.path.abspath(x)) for x in owned)):
+        return False
+    try:
+        rel = p.relative_to(Path.home())
+    except ValueError:
+        return True
+    return not (rel.parts and rel.parts[0].startswith(".wicked"))
 
 
 def install_root(flag: Path | None) -> Path:
@@ -433,9 +489,70 @@ def do_install(args) -> tuple[int, dict]:
 
     out = {**record, **reg, "probe": probe_report}
     out.setdefault("registry", None)
-    out["clis"] = "skipped: --cli none" if clis == "none" else installer(
-        ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis, "--json"])
+    upsert = ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis, "--json"]
+    out["target"] = args.target
+    if clis == "none":
+        out["clis"] = "skipped: --cli none"
+    else:
+        out["clis"] = installer([*upsert, *worker_home_args()])
+        if args.target == "operator":
+            out["operatorClis"] = installer(upsert)
     return code, out
+
+
+def _cli_rows(envelope, root: Path, writes: list, skipped: list) -> None:
+    """Split one installer dry-run envelope into planned writes and skipped CLIs."""
+    if not isinstance(envelope, list):
+        raise Failure(1, f"cannot plan the CLI configs: {envelope}")
+    for row in envelope:
+        if not isinstance(row, dict):
+            continue
+        cli, result, target = row.get("cli"), row.get("result"), row.get("target")
+        if result == "planned" and isinstance(target, str):
+            what = f"{cli} MCP config" + (" (codex mcp add)" if cli == "codex" else "")
+            writes.append({"path": os.path.abspath(os.path.expanduser(target)), "what": what,
+                           "cli": cli, "operator_owned": operator_owned(target, root)})
+        else:
+            why = str(result or "unknown")
+            if row.get("detail") and result not in ("unsupported",):
+                why = f"{why}: {row['detail']}"
+            if not any(s["cli"] == cli and s["why"] == why for s in skipped):
+                skipped.append({"cli": cli, "why": why})
+
+
+def do_plan(args) -> dict:
+    """``--dry-run``: what each target would write, from the installer's own dry run. Writes
+    nothing; the registry is only READ (the same key check the install runs first)."""
+    if args.from_npm and not NPM_SPEC_RE.match(args.from_npm):
+        raise Failure(2, f"--from-npm {args.from_npm!r}: use <pkg>@<version>")
+    server_dir, config = locate(args)
+    key = config.get("key") or args.key
+    if not key or not NAME_RE.match(key):
+        raise Failure(2, f"invalid or missing server key {key!r}")
+    if server_dir is None and not args.from_npm:
+        raise Failure(2, "pass --from-run or --dir <server dir> (or --from-npm with --key)")
+    clis = cli_list(args.cli)
+    root = install_root(args.install_root)
+    origin = crew_origin(args.crew_url)
+    current_js = root / key / "current" / installed_rel(args.from_npm)
+    check_key(origin, key, current_js)
+    base = [{"path": str(Path(os.path.abspath(root / key / "current"))), "what": "install root",
+             "operator_owned": operator_owned(str(root / key), root)},
+            {"path": f"{origin}/api/v1/mcp/servers/{key}", "what": "wicked-crew MCP tools registry entry",
+             "operator_owned": False}]
+    skipped: list = []
+    worker_writes = list(base)
+    operator_writes = list(base)
+    if clis != "none":
+        upsert = ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis,
+                  "--dry-run", "--json"]
+        _cli_rows(installer([*upsert, *worker_home_args()]), root, worker_writes, skipped)
+        operator_writes = list(worker_writes)
+        _cli_rows(installer(upsert), root, operator_writes, skipped)
+    return {"dry_run": True, "key": key, "choices": [
+        {"id": "worker", "label": CHOICE_LABELS["worker"], "default": True, "writes": worker_writes},
+        {"id": "operator", "label": CHOICE_LABELS["operator"], "writes": operator_writes}],
+        "skipped": skipped}
 
 
 def do_uninstall(args) -> tuple[int, dict]:
@@ -458,7 +575,13 @@ def do_uninstall(args) -> tuple[int, dict]:
     except (urllib.error.URLError, OSError):
         out["registered"] = False
         out["reason"] = f"no daemon at {origin}"
-    out["clis"] = "skipped: --cli none" if clis == "none" else installer(["mcp", "remove", key, "--json"])
+    out["target"] = args.target
+    if clis == "none":
+        out["clis"] = "skipped: --cli none"
+    else:
+        out["clis"] = installer(["mcp", "remove", key, "--json", *worker_home_args()])
+        if args.target == "operator":
+            out["operatorClis"] = installer(["mcp", "remove", key, "--json"])
     key_root = install_root(args.install_root) / key
     out["removed"] = str(key_root) if key_root.exists() else None
     if key_root.exists():
@@ -476,10 +599,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--key", help="the server key (must equal the config's key)")
     parser.add_argument("--from-npm", metavar="PKG@VERSION", help="install a published package instead")
     parser.add_argument("--cli", default="all", help="all | none | " + ",".join(CLIS))
-    parser.add_argument("--crew-url", help=f"the wicked-crew origin (default $WICKED_CREW_URL, else {DEFAULT_ORIGIN})")
+    parser.add_argument("--crew-url", help="the wicked-crew origin (default $WICKED_CREW_URL; no port is assumed)")
+    parser.add_argument("--target", choices=TARGETS, default="worker",
+                        help="worker (default): program-owned places only; operator: also your own CLI configs")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="write nothing; print the plan (each target's exact write list) as one JSON line")
     parser.add_argument("--install-root", type=Path, help="default $WICKED_MCP_INSTALL_ROOT, else ~/.wicked/mcp-servers")
     parser.add_argument("--json", action="store_true", help="print the record as one compact JSON line")
     args = parser.parse_args(argv)
+    if args.dry_run:
+        if args.uninstall:
+            print(json.dumps({"ok": False, "error": "--dry-run plans an install, not --uninstall"}))
+            return 2
+        try:
+            print(json.dumps(do_plan(args)))
+            return 0
+        except Failure as err:
+            sys.stderr.write(f"install.py --dry-run: {err}\n")
+            return err.code
     try:
         code, out = do_uninstall(args) if args.uninstall else do_install(args)
     except Failure as err:

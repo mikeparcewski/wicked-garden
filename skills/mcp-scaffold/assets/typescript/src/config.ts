@@ -15,6 +15,10 @@ const AuthSchema = z.object({
   tokenUrl: z.url({ protocol: /^https?$/ }).nullable(),
   scopes: z.array(z.string().min(1)),
   clientId: z.string().min(1).nullable(),
+  // api-key only: send the key as this QUERY parameter instead of the header (an OpenAPI
+  // `apiKey` scheme with `in: query`, garden#1261). The server adds it after the boundary check
+  // and scrubs it from upstream error bodies like any other credential it sends.
+  queryParam: z.string().min(1).nullable().default(null),
 });
 
 const ConfigSchema = z
@@ -34,6 +38,9 @@ const ConfigSchema = z
     const u = new URL(cfg.baseUrl);
     if (u.username || u.password || u.search || u.hash) {
       ctx.addIssue({ code: "custom", path: ["baseUrl"], message: "no credentials, query or fragment" });
+    }
+    if (cfg.auth.queryParam !== null && cfg.auth.scheme !== "api-key") {
+      ctx.addIssue({ code: "custom", path: ["auth", "queryParam"], message: "a query-parameter key is the api-key scheme only" });
     }
     if (cfg.auth.scheme === "basic" && cfg.auth.user === null) {
       ctx.addIssue({ code: "custom", path: ["auth", "user"], message: "basic auth needs auth.user" });

@@ -48,7 +48,7 @@ function toolUnderTest(tool: GeneratedTool) {
   const config = { ...loadConfig({}), baseUrl };
   const added: any[] = [];
   const fake = { addTool: (t: unknown) => added.push(t) } as any;
-  registerGeneratedTools(fake, config, async () => ({ Authorization: "Bearer test-token" }), [tool]);
+  registerGeneratedTools(fake, config, async () => ({ headers: { Authorization: "Bearer test-token" }, query: {} }), [tool]);
   return added[0];
 }
 
@@ -70,6 +70,6 @@ describe("get_note contract", () => {
   });
 
   it("never leaves the base URL", () => {
-    expect(() => buildRequest(baseUrl, getNote.rest, { id: ".." }, {})).toThrow(BoundaryError);
+    expect(() => buildRequest(baseUrl, getNote.rest, { id: ".." })).toThrow(BoundaryError);
   });
 });

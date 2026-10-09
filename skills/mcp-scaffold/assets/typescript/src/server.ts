@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: __YEAR__ the __SERVER_NAME__ authors
 import { FastMCP } from "fastmcp";
-import { authenticate, configureAuth, loadSecret, upstreamHeaders, type Session } from "./auth.js";
+import { authenticate, configureAuth, loadSecret, upstreamCredentials, type Session } from "./auth.js";
 import { loadConfig, secretVar } from "./config.js";
 import { fastmcpLogger, initLogging } from "./logging.js";
 import { startTelemetry, stopTelemetry } from "./telemetry.js";
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     authenticate: config.transport === "httpStream" ? authenticate : undefined,
   });
 
-  const generated = registerGeneratedTools(server, config, () => upstreamHeaders(config, secret));
+  const generated = registerGeneratedTools(server, config, () => upstreamCredentials(config, secret));
   // The example `echo` tool only stands in while tools.json is empty: a server with generated
   // tools exposes exactly those (plus whatever you register by hand).
   if (generated === 0) registerExampleTools(server, config);

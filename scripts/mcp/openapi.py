@@ -6,7 +6,7 @@
 
 The conversion is wicked-crew's: this posts ``{name, kind: "rest", url, openapiUrl | openapi,
 operations?}`` to ``POST <origin>/api/v1/mcp/servers/preview`` (the origin is ``--crew-url``,
-else ``$WICKED_CREW_URL``, else http://127.0.0.1:7701), and writes the answer's ``tools`` and
+else ``$WICKED_CREW_URL`` — no port is assumed, garden#1258), and writes the answer's ``tools`` and
 ``skipped`` into ``<dir>/tools.json`` as ``{"source": {...}, "tools": [...], "skipped": [...]}``
 — one tool per operation, each with its ``class`` and ``rest`` request mapping — then sets
 ``baseUrl`` in ``<dir>/mcp-server.config.json``. It refuses to overwrite a ``tools.json``
@@ -30,7 +30,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-DEFAULT_ORIGIN = "http://127.0.0.1:7701"
 PREVIEW = "/api/v1/mcp/servers/preview"
 NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 TIMEOUT_S = 60
@@ -48,8 +47,10 @@ def _fail(code: int, message: str) -> int:
     return code
 
 
-def crew_origin(flag: str | None) -> str:
-    return (flag or os.environ.get("WICKED_CREW_URL") or DEFAULT_ORIGIN).rstrip("/")
+def crew_origin(flag: str | None) -> str | None:
+    """The daemon THIS run belongs to, or None — never a guessed port (garden#1258)."""
+    origin = flag or os.environ.get("WICKED_CREW_URL")
+    return origin.rstrip("/") if origin else None
 
 
 def _http_url(raw: str, what: str, bare: bool) -> str:
@@ -125,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     spec.add_argument("--spec-url", help="an http(s) URL the daemon fetches the document from")
     parser.add_argument("--operations", help="comma-separated operationIds to keep (default all)")
     parser.add_argument("--out", required=True, type=Path, help="the server directory")
-    parser.add_argument("--crew-url", help=f"the wicked-crew daemon origin (default $WICKED_CREW_URL, else {DEFAULT_ORIGIN})")
+    parser.add_argument("--crew-url", help="the wicked-crew daemon origin (default $WICKED_CREW_URL; no port is assumed)")
     args = parser.parse_args(argv)
 
     if not NAME_RE.match(args.name):
@@ -160,6 +161,10 @@ def main(argv: list[str] | None = None) -> int:
         return _fail(err.code, str(err))
 
     origin = crew_origin(args.crew_url)
+    if origin is None:
+        return _fail(2, "no wicked-crew origin: $WICKED_CREW_URL is unset (crew sets it for every "
+                        "governed unit) and no --crew-url was given; pass --crew-url <the daemon's URL> "
+                        "— never assume a port")
     try:
         answer = post_json(origin + PREVIEW, body)
     except Refused as err:

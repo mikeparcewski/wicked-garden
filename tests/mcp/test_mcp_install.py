@@ -54,9 +54,17 @@ STUB_INSTALLER = textwrap.dedent('''\
         sys.stderr.write("wicked-installer: unknown command 'mcp'\\n")
         sys.exit(2)
     verb, key = sys.argv[2], sys.argv[3]
-    print(json.dumps({"verb": verb, "key": key,
-                      "clis": [{"cli": "claude", "result": "written", "target": "~/.claude.json",
-                                "detail": None}]}))
+    argv = sys.argv[1:]
+    def home(flag, default):
+        return argv[argv.index(flag) + 1] if flag in argv else os.path.expanduser(default)
+    result = "planned" if "--dry-run" in argv else "written"
+    print(json.dumps({"verb": verb, "key": key, "clis": [
+        {"cli": "claude", "result": result,
+         "target": os.path.join(home("--claude-home", "~"), ".claude.json"), "detail": None},
+        {"cli": "codex", "result": result,
+         "target": os.path.join(home("--codex-home", "~/.codex"), "config.toml"), "detail": None},
+        {"cli": "pi", "result": "unsupported", "target": home("--pi-home", "~/.pi/agent"),
+         "detail": "unsupported: no MCP target"}]}))
     ''')
 
 
@@ -84,8 +92,11 @@ def rig(tmp_path):
     source.write_text(NODE_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
     log = tmp_path / "stub.log"
     log.write_text("", encoding="utf-8")
-    env = {k: v for k, v in os.environ.items() if k not in ("WICKED_CREW_URL", "WICKED_REPO", VAR)}
-    env.update({"PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}", "STUB_LOG": str(log),
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("WICKED_CREW_URL", "WICKED_REPO", "WICKED_WORKER_HOME", VAR)}
+    # A temp HOME: the worker target must never name a path outside it (core#820).
+    (tmp_path / "home").mkdir()
+    env.update({"HOME": str(tmp_path / "home"), "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}", "STUB_LOG": str(log),
                 "STUB_SERVER_SOURCE": str(source), "WICKED_TREE": str(tree),
                 "WICKED_MCP_INSTALL_ROOT": str(tmp_path / "root")})
 
@@ -93,6 +104,12 @@ def rig(tmp_path):
         pass
     r = Rig()
     r.tmp, r.tree, r.srv, r.source, r.env = tmp_path, tree, srv, source, env
+    r.home = tmp_path / "home"
+    r.worker_args = ["--claude-home", str(r.home / ".wicked-worker" / "claude"),
+                     "--codex-home", str(r.home / ".wicked-worker" / "codex"),
+                     "--opencode-home", str(r.home / ".wicked-worker" / "opencode" / "config" / "opencode"),
+                     "--pi-home", str(r.home / ".wicked-worker" / "pi"),
+                     "--gemini-home", str(r.home / ".wicked-worker" / "agy")]
     r.root = tmp_path / "root" / "acme-notes"
 
     def run(*args: str, **extra_env: str):
@@ -140,7 +157,9 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
     assert save["path"] == SAVE and save["body"] == {"previewHash": "ph-1"}
     (inst,) = rig.calls("wicked-installer")
     assert inst["argv"] == ["mcp", "upsert", "acme-notes", "--command", "node", "--arg",
-                            str(current_js), "--cli", "all", "--json"]
+                            str(current_js), "--cli", "all", "--json", *rig.worker_args], \
+        "the default target registers in the worker homes only (core#820)"
+    assert out["target"] == "worker" and "operatorClis" not in out
     assert out["clis"][0]["result"] == "written"
     npm = [c["argv"] for c in rig.calls("npm")]
     assert npm == [["ci", "--ignore-scripts"], ["run", "build"], ["ci", "--omit=dev", "--ignore-scripts"]]
@@ -246,7 +265,8 @@ def test_uninstall_deletes_the_registration_clis_and_root(rig):
     assert code == 0, out
     assert out["registered"] == "removed" and out["uninstalled"] is True
     assert daemon.requests[-1]["method"] == "DELETE"
-    assert rig.calls("wicked-installer")[-1]["argv"] == ["mcp", "remove", "acme-notes", "--json"]
+    assert rig.calls("wicked-installer")[-1]["argv"] == ["mcp", "remove", "acme-notes", "--json",
+                                                         *rig.worker_args]
     assert not rig.root.exists()
 
 
@@ -351,3 +371,79 @@ def test_a_key_claimed_while_staging_is_never_overwritten(rig):
     assert code == 1, out
     assert out["registered"] is False and "different server under the key" in out["error"]
     assert [r["method"] for r in daemon.requests] == ["GET", "GET"], "nothing previewed or saved"
+
+
+# ── core#820: --target worker|operator and --dry-run; garden#1258: no port default ─────────
+
+def _under(path: str, root: Path) -> bool:
+    p = Path(path)
+    return p == root or root in p.parents
+
+
+def test_the_dry_run_plans_each_target_and_writes_nothing(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json",
+                               "--crew-url", daemon.origin], capture_output=True, text=True,
+                              timeout=120, env=rig.env, cwd=rig.tree)
+    assert done.returncode == 0, done.stderr
+    lines = done.stdout.strip().splitlines()
+    assert len(lines) == 1, "ONE JSON line on stdout"
+    plan = json.loads(lines[0])
+    assert plan["dry_run"] is True and plan["key"] == "acme-notes"
+    worker, operator = plan["choices"]
+    assert (worker["id"], worker["default"], operator["id"]) == ("worker", True, "operator")
+    assert worker["label"] == "Install for workers" and operator["label"] == "Also install into my CLIs"
+    # Worker: program-owned only — everything under the temp HOME's .wicked*, or the daemon.
+    for w in worker["writes"]:
+        assert w["operator_owned"] is False, w
+        assert "://" in w["path"] or _under(w["path"], rig.tmp), w
+    assert {w["what"] for w in worker["writes"]} >= {"install root", "wicked-crew MCP tools registry entry",
+                                                      "claude MCP config", "codex MCP config (codex mcp add)"}
+    claude = next(w for w in worker["writes"] if w.get("cli") == "claude")
+    assert claude["path"] == str(rig.home / ".wicked-worker" / "claude" / ".claude.json")
+    # Operator: every worker write, plus the operator's own configs, flagged.
+    assert operator["writes"][:len(worker["writes"])] == worker["writes"]
+    own = operator["writes"][len(worker["writes"]):]
+    assert {w["path"] for w in own} == {str(rig.home / ".claude.json"), str(rig.home / ".codex" / "config.toml")}
+    assert all(w["operator_owned"] is True for w in own)
+    assert {"cli": "pi", "why": "unsupported"} in plan["skipped"]
+    # Nothing was written: no npm, no staging, only dry-run installer calls, only a registry GET.
+    assert rig.calls("npm") == [] and not (rig.tmp / "root").exists()
+    assert all("--dry-run" in c["argv"] for c in rig.calls("wicked-installer"))
+    assert {r["method"] for r in daemon.requests} == {"GET"}
+
+
+def test_the_operator_target_also_writes_the_operators_clis(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--target", "operator", "--crew-url", daemon.origin)
+    assert code == 0, out
+    worker_call, operator_call = rig.calls("wicked-installer")
+    assert worker_call["argv"][-len(rig.worker_args):] == rig.worker_args
+    assert not any(a.startswith("--") and a.endswith("-home") for a in operator_call["argv"])
+    assert out["target"] == "operator" and isinstance(out["operatorClis"], list)
+
+
+def test_the_worker_target_never_names_an_operator_path(rig):
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+    assert code == 0, out
+    (call,) = rig.calls("wicked-installer")
+    paths = [a for a in call["argv"] if a.startswith("/")]
+    assert paths and all(_under(p, rig.tmp) for p in paths), paths
+    assert all(".wicked" in Path(p).relative_to(rig.home).parts[0] for p in paths
+               if _under(p, rig.home)), paths
+    for row in out["clis"]:
+        assert _under(row["target"], rig.home / ".wicked-worker"), row
+
+
+def test_no_origin_refuses_and_names_the_remedy_1258(rig):
+    code, out = rig.run("--from-run")
+    assert code == 2
+    assert "WICKED_CREW_URL" in out["error"] and "--crew-url" in out["error"]
+    assert rig.calls("npm") == [], "nothing is staged without the run's daemon"
+    done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json"],
+                          capture_output=True, text=True, timeout=60, env=rig.env, cwd=rig.tree)
+    assert done.returncode == 2 and "WICKED_CREW_URL" in done.stderr and done.stdout == ""

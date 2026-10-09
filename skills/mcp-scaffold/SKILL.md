@@ -74,8 +74,9 @@ wicked-garden run scripts/mcp/openapi.py --name <key> --base-url <url> (--spec <
 
 The conversion service is wicked-crew's (`POST /api/v1/mcp/servers/preview`, kind `rest`) —
 the same one studio's *Wrap an API* uses, so there is one OpenAPI reading in the platform.
-The daemon origin is `--crew-url`, else `$WICKED_CREW_URL` (set in every governed unit),
-else `http://127.0.0.1:7701`. One tool per operation; the class comes from the method
+The daemon origin is `--crew-url`, else `$WICKED_CREW_URL` (crew sets it to its own URL in
+every governed unit). There is no port default: never type a port — a guessed one can
+be another daemon's registry. With neither set the scripts exit 2 naming the remedy. One tool per operation; the class comes from the method
 (GET/HEAD/OPTIONS read, POST write, PUT/PATCH/DELETE destructive); 1 MB and 10 s bounds;
 external `$ref`s are not followed.
 
@@ -111,6 +112,11 @@ external `$ref`s are not followed.
   basic user, token URL, scopes, client id, base URL, rate limit — is committed in
   `mcp-server.config.json`. A missing secret fails at startup naming the variable. One
   variable is the contract because crew's broker and registry inject exactly one.
+- **A query-parameter API key** (an OpenAPI `apiKey` scheme with `in: query`) is config, not a
+  hand extension: `"auth": {"scheme": "api-key", "queryParam": "<name>", ...}`. The server adds
+  it to the URL after the boundary check, no argument can set it, and it is scrubbed (raw and
+  URL-encoded) from upstream error bodies exactly like a header credential — every credential
+  the server sends goes through one carrier, `upstreamCredentials`.
 - **Logging goes to stderr only** (loglayer; the console transport is bound to stderr),
   with trace ids stamped by the OpenTelemetry plugin and secrets redacted by name.
 - **Telemetry is off by default:** the SDK arms its OTLP exporters only when
@@ -190,8 +196,8 @@ Then derive each tool's class by hand from the table in step 3.
 ## 5. Install for running (`install`)
 
 ```
-wicked-garden run scripts/mcp/install.py (--from-run | --dir <server dir>) [--key <key>] [--from-npm <pkg>@<version>] [--cli all|claude,codex,opencode,antigravity,pi|none] [--crew-url <origin>] [--install-root <dir>] [--json]
-wicked-garden run scripts/mcp/install.py --uninstall <key>
+wicked-garden run scripts/mcp/install.py (--from-run | --dir <server dir>) [--key <key>] [--from-npm <pkg>@<version>] [--target worker|operator] [--dry-run] [--cli all|claude,codex,opencode,antigravity,pi|none] [--crew-url <origin>] [--install-root <dir>] [--json]
+wicked-garden run scripts/mcp/install.py --uninstall <key> [--target worker|operator]
 ```
 
 Installs the built TypeScript server — or updates the installed copy — idempotent by the
@@ -220,7 +226,20 @@ config's `key`:
    different server (another `kind`, command or args — say a REST server with the same name)
    exits 1 naming it, with nothing written. Pick another key, or remove that server first.
 6. **CLI configs** through `wicked-installer mcp upsert` (never written by this script); an
-   installer without the verb is reported as `clis: "skipped: …"`, not failed.
+   installer without the verb is reported as `clis: "skipped: …"`, not failed. **`--target
+   worker`** (the default) registers the server only in the worker seats' CLI configs under
+   the worker home (`$WICKED_WORKER_HOME`, else `~/.wicked-worker`: `claude/.claude.json`,
+   `codex/config.toml`, `opencode/config/opencode/`); **`--target operator`** also writes the
+   operator's own CLI configs (`~/.claude.json`, `~/.codex/config.toml`, the opencode
+   config), reported as `operatorClis`. Only the operator chooses `operator`, at the install
+   gate.
+
+**`--dry-run`** writes nothing (it only reads the registry for the key check) and prints ONE
+JSON line, the plan the install gate shows: `{"dry_run": true, "key", "choices": [{"id":
+"worker" | "operator", "label", "default"?, "writes": [{"path", "what", "cli"?,
+"operator_owned"}]}], "skipped": [{"cli", "why"}]}` — every path absolute, each choice listing
+everything it would write, the CLI rows from `wicked-installer mcp upsert --dry-run`. It exits
+non-zero (the reason on stderr) when it cannot plan.
 7. **Record** `<root>/<key>/installed.json` `{key, version, source, command, args,
    envNames, installedAt, registered, smoke}` and print it with `probe`, `registry` and `clis`.
 
@@ -268,7 +287,8 @@ run. Follow `wicked-garden-governed-worker`, and:
   client needs httpStream) and the **target directory**: the root of a near-empty repo, or a
   subdirectory of an existing one. A repository that is not registered must be created and
   registered by the operator first — say so, do not create it. **List the registry's keys**
-  (`GET /api/v1/mcp/servers` on the crew daemon, or studio MCP tools) and pick a key no other
+  (`GET $WICKED_CREW_URL/api/v1/mcp/servers` — the daemon this run belongs to, never a typed
+  port; or studio MCP tools) and pick a key no other
   server holds: install refuses a key held by a different server. Record whether an OpenAPI
   document was given and whether to install when complete (the operator still decides at
   the install gate).
@@ -281,8 +301,9 @@ run. Follow `wicked-garden-governed-worker`, and:
 - **build** — scaffold (step 1), then branch A (generated tools from `tools.json`) or branch
   B (hand-written tools through `defineTool`), with a contract test per tool and
   `npm test` green; probe it (step 4).
-- **install** — a Tool phase runs `install.py --from-run` after an unconditional operator
-  gate (step 5). Read its record: `smoke` (`ok` or `pending_credential`), `registered`
+- **install-plan / install** — a Tool phase runs `install.py --from-run --dry-run --json`
+  (the plan), then the operator's consent gate offers its choices with their files, then a
+  Tool phase runs `install.py --from-run --target <the approved choice>` (step 5). Read its record: `smoke` (`ok` or `pending_credential`), `registered`
   (`true`, `"updated"`, or `false` with `missing`/`remedy` or `reason`) and `clis` (per-CLI
   results, or why they were skipped). Exit 0 means staged; a disclosed pending credential is
   not a failure.
