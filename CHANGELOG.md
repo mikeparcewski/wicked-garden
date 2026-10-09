@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.45.0] — 2026-10-08
+
+### Fixed
+- **Walkthrough: `record` re-runs the storyline lint before it records (wicked-garden#1240, DES-walkthrough-proof §4.4 step 1).** The storyline may have been edited since the `walkthrough_plan` step linted it, so `scripts/demo/walkthrough.mjs record` now runs `lintStoryline` on the storyline it loaded, against the tree it staged (`git archive` of `WICKED_TREE` plus the `fixture.reuse` links, so a `fixture.start` script must be one the tree under review declares), after staging and before the fixture starts. Any finding refuses: `result.json` `{overall: "INCONCLUSIVE", cause: "storyline_refused", reason: "lint: <rule> at <where>: <detail>; ..."}` with every chapter listed INCONCLUSIVE, `progress.json` and the seal line written, exit 0 — nothing is started, filmed or captured. Without `jq` the lint cannot run a check's negative samples and fails closed (`negative_unverified`). Recorder test storylines now pass the lint through `tests/demo/fixtures/lint_complete.mjs` (a negative sample on every check, plus passing pad checks — a `#status` locator, a `probe.mjs` probe, their join, one guard — for any class a chapter lacks, checked after the chapter's own `run()`); tests that pinned a path the lint now refuses first assert the named refusal, and three new tests pin it (a tautology negative, the unpadded fixture, a `fixture.start` script not in the tree). The demo skill and `refs/walkthrough-author.md` say record re-runs the lint.
+
 ## [12.44.0] — 2026-10-08
 
 ### Added
@@ -994,7 +999,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.44.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.45.0...HEAD
+[12.45.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.44.0...v12.45.0
 [12.44.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.43.0...v12.44.0
 [12.43.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.42.0...v12.43.0
 [12.42.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.41.0...v12.42.0
