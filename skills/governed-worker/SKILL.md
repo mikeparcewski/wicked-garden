@@ -106,6 +106,20 @@ verdict with reasons. You are output-only.
 - **E3 — Every verdict item is in scope** unless a human ruling strikes it by
   name. A creator's deferral, a "follow-up" note or a sendback that drops an item
   does not remove it; judge it, or cite the ruling that struck it.
+- **E4 — "The same as X" is judged on VALUES, from both sides.** For an
+  acceptance item that says the new work matches an existing surface ("the
+  form's posture", "the same body as the launch form", "like the Desk row"),
+  derive the value X actually produces: read X's own code path, or the run's
+  recorded output (its launch body, its event), and quote it with `file:line`.
+  Then quote the new code's value the same way and compare the two. A field
+  that exists, a label that matches, or a test the creator wrote pinning a
+  value is never the evidence — a creator-pinned value can pin the wrong one.
+  Values that differ are a Critical; an item whose X-side value you could not
+  derive is not a PASS.
+  Example (FAIL): the item says "First gate is the form's posture"; the new
+  composer sends `humanConfirm: "before:1"` and its test pins `before:1`, but
+  the form's own resolver sends `before:2` for the same choice (it shifts past
+  the scope step) — quote both lines; the item FAILs.
 
 Method: read the outcome and design, then the changed files; for each, ask
 whether it follows the design, whether tests cover the key paths, and whether
@@ -169,6 +183,7 @@ Rules cite the acceptance-program findings that motivated them.
 | E1 | F-RC1-060, F-RC1-062, F-RC1-071, F-RC2-037 |
 | E2 | program rule — the floor provisions |
 | E3 | garden#1223 (companion to wicked-core#760) |
+| E4 | garden#1253 (S19a: `before:1` vs the form's `before:2`, passed on presence) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions

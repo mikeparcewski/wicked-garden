@@ -74,7 +74,14 @@ in three domains").
    the artifact as the argument; on Claude Code this is the Skill tool, on any other seat
    open the named skill from your catalog and run it inline, keeping its output separate
    from yours, then continue here.
-3. For high-stakes reviews, run a council via the
+3. **Parity items compare values (garden#1253).** For every item that says the
+   work matches an existing surface ("the same as the form", "like the Desk
+   row"), derive the value that surface produces — from its own code path or
+   the run's recorded output — and quote it beside the new code's value, both
+   with `file:line`. Presence of the field, or a test the author wrote pinning
+   a value, is not evidence; a difference is a blocker (the governed-worker
+   floor's rule E4).
+4. For high-stakes reviews, run a council via the
    `wicked-garden-jam-council` skill — independent multi-model verdicts
    catch what a single reviewer misses.
 
