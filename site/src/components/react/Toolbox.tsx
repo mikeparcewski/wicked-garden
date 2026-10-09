@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type JSX } from "react";
 import CopyChip from "./CopyChip";
 import Reveal from "./Reveal";
 import { TOOLS, HUE_VAR, type Tool } from "../../data/garden";
