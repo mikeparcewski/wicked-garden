@@ -44,7 +44,22 @@ def test_e3_verdict_items_stay_in_scope_unless_a_human_strikes_them():  # garden
     assert "human ruling strikes it by name" in rule
 
 
+def test_e4_parity_items_are_judged_on_values_from_both_sides():  # garden#1253
+    rule = _rule("E4")
+    assert "derive the value X actually produces" in rule
+    assert "quote it with `file:line`" in rule and "compare the two" in rule
+    assert "a test the creator wrote pinning a value is never the evidence" in rule
+    assert "Values that differ are a Critical" in rule
+    # The corpus case rides the rule: a creator-pinned `before:1` against the form's `before:2` FAILs.
+    assert "Example (FAIL)" in rule and "`before:1`" in rule and "`before:2`" in rule and "the item FAILs" in rule
+
+
+def test_review_archetype_points_parity_items_at_e4():  # garden#1253
+    review = (FLOOR.parents[1] / "archetype" / "refs" / "review.md").read_text(encoding="utf-8")
+    assert "Parity items compare values (garden#1253)" in review and "rule E4" in review
+
+
 def test_new_rules_have_provenance_rows():
     body = FLOOR.read_text(encoding="utf-8")
-    for rule_id in ("C6", "C7", "E3"):
+    for rule_id in ("C6", "C7", "E3", "E4"):
         assert re.search(rf"^\| {rule_id} \|", body, re.M), rule_id
