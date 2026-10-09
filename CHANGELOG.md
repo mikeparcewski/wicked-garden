@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [12.46.0] — 2026-10-09
+
+### Fixed
+- **`mcp-scaffold` TypeScript template: a server with generated tools starts (wicked-garden#1249, PR #1251).** `src/tools/generated.ts` handed each `tools.json` entry's plain JSON Schema to fastmcp 4.22, which accepts only a Standard Schema, so any non-empty `tools.json` (branch A, the conversion-service path) made the server exit at startup ("parameters must implement Standard Schema") and the conformance tests time out. Each schema is now wrapped in fastmcp's `jsonSchemaAdapter`, validated with `ajv` + `ajv-formats` (now direct dependencies instead of fastmcp's optional peers). The example `echo` tool is registered only while `tools.json` is empty, so a generated server exposes exactly its generated tools. An upstream 4xx/5xx reaches the caller as `HTTP <status>: <excerpt>` with every credential the server sent scrubbed and the excerpt bounded to 300 characters. `<KEY>_BASE_URL` may change the path but never the origin: the credential follows the base URL, so another host is an edit to `mcp-server.config.json`. Tests: the template's vitest suite boots a copy of the built server with a one-tool `tools.json` against a local stub (lists only that tool, calls it, rejects a call missing a required argument) and `test/hardening.test.ts` pins the scrubbing and the origin rule; `tests/mcp/test_mcp_scaffold.py`'s npm end-to-end also probes the built server with a generated tool and now runs in CI.
+- **`mcp-scaffold` install: a key held by a different registry server is refused, not "updated" (wicked-garden#1250, PR #1251).** `scripts/mcp/install.py` reads `GET /api/v1/mcp/servers` before staging and again right before the save: an entry under the key that is not this install (another `kind`, command or args — e.g. a REST server with the same name) exits 1 naming it and the two ways out (another key, or remove that server first), writing nothing to the registry; an unreadable registry (not a 404) refuses too. The skill's scope phase lists the registry's keys before picking one.
+- **Walkthrough probes learn the fixture's port (wicked-garden#1248, PR #1251).** The recorder starts the fixture on a free port but spawned probes with only `DATA_DIR`, so a probe reading the app over HTTP could not reach it (curl exit 7, the chapter FAILed while the app was right). Probes now also get `PORT` and `BASE_URL` (`http://127.0.0.1:$PORT`). The lint flags a probe argv with a literal loopback port (`probe_port`) and a `fixture.env` that pins `PORT` or `BASE_URL` (`fixture_env`); `refs/walkthrough-author.md` documents the probe environment and the `["sh", "-c", "curl -sf \"$BASE_URL/..\""]` pattern.
+
 ## [12.45.0] — 2026-10-08
 
 ### Fixed
@@ -999,7 +1006,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.45.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.46.0...HEAD
+[12.46.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.45.0...v12.46.0
 [12.45.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.44.0...v12.45.0
 [12.44.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.43.0...v12.44.0
 [12.43.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.42.0...v12.43.0
