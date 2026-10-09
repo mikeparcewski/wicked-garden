@@ -62,8 +62,9 @@ wicked-garden run scripts/mcp/scaffold.py --name <server-name> [--lang typescrip
 
 The one-file templates answer `initialize` (negotiating the protocol version), `ping`,
 `tools/list` and `tools/call`, ignore notifications, and ship two example tools: `echo`
-(read) and `counter_increment` (write). The TypeScript template ships `echo` (read) plus
-whatever `tools.json` holds. Replace the examples with your own.
+(read) and `counter_increment` (write). The TypeScript template registers what `tools.json`
+holds, and its example `echo` (read) only while `tools.json` is empty. Replace the examples
+with your own.
 
 ## 2. Generate tools from an OpenAPI document (`openapi`)
 
@@ -99,7 +100,9 @@ external `$ref`s are not followed.
   instruments, the per-tool rate limit (`rateLimitPerMin`) and `canAccess: requireSession`.
   Throw `UserError` for a failure the caller should see — it comes back as `isError`.
 - **Generated tools (branch A)** come from `tools.json`: `src/tools/generated.ts` registers
-  each entry with its JSON Schema and the annotations its class implies; calls go through
+  each entry with its JSON Schema (wrapped in fastmcp's `jsonSchemaAdapter` — fastmcp rejects
+  a raw JSON Schema and the server would not start) and the annotations its class implies;
+  an upstream error reaches the caller bounded, with the credential scrubbed; calls go through
   `src/rest.ts` — pinned to `baseUrl`, allowlisted arguments only, no redirects, auth and
   hop-by-hop headers never settable by an argument. **Hand-written tools (branch B)** follow
   `src/tools/example.ts`: a zod schema validated before the handler runs, honest annotations.
@@ -212,7 +215,10 @@ config's `key`:
    variable answers `secret_missing`: the record says `registered: false`, `missing`, and two
    remedies (export it in the daemon's environment and re-run; or studio **MCP tools → Add
    existing** with the secret, stored in the OS keychain). No daemon: `registered: false`
-   with the reason. Re-registering the same key is the update (`registered: "updated"`).
+   with the reason. Re-registering the same key is the update (`registered: "updated"`) —
+   of THIS install only: before anything is staged, a registry entry under the key that is a
+   different server (another `kind`, command or args — say a REST server with the same name)
+   exits 1 naming it, with nothing written. Pick another key, or remove that server first.
 6. **CLI configs** through `wicked-installer mcp upsert` (never written by this script); an
    installer without the verb is reported as `clis: "skipped: …"`, not failed.
 7. **Record** `<root>/<key>/installed.json` `{key, version, source, command, args,
@@ -261,7 +267,9 @@ run. Follow `wicked-garden-governed-worker`, and:
 - **scope** — settle what to expose, the auth scheme, the transport (stdio unless a remote
   client needs httpStream) and the **target directory**: the root of a near-empty repo, or a
   subdirectory of an existing one. A repository that is not registered must be created and
-  registered by the operator first — say so, do not create it. Record whether an OpenAPI
+  registered by the operator first — say so, do not create it. **List the registry's keys**
+  (`GET /api/v1/mcp/servers` on the crew daemon, or studio MCP tools) and pick a key no other
+  server holds: install refuses a key held by a different server. Record whether an OpenAPI
   document was given and whether to install when complete (the operator still decides at
   the install gate).
 - **source-discovery** — with an OpenAPI document, run the `openapi` action (step 2) and

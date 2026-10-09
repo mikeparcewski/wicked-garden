@@ -28,6 +28,8 @@ finding, 1 with any, 2 on a usage error. Each rule id below is what a finding ca
 | `base_url` | `baseUrl: "fixture"` — the tool films the fixture it starts, never a live system |
 | `fixture_start` | `fixture.start` is an argv of strings; no inline code (`-e`, `-c`, `--eval`, `-p`, `--print`, `--command`); no absolute path or `..`; with `--tree <dir>`, every script-like argument exists in the tree |
 | `secret_env` | no `fixture.env` name looks like a credential (`TOKEN`, `SECRET`, `PASSWORD`, `API_KEY`, `PRIVATE_KEY`, `CREDENTIAL`, `AUTH`, ...) |
+| `fixture_env` | `fixture.env` does not set `PORT` or `BASE_URL`: the recorder sets both (the fixture runs on a free port) |
+| `probe_port` | no probe argv hard-codes a loopback port (`127.0.0.1:<port>`, `localhost:<port>`): read `$BASE_URL` / `$PORT` instead (see Probes below) |
 | `segments` | at least one chapter (a non-`intro` segment): an empty plan proves nothing |
 | `segment_key` / `segment_run` | keys match `^[a-z0-9][a-z0-9-]*$` and are unique; `run(ctx)` is a function |
 | `proves` | every chapter names plan step ids in `proves[]`; with `--steps a,b`, each id is one of them |
@@ -43,6 +45,27 @@ A check without `verify` uses the record tool's default: locator `.inner_text !=
 source non-null. The verifier reads the capture the tool records: a locator `{inner_text, frame}`, a probe
 `{raw: {argv, exit_code, stdout, stderr}, parsed}`, an artifact `{path, sha256}`, a guard
 `{foreign_writes, console_errors}`, a join `{joined: {<source id>: value}}`.
+
+## Probes
+
+A probe is an argv the record tool runs with `cwd` = the app (the tree under review) and this
+environment on top of its own:
+
+| Variable | Value |
+|---|---|
+| `DATA_DIR` | the fixture's data directory (the same one the app writes to) |
+| `PORT` | the port the record tool started the fixture on — a FREE port, chosen per recording |
+| `BASE_URL` | the fixture's origin, `http://127.0.0.1:$PORT` |
+
+Never write the port into the storyline: `fixture.env.PORT` is overridden and a literal
+`http://127.0.0.1:4173/...` in a probe reaches nothing (curl exit 7, the chapter FAILs while the app
+is right). A probe that reads the app over HTTP expands the variable through a shell or a script:
+
+```
+probes: {
+  charges: ["sh", "-c", "curl -sf \"$BASE_URL/charges\""],   // or ["node", "scripts/probe-charges.mjs"] reading process.env.BASE_URL
+},
+```
 
 ## A storyline that passes
 

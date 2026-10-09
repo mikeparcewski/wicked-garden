@@ -20,7 +20,11 @@
    ``node <root>/<key>/current/dist/server.js`` is stable across updates.
 5. **Register** with wicked-crew (``POST /api/v1/mcp/servers/preview`` with
    ``auth: {ref: "env:<SERVER>_TOKEN"}`` — a reference, never a value — then
-   ``POST /api/v1/mcp/servers {previewHash}``); saving over the same key is the update.
+   ``POST /api/v1/mcp/servers {previewHash}``); saving over the same key is the update — but
+   only of THIS install: before anything is staged, a registry entry under the key that is a
+   different server (another ``kind``, command or args — e.g. a REST server named the same)
+   refuses the install (exit 1) naming it, and nothing is written; the check runs again right
+   before the save, so a key claimed while staging is never overwritten either.
 6. **CLI configs** through ``wicked-installer mcp upsert`` (never written here); an installer
    without the verb is reported, not failed.
 7. **Record** ``<root>/<key>/installed.json`` and print one JSON record.
@@ -207,6 +211,48 @@ def smoke(server_js: Path, var: str) -> tuple[str, dict]:
     return "failed", report
 
 
+# ── 0. key collision ───────────────────────────────────────────────────────────────────────
+
+def installed_rel(npm_spec: str | None) -> Path:
+    """server.js relative to ``current/`` — known before staging, so the registry check runs first."""
+    if npm_spec:
+        pkg = NPM_SPEC_RE.match(npm_spec).group("pkg")
+        return Path("node_modules", *pkg.split("/"), "dist", "server.js")
+    return Path("dist", "server.js")
+
+
+def check_key(origin: str, key: str, server_js: Path) -> dict | None:
+    """Refuse when the registry holds a DIFFERENT server under ``key`` (garden#1250).
+
+    The same key is the update only when the entry is this install (``mcp-stdio``, ``node``,
+    the same staged path). No daemon: nothing to collide with here (registration reports it).
+    Answers the existing entry's identity when it is this install, else None."""
+    try:
+        status, body = http_json("GET", f"{origin}/api/v1/mcp/servers")
+    except (urllib.error.URLError, OSError):
+        return None
+    if status == 404:  # a daemon without the registry list route: registration will say so
+        return None
+    if status >= 400:
+        raise Failure(1, f"cannot read the registry to check the key {key!r} (HTTP {status}): "
+                         f"{_message(body)}; nothing was installed")
+    servers = body.get("servers") if isinstance(body.get("servers"), list) else []
+    existing = next((s for s in servers if isinstance(s, dict) and s.get("name") == key), None)
+    if existing is None:
+        return None
+    ours = {"kind": "mcp-stdio", "command": "node", "args": [str(server_js)]}
+    theirs = {k: existing.get(k) for k in ours}
+    if theirs == ours:
+        return theirs
+    what = existing.get("kind") or "unknown-kind"
+    where = existing.get("url") or " ".join([str(existing.get("command") or ""),
+                                             *map(str, existing.get("args") or [])]).strip()
+    raise Failure(1, f"the registry already holds a different server under the key {key!r} "
+                     f"({what}{': ' + where if where else ''}); refusing to replace it. Pick "
+                     f"another key in {CONFIG_NAME}, or remove the existing server first "
+                     f"(studio MCP tools, or install.py --uninstall {key}); nothing was installed")
+
+
 # ── 5. register ────────────────────────────────────────────────────────────────────────────
 
 def register(origin: str, key: str, server_js: Path, var: str) -> dict:
@@ -350,6 +396,8 @@ def do_install(args) -> tuple[int, dict]:
     root = install_root(args.install_root)
     key_root = root / key
     next_dir = key_root / "next"
+    origin = crew_origin(args.crew_url)
+    check_key(origin, key, key_root / "current" / installed_rel(args.from_npm))
     if next_dir.is_symlink():
         next_dir.unlink()
     elif next_dir.exists():
@@ -372,7 +420,10 @@ def do_install(args) -> tuple[int, dict]:
               "installedAt": _now()}
     code = 0
     try:
-        reg = register(crew_origin(args.crew_url), key, current_js, var)
+        # Again right before the save: the key may have been claimed while this staged, or the
+        # first check found no daemon to ask (the registry has no conditional save to lean on).
+        check_key(origin, key, current_js)
+        reg = register(origin, key, current_js, var)
     except Failure as err:
         reg = {"registered": False, "error": str(err)}
         code = 1

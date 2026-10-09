@@ -951,6 +951,43 @@ def test_probe_check_passes_on_exit_code_zero(tmp_path, session_ledger):
 
 @needs_recorder
 @needs_vault
+def test_an_http_probe_reaches_the_fixture_on_its_free_port(tmp_path, session_ledger):
+    """garden#1248: the recorder hands probes PORT + BASE_URL, so a probe reading the app over
+    HTTP reaches the fixture the recorder started on a free port."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    shutil.copy(FIXTURES / "http_probe.mjs", repo / "http_probe.mjs")
+    probe_path = str(repo / "http_probe.mjs").replace("\\", "/")
+    sl = repo / "storyline.mjs"
+    _write_story(sl, f"""export default {{
+  title: "HTTP probe",
+  fixture: {{
+    start: ["node", "app.mjs"],
+    ready: "/ready",
+    probes: {{ ready: ["node", "{probe_path}"] }},
+  }},
+  segments: [{{
+    key: "01-chapter", title: "Chapter One", proves: [],
+    checks: [{{ id: "over_http", kind: "probe", name: "ready" }}],
+    async run(ctx) {{
+      await ctx.check("over_http");
+    }},
+  }}],
+}};
+""")
+    env = _wt_env(root, tree, repo, NODE_PATH=session_ledger)
+    env.pop("PORT", None)
+    env.pop("BASE_URL", None)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=120)
+    assert out.returncode == 0, out.stderr
+    cap = json.loads((root / "vault" / "01-chapter" / "claims" / "over_http.json").read_text())
+    assert cap["raw"]["exit_code"] == 0, cap["raw"]
+    assert cap["parsed"]["ok"] is True and cap["parsed"]["port"] > 0
+
+
+@needs_recorder
+@needs_vault
 def test_artifact_check_passes_when_file_exists(tmp_path, session_ledger):
     """Artifact check PASS when the file exists under DATA_DIR."""
     root = tmp_path / "evidence"

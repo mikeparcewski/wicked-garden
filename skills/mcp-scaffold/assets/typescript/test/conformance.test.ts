@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: __YEAR__ the __SERVER_NAME__ authors
 import { spawn } from "node:child_process";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,13 +17,22 @@ function minimalEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
 }
 
 /** Send frames over stdio; resolve with every reply by id once `want` ids answered. */
-function converse(env: NodeJS.ProcessEnv, frames: object[], want: number[]): Promise<Map<number, any>> {
+function converse(env: NodeJS.ProcessEnv, frames: object[], want: number[], server: string = SERVER): Promise<Map<number, any>> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [SERVER], { env, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(process.execPath, [server], { env, stdio: ["pipe", "pipe", "pipe"] });
     const replies = new Map<number, any>();
     let buf = "";
     // Generous: loading fastmcp + the OpenTelemetry SDK takes seconds on a loaded host.
     const timer = setTimeout(() => { child.kill(); reject(new Error(`timed out; got ${[...replies.keys()]}`)); }, 60_000);
+    let stderr = "";
+    child.stderr.on("data", (c: Buffer) => (stderr += c.toString("utf8")));
+    // A server that dies before answering fails fast, naming why (not a 60 s timeout).
+    child.on("exit", (code) => {
+      if (!want.every((id) => replies.has(id))) {
+        clearTimeout(timer);
+        reject(new Error(`server exited (${code}) before answering: ${stderr.slice(0, 500)}`));
+      }
+    });
     child.stdout.on("data", (chunk: Buffer) => {
       buf += chunk.toString("utf8");
       let nl: number;
@@ -80,6 +91,49 @@ describe("stdio conformance", () => {
     const { code, stderr } = await runToExit(minimalEnv());
     expect(code).not.toBe(0);
     expect(stderr).toContain(SECRET);
+  });
+});
+
+describe("generated tools (branch A)", () => {
+  // A copy of the built server with a one-tool tools.json, beside node_modules so imports
+  // resolve: proves the server STARTS with generated tools, lists exactly them, and calls one.
+  it("starts with a non-empty tools.json, lists only the generated tools and calls one", async () => {
+    const upstream = createHttpServer((req, res) => {
+      if (req.url === "/v1/notes/n1") res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id: "n1" }));
+      else res.writeHead(404).end("not found");
+    });
+    await new Promise<void>((r) => upstream.listen(0, "127.0.0.1", r));
+    const dir = mkdtempSync(join(ROOT, ".branch-a-"));
+    try {
+      cpSync(join(ROOT, "dist"), join(dir, "dist"), { recursive: true });
+      const config = JSON.parse(readFileSync(join(ROOT, "mcp-server.config.json"), "utf8"));
+      config.baseUrl = `http://127.0.0.1:${(upstream.address() as { port: number }).port}/v1`;
+      writeFileSync(join(dir, "mcp-server.config.json"), JSON.stringify(config));
+      writeFileSync(join(dir, "tools.json"), JSON.stringify({ tools: [{
+        name: "get_note", description: "Read one note", class: "read",
+        inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] },
+        rest: { method: "GET", pathTemplate: "/notes/{id}", pathMap: { id: "id" }, queryMap: {}, headerMap: {},
+          bodyMap: null, bodyArg: null, argAllowlist: ["id"], timeoutMs: 5000 },
+      }] }));
+      const replies = await converse(minimalEnv({ [SECRET]: "dummy" }), [
+        { id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "conformance", version: "0" } } },
+        { method: "notifications/initialized" },
+        { id: 2, method: "tools/list", params: {} },
+        { id: 3, method: "tools/call", params: { name: "get_note", arguments: { id: "n1" } } },
+        { id: 4, method: "tools/call", params: { name: "get_note", arguments: {} } },
+      ], [1, 2, 3, 4], join(dir, "dist", "server.js"));
+      const tools = replies.get(2).result.tools as Array<{ name: string; inputSchema: { required?: string[] }; annotations?: { readOnlyHint?: boolean } }>;
+      expect(tools.map((t) => t.name)).toEqual(["get_note"]);
+      expect(tools[0]?.annotations?.readOnlyHint).toBe(true);
+      expect(tools[0]?.inputSchema.required).toEqual(["id"]);
+      expect(JSON.parse(replies.get(3).result.content[0].text)).toEqual({ id: "n1" });
+      // The schema is enforced: a call missing a required argument never reaches the upstream.
+      const bad = replies.get(4);
+      expect(bad.error !== undefined || bad.result?.isError === true).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      await new Promise<void>((r) => upstream.close(() => r()));
+    }
   });
 });
 

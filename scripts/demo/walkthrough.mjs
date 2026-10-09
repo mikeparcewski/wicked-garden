@@ -439,7 +439,7 @@ function evidenceListForCapture(capture, def) {
 
 // ---- collector -----------------------------------------------------------------
 
-async function runCollector(def, { stage, root, dataDir, seg, id, priorCaptures, consoleErrors }) {
+async function runCollector(def, { stage, root, dataDir, seg, id, priorCaptures, consoleErrors, probeEnv = {} }) {
   const captureDir = path.join(root, "capture");
   fs.mkdirSync(captureDir, { recursive: true });
 
@@ -463,7 +463,9 @@ async function runCollector(def, { stage, root, dataDir, seg, id, priorCaptures,
       try {
         result = spawnSync(probeArgv[0], probeArgv.slice(1), {
           cwd: path.join(root, "app"),
-          env: { ...process.env, DATA_DIR: dataDir },
+          // PORT + BASE_URL: the fixture runs on a free port, so a probe that reads the app over
+          // HTTP learns where from these (garden#1248), never from a literal in its argv.
+          env: { ...process.env, DATA_DIR: dataDir, ...probeEnv },
           encoding: "utf8",
           timeout: 15_000,
         });
@@ -1059,6 +1061,7 @@ async function main() {
               stage, root: ROOT, dataDir, seg, id,
               priorCaptures: segCaptures,
               consoleErrors: consoleErrBuf.current,
+              probeEnv: { PORT: String(fixturePort), BASE_URL: fixtureOriginStr },
             });
           } catch (e) {
             capture = { _verifier_error: e.message };
