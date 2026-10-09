@@ -131,8 +131,9 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
     assert out["registry"] == {"server": "acme-notes", "tools": 2, "policies": {"read": "allow"}}
     assert out["command"] == "node" and out["args"] == [str(current_js)]
     assert out["envNames"] == [VAR]
-    listed, preview, save = daemon.requests
+    listed, relisted, preview, save = daemon.requests
     assert (listed["method"], listed["path"]) == ("GET", SAVE), "the key is checked before staging"
+    assert (relisted["method"], relisted["path"]) == ("GET", SAVE), "and again before the save"
     assert preview["path"] == PREVIEW and preview["body"] == {
         "name": "acme-notes", "kind": "mcp-stdio", "command": "node", "args": [str(current_js)],
         "auth": {"ref": f"env:{VAR}", "env": VAR}}
@@ -336,3 +337,17 @@ def test_an_unreadable_registry_refuses_before_writing(rig):
     assert code == 1, out
     assert "cannot read the registry" in out["error"] and "registry unavailable" in out["error"]
     assert rig.calls("npm") == [] and not rig.root.exists()
+
+
+def test_a_key_claimed_while_staging_is_never_overwritten(rig):
+    """The check runs again right before the save (codex review): a different server that took
+    the key while this one staged refuses the registration; nothing is previewed or saved."""
+    lists = iter([[], [_theirs()]])
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        daemon.routes[("GET", SAVE)] = lambda _req: (200, {"servers": next(lists), "discovered": []})
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+
+    assert code == 1, out
+    assert out["registered"] is False and "different server under the key" in out["error"]
+    assert [r["method"] for r in daemon.requests] == ["GET", "GET"], "nothing previewed or saved"

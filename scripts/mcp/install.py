@@ -23,7 +23,8 @@
    ``POST /api/v1/mcp/servers {previewHash}``); saving over the same key is the update — but
    only of THIS install: before anything is staged, a registry entry under the key that is a
    different server (another ``kind``, command or args — e.g. a REST server named the same)
-   refuses the install (exit 1) naming it, and nothing is written.
+   refuses the install (exit 1) naming it, and nothing is written; the check runs again right
+   before the save, so a key claimed while staging is never overwritten either.
 6. **CLI configs** through ``wicked-installer mcp upsert`` (never written here); an installer
    without the verb is reported, not failed.
 7. **Record** ``<root>/<key>/installed.json`` and print one JSON record.
@@ -419,6 +420,9 @@ def do_install(args) -> tuple[int, dict]:
               "installedAt": _now()}
     code = 0
     try:
+        # Again right before the save: the key may have been claimed while this staged, or the
+        # first check found no daemon to ask (the registry has no conditional save to lean on).
+        check_key(origin, key, current_js)
         reg = register(origin, key, current_js, var)
     except Failure as err:
         reg = {"registered": False, "error": str(err)}
