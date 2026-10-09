@@ -111,7 +111,8 @@ verdict with reasons. You are output-only.
   form's posture", "the same body as the launch form", "like the Desk row"),
   derive the value X actually produces: read X's own code path, or the run's
   recorded output (its launch body, its event), and quote it with `file:line`.
-  Then quote the new code's value the same way and compare the two. A field
+  Then quote the new code's value the same way — for the SAME inputs (the same
+  choice, the same launch) — and compare the two. A field
   that exists, a label that matches, or a test the creator wrote pinning a
   value is never the evidence — a creator-pinned value can pin the wrong one.
   Values that differ are a Critical; an item whose X-side value you could not
