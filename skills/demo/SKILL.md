@@ -191,7 +191,8 @@ again until it exits 0. The rules, in short: `baseUrl: "fixture"`; `fixture.star
 the tree declares (no `-e`/`-c`, nothing outside the tree, no secret-shaped env name); every chapter `proves` plan
 step ids and has a `locator` check, a `probe` or `artifact` check, and a `join` of the two; the walkthrough has a
 `guard` check; every check carries `negative` samples its `jq_pred` verifier FAILS on. The record tool
-(`walkthrough_review`) reads the same file through `WICKED_WALKTHROUGH_AUTHOR`. Full rules and a passing
+(`walkthrough_review`) reads the same file through `WICKED_WALKTHROUGH_AUTHOR` and re-runs the lint first: a
+finding refuses the recording (`storyline_refused`). Full rules and a passing
 example: `refs/walkthrough-author.md`.
 
 ### Probe selectors (read-only)
