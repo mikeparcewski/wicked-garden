@@ -9,6 +9,7 @@
 // The storyline: --storyline <path>, else $WICKED_WALKTHROUGH_AUTHOR/storyline.mjs (the walkthrough_plan step's
 // author dir, which the engine hands the record tool); with neither, record refuses (storyline_refused).
 // lint (walkthrough-lint.mjs, DES §4.5) is the walkthrough_plan step's pinned validator: exit 0 = no finding.
+// record re-runs it on the storyline it loaded (DES §4.4 step 1): any finding refuses (storyline_refused).
 // Safety: WICKED_WALKTHROUGH_JAIL must be set; without it writes INCONCLUSIVE(unjailed_host) and exits 0.
 //
 // What the proof root holds is ONE contract with crew's walkthrough view and acceptance
@@ -43,7 +44,7 @@ import { tmpdir } from "node:os";
 import { makeSegmentRecorder, failedAtInVideo, stitchParts, extractFrame, SEGMENT_TRIM_START } from "./record.mjs";
 import { fixtureOrigin } from "./readonly.mjs";
 import { crewRunStamp } from "../qe/lib/crew-run.mjs";
-import { lintAction } from "./walkthrough-lint.mjs";
+import { lintAction, lintStoryline } from "./walkthrough-lint.mjs";
 
 // ---- arg parsing ---------------------------------------------------------------
 const [action, ...rawArgs] = process.argv.slice(2);
@@ -948,6 +949,23 @@ async function main() {
     if (fs.existsSync(src) && !fs.existsSync(dst)) {
       try { fs.symlinkSync(src, dst); } catch { /* non-fatal */ }
     }
+  }
+
+  // Re-run the lint (DES-walkthrough-proof §4.4 step 1): the storyline may have been edited since the
+  // walkthrough_plan step linted it, so a storyline the lint refuses is never started or recorded. It
+  // runs on the staged tree (with its fixture.reuse links), so fixture.start must name a script the tree
+  // under review declares.
+  let lint;
+  try { lint = lintStoryline(story, { tree: appDir }); } catch (e) {
+    lint = { findings: [{ rule: "storyline_unreadable", where: storyPath, detail: String(e?.message ?? e).split("\n")[0] }] };
+  }
+  if (lint.findings.length) {
+    const shown = lint.findings.slice(0, 5).map((f) => `${f.rule} at ${f.where}: ${f.detail}`);
+    const more = lint.findings.length > shown.length ? ` (+${lint.findings.length - shown.length} more)` : "";
+    writeResult(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused", reason: `lint: ${shown.join("; ")}${more}`, chapters: allChapters });
+    writeProgress(ROOT, { overall: "INCONCLUSIVE", cause: "storyline_refused" });
+    finishWithSeal(ROOT, { tree: TREE, storyline_sha: storySha, contract_shas: {}, overall: "INCONCLUSIVE", cause: "storyline_refused", chapters: allChapters });
+    process.exit(0);
   }
 
   // 3. Spawn fixture, poll ready

@@ -13,7 +13,9 @@ review and judges every check through the vault. No model judges a check.
   `wicked-garden run scripts/demo/walkthrough.mjs lint --root <author dir>`. It denies the step until the
   lint exits 0.
 - The record step reads the same file through `WICKED_WALKTHROUGH_AUTHOR` (the author dir the engine hands
-  it). Outside a run, pass `--storyline <path>` to `record` and `lint`.
+  it) and re-runs the lint before it records anything: a finding refuses the recording
+  (`INCONCLUSIVE`, cause `storyline_refused`, the rules in `reason`). Outside a run, pass
+  `--storyline <path>` to `record` and `lint`.
 
 ## Lint rules
 

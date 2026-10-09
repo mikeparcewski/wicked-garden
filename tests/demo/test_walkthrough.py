@@ -62,6 +62,25 @@ def _ledger_version() -> str:
         return "0.4.0"
 
 
+LINT_COMPLETE = FIXTURES / "lint_complete.mjs"
+
+
+def _write_story(sl: Path, text: str) -> None:
+    """Write a recorder-test storyline wrapped in lintComplete (wicked-garden#1240).
+
+    record re-runs the walkthrough lint and refuses any finding, so a test that exercises one
+    collector or verdict path hands record its storyline completed by tests/demo/fixtures/
+    lint_complete.mjs: negative samples on every check, plus passing pad checks for any class the
+    chapter lacks (run after the chapter's own run(), so its checks keep their order and timing).
+    """
+    head, sep, tail = text.partition("export default {")
+    assert sep, "storyline text must contain `export default {`"
+    body, sep2, rest = tail.rpartition("};")
+    assert sep2, "storyline text must end its default export with `};`"
+    url = LINT_COMPLETE.resolve().as_uri()
+    sl.write_text(f'import {{ lintComplete }} from "{url}";\n{head}export default lintComplete({{{body}}});{rest}')
+
+
 # ---- session-scoped ledger install -------------------------------------------
 
 @pytest.fixture(scope="session")
@@ -133,7 +152,7 @@ def _make_minimal_storyline(repo: Path, tree: str,
     """Write a storyline.mjs into repo that uses the fixture app.mjs."""
     probe_path = str(repo / "probe.mjs").replace("\\", "/")
     sl = repo / "storyline.mjs"
-    sl.write_text(
+    _write_story(sl, 
         f"""export default {{
   title: "Test Story",
   fixture: {{
@@ -171,7 +190,7 @@ def _make_two_chapter_storyline(repo: Path) -> Path:
     `verify.params.expr = "false"`, so the real vault rejects it.
     """
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "Ledger A/B Story",
   fixture: { start: ["node", "app.mjs"], ready: "/ready" },
   segments: [
@@ -464,9 +483,9 @@ def test_global_inconclusive_cause_lists_every_chapter(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Test",
-  fixture: {{ start: ["node", "-e", "process.exit(1)"], ready: "/ready" }},
+  fixture: {{ start: ["node", "probe.mjs"], ready: "/ready" }},
   segments: [
     {{ key: "01-a", title: "A", proves: [], checks: [], async run(ctx) {{}} }},
     {{ key: "02-b", title: "B", proves: [], checks: [], async run(ctx) {{}} }},
@@ -479,7 +498,7 @@ def test_global_inconclusive_cause_lists_every_chapter(tmp_path):
     result = json.loads((root / "result.json").read_text())
     assert result["overall"] == "INCONCLUSIVE"
     assert result.get("cause") == "fixture_unavailable", (
-        f"expected cause=fixture_unavailable (node -e exit(1) fixture), got {result}"
+        f"expected cause=fixture_unavailable (a fixture that exits without serving /ready), got {result}"
     )
     # Both chapters must be listed and ALL must be INCONCLUSIVE
     keys = {c["key"] for c in result.get("chapters", [])}
@@ -535,19 +554,20 @@ process.exit(0);
         f"verifier_status=error should produce INCONCLUSIVE, got {chapters}"
     )
     # crew's `checks[].passed` is null (not false) for an inconclusive check, and `detail` says why.
-    (check,) = next(c for c in result["chapters"] if c["key"] == "01-chapter")["checks"]
+    checks = next(c for c in result["chapters"] if c["key"] == "01-chapter")["checks"]
+    check = next(c for c in checks if c["id"] == "guard_check")
     assert check["passed"] is None
     assert check["detail"] == "vault cross-check returned ERROR"
 
 
 @needs_node
 def test_artifact_path_escape_refuses_absolute_path(tmp_path):
-    """Collector refuses artifact paths that escape DATA_DIR."""
+    """An artifact path that escapes DATA_DIR is refused by record's lint (#1240), before recording."""
     root = tmp_path / "evidence"
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -560,19 +580,19 @@ def test_artifact_path_escape_refuses_absolute_path(tmp_path):
     env = _wt_env(root, tree, repo)
     out = _run_wt(["record", "--storyline", str(sl)], env, timeout=60)
     assert out.returncode == 0, out.stderr
-    if (root / "result.json").exists():
-        result = json.loads((root / "result.json").read_text())
-        assert result["overall"] in ("INCONCLUSIVE", "FAIL"), result
+    result = json.loads((root / "result.json").read_text())
+    assert result["overall"] == "INCONCLUSIVE" and result["cause"] == "storyline_refused", result
+    assert "check_artifact" in result["reason"], result
 
 
 @needs_node
 def test_artifact_path_escape_refuses_dotdot(tmp_path):
-    """Collector refuses artifact paths with ../ traversal."""
+    """An artifact path with ../ traversal is refused by record's lint (#1240), before recording."""
     root = tmp_path / "evidence"
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -585,9 +605,9 @@ def test_artifact_path_escape_refuses_dotdot(tmp_path):
     env = _wt_env(root, tree, repo)
     out = _run_wt(["record", "--storyline", str(sl)], env, timeout=60)
     assert out.returncode == 0, out.stderr
-    if (root / "result.json").exists():
-        result = json.loads((root / "result.json").read_text())
-        assert result["overall"] in ("INCONCLUSIVE", "FAIL"), result
+    result = json.loads((root / "result.json").read_text())
+    assert result["overall"] == "INCONCLUSIVE" and result["cause"] == "storyline_refused", result
+    assert "check_artifact" in result["reason"], result
 
 
 @needs_node
@@ -600,7 +620,7 @@ def test_disk_cap_causes_inconclusive(tmp_path):
     # Two-chapter storyline: with cap=1 byte the cap is hit immediately, so both chapters
     # must be listed as INCONCLUSIVE from the global-cause helper.
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "Disk Cap Test",
   fixture: { start: ["node", "app.mjs"], ready: "/ready" },
   segments: [
@@ -757,7 +777,7 @@ def test_overall_verdict_is_fail_when_any_chapter_fails(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Fail Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -795,7 +815,7 @@ def test_never_reached_check_is_fail(tmp_path):
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
     # Guard check declared but never called
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Never-reached",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -851,7 +871,7 @@ def test_guard_fails_when_foreign_write_detected(tmp_path):
     # armGuard intercepts all mutating requests to non-writable origins at the
     # browser-context level (not just the app iframe), so this is caught
     # synchronously via Playwright route interception.
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Guard Fail Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -896,7 +916,7 @@ def test_probe_check_passes_on_exit_code_zero(tmp_path, session_ledger):
     repo, tree = _make_tree(tmp_path)
     probe_path = str(repo / "probe.mjs").replace("\\", "/")
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Probe Test",
   fixture: {{
     start: ["node", "app.mjs"],
@@ -938,7 +958,7 @@ def test_artifact_check_passes_when_file_exists(tmp_path, session_ledger):
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
     # POST /api/run writes DATA_DIR/run.json, then check it
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Artifact Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -972,7 +992,7 @@ def test_join_check_passes_when_sources_present(tmp_path, session_ledger):
     repo, tree = _make_tree(tmp_path)
     probe_path = str(repo / "probe.mjs").replace("\\", "/")
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Join Test",
   fixture: {{
     start: ["node", "app.mjs"],
@@ -982,11 +1002,13 @@ def test_join_check_passes_when_sources_present(tmp_path, session_ledger):
   segments: [{{
     key: "01-chapter", title: "Chapter One", proves: [],
     checks: [
+      {{ id: "screen_src", kind: "locator", selector: "#status" }},
       {{ id: "probe_src", kind: "probe", name: "health" }},
-      {{ id: "join_check", kind: "join", sources: ["probe_src"] }},
+      {{ id: "join_check", kind: "join", sources: ["screen_src", "probe_src"] }},
     ],
     async run(ctx) {{
       await ctx.hold(100);
+      await ctx.check("screen_src");
       await ctx.check("probe_src");
       await ctx.check("join_check");
     }},
@@ -1011,7 +1033,7 @@ def test_locator_check_fails_for_absent_element(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Locator Fail Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -1044,7 +1066,7 @@ def test_probe_sqlite_json_parse(tmp_path, session_ledger):
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
     # Use sqlite3 to query a trivial in-memory database; verify with params.expr (canonical)
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "SQLite Probe Test",
   fixture: {{
     start: ["node", "app.mjs"],
@@ -1088,7 +1110,7 @@ def test_fail_chapter_manifest_validates_as_21(tmp_path, session_ledger):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "FAIL Manifest Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -1177,7 +1199,7 @@ def test_console_error_before_first_check_makes_guard_fail(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Console Error Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -1287,7 +1309,7 @@ def test_locator_check_passes_for_present_element(tmp_path, session_ledger):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Locator Pass Test",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
   segments: [{{
@@ -1329,7 +1351,7 @@ def test_fixture_reuse_symlinks_directory(tmp_path):
     (reuse_dir / "data.txt").write_text("shared")
 
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Reuse Test",
   fixture: {{
     start: ["node", "app.mjs"],
@@ -1391,7 +1413,7 @@ def test_false_custom_verify_expr_fails_via_real_vault(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "False Expr Test",
   fixture: { start: ["node", "app.mjs"], ready: "/ready" },
   segments: [{
@@ -1417,7 +1439,12 @@ def test_false_custom_verify_expr_fails_via_real_vault(tmp_path):
 
 @needs_recorder
 def test_missing_jq_causes_inconclusive(tmp_path):
-    """Real vault with jq absent from PATH → jq_pred evaluation ERROR → chapter INCONCLUSIVE."""
+    """jq absent from PATH → chapter INCONCLUSIVE, never PASS.
+
+    Since record re-runs the lint (#1240) the refusal comes first: the lint cannot run a check's
+    negative samples without jq and fails closed (negative_unverified -> storyline_refused), so the
+    vault is never asked. The judge's own reading of a verifier error is pinned without jq by
+    test_verifier_error_folded_into_result_fail_is_inconclusive."""
     vault_bin = shutil.which("wicked-vault")
     if vault_bin is None:
         pytest.skip("wicked-vault not installed")
@@ -1471,12 +1498,10 @@ def test_missing_jq_causes_inconclusive(tmp_path):
     assert chapters.get("01-chapter") == "INCONCLUSIVE", (
         f"missing jq must cause vault ERROR → chapter INCONCLUSIVE, got {chapters}"
     )
-    # The INCONCLUSIVE must come from the claim itself (verifier_status error), not from a
-    # side effect of the restricted PATH: the check is neither passed nor failed.
-    chapter = next(c for c in result["chapters"] if c["key"] == "01-chapter")
-    check = next(c for c in chapter["checks"] if c["id"] == "guard_check")
-    assert check["passed"] is None, check
-    assert "verifier error" in (check.get("detail") or ""), check
+    # The INCONCLUSIVE is the lint's fail-closed refusal, named, and nothing was recorded.
+    assert result["cause"] == "storyline_refused", result
+    assert "negative_unverified" in result["reason"], result
+    assert not (root / "capture").exists() and not (root / "data").exists()
 
 
 @needs_recorder
@@ -1586,6 +1611,12 @@ def test_ledger_store_broken_downgrades_pass_to_inconclusive(tmp_path, session_l
     assert result["overall"] == "FAIL", result
 
 
+# The pad checks lintComplete adds to _make_minimal_storyline's chapter (it already has a guard), as
+# PASS claims, so a fake cross-check judges the chapter by the claim the test is about.
+PAD_PASS_CLAIMS = [{"claim_id": i, "artifact_id": f"fake-{i}", "hash_ok": True, "verifier_status": "pass", "result": "PASS"}
+                   for i in ("pad_screen", "pad_state", "pad_join")]
+
+
 def _fake_vault(tmp_path: Path, record_exit: int, cross_check: dict, cross_exit: int) -> Path:
     """A fake wicked-vault CLI: declare-contract succeeds, record exits `record_exit`,
     cross-check prints `cross_check` and exits `cross_exit`."""
@@ -1649,7 +1680,7 @@ def test_vault_pass_without_this_runs_record_is_not_pass(tmp_path):
     repo, tree = _make_tree(tmp_path)
     sl = _make_minimal_storyline(repo, tree)
     fv = _fake_vault(tmp_path, record_exit=1,
-                     cross_check={"overall": "PASS", "claims": [{"claim_id": "guard_check", "result": "PASS"}]},
+                     cross_check={"overall": "PASS", "claims": [{"claim_id": "guard_check", "result": "PASS"}, *PAD_PASS_CLAIMS]},
                      cross_exit=0)
     out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
     assert out.returncode == 0, out.stderr
@@ -1659,7 +1690,8 @@ def test_vault_pass_without_this_runs_record_is_not_pass(tmp_path):
 
 @needs_node
 def test_vault_error_with_no_checks_is_not_pass(tmp_path):
-    """A chapter with no checks is judged by the vault's overall: ERROR is INCONCLUSIVE, never PASS."""
+    """A chapter with no checks never reaches the vault: record's lint refuses it (#1240), so it is
+    INCONCLUSIVE, never PASS, whatever the vault would say."""
     root = tmp_path / "evidence"
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
@@ -1677,6 +1709,8 @@ def test_vault_error_with_no_checks_is_not_pass(tmp_path):
     assert out.returncode == 0, out.stderr
     chapters = {c["key"]: c["verdict"] for c in json.loads((root / "result.json").read_text())["chapters"]}
     assert chapters.get("01-empty") == "INCONCLUSIVE", chapters
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused" and "chapter_checks" in result["reason"], result
 
 
 @needs_node
@@ -1693,7 +1727,8 @@ def test_verifier_error_folded_into_result_fail_is_inconclusive(tmp_path):
     fv = _fake_vault(tmp_path, record_exit=0, cross_exit=1, cross_check={
         "overall": "FAIL",
         "claims": [{"claim_id": "guard_check", "artifact_id": "fake-1", "hash_ok": True,
-                    "verifier_status": "error", "result": "FAIL", "detail": "jq: command not found"}],
+                    "verifier_status": "error", "result": "FAIL", "detail": "jq: command not found"},
+                   *PAD_PASS_CLAIMS],
     })
     out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
     assert out.returncode == 0, out.stderr
@@ -1722,7 +1757,7 @@ def test_hash_mismatch_stays_fail(tmp_path, claim_fields):
     fv = _fake_vault(tmp_path, record_exit=0, cross_exit=1, cross_check={
         "overall": "FAIL",
         "claims": [{"claim_id": "guard_check", "artifact_id": "fake-1", "hash_ok": False,
-                    "detail": "payload hash mismatch", **claim_fields}],
+                    "detail": "payload hash mismatch", **claim_fields}, *PAD_PASS_CLAIMS],
     })
     out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo, WICKED_VAULT_BIN=str(fv)), timeout=60)
     assert out.returncode == 0, out.stderr
@@ -1807,7 +1842,7 @@ def test_chapters_json_is_written_before_the_app_starts(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "Never Starts",
   fixture: { start: ["definitely-not-a-binary-xyz-1208"], ready: "/ready" },
   segments: [
@@ -1868,7 +1903,7 @@ def test_progress_json_names_the_chapter_being_recorded(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""import fs from "node:fs";
+    _write_story(sl, """import fs from "node:fs";
 import path from "node:path";
 export default {
   title: "Progress Story",
@@ -1905,7 +1940,7 @@ def test_result_json_and_demo_video_are_what_crews_view_reads(tmp_path, session_
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "Rich Result",
   fixture: { start: ["node", "app.mjs"], ready: "/ready" },
   segments: [
@@ -1939,8 +1974,8 @@ def test_result_json_and_demo_video_are_what_crews_view_reads(tmp_path, session_
     assert passed["proves"] == ["build"]
     assert passed["legs"] == [{"leg": "provider", "claim_level": "machinery-verified", "reason": "the provider is a sink"}]
     assert passed["failed_at_sec"] is None and passed["failed_frame"] is None
-    (check,) = passed["checks"]
-    assert check["id"] == "clean_guard" and check["kind"] == "guard"
+    check = next(c for c in passed["checks"] if c["id"] == "clean_guard")
+    assert check["kind"] == "guard"
     assert check["sentence"] == "Nothing else was written"
     assert check["passed"] is True
     assert isinstance(check["at_sec"], (int, float))
@@ -1950,7 +1985,7 @@ def test_result_json_and_demo_video_are_what_crews_view_reads(tmp_path, session_
     failed = by_key["02-fails"]
     assert failed["verdict"] == "FAIL"
     assert failed["title"] == "Chapter Fails"
-    (fcheck,) = failed["checks"]
+    fcheck = next(c for c in failed["checks"] if c["id"] == "false_guard")
     assert fcheck["passed"] is False
     assert fcheck["sentence"] == "This one must fail"
     assert isinstance(fcheck["detail"], str) and fcheck["detail"]
@@ -2010,7 +2045,7 @@ def test_record_on_an_unsealable_root_is_inconclusive_with_a_null_seal(tmp_path)
     (root / "capture" / "planted.png").symlink_to(FIXTURES / "app.mjs")
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "Unsealable",
   fixture: { start: ["definitely-not-a-binary-xyz-1208"], ready: "/ready" },
   segments: [{ key: "01-first", title: "First", checks: [{ id: "g", kind: "guard" }], async run(ctx) { await ctx.check("g"); } }],
@@ -2041,7 +2076,7 @@ def test_progress_json_reads_starting_app_before_the_fixture_is_up(tmp_path):
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""import fs from "node:fs";
+    _write_story(sl, """import fs from "node:fs";
 import path from "node:path";
 export default {
   title: "Starting",
@@ -2074,7 +2109,7 @@ def test_a_failed_take_is_published_where_crew_reads_the_chapter_as_recorded(tmp
     root.mkdir()
     repo, tree = _make_tree(tmp_path)
     sl = repo / "storyline.mjs"
-    sl.write_text("""export default {
+    _write_story(sl, """export default {
   title: "Thrown Take",
   fixture: { start: ["node", "app.mjs"], ready: "/ready" },
   segments: [{
@@ -2096,9 +2131,10 @@ def test_a_failed_take_is_published_where_crew_reads_the_chapter_as_recorded(tmp
     result = json.loads((root / "result.json").read_text())
     (chapter,) = result["chapters"]
     assert chapter["verdict"] == "FAIL" and result["overall"] == "FAIL"
-    (check,) = chapter["checks"]
-    assert check["passed"] is False and check["at_sec"] is None
-    assert check["detail"].startswith("never reached")
+    assert "never" in {c["id"] for c in chapter["checks"]}
+    for check in chapter["checks"]:   # the storyline's check and the lint pads: none ran
+        assert check["passed"] is False and check["at_sec"] is None, check
+        assert check["detail"].startswith("never reached"), check
     failure = json.loads((seg / "failed-1" / "failure.json").read_text())
     assert chapter["failed_at_sec"] == failure["failed_at_sec"]
     assert chapter["failed_frame"] == "demo-video/segments/01-throws/failed-frame.jpg"
@@ -2120,7 +2156,7 @@ def test_failed_at_sec_is_the_earliest_failing_check_and_the_frame_is_the_on_scr
     repo, tree = _make_tree(tmp_path)
     probe_path = str(repo / "probe.mjs").replace("\\", "/")
     sl = repo / "storyline.mjs"
-    sl.write_text(f"""export default {{
+    _write_story(sl, f"""export default {{
   title: "Two Failures",
   fixture: {{ start: ["node", "app.mjs"], ready: "/ready", probes: {{ check_run: ["node", "{probe_path}"] }} }},
   segments: [{{
@@ -2238,3 +2274,82 @@ def test_unjailed_record_lists_the_author_storylines_chapters(tmp_path):
     result = json.loads((root / "result.json").read_text())
     assert result["cause"] == "unjailed_host"
     assert [c["key"] for c in result["chapters"]] == ["01-a", "02-b"]
+
+
+# ---- wicked-garden#1240: record re-runs the lint before recording (DES §4.4 step 1) -------------
+
+@needs_node
+def test_record_refuses_a_storyline_the_lint_refuses_before_anything_runs(tmp_path):
+    """A storyline edited after walkthrough_plan linted it (here: a check whose only negative sample
+    PASSES its verifier, a tautology) is refused by name: storyline_refused, the lint rule in the
+    reason, every chapter INCONCLUSIVE, and the fixture never started, no capture taken."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _write_story(sl, """export default {
+  title: "Tautology",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [{
+    key: "01-taut", title: "Tautology", proves: ["build"],
+    checks: [{ id: "always", kind: "guard", verify: { kind: "jq_pred", params: { expr: "true" } },
+               negative: [{ foreign_writes: ["x"] }] }],
+    async run(ctx) { await ctx.check("always"); },
+  }],
+};
+""")
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo), timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["overall"] == "INCONCLUSIVE" and result["cause"] == "storyline_refused", result
+    assert "negative_passes" in result["reason"], result
+    assert result["chapters"] == [{"key": "01-taut", "title": "Tautology", "verdict": "INCONCLUSIVE"}]
+    assert not (root / "data").exists() and not (root / "capture").exists()
+    seal = _parse_seal(out.stdout)
+    assert seal["cause"] == "storyline_refused" and seal["chapters"] == [{"key": "01-taut", "verdict": "INCONCLUSIVE"}]
+
+
+@needs_node
+def test_record_lints_the_storyline_it_records_without_the_pads(tmp_path):
+    """The unpadded minimal storyline (a guard with no negative sample, no on-screen or state check)
+    is what the existing fixtures were before #1240: record now refuses it, naming each rule."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    sl.write_text("""export default {
+  baseUrl: "fixture",
+  fixture: { start: ["node", "app.mjs"], ready: "/ready" },
+  segments: [{ key: "01-chapter", title: "One", proves: ["p1"],
+               checks: [{ id: "guard_check", kind: "guard" }],
+               async run(ctx) { await ctx.check("guard_check"); } }],
+};
+""")
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo), timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused", result
+    for rule in ("negative_missing", "chapter_on_screen", "chapter_state"):
+        assert rule in result["reason"], (rule, result["reason"])
+
+
+@needs_node
+def test_record_lints_fixture_start_against_the_staged_tree(tmp_path):
+    """record lints with the tree it staged: a fixture.start script the tree does not declare (edited in
+    after walkthrough_plan) is refused as fixture_start, not started and left to time out."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _write_story(sl, """export default {
+  title: "Missing script",
+  fixture: { start: ["node", "no-such-app.mjs"], ready: "/ready" },
+  segments: [{ key: "01-chapter", title: "One", proves: ["p1"], checks: [], async run(ctx) {} }],
+};
+""")
+    out = _run_wt(["record", "--storyline", str(sl)], _wt_env(root, tree, repo), timeout=60)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    assert result["cause"] == "storyline_refused", result
+    assert "fixture_start" in result["reason"] and "no-such-app.mjs" in result["reason"], result
+    assert not (root / "data").exists()
