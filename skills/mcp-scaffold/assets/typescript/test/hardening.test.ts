@@ -91,6 +91,21 @@ describe("query-parameter API key (garden#1261)", () => {
     });
     afterAll(() => new Promise<void>((r) => stub.close(() => r())));
 
+    it("a transport error naming the URL is scrubbed before the span or the caller sees it", async () => {
+      const { callRest } = await import("../src/rest.js");
+      const creds = { headers: {}, query: { api_key: "s3cret-key" } };
+      const err = await callRest(search, { q: "x" }, {
+        baseUrl: base,
+        credentials: async () => creds,
+        readOnly: false,
+        fetchImpl: (async (u: URL) => {
+          throw new TypeError(`fetch failed for ${u.href}`);
+        }) as unknown as typeof fetch,
+      }).catch((e: unknown) => e);
+      expect((err as Error).message).toContain("api_key=[redacted]");
+      expect((err as Error).message).not.toContain("s3cret-key");
+    });
+
     it("comes back scrubbed", async () => {
       const config = queryConfig(base);
       const added: any[] = [];

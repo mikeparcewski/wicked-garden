@@ -34,6 +34,26 @@ export interface RestContext {
 export interface RestResult {
   status: number;
   body: unknown;
+  /** The exact credentials this request carried — what an error scrub must remove. */
+  sent: Credentials;
+}
+
+/**
+ * `text` with every credential in `sent` (header and query values; raw, after a `Bearer `-style
+ * scheme, and URL-encoded) replaced by `[redacted]`. The ONE scrub: upstream error bodies and
+ * transport errors (whose message may carry the request URL, query key included) both use it.
+ */
+export function scrubCredentials(text: string, sent: Credentials): string {
+  let out = text;
+  for (const value of [...Object.values(sent.headers), ...Object.values(sent.query)]) {
+    const bare = value.includes(" ") ? value.slice(value.indexOf(" ") + 1) : "";
+    const parts = [value, bare, encodeURIComponent(value), new URLSearchParams({ v: value }).toString().slice(2)];
+    // Longest first, so a scrubbed prefix never leaves the rest of a longer spelling behind.
+    for (const part of [...new Set(parts)].sort((a, b) => b.length - a.length)) {
+      if (part.length >= 4) out = out.split(part).join("[redacted]");
+    }
+  }
+  return out;
 }
 
 /** Headers an argument can never set: routing, auth and the hop-by-hop set. */
@@ -140,7 +160,8 @@ async function readBody(res: Response): Promise<unknown> {
  * 429/5xx twice for read tools only. One child span `http.client.request` per call.
  */
 export async function callRest(mapping: RestMapping, args: Record<string, unknown>, ctx: RestContext): Promise<RestResult> {
-  const { url, init } = buildRequest(ctx.baseUrl, mapping, args, await ctx.credentials());
+  const sent = await ctx.credentials();
+  const { url, init } = buildRequest(ctx.baseUrl, mapping, args, sent);
   const fetchImpl = ctx.fetchImpl ?? fetch;
   return tracer.startActiveSpan(
     "http.client.request",
@@ -157,12 +178,17 @@ export async function callRest(mapping: RestMapping, args: Record<string, unknow
             continue;
           }
           if (res.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR });
-          return { status: res.status, body: await readBody(res) };
+          return { status: res.status, body: await readBody(res), sent };
         }
       } catch (err) {
-        span.recordException(err as Error);
+        // A transport error can name the request URL — a query-parameter key with it. Neither
+        // the span nor the caller ever sees the raw message.
+        const e = err instanceof Error ? err : new Error(String(err));
+        const safe = new Error(scrubCredentials(e.message, sent));
+        safe.name = e.name;
+        span.recordException(safe);
         span.setStatus({ code: SpanStatusCode.ERROR });
-        throw err;
+        throw safe;
       } finally {
         span.end();
       }
