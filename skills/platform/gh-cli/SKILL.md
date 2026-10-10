@@ -29,6 +29,13 @@ Intelligent wrappers and patterns for GitHub CLI that go beyond basic commands.
 - Bulk operations on issues/PRs
 - Repository health checks
 
+## Inventories a later step acts on
+
+When you list issues or PRs for another step to act on (triage, adjudication, a sweep), end your
+reply with the `wicked-inventory` block that says whether the list is complete. The format is in
+wicked-garden-core's `core/refs/inventory-report.md`. If `gh` fails and you fall back to another
+source, say so in the block; never present a fallback's list as complete.
+
 ## Prerequisites
 
 ```bash
