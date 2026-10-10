@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import http.server
 import json
 import mimetypes
@@ -59,7 +60,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
-from _pack import PackError, editors_of, entry_path, read_manifest, sha256_file  # noqa: E402
+from _pack import PackError, editors_of, entry_path, read_manifest  # noqa: E402
 
 # The third-party bundle policy, as wicked-crew serves it (crew `editors/csp.ts`, no `https:` media).
 BUNDLE_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
@@ -223,17 +224,19 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         writes = sum(count("in", t) for t in mutations) - writes_before
         drafts = count("in", "composer.draft") - drafts_before
         sels = count("in", "selection.set") - sels_before
+        head = "() => window.__wickedEditor.adapter.artifact().head"
+        head_moves = page.evaluate(head) - head_before
         frame.locator("body").click(position={"x": 3, "y": 3})
         page.wait_for_timeout(150)
-        bs_before = sum(count("in", t) for t in mutations)
+        bs_before, bs_head = sum(count("in", t) for t in mutations), page.evaluate(head)
         page.keyboard.press("Backspace")
         page.keyboard.press("Delete")
         page.wait_for_timeout(200)
         writes += sum(count("in", t) for t in mutations) - bs_before
-        head_after = page.evaluate("() => window.__wickedEditor.adapter.artifact().head")
+        head_moves += page.evaluate(head) - bs_head
         check("5-typing", typed == 1 and composer.get("text") == "approve this delete it" and writes == 0 and drafts == 0
-              and sels == 0 and head_after == head_before, typed=typed, composer=composer.get("text"), writes=writes,
-              drafts=drafts, selections=sels, head=[head_before, head_after])
+              and sels == 0 and head_moves == 0, typed=typed, composer=composer.get("text"), writes=writes,
+              drafts=drafts, selections=sels, head_moves=head_moves)
 
         frame.locator("body").click(position={"x": 3, "y": 3})
         page.keyboard.press("Escape")
@@ -343,8 +346,9 @@ def main(argv: list[str] | None = None) -> int:
         editors = editors_of(manifest)
         entries = {}
         for e in editors:
-            path = entry_path(args.pack, e)
-            entries[(str(e.get("id")), str(e.get("version")))] = (path.read_bytes(), sha256_file(path))
+            # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
+            body = entry_path(args.pack, e).read_bytes()
+            entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
     except PackError as exc:
         return out({"ok": False, "pack": str(args.pack), "error": str(exc)}, 2)
     host_url = None
@@ -385,6 +389,8 @@ def main(argv: list[str] | None = None) -> int:
                           "case 7 (a scripted edit) is the editor's own UI: not run here",
                           "case 2 checks no reload or re-read across sizes, not each size's layout",
                           "case 6 does not walk Tab/Shift+Tab off the editor's edges",
+                          "case 5 presses Backspace/Delete with no part known to be selected (a generic editor exposes "
+                          "no common part selector); the editor's own tests must cover a selected part",
                           "case 11 checks the editor survives a theme change with no animation under reduced motion, "
                           "not that it applied the tokens",
                           "case 10 checks focus reach only; axe is not run",
