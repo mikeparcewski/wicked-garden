@@ -118,6 +118,13 @@ export default function ProveGate() {
             evidence and re-stamping the verdict. Flip a switch or pull the lever to take
             control: the gate re-derives the claim instead of taking your word for it.
           </p>
+          <p className="pg-intro">
+            It refuses where it runs: when a skill invokes it, in a compiled pre-push or CI
+            trigger, or inside a crew run. The Claude Code plugin’s hooks mostly advise — a few
+            specific tool denials and a setup gate, none of which rejects a false “done” — and
+            skills-only hosts (Codex, OpenCode, Pi, Antigravity) have no hooks —{" "}
+            <a href="https://github.com/mikeparcewski/wicked-garden#what-blocks-what-advises">what blocks, what advises</a>.
+          </p>
         </div>
       </Reveal>
 
