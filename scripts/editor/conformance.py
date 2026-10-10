@@ -133,9 +133,11 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
                 return self._send(404, b'{"error":"not served by the conformance origin"}', "application/json")
             assert dist is not None
             root = dist.resolve()
-            target = (dist / path.lstrip("/")).resolve()
+            target = (root / urllib.parse.unquote(path).lstrip("/")).resolve()
             if root not in target.parents or not target.is_file():
-                target = root / "index.html"  # the SPA's client routes
+                target = (root / "index.html").resolve()  # the SPA's client routes
+                if root not in target.parents or not target.is_file():
+                    return self._send(404, b'{"error":"the studio dist has no index.html inside it"}', "application/json")
             ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
             if ctype == "text/html":
                 ctype = "text/html; charset=utf-8"
@@ -207,6 +209,7 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
 
         frame.locator("body").click(position={"x": 3, "y": 3})
         typed_before = count("in", "ui.typed")
+        head_before = page.evaluate("() => window.__wickedEditor.adapter.artifact().head")
         page.keyboard.type("approve this delete it", delay=50)
         page.wait_for_timeout(300)
         composer = page.evaluate(COMPOSER) or {}
@@ -215,21 +218,34 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         page.keyboard.press("Delete")
         page.wait_for_timeout(200)
         typed = count("in", "ui.typed") - typed_before
-        writes, drafts, sels = count("in", "version.write"), count("in", "composer.draft"), count("in", "selection.set")
+        writes = sum(count("in", t) for t in ("version.write", "version.fork", "version.undo"))
+        drafts, sels = count("in", "composer.draft"), count("in", "selection.set")
+        head_after = page.evaluate("() => window.__wickedEditor.adapter.artifact().head")
         check("5-typing", typed == 1 and composer.get("text") == "approve this delete it" and writes == 0 and drafts == 0
-              and sels == 0, typed=typed, composer=composer.get("text"), writes=writes, drafts=drafts, selections=sels)
+              and sels == 0 and head_after == head_before, typed=typed, composer=composer.get("text"), writes=writes,
+              drafts=drafts, selections=sels, head=[head_before, head_after])
 
         frame.locator("body").click(position={"x": 3, "y": 3})
         page.keyboard.press("Escape")
-        page.keyboard.press("Control+k")
+        page.keyboard.press("ControlOrMeta+k")
         page.wait_for_timeout(250)
         keys = (page.evaluate(COMPOSER) or {}).get("keys", [])
-        check("6-forwarding", keys[:2] == ["Escape", "Mod+K"], keys=keys)
+        # The decision chords (approve, reject, select for batch) must never be forwarded: the host drops
+        # each one, and three drops tear the editor down.
+        dropped_before = count("dropped", "ui.key")
+        for chord in ("Alt+a", "Alt+r", "Alt+x"):
+            frame.locator("body").click(position={"x": 3, "y": 3})
+            page.keyboard.press(chord)
+        page.wait_for_timeout(250)
+        dropped = count("dropped", "ui.key") - dropped_before
+        check("6-forwarding", keys[:2] == ["Escape", "Mod+K"] and dropped == 0 and alive(), keys=keys,
+              decision_chords_forwarded=dropped)
 
+        errors_before = len(errors)
         for junk in JUNK:
             page.evaluate(f"() => window.__wickedEditor.inject({junk})")
         page.wait_for_timeout(300)
-        check("8-strict-input", alive())
+        check("8-strict-input", alive() and len(errors) == errors_before, uncaught=errors[errors_before:][:3])
 
         page.evaluate("() => window.__wickedEditor.setTheme({'--accent': '#aa0000'})")
         page.wait_for_timeout(300)
@@ -237,23 +253,31 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         check("11-theme", alive() and anims == 0, animations=anims)
 
         controls = frame.locator("body").evaluate("""() => [...document.querySelectorAll(
-            'button, a[href], input, select, textarea, [tabindex]')].filter(el => el.tabIndex >= 0 || el.matches('[tabindex]'))
+            'button, a[href], input, select, textarea, [tabindex]')]
+            .filter(el => !el.disabled && el.getAttribute('tabindex') !== '-1' && el.getClientRects().length > 0
+                          && getComputedStyle(el).visibility !== 'hidden')
             .map(el => { el.focus(); return {tag: el.tagName.toLowerCase(), tab: el.tabIndex, focused: document.activeElement === el}; })""")
         check("10-keyboard", all(c["tab"] >= 0 and c["focused"] for c in controls), controls=len(controls),
               unreachable=[c for c in controls if not (c["tab"] >= 0 and c["focused"])][:5])
+
+        # 4: every grant withdrawn, then a change lands; only what happens AFTER the withdrawal counts,
+        # and the liveness wait below (a full ping period) proves it still answers afterwards.
+        mark = len(log())
+        acted_before = count("written")
+        page.evaluate("() => window.__wickedEditor.host().setGrants([])")
+        page.evaluate("() => window.__wickedEditor.agentVersion()")
+        page.wait_for_timeout(600)
+        after = log()[mark:]
+        refused = [e for e in after if e["kind"] == "refused"]
+        acted = count("written") - acted_before
+        check("4-permissions", alive() and acted == 0 and all(e["code"] == "not_granted" for e in refused),
+              refused_not_granted=len(refused), writes=acted)
 
         page.wait_for_timeout(PING_PERIOD_MS)
         check("9-liveness", alive())
 
         check("3-no-network", frame_requests == [], requests=frame_requests[:10])
 
-        page.evaluate("() => window.__wickedEditor.host().setGrants([])")
-        page.evaluate("() => window.__wickedEditor.agentVersion()")
-        page.wait_for_timeout(600)
-        refused = [e for e in log() if e["kind"] == "refused"]
-        acted = count("written")
-        check("4-permissions", alive() and acted == 0 and all(e["code"] == "not_granted" for e in refused),
-              refused_not_granted=len(refused), writes=acted)
 
         page.goto(url("0" * 64, grants), wait_until="networkidle")
         torn = _torn(page, wait=True)
@@ -314,7 +338,9 @@ def main(argv: list[str] | None = None) -> int:
         if host_url is None:
             return out({"ok": False, "pack": str(args.pack), "error": "no host: pass --host-url <a wicked-crew daemon URL> "
                         "(crew sets $WICKED_CREW_URL in every governed unit) or --studio-dist <dir> — never a guessed port"}, 2)
-    elif not (args.studio_dist / "index.html").is_file():
+    else:
+        args.studio_dist = args.studio_dist.resolve()
+    if args.studio_dist is not None and not (args.studio_dist / "index.html").is_file():
         return out({"ok": False, "pack": str(args.pack), "error": f"{args.studio_dist} holds no index.html"}, 2)
 
     try:

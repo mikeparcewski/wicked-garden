@@ -149,11 +149,15 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
     next_dir.mkdir(parents=True)
     copied = [MANIFEST_NAME]
     shutil.copy2(pack / MANIFEST_NAME, next_dir / MANIFEST_NAME)
+    root = next_dir.resolve()
     for e in editors_of(manifest):
-        rel = Path(e["entry"])
-        (next_dir / rel).parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(entry_path(pack, e), next_dir / rel)
-        copied.append(rel.as_posix())
+        source = entry_path(pack, e)  # refuses an entry that is not a plain relative path inside the pack
+        dest = (next_dir / Path(*e["entry"].split("/"))).resolve()
+        if root not in dest.parents:
+            raise PackError(f"editor {e.get('id')!r}: entry {e['entry']!r} would stage outside {next_dir}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        copied.append(e["entry"])
     if (pack / "README.md").is_file():
         shutil.copy2(pack / "README.md", next_dir / "README.md")
         copied.append("README.md")
@@ -161,12 +165,20 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
 
 
 def swap(key_root: Path) -> None:
+    """``current/`` → ``previous/``, ``next/`` → ``current/``; a failed promotion puts ``current/`` back."""
     current, previous, nxt = key_root / "current", key_root / "previous", key_root / "next"
+    moved = False
     if current.exists():
         if previous.exists():
             shutil.rmtree(previous)
         current.rename(previous)
-    nxt.rename(current)
+        moved = True
+    try:
+        nxt.rename(current)
+    except OSError as err:
+        if moved and not current.exists():
+            previous.rename(current)
+        raise Failure(1, f"could not put the staged copy in place ({err}); the installed copy is unchanged") from err
 
 
 def unswap(key_root: Path, had_previous_install: bool) -> None:
@@ -213,7 +225,7 @@ def do_install(args) -> tuple[int, dict]:
     had_previous = (key_root / "current").exists()
     try:
         copied = stage(pack, manifest, key_root / "next")
-    except OSError as err:
+    except (OSError, PackError) as err:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"staging failed: {err}") from err
     swap(key_root)

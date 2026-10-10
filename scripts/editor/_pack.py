@@ -72,12 +72,19 @@ def entry_path(pack: Path, editor: dict) -> Path:
     entry = editor.get("entry")
     if not isinstance(entry, str) or not entry.endswith(".html"):
         raise PackError(f"editor {editor.get('id')!r}: entry must name one .html file")
+    # A plain relative POSIX path: no absolute or drive-qualified form, no backslash, no `..` or `.`
+    # part — the same string is joined under a staging directory, so it must not climb out of one.
+    parts = entry.split("/")
+    if entry.startswith("/") or "\\" in entry or ":" in entry or any(p in ("", ".", "..") for p in parts):
+        raise PackError(f"editor {editor.get('id')!r}: entry {entry!r} must be a plain relative path inside the pack")
     root = pack.resolve()
     target = (pack / entry).resolve()
     if root != target and root not in target.parents:
         raise PackError(f"editor {editor.get('id')!r}: entry {entry} is outside the pack")
     if not target.is_file():
         raise PackError(f"editor {editor.get('id')!r}: entry {entry} is missing")
+    if target.stat().st_size > HOST_BUNDLE_CAP:
+        raise PackError(f"editor {editor.get('id')!r}: entry {entry} is over the host's {HOST_BUNDLE_CAP}-byte cap")
     return target
 
 

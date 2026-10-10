@@ -71,7 +71,9 @@ The template's plumbing is what the conformance run checks; keep it and put your
 - **Events you answer**: `host.ping` within 2 s; `host.size` (inline / pane / full — the same
   frame, never a reload or a re-read); `host.theme`; `artifact.changed` (re-read unless `by` is
   `this-editor`). Ignore any unknown `type`; a malformed message is dropped, never a crash.
-- **Keys**: forward only `Escape`, `Mod+K`, `Alt+<letter>` and Tab at the edges as `ui.key`;
+- **Keys**: forward only `Escape`, `Mod+K`, the navigation chords `Alt+J/K/P/G/B/T/U` and `Alt+/`,
+  and Tab at the edges, as `ui.key` (never `Alt+A`, `Alt+R`, `Alt+X` or `Alt+N`: the host drops a
+  decision chord, and three drops tear the editor down);
   the FIRST printable key goes to the composer as ONE `ui.typed {grapheme}`; Backspace and
   Delete never remove anything. A key never approves, deletes or sends.
 - **No network, no animation by default**, every control reachable by keyboard with a visible

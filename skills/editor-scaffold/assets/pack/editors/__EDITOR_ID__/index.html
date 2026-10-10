@@ -102,7 +102,9 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') { send('ui.key', { key: 'Escape' }); return; }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); send('ui.key', { key: 'Mod+K' }); return; }
-    if (e.altKey && e.code && /^Key[A-Z]$/.test(e.code)) { e.preventDefault(); send('ui.key', { key: 'Alt+' + e.code.slice(3) }); return; }
+    // Only the host's navigation chords; Alt+A (approve), Alt+R / Alt+X (decide), Alt+N (compose) are never sent.
+    if (e.altKey && e.code && /^Key[JKPGBTU]$/.test(e.code)) { e.preventDefault(); send('ui.key', { key: 'Alt+' + e.code.slice(3) }); return; }
+    if (e.altKey && e.code === 'Slash') { e.preventDefault(); send('ui.key', { key: 'Alt+/' }); return; }
     if (e.key === 'Tab') {
       const items = [...document.querySelectorAll('[data-part], button')];
       const i = items.indexOf(document.activeElement);

@@ -185,6 +185,21 @@ def test_uninstall_removes_every_editor_of_the_pack_then_the_copy(tmp_path):
     assert json.loads(done.stdout)["registry"] == {"acme-json": "removed"} and not (root / "acme-json").exists()
 
 
+def test_an_entry_that_climbs_out_of_the_pack_is_never_staged(tmp_path):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    manifest = json.loads((pack / "wicked-pack.json").read_text())
+    # `../pack/...` resolves INSIDE the source pack, but joined under next/ it would land outside it.
+    manifest["editors"][0]["entry"] = "../pack/" + FIXTURE_ENTRY
+    (pack / "wicked-pack.json").write_text(json.dumps(manifest))
+    root = tmp_path / "editors"
+    with FakeDaemon() as d:
+        done = run("install.py", "--dir", str(pack), "--json", env=_install_env(d.origin, root))
+        assert d.requests == []
+    assert done.returncode == 2 and "plain relative path" in json.loads(done.stdout)["error"]
+    assert not (root / "acme-json").exists() and not (tmp_path / "pack" / "pack").exists()
+
+
 # ── conformance ────────────────────────────────────────────────────────────────────────────
 
 def test_conformance_needs_a_host_and_never_guesses_a_port(tmp_path):
