@@ -344,9 +344,12 @@ def register(origin: str, key: str, server_js: Path, var: str) -> dict:
 
 # ── 6. CLI configs ─────────────────────────────────────────────────────────────────────────
 
-def installer(argv: list[str]):
-    """Run ``wicked-installer <argv> --json``: its envelope, or the reportable condition."""
+def installer(argv: list[str], download: bool = True):
+    """Run ``wicked-installer <argv> --json``: its envelope, or the reportable condition.
+    ``download=False`` (the dry run) never falls back to ``npx -y``, which would install it."""
     exe = shutil.which("wicked-installer")
+    if exe is None and not download:
+        return "skipped: wicked-installer is not on PATH (the dry run never downloads it)"
     cmd = [exe, *argv] if exe else [shutil.which("npx") or "npx", "-y", "wicked-installer", *argv]
     try:
         done = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
@@ -546,9 +549,9 @@ def do_plan(args) -> dict:
     if clis != "none":
         upsert = ["mcp", "upsert", key, "--command", "node", "--arg", str(current_js), "--cli", clis,
                   "--dry-run", "--json"]
-        _cli_rows(installer([*upsert, *worker_home_args()]), root, worker_writes, skipped)
+        _cli_rows(installer([*upsert, *worker_home_args()], download=False), root, worker_writes, skipped)
         operator_writes = list(worker_writes)
-        _cli_rows(installer(upsert), root, operator_writes, skipped)
+        _cli_rows(installer(upsert, download=False), root, operator_writes, skipped)
     return {"dry_run": True, "key": key, "choices": [
         {"id": "worker", "label": CHOICE_LABELS["worker"], "default": True, "writes": worker_writes},
         {"id": "operator", "label": CHOICE_LABELS["operator"], "writes": operator_writes}],

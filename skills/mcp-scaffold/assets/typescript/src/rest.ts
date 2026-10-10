@@ -47,10 +47,17 @@ export function scrubCredentials(text: string, sent: Credentials): string {
   let out = text;
   for (const value of [...Object.values(sent.headers), ...Object.values(sent.query)]) {
     const bare = value.includes(" ") ? value.slice(value.indexOf(" ") + 1) : "";
-    const parts = [value, bare, encodeURIComponent(value), new URLSearchParams({ v: value }).toString().slice(2)];
+    const spellings = (v: string) => [
+      v,
+      encodeURIComponent(v),
+      new URLSearchParams({ v }).toString().slice(2),
+      JSON.stringify(v).slice(1, -1), // as an echoed JSON body serializes it
+    ];
+    const parts = [...spellings(value), ...(bare ? spellings(bare) : [])];
     // Longest first, so a scrubbed prefix never leaves the rest of a longer spelling behind.
+    // Every non-empty spelling: a short key is still a key.
     for (const part of [...new Set(parts)].sort((a, b) => b.length - a.length)) {
-      if (part.length >= 4) out = out.split(part).join("[redacted]");
+      if (part.length > 0) out = out.split(part).join("[redacted]");
     }
   }
   return out;

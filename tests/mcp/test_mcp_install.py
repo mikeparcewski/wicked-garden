@@ -447,3 +447,17 @@ def test_no_origin_refuses_and_names_the_remedy_1258(rig):
     done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json"],
                           capture_output=True, text=True, timeout=60, env=rig.env, cwd=rig.tree)
     assert done.returncode == 2 and "WICKED_CREW_URL" in done.stderr and done.stdout == ""
+
+
+def test_the_dry_run_never_downloads_the_installer(rig):
+    (rig.tmp / "bin" / "wicked-installer").unlink()
+    npx = rig.tmp / "bin" / "npx"
+    _stub(npx, '#!PYTHON\nimport json, os, sys\nopen(os.environ["STUB_LOG"], "a").write(json.dumps({"tool": "npx", "argv": sys.argv[1:]}) + "\\n")\n')
+    env = {**rig.env, "PATH": f"{rig.tmp / 'bin'}{os.pathsep}/usr/bin{os.pathsep}/bin"}
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json",
+                               "--crew-url", daemon.origin], capture_output=True, text=True,
+                              timeout=60, env=env, cwd=rig.tree)
+    assert done.returncode != 0 and "never downloads" in done.stderr, done.stderr
+    assert rig.calls("npx") == []

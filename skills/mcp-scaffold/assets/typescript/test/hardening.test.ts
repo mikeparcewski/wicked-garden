@@ -29,6 +29,14 @@ describe("upstream error text", () => {
     expect(text).toBe("HTTP 403: bad key [redacted] in /x?api_key=[redacted]");
   });
 
+  it("scrubs a short key and a JSON-escaped key too (review r2)", () => {
+    expect(upstreamError(401, "?api_key=abc", { headers: {}, query: { api_key: "abc" } })).toBe("HTTP 401: ?api_key=[redacted]");
+    const quoted = 'k"ey\\x';
+    const body = JSON.stringify({ api_key: quoted });
+    const text = upstreamError(401, body, { headers: {}, query: { api_key: quoted } });
+    expect(text).toBe('HTTP 401: {"api_key":"[redacted]"}');
+  });
+
   it("bounds the body a caller sees", () => {
     const text = upstreamError(500, "x".repeat(ERROR_BODY_MAX * 3), { headers: {}, query: {} });
     expect(text.length).toBeLessThan(ERROR_BODY_MAX + 40);
