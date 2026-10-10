@@ -47,6 +47,7 @@ import http.server
 import json
 import mimetypes
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -68,6 +69,7 @@ BUNDLE_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inl
               "child-src blob: data: about:; connect-src 'none'; form-action 'none'; base-uri 'none'; "
               "worker-src 'none'; manifest-src 'none'")
 W, H = 1440, 700
+SAFE_CTYPE = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:; ?charset=[A-Za-z0-9_-]+)?")
 PING_PERIOD_MS = 11_500
 LOG = ("() => (window.__wickedEditor?.log ?? []).map(e => ({kind: e.kind, type: e.type ?? null, "
        "code: e.code ?? null, why: e.why ?? e.reason ?? null}))")
@@ -90,13 +92,15 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
             return
 
         def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
+            # Only a plain media type goes into the header (an upstream value is never echoed raw).
+            ctype = ctype if SAFE_CTYPE.fullmatch(ctype) else "application/octet-stream"
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             if ctype.startswith("text/html") and not (extra or {}).get("Content-Security-Policy"):
-                origin = f"http://{self.headers.get('Host', '127.0.0.1')}"
+                origin = f"http://127.0.0.1:{self.server.server_address[1]}"  # this server's own origin, never the Host header
                 # The shell's frame-src (crew `shellCsp`): a frame may point only at the bundle route.
                 self.send_header("Content-Security-Policy", f"frame-src {origin}/api/v1/editors/ blob: data:")
             self.end_headers()
