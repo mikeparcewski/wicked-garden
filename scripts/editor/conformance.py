@@ -165,7 +165,8 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         q = {"editor": eid, "version": version, "sha": sha_value, "title": title, "grants": ",".join(grant_list)}
         return f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}"
 
-    page = browser.new_page(viewport={"width": W, "height": H})
+    # Reduced motion on: the host passes it in host.hello's prefs, and case 11 then requires no animation.
+    page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
     errors: list[str] = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     frame_requests: list[str] = []
@@ -208,18 +209,27 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
               loads=count("load"), reads=[reads_before, reads_after])
 
         frame.locator("body").click(position={"x": 3, "y": 3})
+        page.wait_for_timeout(150)
+        # Baselines AFTER the focus click: a click that legitimately points at a part is not typing.
         typed_before = count("in", "ui.typed")
         head_before = page.evaluate("() => window.__wickedEditor.adapter.artifact().head")
+        mutations = ("version.write", "version.fork", "version.undo")
+        writes_before = sum(count("in", t) for t in mutations)
+        drafts_before, sels_before = count("in", "composer.draft"), count("in", "selection.set")
         page.keyboard.type("approve this delete it", delay=50)
         page.wait_for_timeout(300)
         composer = page.evaluate(COMPOSER) or {}
+        typed = count("in", "ui.typed") - typed_before
+        writes = sum(count("in", t) for t in mutations) - writes_before
+        drafts = count("in", "composer.draft") - drafts_before
+        sels = count("in", "selection.set") - sels_before
         frame.locator("body").click(position={"x": 3, "y": 3})
+        page.wait_for_timeout(150)
+        bs_before = sum(count("in", t) for t in mutations)
         page.keyboard.press("Backspace")
         page.keyboard.press("Delete")
         page.wait_for_timeout(200)
-        typed = count("in", "ui.typed") - typed_before
-        writes = sum(count("in", t) for t in ("version.write", "version.fork", "version.undo"))
-        drafts, sels = count("in", "composer.draft"), count("in", "selection.set")
+        writes += sum(count("in", t) for t in mutations) - bs_before
         head_after = page.evaluate("() => window.__wickedEditor.adapter.artifact().head")
         check("5-typing", typed == 1 and composer.get("text") == "approve this delete it" and writes == 0 and drafts == 0
               and sels == 0 and head_after == head_before, typed=typed, composer=composer.get("text"), writes=writes,
@@ -228,6 +238,7 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         frame.locator("body").click(position={"x": 3, "y": 3})
         page.keyboard.press("Escape")
         page.keyboard.press("ControlOrMeta+k")
+        page.keyboard.press("Alt+j")  # a navigation chord: forwardable
         page.wait_for_timeout(250)
         keys = (page.evaluate(COMPOSER) or {}).get("keys", [])
         # The decision chords (approve, reject, select for batch) must never be forwarded: the host drops
@@ -238,7 +249,7 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
             page.keyboard.press(chord)
         page.wait_for_timeout(250)
         dropped = count("dropped", "ui.key") - dropped_before
-        check("6-forwarding", keys[:2] == ["Escape", "Mod+K"] and dropped == 0 and alive(), keys=keys,
+        check("6-forwarding", keys[:3] == ["Escape", "Mod+K", "Alt+J"] and dropped == 0 and alive(), keys=keys,
               decision_chords_forwarded=dropped)
 
         errors_before = len(errors)
@@ -254,7 +265,7 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
 
         controls = frame.locator("body").evaluate("""() => [...document.querySelectorAll(
             'button, a[href], input, select, textarea, [tabindex]')]
-            .filter(el => !el.matches(':disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
+            .filter(el => !el.matches(':disabled') && !el.closest('[inert]') && el.tabIndex >= 0 && el.getClientRects().length > 0
                           && getComputedStyle(el).visibility !== 'hidden')
             .map(el => { el.focus(); return {tag: el.tagName.toLowerCase(), tab: el.tabIndex, focused: document.activeElement === el}; })""")
         check("10-keyboard", all(c["tab"] >= 0 and c["focused"] for c in controls), controls=len(controls),
@@ -264,17 +275,21 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         # and the liveness wait below (a full ping period) proves it still answers afterwards.
         mark = len(log())
         acted_before = count("written")
+        errors_mark = len(errors)
         page.evaluate("() => window.__wickedEditor.host().setGrants([])")
         page.evaluate("() => window.__wickedEditor.agentVersion()")
         page.wait_for_timeout(600)
         after = log()[mark:]
         refused = [e for e in after if e["kind"] == "refused"]
         acted = count("written") - acted_before
-        check("4-permissions", alive() and acted == 0 and all(e["code"] == "not_granted" for e in refused),
-              refused_not_granted=len(refused), writes=acted)
+        check("4-permissions", alive() and acted == 0 and all(e["code"] == "not_granted" for e in refused)
+              and len(errors) == errors_mark, refused_not_granted=len(refused), writes=acted, uncaught=errors[errors_mark:][:3])
 
+        # 9: a full ping period answered, no uncaught error since the withdrawal, and still nothing on
+        # `window` after the port (a late window message is as much a breach as an early one).
         page.wait_for_timeout(PING_PERIOD_MS)
-        check("9-liveness", alive())
+        check("9-liveness", alive() and len(errors) == errors_mark and count("ignored-window-message") == 0,
+              uncaught=errors[errors_mark:][:3], ignored_window_messages=count("ignored-window-message"))
 
         check("3-no-network", frame_requests == [], requests=frame_requests[:10])
 
@@ -368,6 +383,10 @@ def main(argv: list[str] | None = None) -> int:
                       "sha256": entries[(str(e.get("id")), str(e.get("version")))][1],
                       "cases": {"0-manifest": m0}, "gaps": [
                           "case 7 (a scripted edit) is the editor's own UI: not run here",
+                          "case 2 checks no reload or re-read across sizes, not each size's layout",
+                          "case 6 does not walk Tab/Shift+Tab off the editor's edges",
+                          "case 11 checks the editor survives a theme change with no animation under reduced motion, "
+                          "not that it applied the tokens",
                           "case 10 checks focus reach only; axe is not run",
                           "case 3 cannot see WebRTC/STUN or DNS prefetch (DES §12.1)",
                           "cases 13-18 test the host against a hostile bundle: studio CI runs them"]}
