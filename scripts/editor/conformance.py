@@ -254,7 +254,7 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
 
         controls = frame.locator("body").evaluate("""() => [...document.querySelectorAll(
             'button, a[href], input, select, textarea, [tabindex]')]
-            .filter(el => !el.disabled && el.getAttribute('tabindex') !== '-1' && el.getClientRects().length > 0
+            .filter(el => !el.matches(':disabled') && el.tabIndex >= 0 && el.getClientRects().length > 0
                           && getComputedStyle(el).visibility !== 'hidden')
             .map(el => { el.focus(); return {tag: el.tagName.toLowerCase(), tab: el.tabIndex, focused: document.activeElement === el}; })""")
         check("10-keyboard", all(c["tab"] >= 0 and c["focused"] for c in controls), controls=len(controls),
