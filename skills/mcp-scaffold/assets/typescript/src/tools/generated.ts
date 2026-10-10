@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { UserError, jsonSchemaAdapter, type FastMCP, type JsonSchemaObject, type ToolParameters } from "fastmcp";
 import type { Session } from "../auth.js";
 import { SERVER_ROOT, type ServerConfig } from "../config.js";
-import { callRest, type RestMapping } from "../rest.js";
+import { callRest, scrubCredentials, type Credentials, type RestMapping } from "../rest.js";
 import { defineTool } from "./registry.js";
 
 /** One tools.json entry, as wicked-crew's conversion service (`openapi` action) writes it. */
@@ -39,15 +39,12 @@ export const ERROR_BODY_MAX = 300;
 
 /**
  * The tool error for an upstream 4xx/5xx: the status plus a bounded excerpt of the body with
- * every credential this server sent scrubbed out, so an upstream that echoes its auth header
- * back cannot hand the secret to the caller.
+ * every credential this server sent — header AND query (garden#1261) — scrubbed out, raw and
+ * URL-encoded, so an upstream that echoes its auth header or request URL back cannot hand the
+ * secret to the caller.
  */
-export function upstreamError(status: number, body: string, sent: Record<string, string>): string {
-  let text = body;
-  for (const value of Object.values(sent)) {
-    const parts = [value, value.includes(" ") ? value.slice(value.indexOf(" ") + 1) : ""];
-    for (const part of parts) if (part.length >= 4) text = text.split(part).join("[redacted]");
-  }
+export function upstreamError(status: number, body: string, sent: Credentials): string {
+  let text = scrubCredentials(body, sent);
   if (text.length > ERROR_BODY_MAX) text = `${text.slice(0, ERROR_BODY_MAX)}… (truncated)`;
   return text ? `HTTP ${status}: ${text}` : `HTTP ${status}`;
 }
@@ -56,7 +53,7 @@ export function upstreamError(status: number, body: string, sent: Record<string,
 export function registerGeneratedTools(
   server: FastMCP<Session>,
   config: ServerConfig,
-  headers: () => Promise<Record<string, string>>,
+  credentials: () => Promise<Credentials>,
   tools: GeneratedTool[] = readToolsJson(),
 ): number {
   for (const t of tools) {
@@ -71,11 +68,13 @@ export function registerGeneratedTools(
       execute: async (args) => {
         const result = await callRest(t.rest, (args ?? {}) as Record<string, unknown>, {
           baseUrl: config.baseUrl,
-          headers,
+          credentials,
           readOnly: t.class === "read",
         });
         const text = typeof result.body === "string" ? result.body : JSON.stringify(result.body);
-        if (result.status >= 400) throw new UserError(upstreamError(result.status, text, await headers()));
+        // The credentials the request CARRIED, never a fresh fetch (an OAuth2 token may have
+        // rotated in between).
+        if (result.status >= 400) throw new UserError(upstreamError(result.status, text, result.sent));
         return text;
       },
     });

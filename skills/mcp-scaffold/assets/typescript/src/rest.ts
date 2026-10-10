@@ -16,10 +16,16 @@ export interface RestMapping {
   timeoutMs: number;
 }
 
+/** Every credential a request carries: header(s) and/or query parameter(s). */
+export interface Credentials {
+  headers: Record<string, string>;
+  query: Record<string, string>;
+}
+
 export interface RestContext {
   baseUrl: string;
-  /** The upstream auth header(s) — its name is also forbidden to arguments. */
-  headers: () => Promise<Record<string, string>>;
+  /** The upstream credentials — their header and query names are also forbidden to arguments. */
+  credentials: () => Promise<Credentials>;
   /** Read tools are retried on 429/5xx; write and destructive tools never are. */
   readOnly: boolean;
   fetchImpl?: typeof fetch;
@@ -28,6 +34,33 @@ export interface RestContext {
 export interface RestResult {
   status: number;
   body: unknown;
+  /** The exact credentials this request carried — what an error scrub must remove. */
+  sent: Credentials;
+}
+
+/**
+ * `text` with every credential in `sent` (header and query values; raw, after a `Bearer `-style
+ * scheme, and URL-encoded) replaced by `[redacted]`. The ONE scrub: upstream error bodies and
+ * transport errors (whose message may carry the request URL, query key included) both use it.
+ */
+export function scrubCredentials(text: string, sent: Credentials): string {
+  let out = text;
+  for (const value of [...Object.values(sent.headers), ...Object.values(sent.query)]) {
+    const bare = value.includes(" ") ? value.slice(value.indexOf(" ") + 1) : "";
+    const spellings = (v: string) => [
+      v,
+      encodeURIComponent(v),
+      new URLSearchParams({ v }).toString().slice(2),
+      JSON.stringify(v).slice(1, -1), // as an echoed JSON body serializes it
+    ];
+    const parts = [...spellings(value), ...(bare ? spellings(bare) : [])];
+    // Longest first, so a scrubbed prefix never leaves the rest of a longer spelling behind.
+    // Every non-empty spelling: a short key is still a key.
+    for (const part of [...new Set(parts)].sort((a, b) => b.length - a.length)) {
+      if (part.length > 0) out = out.split(part).join("[redacted]");
+    }
+  }
+  return out;
 }
 
 /** Headers an argument can never set: routing, auth and the hop-by-hop set. */
@@ -66,8 +99,9 @@ export function buildRequest(
   baseUrl: string,
   mapping: RestMapping,
   args: Record<string, unknown>,
-  authHeaders: Record<string, string>,
+  creds: Credentials = { headers: {}, query: {} },
 ): { url: URL; init: RequestInit } {
+  const authHeaders = creds.headers;
   const base = new URL(baseUrl);
   const allowed = new Set(mapping.argAllowlist);
   const sent = Object.fromEntries(Object.entries(args).filter(([k]) => allowed.has(k)));
@@ -84,9 +118,11 @@ export function buildRequest(
   url.pathname = `${basePath(base)}${filled}`;
   const escape = escapes(base, url);
   if (escape !== null) throw new BoundaryError(escape);
+  const authQuery = new Set(Object.keys(creds.query));
   for (const [arg, q] of Object.entries(mapping.queryMap)) {
     const v = sent[arg];
-    if (v === undefined || v === null) continue;
+    // An argument never sets (or doubles) the credential's query parameter.
+    if (v === undefined || v === null || authQuery.has(q)) continue;
     for (const item of Array.isArray(v) ? v : [v]) url.searchParams.append(q, scalar(item, `the query argument ${arg}`));
   }
   const deny = new Set(DENY_HEADERS);
@@ -109,6 +145,8 @@ export function buildRequest(
   }
   if (body !== undefined) headers["content-type"] = "application/json";
   Object.assign(headers, authHeaders);
+  // After the boundary check (a query never moves the origin or path): the credential last.
+  for (const [q, value] of Object.entries(creds.query)) url.searchParams.set(q, value);
   return { url, init: { method: mapping.method, headers, ...(body !== undefined ? { body } : {}) } };
 }
 
@@ -129,7 +167,8 @@ async function readBody(res: Response): Promise<unknown> {
  * 429/5xx twice for read tools only. One child span `http.client.request` per call.
  */
 export async function callRest(mapping: RestMapping, args: Record<string, unknown>, ctx: RestContext): Promise<RestResult> {
-  const { url, init } = buildRequest(ctx.baseUrl, mapping, args, await ctx.headers());
+  const sent = await ctx.credentials();
+  const { url, init } = buildRequest(ctx.baseUrl, mapping, args, sent);
   const fetchImpl = ctx.fetchImpl ?? fetch;
   return tracer.startActiveSpan(
     "http.client.request",
@@ -146,12 +185,17 @@ export async function callRest(mapping: RestMapping, args: Record<string, unknow
             continue;
           }
           if (res.status >= 400) span.setStatus({ code: SpanStatusCode.ERROR });
-          return { status: res.status, body: await readBody(res) };
+          return { status: res.status, body: await readBody(res), sent };
         }
       } catch (err) {
-        span.recordException(err as Error);
+        // A transport error can name the request URL — a query-parameter key with it. Neither
+        // the span nor the caller ever sees the raw message.
+        const e = err instanceof Error ? err : new Error(String(err));
+        const safe = new Error(scrubCredentials(e.message, sent));
+        safe.name = e.name;
+        span.recordException(safe);
         span.setStatus({ code: SpanStatusCode.ERROR });
-        throw err;
+        throw safe;
       } finally {
         span.end();
       }

@@ -191,3 +191,14 @@ def test_a_malformed_config_or_empty_operations_is_refused_before_posting(tmp_pa
     assert empty.returncode == 2 and "--operations" in empty.stderr
     assert daemon.requests == []
     assert json.loads((out / "tools.json").read_text(encoding="utf-8")) == {"tools": []}
+
+
+def test_no_origin_exits_2_and_never_guesses_a_port_1258(tmp_path):
+    out = _server_dir(tmp_path)
+    spec = tmp_path / "spec.json"
+    spec.write_text('{"openapi": "3.0.0", "paths": {}}', encoding="utf-8")
+    done = _run("--name", "acme-notes", "--base-url", "https://api.example.com",
+                "--spec", str(spec), "--out", str(out))
+    assert done.returncode == 2
+    assert "WICKED_CREW_URL" in done.stderr and "--crew-url" in done.stderr
+    assert "7701" not in done.stderr
