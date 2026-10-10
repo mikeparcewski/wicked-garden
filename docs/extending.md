@@ -97,6 +97,16 @@ Manifest `spec: 2` keeps every spec-1 field and adds two arrays. A spec-1 pack s
 wicked-studio and first-party blocks are core presets. Example (garden's own spec-2 fixture):
 [`tests/fixtures/packs/acme-terms/`](../tests/fixtures/packs/acme-terms/).
 
+**Building an editor-only pack.** The `wicked-garden-editor-scaffold` skill writes one
+(`scripts/editor/scaffold.py`), from a template that already speaks `wicked.editor/1`; `scripts/editor/pin.py`
+re-pins the entry hash after each edit; `scripts/editor/conformance.py` runs the plugin's conformance
+cases in headless Chromium inside studio's own conformance host page; and `scripts/editor/install.py`
+stages the pack under `~/.wicked/editors/<name>/current/` and installs it into a wicked-crew daemon,
+which re-runs `pack check` and the conformance cases itself before it records the editor (fail closed:
+no headless browser is a refusal). A pack that also ships skills or blocks is not installable yet: their
+own approval step is still to come. The governed route is the `editor-plugin` workflow (studio
+Settings → Developer → Create an editor plugin).
+
 ## Validate: the shipped conformance gate
 
 ```bash
