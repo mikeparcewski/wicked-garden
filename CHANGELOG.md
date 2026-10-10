@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [12.48.0] — 2026-10-09
+
+### Added
+- **mcp install: `--target worker|operator` and `--dry-run` (wicked-core#820, PR #1263).** Per the operator ruling, `install.py` registers a server only in program-owned places by default (`--target worker`): the staged copy under the install root, the crew MCP tools registry, and the worker seats' CLI configs under the worker home (`$WICKED_WORKER_HOME`, else `~/.wicked-worker`). `--target operator` also writes the operator's own CLI configs. `--dry-run` writes nothing and prints the consent gate's plan as one JSON line: each choice with its exact absolute write list and `operator_owned` flags, from the installer's own dry run. It never downloads the installer.
+- **mcp TypeScript template: query-parameter API keys (wicked-garden#1261, PR #1263).** `auth.queryParam` (api-key scheme only) sends the key as a query parameter, added after the boundary check and never settable by an argument. One credentials carrier feeds both the request and the error scrub, which removes every credential sent (raw, URL-encoded, JSON-escaped) from upstream error bodies and from transport errors before the span or the caller sees them.
+
+### Fixed
+- **mcp scripts no longer default to `:7701` (wicked-garden#1258, PR #1263).** `install.py` and `openapi.py` take the daemon only from `--crew-url` or `$WICKED_CREW_URL`, and exit 2 naming the remedy when neither is set. A guessed port had sent a worker to another daemon's registry. The skill text lists keys on `$WICKED_CREW_URL`.
+- **demo walkthrough: a `join` over an `artifact` source can pass (wicked-garden#1246, PR #1262).** An artifact source now joins as its sha256. Before, it always joined as `null`, so a lint-clean storyline could never pass that chapter.
+
+### Changed
+- Dependencies: TypeScript 7 for the MCP scaffold and the site (#1259), playwright 1.64.0 (#1257), motion 14.1.0 (#1260), werkzeug 3.1.9 / astro 7.3.8 / sharp 0.35.5 (#1256), wicked-ci 1.4.1 (#1241).
+
 ## [12.47.0] — 2026-10-09
 
 ### Changed
@@ -1011,7 +1024,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.47.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.48.0...HEAD
+[12.48.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.47.0...v12.48.0
 [12.47.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.46.0...v12.47.0
 [12.46.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.45.0...v12.46.0
 [12.45.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.44.0...v12.45.0
