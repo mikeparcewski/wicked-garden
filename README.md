@@ -32,11 +32,11 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | refactors on a hope and a prayer | renames across files as a **graph operation**, not find-replace roulette → wicked-patch |
 | forgets everything at `exit` | remembers what session 1 decided when you're in session 47 → the mem domain over wicked-estate |
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
-| asks *itself* for a second opinion | convenes a **real multi-model panel** (Antigravity / Codex / …) → the jam skill's `council` action |
+| asks *itself* for a second opinion | convenes a **review panel** → the jam skill's `council` action: usable external CLIs (Antigravity / Codex / …) take the seats; with fewer than two it fills them with isolated same-family workers and **labels them as weaker diversity**, and below two isolated seats it reports *no quorum* instead of synthesizing |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
-| grades its own homework | author ≠ executor ≠ reviewer → evidence-gated testing |
+| grades its own homework | author ≠ executor ≠ reviewer as separate workers → evidence-gated testing (the `qe` domain) |
 
-The throughline: **done is re-derived, not asserted.** Verdicts you can trust on the first read — not green checkmarks you can't.
+The throughline: **done is re-derived, not asserted** — wherever the gate actually runs. Which entry paths block and which only advise is spelled out in [What blocks, what advises](#what-blocks-what-advises).
 
 ## What it's *not*
 
@@ -106,18 +106,36 @@ Optional, lights up the code graph: **wicked-estate** (single binary; `wicked-es
 ## Try it
 
 ```bash
-# Just work — the hook applies the right rigor underneath, quietly
+# Just work — in Claude Code the plugin's hook reads the work's shape and suggests the rigor (advisory)
 "implement caching for the dashboard"
 
 # Or reach for a gap-filler on purpose — everything is a skill now
 /wicked-garden-prove                              # re-derive "done" from evidence (fail-closed)
 /wicked-garden-search blast-radius emit_event     # impact, incl. edges grep can't see
 /wicked-garden-engineering-patch rename oldField newField  # deterministic, graph-driven
-/wicked-garden-jam council "redis or memcached?"  # a panel that isn't just you
+/wicked-garden-jam council "redis or memcached?"  # a panel; it says which seats were external models
 
 # Stamp the evidence gate into ANY repo (runs with no wicked-garden installed)
 /wicked-garden-prove compile ~/path/to/repo --trigger ci
 ```
+
+---
+
+## What blocks, what advises
+
+"Done is re-derived" is a property of the **gate**, not of every surface the toolkit touches. What a
+false "done" runs into depends on the host and the entry path:
+
+| Host · entry path | Blocks | Only advises |
+|---|---|---|
+| **Any host — the gate, invoked** (`wicked-garden-prove`, an archetype's produces-gate → `scripts/qe/vault_gate.py`) | Re-hashes the recorded evidence and re-runs its verifier through `wicked-vault`: a false claim is **rejected**, an unresolvable backend **fails closed** (`gate: "unavailable"`). Hard gates also need an attestation under an explicit `--actor` that differs from the author's — a local label, not an authenticated identity. The verdict stops whatever acts on it. | With `--no-require`, a backend that cannot run falls back to the claim-only tracker and says so (`claim-only`, not re-derived); a working backend still re-derives. |
+| **Claude Code — plugin hooks** (plain conversation, "just work") | `PreToolUse` denies a few specific tool calls: native `EnterPlanMode` (always — planning goes through the archetype playbooks), writes to `MEMORY.md` / the auto-memory dir, build-phase writes on a high-complexity crew project with no challenge artifacts, a `phase_manager.py approve` whose gate preflight fails, a worktree cwd leak, and — only in `strict` mode (default `warn`) — invalid task metadata (`WG_TASK_METADATA`) and orphan state writes (`WG_BUS_EMIT_LINT`). Prompts are held until `/wicked-garden-core setup` completes. | Everything else. The archetype detector **steers** (it does not gate), the Stop-time claim sentinel is a fail-open **nudge** when a "done/passing" claim has no verdict for HEAD, `TaskCompleted` never blocks, and output governance is advisory. A completion claim is **not** blocked unless a gate is run. |
+| **Codex · OpenCode · Pi · Antigravity — skills only** (`npx wicked-installer install-<cli> wicked-garden`) | Nothing by itself: no plugin hooks are installed on those hosts. | The skill text tells the agent to run the gate; it blocks only when the agent does run it (and the launcher + `wicked-vault` are present). |
+| **Compiled repo gate** (`/wicked-garden-prove compile <repo> --trigger hook,ci`) | `.wicked/gate.py` fails the **git pre-push hook / CI job** it is wired into, with no wicked-garden installed. | Without a trigger it is a script you run by hand. |
+| **wicked-crew governed run** | crew's engine decides each gated phase deny-dominates, on the layers that actually ran — deterministic floors, repo checks, policies, a judge. Review moves to a distinct seat when the roster has an eligible one; team runs refuse without one. | An ordinary run on a too-small roster keeps review on the creator seat and labels it "evaluator ≠ creator not held"; a pinned floor with no distinct judge is labelled "floor only"; a phase nothing gated is "approved by default, not verified". |
+
+Garden's own daemon `/council` endpoint is a single-model synthesis (v0.1); the multi-model panel is
+the jam skill's `council` action above.
 
 ---
 
@@ -141,7 +159,7 @@ Full author guide: [`docs/extending.md`](docs/extending.md).
 ## Principles
 
 - **Don't fight the harness.** Fill the gaps; never re-implement what it already does well.
-- **Done is re-derived, not asserted.** Every gate recomputes the evidence; the gates that matter are signed by someone who isn't the author.
+- **Done is re-derived, not asserted.** Every gate recomputes the evidence; the gates that matter need an attestation recorded under an actor other than the author (a declared label, not an authenticated identity).
 - **Steering, not blocking.** Rigor follows the shape of the work, applied only where it earns its keep.
 - **Enforcement that travels.** The gate compiles into any repo and runs without wicked-garden present.
 - **Borrow the harness's primitives.** Extend `TaskCreate`/`Task()`/skills/hooks — don't rebuild them.

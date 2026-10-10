@@ -71,12 +71,12 @@ export const PROJECTS: Project[] = [
     tagline: "Your agent plans and swarms. These are the tools.",
     outcome: "the tools your agent can't build alone, in one plugin",
     blurb:
-      "Your coding agent already plans and swarms. wicked-garden hands it the tools it can't build alone — re-derive “done” from evidence, see the injected edges grep misses, refactor across files as one graph operation, and convene a real multi-model panel.",
+      "Your coding agent already plans and swarms. wicked-garden hands it the tools it can't build alone — re-derive “done” from evidence, see the injected edges grep misses, refactor across files as one graph operation, and convene a review panel that says which seats were external models.",
     points: [
       "prove — re-derives “done” from evidence, fails closed on a missing backend",
       "search — blast-radius, lineage, hotspots see injected edges grep can't",
       "patch — deterministic multi-file refactor as one graph operation",
-      "council — a real multi-model second opinion, not self-review",
+      "council — external models where usable, labelled same-family seats where not",
     ],
     uses: [
       "autonomous work that needs governing, not babysitting",
@@ -178,7 +178,7 @@ export const TOUR: TourStop[] = [
     kicker: "stop 01 / 05 — the toolkit",
     headline: { pre: "the tools your agent", mark: "can't build alone" },
     body:
-      "wicked-garden hands your agent five tools it can't build alone — prove (re-derive “done” from evidence), injected-edge search, multi-file refactor as a graph operation, a real multi-model council, and the repo's own playbooks. Its gate/resolve engine ships in-package (scripts/loom/) — nothing extra to install. Install it once; it curates everything that follows.",
+      "wicked-garden hands your agent five tools it can't build alone — prove (re-derive “done” from evidence), injected-edge search, multi-file refactor as a graph operation, a review council that labels its seats, and the repo's own playbooks. Its gate/resolve engine ships in-package (scripts/loom/) — nothing extra to install. Install it once; it curates everything that follows.",
     unlock: "the garden itself",
     plant: "locked",
     tools: ["wicked-garden"],
