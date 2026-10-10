@@ -8,8 +8,7 @@
 //   - every check without `negative` gets one sample its verifier must fail (NEGATIVE[kind]; a custom
 //     verify expr keeps the kind's sample, which the test then has to choose so it fails);
 //   - every chapter without a check of a class gets a passing one (pad_screen locator on #status,
-//     pad_state probe — also when the chapter's only state check is an artifact, which a join cannot
-//     read — and pad_join over one of each), checked after the chapter's own run();
+//     pad_state probe, and pad_join over one of each), checked after the chapter's own run();
 //   - a walkthrough without a guard gets pad_guard on its first chapter;
 //   - an empty `proves` becomes ["p1"]; a missing `baseUrl` becomes "fixture" (record films the
 //     fixture it starts whatever the storyline says).
@@ -41,9 +40,9 @@ export function lintComplete(story) {
     const checks = Array.isArray(seg.checks) ? seg.checks : (seg.checks = []);
     const pads = [];
     let screen = checks.find((c) => SCREEN.has(c?.kind))?.id;
-    // The join's state source is a probe: the join collector reads a capture's parsed output or
-    // inner_text, and an artifact capture carries neither (only path + sha256).
-    let state = checks.find((c) => c?.kind === "probe")?.id;
+    // The join's state source is the chapter's own probe or artifact (an artifact joins as its
+    // sha256 since garden#1246).
+    let state = checks.find((c) => STATE.has(c?.kind))?.id;
     if (!screen) { screen = "pad_screen"; pads.push({ id: screen, kind: "locator", selector: "#status" }); }
     if (!state) {
       state = "pad_state";

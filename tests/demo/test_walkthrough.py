@@ -1064,6 +1064,45 @@ def test_join_check_passes_when_sources_present(tmp_path, session_ledger):
 
 @needs_recorder
 @needs_vault
+def test_join_over_an_artifact_source_passes_1246(tmp_path, session_ledger):
+    """garden#1246: a join whose state source is an artifact PASSes (it joins as the sha256) —
+    the lint accepts that storyline, so the recorder must be able to pass it."""
+    root = tmp_path / "evidence"
+    root.mkdir()
+    repo, tree = _make_tree(tmp_path)
+    sl = repo / "storyline.mjs"
+    _write_story(sl, f"""export default {{
+  title: "Artifact Join Test",
+  fixture: {{ start: ["node", "app.mjs"], ready: "/ready" }},
+  segments: [{{
+    key: "01-chapter", title: "Chapter One", proves: [],
+    checks: [
+      {{ id: "screen_src", kind: "locator", selector: "#status" }},
+      {{ id: "art_src", kind: "artifact", path: "run.json" }},
+      {{ id: "join_check", kind: "join", sources: ["screen_src", "art_src"] }},
+    ],
+    async run(ctx) {{
+      await ctx.app.locator('#go').click();
+      await ctx.hold(400);
+      await ctx.check("screen_src");
+      await ctx.check("art_src");
+      await ctx.check("join_check");
+    }},
+  }}],
+}};
+""")
+    env = _wt_env(root, tree, repo, NODE_PATH=session_ledger)
+    out = _run_wt(["record", "--storyline", str(sl)], env, timeout=120)
+    assert out.returncode == 0, out.stderr
+    result = json.loads((root / "result.json").read_text())
+    chapters = {c["key"]: c["verdict"] for c in result.get("chapters", [])}
+    assert chapters.get("01-chapter") == "PASS", (
+        f"an artifact-backed join should PASS, got {chapters}"
+    )
+
+
+@needs_recorder
+@needs_vault
 def test_locator_check_fails_for_absent_element(tmp_path):
     """Locator check FAIL when the selector matches nothing."""
     root = tmp_path / "evidence"
