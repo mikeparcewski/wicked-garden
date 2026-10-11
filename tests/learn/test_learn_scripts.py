@@ -329,3 +329,20 @@ def test_a_failed_forget_of_an_emptied_topic_is_a_failure(tmp_path):
 
     out = index.index_topic(Down(), index.topic_payload(tmp_path, "demo", d))
     assert out["replace"] == "forget-failed" and out["ok"] is False
+
+
+def test_index_reads_the_merged_ref_not_the_working_tree(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)
+    git("init", "-q", "-b", "main")
+    write_topic(repo, [claim(TEXT_A)])
+    git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "merged")
+    write_topic(repo, [claim(TEXT_B)])  # an uncommitted working-tree edit: not merged
+    out_dir = tmp_path / "m"
+    out_dir.mkdir()
+    index.materialize(repo, "main", out_dir)
+    p = index.topic_payload(out_dir, "demo", out_dir / ".wicked" / "knowledge" / "sqlite-wal")
+    assert any(claim_id(TEXT_A) in c for c in p["chunks"])
+    assert not any(claim_id(TEXT_B) in c for c in p["chunks"])

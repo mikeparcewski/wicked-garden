@@ -123,9 +123,28 @@ def index_topic(client, p: dict, tools: list | None = None) -> dict:
     return out
 
 
+def materialize(repo: Path, ref: str, dest: Path) -> None:
+    """Copy ``.wicked/knowledge/`` as it is at git ``ref`` (e.g. ``origin/main``: what MERGED) into
+    ``dest``, so the index reads the merged tree, never the checkout's working copy."""
+    listing = subprocess.run(["git", "-C", str(repo), "ls-tree", "-r", "-z", "--name-only", ref, "--", ".wicked/knowledge"],
+                             capture_output=True, timeout=30)
+    if listing.returncode != 0:
+        raise RuntimeError(f"git ls-tree {ref} failed: {listing.stderr.decode('utf-8', 'replace').strip()[:200]}")
+    for rel in filter(None, listing.stdout.decode("utf-8", "replace").split("\0")):
+        blob = subprocess.run(["git", "-C", str(repo), "show", f"{ref}:{rel}"], capture_output=True, timeout=30)
+        if blob.returncode != 0:
+            raise RuntimeError(f"git show {ref}:{rel} failed")
+        target = dest / rel
+        if not target.resolve().is_relative_to(dest.resolve()):
+            raise RuntimeError(f"refusing a path outside the index root: {rel}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(blob.stdout)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--repo", type=Path, default=Path("."))
+    parser.add_argument("--ref", help="read the knowledge at this git ref (e.g. origin/main) instead of the working tree")
     parser.add_argument("--name", help="the repository name in the scope (default: origin's name, else the directory)")
     parser.add_argument("--slug")
     parser.add_argument("--dry-run", action="store_true", help="print what would be indexed; touch no store")
@@ -138,6 +157,19 @@ def main(argv: list[str] | None = None) -> int:
                           "learned knowledge is indexed from the merged default branch (DES-learn-workflow §4.2)"}))
         return 2
     name = args.name or repo_name(repo)
+    if args.ref:
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="learn-index-") as tmp:
+            try:
+                materialize(repo, args.ref, Path(tmp))
+            except (RuntimeError, OSError, subprocess.SubprocessError) as e:
+                print(json.dumps({"ok": False, "repo": name, "reason": str(e)}))
+                return 1
+            return _run(client, Path(tmp), name, args)
+    return _run(client, repo, name, args)
+
+
+def _run(client, repo: Path, name: str, args) -> int:
     payloads = [topic_payload(repo, name, d) for d in topic_dirs(repo, args.slug)]
     if args.dry_run:
         print(json.dumps({"ok": True, "repo": name, "dry_run": True,
