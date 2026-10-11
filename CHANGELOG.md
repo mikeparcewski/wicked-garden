@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [12.49.0] — 2026-10-11
+
+### Added
+- **`wicked-garden-editor-scaffold`: build, check and install an artifact editor plugin (X3, PR #1269).** A new skill plus `scripts/editor/`.
+- **Inventory-report codebook (crew#721, PR #1266).** An enumerating step says whether its list is complete.
+
+### Fixed
+- **QE acceptance inside a governed crew run records into the run's ledger, not the worktree (wicked-crew#951, PR #1270).** When `WICKED_QE_LEDGER_DIR` is set, it is the ledger root. A governed run hands its QE unit the run's own ledger, outside the worktree, this way.
+  - The preflight config check, setup's scaffold and `config.json`, accept's evidence dir, the executor and reviewer briefs, and the vault-record argument all use that root.
+  - accept resolves it through wicked-ledger's `resolveLedgerRoot`.
+  - Before, a governed `qe accept` wrote `<worktree>/.wicked-qe`; the run's guard discarded it, the PASS with it, and delivery was refused.
+
+### Changed
+- **`wicked_ledger_version` is `^0.6.0`** (PR #1270): `resolveLedgerRoot` honours `WICKED_QE_LEDGER_DIR`. The QE runner requires wicked-ledger `^0.5.0` (PR #1267).
+- Docs: guidance and the site say what ships, and what blocks vs what advises (PR #1265). Python 3.15 (PR #1268).
+
 ## [12.48.0] — 2026-10-09
 
 ### Added
