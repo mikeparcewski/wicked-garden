@@ -41,7 +41,7 @@ The reviewer must NEVER receive executor conversation context. This is enforced 
 1. **Tool restriction**: `allowed-tools: [Read]` in `wicked-garden-qe-acceptance-test-reviewer`. On a host that enforces `allowed-tools` this is a host-level block; on hosts that do not, it is advisory.
 2. **Evidence-only dispatch**: The reviewer is dispatched with ONLY:
    - The original scenario file path
-   - The evidence directory path (`.wicked-qe/evidence/{run-id}/`)
+   - The evidence directory path (`{EVIDENCE_DIR}`: `<ledger root>/evidence/{run-id}/`)
    - The test plan (writer output)
    - It does NOT include: executor stdout, executor reasoning, or any executor conversational context
 3. **Forked-skill context boundary**: The reviewer skill declares `context: fork` and runs as a separate forked-skill invocation in a fresh context, not sharing history with the executor.
@@ -100,8 +100,8 @@ test -f "{scenario-file}" || echo "ERR_SCENARIO_NOT_FOUND"
 Check config:
 
 ```bash
-# dual-read (Phase 6c): a legacy .wicked-testing root still counts  # <!-- historical -->
-{ test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"  # <!-- historical -->
+# WICKED_QE_LEDGER_DIR set: that root; else dual-read (Phase 6c): a legacy .wicked-testing root still counts  # <!-- historical -->
+if [ -n "$WICKED_QE_LEDGER_DIR" ]; then test -f "$WICKED_QE_LEDGER_DIR/config.json" || echo "ERR_NO_CONFIG"; else { test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"; fi  # <!-- historical -->
 ```
 
 On `ERR_NO_CONFIG`, stop and tell the user to run the `wicked-garden-qe setup`
@@ -120,12 +120,12 @@ the run's canonical UUID. This serves three goals at once:
   used to share the `runs/` parent directory.
 
 ```javascript
-// Resolve the ledger root dual-read (Phase 6c): '.wicked-qe', or a legacy
-// '.wicked-testing' root written before the rename — never both. <!-- historical -->
+// Resolve the ledger root (wicked-ledger >= 0.6.0): WICKED_QE_LEDGER_DIR when set — inside a
+// governed wicked-crew run, the run's own ledger OUTSIDE the worktree (crew#951) — else dual-read
+// (Phase 6c): '.wicked-qe', or a legacy '.wicked-testing' root written before the rename. <!-- historical -->
 import { createDomainStore, resolveLedgerRoot } from 'wicked-ledger';
-import { basename } from 'node:path';
+import { join } from 'node:path';
 const LEDGER_ROOT = resolveLedgerRoot(process.cwd());
-const WICKED_DIR  = basename(LEDGER_ROOT);                 // '.wicked-qe' (or legacy)
 const store = createDomainStore({ root: LEDGER_ROOT });
 // Inside a governed wicked-crew run (WICKED_RUN_ID set), stamp every run and verdict row with it, so
 // crew's acceptance attributes this QE run to that run by stamp, not by inference from its lifetime.
@@ -140,7 +140,7 @@ const run = store.create('runs', {
   ...CREW_RUN,
 });
 const RUN_ID       = run.id;                               // canonical UUID
-const EVIDENCE_DIR = `${WICKED_DIR}/evidence/${RUN_ID}`;
+const EVIDENCE_DIR = join(LEDGER_ROOT, 'evidence', RUN_ID);     // under the ledger root, never the worktree
 // mkdir -p EVIDENCE_DIR; write evidence_path back onto the run record
 store.update('runs', run.id, { evidence_path: EVIDENCE_DIR });
 ```

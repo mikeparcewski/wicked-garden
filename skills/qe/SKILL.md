@@ -32,6 +32,10 @@ independent verdict, with a read-only ledger lens. Verdicts are re-derived
 from captured evidence — never self-asserted by the agent that ran the work.
 Data contract: `.wicked-qe/` (config, evidence, SQLite ledger); legacy
 `.wicked-testing/` roots still resolve via wicked-ledger's dual-read. <!-- historical -->
+**Ledger root.** When `WICKED_QE_LEDGER_DIR` is set, it IS the ledger root (absolute as given,
+relative under the cwd). A governed wicked-crew run hands its QE unit the run's own ledger this way,
+outside the worktree. Every `.wicked-qe/` path in this skill and its refs then means that root.
+Never write `.wicked-qe` into the worktree: the run's guard discards it, and the verdict with it.
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
@@ -65,8 +69,8 @@ action; multi-model deliberation is `jam` council; in-run crew review is
 Read-only actions (plan, insight, review) never require setup; they read `.wicked-qe/config.json` where present and otherwise proceed without it. A writing action checks for config first:
 
 ```bash
-# dual-read (Phase 6c): a legacy .wicked-testing root still counts  # <!-- historical -->
-{ test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"  # <!-- historical -->
+# WICKED_QE_LEDGER_DIR set: that root; else dual-read (Phase 6c): a legacy .wicked-testing root still counts  # <!-- historical -->
+if [ -n "$WICKED_QE_LEDGER_DIR" ]; then test -f "$WICKED_QE_LEDGER_DIR/config.json" || echo "ERR_NO_CONFIG"; else { test -f ".wicked-qe/config.json" || test -f ".wicked-testing/config.json"; } || echo "ERR_NO_CONFIG"; fi  # <!-- historical -->
 ```
 
 On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wicked-qe/` and registers a project record).
