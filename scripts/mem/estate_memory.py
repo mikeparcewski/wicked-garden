@@ -135,15 +135,11 @@ def _default_intent():
     (the umbrella, e.g. ``wicked`` for ``wicked/wicked-estate``). Outside a git
     checkout: {} (unfaceted memories only, as before).
     """
-    try:
-        here = Path.cwd().resolve()
-    except OSError:
+    root = _estate_client.checkout_root()
+    if root is None:
         return {}
-    for d in (here, *here.parents):
-        if (d / ".git").exists():
-            project = (os.environ.get("WICKED_RUN_PROJECT") or "").strip() or d.parent.name
-            return {k: v for k, v in (("repo", d.name), ("project", project)) if v}
-    return {}
+    project = (os.environ.get("WICKED_RUN_PROJECT") or "").strip() or root.parent.name
+    return {k: v for k, v in (("repo", root.name), ("project", project)) if v}
 
 
 def _memory_recall_args(args, query, budget):
@@ -209,11 +205,21 @@ def _parse_budget(args):
 # narration and status never reach the store even when the judgment slips.
 MIN_CONTENT_CHARS = 40
 _HEX_RUN = re.compile(r"\b[0-9a-f]{7,40}\b")
+# A hex run is a commit id when it is long (>= 12) or sits in commit context; a short one
+# alone (a CRC32 polynomial, a colour) is a constant, and constants are durable.
+_COMMIT_CONTEXT = re.compile(
+    r"\b(?:commit|sha|rev(?:ision)?|cherry-?pick(?:ed)?|revert(?:ed)?|fixed in|landed in|merged as"
+    r"|pin(?:ned)?(?: moved)? (?:to|at))\b|@[0-9a-f]{7}", re.I)
+# A version is narration only next to release status ("released 2.4.1", "shipped 0.7.26"); a
+# version constraint ("keep SQLite >= 3.35.0 because RETURNING") is a durable rule.
+_VERSION = re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)?(?![.\d])")
+_RELEASE_STATUS = re.compile(
+    r"\b(?:released|shipped|published|tagged|cut|bumped|landed|merged|deployed|rolled out"
+    r"|upgraded to|is out|went out|now on)\b", re.I)
 _NON_DURABLE = (
     (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I),
      "a run/session id (uuid)"),
     # x.y.z, but not a dotted quad (127.0.0.1) or a longer dotted run.
-    (re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)?(?![.\d])"), "a version number"),
     # PR #12 / issue #12 / run 38093054271 / core#880 / a bare #880 — not "run 3 retries".
     (re.compile(r"\b(?:pr|pull request|issue|run|job)\s*(?:#\s*\d+|\d{5,})\b"
                 r"|\b[a-z][\w.-]*#\d+\b|(?<![\w&])#\d+\b", re.I), "a PR/issue/run id"),
@@ -235,7 +241,8 @@ def _is_sha(token):
 def durability_rejects(content):
     """Why ``content`` is not a durable learning ([] = it may be stored).
 
-    Deterministic and offline: empty or too-short bodies, commit SHAs, versions,
+    Deterministic and offline: empty or too-short bodies, commit SHAs (long, or
+    in commit context), versions next to release status,
     PR/issue/run ids, PIDs, "today"-style dates, and first-person narration
     ("I'll retry", "going to guess again") are records of a moment; the repo,
     CHANGELOG or tracker already holds those.
@@ -245,8 +252,11 @@ def durability_rejects(content):
         return [f"too short to state a rule, why it holds and when it applies "
                 f"(< {MIN_CONTENT_CHARS} chars)"]
     reasons = []
-    if any(_is_sha(m.group(0)) for m in _HEX_RUN.finditer(text.lower())):
+    shas = [m.group(0) for m in _HEX_RUN.finditer(text.lower()) if _is_sha(m.group(0))]
+    if any(len(h) >= 12 for h in shas) or (shas and _COMMIT_CONTEXT.search(text)):
         reasons.append("a commit SHA")
+    if _VERSION.search(text) and _RELEASE_STATUS.search(text):
+        reasons.append("release status (a version that was shipped/released)")
     reasons += [why for rx, why in _NON_DURABLE if rx.search(text)]
     return reasons
 

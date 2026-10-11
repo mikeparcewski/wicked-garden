@@ -16,6 +16,7 @@ Hermetic: the estate side is faked by planting a fake ``_estate_client``
 module in sys.modules. No subprocess, no network.
 """
 
+import os
 import sys
 import time
 import types
@@ -61,7 +62,7 @@ def _plant_fake_estate(monkeypatch, **overrides):
     fake.recall = recall
     fake.call = call
     fake.resolve_mcp_bin = resolve_mcp_bin
-    fake.project_scope = lambda: "project:test-repo"
+    fake.project_scope = lambda: os.environ.get("WICKED_ESTATE_MEMORY_SCOPE") or "project:test-repo"
     for name, fn in overrides.items():
         setattr(fake, name, fn)
     monkeypatch.setitem(sys.modules, "_estate_client", fake)

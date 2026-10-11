@@ -77,9 +77,6 @@ def _memory_scope() -> str:
     its ancestors (root-scoped memories included) but not other projects.
     Override via WICKED_ESTATE_MEMORY_SCOPE.
     """
-    pinned = os.environ.get("WICKED_ESTATE_MEMORY_SCOPE", "").strip()
-    if pinned:
-        return pinned
     import _estate_client
 
     return _estate_client.project_scope()

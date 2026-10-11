@@ -221,3 +221,68 @@ def test_sources_labels_each_side_and_passes_the_repo_intent(monkeypatch, tmp_pa
     assert m_args["scope"] == "project:wicked-bus"
     assert out["memories"][0]["label"] == "memory · fact · 2025-10-10 · project:wicked-bus"
     assert out["knowledge"][0]["label"] == "knowledge · src wicked-bus:lib/cas.js"
+
+
+# ── w9-memfix2 (codex post-merge review) ──────────────────────────────────────
+
+@pytest.mark.parametrize("content", [
+    "Keep SQLite at 3.35.0 or newer because the insert path needs RETURNING; older builds fail at prepare.",
+    "The CRC32 polynomial is edb88320 (reflected), so the hand-rolled table must use it, not 04c11db7.",
+    "Overlay scrims use #ff000080 so the warning tint stays 50% transparent over every theme background.",
+])
+def test_gate_keeps_version_constraints_and_hex_constants(content):
+    assert estate_memory.durability_rejects(content) == []
+
+
+@pytest.mark.parametrize("content", [
+    "We released 2.4.1 to npm and the smoke test passed on both runners again.",
+    "Reverted commit 3e7f2539ab because the deliver gate double-pushed the branch.",
+    "Pin moved to 1f3a9c2e7b4d5a6f8e9c0b1a2d3e4f5a6b7c8d9e so main builds against the fix.",
+])
+def test_gate_still_rejects_release_narration_and_commit_ids(content):
+    assert estate_memory.durability_rejects(content) != []
+
+
+def _git_checkout(root):
+    (root / ".git").mkdir(parents=True)
+    return root
+
+
+def test_project_scope_is_the_checkout_not_the_subdirectory(monkeypatch, tmp_path):
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    repo = _git_checkout(tmp_path / "app")
+    (repo / "src" / "deep").mkdir(parents=True)
+    monkeypatch.chdir(repo / "src" / "deep")
+    assert _estate_client.project_scope() == "project:app"
+
+
+def test_project_scope_of_a_worktree_is_its_main_checkout(monkeypatch, tmp_path):
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    main = _git_checkout(tmp_path / "wicked-estate")
+    wt = tmp_path / "worktrees" / "run-1234"
+    wt.mkdir(parents=True)
+    (wt / ".git").write_text(f"gitdir: {main / '.git' / 'worktrees' / 'run-1234'}\n")
+    monkeypatch.chdir(wt)
+    assert _estate_client.project_scope() == "project:wicked-estate"
+
+
+def test_configured_project_scope_wins_for_store_and_recall(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE", "project:acme-app")
+    monkeypatch.chdir(tmp_path)
+    calls = []
+    monkeypatch.setattr(_estate_client, "call",
+                        lambda tool, arguments=None, timeout=8.0, **kw: calls.append((tool, arguments))
+                        or {"memory_id": "m", "items": []})
+    estate_memory.do_store({"content": _assistant_statements()[-1]})
+    estate_memory.do_recall({"query": "codesign"})
+    capsys.readouterr()
+    scopes = [a.get("scope") for _t, a in calls]
+    assert scopes == ["project:acme-app", "project:acme-app"], calls
+
+
+def test_shim_refuses_unapprovable_knowledge_proposals(monkeypatch):
+    seen = []
+    monkeypatch.setattr(_estate_client, "call_raw", lambda *a, **k: seen.append(a) or {})
+    out = _estate_client.propose("knowledge", {"content": "c", "source": "r:p"}, {"project": "wicked"})
+    assert out["ok"] is False and out["code"] == -32602 and "not approvable" in out["reason"]
+    assert seen == []
