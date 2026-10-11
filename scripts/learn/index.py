@@ -4,13 +4,13 @@
     wicked-garden run scripts/learn/index.py --repo <checkout> [--name <repo name>] [--slug <slug>] [--dry-run]
 
 Reads ``.wicked/knowledge/<slug>/`` from the checkout (run it on the default branch: index what was
-MERGED, never an open pull request) and, per topic, REPLACES the estate scope ``learn:<repo>/<slug>``:
+MERGED, never an open pull request) and, per topic, REPLACES the estate scope ``learn:<repo>/topic:<slug>``:
 ``knowledge.erase`` of that scope, then one ``knowledge.ingest`` whose chunks are the topic's ACTIVE
 claims (each chunk ends with its sources and observed dates) and the README's sections. A retired,
 superseded or contradicted claim therefore leaves recall at the next index.
 
 When the estate binary has no ``knowledge.erase`` yet, the topic is ingested under a per-revision
-scope ``learn:<repo>/<slug>@<tree hash>`` instead and the output says ``"replace": "unavailable"``
+scope ``learn:<repo>/topic:<slug>/rev:<tree hash>`` instead and the output says ``"replace": "unavailable"``
 (an older revision stays recallable until estate can erase it).
 
 Never from inside a governed run: a run's estate is read-only, and learned knowledge reaches the
@@ -48,9 +48,13 @@ def repo_name(repo: Path) -> str:
     return name[:-4] if name.endswith(".git") else name
 
 
-def claim_chunk(c: dict) -> str:
-    srcs = "; ".join(f"{s.get('url')} (observed {s.get('observed_at')})" for s in c.get("sources") or [] if isinstance(s, dict))
-    return f"{c.get('text', '').strip()} [{c.get('id')}]\nSources: {srcs}"
+def claim_chunk(c: dict) -> str | None:
+    """One active claim as a recall chunk, or ``None`` for a claim too malformed to index."""
+    text, sources = c.get("text"), c.get("sources")
+    if not isinstance(text, str) or not text.strip() or not isinstance(sources, list):
+        return None
+    srcs = "; ".join(f"{s.get('url')} (observed {s.get('observed_at')})" for s in sources if isinstance(s, dict))
+    return f"{text.strip()} [{c.get('id')}]\nSources: {srcs}"
 
 
 def readme_sections(readme: str) -> list[str]:
@@ -63,11 +67,13 @@ def readme_sections(readme: str) -> list[str]:
 
 def topic_payload(repo: Path, name: str, d: Path) -> dict:
     t = read_topic(d)
-    chunks = [claim_chunk(c) for c in t.active] + readme_sections(t.readme)
+    chunks = [x for x in (claim_chunk(c) for c in t.active) if x is not None] + readme_sections(t.readme)
     return {
         "slug": t.slug,
         "title": (t.meta.get("title") if isinstance(t.meta, dict) else None) or t.slug,
-        "scope": f"{SCOPE_PREFIX}{name}/{t.slug}",
+        # Every scope segment is kind:id (estate Scope), and a prefix matches whole segments, so
+        # erasing topic:sqlite never touches topic:sqlite-wal.
+        "scope": f"{SCOPE_PREFIX}{name}/topic:{t.slug}",
         "source": f"repo:{name}/.wicked/knowledge/{t.slug}",
         "chunks": chunks,
         "tree_hash": tree_hash(d),
@@ -79,10 +85,14 @@ def index_topic(client, p: dict) -> dict:
     out = {"slug": p["slug"], "scope": p["scope"], "chunks": len(p["chunks"]), "tree_hash": p["tree_hash"]}
     if p["read_errors"]:
         out["read_errors"] = p["read_errors"]
+    if p["read_errors"]:
+        out["ingested"] = False
+        out["reason"] = "the topic could not be fully read; its indexed scope is left as it was"
+        return out
     erased = client.call("knowledge.erase", {"scope_prefix": p["scope"]}, timeout=30.0)
     if erased is None:
         out["replace"] = "unavailable"
-        out["scope"] = f"{p['scope']}@{p['tree_hash']}"
+        out["scope"] = f"{p['scope']}/rev:{p['tree_hash']}"
     else:
         out["replace"] = "erased"
         out["erased"] = erased
@@ -119,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
                           "topics": [{k: v for k, v in p.items() if k != "chunks"} | {"chunks": len(p["chunks"])} for p in payloads]}, indent=2))
         return 0
     results = [index_topic(client, p) for p in payloads]
-    ok = all(r.get("ingested") or not r["chunks"] for r in results)
+    ok = all(r.get("ingested") or (not r["chunks"] and "read_errors" not in r) for r in results)
     print(json.dumps({"ok": ok, "repo": name, "topics": results}, indent=2))
     return 0 if ok else 1
 

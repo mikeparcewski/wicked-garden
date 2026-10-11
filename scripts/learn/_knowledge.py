@@ -67,7 +67,7 @@ def read_topic(d: Path) -> Topic:
             t.meta = {}
     except FileNotFoundError:
         t.errors.append("topic.json is missing")
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError) as e:  # UnicodeDecodeError is a ValueError
         t.errors.append(f"topic.json does not parse: {e}")
     cj = d / "claims.jsonl"
     try:
@@ -80,13 +80,13 @@ def read_topic(d: Path) -> Topic:
                 t.errors.append(f"claims.jsonl line {n} does not parse: {e}")
     except FileNotFoundError:
         t.errors.append("claims.jsonl is missing")
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         t.errors.append(f"claims.jsonl is unreadable: {e}")
     try:
         t.readme = (d / "README.md").read_text(encoding="utf-8")
     except FileNotFoundError:
         t.errors.append("README.md is missing")
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         t.errors.append(f"README.md is unreadable: {e}")
     return t
 

@@ -79,7 +79,11 @@ def _f(where: str, rule: str, message: str) -> dict:
 def _url_ok(url: object) -> bool:
     if not isinstance(url, str):
         return False
-    p = urlparse(url)
+    try:
+        p = urlparse(url)
+        p.port  # noqa: B018  (raises ValueError on a malformed authority)
+    except ValueError:
+        return False
     return p.scheme in ("http", "https") and bool(p.netloc)
 
 
@@ -130,7 +134,7 @@ def check_topic(d: Path, repo: Path) -> tuple[dict, dict]:
     where = str(d.relative_to(repo))
     findings = [_f(where, "topic-read", e) for e in t.errors]
     m = t.meta
-    if m:
+    if not any(e.startswith("topic.json") for e in t.errors):  # it parsed: judge every field, {} included
         if m.get("schema") != 1:
             findings.append(_f(f"{where}/topic.json", "topic-schema", "schema must be 1"))
         if m.get("slug") != t.slug or not SLUG_RE.match(t.slug):
@@ -149,7 +153,9 @@ def check_topic(d: Path, repo: Path) -> tuple[dict, dict]:
                 findings.append(_f(f"{where}/claims.jsonl#{cid}", "claim-duplicate", "duplicate claim id"))
             seen[cid] = c
     active = {cid for cid, c in seen.items() if c.get("status") == "active"}
-    if t.readme:
+    if not t.readme.strip() and not any("README.md" in e for e in t.errors):
+        findings.append(_f(f"{where}/README.md", "readme-empty", "README.md is empty: it is the synthesis that cites every active claim"))
+    if t.readme.strip():
         cited = set(CITATION_RE.findall(t.readme))
         for cid in sorted(cited - set(seen)):
             findings.append(_f(f"{where}/README.md", "readme-unknown-claim", f"cites {cid}, which claims.jsonl does not hold"))

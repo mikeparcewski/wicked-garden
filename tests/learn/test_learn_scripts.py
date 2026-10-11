@@ -228,9 +228,9 @@ def test_index_replaces_the_topic_scope_with_active_claims_and_sections(tmp_path
     fake = FakeEstate()
     out = index.index_topic(fake, p)
     assert [t for t, _ in fake.calls] == ["knowledge.erase", "knowledge.ingest"]
-    assert fake.calls[0][1] == {"scope_prefix": "learn:demo/sqlite-wal"}
+    assert fake.calls[0][1] == {"scope_prefix": "learn:demo/topic:sqlite-wal"}
     ingest = fake.calls[1][1]
-    assert ingest["scope"] == "learn:demo/sqlite-wal" and ingest["source"] == "repo:demo/.wicked/knowledge/sqlite-wal"
+    assert ingest["scope"] == "learn:demo/topic:sqlite-wal" and ingest["source"] == "repo:demo/.wicked/knowledge/sqlite-wal"
     assert any(a["id"] in c and "https://sqlite.org/wal.html (observed 2026-10-11T04:10:00Z)" in c for c in ingest["chunks"])
     assert not any(b["id"] in c for c in ingest["chunks"]), "a retired claim leaves recall"
     assert out["replace"] == "erased" and out["ingested"] is True
@@ -242,7 +242,7 @@ def test_index_without_erase_uses_a_per_revision_scope(tmp_path):
     fake = FakeEstate(erase=False)
     out = index.index_topic(fake, p)
     assert out["replace"] == "unavailable"
-    assert fake.calls[1][1]["scope"] == f"learn:demo/sqlite-wal@{p['tree_hash']}"
+    assert fake.calls[1][1]["scope"] == f"learn:demo/topic:sqlite-wal/rev:{p['tree_hash']}"
 
 
 def test_index_refuses_inside_a_governed_run(tmp_path):
@@ -260,4 +260,42 @@ def test_index_dry_run_touches_no_store(tmp_path):
     r = subprocess.run([sys.executable, str(SCRIPTS / "index.py"), "--repo", str(tmp_path), "--name", "demo", "--dry-run"],
                        capture_output=True, text=True, env=env, timeout=60)
     out = json.loads(r.stdout)
-    assert r.returncode == 0 and out["dry_run"] and out["topics"][0]["scope"] == "learn:demo/sqlite-wal"
+    assert r.returncode == 0 and out["dry_run"] and out["topics"][0]["scope"] == "learn:demo/topic:sqlite-wal"
+
+
+def test_review_fixes_codex_r1(tmp_path):
+    # an empty topic.json and an empty README are findings, not a silent pass
+    d = write_topic(tmp_path, [claim(TEXT_A)], readme="")
+    (d / "topic.json").write_text("{}")
+    found = rules(check.run(tmp_path, None)[1])
+    assert {"topic-schema", "topic-slug", "topic-kind", "topic-title", "readme-empty"} <= found
+    # a malformed authority is a finding, not a crash
+    c = claim(TEXT_A)
+    c["sources"][0]["url"] = "https://[invalid"
+    write_topic(tmp_path, [c])
+    assert "source-url" in rules(check.run(tmp_path, None)[1])
+    # invalid UTF-8 is a read error
+    (d / "claims.jsonl").write_bytes(b"\xff\xfe\n")
+    assert "topic-read" in rules(check.run(tmp_path, None)[1])
+
+
+def test_index_leaves_a_topic_it_cannot_read_and_skips_malformed_claims(tmp_path):
+    d = write_topic(tmp_path, [claim(TEXT_A)])
+    (d / "claims.jsonl").write_text("{not json\n")
+    fake = FakeEstate()
+    out = index.index_topic(fake, index.topic_payload(tmp_path, "demo", d))
+    assert fake.calls == [] and out["ingested"] is False
+    bad_a, bad_b = claim(TEXT_A), claim(TEXT_B)
+    bad_a["text"], bad_b["sources"] = None, 123
+    write_topic(tmp_path, [bad_a, bad_b])
+    p = index.topic_payload(tmp_path, "demo", d)
+    assert p["chunks"] and all("\nSources: " not in c for c in p["chunks"])  # only README sections remain
+
+
+def test_erasing_one_topic_scope_does_not_name_a_sibling(tmp_path):
+    write_topic(tmp_path, [claim(TEXT_A)], slug="sqlite")
+    write_topic(tmp_path, [claim(TEXT_A)], slug="sqlite-wal")
+    a = index.topic_payload(tmp_path, "demo", tmp_path / ".wicked" / "knowledge" / "sqlite")
+    b = index.topic_payload(tmp_path, "demo", tmp_path / ".wicked" / "knowledge" / "sqlite-wal")
+    # estate matches a scope prefix by whole kind:id segments; the slug is its own segment
+    assert a["scope"] == "learn:demo/topic:sqlite" and b["scope"] == "learn:demo/topic:sqlite-wal"
