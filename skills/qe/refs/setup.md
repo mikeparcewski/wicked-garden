@@ -76,7 +76,7 @@ config = {
     'created_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'),
     'claim_nudge': False
 }
-open(os.path.join(os.environ.get('WICKED_QE_LEDGER_DIR', '').strip() or '.wicked-qe', 'config.json'), 'w').write(json.dumps(config, indent=2))
+open(os.path.join(os.environ.get('WICKED_QE_LEDGER_DIR') or '.wicked-qe', 'config.json'), 'w').write(json.dumps(config, indent=2))
 " 2>/dev/null || python -c "<same script>"
 ```
 

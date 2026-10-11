@@ -61,7 +61,7 @@ Review the evidence manifest at the path below and render an
 independent verdict.
 
 ## Evidence Directory
-.wicked-qe/evidence/{RUN_ID}/
+{EVIDENCE_DIR}  (`<ledger root>/evidence/{RUN_ID}/` — the ledger root is `$WICKED_QE_LEDGER_DIR` when set, never the worktree)
 
 ## Scenario Path
 {path — read it yourself}

@@ -251,7 +251,7 @@ with one command, with grades as an append-only attestation chain:
 ```bash
 # freeze (payload = manifest.json — it binds every artifact hash)
 wicked-garden run scripts/qe/lib/vault-evidence.mjs \
-  record --evidence-dir .wicked-qe/evidence/<run-id> --json
+  record --evidence-dir "${WICKED_QE_LEDGER_DIR:-.wicked-qe}/evidence/<run-id>" --json
 
 # append the reviewer grade as an opinion attestation (pass|reject|unclear)
 wicked-garden run scripts/qe/lib/vault-evidence.mjs \
