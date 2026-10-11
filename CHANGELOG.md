@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.51.0] — 2026-10-11
+
+### Fixed
+- **`wicked-garden-qe` setup scaffolds the ledger root with Python (wicked-core#881, wicked-crew#951, PR #1277).** It no longer uses a shell `mkdir` of `$WICKED_QE_LEDGER_DIR`. A governed run's write fence judges a shell write target as written, and the unexpanded variable read as a path inside the worktree, so a governed QE unit's scaffold was refused (rig run 46fb2c04). With wicked-core#889 (core-ts 0.9.2), the QE unit runs garden's pipeline into its own roots.
+
+
 ## [12.50.0] — 2026-10-11
 
 ### Added
