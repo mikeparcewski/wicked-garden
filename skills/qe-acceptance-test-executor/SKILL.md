@@ -133,6 +133,11 @@ python3 -c "import json,sys; sys.stdout.write(json.dumps({...}))" 2>/dev/null \
 
 ### 6. Compile Evidence Report
 
+**Opened from `qe accept`** (garden#1290): your evidence report is an intermediate artifact of that
+pipeline, not the end of the turn. Hand it back and the pipeline continues to the reviewer in the
+same turn. Never end the turn on it, above all in a governed unit (`WICKED_RUN_ID` set), where your
+last output is the unit's reply.
+
 Return a text evidence report with all captured data:
 
 ```markdown
