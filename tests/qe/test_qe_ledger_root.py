@@ -65,7 +65,8 @@ def test_the_preflight_reads_the_pinned_root_exactly(doc: Path, tmp_path: Path) 
 def test_setup_scaffolds_the_pinned_root_and_nothing_in_the_worktree(tmp_path: Path) -> None:
     text = SETUP.read_text(encoding="utf-8")
     blocks = re.findall(r"```bash\n(.*?)```", text, flags=re.S)
-    mkdir = next(b for b in blocks if "os.makedirs" in b).split(" 2>/dev/null ||")[0]
+    mkdir = next(b for b in blocks if "os.makedirs" in b)
+    assert "<same script>" not in mkdir, "the scaffold runs one real script on python3 or python"
     config = next(b for b in blocks if "config.json" in b and "python3 -c" in b)
     config = config.split(" 2>/dev/null ||")[0]  # the python3 arm; the `python` fallback is the same script
     if shutil.which("python3") is None:

@@ -54,13 +54,14 @@ judges a shell write target as written, and an unexpanded `"$WICKED_QE_LEDGER_DI
 as a path inside the worktree, so it is refused.
 
 ```bash
-python3 -c "
+PY="$(command -v python3 || command -v python)"
+"$PY" -c "
 import os
 root = os.environ.get('WICKED_QE_LEDGER_DIR') or '.wicked-qe'
 for d in ('projects', 'strategies', 'scenarios', 'runs', 'verdicts', 'tasks', 'evidence'):
     os.makedirs(os.path.join(root, d), exist_ok=True)
 print(root)
-" 2>/dev/null || python -c "<same script>"
+"
 ```
 
 ### 3. Write config.json
