@@ -67,7 +67,7 @@ Execute the scenario file at the path below and capture evidence.
 {path to scenarios/<name>.md}
 
 ## Evidence Directory
-.wicked-qe/evidence/{RUN_ID}/
+{EVIDENCE_DIR}  (`<ledger root>/evidence/{RUN_ID}/` — the ledger root is `$WICKED_QE_LEDGER_DIR` when set, never the worktree)
 
 ## Instructions
 1. Open the scenario file with your file reader.

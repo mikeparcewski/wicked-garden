@@ -46,15 +46,19 @@ npx --no-install cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" 
 
 ### 2. Create .wicked-qe Directory
 
+The ledger root is `$WICKED_QE_LEDGER_DIR` when it is set (a governed crew run's own ledger,
+outside the worktree), else `.wicked-qe`:
+
 ```bash
-mkdir -p .wicked-qe/projects .wicked-qe/strategies .wicked-qe/scenarios \
-         .wicked-qe/runs .wicked-qe/verdicts .wicked-qe/tasks \
-         .wicked-qe/evidence
+QE_ROOT="${WICKED_QE_LEDGER_DIR:-.wicked-qe}"
+mkdir -p "$QE_ROOT/projects" "$QE_ROOT/strategies" "$QE_ROOT/scenarios" \
+         "$QE_ROOT/runs" "$QE_ROOT/verdicts" "$QE_ROOT/tasks" \
+         "$QE_ROOT/evidence"
 ```
 
 ### 3. Write config.json
 
-Write `.wicked-qe/config.json` using Python cross-platform pattern:
+Write `config.json` in the ledger root using Python cross-platform pattern:
 
 ```bash
 python3 -c "
@@ -72,7 +76,7 @@ config = {
     'created_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat().replace('+00:00', 'Z'),
     'claim_nudge': False
 }
-open('.wicked-qe/config.json', 'w').write(json.dumps(config, indent=2))
+open(os.path.join(os.environ.get('WICKED_QE_LEDGER_DIR') or '.wicked-qe', 'config.json'), 'w').write(json.dumps(config, indent=2))
 " 2>/dev/null || python -c "<same script>"
 ```
 
