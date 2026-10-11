@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.53.1] — 2026-10-11
+
+### Fixed
+- **One wicked-ledger resolver, `$WICKED_LEDGER_PKG_DIR` first (PR #1284, crew#951).** `wicked-garden-qe` accept, the gate and the campaign scoreboard resolve wicked-ledger through one resolver that honours `$WICKED_LEDGER_PKG_DIR` first (wicked-crew 0.9.7 sets it for a governed run), so a governed QE unit records its verdict without the repository installing wicked-ledger.
+- **Learn: the author computes claim ids (PR #1288, E2E F-LEARN-1);** synthesize leaves them.
+
 ## [12.53.0] — 2026-10-11
 
 ### Changed
