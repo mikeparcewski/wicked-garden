@@ -323,12 +323,12 @@ def _torn(page, wait: bool = False):
 
 
 def python_with_playwright() -> str | None:
-    """The first python3 / python on PATH (not this interpreter) that can import playwright."""
+    """The first python3 / python on PATH that can import playwright. Each is probed, never compared by
+    path: a venv's python links to the same base binary yet sees other site-packages (codex)."""
     import shutil, subprocess  # noqa: E401, PLC0415
-    me = os.path.realpath(sys.executable)
     for name in ("python3", "python"):
         exe = shutil.which(name)
-        if exe is None or os.path.realpath(exe) == me:
+        if exe is None:
             continue
         try:
             if subprocess.run([exe, "-c", "import playwright.sync_api"], capture_output=True, timeout=30).returncode == 0:
