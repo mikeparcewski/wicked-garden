@@ -207,14 +207,17 @@ def test_the_cli_flags(tmp_path):
 
 
 class FakeEstate:
-    def __init__(self, erase: bool = True):
-        self.erase = erase
+    def __init__(self, forget: bool = True):
+        self.forget = forget
         self.calls: list[tuple[str, dict]] = []
+
+    def list_tools(self):
+        return ["knowledge.ingest", "knowledge.recall"] + (["knowledge.forget"] if self.forget else [])
 
     def call(self, tool, arguments=None, timeout=8.0):
         self.calls.append((tool, arguments))
-        if tool == "knowledge.erase":
-            return {"deleted_count": 3} if self.erase else None
+        if tool == "knowledge.forget":
+            return {"deleted_count": 3}
         if tool == "knowledge.ingest":
             return {"content": "ingested"}
         return None
@@ -227,22 +230,23 @@ def test_index_replaces_the_topic_scope_with_active_claims_and_sections(tmp_path
     p = index.topic_payload(tmp_path, "demo", tmp_path / ".wicked" / "knowledge" / "sqlite-wal")
     fake = FakeEstate()
     out = index.index_topic(fake, p)
-    assert [t for t, _ in fake.calls] == ["knowledge.erase", "knowledge.ingest"]
-    assert fake.calls[0][1] == {"scope_prefix": "learn:demo/topic:sqlite-wal"}
-    ingest = fake.calls[1][1]
+    assert [t for t, _ in fake.calls] == ["knowledge.ingest"]
+    ingest = fake.calls[0][1]
     assert ingest["scope"] == "learn:demo/topic:sqlite-wal" and ingest["source"] == "repo:demo/.wicked/knowledge/sqlite-wal"
+    assert ingest["replace_source"] is True and ingest["source_rev"] == p["tree_hash"]
     assert any(a["id"] in c and "https://sqlite.org/wal.html (observed 2026-10-11T04:10:00Z)" in c for c in ingest["chunks"])
     assert not any(b["id"] in c for c in ingest["chunks"]), "a retired claim leaves recall"
-    assert out["replace"] == "erased" and out["ingested"] is True
+    assert out["replace"] == "replaced" and out["ingested"] is True
 
 
 def test_index_without_erase_uses_a_per_revision_scope(tmp_path):
     write_topic(tmp_path, [claim(TEXT_A)])
     p = index.topic_payload(tmp_path, "demo", tmp_path / ".wicked" / "knowledge" / "sqlite-wal")
-    fake = FakeEstate(erase=False)
+    fake = FakeEstate(forget=False)
     out = index.index_topic(fake, p)
     assert out["replace"] == "unavailable"
-    assert fake.calls[1][1]["scope"] == f"learn:demo/topic:sqlite-wal/rev:{p['tree_hash']}"
+    assert fake.calls[0][1]["scope"] == f"learn:demo/topic:sqlite-wal/rev:{p['tree_hash']}"
+    assert "replace_source" not in fake.calls[0][1], "an estate that cannot replace is never told to"
 
 
 def test_index_refuses_inside_a_governed_run(tmp_path):
@@ -299,3 +303,46 @@ def test_erasing_one_topic_scope_does_not_name_a_sibling(tmp_path):
     b = index.topic_payload(tmp_path, "demo", tmp_path / ".wicked" / "knowledge" / "sqlite-wal")
     # estate matches a scope prefix by whole kind:id segments; the slug is its own segment
     assert a["scope"] == "learn:demo/topic:sqlite" and b["scope"] == "learn:demo/topic:sqlite-wal"
+
+
+def test_index_carries_observed_at_and_forgets_an_emptied_topic(tmp_path):
+    d = write_topic(tmp_path, [claim(TEXT_A)], refreshed_at="2026-10-11T04:10:00Z")
+    fake = FakeEstate()
+    index.index_topic(fake, index.topic_payload(tmp_path, "demo", d))
+    assert fake.calls[0][1]["observed_at"] == "2026-10-11T04:10:00Z"
+    b = claim(TEXT_A, status="retired", reason="gone", evidence=[{"url": "https://sqlite.org/wal.html", "observed_at": NOW}])
+    d = write_topic(tmp_path, [b], readme="")
+    fake = FakeEstate()
+    out = index.index_topic(fake, index.topic_payload(tmp_path, "demo", d))
+    assert fake.calls == [("knowledge.forget", {"source": "repo:demo/.wicked/knowledge/sqlite-wal"})]
+    assert out["replace"] == "forgotten"
+
+
+def test_a_failed_forget_of_an_emptied_topic_is_a_failure(tmp_path):
+    b = claim(TEXT_A, status="retired", reason="gone", evidence=[{"url": "https://sqlite.org/wal.html", "observed_at": NOW}])
+    d = write_topic(tmp_path, [b], readme="")
+
+    class Down(FakeEstate):
+        def call(self, tool, arguments=None, timeout=8.0):
+            self.calls.append((tool, arguments))
+            return None
+
+    out = index.index_topic(Down(), index.topic_payload(tmp_path, "demo", d))
+    assert out["replace"] == "forget-failed" and out["ok"] is False
+
+
+def test_index_reads_the_merged_ref_not_the_working_tree(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    git = lambda *a: subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True)
+    git("init", "-q", "-b", "main")
+    write_topic(repo, [claim(TEXT_A)])
+    git("add", "-A")
+    git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-qm", "merged")
+    write_topic(repo, [claim(TEXT_B)])  # an uncommitted working-tree edit: not merged
+    out_dir = tmp_path / "m"
+    out_dir.mkdir()
+    index.materialize(repo, "main", out_dir)
+    p = index.topic_payload(out_dir, "demo", out_dir / ".wicked" / "knowledge" / "sqlite-wal")
+    assert any(claim_id(TEXT_A) in c for c in p["chunks"])
+    assert not any(claim_id(TEXT_B) in c for c in p["chunks"])
