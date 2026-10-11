@@ -120,14 +120,14 @@ listing — via the estate tools (all read-only; in a governed run through the s
    `depth_bounded` or `node_bounded` set is a bounded search, not proof there is no
    route (widen `depth` / `max_nodes` or say "no route within the bound").
 4. Recall what's already known before writing anything new: `wicked-garden-mem`
-   `recall` (`scope_prefix: ""`) so you extend the record rather than duplicate it.
+   `recall` (`scope_prefix: ""`, the explicit everything opt-in) so you extend the record rather than duplicate it.
 
 Stop when you can state, per target, **what it does, why it changes, what it
 depends on, and what would break** — that is the input to phase 3.
 
 ## Phase 3 — capture: memories AND policies as proposals
 
-Turn understanding into two kinds of reviewable record via the estate
+Turn understanding into reviewable records (knowledge, memory, policy) via the estate
 **`proposal.submit`** tool (inert queue; a PERMITTED safe write even under
 `--readonly`) — in a governed run through the shim's `propose` action (§ In a governed
 run), the ONLY submission path: there is no deliverable file and no other fallback. Full contract, payloads, facets,
@@ -135,7 +135,16 @@ and derivation heuristics: [refs/capture-proposals.md](refs/capture-proposals.md
 enum values EXACTLY as written (an out-of-enum `tier` or `severity` is rejected
 when the proposal is approved, so the learning is lost):
 
-- **Memory** — what is *true* about this repo. `kind_type: "memory"`; payload
+- **Knowledge** — how the code works, read from the code (*acquired*, so it is
+  knowledge, not memory: DES-memory-vs-knowledge). `kind_type: "knowledge"`; payload
+  `{"content": "<1–3 sentences>", "class": "concept", "source": "<repo>:<path>",
+  "source_rev": "<commit sha>"}`. Most repo-learn findings are this kind. Never
+  propose a graph metric (PageRank rank, churn count, blast-radius size): estate's
+  tools re-derive those on demand.
+- **Memory** — only something *witnessed* while studying (a gotcha you hit, with
+  why) or *told* by the operator. Split a mixed finding: "we chose fail-closed
+  because of incident X" is memory, "the implementation fails closed" is
+  knowledge. `kind_type: "memory"`; payload
   `{"content": "<1–3 sentences>", "tier": "<value>"}` where `tier` is EXACTLY one
   of `working` / `episodic` / `semantic` / `procedural` / `archival` — for a repo
   learning use `semantic` (a fact/decision) or `procedural` (a how-to/convention);

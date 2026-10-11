@@ -61,10 +61,15 @@ def _run(monkeypatch, capsys, action, args, recorder=None):
 
 # ── store ─────────────────────────────────────────────────────────────────────
 
+_DURABLE = ("Hook scripts must fail open because a raised exception blocks the "
+            "user's prompt; catch, log to stderr, and return the safe default.")
+_DURABLE_SKILL = ("To add an estate language, add a row to languages.toml and a .scm "
+                  "query file; no Rust match arm is needed because extraction is data-driven.")
+
 def test_store_maps_defaults_onto_memory_capture(monkeypatch, capsys):
     rec = _Recorder({"memory.capture": {"memory_id": "mem-1"}})
     code, out, rec = _run(monkeypatch, capsys, "store",
-                          {"content": "we decided X", "about": ["x", "y"]}, rec)
+                          {"content": _DURABLE, "about": ["x", "y"]}, rec)
     assert code == 0 and out["ok"] is True and out["memory_id"] == "mem-1"
     tool, arguments = rec.calls[0]
     assert tool == "memory.capture"
@@ -78,35 +83,45 @@ def test_store_maps_defaults_onto_memory_capture(monkeypatch, capsys):
 def test_store_kind_default_tiers(monkeypatch, capsys, kind, expected_tier):
     rec = _Recorder({"memory.capture": {"memory_id": "m"}})
     code, out, rec = _run(monkeypatch, capsys, "store",
-                          {"content": "c", "kind": kind}, rec)
+                          {"content": _DURABLE, "kind": kind}, rec)
     assert code == 0 and out["ok"] is True
     assert rec.calls[0][1]["tier"] == expected_tier
 
 
 def test_store_rejects_unknown_kind_and_tier(monkeypatch, capsys):
     code, out, _ = _run(monkeypatch, capsys, "store",
-                        {"content": "c", "kind": "vibe"})
+                        {"content": _DURABLE, "kind": "vibe"})
     assert code == 0 and out["ok"] is False and "unknown kind" in out["reason"]
     code, out, _ = _run(monkeypatch, capsys, "store",
-                        {"content": "c", "tier": "eternal"})
+                        {"content": _DURABLE, "tier": "eternal"})
     assert code == 0 and out["ok"] is False and "unknown tier" in out["reason"]
 
 
 def test_store_fails_open_when_estate_unreachable(monkeypatch, capsys):
-    code, out, _ = _run(monkeypatch, capsys, "store", {"content": "c"})
+    code, out, _ = _run(monkeypatch, capsys, "store", {"content": _DURABLE})
     assert code == 0
     assert out["ok"] is False and "failed" in out["reason"]
 
 
 # ── recall ────────────────────────────────────────────────────────────────────
 
-def test_recall_defaults_to_root_scope_prefix(monkeypatch, capsys):
+def test_recall_defaults_to_the_current_project_scope(monkeypatch, capsys, tmp_path):
+    proj = tmp_path / "demo-repo"
+    proj.mkdir()
+    monkeypatch.chdir(proj)
     rec = _Recorder({"memory.recall": {"items": [{"content": "hit"}]}})
     code, out, rec = _run(monkeypatch, capsys, "recall", {"query": "q"}, rec)
     assert code == 0 and out["items"] == [{"content": "hit"}]
     arguments = rec.calls[0][1]
-    assert arguments["scope_prefix"] == ""       # recall-everything convention
-    assert "scope" not in arguments
+    assert arguments["scope"] == "project:demo-repo"  # project + ancestors
+    assert "scope_prefix" not in arguments            # everything is opt-in only
+
+
+def test_recall_everything_is_an_explicit_opt_in(monkeypatch, capsys):
+    rec = _Recorder({"memory.recall": {"items": []}})
+    _run(monkeypatch, capsys, "recall", {"query": "q", "scope_prefix": ""}, rec)
+    arguments = rec.calls[0][1]
+    assert arguments["scope_prefix"] == "" and "scope" not in arguments
 
 
 def test_recall_scope_only_uses_inheritance_semantics(monkeypatch, capsys):
@@ -168,10 +183,10 @@ def test_forget_erase_all_needs_explicit_confirmation(monkeypatch, capsys):
 def test_capture_batch_accounts_partial_failures(monkeypatch, capsys):
     rec = _Recorder({"memory.capture": {"memory_id": "m"}})
     code, out, rec = _run(monkeypatch, capsys, "capture-batch", {"memories": [
-        {"content": "a decision", "kind": "fact"},
+        {"content": _DURABLE, "kind": "fact"},
         {"content": ""},                        # dropped: empty
-        {"content": "a pattern", "kind": "skill"},
-        {"content": "x", "kind": "nope"},       # dropped: bad kind
+        {"content": _DURABLE_SKILL, "kind": "skill"},
+        {"content": _DURABLE, "kind": "nope"},  # dropped: bad kind
     ]}, rec)
     assert code == 0
     assert out["stored"] == 2 and out["failed"] == 2
@@ -283,7 +298,8 @@ def test_live_store_recall_forget_round_trip(tmp_path):
     })
     assert stored["ok"] is True and stored["memory_id"]
 
-    recalled = _cli(tmp_path, "recall", {"query": "mem router stores through estate"})
+    recalled = _cli(tmp_path, "recall", {"query": "mem router stores through estate",
+                                         "scope": "project:mem-live-test"})
     assert recalled["ok"] is True
     assert any("Round-trip" in item.get("content", "") for item in recalled["items"])
 

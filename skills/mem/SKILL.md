@@ -2,8 +2,8 @@
 name: wicked-garden-mem
 description: |
   Cross-session memory + knowledge over wicked-estate.
-  One skill, routed actions: store (capture a decision/pattern/gotcha as a
-  memory), recall (query memories across every scope), answer (cited
+  One skill, routed actions: store (a durable decision/pattern/gotcha),
+  recall (the current project's memories; all scopes on opt-in), answer (cited
   synthesis from the knowledge + memory stores), review (browse coverage by
   kind/tier), forget (kind-guarded erase of a scope subtree), maintain
   (reflect + coverage pulse; estate consolidates in-store), ingest (file or
@@ -82,14 +82,21 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
 
 ## Store
 
-1. Distill the learning into 1–3 self-contained sentences (the *why* and
-   *what*, not the *how*). Skip trivia — store only what a future session
-   needs.
+1. Apply the durability test: *would this help a fresh session, on a
+   different task, three months from now?* Store a rule, why it holds, and
+   when it applies, in 1–3 self-contained sentences. Never store progress or
+   status, versions, SHAs, PR/run ids, PIDs, "today", or what the repo,
+   CHANGELOG or tracker already records. The backend refuses the mechanical
+   cases with `not a durable learning`; treat that as "don't store", not as
+   an error to work around.
+   Provenance: memory is what we witnessed, were told, or decided. A claim
+   read from code, docs or the web is knowledge: use `write`
+   (`{"content","class":"concept","source"}`) or `ingest` instead; `store`
+   refuses content that carries a `source`.
 2. Pick `kind` (+ tier defaults): `fact` → semantic (decisions, gotchas,
    stable facts) · `skill` → procedural (patterns, conventions, how-tos) ·
-   `episode` → episodic (events: "X happened when Y") · `entity` → semantic
-   (a person/system profile) · `working` → working (session scratch). Add
-   `about` tags for recall hooks.
+   `entity` → semantic (a person/system profile). Add `about` tags for
+   recall hooks.
 3. Run the backend:
    ```bash
    ... estate_memory.py store '{"content":"<distilled>","kind":"fact","about":["tag1","tag2"]}'
@@ -105,10 +112,12 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
 ... estate_memory.py recall '{"query":"<topic>"}'
 ```
 
-Default `scope_prefix: ""` searches the ENTIRE subtree — including
-brain-migrated leaves (`brain:<project>/doc:<id>`). Narrow with
-`"scope_prefix": "project:<name>"`, or pass `"scope"` instead for estate's
-ancestor-visible inheritance semantics. Items return content, scope, tier,
+By default recall searches the current project (`project:<cwd-basename>`)
+and its ancestors, so root-scoped memories stay visible and other projects'
+memories do not leak in. Pass `"scope"` to recall another project the same
+way. Searching everything, brain-migrated leaves
+(`brain:<project>/doc:<id>`) included, is an explicit opt-in:
+`"scope_prefix": ""` (or `"scope_prefix": "project:<name>"` for one subtree). Items return content, scope, tier,
 and score; present the top hits and cite `memory_id`/scope when the user
 needs provenance. For a synthesized, citation-bearing answer use the
 `answer` action instead.
@@ -165,8 +174,7 @@ for decisions, patterns, gotchas, discoveries, and preferences, classifies
 each onto the estate kind/tier vocabulary, and batch-writes them via
 `capture-batch`. Report what it stored.
 
-**Auto-memorize (ambient path)**: independent of this action, the Stop hook
-emits `wicked.garden.fact.extracted` events for decisions/discoveries it
-spots and drains them into estate via `scripts/mem/auto_memorize.py`
-(durable wicked-bus cursor, content-hash dedup, native DLQ — inspect with
-`... auto_memorize.py status '{}'` or `wicked-bus dlq list`).
+No hook extracts memories from the transcript. The Stop hook used to
+pattern-match "decided to…" / "going to…" and filled the store with
+narration, so it was removed: a learning is stored because someone chose to
+store it.

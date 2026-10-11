@@ -2,15 +2,17 @@
 """
 Stop hook — wicked-garden unified session teardown (async, 30s timeout).
 
-Consolidates: crew stop, mem stop, session-end fact emission.
+Consolidates: crew stop, mem stop.
+
+The hook writes no memories: what a session learned is captured on purpose
+(the wicked-garden-mem skill's capture/store actions), never pattern-matched
+out of the transcript.
 
 Flow:
 1. Session outcome check (mismatch report from auto_issue_reporter state)
-2. Automatic memory promotion from native tasks (session_fact_extractor)
-   + auto-memorize drain into estate memory
-3. Persist final SessionState
-4. Event store retention purge
-5. Heavy cadence teardown (telemetry + guard pipeline, once per session)
+2. Persist final SessionState
+3. Event store retention purge
+4. Heavy cadence teardown (telemetry + guard pipeline, once per session)
 
 Always fails open — any unhandled exception returns {"systemMessage": ...}.
 Runs async so it does NOT block the user on exit.
@@ -18,7 +20,6 @@ Runs async so it does NOT block the user on exit.
 
 import json
 import os
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -248,129 +249,6 @@ def _check_session_outcome() -> list:
 
 
 
-# ---------------------------------------------------------------------------
-# Step 2b: Session-end fact emission → auto-memorize drain (estate memory)
-# ---------------------------------------------------------------------------
-#
-# v6: Session facts are extracted from native Claude tasks
-# (${CLAUDE_CONFIG_DIR:-~/.claude}/tasks/{session_id}/*.json) by
-# scripts/mem/session_fact_extractor.py. This replaces the v5 smaht
-# FactExtractor/HistoryCondenser pipeline deleted in Gate 4 Phase 2 (#428).
-# Emission shape: wicked.garden.fact.extracted events on wicked-bus, drained
-# by the garden-run auto-memorize consumer (scripts/mem/auto_memorize.py),
-# which re-applies its own type/length/dedup policy.
-
-# Fact types eligible for emission — mirrors the auto-memorize policy.
-# The drain will re-check these; this pre-filter keeps bus traffic sensible.
-_EMITTABLE_FACT_TYPES = frozenset({"decision", "discovery"})
-_MIN_FACT_CONTENT_LENGTH = 15
-
-
-def _run_memory_promotion(session_id: str, transcript_path: Optional[str] = None) -> list:
-    """Emit high-value session facts as wicked.garden.fact.extracted events on wicked-bus.
-
-    Reads native task records (TaskCreate/TaskUpdate output) plus the session
-    transcript tail via scripts/mem/session_fact_extractor.py,
-    filters to decisions + discoveries over the length threshold, skips facts
-    this session already emitted (per-session ledger — Stop fires every turn),
-    and emits one event per fact. The garden-run auto-memorize consumer
-    (scripts/mem/auto_memorize.py) persists them to wicked-estate memory.
-
-    Returns a list of message strings (empty when nothing was emitted or the
-    bus is unavailable). Always fails open — exceptions are caught and logged
-    to stderr.
-    """
-    try:
-        # scripts/ is on sys.path via the hook bootstrap; mem is a package
-        # under scripts/ so the qualified import resolves without any
-        # additional sys.path manipulation.
-        from mem.session_fact_extractor import (
-            extract_session_facts,
-            filter_unemitted,
-            mark_emitted,
-        )
-        from _bus import emit_event
-
-        facts = extract_session_facts(session_id, limit=20, transcript_path=transcript_path)
-        facts = filter_unemitted(facts, session_id)
-        if not facts:
-            if os.environ.get("WICKED_DEBUG"):
-                print(
-                    f"[wicked-garden] fact emit: no promotable facts in session {session_id}",
-                    file=sys.stderr,
-                )
-            return []
-
-        emitted = 0
-        emitted_facts = []
-        for fact in facts:
-            if fact.type not in _EMITTABLE_FACT_TYPES:
-                continue
-            if len(fact.content) < _MIN_FACT_CONTENT_LENGTH:
-                continue
-            emit_event(
-                "wicked.garden.fact.extracted",
-                {
-                    "type": fact.type,
-                    "content": fact.content,
-                    "entities": list(fact.entities)[:5] if fact.entities else [],
-                    "source": fact.source or "task",
-                    "session_id": session_id,
-                },
-            )
-            emitted += 1
-            emitted_facts.append(fact)
-
-        if emitted == 0:
-            return []
-        mark_emitted(emitted_facts, session_id)
-        return [f"[Memory] Emitted {emitted} fact event(s); the auto-memorize drain persists eligible ones to estate."]
-
-    except Exception as e:
-        print(f"[wicked-garden] fact emit error: {e}", file=sys.stderr)
-        return []
-
-
-def _run_auto_memorize_drain() -> list:
-    """Drain pending fact events into estate memory (garden-run consumer).
-
-    Replaces wicked-brain's server-side auto-memorize subscriber (S7): spawns
-    scripts/mem/auto_memorize.py, which polls the durable wicked-garden-mem
-    cursor, promotes + dedups each fact, and writes via estate memory.capture.
-    A failed estate write leaves the cursor put (at-least-once — next Stop
-    retries; three failed drains dead-letter the event natively). Always fails
-    open and never blocks session end.
-    """
-    try:
-        from _bus import _check_available
-        if not _check_available():
-            return []
-    except Exception:
-        return []
-    try:
-        script = _PLUGIN_ROOT / "scripts" / "mem" / "auto_memorize.py"
-        if not script.is_file():
-            return []
-        proc = subprocess.run(
-            [sys.executable, str(script), "drain", "{}"],
-            capture_output=True, text=True, timeout=25,
-        )
-        if proc.returncode != 0 or not proc.stdout.strip():
-            return []
-        result = json.loads(proc.stdout.strip().splitlines()[-1])
-        stored = result.get("stored", 0)
-        dead = result.get("dead_lettered", 0)
-        if stored or dead:
-            msg = f"[Memory] Auto-memorized {stored} fact(s) into estate"
-            if dead:
-                msg += f"; {dead} dead-lettered (see `wicked-bus dlq list`)"
-            return [msg + "."]
-        return []
-    except Exception as e:
-        print(f"[wicked-garden] auto-memorize drain error: {e}", file=sys.stderr)
-        return []
-
-
 def _get_turn_count() -> int:
     try:
         from _session import SessionState
@@ -537,30 +415,13 @@ def main():
         # 1. Session outcome check
         outcome_messages = _check_session_outcome()
 
-        # 2b. Automatic memory promotion (fail open — never blocks session end)
-        # KEPT in stop.py per-turn — lightweight (single bus emit per fact),
-        # self-reports cleanly, and the next session's bootstrap relies on
-        # memories being current. Heavy cadence work (decay/consolidation/
-        # telemetry/guard) was extracted in v9.2.15 — see _heavy_cadence.py.
-        promotion_messages = _run_memory_promotion(
-            session_id, input_data.get("transcript_path")
-        )
-
-        # 2c. Auto-memorize drain — the garden-run consumer of the fact events
-        # (it replaced the retired wicked-brain server subscriber at S7).
-        # Durable cursor: events
-        # emitted here (or left over from earlier sessions) land in estate
-        # memory; failures redeliver next Stop.
-        drain_messages = _run_auto_memorize_drain()
-        promotion_messages = promotion_messages + drain_messages
-
-        # 4. Persist session state
+        # 2. Persist session state
         _persist_session_state()
 
-        # 5. Event store retention purge
+        # 3. Event store retention purge
         _purge_old_events()
 
-        # 6. Heavy cadence — Stop is a reliable co-primary carrier of the
+        # 4. Heavy cadence — Stop is a reliable co-primary carrier of the
         # teardown (v9.2.16, #842). SessionEnd fires on <40% of exits (~1% for
         # agents), so it can't be the sole primary. Stop fires every turn and IS
         # reliable, so it now runs the SAME heavy work, guarded by
@@ -600,24 +461,10 @@ def main():
         except Exception:
             pass
 
-        # NOTE (v9.2.15): the [Memory] reflection block was deleted.
-        #   - It had a parser bug: looked for substring "Auto-extracted " but
-        #     _run_memory_promotion emits "Emitted N fact event(s)" — so
-        #     `promoted_count` was ALWAYS 0 and only the fallback prompt-mode
-        #     branch ever fired. The "smart" branching had never executed in
-        #     production.
-        #   - _run_memory_promotion already self-reports when facts are
-        #     auto-extracted ("[Memory] Emitted N fact event(s)..."), so the
-        #     reflection's "store a memory" guidance was duplicate noise.
-        #   - The brainstorm in v9.2.15 chose Option A (delete) over Option B
-        #     (fix the parser + re-gate) because the smart branch is dead
-        #     code defending behavior no user has seen. CLAUDE.md's "Memory
-        #     Management" section already tells Claude to store decisions
-        #     (now via the wicked-garden-mem skill); an end-of-turn reminder
-        #     adds no signal.
-        # `tasks_completed_this_session` is no longer read; the variable
-        # remains in scope above for any future use without breaking the
-        # `session_state` load.
+        # The v9.2.15 [Memory] reflection block is gone (an end-of-turn
+        # "store a memory" reminder added no signal), and since w9-memfix the
+        # hook writes no memories at all. `tasks_completed_this_session` feeds
+        # only the session.end log line below.
         reflection = ""
         # for this session (post-first-Stop) — only join with separator if both
         # halves have content.
@@ -626,7 +473,7 @@ def main():
         # of the turn (avoids clobbering session_ended).
         sentinel_messages = _check_claim_sentinel(input_data)
         outgov_messages = _check_outgov_compliance(input_data)
-        prepend_messages = sentinel_messages + outgov_messages + outcome_messages + promotion_messages + consolidation_messages + telemetry_messages + guard_messages
+        prepend_messages = sentinel_messages + outgov_messages + outcome_messages + consolidation_messages + telemetry_messages + guard_messages
         if prepend_messages and reflection:
             final_message = "\n".join(prepend_messages) + "\n\n" + reflection
         elif prepend_messages:
