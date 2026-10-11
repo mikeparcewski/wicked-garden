@@ -73,12 +73,10 @@ estate/steering types — pick the one the rule governs, not a freeform tag.
 What you learn by reading code is **acquired**, so it is knowledge, not memory
 (DES-memory-vs-knowledge §3).
 
-**Not submittable yet.** Estate's `proposal.approve` promotes only `memory` and
-`policy:*`; a knowledge proposal would sit unapprovable in the queue, so the shim
-refuses `kind_type: "knowledge"` (`-32602`) until estate's knowledge proposal type
-ships. Until then, put each object below in your report's fenced `json` block under
-`knowledge (pending)`, and leave them out of the `wicked-capture-report` counts. Do
-not re-file a code fact as a `memory` to get it through. The shape is:
+Submit it through the shim's `propose` like a memory. Estate 0.29.2+ approves a
+knowledge proposal into the knowledge store, keeping its `source`, `observed_at` and
+`source_rev`. The shim refuses one with no `source` (`-32602`). Never re-file a code fact as a
+`memory`. The shape is:
 
 ```json
 {

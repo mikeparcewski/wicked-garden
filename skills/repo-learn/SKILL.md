@@ -138,11 +138,9 @@ when the proposal is approved, so the learning is lost):
 - **Knowledge** — how the code works, read from the code (*acquired*, so it is
   knowledge, not memory: DES-memory-vs-knowledge). `kind_type: "knowledge"`; payload
   `{"content": "<1–3 sentences>", "class": "concept", "source": "<repo>:<path>",
-  "source_rev": "<commit sha>"}`. Most repo-learn findings are this kind. **Not
-  submittable yet:** estate cannot approve a knowledge proposal until its knowledge
-  proposal type ships, so the shim refuses `kind_type: "knowledge"`. List these objects
-  in your report's fenced `json` block under `knowledge (pending)` and leave them out
-  of the `wicked-capture-report` counts. Never propose a graph metric (PageRank rank,
+  "source_rev": "<commit sha>"}`. Most repo-learn findings are this kind. Submit it
+  like any proposal (estate 0.29.2+ approves it into the knowledge store); count it in
+  the `wicked-capture-report` like the rest. Never propose a graph metric (PageRank rank,
   churn count, blast-radius size): estate's tools re-derive those on demand.
 - **Memory** — only something *witnessed* while studying (a gotcha you hit, with
   why) or *told* by the operator. Split a mixed finding: "we chose fail-closed

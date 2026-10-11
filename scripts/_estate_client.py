@@ -1102,13 +1102,10 @@ def propose(
     run's `WICKED_RUN_PROJECT` supplies): an unscoped proposal is refused here
     with the shape-error code, so it never lands project-less in the queue.
     """
-    if kind_type == "knowledge":
-        # Gate (DES-memory-vs-knowledge K3): estate's approve promotes only memory + policy:*,
-        # so a knowledge proposal would strand in the queue. Lift when estate ships the type.
+    if kind_type == "knowledge" and not (isinstance(payload, dict) and str(payload.get("source") or "").strip()):
+        # DES-memory-vs-knowledge K3 (estate 0.29.2): knowledge is acquired, so it names its source.
         return {"ok": False, "code": -32602,
-                "reason": 'kind_type "knowledge" is not approvable yet (estate promotes only '
-                          'memory and policy:*): keep the object in your report under '
-                          '"knowledge (pending)"; do not re-file it as a memory'}
+                "reason": 'a knowledge proposal needs payload.source (where it was read, e.g. "<repo>:<path>")'}
     facets = _scope_facets_to_run_project(facets)
     project = (facets or {}).get("project")
     if not isinstance(project, str) or not project.strip():
