@@ -854,8 +854,9 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     returned as its single page. Fail-open (None) when the first call fails, the same as
     `call_blocks`.
     """
+    # A caller-supplied cursor is honoured, never dropped: paging resumes there (and a stale one
+    # surfaces estate's error) instead of silently restarting at page 1.
     args = dict(arguments or {})
-    args.pop("cursor", None)
     first = call_blocks(tool, args, timeout=timeout)
     if first is None or not isinstance(first.get("result"), dict):
         return first
@@ -888,12 +889,14 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
             if _PAGE_LINE not in d and d not in diagnostics:
                 diagnostics.append(d)
         cursor = result.get("next_cursor")
+    whole = complete and not merged.get("truncated", False)
     if pages > 1:
         diagnostics.append(f"PAGING: joined {pages} page(s)"
-                           + (" into the whole answer" if complete else ""))
+                           + (" into the whole answer" if whole else
+                              "; the answer is PARTIAL (see complete and the cut flags)"))
     if complete and pages > 1 and "page" in merged:
         merged.pop("page")
-    merged["complete"] = complete and not merged.get("truncated", False)
+    merged["complete"] = whole
     merged["pages"] = pages
     return {"result": merged, "diagnostics": diagnostics}
 

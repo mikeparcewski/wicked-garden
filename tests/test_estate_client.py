@@ -1235,3 +1235,16 @@ def test_one_page_on_request_and_unpaged_replies_unchanged(capsys):
     # A reply with no `next_cursor` key (a tool that does not page) passes through untouched.
     _estate_client.set_dispatch(_paged_dispatch([{"matches": [1]}], []))
     assert _call(capsys, {"tool": "SearchEntity", "arguments": {}})["result"] == {"matches": [1]}
+
+
+def test_a_supplied_cursor_resumes_there_and_a_cut_walk_is_partial(capsys):
+    seen = []
+    pages = _lineage_pages(3)
+    pages[2]["truncated"] = True  # the last page: no cursor left, but a depth cap cut the walk
+    _estate_client.set_dispatch(_paged_dispatch(pages, seen))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s", "cursor": "c1"}})
+    assert [a.get("cursor") for a in seen] == ["c1", "c2"], "never restarts at page 1"
+    assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d1", "d2"]
+    assert out["result"]["complete"] is False
+    assert not any("whole answer" in d for d in out["diagnostics"])
+    assert any("PARTIAL" in d for d in out["diagnostics"])
