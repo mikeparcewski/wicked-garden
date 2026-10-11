@@ -30,6 +30,14 @@ Look for things the session *learned*, not things it *did*:
 - **Gotchas**: "this broke because…", "don't X because…"
 - **Preferences** the user stated: "always use…", "never do…"
 
+Then apply the **provenance test**: memory is what we *witnessed*, were
+*told*, or *decided*. What was read out of code, docs or the web is
+*acquired*, which makes it knowledge: write it with the `wicked-garden-mem`
+`write` action (`{"content": …, "class": "concept", "source": …}`), or drop it
+when the code graph re-derives it. Split a mixed finding: "we chose
+fail-closed because of incident X" is memory; "the implementation fails
+closed" is knowledge. The backend refuses a memory that carries a `source`.
+
 ## Step 2 — the durability test (every candidate must pass)
 
 > Would this help a fresh session, on a different task, three months from

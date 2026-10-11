@@ -78,8 +78,10 @@ Usage
 """
 
 import json
+import os
 import re
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -121,6 +123,60 @@ def _fail_open(reason):
 def _default_scope():
     """Project-scoped default: ``project:<cwd-basename>`` (a kind:id segment)."""
     return _estate_client.project_scope()
+
+
+def _default_intent():
+    """The session intent faceted memories are admitted against (estate `intent`).
+
+    Estate hides a faceted memory unless the intent carries every facet it
+    names, and repo-learn files memories under ``{repo, project}``. Derived
+    from the enclosing git checkout: ``repo`` = its directory name, ``project``
+    = the run's `WICKED_RUN_PROJECT`, else the checkout's parent directory
+    (the umbrella, e.g. ``wicked`` for ``wicked/wicked-estate``). Outside a git
+    checkout: {} (unfaceted memories only, as before).
+    """
+    try:
+        here = Path.cwd().resolve()
+    except OSError:
+        return {}
+    for d in (here, *here.parents):
+        if (d / ".git").exists():
+            project = (os.environ.get("WICKED_RUN_PROJECT") or "").strip() or d.parent.name
+            return {k: v for k, v in (("repo", d.name), ("project", project)) if v}
+    return {}
+
+
+def _memory_recall_args(args, query, budget):
+    """memory.recall arguments shared by recall and sources (scope, prefix, intent)."""
+    m_args = {"query": query, "token_budget": budget}
+    if "scope_prefix" in args:
+        m_args["scope_prefix"] = args["scope_prefix"]  # explicit opt-in subtree
+    else:
+        m_args["scope"] = args.get("scope") or _default_scope()  # project + ancestors
+    intent = args["intent"] if "intent" in args else _default_intent()
+    if intent:
+        m_args["intent"] = intent
+    return m_args
+
+
+def _date(ts):
+    try:
+        return time.strftime("%Y-%m-%d", time.gmtime(int(ts))) if int(ts) > 0 else "undated"
+    except (TypeError, ValueError):
+        return "undated"
+
+
+def memory_label(item):
+    """`[memory · <kind> · <captured date> · <scope>]` for an answer citation."""
+    kind = item.get("kind") or item.get("tier") or "memory"
+    return f"memory · {kind} · {_date(item.get('created_at'))} · {item.get('scope') or 'root'}"
+
+
+def knowledge_label(item):
+    """`[knowledge · src <source>]` for an answer citation (observed date once estate has it)."""
+    observed = item.get("observed_at")
+    tail = f" · observed {_date(observed)}" if observed else ""
+    return f"knowledge · src {item.get('source') or 'unknown'}{tail}"
 
 
 # One slash-separated scope segment: non-empty kind, ':', non-empty id.
@@ -200,6 +256,11 @@ def _capture_one(item):
     content = (item.get("content") or "").strip()
     if not content:
         return None, "empty content"
+    if item.get("source"):
+        # Provenance test (DES-memory-vs-knowledge): memory is told, witnessed or decided;
+        # a claim whose evidence is a source artifact is acquired, i.e. knowledge.
+        return None, ("acquired from a source, so it is knowledge, not memory: use the `write` "
+                      'action ({"content": ..., "class": "concept", "source": ...}) or `ingest`')
     rejects = durability_rejects(content)
     if rejects:
         return None, ("not a durable learning (" + "; ".join(rejects) + "): state the rule, "
@@ -247,13 +308,10 @@ def do_recall(args):
     if err:
         _emit({"error": err})
         return 1
-    arguments = {"query": query, "token_budget": budget}
-    if "scope_prefix" in args:
-        # Explicit opt-in subtree filter; "" = every project's memories.
-        arguments["scope_prefix"] = args["scope_prefix"]
-    else:
-        # Default: the current project and its ancestors (inheritance).
-        arguments["scope"] = args.get("scope") or _default_scope()
+    if "intent" in args and not isinstance(args["intent"], dict):
+        _emit({"error": "intent must be an object of facet axis -> value"})
+        return 1
+    arguments = _memory_recall_args(args, query, budget)
     payload = _estate_client.call("memory.recall", arguments)
     items = payload.get("items") if isinstance(payload, dict) else None
     if items is None:
@@ -397,15 +455,16 @@ def do_sources(args):
         return 1
     knowledge = _estate_client.call("knowledge.recall", {"query": query, "token_budget": budget})
     k_items = knowledge.get("items", []) if isinstance(knowledge, dict) else []
-    m_args = {"query": query, "token_budget": budget}
-    if "scope_prefix" in args:
-        m_args["scope_prefix"] = args["scope_prefix"]  # explicit opt-in subtree
-    else:
-        m_args["scope"] = args.get("scope") or _default_scope()
-    memory = _estate_client.call("memory.recall", m_args)
+    if "intent" in args and not isinstance(args["intent"], dict):
+        _emit({"error": "intent must be an object of facet axis -> value"})
+        return 1
+    memory = _estate_client.call("memory.recall", _memory_recall_args(args, query, budget))
     m_items = memory.get("items", []) if isinstance(memory, dict) else []
     if knowledge is None and memory is None:
         return _fail_open("estate unreachable (knowledge.recall and memory.recall both failed)")
+    # Every item says which side it is from and how old it is (DES-memory-vs-knowledge §4).
+    k_items = [dict(i, label=knowledge_label(i)) for i in k_items if isinstance(i, dict)]
+    m_items = [dict(i, label=memory_label(i)) for i in m_items if isinstance(i, dict)]
     _emit({"ok": True, "query": query, "knowledge": k_items, "memories": m_items})
     return 0
 

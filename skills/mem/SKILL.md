@@ -89,6 +89,10 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
    CHANGELOG or tracker already records. The backend refuses the mechanical
    cases with `not a durable learning`; treat that as "don't store", not as
    an error to work around.
+   Provenance: memory is what we witnessed, were told, or decided. A claim
+   read from code, docs or the web is knowledge: use `write`
+   (`{"content","class":"concept","source"}`) or `ingest` instead; `store`
+   refuses content that carries a `source`.
 2. Pick `kind` (+ tier defaults): `fact` → semantic (decisions, gotchas,
    stable facts) · `skill` → procedural (patterns, conventions, how-tos) ·
    `entity` → semantic (a person/system profile). Add `about` tags for

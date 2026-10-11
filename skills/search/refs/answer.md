@@ -23,7 +23,12 @@ every project, on explicit request); `--budget <tokens>`
 
    The result carries `knowledge` items (each with a `body_snippet` and its
    `source` citation — a file path or URL recorded at ingest) and
-   `memories` items (each with `content`, `scope`, `tier`, `memory_id`).
+   `memories` items (each with `content`, `scope`, `tier`, `kind`,
+   `created_at`, `memory_id`). Every item also carries a ready `label`:
+   `memory · <kind> · <captured date> · <scope>` or
+   `knowledge · src <source>`. Memory recall is the current project (plus
+   faceted memories for this repo); pass `"scope_prefix": ""` only when the
+   user asks across projects.
 
 2. **Filter for relevance.** Keep only items that actually bear on the
    question; scores are hints, not verdicts. Ignore near-duplicate chunks
@@ -32,8 +37,13 @@ every project, on explicit request); `--budget <tokens>`
 3. **Synthesize — from the items ONLY.** Compose the answer strictly from
    the recalled content. Quote or paraphrase; after each claim, cite where
    it came from:
-   - knowledge chunk → cite its `source` (e.g. `[docs/adr/0005.md]`)
-   - memory → cite its scope (e.g. `[memory: project:wicked-garden]`)
+   - cite every claim with its item's `label`, e.g.
+     `[knowledge · src docs/adr/0005.md]` or
+     `[memory · fact · 2026-10-10 · project:wicked-garden]`, so the reader
+     sees which side it came from and how old it is
+   - on conflict, an operator ruling (memory) governs what *should* hold and
+     the source (knowledge) governs what *does*: show the disagreement, never
+     pick silently by date
 
    End with a `Sources:` list — every distinct `source` / scope used, so
    the reader can verify each claim.

@@ -1,8 +1,9 @@
 # Capture — memories AND policies as estate proposals
 
-The learning phase ends by writing back **two kinds** of record through the estate
-**`proposal.submit`** tool (reached through the estate shim): **memories** (what is
-*true* about this repo) and **policies** (what *should hold* in it). Both land in
+The learning phase ends by writing back records through the estate
+**`proposal.submit`** tool (reached through the estate shim): **knowledge** (how the
+code works, read from it), **memories** (what you witnessed or were told) and
+**policies** (what *should hold* in it). Both land in
 estate's **inert proposal queue** — a type-generic write surface that is a PERMITTED safe
 write **even under `--readonly`**, because a proposal is never recalled or applied until
 an operator approves it. The shim's `wicked-estate-mcp --readonly` opens the operator
@@ -67,7 +68,34 @@ the engine's capture-report floor denies into the human gate on purpose.
 `security` · `testing` · `operations` · `compliance` · `design-ux`. These are the
 estate/steering types — pick the one the rule governs, not a freeform tag.
 
-## Memory payload + facets
+## Knowledge payload (code facts: the usual case)
+
+What you learn by reading code is **acquired**, so it is knowledge, not memory
+(DES-memory-vs-knowledge §3). Propose it as:
+
+```json
+{
+  "kind_type": "knowledge",
+  "payload": {
+    "content": "<1–3 sentences: what the code does and why>",
+    "class": "concept",
+    "source": "<repo>:<path>",
+    "source_rev": "<commit sha you read>"
+  },
+  "facets": { "repo": "<repo-name>", "project": "<project-name>" }
+}
+```
+
+`source` + `source_rev` let the record be refreshed or expired when the code
+changes. Never propose a graph metric (PageRank rank, churn count, blast-radius
+size): `RankHotspots` / `BlastRadius` re-derive them on demand.
+
+## Memory payload + facets (witnessed or told only)
+
+Propose a `memory` only for something you **witnessed** while studying (a
+gotcha you hit, with why it bites) or were **told** by the operator. Split a
+mixed finding: "we chose fail-closed because of incident X" is memory; "the
+implementation fails closed" is knowledge.
 
 ```json
 {
@@ -135,14 +163,16 @@ cell that says skip; a thin capture pollutes the queue the operator must triage.
 
 ## Worked examples
 
-Memory (procedural, from reading a high-churn/high-centrality extractor):
+Knowledge (from reading a high-churn/high-centrality extractor):
 
 ```json
 {
-  "kind_type": "memory",
+  "kind_type": "knowledge",
   "payload": {
     "content": "Language extractors are data, not code: a new language is a row in wicked-estate-extract/languages.toml plus a <name>.scm query file — zero core change. Per-language match arms in Rust are a rejected pattern.",
-    "tier": "procedural"
+    "class": "concept",
+    "source": "wicked-estate:crates/wicked-estate-extract/languages.toml",
+    "source_rev": "<commit sha you read>"
   },
   "facets": { "repo": "wicked-estate", "project": "wicked" }
 }

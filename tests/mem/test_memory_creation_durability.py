@@ -185,3 +185,39 @@ def test_pre_compact_saves_in_progress_tasks_under_the_project_scope(monkeypatch
     assert "Wire the recall scope default" in args["content"]
     assert "Turn Count" not in args["content"]
     assert "was saved" in out["systemMessage"]
+
+
+# ── provenance + answer labels (DES-memory-vs-knowledge G2/G3) ────────────────
+
+def test_store_refuses_a_source_cited_claim_as_knowledge(session, capsys):
+    estate_memory.do_store({
+        "content": "CoreAdapter arms WICKED_BUS_EXEC before it spawns a worker, so the child inherits the bus.",
+        "source": "wicked-crew:packages/crew/src/core/adapter.ts",
+    })
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["ok"] is False and "knowledge" in out["reason"] and "`write`" in out["reason"]
+    assert session == []
+
+
+def test_sources_labels_each_side_and_passes_the_repo_intent(monkeypatch, tmp_path, capsys):
+    repo = tmp_path / "wicked" / "wicked-bus"
+    (repo / ".git").mkdir(parents=True)
+    monkeypatch.chdir(repo)
+    monkeypatch.delenv("WICKED_RUN_PROJECT", raising=False)
+    calls = []
+
+    def fake_call(tool, arguments=None, timeout=8.0, **_kw):
+        calls.append((tool, arguments))
+        if tool == "knowledge.recall":
+            return {"items": [{"body_snippet": "cas gc", "source": "wicked-bus:lib/cas.js"}]}
+        return {"items": [{"memory_id": "m1", "content": "fail closed", "kind": "fact",
+                           "created_at": 1760054400, "scope": "project:wicked-bus"}]}
+
+    monkeypatch.setattr(_estate_client, "call", fake_call)
+    estate_memory.do_sources({"query": "cas gc fail closed"})
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    m_args = dict(calls)["memory.recall"]
+    assert m_args["intent"] == {"repo": "wicked-bus", "project": "wicked"}
+    assert m_args["scope"] == "project:wicked-bus"
+    assert out["memories"][0]["label"] == "memory · fact · 2025-10-10 · project:wicked-bus"
+    assert out["knowledge"][0]["label"] == "knowledge · src wicked-bus:lib/cas.js"
