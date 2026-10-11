@@ -83,50 +83,15 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, dirname, isAbsolute } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 
 import { buildExclusionsClause } from "./flake-policy.mjs";
 import { resolveVaultModule, applyVaultIntegrity, VaultEvidenceError } from "./vault-evidence.mjs";
 import { crewRunStamp } from "./crew-run.mjs";
+import { resolveLedgerModule } from "./ledger-pkg.mjs";
 
-// --- wicked-ledger resolution (cwd-anchored; mirrors wicked-vault's bus.mjs) ---
-
-function esmEntryForPackage(resolvedFile) {
-  let dir = dirname(resolvedFile);
-  for (let i = 0; i < 10; i++) {
-    const pj = join(dir, "package.json");
-    if (existsSync(pj)) {
-      let pkg;
-      try { pkg = JSON.parse(readFileSync(pj, "utf8")); } catch { return null; }
-      const dot = pkg.exports && pkg.exports["."] !== undefined ? pkg.exports["."] : pkg.exports;
-      const rel =
-        (dot && typeof dot === "object" && (dot.import || dot.default)) ||
-        (typeof dot === "string" ? dot : null) ||
-        pkg.module || pkg.main || "index.js";
-      return join(dir, rel);
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
-}
-
-async function resolveLedgerModule(cwd) {
-  try {
-    return await import("wicked-ledger");
-  } catch { /* fall through */ }
-  try {
-    const require = createRequire(join(cwd, "__qe_gate_anchor__.js"));
-    const located = require.resolve("wicked-ledger");
-    const esm = esmEntryForPackage(located) || located;
-    return await import(pathToFileURL(esm).href);
-  } catch {
-    return null;
-  }
-}
+// --- wicked-ledger resolution: the shared resolver (./ledger-pkg.mjs, $WICKED_LEDGER_PKG_DIR first) ---
 
 /**
  * Resolve the ledger root the gate writes to (TH-6). MUST mirror the TH-2
@@ -357,7 +322,7 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
     process.stderr.write(
       JSON.stringify({
         error: "LEDGER_UNRESOLVABLE",
-        detail: "wicked-ledger is not resolvable from this repo — npm i --no-save wicked-ledger",
+        detail: "wicked-ledger is not resolvable — set WICKED_LEDGER_PKG_DIR (a governed crew run sets it) or npm i --no-save wicked-ledger",
       }) + "\n"
     );
     process.exit(3);

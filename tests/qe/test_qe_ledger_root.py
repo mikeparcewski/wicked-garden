@@ -94,3 +94,47 @@ def test_the_plugin_pins_a_wicked_ledger_whose_resolver_honours_the_variable() -
     pin = json.loads(PLUGIN.read_text(encoding="utf-8"))["wicked_ledger_version"]
     major, minor = (int(x) for x in re.match(r"\^?(\d+)\.(\d+)", pin).groups())
     assert (major, minor) >= (0, 6), pin
+
+
+LEDGER_PKG = ROOT / "scripts" / "qe" / "lib" / "ledger-pkg.mjs"
+
+_RESOLVE = r"""
+const { resolveLedgerModule } = await import(process.argv[1]);
+const mod = await resolveLedgerModule(process.argv[2]);
+console.log(JSON.stringify({ found: mod !== null, marker: mod?.MARKER ?? null }));
+"""
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node not on PATH")
+def test_the_resolver_honours_wicked_ledger_pkg_dir_exactly(tmp_path: Path) -> None:
+    """wicked-crew#951: a governed run hands its QE unit crew's own wicked-ledger as
+    WICKED_LEDGER_PKG_DIR, so accept records with the package crew reads with — no install in the
+    worktree. A pin is exact: unusable ⇒ null, never a fallback to another package."""
+    pkg = tmp_path / "crew-ledger"
+    pkg.mkdir()
+    (pkg / "package.json").write_text(json.dumps({"name": "wicked-ledger", "type": "module", "exports": {".": "./index.mjs"}}))
+    (pkg / "index.mjs").write_text("export const MARKER = 'crew-bundled';\n")
+    repo = tmp_path / "worktree"
+    repo.mkdir()
+    env = {k: v for k, v in os.environ.items() if k != "WICKED_LEDGER_PKG_DIR"}
+
+    def run(pin: str | None) -> dict:
+        e = dict(env)
+        if pin is not None:
+            e["WICKED_LEDGER_PKG_DIR"] = pin
+        out = subprocess.run(
+            ["node", "--input-type=module", "-e", _RESOLVE, LEDGER_PKG.as_uri(), str(repo)],
+            env=e, capture_output=True, text=True, check=True,
+        ).stdout
+        return json.loads(out.strip().splitlines()[-1])
+
+    assert run(str(pkg)) == {"found": True, "marker": "crew-bundled"}
+    assert run(str(tmp_path / "nowhere"))["found"] is False
+
+
+def test_accept_and_the_gate_load_wicked_ledger_through_the_one_resolver() -> None:
+    accept = ACCEPT.read_text(encoding="utf-8")
+    assert 'await import("{WT_LIB}/ledger-pkg.mjs")' in accept
+    assert "from 'wicked-ledger'" not in accept and 'from "wicked-ledger"' not in accept
+    gate = (ROOT / "scripts" / "qe" / "lib" / "gate.mjs").read_text(encoding="utf-8")
+    assert 'from "./ledger-pkg.mjs"' in gate and "async function resolveLedgerModule" not in gate
