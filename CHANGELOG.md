@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.53.3] — 2026-10-11
+
+### Reverted
+- **The inline claude-QE pipeline (PR #1291, shipped in 12.53.2) is reverted by operator ruling.** It removed QE's reviewer isolation. 12.53.3 restores 12.53.1's QE behaviour. Known issue (wicked-garden#1290): a claude-seated QE unit often ends its turn before a verdict. Workaround: put the QE step on a pi seat.
+
 ## [12.53.2] — 2026-10-11
 
 ### Fixed

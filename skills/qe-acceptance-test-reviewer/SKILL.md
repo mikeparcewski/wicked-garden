@@ -180,9 +180,6 @@ Review any specification notes from the test plan writer. Factor these into your
 ```markdown
 ## Overall Verdict
 
-**Opened from `qe accept`** (garden#1290): hand this review back and continue. `qe accept` writes the
-verdict row (its step 6) and then prints the `VERDICT:` line last; that, not this review, ends the turn.
-
 ### Status: {PASS | FAIL | PARTIAL | INCONCLUSIVE}
 
 ### Summary
