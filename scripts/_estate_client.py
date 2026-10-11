@@ -963,15 +963,49 @@ def context(
     return call("ContextBundle", args, timeout=timeout)
 
 
-def project_scope() -> str:
-    """The current project's memory scope, ``project:<cwd-basename>``.
+def checkout_root() -> Optional[Path]:
+    """The git checkout the cwd is in, resolved through linked worktrees.
 
-    The one default for both directions: memories are stored here, and recall
-    sees this scope plus its ancestors (root-scoped memories included). Reading
-    every project's memories is an explicit opt-in (``scope_prefix: ""``).
+    Walks up to the nearest ``.git``. A linked worktree's ``.git`` is a file
+    (``gitdir: <main>/.git/worktrees/<name>``): its project is the MAIN checkout,
+    so a run worktree shares the repo's memories. None outside any checkout.
     """
     try:
-        name = Path.cwd().name or "unknown"
+        here = Path.cwd().resolve()
+    except OSError:
+        return None
+    for d in (here, *here.parents):
+        git = d / ".git"
+        if git.is_dir():
+            return d
+        if git.is_file():
+            try:
+                line = git.read_text(encoding="utf-8").strip()
+            except OSError:
+                return d
+            gitdir = line[len("gitdir:"):].strip() if line.startswith("gitdir:") else ""
+            marker = f"{os.sep}.git{os.sep}worktrees{os.sep}"
+            norm = gitdir.replace("/", os.sep)
+            return Path(norm.split(marker)[0]) if marker in norm else d
+    return None
+
+
+def project_scope() -> str:
+    """The current project's memory scope: one identity for capture AND recall.
+
+    ``WICKED_ESTATE_MEMORY_SCOPE`` (the configured project) wins; else
+    ``project:<checkout name>`` from :func:`checkout_root` (stable across
+    subdirectories and worktrees); else ``project:<cwd-basename>``. Two
+    unrelated checkouts with the same name share a scope unless one is
+    configured. Recall sees this scope plus its ancestors (root-scoped
+    memories included); every project is the explicit ``scope_prefix: ""``.
+    """
+    pinned = os.environ.get("WICKED_ESTATE_MEMORY_SCOPE", "").strip()
+    if pinned:
+        return pinned
+    root = checkout_root()
+    try:
+        name = (root.name if root else Path.cwd().name) or "unknown"
     except OSError:
         name = "unknown"
     return f"project:{name}"
@@ -1051,6 +1085,13 @@ def propose(
     run's `WICKED_RUN_PROJECT` supplies): an unscoped proposal is refused here
     with the shape-error code, so it never lands project-less in the queue.
     """
+    if kind_type == "knowledge":
+        # Gate (DES-memory-vs-knowledge K3): estate's approve promotes only memory + policy:*,
+        # so a knowledge proposal would strand in the queue. Lift when estate ships the type.
+        return {"ok": False, "code": -32602,
+                "reason": 'kind_type "knowledge" is not approvable yet (estate promotes only '
+                          'memory and policy:*): keep the object in your report under '
+                          '"knowledge (pending)"; do not re-file it as a memory'}
     facets = _scope_facets_to_run_project(facets)
     project = (facets or {}).get("project")
     if not isinstance(project, str) or not project.strip():

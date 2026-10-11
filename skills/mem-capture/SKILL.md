@@ -47,11 +47,14 @@ Reject, and do not rephrase into something that sneaks past:
 
 - progress and status: what you did, are doing or will do ("I'll retry",
   "going to try again", "shipped", "merged", "now green");
-- versions, commit SHAs, PR / issue / run ids, PIDs, ports picked by hand,
+- release versions ("shipped 2.4.1"), commit SHAs, PR / issue / run ids, PIDs,
+  ports picked by hand,
   and anything dated ("today", "this morning");
 - anything the repo, its CHANGELOG or the tracker already records.
 
-The backend refuses the mechanical cases (ids, versions, SHAs, PIDs, "today",
+A version *constraint* ("needs SQLite >= 3.35.0 because …") and a fixed constant
+(a CRC polynomial, a colour) are durable; keep them.
+The backend refuses the mechanical cases (ids, release versions, commit SHAs, PIDs, "today",
 first-person narration, bodies under 40 characters) with
 `not a durable learning`. A refusal means the candidate failed the test:
 drop it, unless it holds a real rule you can state without the moment.

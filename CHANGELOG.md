@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [12.51.1] — 2026-10-11
+
+### Fixed
+- **Memory scope is the checkout, not the cwd (w9-memfix2, codex post-merge review of #1274).** `project:<name>` now comes from the git checkout (a linked worktree resolves to its main checkout), so recalling from `app/src` sees what was stored from `app/`; `WICKED_ESTATE_MEMORY_SCOPE` is the configured project for both capture and recall. Two unrelated checkouts with the same name still share a scope unless one is configured.
+- **The durability gate keeps durable constants and constraints.** A version is refused only next to release status ("released 2.4.1"), so "keep SQLite >= 3.35.0 because RETURNING" is stored; a hex run counts as a commit SHA only when long (>= 12) or in commit context, so a CRC32 polynomial or a colour is kept.
+- **repo-learn no longer submits unapprovable knowledge proposals.** Estate promotes only `memory` and `policy:*`, so the shim refuses `kind_type: "knowledge"` and repo-learn lists those objects as pending in its report until estate's knowledge proposal type ships.
+
 ## [12.51.0] — 2026-10-11
 
 ### Fixed

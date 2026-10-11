@@ -85,7 +85,8 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
 1. Apply the durability test: *would this help a fresh session, on a
    different task, three months from now?* Store a rule, why it holds, and
    when it applies, in 1–3 self-contained sentences. Never store progress or
-   status, versions, SHAs, PR/run ids, PIDs, "today", or what the repo,
+   status, release versions ("shipped 2.4.1"), commit SHAs, PR/run ids, PIDs,
+   "today", or what the repo,
    CHANGELOG or tracker already records. The backend refuses the mechanical
    cases with `not a durable learning`; treat that as "don't store", not as
    an error to work around.

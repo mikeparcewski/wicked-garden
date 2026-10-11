@@ -71,7 +71,14 @@ estate/steering types — pick the one the rule governs, not a freeform tag.
 ## Knowledge payload (code facts: the usual case)
 
 What you learn by reading code is **acquired**, so it is knowledge, not memory
-(DES-memory-vs-knowledge §3). Propose it as:
+(DES-memory-vs-knowledge §3).
+
+**Not submittable yet.** Estate's `proposal.approve` promotes only `memory` and
+`policy:*`; a knowledge proposal would sit unapprovable in the queue, so the shim
+refuses `kind_type: "knowledge"` (`-32602`) until estate's knowledge proposal type
+ships. Until then, put each object below in your report's fenced `json` block under
+`knowledge (pending)`, and leave them out of the `wicked-capture-report` counts. Do
+not re-file a code fact as a `memory` to get it through. The shape is:
 
 ```json
 {
@@ -120,7 +127,8 @@ implementation fails closed" is knowledge.
   `WICKED_RUN_PROJECT` supplies it.
 - `content` must pass the durability test: a rule, why it holds, and when it
   applies, useful to a fresh session on a different task months from now. No
-  versions, SHAs, PR/run ids or progress notes.
+  release-status versions ("shipped 2.4.1"), commit SHAs, PR/run ids or progress
+  notes. A version *constraint* ("needs SQLite >= 3.35.0 because …") is fine.
 
 ## Policy payload + facets
 
