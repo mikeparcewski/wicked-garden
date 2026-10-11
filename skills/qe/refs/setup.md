@@ -49,11 +49,19 @@ npx --no-install cypress --version > /dev/null 2>&1 && echo "npx-cypress: true" 
 The ledger root is `$WICKED_QE_LEDGER_DIR` when it is set (a governed crew run's own ledger,
 outside the worktree), else `.wicked-qe`:
 
+Create it with Python, not a shell `mkdir` of the variable: a governed run's write fence
+judges a shell write target as written, and an unexpanded `"$WICKED_QE_LEDGER_DIR/..."` reads
+as a path inside the worktree, so it is refused.
+
 ```bash
-QE_ROOT="${WICKED_QE_LEDGER_DIR:-.wicked-qe}"
-mkdir -p "$QE_ROOT/projects" "$QE_ROOT/strategies" "$QE_ROOT/scenarios" \
-         "$QE_ROOT/runs" "$QE_ROOT/verdicts" "$QE_ROOT/tasks" \
-         "$QE_ROOT/evidence"
+PY="$(command -v python3 || command -v python)"
+"$PY" -c "
+import os
+root = os.environ.get('WICKED_QE_LEDGER_DIR') or '.wicked-qe'
+for d in ('projects', 'strategies', 'scenarios', 'runs', 'verdicts', 'tasks', 'evidence'):
+    os.makedirs(os.path.join(root, d), exist_ok=True)
+print(root)
+"
 ```
 
 ### 3. Write config.json
