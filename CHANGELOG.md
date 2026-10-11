@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [12.52.1] — 2026-10-11
+
+### Changed
+- **The memory durability gate refuses only the unambiguous (w9-memfix3, PR #1283).** `store` / `capture-batch` refuse a body under 40 characters, a bare id / SHA / version, and first-person progress narration. Ids, versions, SHAs, PIDs and date words inside a body are returned as `warnings` and the store succeeds. "Keep SQLite >= 3.35.0 because RETURNING …" and "CRC32 polynomial edb88320 … database commit …" are stored. The three-month test in the mem skills is the agent's judgment.
+
+### Fixed
+- **Relative-path worktrees resolve to their main checkout's project scope** (`gitdir: ../../.git/worktrees/run` is resolved against the `.git` file, and `commondir` is followed), not `project:..`.
+
 ## [12.52.0] — 2026-10-11
 
 ### Changed
