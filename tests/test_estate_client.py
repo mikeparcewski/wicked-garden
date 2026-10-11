@@ -1150,3 +1150,109 @@ def test_cli_call_without_diagnostics_prints_an_empty_list(capsys, monkeypatch):
     assert rc == 0
     out = json.loads(capsys.readouterr().out.strip())
     assert out == {"result": {"matches": [], "total": 0}, "diagnostics": []}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# estate#279 — a paged Lineage / BlastRadius answer is followed to its end
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _paged_dispatch(pages, seen, fail_at=None):
+    """A fake estate that serves `pages` (a list of result dicts) by `cursor`: page k is
+    served for cursor "c<k>"; `fail_at` makes that page an MCP error."""
+
+    def fake_dispatch(requests, *, db, timeout):
+        out = {1: {"jsonrpc": "2.0", "id": 1,
+                   "result": {"serverInfo": {"name": "wicked-estate"}}}}
+        for r in requests:
+            if r.get("method") != "tools/call":
+                continue
+            args = r["params"]["arguments"]
+            seen.append(args)
+            k = int(args["cursor"][1:]) if args.get("cursor") else 0
+            if k == fail_at:
+                env = {"jsonrpc": "2.0", "result": {"isError": True, "content": []}}
+            else:
+                env = _envelope(pages[k])
+                env["result"]["content"].append(
+                    {"type": "text", "text": f"STALENESS: 0 commits since last index\n"
+                                             f"Lineage: page {k}; pass `cursor`: \"c{k + 1}\""})
+            env["id"] = r["id"]
+            out[r["id"]] = env
+        return out
+
+    return fake_dispatch
+
+
+def _lineage_pages(n_pages):
+    return [
+        {"relation": "flows_to", "total": n_pages,
+         "dependencies": [{"symbol": f"d{k}"}], "flows": [{"consumer": f"d{k}"}],
+         "truncated": k < n_pages - 1,
+         "next_cursor": f"c{k + 1}" if k < n_pages - 1 else None,
+         "page": {"dependencies": {"from": k, "count": 1, "total": n_pages}}}
+        for k in range(n_pages)
+    ]
+
+
+def _call(capsys, payload):
+    assert _estate_client.main(["call", json.dumps(payload)]) == 0
+    return json.loads(capsys.readouterr().out)
+
+
+def test_call_follows_every_page_into_the_whole_answer(capsys):
+    seen = []
+    _estate_client.set_dispatch(_paged_dispatch(_lineage_pages(3), seen))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s", "relation": "flows_to"}})
+    res = out["result"]
+    assert [d["symbol"] for d in res["dependencies"]] == ["d0", "d1", "d2"]
+    assert [f["consumer"] for f in res["flows"]] == ["d0", "d1", "d2"]
+    assert res["next_cursor"] is None and res["truncated"] is False
+    assert res["complete"] is True and res["pages"] == 3
+    assert "page" not in res, "page-1 offsets must not describe the joined answer"
+    assert [a.get("cursor") for a in seen] == [None, "c1", "c2"]
+    assert all(a["symbol"] == "s" and a["relation"] == "flows_to" for a in seen)
+    # The per-page cursor lines no longer describe the answer; freshness is kept once.
+    assert not any("pass `cursor`" in d for d in out["diagnostics"])
+    assert out["diagnostics"].count("STALENESS: 0 commits since last index") == 1
+    assert any("joined 3 page(s) into the whole answer" in d for d in out["diagnostics"])
+
+
+def test_a_failed_page_is_reported_incomplete_never_whole(capsys):
+    _estate_client.set_dispatch(_paged_dispatch(_lineage_pages(3), [], fail_at=2))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s"}})
+    assert out["result"]["complete"] is False
+    assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d0", "d1"]
+    assert any("INCOMPLETE" in d for d in out["diagnostics"])
+
+
+def test_one_page_on_request_and_unpaged_replies_unchanged(capsys):
+    seen = []
+    _estate_client.set_dispatch(_paged_dispatch(_lineage_pages(3), seen))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s"}, "all_pages": False})
+    assert out["result"]["next_cursor"] == "c1" and len(seen) == 1
+    assert "complete" not in out["result"]
+    # A reply with no `next_cursor` key (a tool that does not page) passes through untouched.
+    _estate_client.set_dispatch(_paged_dispatch([{"matches": [1]}], []))
+    assert _call(capsys, {"tool": "SearchEntity", "arguments": {}})["result"] == {"matches": [1]}
+
+
+def test_a_supplied_cursor_resumes_there_and_a_cut_walk_is_partial(capsys):
+    seen = []
+    pages = _lineage_pages(3)
+    pages[2]["truncated"] = True  # the last page: no cursor left, but a depth cap cut the walk
+    _estate_client.set_dispatch(_paged_dispatch(pages, seen))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s", "cursor": "c1"}})
+    assert [a.get("cursor") for a in seen] == ["c1", "c2"], "never restarts at page 1"
+    assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d1", "d2"]
+    assert out["result"]["complete"] is False
+    assert not any("whole answer" in d for d in out["diagnostics"])
+    assert any("PARTIAL" in d for d in out["diagnostics"])
+
+
+def test_resuming_through_an_uncapped_last_page_is_not_whole(capsys):
+    _estate_client.set_dispatch(_paged_dispatch(_lineage_pages(3), []))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s", "cursor": "c1"}})
+    assert out["result"]["complete"] is False
+    assert any("REST of the answer" in d for d in out["diagnostics"])
+    assert not any("whole answer" in d for d in out["diagnostics"])

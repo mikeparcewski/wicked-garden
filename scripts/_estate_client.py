@@ -829,6 +829,83 @@ def call_blocks(tool: str, arguments: Optional[dict] = None, timeout: float = 8.
     return {"result": payload, "diagnostics": diagnostics}
 
 
+#: Safety stop for `call_all_pages`: a server that kept issuing cursors would loop forever.
+MAX_PAGES = 1000
+
+#: The marker estate puts on a page's own diagnostic naming its cursor; once the shim has
+#: followed that cursor the line no longer describes the merged answer.
+_PAGE_LINE = "pass `cursor`"
+
+
+def call_all_pages(tool: str, arguments: Optional[dict] = None,
+                   timeout: float = 8.0) -> Optional[dict]:
+    """Like `call_blocks`, but follow estate's continuation cursor to the end (estate#279).
+
+    Estate pages a wide `Lineage` / `BlastRadius` answer: a page that does not complete it carries
+    `next_cursor`, and passing that back as `cursor` returns the next rows of the SAME answer. This
+    joins every page, so a seat gets the whole graph and not just page 1. The answer's row arrays
+    (`dependencies`, `flows`, `dependents`) are concatenated in page order. Every other field comes
+    from the last page, whose `next_cursor` is null and whose `truncated` then says only whether
+    something non-pageable cut the walk (a depth horizon or the node cap).
+
+    The result is complete only if the pages ran out. A page that fails, or a run that hits
+    `MAX_PAGES`, is reported in `diagnostics` with `complete: false` and is never presented as the
+    whole answer. A reply without `next_cursor` (an older estate, or a tool that does not page) is
+    returned as its single page. Fail-open (None) when the first call fails, the same as
+    `call_blocks`.
+    """
+    # A caller-supplied cursor is honoured, never dropped: paging resumes there (and a stale one
+    # surfaces estate's error) instead of silently restarting at page 1.
+    args = dict(arguments or {})
+    first = call_blocks(tool, args, timeout=timeout)
+    if first is None or not isinstance(first.get("result"), dict):
+        return first
+    if "next_cursor" not in first["result"]:
+        return first  # not a paged reply: returned exactly as `call_blocks` would
+    merged = dict(first["result"])
+    diagnostics = [d for d in first["diagnostics"] if _PAGE_LINE not in d]
+    pages, complete = 1, True
+    cursor = merged.get("next_cursor")
+    while isinstance(cursor, str) and cursor:
+        if pages >= MAX_PAGES:
+            complete = False
+            diagnostics.append(f"PAGING: stopped after {MAX_PAGES} pages; the answer is "
+                               f"INCOMPLETE (next_cursor {cursor!r} not followed)")
+            break
+        page = call_blocks(tool, {**args, "cursor": cursor}, timeout=timeout)
+        if page is None or not isinstance(page.get("result"), dict):
+            complete = False
+            diagnostics.append(f"PAGING: page {pages + 1} failed; the answer is INCOMPLETE "
+                               f"(only {pages} page(s) joined)")
+            break
+        pages += 1
+        result = page["result"]
+        for key, value in result.items():
+            if isinstance(value, list) and isinstance(merged.get(key), list):
+                merged[key] = merged[key] + value
+            else:
+                merged[key] = value
+        for d in page["diagnostics"]:
+            if _PAGE_LINE not in d and d not in diagnostics:
+                diagnostics.append(d)
+        cursor = result.get("next_cursor")
+    # Resumed from a caller's cursor, the join holds the rest of the answer, not all of it.
+    resumed = bool(args.get("cursor"))
+    whole = complete and not merged.get("truncated", False) and not resumed
+    if resumed:
+        diagnostics.append("PAGING: resumed from the supplied cursor; these rows are the REST of "
+                           "the answer, not the whole of it (omit `cursor` for every row)")
+    if pages > 1:
+        diagnostics.append(f"PAGING: joined {pages} page(s)"
+                           + (" into the whole answer" if whole else
+                              "; the answer is PARTIAL (see complete and the cut flags)"))
+    if complete and pages > 1 and "page" in merged:
+        merged.pop("page")
+    merged["complete"] = whole
+    merged["pages"] = pages
+    return {"result": merged, "diagnostics": diagnostics}
+
+
 def call_raw(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> Optional[dict]:
     """Like `call`, but return the full MCP envelope (for callers that need
     `isError` / staleness diagnostics). Fail-open (None)."""
@@ -1093,7 +1170,12 @@ def main(argv: list) -> int:
             return 1
         # Both blocks, in-band (wicked-garden#1211): the seat reading stdout sees the
         # `STALENESS:` / `CLAMPED:` lines beside the payload, as the MCP caller does.
-        blocks = call_blocks(tool, args.get("arguments", {}))
+        # estate#279: a paged answer is followed to its end, so the seat gets the whole graph;
+        # `"all_pages": false` returns one page (its `next_cursor` names the rest).
+        if args.get("all_pages", True) is False:
+            blocks = call_blocks(tool, args.get("arguments", {}))
+        else:
+            blocks = call_all_pages(tool, args.get("arguments", {}))
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":

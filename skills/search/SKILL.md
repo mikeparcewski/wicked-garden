@@ -131,6 +131,10 @@ files import this file" — no longer an empty "no resolved dependents".
    *dispatches* an agent, a consumer that *subscribes* to an event, an agent that
    *declares* a capability — and archetype→playbook relationships via garden's
    `.wicked-estate-extractors/archetype.toml` (provenance `extractor:archetype-playbook`).
+   **The whole answer, not page 1** (estate#279): estate pages a wide answer (`next_cursor`), and
+   the shim's `call` follows every cursor and joins the pages, so `dependents` is complete. Read
+   `complete` in the result: `false` means a page failed or a depth/node cap cut the walk (see
+   `diagnostics`), and you report it as partial, never as the full blast radius.
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
@@ -150,13 +154,16 @@ For pure "what breaks if I change X?" use the `blast-radius` action.
 **Arguments**: `symbol` (required — a file path or symbol name);
 `--direction` (optional, default `downstream`): `downstream` (dependencies),
 `upstream` (dependents), or `both`; `--depth` (optional traversal depth;
-estate default 8, max 24).
+estate default 24 for `Lineage` and 8 for `BlastRadius`, max 24).
 
 1. **Freshness** (§ Index / freshness) — report the `STALENESS` marker; never rebuild from a seat.
 2. **Resolve the symbol** (§ Resolving symbols).
 3. **Trace** with the estate tools through the shim:
    - **downstream** (what it depends on): the **`Lineage`** tool with
-     `{"symbol": "<name>"}` → `dependencies`.
+     `{"symbol": "<name>"}` → `dependencies` (with `"relation": "flows_to"`, value flow →
+     `dependencies` are the consumers and `flows` the hops). Lineage's default depth is its
+     ceiling (24), and the shim follows `next_cursor` to the end of the answer (estate#279):
+     check `complete` and report a `false` as partial.
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
      `{"symbol": "<name>"}` → `dependents`.
    - **both**: run both and present each direction. (A bounded multi-hop walk
