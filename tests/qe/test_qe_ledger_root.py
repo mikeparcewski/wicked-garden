@@ -134,7 +134,7 @@ def test_the_resolver_honours_wicked_ledger_pkg_dir_exactly(tmp_path: Path) -> N
 
 def test_accept_and_the_gate_load_wicked_ledger_through_the_one_resolver() -> None:
     accept = ACCEPT.read_text(encoding="utf-8")
-    assert 'await import("{WT_LIB}/ledger-pkg.mjs")' in accept
+    assert "pathToFileURL(joinPath(String.raw`{WT_LIB}`, 'ledger-pkg.mjs')).href" in accept
     assert "from 'wicked-ledger'" not in accept and 'from "wicked-ledger"' not in accept
     gate = (ROOT / "scripts" / "qe" / "lib" / "gate.mjs").read_text(encoding="utf-8")
     assert 'from "./ledger-pkg.mjs"' in gate and "async function resolveLedgerModule" not in gate

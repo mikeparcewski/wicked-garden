@@ -125,7 +125,10 @@ the run's canonical UUID. This serves three goals at once:
 // (Phase 6c): '.wicked-qe', or a legacy '.wicked-testing' root written before the rename. <!-- historical -->
 // wicked-ledger through the ONE resolver ($WICKED_LEDGER_PKG_DIR — set by a governed crew run —,
 // else an install the target repo resolves); see § wicked-ledger resolution.
-const { resolveLedgerModule } = await import("{WT_LIB}/ledger-pkg.mjs");
+import { pathToFileURL } from 'node:url';
+import { join as joinPath } from 'node:path';
+// {WT_LIB} is a native path (Windows too): import it as a file URL, never a bare string.
+const { resolveLedgerModule } = await import(pathToFileURL(joinPath(String.raw`{WT_LIB}`, 'ledger-pkg.mjs')).href);
 const ledger = await resolveLedgerModule(process.cwd());
 if (!ledger) throw new Error("wicked-ledger is not resolvable: set WICKED_LEDGER_PKG_DIR or npm i --no-save wicked-ledger");
 const { createDomainStore, resolveLedgerRoot } = ledger;
