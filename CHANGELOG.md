@@ -13,6 +13,12 @@
 
 ### Changed
 - **The estate client follows estate's paging cursor to the whole answer (estate#279, PR #1272).**
+- **Memory creation keeps learnings, not narration (w9-memfix, PR #1274).**
+  - The Stop hook's regex fact extraction and its auto-memorize drain are removed: `scripts/mem/session_fact_extractor.py`, `scripts/mem/auto_memorize.py`, and the `wicked.garden.fact.extracted` event. They filed about 333 sentence fragments as semantic facts.
+  - `pre_compact` saves a working memory only when tasks are in progress, always scoped `project:<cwd-basename>` (it wrote one empty, unscoped "WIP snapshot" per compaction).
+  - Memory recall (`recall`, `sources`, the hooks' context backend) defaults to the current project and its ancestors; every scope is the explicit `scope_prefix: ""` opt-in. `recall`/`sources` pass the repo intent, so faceted repo-learn memories are reachable, and `sources` labels every item `memory · <kind> · <date> · <scope>` or `knowledge · src <source>`.
+  - `store` / `capture-batch` refuse non-durable content (SHAs, versions, PR/run ids, PIDs, "today", first-person narration, under 40 chars) and source-cited claims (knowledge: use `write`). mem-capture and mem store apply the durability and told/witnessed/decided tests; the event → episode row is gone.
+  - Shim proposals need `facets.project`; repo-learn proposes code facts as `kind_type: "knowledge"` (`content, class, source, source_rev`) and never graph metrics.
 
 ## [12.49.0] — 2026-10-11
 
