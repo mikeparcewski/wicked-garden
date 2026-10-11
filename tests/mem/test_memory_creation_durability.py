@@ -124,6 +124,17 @@ def test_store_rejects_mechanical_non_learnings(session, capsys, content):
     assert session == []
 
 
+@pytest.mark.parametrize("content", [
+    "Bind the dev server to 127.0.0.1 rather than localhost, because localhost resolves to ::1 first on macOS.",
+    "PID 1 in a container does not get default signal handlers, so the entrypoint must trap SIGTERM itself.",
+    "An ill-formed frontmatter block makes the skill loader drop every key, so strict-parse it in CI.",
+    "Batching works well only when each item is idempotent, because a retry replays the whole batch.",
+    "Run 3 retries at most before dead-lettering, since the fourth attempt has never succeeded in practice.",
+])
+def test_gate_keeps_durable_rules_that_look_like_ids(content):
+    assert estate_memory.durability_rejects(content) == []
+
+
 def test_store_keeps_a_stated_rule(session, capsys):
     content = _assistant_statements()[-1]
     estate_memory.do_store({"content": content, "kind": "fact"})

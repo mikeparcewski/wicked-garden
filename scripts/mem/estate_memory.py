@@ -156,14 +156,19 @@ _HEX_RUN = re.compile(r"\b[0-9a-f]{7,40}\b")
 _NON_DURABLE = (
     (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I),
      "a run/session id (uuid)"),
-    (re.compile(r"\bv?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)?\b"), "a version number"),
-    (re.compile(r"\b(?:pr|pull|issue|run|job)\s*#?\s*\d+\b|\b[a-z][\w.-]*#\d+\b|(?<![\w&])#\d+\b",
-                re.I), "a PR/issue/run id"),
-    (re.compile(r"\bpids?\s*[:=#]?\s*\d+\b", re.I), "a process id"),
+    # x.y.z, but not a dotted quad (127.0.0.1) or a longer dotted run.
+    (re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)?(?![.\d])"), "a version number"),
+    # PR #12 / issue #12 / run 38093054271 / core#880 / a bare #880 — not "run 3 retries".
+    (re.compile(r"\b(?:pr|pull request|issue|run|job)\s*(?:#\s*\d+|\d{5,})\b"
+                r"|\b[a-z][\w.-]*#\d+\b|(?<![\w&])#\d+\b", re.I), "a PR/issue/run id"),
+    # pid 48668 — not "PID 1 is init".
+    (re.compile(r"\bpids?\s*[:=#]?\s*\d{3,}\b", re.I), "a process id"),
     (re.compile(r"\b(?:today|yesterday|tonight|this (?:morning|afternoon|evening|week))\b", re.I),
      "a date-relative word"),
-    (re.compile(r"\b(?:i'?ll|i will|we'?ll|let me|(?:i'?m|i am|we'?re|we are) (?:going|about) to)\b",
-                re.I), "first-person progress narration"),
+    # I'll / we'll / I'm going to — the apostrophe is required ("ill-formed", "works well").
+    (re.compile(r"\b(?:i['\u2019]ll|i will|we['\u2019]ll|let me"
+                r"|(?:i['\u2019]m|i am|we['\u2019]re|we are) (?:going|about) to)\b", re.I),
+     "first-person progress narration"),
 )
 
 
