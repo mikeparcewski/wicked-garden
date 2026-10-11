@@ -200,6 +200,22 @@ def test_an_entry_that_climbs_out_of_the_pack_is_never_staged(tmp_path):
     assert not (root / "acme-json").exists() and not (tmp_path / "pack" / "pack").exists()
 
 
+def test_inside_a_governed_run_only_the_consent_gated_step_installs(tmp_path):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    root = tmp_path / "editors"
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = (200, {"installed": True, "editors": []})
+        refused = run("install.py", "--dir", str(pack), "--json", env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1"})
+        assert d.requests == [] and not (root / "acme-json").exists()
+        planned = run("install.py", "--dir", str(pack), "--dry-run", "--json", env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1"})
+        gated = run("install.py", "--dir", str(pack), "--json",
+                    env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1", "WICKED_CONSENT_CHOICE": "daemon"})
+    assert refused.returncode == 2 and "consent-gated install step" in json.loads(refused.stdout)["error"]
+    assert planned.returncode == 0 and json.loads(planned.stdout.strip().splitlines()[-1])["dry_run"] is True
+    assert gated.returncode == 0, gated.stdout
+
+
 # ── conformance ────────────────────────────────────────────────────────────────────────────
 
 def test_conformance_needs_a_host_and_never_guesses_a_port(tmp_path):

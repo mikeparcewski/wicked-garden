@@ -322,6 +322,22 @@ def _torn(page, wait: bool = False):
         return None
 
 
+def python_with_playwright() -> str | None:
+    """The first python3 / python on PATH (not this interpreter) that can import playwright."""
+    import shutil, subprocess  # noqa: E401, PLC0415
+    me = os.path.realpath(sys.executable)
+    for name in ("python3", "python"):
+        exe = shutil.which(name)
+        if exe is None or os.path.realpath(exe) == me:
+            continue
+        try:
+            if subprocess.run([exe, "-c", "import playwright.sync_api"], capture_output=True, timeout=30).returncode == 0:
+                return exe
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+    return None
+
+
 def manifest_case(pack: Path) -> dict:
     """Case 0: garden's own `pack check` (the same gate wicked-crew runs before an install)."""
     try:
@@ -369,6 +385,13 @@ def main(argv: list[str] | None = None) -> int:
     try:
         from playwright.sync_api import sync_playwright  # noqa: PLC0415
     except ImportError:
+        # The launcher's snapshot venv carries no browser driver (E2E finding F-EDIT-2): run once more
+        # under a python on PATH that has one, with the same arguments.
+        other = python_with_playwright() if not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC") else None
+        if other is not None:
+            import subprocess  # noqa: PLC0415
+            env = {**os.environ, "WG_EDITOR_CONFORMANCE_REEXEC": "1"}
+            return subprocess.call([other, os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])], env=env)
         return out({"ok": False, "pack": str(args.pack), "error": "no headless browser: the Python playwright package is "
                     "not installed (pip install playwright && playwright install chromium); refusing to report conformance "
                     "without the run"}, 3)

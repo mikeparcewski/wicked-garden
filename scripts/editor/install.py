@@ -278,6 +278,17 @@ def do_uninstall(args) -> tuple[int, dict]:
     return 0, out
 
 
+def consent_refusal(args, env) -> str | None:
+    """Inside a governed run (``WICKED_RUN_ID`` set) a live install happens only in the consent-gated
+    Tool unit, the one unit the engine hands ``WICKED_CONSENT_CHOICE`` (the operator's approved
+    choice). Any other unit (a creator in build, a reviewer) may plan with ``--dry-run`` but never
+    installs or uninstalls (E2E finding F-EDIT-1: a creator installed before the gate asked)."""
+    if not env.get("WICKED_RUN_ID") or env.get("WICKED_CONSENT_CHOICE"):
+        return None
+    return ("refusing to install inside a governed run outside its consent-gated install step: the operator "
+            "approves the install at that gate. Plan it with --dry-run; the install step runs it.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     where = parser.add_mutually_exclusive_group()
@@ -301,6 +312,10 @@ def main(argv: list[str] | None = None) -> int:
         except Failure as err:
             sys.stderr.write(f"editor install --dry-run: {err}\n")
             return err.code
+    refusal = consent_refusal(args, os.environ)
+    if refusal is not None:
+        print(json.dumps({"ok": False, "error": refusal}))
+        return 2
     try:
         code, out = do_uninstall(args) if args.uninstall else do_install(args)
     except Failure as err:
