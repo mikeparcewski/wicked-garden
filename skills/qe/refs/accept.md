@@ -123,7 +123,15 @@ the run's canonical UUID. This serves three goals at once:
 // Resolve the ledger root (wicked-ledger >= 0.6.0): WICKED_QE_LEDGER_DIR when set — inside a
 // governed wicked-crew run, the run's own ledger OUTSIDE the worktree (crew#951) — else dual-read
 // (Phase 6c): '.wicked-qe', or a legacy '.wicked-testing' root written before the rename. <!-- historical -->
-import { createDomainStore, resolveLedgerRoot } from 'wicked-ledger';
+// wicked-ledger through the ONE resolver ($WICKED_LEDGER_PKG_DIR — set by a governed crew run —,
+// else an install the target repo resolves); see § wicked-ledger resolution.
+import { pathToFileURL } from 'node:url';
+import { join as joinPath } from 'node:path';
+// {WT_LIB} is a native path (Windows too): import it as a file URL, never a bare string.
+const { resolveLedgerModule } = await import(pathToFileURL(joinPath(String.raw`{WT_LIB}`, 'ledger-pkg.mjs')).href);
+const ledger = await resolveLedgerModule(process.cwd());
+if (!ledger) throw new Error("wicked-ledger is not resolvable: set WICKED_LEDGER_PKG_DIR or npm i --no-save wicked-ledger");
+const { createDomainStore, resolveLedgerRoot } = ledger;
 import { join } from 'node:path';
 const LEDGER_ROOT = resolveLedgerRoot(process.cwd());
 const store = createDomainStore({ root: LEDGER_ROOT });
@@ -394,7 +402,7 @@ const verdictRecord = store.create('verdicts', {
 });
 
 // 3. Materialize the public manifest at the contract path
-import { buildManifest, emitBusEvent } from 'wicked-ledger';
+const { buildManifest, emitBusEvent } = ledger;   // the same resolved wicked-ledger as step 0
 import { readFileSync } from 'node:fs';
 const pkgVersion = JSON.parse(readFileSync('package.json','utf8')).version;
 const runAfter = store.get('runs', run.id);
@@ -475,7 +483,13 @@ WT_LIB="$(wicked-garden path scripts/qe/lib)"
 ## wicked-ledger resolution
 
 `wicked-ledger` (npm) is the QE data layer — DomainStore, oracle queries, and
-manifest building. Import-style snippets above must run where the package
-resolves: the target project's `node_modules` (`npm i --no-save wicked-ledger`)
-or any directory with it installed. The pinned range lives in
-`.claude-plugin/plugin.json` → `wicked_ledger_version`.
+manifest building. The snippets above load it through `{WT_LIB}/ledger-pkg.mjs`,
+the one resolver the gate shares:
+
+1. `$WICKED_LEDGER_PKG_DIR`. Inside a governed wicked-crew run it is set to crew's
+   own wicked-ledger, the package crew's acceptance check reads the verdict with.
+   Do not `npm i` in a governed run: a fenced seat is refused the install, and it
+   would change the tree under review.
+2. otherwise, an install the target repo resolves (`npm i --no-save wicked-ledger`).
+
+The pinned range lives in `.claude-plugin/plugin.json` → `wicked_ledger_version`.

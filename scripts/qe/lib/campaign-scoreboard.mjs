@@ -93,6 +93,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, dirname, resolve, isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
+import { resolveLedgerModule } from "./ledger-pkg.mjs";
 import { parseArgs } from "node:util";
 
 import {
@@ -168,54 +169,9 @@ export function resolveLedgerRootLocal(repoRoot, env = process.env) {
   return current;
 }
 
-// --- wicked-ledger resolution (target-repo-anchored, like gate.mjs) ----------
+// --- wicked-ledger resolution: the shared resolver (./ledger-pkg.mjs) -----------
 
-function esmEntryForPackageDir(pkgDir) {
-  const pj = join(pkgDir, "package.json");
-  if (!existsSync(pj)) return null;
-  const pkg = readJsonSafe(pj);
-  if (!pkg) return null;
-  const dot = pkg.exports && pkg.exports["."] !== undefined ? pkg.exports["."] : pkg.exports;
-  const rel =
-    (dot && typeof dot === "object" && (dot.import || dot.default)) ||
-    (typeof dot === "string" ? dot : null) ||
-    pkg.module ||
-    pkg.main ||
-    "index.js";
-  return join(pkgDir, rel);
-}
-
-export async function resolveLedgerModule(repoRoot, env = process.env) {
-  // 1. explicit override (tests, TH-6 wiring, unpublished-floor installs)
-  if (env.WICKED_LEDGER_PKG_DIR) {
-    const entry = esmEntryForPackageDir(env.WICKED_LEDGER_PKG_DIR);
-    if (entry && existsSync(entry)) return await import(pathToFileURL(entry).href);
-    return null;
-  }
-  // 2. bare import (global / hoisted install)
-  try {
-    return await import("wicked-ledger");
-  } catch {
-    /* fall through */
-  }
-  // 3. walk up from the target repo root
-  let dir = resolve(repoRoot);
-  for (let i = 0; i < 10; i++) {
-    const cand = join(dir, "node_modules", "wicked-ledger");
-    const entry = esmEntryForPackageDir(cand);
-    if (entry && existsSync(entry)) {
-      try {
-        return await import(pathToFileURL(entry).href);
-      } catch {
-        return null;
-      }
-    }
-    const parent = dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  return null;
-}
+export { resolveLedgerModule } from "./ledger-pkg.mjs";
 
 // --- evidence extraction ------------------------------------------------------
 
