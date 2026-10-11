@@ -275,11 +275,15 @@ def test_configured_project_scope_wins_for_store_and_recall(monkeypatch, tmp_pat
     assert scopes == ["project:acme-app", "project:acme-app"], calls
 
 
-def test_shim_refuses_unapprovable_knowledge_proposals(monkeypatch):
+def test_shim_submits_knowledge_proposals_with_a_source(monkeypatch):
+    # K3 shipped in estate 0.29.2: a knowledge proposal is submittable; it must name its source.
     seen = []
-    monkeypatch.setattr(_estate_client, "call_raw", lambda *a, **k: seen.append(a) or {})
+    monkeypatch.setattr(_estate_client, "call_raw", lambda *a, **k: seen.append(a) or {"result": {"content": [{"type": "text", "text": "{\"id\": \"p1\"}"}]}})
     out = _estate_client.propose("knowledge", {"content": "c", "source": "r:p"}, {"project": "wicked"})
-    assert out["ok"] is False and out["code"] == -32602 and "not approvable" in out["reason"]
+    assert seen and seen[0][0] == "proposal.submit" and seen[0][1]["kind_type"] == "knowledge", (out, seen)
+    seen.clear()
+    out = _estate_client.propose("knowledge", {"content": "c"}, {"project": "wicked"})
+    assert out["ok"] is False and out["code"] == -32602 and "source" in out["reason"]
     assert seen == []
 
 
