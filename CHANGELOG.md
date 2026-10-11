@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [12.52.0] — 2026-10-11
+
+### Changed
+- **Learn indexing reads what merged and replaces a topic by its source (PR #1280).**
+  - `scripts/learn/index.py --ref <ref>` reads `.wicked/knowledge/` at a git ref, never the working copy. wicked-crew's learn schedule passes `origin/<default>`.
+  - When estate advertises `knowledge.forget` (estate K1+K2), each topic becomes one `knowledge.ingest {replace_source: true}` carrying `observed_at` and `source_rev`, and a topic with nothing left is forgotten by its source.
+  - An older estate keeps the per-revision scope fallback.
+
 ## [12.51.1] — 2026-10-11
 
 ### Fixed
