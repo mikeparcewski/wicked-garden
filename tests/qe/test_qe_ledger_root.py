@@ -65,7 +65,7 @@ def test_the_preflight_reads_the_pinned_root_exactly(doc: Path, tmp_path: Path) 
 def test_setup_scaffolds_the_pinned_root_and_nothing_in_the_worktree(tmp_path: Path) -> None:
     text = SETUP.read_text(encoding="utf-8")
     blocks = re.findall(r"```bash\n(.*?)```", text, flags=re.S)
-    mkdir = next(b for b in blocks if "QE_ROOT=" in b)
+    mkdir = next(b for b in blocks if "os.makedirs" in b).split(" 2>/dev/null ||")[0]
     config = next(b for b in blocks if "config.json" in b and "python3 -c" in b)
     config = config.split(" 2>/dev/null ||")[0]  # the python3 arm; the `python` fallback is the same script
     if shutil.which("python3") is None:
@@ -78,6 +78,8 @@ def test_setup_scaffolds_the_pinned_root_and_nothing_in_the_worktree(tmp_path: P
     assert (run_ledger / "verdicts").is_dir() and (run_ledger / "evidence").is_dir()
     assert json.loads((run_ledger / "config.json").read_text())["version"] == "1.0"
     assert not (work / ".wicked-qe").exists(), "setup wrote into the worktree"
+    # wicked-core#881: no shell write of the unexpanded variable (a governed fence refuses it)
+    assert 'mkdir -p "$' not in text and "mkdir -p \"$" not in text
 
 
 def test_accept_resolves_the_root_through_wicked_ledger_and_keeps_evidence_under_it() -> None:
