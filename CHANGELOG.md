@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [12.50.0] — 2026-10-11
+
+### Added
+- **`wicked-garden-learn`: learn a topic or an event into the repository as cited knowledge (PR #1273).** It is the skill behind the `learn` workflow. The run scopes, researches with sources, synthesizes a claims ledger, walks the operator through it in chat, and authors `.wicked/knowledge/<slug>/` plus text-only skills.
+  - Every claim carries its source URL and `observed_at`.
+  - A refresh proposes only changes (confirm, supersede, contradict, retire) and never deletes.
+  - `scripts/learn/check.py` is the deterministic provenance and skill lint.
+  - `scripts/learn/index.py` replaces a topic's estate knowledge scope from merged content, and refuses inside a governed run.
+
+### Changed
+- **The estate client follows estate's paging cursor to the whole answer (estate#279, PR #1272).**
+
 ## [12.49.0] — 2026-10-11
 
 ### Added
