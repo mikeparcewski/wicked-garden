@@ -1248,3 +1248,11 @@ def test_a_supplied_cursor_resumes_there_and_a_cut_walk_is_partial(capsys):
     assert out["result"]["complete"] is False
     assert not any("whole answer" in d for d in out["diagnostics"])
     assert any("PARTIAL" in d for d in out["diagnostics"])
+
+
+def test_resuming_through_an_uncapped_last_page_is_not_whole(capsys):
+    _estate_client.set_dispatch(_paged_dispatch(_lineage_pages(3), []))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s", "cursor": "c1"}})
+    assert out["result"]["complete"] is False
+    assert any("REST of the answer" in d for d in out["diagnostics"])
+    assert not any("whole answer" in d for d in out["diagnostics"])

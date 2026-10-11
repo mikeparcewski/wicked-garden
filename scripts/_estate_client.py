@@ -889,7 +889,12 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
             if _PAGE_LINE not in d and d not in diagnostics:
                 diagnostics.append(d)
         cursor = result.get("next_cursor")
-    whole = complete and not merged.get("truncated", False)
+    # Resumed from a caller's cursor, the join holds the rest of the answer, not all of it.
+    resumed = bool(args.get("cursor"))
+    whole = complete and not merged.get("truncated", False) and not resumed
+    if resumed:
+        diagnostics.append("PAGING: resumed from the supplied cursor; these rows are the REST of "
+                           "the answer, not the whole of it (omit `cursor` for every row)")
     if pages > 1:
         diagnostics.append(f"PAGING: joined {pages} page(s)"
                            + (" into the whole answer" if whole else
