@@ -955,13 +955,24 @@ def test_propose_surfaces_the_json_rpc_code():
     seen: list = []
     err = {"jsonrpc": "2.0", "error": {"code": -32602, "message": "invalid kind_type"}}
     _estate_client.set_dispatch(_proposal_dispatch(seen, response=err))
-    out = _estate_client.propose("Memory", {"content": "c"})
+    out = _estate_client.propose("Memory", {"content": "c"}, {"project": "wicked"})
     assert out["ok"] is False and out["code"] == -32602 and "kind_type" in out["reason"]
+
+
+@pytest.mark.parametrize("facets", [None, {}, {"repo": "wicked-estate"}, {"project": "  "}])
+def test_propose_refuses_a_proposal_without_a_project_scope(monkeypatch, facets):
+    """w9-memfix: an unscoped proposal never reaches the queue (shape error, no wire call)."""
+    monkeypatch.delenv(_estate_client.RUN_PROJECT_ENV, raising=False)
+    seen: list = []
+    _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"id": "p"})))
+    out = _estate_client.propose("memory", {"content": "c"}, facets)
+    assert out["ok"] is False and out["code"] == -32602 and "facets.project" in out["reason"]
+    assert seen == []
 
 
 def test_propose_unreachable_is_a_degrade_with_no_code():
     _estate_client.set_dispatch(lambda requests, *, db, timeout: {})
-    out = _estate_client.propose("memory", {"content": "c"})
+    out = _estate_client.propose("memory", {"content": "c"}, {"project": "wicked"})
     assert out["ok"] is False and out["code"] is None and "unreachable" in out["reason"]
 
 

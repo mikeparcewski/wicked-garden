@@ -8,7 +8,8 @@ This is the agent-side application of estate's embedded method card
 prose and attach the citations).
 
 **Arguments**: `question` (required); `--scope-prefix <prefix>` (optional —
-narrow the memory side; default `""` = everything); `--budget <tokens>`
+the memory side; default = the current project and its ancestors, `""` =
+every project, on explicit request); `--budget <tokens>`
 (optional, default 2000 per store).
 
 ## Procedure

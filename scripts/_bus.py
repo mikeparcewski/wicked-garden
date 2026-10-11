@@ -290,12 +290,6 @@ BUS_EVENT_MAP: Dict[str, Dict[str, str]] = {
         "subdomain": "crew.yolo",
         "description": "Yolo auto-approval revoked due to scope-increase mutation (audit + observability)",
     },
-    # Garden fact stream — scripts/mem/session_fact_extractor.py → auto-memorize subscriber
-    "wicked.garden.fact.extracted": {
-        "domain": "wicked-garden",
-        "subdomain": "facts",
-        "description": "Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain -> estate memory)",
-    },
     # qe integration — test-lifecycle verdict event (#549, AC-25).
     # Renamed to the wicked-bus SPEC form wicked.test.<noun>.<past-verb>
     # (was wicked.verdict.recorded). Domain stamp rebranded wicked-testing → qe
@@ -429,8 +423,6 @@ _PAYLOAD_DENY_LIST = frozenset({
 # named fields passed through the deny-list unchanged. Keep this list short and
 # justified: every entry is a deliberate carve-out auditable at review time.
 #
-# wicked.garden.fact.extracted — content is the whole point of the event. The brain
-# auto-memorize subscriber requires payload.content to produce a memory.
 # wicked.garden.dispatch.log_entry_appended — `raw_payload` is the canonical JSONL
 # bytes the projector replays into the `dispatch_log_entries` table under
 # Site 1 of the bus-cutover (#746).  Without it the projector cannot
@@ -438,7 +430,6 @@ _PAYLOAD_DENY_LIST = frozenset({
 # only ships an already-on-disk dispatch record (HMAC-signed), so payload
 # inspection here is bounded by what the orphan check already trusts.
 _PAYLOAD_ALLOW_OVERRIDES: Dict[str, frozenset] = {
-    "wicked.garden.fact.extracted": frozenset({"content"}),
     "wicked.garden.dispatch.log_entry_appended": frozenset({"raw_payload"}),
     # Site 2 of bus-cutover (#746): the consensus report and evidence emits
     # carry the canonical on-disk JSON bytes via `raw_payload` so the
@@ -656,8 +647,8 @@ def _sanitize_payload(payload: Dict[str, Any], event_type: str = "") -> Dict[str
 
     Per-event allow overrides (see _PAYLOAD_ALLOW_OVERRIDES) let specific event
     types pass named denied fields through — these are explicit, audited carve-outs
-    for events whose contract requires a denied key (e.g. wicked.garden.fact.extracted
-    must ship content to the brain auto-memorize subscriber).
+    for events whose contract requires a denied key (e.g. the dispatch log's
+    raw_payload, which the projector replays byte-for-byte).
     """
     allow = _PAYLOAD_ALLOW_OVERRIDES.get(event_type, frozenset())
     return {k: v for k, v in payload.items() if k not in _PAYLOAD_DENY_LIST or k in allow}

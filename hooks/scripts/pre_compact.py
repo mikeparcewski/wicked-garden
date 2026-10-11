@@ -5,10 +5,9 @@ PreCompact hook — wicked-garden WIP snapshot before context compression.
 v6: the v5 ticket-rail preservation path (HistoryCondenser + PressureTracker)
 was removed with smaht/v2 in #428. The remaining jobs are:
 1. Stamp SessionState.last_compact_ts (dedup guard)
-2. Save a lightweight WIP memory to the context backend (wicked-estate
-   memory.capture) using SessionState + native in-progress task subjects
-   as the input
-3. Prompt Claude to store any additional memories before context is lost
+2. Save the native in-progress task subjects as a project-scoped working
+   memory (wicked-estate memory.capture), only when there are any
+3. Prompt Claude to store any durable learning before context is lost
 
 Always fails open — any unhandled exception returns {"continue": true}.
 """
@@ -17,7 +16,6 @@ import json
 import os
 import sys
 import time
-import uuid as _uuid_mod
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -62,65 +60,44 @@ def _read_in_progress_tasks(session_id, limit=10):
         return []
 
 
-def _build_wip_markdown(session_state_dict, in_progress):
-    """Format lightweight WIP state as markdown, capped at _MAX_WIP_CHARS."""
+def _build_wip_markdown(active_project, in_progress):
+    """Format the in-progress task state as markdown, capped at _MAX_WIP_CHARS."""
     sections = ["## WIP State (Pre-Compaction)"]
-
-    active_project = session_state_dict.get("active_project") or ""
     if active_project:
         sections.append(f"### Active Project\n{active_project}")
-
-    turn_count = session_state_dict.get("turn_count")
-    if turn_count:
-        sections.append(f"### Turn Count\n{turn_count}")
-
-    if in_progress:
-        items = "\n".join(f"- {s}" for s in in_progress)
-        sections.append(f"### In-Progress Tasks\n{items}")
-
+    items = "\n".join(f"- {s}" for s in in_progress)
+    sections.append(f"### In-Progress Tasks\n{items}")
     content = "\n\n".join(sections)
     if len(content) > _MAX_WIP_CHARS:
         content = content[:_MAX_WIP_CHARS - 3] + "..."
     return content
 
 
-def _save_wip_state(session_id, project):
-    """Save a lightweight WIP memory to the routed context backend.
+def _save_wip_state(session_id):
+    """Save the in-progress task state as a project-scoped working memory.
 
-    v6: no HistoryCondenser ticket rail. Input is SessionState + native
-    in-progress task subjects. The richer v5 snapshot (decisions, file scope,
-    open questions) is gone. S4: the write routes through
-    _context_backend.capture_memory (estate primary).
+    Writes nothing unless the session has real in-progress tasks: a turn count
+    or an active-project name alone is not state worth restoring (that wrote
+    one empty "WIP snapshot" per compaction). The write goes through
+    _context_backend.capture_memory, which always scopes it to the current
+    project; estate expires working memories after 24 h.
+    Returns the memory id, or None when nothing was written.
     """
+    in_progress = [t for t in _read_in_progress_tasks(session_id, limit=10) if str(t).strip()]
+    if not in_progress:
+        _log("context", "debug", "pre_compact.no_wip")
+        return None
+
+    active_project = ""
     try:
         from _session import SessionState
-        state = SessionState.load()
+        active_project = getattr(SessionState.load(), "active_project", "") or ""
     except Exception:
-        state = None
+        pass
 
-    ss_fields = {}
-    if state:
-        ss_fields = {
-            "active_project": getattr(state, "active_project", ""),
-            "active_project_id": getattr(state, "active_project_id", ""),
-            "turn_count": getattr(state, "turn_count", 0),
-            "failure_counts": getattr(state, "failure_counts", None),
-            "bash_count": getattr(state, "bash_count", 0),
-        }
-
-    in_progress = _read_in_progress_tasks(session_id, limit=10)
-
-    # Nothing to save if we have no signal at all
-    if not any(ss_fields.values()) and not in_progress:
-        _log("context", "debug", "pre_compact.empty_wip")
-        return
-
-    content = _build_wip_markdown(ss_fields, in_progress)
-    active_project = ss_fields.get("active_project") or ""
+    content = _build_wip_markdown(active_project, in_progress)
     title = f"WIP: {active_project or 'Session work'} — pre-compaction snapshot"
-
     try:
-        # Estate memory.capture via the context backend.
         from _context_backend import capture_memory
         chunk_id = capture_memory(
             title=title,
@@ -131,8 +108,10 @@ def _save_wip_state(session_id, project):
         if chunk_id:
             _log("context", "verbose", "pre_compact.wip_saved", ok=True,
                  detail={"title": title[:60], "chars": len(content)})
+        return chunk_id
     except Exception as e:
         print(f"[wicked-garden] pre_compact WIP save error: {e}", file=sys.stderr)
+        return None
 
 
 def main():
@@ -148,8 +127,7 @@ def main():
     # Normal-level log fires regardless of log level (AC-07)
     _log("context", "normal", "pre_compact")
 
-    session_id = os.environ.get("CLAUDE_SESSION_ID") or f"sess_{_uuid_mod.uuid4().hex[:8]}"
-    project = os.environ.get("CLAUDE_PROJECT_NAME") or Path.cwd().name
+    session_id = input_data.get("session_id") or os.environ.get("CLAUDE_SESSION_ID") or ""
 
     # Dedup guard: skip WIP save if compaction happened <60s ago
     skip_wip = False
@@ -169,9 +147,10 @@ def main():
     except Exception:
         state = None
 
-    # Save structured WIP state (unless dedup guard triggered)
+    # Save the in-progress task state (unless dedup guard triggered)
+    saved = None
     if not skip_wip:
-        _save_wip_state(session_id, project)
+        saved = _save_wip_state(session_id)
 
     # v6: PressureTracker was deleted with smaht/v2 in #428. There is no
     # cumulative-byte pressure model to reset — the pull-model architecture
@@ -199,9 +178,9 @@ def main():
     print(json.dumps({
         "continue": True,
         "systemMessage": (
-            "[Memory] Context compression imminent. WIP state has been auto-saved. "
-            "After compaction, your WIP will be automatically restored on the next prompt. "
-            f"Store any additional decisions or patterns NOW with {_mem_target}."
+            "[Memory] Context compression imminent. "
+            + ("In-progress task state was saved as a working memory. " if saved else "")
+            + f"Store any durable decision or gotcha NOW with {_mem_target}."
         ),
     }))
 

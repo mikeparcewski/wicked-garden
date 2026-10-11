@@ -360,7 +360,7 @@ def _collect_tasks_for_chain_direct(chain_id: str) -> list[dict]:
 def read_session_tasks(session_id: str, limit: int = 200) -> list[dict]:
     """Return all task dicts for a session (any status).
 
-    Used by session_fact_extractor.py and telemetry.py.
+    Used by telemetry.py.
 
     Routes via WG_DAEMON_ENABLED:
       false   → direct file scan

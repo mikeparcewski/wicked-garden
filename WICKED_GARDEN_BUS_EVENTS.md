@@ -85,12 +85,6 @@ These fields are **stripped automatically** by `_bus.py` before emission:
 |------------|-----------|-------------|
 | `wicked.garden.quality.drift_detected` | `delivery.telemetry` | Cross-session quality metric drifted past baseline threshold (special-cause or >=15% drop) |
 
-### Facts
-
-| Event Type | Subdomain | Description |
-|------------|-----------|-------------|
-| `wicked.garden.fact.extracted` | `facts` | Structured fact extracted from conversation (consumed by the garden-run auto-memorize drain -> estate memory) |
-
 ### Gate
 
 | Event Type | Subdomain | Description |

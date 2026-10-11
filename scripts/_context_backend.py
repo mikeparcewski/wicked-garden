@@ -70,35 +70,29 @@ _RRF_K = 60  # standard reciprocal-rank-fusion constant
 
 
 def _memory_scope() -> str:
-    """Scope for estate memory capture/recall.
+    """Scope for estate memory capture/recall: the current project.
 
-    Default is the root scope (""): estate visibility is ancestor-visible,
-    so root-scope memories are recallable from every scoped query — and the
-    hooks' own captures round-trip. Override via WICKED_ESTATE_MEMORY_SCOPE.
+    Default ``project:<cwd-basename>`` (``_estate_client.project_scope``), so
+    no hook ever writes an unscoped memory, and recall sees this project plus
+    its ancestors (root-scoped memories included) but not other projects.
+    Override via WICKED_ESTATE_MEMORY_SCOPE.
     """
-    return os.environ.get("WICKED_ESTATE_MEMORY_SCOPE", "")
+    pinned = os.environ.get("WICKED_ESTATE_MEMORY_SCOPE", "").strip()
+    if pinned:
+        return pinned
+    import _estate_client
+
+    return _estate_client.project_scope()
 
 
 def _memory_scope_prefix() -> Optional[str]:
     """Subtree filter for estate memory recall (estate #98 ``scope_prefix``).
 
-    The ancestor-visible ``scope`` filter alone cannot see leaf-scoped
-    memories — the migrated brain memories live at scopes like
-    ``brain:wicked-garden/doc:<id>`` and were invisible to root recalls.
-    ``scope_prefix`` REPLACES that filter with subtree matching; the default
-    ``""`` (root subtree) sees ALL memories: root + every migrated subtree.
-
-    When the operator pinned a custom recall scope via
-    WICKED_ESTATE_MEMORY_SCOPE, honor it — return None (param omitted,
-    inheritance semantics) so the pin keeps meaning what it meant.
-    Explicit override: WICKED_ESTATE_MEMORY_SCOPE_PREFIX.
+    Default None: the param is omitted and recall uses ancestor inheritance
+    from ``_memory_scope()``. Searching other projects' memories is an
+    explicit opt-in: WICKED_ESTATE_MEMORY_SCOPE_PREFIX ("" = every memory).
     """
-    prefix = os.environ.get("WICKED_ESTATE_MEMORY_SCOPE_PREFIX")
-    if prefix is not None:
-        return prefix
-    if os.environ.get("WICKED_ESTATE_MEMORY_SCOPE"):
-        return None  # custom scope pinned — keep ancestor-visible semantics
-    return ""
+    return os.environ.get("WICKED_ESTATE_MEMORY_SCOPE_PREFIX")
 
 
 def _f(value: Any) -> float:
@@ -163,8 +157,8 @@ def _estate_search(query: str, limit: int = 10, timeout: float = 5.0) -> Optiona
     """Two-call estate retrieval. None = estate unreachable.
 
     knowledge.recall is the primary signal; memory.recall is fused in when it
-    has anything to say — with ``scope_prefix`` (estate #98) so the fusion
-    sees ALL memories, migrated ``brain:…`` subtrees included. An
+    has anything to say, scoped to the current project and its ancestors
+    (``_memory_scope``; other projects only via the explicit prefix opt-in). An
     empty-but-reachable answer is a valid [] — only a dead estate returns
     None. A memory-leg failure (e.g. an older binary rejecting
     ``scope_prefix``) degrades the fusion to knowledge-only — knowledge
@@ -218,8 +212,7 @@ def search(query: str, limit: int = 10, timeout: float = 5.0) -> List[dict]:
 def recall_memories(query: str, limit: int = 10, timeout: float = 5.0) -> List[dict]:
     """Memory-only recall (estate memory.recall).
 
-    Same subtree visibility as the fusion: ``scope_prefix`` (estate #98) so
-    migrated ``brain:…`` leaf memories are recallable here too.
+    Same visibility as the fusion: the current project and its ancestors.
     """
     if not query or not str(query).strip():
         return []

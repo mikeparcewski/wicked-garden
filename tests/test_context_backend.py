@@ -61,6 +61,7 @@ def _plant_fake_estate(monkeypatch, **overrides):
     fake.recall = recall
     fake.call = call
     fake.resolve_mcp_bin = resolve_mcp_bin
+    fake.project_scope = lambda: "project:test-repo"
     for name, fn in overrides.items():
         setattr(fake, name, fn)
     monkeypatch.setitem(sys.modules, "_estate_client", fake)
@@ -125,28 +126,32 @@ def test_estate_search_fuses_knowledge_and_memory(monkeypatch):
     assert results[0]["score"] == pytest.approx(results[1]["score"])
 
 
-def test_estate_search_recalls_the_full_memory_subtree(monkeypatch):
-    """estate #98: the memory leg sends scope_prefix="" (root subtree) so
-    migrated leaf-scoped memories (brain:…/doc:…) are fused in — they were
-    invisible under the ancestor-only `scope` filter."""
+def test_estate_search_recalls_the_current_project_only(monkeypatch):
+    """w9-memfix: the memory leg recalls the current project + its ancestors
+    (scope, no prefix) — another project's memories never leak into a
+    session unless WICKED_ESTATE_MEMORY_SCOPE_PREFIX opts in."""
     fake = _plant_fake_estate(
         monkeypatch,
         knowledge_recall=lambda q, token_budget=2000, timeout=8.0: {"items": []},
     )
     cb.search("gh account switch 403", limit=10)
     recall_calls = [c for c in fake.calls if c[0] == "recall"]
-    assert recall_calls == [("recall", "gh account switch 403", "", "")]
+    assert recall_calls == [("recall", "gh account switch 403", "project:test-repo", None)]
 
 
-def test_memory_scope_prefix_defaults_and_overrides(monkeypatch):
-    # Default: root subtree — every memory, migrated subtrees included.
-    assert cb._memory_scope_prefix() == ""
-    # A pinned custom scope keeps its ancestor-visible meaning (param omitted).
-    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE", "org:acme")
+def test_memory_scope_defaults_to_the_project_and_prefix_is_opt_in(monkeypatch):
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE_PREFIX", raising=False)
+    _plant_fake_estate(monkeypatch)
+    # Default: the current project, ancestor inheritance (no subtree prefix).
+    assert cb._memory_scope() == "project:test-repo"
     assert cb._memory_scope_prefix() is None
-    # The explicit prefix override wins over both.
-    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE_PREFIX", "brain:wicked-garden")
-    assert cb._memory_scope_prefix() == "brain:wicked-garden"
+    # A pinned scope wins.
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE", "org:acme")
+    assert cb._memory_scope() == "org:acme"
+    # Searching everything is the explicit opt-in.
+    monkeypatch.setenv("WICKED_ESTATE_MEMORY_SCOPE_PREFIX", "")
+    assert cb._memory_scope_prefix() == ""
 
 
 def test_estate_search_degrades_to_knowledge_only_when_memory_leg_fails(monkeypatch):
@@ -166,12 +171,12 @@ def test_estate_search_degrades_to_knowledge_only_when_memory_leg_fails(monkeypa
     assert results[0]["backend"] == "estate"
 
 
-def test_recall_memories_uses_the_subtree_prefix_too(monkeypatch):
-    """Memory-only recall gets the same #98 subtree visibility as the fusion."""
+def test_recall_memories_uses_the_project_scope_too(monkeypatch):
+    """Memory-only recall gets the same project-scoped visibility as the fusion."""
     fake = _plant_fake_estate(monkeypatch)
     assert cb.recall_memories("gate policy decisions") == []
     recall_calls = [c for c in fake.calls if c[0] == "recall"]
-    assert recall_calls == [("recall", "gate policy decisions", "", "")]
+    assert recall_calls == [("recall", "gate policy decisions", "project:test-repo", None)]
 
 
 def test_estate_search_surfaces_source_attribution(monkeypatch):

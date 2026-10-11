@@ -963,6 +963,20 @@ def context(
     return call("ContextBundle", args, timeout=timeout)
 
 
+def project_scope() -> str:
+    """The current project's memory scope, ``project:<cwd-basename>``.
+
+    The one default for both directions: memories are stored here, and recall
+    sees this scope plus its ancestors (root-scoped memories included). Reading
+    every project's memories is an explicit opt-in (``scope_prefix: ""``).
+    """
+    try:
+        name = Path.cwd().name or "unknown"
+    except OSError:
+        name = "unknown"
+    return f"project:{name}"
+
+
 def recall(
     query: str,
     scope: str = "",
@@ -1032,8 +1046,17 @@ def propose(
     fix the args and resubmit) from an unreachable estate (code None — keep the
     objects in the deliverable file / report instead). `provenance` is NEVER sent:
     the server stamps it from its own `WICKED_RUN_*` environment.
+
+    Every proposal names the project it belongs to (``facets.project``, which a
+    run's `WICKED_RUN_PROJECT` supplies): an unscoped proposal is refused here
+    with the shape-error code, so it never lands project-less in the queue.
     """
     facets = _scope_facets_to_run_project(facets)
+    project = (facets or {}).get("project")
+    if not isinstance(project, str) or not project.strip():
+        return {"ok": False, "code": -32602,
+                "reason": 'proposal needs facets.project (the project scope it belongs to, '
+                          'e.g. {"project": "wicked", "repo": "wicked-estate"})'}
     arguments: dict = {"kind_type": kind_type, "payload": payload}
     if facets:
         arguments["facets"] = facets

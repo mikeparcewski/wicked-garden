@@ -12,8 +12,9 @@ script only moves JSON.
 Actions → estate tools
 ----------------------
   store          → memory.capture      (content, kind, tier, scope, about)
-  recall         → memory.recall       (query, scope_prefix — "" = the whole
-                                        subtree incl. migrated brain leaves)
+  recall         → memory.recall       (query; default scope = the current
+                                        project + ancestors; scope_prefix is
+                                        the explicit opt-in, "" = everything)
   review         → memory.coverage (+ memory.reflect when a scope is given)
   forget         → memory.erase        (kind-guarded scope_prefix — see below)
   maintain       → memory.reflect + memory.coverage (estate consolidates
@@ -29,8 +30,15 @@ Scope conventions (estate migration)
 ------------------------------------
 Memories live under hierarchical `kind:id` scopes (slash-separated segments,
 e.g. ``project:wicked-garden`` or ``brain:wicked-garden/doc:<id>`` for
-brain-migrated leaves). Recall-everything = ``scope_prefix: ""`` (the root
-subtree). `store` defaults its scope to ``project:<cwd-basename>``.
+brain-migrated leaves). `store` and `recall` default to ``project:<cwd-basename>``
+(recall adds its ancestors, so root-scoped memories stay visible); other
+projects' memories need the explicit opt-in ``scope_prefix: ""``.
+
+Durability gate
+---------------
+`store` / `capture-batch` refuse content that is not a durable learning (see
+``durability_rejects``): too short, or carrying SHAs, versions, PR/run ids,
+PIDs, "today", or first-person progress narration.
 
 Erase guard
 -----------
@@ -112,11 +120,7 @@ def _fail_open(reason):
 
 def _default_scope():
     """Project-scoped default: ``project:<cwd-basename>`` (a kind:id segment)."""
-    try:
-        name = Path.cwd().name or "unknown"
-    except OSError:
-        name = "unknown"
-    return f"project:{name}"
+    return _estate_client.project_scope()
 
 
 # One slash-separated scope segment: non-empty kind, ':', non-empty id.
@@ -142,11 +146,59 @@ def _parse_budget(args):
         return None, f"token_budget must be an integer, got: {raw!r}"
 
 
+# ── durability gate ─────────────────────────────────────────────────────────
+# A memory must help a fresh session on a different task months from now: it
+# states a rule, why it holds, and when it applies. The skill text asks the
+# agent that question; these checks refuse the mechanical misses outright, so
+# narration and status never reach the store even when the judgment slips.
+MIN_CONTENT_CHARS = 40
+_HEX_RUN = re.compile(r"\b[0-9a-f]{7,40}\b")
+_NON_DURABLE = (
+    (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I),
+     "a run/session id (uuid)"),
+    (re.compile(r"\bv?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)?\b"), "a version number"),
+    (re.compile(r"\b(?:pr|pull|issue|run|job)\s*#?\s*\d+\b|\b[a-z][\w.-]*#\d+\b|(?<![\w&])#\d+\b",
+                re.I), "a PR/issue/run id"),
+    (re.compile(r"\bpids?\s*[:=#]?\s*\d+\b", re.I), "a process id"),
+    (re.compile(r"\b(?:today|yesterday|tonight|this (?:morning|afternoon|evening|week))\b", re.I),
+     "a date-relative word"),
+    (re.compile(r"\b(?:i'?ll|i will|we'?ll|let me|(?:i'?m|i am|we'?re|we are) (?:going|about) to)\b",
+                re.I), "first-person progress narration"),
+)
+
+
+def _is_sha(token):
+    return any(c.isdigit() for c in token) and any(c.isalpha() for c in token)
+
+
+def durability_rejects(content):
+    """Why ``content`` is not a durable learning ([] = it may be stored).
+
+    Deterministic and offline: empty or too-short bodies, commit SHAs, versions,
+    PR/issue/run ids, PIDs, "today"-style dates, and first-person narration
+    ("I'll retry", "going to guess again") are records of a moment; the repo,
+    CHANGELOG or tracker already holds those.
+    """
+    text = (content or "").strip()
+    if len(text) < MIN_CONTENT_CHARS:
+        return [f"too short to state a rule, why it holds and when it applies "
+                f"(< {MIN_CONTENT_CHARS} chars)"]
+    reasons = []
+    if any(_is_sha(m.group(0)) for m in _HEX_RUN.finditer(text.lower())):
+        reasons.append("a commit SHA")
+    reasons += [why for rx, why in _NON_DURABLE if rx.search(text)]
+    return reasons
+
+
 def _capture_one(item):
     """One memory.capture call. Returns (memory_id | None, error | None)."""
     content = (item.get("content") or "").strip()
     if not content:
         return None, "empty content"
+    rejects = durability_rejects(content)
+    if rejects:
+        return None, ("not a durable learning (" + "; ".join(rejects) + "): state the rule, "
+                      "why it holds and when it applies, without ids, versions or progress")
     kind = item.get("kind") or "fact"
     if kind not in KINDS:
         return None, f"unknown kind: {kind} (valid: {', '.join(KINDS)})"
@@ -191,12 +243,12 @@ def do_recall(args):
         _emit({"error": err})
         return 1
     arguments = {"query": query, "token_budget": budget}
-    if "scope" in args:
-        # Explicit scope, no prefix: estate's ancestor-visible inheritance.
-        arguments["scope"] = args["scope"]
+    if "scope_prefix" in args:
+        # Explicit opt-in subtree filter; "" = every project's memories.
+        arguments["scope_prefix"] = args["scope_prefix"]
     else:
-        # Subtree filter; "" = every memory, incl. migrated brain:*/doc:* leaves.
-        arguments["scope_prefix"] = args.get("scope_prefix", "")
+        # Default: the current project and its ancestors (inheritance).
+        arguments["scope"] = args.get("scope") or _default_scope()
     payload = _estate_client.call("memory.recall", arguments)
     items = payload.get("items") if isinstance(payload, dict) else None
     if items is None:
@@ -340,11 +392,12 @@ def do_sources(args):
         return 1
     knowledge = _estate_client.call("knowledge.recall", {"query": query, "token_budget": budget})
     k_items = knowledge.get("items", []) if isinstance(knowledge, dict) else []
-    memory = _estate_client.call(
-        "memory.recall",
-        {"query": query, "token_budget": budget,
-         "scope_prefix": args.get("scope_prefix", "")},
-    )
+    m_args = {"query": query, "token_budget": budget}
+    if "scope_prefix" in args:
+        m_args["scope_prefix"] = args["scope_prefix"]  # explicit opt-in subtree
+    else:
+        m_args["scope"] = args.get("scope") or _default_scope()
+    memory = _estate_client.call("memory.recall", m_args)
     m_items = memory.get("items", []) if isinstance(memory, dict) else []
     if knowledge is None and memory is None:
         return _fail_open("estate unreachable (knowledge.recall and memory.recall both failed)")

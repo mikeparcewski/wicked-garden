@@ -22,12 +22,14 @@ Rules of thumb:
   The backend defaults to `project:<cwd-basename>` — right for repo-scoped
   work. Session-specific scratch can add a `/session:<id>` segment.
 - **Recall** uses one of two filters (mutually exclusive on the wire):
+  - `scope` — estate's ancestor-visible inheritance: memories at this scope
+    plus those inherited from ancestor scopes. **The default**, at
+    `project:<cwd-basename>`, so a session sees its own project's memories
+    and root-scoped ones, never another project's.
   - `scope_prefix` — subtree match: every memory whose scope equals the
     prefix or descends from it. `scope_prefix: ""` = the root subtree =
-    **everything**. This is the recall-everything convention the brain
-    migration standardized on.
-  - `scope` — estate's ancestor-visible inheritance: memories at this scope
-    plus those inherited from ancestor scopes.
+    **everything**. Opt-in only: pass it when the user asks to search
+    across projects.
 - **Erase** (`memory.erase`) takes `scope_prefix` and deletes the whole
   subtree. The backend's kind-guard requires at least one `kind:id` segment;
   the root erase needs `confirm_erase_all: true`.
@@ -36,7 +38,7 @@ Rules of thumb:
 
 The wicked-brain retirement (Phase 5-S7) migrated brain memories into estate <!-- historical -->
 under leaf scopes shaped `brain:<project>/doc:<id>`. They are ordinary
-memories: the default `scope_prefix: ""` recall reaches them, and a
+memories: the opt-in `scope_prefix: ""` recall reaches them, and a
 `scope_prefix: "brain:<project>"` targets just that legacy subtree (useful
 for review or cleanup).
 
@@ -46,9 +48,9 @@ for review or cleanup).
 |------|--------------|-------------|
 | `fact` | `semantic` | a decision, gotcha, or stable distilled fact ("we chose X because Y") |
 | `skill` | `procedural` | a pattern, convention, or how-to that gets reinforced by use |
-| `episode` | `episodic` | a timestamped event ("the deploy broke when…") |
+| `episode` | `episodic` | raw experience estate distills from; not a capture target (store the rule an event taught as a `fact`) |
 | `entity` | `semantic` | a profile of a person/system/component |
-| `working` | `working` | session-local scratch; volatile, capacity-bounded |
+| `working` | `working` | session-local scratch written by hooks; estate expires it after 24 h |
 | `archive` | `archival` | cold storage; normally reached via consolidation, not direct store |
 
 Tiers (`working` / `episodic` / `semantic` / `procedural` / `archival`) are
@@ -68,7 +70,7 @@ Brain's memory types map onto estate kinds as follows (used by
 | pattern / procedural | `skill` | `procedural` |
 | preference | `fact` | `semantic` |
 | gotcha | `fact` | `semantic` |
-| discovery | `episode` | `episodic` |
+| discovery | `fact` (the rule it taught) | `semantic` |
 
 Memory/knowledge content that quotes an estate SymbolId minted before the
 2026-08 id-scheme migration may be dangling — when a cited SymbolId fails to

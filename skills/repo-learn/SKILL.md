@@ -120,7 +120,7 @@ listing — via the estate tools (all read-only; in a governed run through the s
    `depth_bounded` or `node_bounded` set is a bounded search, not proof there is no
    route (widen `depth` / `max_nodes` or say "no route within the bound").
 4. Recall what's already known before writing anything new: `wicked-garden-mem`
-   `recall` (`scope_prefix: ""`) so you extend the record rather than duplicate it.
+   `recall` (`scope_prefix: ""`, the explicit everything opt-in) so you extend the record rather than duplicate it.
 
 Stop when you can state, per target, **what it does, why it changes, what it
 depends on, and what would break** — that is the input to phase 3.

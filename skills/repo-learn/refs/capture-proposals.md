@@ -18,7 +18,7 @@ the record; a human promotes it.
 |-------|------|------|
 | `kind_type` | string | `"memory"` OR `"policy:<type>"`; must match `^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$` |
 | `payload`   | JSON **object** | required; a present non-object is rejected `-32602` (never silently defaulted) |
-| `facets`    | JSON object of `axis:value` strings | optional; each axis is a lowercase token `^[a-z][a-z0-9_-]*$`, each value non-empty |
+| `facets`    | JSON object of `axis:value` strings | each axis is a lowercase token `^[a-z][a-z0-9_-]*$`, each value non-empty; `project` is **required** (the shim refuses a proposal without it) |
 
 **`provenance` is NOT a caller field.** The server stamps it from its own launch
 env (`WICKED_RUN_ID` / `WICKED_RUN_UNIT` / `WICKED_RUN_AGENT`) — a worker cannot
@@ -86,7 +86,13 @@ estate/steering types — pick the one the rule governs, not a freeform tag.
   change").
 - `facets` — `repo:` and `project:` locate the memory so faceted recall admits it
   for the right work. Use the repo's directory/remote name and the umbrella
-  project (here, `wicked`).
+  project (here, `wicked`). **`project:` is required** on every proposal,
+  memory or policy: the shim refuses one without it (`-32602`, "proposal
+  needs facets.project"), so nothing lands in the queue unscoped. In a run,
+  `WICKED_RUN_PROJECT` supplies it.
+- `content` must pass the durability test: a rule, why it holds, and when it
+  applies, useful to a fresh session on a different task months from now. No
+  versions, SHAs, PR/run ids or progress notes.
 
 ## Policy payload + facets
 
