@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.53.2] — 2026-10-11
+
+### Fixed
+- **qe accept runs in one turn inside a governed unit (PR #1291, #1290).** With `WICKED_RUN_ID` set, `wicked-garden-qe` accept runs writer → executor → reviewer inline in one turn, with no sub-agent dispatch, and ends only on the recorded verdict. A claude QE seat no longer ends its turn on the writer's test plan.
+
 ## [12.53.1] — 2026-10-11
 
 ### Fixed
