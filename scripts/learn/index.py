@@ -101,8 +101,10 @@ def index_topic(client, p: dict, tools: list | None = None) -> dict:
         out["ingested"] = False
         out["reason"] = "no active claims and no README to index"
         if replace:
-            out["forgotten"] = client.call("knowledge.forget", {"source": p["source"]}, timeout=30.0)
-            out["replace"] = "forgotten"
+            forgotten = client.call("knowledge.forget", {"source": p["source"]}, timeout=30.0)
+            out["replace"] = "forgotten" if forgotten is not None else "forget-failed"
+            out["forgotten"] = forgotten
+            out["ok"] = forgotten is not None
         return out
     args = {"title": p["title"], "chunks": p["chunks"], "source": p["source"]}
     if replace:
@@ -143,7 +145,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     tools = client.list_tools()
     results = [index_topic(client, p, tools) for p in payloads]
-    ok = all(r.get("ingested") or (not r["chunks"] and "read_errors" not in r) for r in results)
+    ok = all(r.get("ingested") or (not r["chunks"] and "read_errors" not in r and r.get("ok", True)) for r in results)
     print(json.dumps({"ok": ok, "repo": name, "topics": results}, indent=2))
     return 0 if ok else 1
 

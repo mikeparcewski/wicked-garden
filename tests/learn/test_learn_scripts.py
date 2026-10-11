@@ -316,3 +316,16 @@ def test_index_carries_observed_at_and_forgets_an_emptied_topic(tmp_path):
     out = index.index_topic(fake, index.topic_payload(tmp_path, "demo", d))
     assert fake.calls == [("knowledge.forget", {"source": "repo:demo/.wicked/knowledge/sqlite-wal"})]
     assert out["replace"] == "forgotten"
+
+
+def test_a_failed_forget_of_an_emptied_topic_is_a_failure(tmp_path):
+    b = claim(TEXT_A, status="retired", reason="gone", evidence=[{"url": "https://sqlite.org/wal.html", "observed_at": NOW}])
+    d = write_topic(tmp_path, [b], readme="")
+
+    class Down(FakeEstate):
+        def call(self, tool, arguments=None, timeout=8.0):
+            self.calls.append((tool, arguments))
+            return None
+
+    out = index.index_topic(Down(), index.topic_payload(tmp_path, "demo", d))
+    assert out["replace"] == "forget-failed" and out["ok"] is False
