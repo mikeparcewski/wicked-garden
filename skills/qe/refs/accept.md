@@ -87,24 +87,6 @@ invocation.)
 - `--phase review` — review existing evidence
 - `--json` — emit JSON envelope
 
-## Governed unit (`WICKED_RUN_ID` set): one turn, inline
-
-A governed wicked-crew unit (`WICKED_RUN_ID` is set) is ONE headless turn: whatever you print
-last is the unit's reply, and the engine reads its `VERDICT:` line. So, on every seat:
-
-- Run writer → executor → reviewer **inline, in this one turn**. Carry out each hand-off below
-  yourself: open the worker skill (Skill tool, or its SKILL.md from your catalog), do its steps,
-  and come back here. Do not dispatch an `Agent` / `Task` sub-agent or a fork. A headless unit has
-  none, and a forked result returns to nobody.
-- A worker's output (test plan, evidence report) is an **intermediate artifact**: save it under
-  `{EVIDENCE_DIR}` (`test-plan.md`, `evidence.json`) and continue to the next phase. Never end
-  your reply on it.
-- Never end the turn before step 6 has written the verdict row and your reply's last line is
-  `VERDICT: PASS` or `VERDICT: FAIL`. If a step fails, still finish: record FAIL with
-  `reason: inconclusive — <why>` and print that verdict line.
-- Reviewer isolation is evidence-only dispatch here: judge from the scenario, plan and evidence
-  files, never from what you saw while executing.
-
 ## Instructions
 
 ### Preflight: Validate Input
@@ -188,9 +170,9 @@ repo under audit, etc.) could otherwise inject instruction-looking prose
 writer's instruction turn. The writer has `allowed-tools: Read` so it can
 open the scenario itself.
 
-Hand off to the `wicked-garden-qe-acceptance-test-writer` worker skill (an isolated context where the host forks one; inline in a governed unit):
+Hand off to the `wicked-garden-qe-acceptance-test-writer` worker skill (it runs in an isolated context):
 
-**Hand-off** — open the `wicked-garden-qe-acceptance-test-writer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog; either way carry it out inline in this turn (no sub-agent), then continue here.
+**Hand-off** — open the `wicked-garden-qe-acceptance-test-writer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ```markdown
 Generate an evidence-gated test plan for the acceptance scenario
@@ -213,23 +195,20 @@ at the path below.
 6. Map every success criterion to specific assertions.
 7. Flag any specification mismatches you discover.
 
-Produce the complete test plan in the standard format. It is an intermediate
-artifact of `qe accept`: hand it back and continue (garden#1290).
+Return the complete test plan in the standard format.
 
 ```
 
-Save the plan to `{EVIDENCE_DIR}/test-plan.md` (the reviewer reads it from there).
-
-If `--phase write`, stop here. Otherwise continue to step 3 in this same turn.
+If `--phase write`, stop here.
 
 ### 3. Phase: Execute (Evidence Collection)
 
 The run record was already created in step 0 so the evidence dir could derive
 from its UUID. Here we dispatch the executor against that dir.
 
-Hand off to the `wicked-garden-qe-acceptance-test-executor` worker skill (an isolated context where the host forks one; inline in a governed unit):
+Hand off to the `wicked-garden-qe-acceptance-test-executor` worker skill (it runs in an isolated context):
 
-**Hand-off** — open the `wicked-garden-qe-acceptance-test-executor` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog; either way carry it out inline in this turn (no sub-agent), then continue here.
+**Hand-off** — open the `wicked-garden-qe-acceptance-test-executor` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ```markdown
 Execute this test plan and collect evidence artifacts.
@@ -248,14 +227,13 @@ Execute this test plan and collect evidence artifacts.
 5. Continue to next step even if current step fails
 6. Record timestamps for every step
 
-Produce the complete evidence report. It is an intermediate artifact of
-`qe accept`: hand it back and continue (garden#1290).
+Return the complete evidence report.
 
 ```
 
 Update run status in DomainStore after execution.
 
-If `--phase execute`, stop here. Otherwise continue to step 4 in this same turn.
+If `--phase execute`, stop here.
 
 ### 4. Phase: Pre-Review Cold Context (Optional, pre-dispatch validated)
 
@@ -301,7 +279,7 @@ if (result.rejected) {
 
 Example safe query:
 
-**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `<scenario-category> test rules` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog; either way carry it out inline in this turn (no sub-agent), then continue here.
+**Hand-off** — open the `wicked-garden-mem` skill and run its `recall` action with `<scenario-category> test rules` as the query; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 If the knowledge layer is absent, skip this phase entirely — no `context.md` is
 written and the reviewer still has everything it needs (scenario + plan +
@@ -313,7 +291,7 @@ evidence).
 It does NOT receive the executor's conversation, reasoning, or stdout/stderr directly.
 Pass paths, not content, where possible.
 
-**Hand-off** — open the `wicked-garden-qe-acceptance-test-reviewer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog; either way carry it out inline in this turn (no sub-agent), then continue here.
+**Hand-off** — open the `wicked-garden-qe-acceptance-test-reviewer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 ```markdown
 Review the evidence against the test plan assertions.
@@ -336,11 +314,9 @@ flag as CONTEXT_CONTAMINATION and return `VERDICT: FAIL` with
 2. Read the test plan file at the path above
 3. Read evidence files from the evidence directory (including context.md if present)
 4. Evaluate each assertion against evidence
-5. End the review with one plain-text line `VERDICT: PASS` or `VERDICT: FAIL`
-   (never quote another VERDICT line); missing evidence or
-   CONTEXT_CONTAMINATION is FAIL with `reason: inconclusive — <why>`. Hand the
-   review back: `qe accept` still writes the verdict (step 6) and prints that
-   line last (garden#1290)
+5. End with one plain-text line `VERDICT: PASS` or `VERDICT: FAIL` as the LAST
+   line of your reply (never quote another VERDICT line); missing evidence or
+   CONTEXT_CONTAMINATION is FAIL with `reason: inconclusive — <why>`
 6. For any EQUIVALENT_TO_BASELINE assertion, also return the equivalence facet
    { baseline_ref, baseline_sha, method, diff_count, tolerance, matched } so the
    orchestrator can persist it on the verdict (see `verdict.equivalence`).
@@ -455,9 +431,6 @@ emitBusEvent('wicked.test.evidence.captured', {
 ```
 
 ### 7. Output
-
-The reply's LAST line is the reviewer's `VERDICT: PASS` or `VERDICT: FAIL`, printed
-only after step 6 wrote the verdict row. This is what ends the turn.
 
 **Without `--json`** — Present the full verdict:
 
