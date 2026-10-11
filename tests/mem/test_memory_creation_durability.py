@@ -111,9 +111,6 @@ def test_session_yields_only_the_stated_gotcha(session, monkeypatch, capsys):
     "I'll retry the push with the pinned token and check the result.",
     "We shipped 0.7.26 today and the release notes are up.",
     "No luck on the port yet, so I'm going to guess a sixth time and try 8086.",
-    "Fixed in 3e7f2539ab: the deliver gate no longer double-pushes the branch.",
-    "PR #880 pins estate for the core main branch; merge it after CI is green.",
-    "The rig daemon restarted as pid 48668 and the health check is green again.",
     "Too short.",
     "   ",
 ])
@@ -236,10 +233,8 @@ def test_gate_keeps_version_constraints_and_hex_constants(content):
 
 @pytest.mark.parametrize("content", [
     "We released 2.4.1 to npm and the smoke test passed on both runners again.",
-    "Reverted commit 3e7f2539ab because the deliver gate double-pushed the branch.",
-    "Pin moved to 1f3a9c2e7b4d5a6f8e9c0b1a2d3e4f5a6b7c8d9e so main builds against the fix.",
 ])
-def test_gate_still_rejects_release_narration_and_commit_ids(content):
+def test_gate_still_rejects_release_narration(content):
     assert estate_memory.durability_rejects(content) != []
 
 
@@ -286,3 +281,58 @@ def test_shim_refuses_unapprovable_knowledge_proposals(monkeypatch):
     out = _estate_client.propose("knowledge", {"content": "c", "source": "r:p"}, {"project": "wicked"})
     assert out["ok"] is False and out["code"] == -32602 and "not approvable" in out["reason"]
     assert seen == []
+
+
+# ── w9-memfix3 (codex re-review of #1279): heuristics advise, only the obvious is refused ──
+
+@pytest.mark.parametrize("content", [
+    "Keep SQLite >= 3.35.0 because RETURNING is required; deployed instances must use the same minimum.",
+    "Use CRC32 polynomial edb88320 when validating a database commit; readers must agree on the checksum.",
+])
+def test_durable_rules_with_ids_store_with_warnings(session, capsys, content):
+    estate_memory.do_store({"content": content, "kind": "fact"})
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["ok"] is True, out
+    assert [c for _s, c in session] == [content]
+
+
+def test_ids_and_versions_are_advisory_warnings(session, capsys):
+    content = "Reverted commit 3e7f2539ab because the deliver gate double-pushed the branch on retry."
+    estate_memory.do_store({"content": content, "kind": "fact"})
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["ok"] is True and out["warnings"], out
+
+
+@pytest.mark.parametrize("content", [
+    "3e7f2539ab1c4d5e6f708192a3b4c5d6e7f80912",
+    "v0.29.1",
+])
+def test_a_bare_id_is_refused(session, capsys, content):
+    estate_memory.do_store({"content": content, "kind": "fact"})
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert out["ok"] is False and session == []
+
+
+def test_relative_worktree_resolves_to_its_main_checkout(monkeypatch, tmp_path):
+    monkeypatch.delenv("WICKED_ESTATE_MEMORY_SCOPE", raising=False)
+    main = _git_checkout(tmp_path / "app")
+    (main / ".git" / "worktrees" / "run").mkdir(parents=True)
+    (main / ".git" / "worktrees" / "run" / "commondir").write_text("../..\n")
+    wt = main / "trees" / "run"
+    wt.mkdir(parents=True)
+    (wt / ".git").write_text("gitdir: ../../.git/worktrees/run\n")
+    monkeypatch.chdir(wt)
+    assert _estate_client.project_scope() == "project:app"
+
+
+@pytest.mark.parametrize("content", [
+    "Fixed in 3e7f2539ab: the deliver gate no longer double-pushes the branch.",
+    "PR #880 pins estate for the core main branch; merge it after CI is green.",
+    "The rig daemon restarted as pid 48668 and the health check is green again.",
+    "Pin moved to 1f3a9c2e7b4d5a6f8e9c0b1a2d3e4f5a6b7c8d9e so main builds against the fix.",
+])
+def test_ids_inside_a_body_warn_but_do_not_block(content):
+    """Operator ruling (do not overcomplicate): id/version/SHA heuristics are advisory;
+    the skill's three-month test is the judgment."""
+    assert estate_memory.durability_rejects(content) == []
+    assert estate_memory.durability_warnings(content)
