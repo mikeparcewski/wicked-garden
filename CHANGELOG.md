@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.53.0] — 2026-10-11
+
+### Changed
+- **Learned code facts are filed as knowledge, not memory (PR #1285).** repo-learn submits code facts as knowledge proposals, and the shim lifts its refusal of `kind_type: "knowledge"` and requires each proposal's `source`. Needs wicked-estate 0.29.2+ (estate K3, the knowledge-proposal type); an older estate refuses the proposal.
+
 ## [12.52.1] — 2026-10-11
 
 ### Changed
