@@ -963,6 +963,30 @@ def context(
     return call("ContextBundle", args, timeout=timeout)
 
 
+def _worktree_main(git_file: Path) -> Optional[Path]:
+    """Main checkout of a linked worktree whose ``.git`` file is ``git_file``.
+
+    ``gitdir:`` may be relative to the ``.git`` file's directory
+    (``git worktree add --relative-paths``); the worktree's ``commondir``
+    names the shared git dir (relative to the gitdir). The main checkout is
+    that git dir's parent. None when the file is not a worktree pointer.
+    """
+    try:
+        line = git_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    if not line.startswith("gitdir:"):
+        return None
+    gitdir = (git_file.parent / line[len("gitdir:"):].strip()).resolve()
+    try:
+        common = (gitdir / (gitdir / "commondir").read_text(encoding="utf-8").strip()).resolve()
+    except OSError:
+        common = gitdir.parent.parent if gitdir.parent.name == "worktrees" else None
+    if common is None or common.name != ".git":
+        return None
+    return common.parent
+
+
 def checkout_root() -> Optional[Path]:
     """The git checkout the cwd is in, resolved through linked worktrees.
 
@@ -979,14 +1003,7 @@ def checkout_root() -> Optional[Path]:
         if git.is_dir():
             return d
         if git.is_file():
-            try:
-                line = git.read_text(encoding="utf-8").strip()
-            except OSError:
-                return d
-            gitdir = line[len("gitdir:"):].strip() if line.startswith("gitdir:") else ""
-            marker = f"{os.sep}.git{os.sep}worktrees{os.sep}"
-            norm = gitdir.replace("/", os.sep)
-            return Path(norm.split(marker)[0]) if marker in norm else d
+            return _worktree_main(git) or d
     return None
 
 

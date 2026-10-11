@@ -87,9 +87,11 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
    when it applies, in 1–3 self-contained sentences. Never store progress or
    status, release versions ("shipped 2.4.1"), commit SHAs, PR/run ids, PIDs,
    "today", or what the repo,
-   CHANGELOG or tracker already records. The backend refuses the mechanical
-   cases with `not a durable learning`; treat that as "don't store", not as
-   an error to work around.
+   CHANGELOG or tracker already records. That test is your judgment. The
+   backend refuses only a body under 40 characters, a bare id / SHA / version
+   and first-person narration (`not a durable learning`: don't store, don't
+   work around it); it stores bodies containing ids, versions or SHAs and
+   returns `warnings` naming them, so check those before you store.
    Provenance: memory is what we witnessed, were told, or decided. A claim
    read from code, docs or the web is knowledge: use `write`
    (`{"content","class":"concept","source"}`) or `ingest` instead; `store`

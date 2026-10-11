@@ -36,9 +36,10 @@ projects' memories need the explicit opt-in ``scope_prefix: ""``.
 
 Durability gate
 ---------------
-`store` / `capture-batch` refuse content that is not a durable learning (see
-``durability_rejects``): too short, or carrying SHAs, versions, PR/run ids,
-PIDs, "today", or first-person progress narration.
+`store` / `capture-batch` refuse only the unambiguous (``durability_rejects``):
+an empty or under-40-char body, a bare id / SHA / version, or first-person
+progress narration. Ids, versions, SHAs, PIDs and dates inside a body are
+advisory ``warnings`` (``durability_warnings``); the store still succeeds.
 
 Erase guard
 -----------
@@ -200,65 +201,57 @@ def _parse_budget(args):
 
 # ── durability gate ─────────────────────────────────────────────────────────
 # A memory must help a fresh session on a different task months from now: it
-# states a rule, why it holds, and when it applies. The skill text asks the
-# agent that question; these checks refuse the mechanical misses outright, so
-# narration and status never reach the store even when the judgment slips.
+# states a rule, why it holds, and when it applies. That judgment is the
+# agent's (the skill text asks it). The backend refuses only what is
+# unambiguous, and WARNS on the rest: an id, version or SHA inside a real rule
+# ("keep SQLite >= 3.35.0 because RETURNING", "CRC32 polynomial edb88320") is
+# fine, so those heuristics never block a store.
 MIN_CONTENT_CHARS = 40
-_HEX_RUN = re.compile(r"\b[0-9a-f]{7,40}\b")
-# A hex run is a commit id when it is long (>= 12) or sits in commit context; a short one
-# alone (a CRC32 polynomial, a colour) is a constant, and constants are durable.
-_COMMIT_CONTEXT = re.compile(
-    r"\b(?:commit|sha|rev(?:ision)?|cherry-?pick(?:ed)?|revert(?:ed)?|fixed in|landed in|merged as"
-    r"|pin(?:ned)?(?: moved)? (?:to|at))\b|@[0-9a-f]{7}", re.I)
-# A version is narration only next to release status ("released 2.4.1", "shipped 0.7.26"); a
-# version constraint ("keep SQLite >= 3.35.0 because RETURNING") is a durable rule.
-_VERSION = re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.]+)?(?![.\d])")
-_RELEASE_STATUS = re.compile(
-    r"\b(?:released|shipped|published|tagged|cut|bumped|landed|merged|deployed|rolled out"
-    r"|upgraded to|is out|went out|now on)\b", re.I)
-_NON_DURABLE = (
+# First-person progress narration: "I'll retry", "I'm going to guess again", "We shipped …".
+_NARRATION = re.compile(
+    r"\b(?:i['\u2019]ll|i will|we['\u2019]ll|let me"
+    r"|(?:i['\u2019]m|i am|we['\u2019]re|we are) (?:going|about) to)\b"
+    r"|^(?:i|we)(?: just| finally)? (?:shipped|released|merged|pushed|deployed|landed|tried|retried"
+    r"|restarted|bumped|tagged)\b", re.I)
+# One identifier on its own: a SHA, a version, a uuid, a #123 / repo#123.
+_ID_TOKEN = (r"(?:[0-9a-f]{7,40}|v?\d+\.\d+\.\d+(?:[-+][0-9a-z.]+)?"
+             r"|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[a-z][\w.-]*#\d+|#\d+)")
+_BARE_ID = re.compile(r"^[\W_]*" + _ID_TOKEN + r"[\W_]*$", re.I)
+_ADVISORIES = (
+    (re.compile(r"\b(?=[0-9a-f]*\d)(?=[0-9a-f]*[a-f])[0-9a-f]{7,40}\b", re.I), "a commit SHA?"),
+    (re.compile(r"(?<![\w.])v?\d+\.\d+\.\d+(?![.\d])"), "a version?"),
     (re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.I),
-     "a run/session id (uuid)"),
-    # x.y.z, but not a dotted quad (127.0.0.1) or a longer dotted run.
-    # PR #12 / issue #12 / run 38093054271 / core#880 / a bare #880 — not "run 3 retries".
+     "a run/session id?"),
     (re.compile(r"\b(?:pr|pull request|issue|run|job)\s*(?:#\s*\d+|\d{5,})\b"
-                r"|\b[a-z][\w.-]*#\d+\b|(?<![\w&])#\d+\b", re.I), "a PR/issue/run id"),
-    # pid 48668 — not "PID 1 is init".
-    (re.compile(r"\bpids?\s*[:=#]?\s*\d{3,}\b", re.I), "a process id"),
+                r"|\b[a-z][\w.-]*#\d+\b|(?<![\w&])#\d+\b", re.I), "a PR/issue/run id?"),
+    (re.compile(r"\bpids?\s*[:=#]?\s*\d{3,}\b", re.I), "a process id?"),
     (re.compile(r"\b(?:today|yesterday|tonight|this (?:morning|afternoon|evening|week))\b", re.I),
-     "a date-relative word"),
-    # I'll / we'll / I'm going to — the apostrophe is required ("ill-formed", "works well").
-    (re.compile(r"\b(?:i['\u2019]ll|i will|we['\u2019]ll|let me"
-                r"|(?:i['\u2019]m|i am|we['\u2019]re|we are) (?:going|about) to)\b", re.I),
-     "first-person progress narration"),
+     "a date-relative word?"),
 )
 
 
-def _is_sha(token):
-    return any(c.isdigit() for c in token) and any(c.isalpha() for c in token)
-
-
 def durability_rejects(content):
-    """Why ``content`` is not a durable learning ([] = it may be stored).
-
-    Deterministic and offline: empty or too-short bodies, commit SHAs (long, or
-    in commit context), versions next to release status,
-    PR/issue/run ids, PIDs, "today"-style dates, and first-person narration
-    ("I'll retry", "going to guess again") are records of a moment; the repo,
-    CHANGELOG or tracker already holds those.
+    """Hard refusals ([] = it may be stored): an empty or under-40-char body, a
+    body that is only an id / SHA / version, or first-person progress narration.
     """
     text = (content or "").strip()
     if len(text) < MIN_CONTENT_CHARS:
         return [f"too short to state a rule, why it holds and when it applies "
                 f"(< {MIN_CONTENT_CHARS} chars)"]
-    reasons = []
-    shas = [m.group(0) for m in _HEX_RUN.finditer(text.lower()) if _is_sha(m.group(0))]
-    if any(len(h) >= 12 for h in shas) or (shas and _COMMIT_CONTEXT.search(text)):
-        reasons.append("a commit SHA")
-    if _VERSION.search(text) and _RELEASE_STATUS.search(text):
-        reasons.append("release status (a version that was shipped/released)")
-    reasons += [why for rx, why in _NON_DURABLE if rx.search(text)]
-    return reasons
+    if _BARE_ID.match(text):
+        return ["only an identifier (a SHA, version or id), not a learning"]
+    if _NARRATION.search(text):
+        return ["first-person progress narration (what was done or will be done)"]
+    return []
+
+
+def durability_warnings(content):
+    """Advisory only: ids, versions, SHAs, PIDs or dates that MAY mark a moment
+    rather than a rule. The store still succeeds; the agent re-checks the
+    three-month test and keeps the memory if it holds.
+    """
+    text = (content or "").strip()
+    return [why for rx, why in _ADVISORIES if rx.search(text)]
 
 
 def _capture_one(item):
@@ -274,7 +267,7 @@ def _capture_one(item):
     rejects = durability_rejects(content)
     if rejects:
         return None, ("not a durable learning (" + "; ".join(rejects) + "): state the rule, "
-                      "why it holds and when it applies, without ids, versions or progress")
+                      "why it holds and when it applies")
     kind = item.get("kind") or "fact"
     if kind not in KINDS:
         return None, f"unknown kind: {kind} (valid: {', '.join(KINDS)})"
@@ -300,7 +293,11 @@ def do_store(args):
     memory_id, err = _capture_one(args)
     if err:
         return _fail_open(err)
-    _emit({"ok": True, "memory_id": memory_id, "scope": args.get("scope") or _default_scope()})
+    out = {"ok": True, "memory_id": memory_id, "scope": args.get("scope") or _default_scope()}
+    warnings = durability_warnings(args.get("content"))
+    if warnings:
+        out["warnings"] = warnings
+    _emit(out)
     return 0
 
 
@@ -402,12 +399,17 @@ def do_capture_batch(args):
         if err:
             failures.append({"index": i, "reason": err})
         else:
-            stored.append({"index": i, "memory_id": memory_id})
+            entry = {"index": i, "memory_id": memory_id}
+            warnings = durability_warnings(item.get("content"))
+            if warnings:
+                entry["warnings"] = warnings
+            stored.append(entry)
     _emit({
         "ok": not failures or bool(stored),
         "stored": len(stored),
         "failed": len(failures),
         "ids": [s["memory_id"] for s in stored],
+        "warnings": [s for s in stored if s.get("warnings")],
         "failures": failures,
     })
     return 0

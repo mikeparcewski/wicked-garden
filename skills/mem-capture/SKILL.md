@@ -54,10 +54,14 @@ Reject, and do not rephrase into something that sneaks past:
 
 A version *constraint* ("needs SQLite >= 3.35.0 because …") and a fixed constant
 (a CRC polynomial, a colour) are durable; keep them.
-The backend refuses the mechanical cases (ids, release versions, commit SHAs, PIDs, "today",
-first-person narration, bodies under 40 characters) with
-`not a durable learning`. A refusal means the candidate failed the test:
-drop it, unless it holds a real rule you can state without the moment.
+The test above is YOUR judgment; the backend only backs it up. It refuses
+(`not a durable learning`) a body under 40 characters, a bare id / SHA /
+version, and first-person progress narration ("I'll retry", "We shipped …"):
+drop those. Ids, versions, SHAs, PIDs or dates inside a body are allowed (a
+version constraint or a fixed constant is a real rule); the backend stores
+the memory and returns `warnings` naming them. Check for them yourself
+before the write, since the warning arrives after it, and report any
+warning with the memory it was attached to.
 If nothing passes, store nothing and say so. An empty capture is a valid
 result, and the usual one.
 
