@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [12.54.0] — 2026-10-12
+
+### Changed
+- **QE acceptance needs an isolated reviewer; a seat without one records FAIL (PR #1296, #1290).** `qe accept` runs the writer, executor and reviewer as separate workers (a fresh context per step, whose reply returns to the pipeline), so a claude QE seat no longer ends its turn on the writer's test plan. The reviewer is never run inline. **QE seat change:** a seat that cannot run an isolated sub-agent (for example pi or codex) now records FAIL `inconclusive — no isolated reviewer` instead of a verdict. Until the engine-run reviewer (wicked-core, `feat/qe-reviewer-every-seat`) ships in a core-ts release, put QE steps on a claude seat; the earlier "put QE on pi" workaround no longer yields a PASS.
+
+### Added
+- **Engine-run reviewer phases for accept (PR #1299).** `accept --phase evidence` and `accept --phase review --evidence <dir>`: inside a governed run the engine can run the isolated reviewer as its own fresh session on any seat; the verdict carries `review_session`. `--phase all` (direct use) is unchanged. Takes effect once a wicked-core release with the engine side ships.
+- **`mcp.session` editor permission (PR #1298).** Granted per editor build by its install consent, with no global allow; the install plan lists the grant; a consent choice is bound to the plan it showed; the editor-scaffold skill documents the `mcp-server` kind (`refs/mcp-server.md`). Needs wicked-core-ts 0.9.8+ and a wicked-crew release that accepts `mcp.session`; older crews refuse it (fail closed).
+- **Check the chosen stack's built-ins first (PR #1297, POL-2101).** Governed workers, engineering plan/review, archetype build/review and mcp-scaffold check what the chosen stack already provides before writing code, record the check, and justify duplicates; reviewers flag every duplicate of a built-in.
+
 ## [12.53.3] — 2026-10-11
 
 ### Reverted
