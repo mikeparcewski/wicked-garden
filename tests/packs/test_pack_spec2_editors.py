@@ -229,6 +229,23 @@ def test_permissions_must_be_known_and_explained(tmp_path, perm, needle):
     assert "PK068" in out and needle in out, out
 
 
+def test_mcp_session_is_a_known_permission(tmp_path):
+    root = _editor(_copy(tmp_path), kinds=["mcp-server"], permissions=[
+        {"id": "artifact.read", "why": "to read it"},
+        {"id": "mcp.session", "why": "to start and talk to the MCP servers you connect it to"}])
+    assert _rendered(root) == ""
+
+
+def test_the_permission_lists_agree_with_the_schema():
+    from pack.check import EDITOR_PERMISSIONS  # noqa: PLC0415
+    sys.path.insert(0, str(_REPO / "scripts" / "editor"))
+    from _pack import INSTALL_GRANTED, PERMISSIONS  # noqa: PLC0415
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    enum = schema["properties"]["editors"]["items"]["properties"]["permissions"]["items"]["properties"]["id"]["enum"]
+    assert list(EDITOR_PERMISSIONS) == enum == list(PERMISSIONS)
+    assert set(INSTALL_GRANTED) == {"mcp.session"} <= set(enum)
+
+
 def test_an_oversized_entry_is_refused_without_being_read(tmp_path, monkeypatch):
     root = _copy(tmp_path)
     entry = root / "editors" / "acme-terms" / "index.html"

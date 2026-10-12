@@ -27,7 +27,17 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 the artifact kinds it claims; ``daemon-off`` installs it turned off, to switch on in studio Settings
 → Developer → Editor plugins. Both write the same places, all program-owned. ``--dry-run`` writes
 nothing and prints ONE JSON line, the plan: ``{"dry_run": true, "key", "choices": [{"id", "label",
-"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": []}``.
+"default"?, "writes": [{"path", "what", "operator_owned"}]}], "skipped": []}``. An editor that
+declares ``mcp.session`` adds one more write to both choices, on the ``EDITOR-GRANTS`` steering rule:
+"This plugin can start and talk to MCP servers", with the exact per-build token the install writes
+(``editor:<id>@<version>#<sha256>/mcp.session``). The install consent is that grant; no rule allows it.
+
+**The approval is bound to the plan.** Each choice id carries a digest of the planned
+``wicked-pack.json`` bytes, the same bytes the plan's lines were read from (``daemon_<d>``,
+``daemon-off_<d>``; ``<d>`` = 21 base64url characters of its sha256, 126 bits), and the gated step passes it
+back as ``--target``. If the staged copy differs (another permission, version or entry hash), the install
+refuses and writes nothing, so the operator is asked again. Inside a governed run only a bound choice
+installs; a bare ``daemon``/``daemon-off`` is for installs by hand.
 
 **Daemon origin**: ``--crew-url``, else ``$WICKED_CREW_URL`` (crew sets it for every governed unit).
 There is no port default. Exit 0 installed, 1 a staging or registry failure, 2 bad arguments.
@@ -37,9 +47,12 @@ Standard library only.
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime
+import hashlib
 import json
 import os
+import re
 import shutil
 import sys
 import urllib.error
@@ -49,10 +62,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _pack import ID_RE, MANIFEST_NAME, PackError, editors_of, entry_path, read_manifest  # noqa: E402
+from _pack import (  # noqa: E402
+    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editors_of, entry_path, read_manifest,
+)
 
 SKIP_DIRS = {"node_modules", "dist", ".git"}
-TARGETS = ("daemon", "daemon-off")
+# A choice id: the target, optionally bound to the plan by the digest of the manifest it showed. The id
+# rides the consent gate's answer token and an env var: [A-Za-z0-9_-], at most 32 (core consent_plan.rs).
+DIGEST_CHARS = 21
+TARGET_RE = re.compile(r"^(daemon|daemon-off)(?:_([A-Za-z0-9_-]{%d}))?$" % DIGEST_CHARS)
 CHOICE_LABELS = {"daemon": "Install for this daemon", "daemon-off": "Install, turned off"}
 # The daemon re-runs the conformance cases (a headless browser, one ping period per editor) before it answers.
 HTTP_TIMEOUT_S = 300
@@ -195,8 +213,44 @@ def _now() -> str:
 
 # ── the flows ──────────────────────────────────────────────────────────────────────────────
 
+def install_grants(manifest: dict) -> list[dict]:
+    """One write per editor permission the install consent grants: crew writes that build's token
+    into the ``EDITOR-GRANTS`` steering rule when the operator approves (DES-MCP-INSPECTOR-001 §6)."""
+    rows = []
+    for e in editors_of(manifest):
+        declared = {p.get("id") for p in e.get("permissions", []) if isinstance(p, dict)}
+        for perm, line in INSTALL_GRANTED.items():
+            if perm in declared:
+                token = f"editor:{e.get('id')}@{e.get('version')}#{e.get('sha256')}/{perm}"
+                rows.append({"path": "EDITOR-GRANTS", "operator_owned": False,
+                             "what": f"{line}: {e.get('id')} is granted {token} (steering; revoke it there)"})
+    return rows
+
+
+def plan_digest(raw: bytes) -> str:
+    """The manifest bytes' sha256 as base64url, cut to fit a choice id: what the plan showed (permissions,
+    version, entry hashes)."""
+    return base64.urlsafe_b64encode(hashlib.sha256(raw).digest()).decode("ascii")[:DIGEST_CHARS]
+
+
+def parse_target(value: str) -> tuple[str, str | None]:
+    m = TARGET_RE.match(value)
+    if m is None:
+        raise argparse.ArgumentTypeError(f"invalid target {value!r}: daemon or daemon-off (a plan's choice id may "
+                                         "carry its _<digest>)")
+    return m.group(1), m.group(2)
+
+
 def do_plan(args) -> dict:
-    pack, manifest = locate(args)
+    pack, located = locate(args)
+    # One read: the lines shown and the digest that binds the approval come from the same bytes.
+    raw = (pack / MANIFEST_NAME).read_bytes()
+    try:
+        manifest = json.loads(raw)
+    except ValueError:
+        manifest = None
+    if manifest != located:
+        raise Failure(2, f"{pack / MANIFEST_NAME} changed while it was planned; plan it again")
     key = manifest["name"]
     root = install_root(args.install_root)
     origin = crew_origin(args.crew_url)
@@ -210,14 +264,17 @@ def do_plan(args) -> dict:
                {"path": f"{origin}/api/v1/editors", "what": "wicked-crew editor registry entry "
                 f"({', '.join(str(e.get('id')) for e in editors_of(manifest))}; daemon-editors.json in its state home)",
                 "operator_owned": False}]
+    writes += install_grants(manifest)
+    digest = plan_digest(raw)
     return {"dry_run": True, "key": key, "choices": [
-        {"id": "daemon", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
-        {"id": "daemon-off", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
+        {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
+        {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
         "skipped": []}
 
 
 def do_install(args) -> tuple[int, dict]:
     pack, manifest = locate(args)
+    target, approved = args.target
     key = manifest["name"]
     origin = crew_origin(args.crew_url)
     key_root = install_root(args.install_root) / key
@@ -228,11 +285,25 @@ def do_install(args) -> tuple[int, dict]:
     except (OSError, PackError) as err:
         shutil.rmtree(key_root / "next", ignore_errors=True)
         raise Failure(1, f"staging failed: {err}") from err
+    # Checked on the staged copy, the bytes crew reads: it is the manifest that chose this install
+    # directory and these entries, and (for a plan's choice) the one the plan showed.
+    staged = (key_root / "next" / MANIFEST_NAME).read_bytes()
+    try:
+        same = json.loads(staged) == manifest
+    except ValueError:
+        same = False
+    if not same:
+        shutil.rmtree(key_root / "next", ignore_errors=True)
+        raise Failure(1, f"{pack / MANIFEST_NAME} changed while it was being installed; nothing was installed")
+    if approved is not None and plan_digest(staged) != approved:
+        shutil.rmtree(key_root / "next", ignore_errors=True)
+        raise Failure(1, f"{pack / MANIFEST_NAME} changed after the plan the operator approved (its permissions, "
+                         "version or entry hash may differ); nothing was installed: plan and approve it again")
     swap(key_root)
     current = key_root / "current"
     try:
         status, body = http_json("POST", f"{origin}/api/v1/editors",
-                                 {"packRoot": str(current.resolve()), "enabled": args.target == "daemon"})
+                                 {"packRoot": str(current.resolve()), "enabled": target == "daemon"})
     except (urllib.error.URLError, OSError) as err:
         unswap(key_root, had_previous)
         raise Failure(1, f"no daemon at {origin} ({err}); nothing was installed") from err
@@ -242,10 +313,12 @@ def do_install(args) -> tuple[int, dict]:
         raise Failure(1, f"the daemon refused the install (HTTP {status}): {_message(body)}"
                          + (f" — {json.dumps(detail)[:1500]}" if detail else ""))
     record = {"key": key, "version": manifest.get("version"), "source": {"dir": str(pack)}, "files": copied,
-              "editors": body.get("editors", []), "enabled": args.target == "daemon",
+              "editors": body.get("editors", []), "enabled": target == "daemon",
               "updated": bool(body.get("updated")), "installedAt": _now()}
     (key_root / "installed.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    return 0, {**record, "target": args.target, "path": str(current),
+    # crew >= the MCP inspector bridge reports the install-consent grants it wrote (or why it could not).
+    grants = {k: body[k] for k in ("granted", "grantError") if k in body}
+    return 0, {**record, **grants, "target": target, "path": str(current),
                "conformance": body.get("conformance")}
 
 
@@ -283,8 +356,15 @@ def consent_refusal(args, env) -> str | None:
     Tool unit, the one unit the engine hands ``WICKED_CONSENT_CHOICE`` (the operator's approved
     choice). Any other unit (a creator in build, a reviewer) may plan with ``--dry-run`` but never
     installs or uninstalls (E2E finding F-EDIT-1: a creator installed before the gate asked)."""
-    if not env.get("WICKED_RUN_ID") or env.get("WICKED_CONSENT_CHOICE"):
+    if not env.get("WICKED_RUN_ID"):
         return None
+    if env.get("WICKED_CONSENT_CHOICE"):
+        if args.uninstall or args.target[1] is not None:
+            return None
+        # A choice with no digest (a plan from before the binding, approved after an upgrade) names no
+        # manifest, so it could install permissions nobody was shown.
+        return ("refusing to install a consent choice that is not bound to its plan (no _<digest>): the plan "
+                "it came from predates this installer. Plan it again so the operator approves what installs.")
     return ("refusing to install inside a governed run outside its consent-gated install step: the operator "
             "approves the install at that gate. Plan it with --dry-run; the install step runs it.")
 
@@ -295,8 +375,9 @@ def main(argv: list[str] | None = None) -> int:
     where.add_argument("--from-run", action="store_true", help="find the one editor pack under $WICKED_TREE (else the cwd)")
     where.add_argument("--dir", type=Path, help="the pack directory")
     where.add_argument("--uninstall", metavar="NAME", help="unregister and remove an installed editor pack")
-    parser.add_argument("--target", choices=TARGETS, default="daemon",
-                        help="daemon (default): installed and on; daemon-off: installed, turned off")
+    parser.add_argument("--target", type=parse_target, default=("daemon", None),
+                        help="daemon (default): installed and on; daemon-off: installed, turned off; "
+                             "a plan's choice id (-<digest>) also refuses a pack changed since the plan")
     parser.add_argument("--crew-url", help="the wicked-crew origin (default $WICKED_CREW_URL; no port is assumed)")
     parser.add_argument("--dry-run", action="store_true", help="write nothing; print the plan as one JSON line")
     parser.add_argument("--install-root", type=Path, help="default $WICKED_EDITOR_INSTALL_ROOT, else ~/.wicked/editors")

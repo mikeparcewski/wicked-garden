@@ -110,6 +110,8 @@ _EDITOR_PANELS = ("checks",)
 EDITOR_PERMISSIONS = (
     "artifact.read", "artifact.write", "selection.chip", "composer.draft", "checks.read",
     "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media",
+    # DES-MCP-INSPECTOR-001 §6: granted per editor build by its install consent only (no rule allows it).
+    "mcp.session",
 )
 _EDITOR_FIELDS = {"id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "panels",
                   "permissions", "limits"}

@@ -194,7 +194,7 @@
               "required": ["id", "why"],
               "properties": {
                 "id": {
-                  "enum": ["artifact.read", "artifact.write", "selection.chip", "composer.draft", "checks.read", "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media"]
+                  "enum": ["artifact.read", "artifact.write", "selection.chip", "composer.draft", "checks.read", "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media", "mcp.session"]
                 },
                 "why": {
                   "type": "string",

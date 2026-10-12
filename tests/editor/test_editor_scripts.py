@@ -5,8 +5,11 @@ and fail-closed paths. The browser cases run only when Chromium and a studio dis
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -111,12 +114,137 @@ def test_dry_run_plans_two_choices_with_their_program_owned_writes(tmp_path):
     assert done.returncode == 0, done.stderr
     plan = json.loads(done.stdout.strip().splitlines()[-1])
     assert plan["dry_run"] is True and plan["key"] == "acme-json"
-    assert [c["id"] for c in plan["choices"]] == ["daemon", "daemon-off"] and plan["choices"][0]["default"] is True
+    digest = base64.urlsafe_b64encode(hashlib.sha256((pack / "wicked-pack.json").read_bytes()).digest()).decode()[:21]
+    assert [c["id"] for c in plan["choices"]] == [f"daemon_{digest}", f"daemon-off_{digest}"]
+    # core's consent_plan.rs: a choice id is [A-Za-z0-9_-], at most 32 (it rides a token and an env var)
+    assert all(len(c["id"]) <= 32 and re.fullmatch(r"[A-Za-z0-9_-]+", c["id"]) for c in plan["choices"])
+    assert plan["choices"][0]["default"] is True
     paths = [w["path"] for w in plan["choices"][0]["writes"]]
     assert paths[0] == str(root.resolve() / "acme-json" / "current") or paths[0].endswith("acme-json/current")
     assert any(p.endswith("/api/v1/editors") for p in paths)
     assert all(w["operator_owned"] is False for c in plan["choices"] for w in c["writes"])
+    assert not any(w["path"] == "EDITOR-GRANTS" for c in plan["choices"] for w in c["writes"])  # grants nothing
     assert not root.exists()
+
+
+def test_an_mcp_session_editor_scaffolds_with_its_plain_words_and_passes_pack_check(tmp_path):
+    out = tmp_path / "pack"
+    done = scaffold(out, "--kinds", "mcp-server", "--permissions", "artifact.read,mcp.session,ui.fullscreen")
+    assert done.returncode == 0, done.stderr
+    editor = json.loads((out / "wicked-pack.json").read_text())["editors"][0]
+    assert editor["kinds"] == ["mcp-server"]
+    assert {"id": "mcp.session", "why": "to start and talk to the MCP servers you connect it to"} in editor["permissions"]
+    assert [f.render() for f in check_pack(out, garden_root=REPO) if f.level == "error"] == []
+
+
+def test_the_plan_of_an_mcp_session_editor_lists_its_per_build_grant_on_both_choices(tmp_path):
+    pack = tmp_path / "pack"
+    assert scaffold(pack, "--kinds", "mcp-server", "--permissions", "artifact.read,mcp.session").returncode == 0
+    editor = json.loads((pack / "wicked-pack.json").read_text())["editors"][0]
+    with FakeDaemon() as d:
+        done = run("install.py", "--dir", str(pack), "--dry-run", "--json", env=_install_env(d.origin, tmp_path / "editors"))
+        assert d.requests == []
+    assert done.returncode == 0, done.stderr
+    plan = json.loads(done.stdout.strip().splitlines()[-1])
+    token = f"editor:acme-json@{editor['version']}#{editor['sha256']}/mcp.session"
+    for choice in plan["choices"]:
+        grants = [w for w in choice["writes"] if w["path"] == "EDITOR-GRANTS"]
+        assert len(grants) == 1 and grants[0]["operator_owned"] is False
+        assert grants[0]["what"].startswith("This plugin can start and talk to MCP servers") and token in grants[0]["what"]
+
+
+def _plan_ids(pack: Path, env: dict) -> list[str]:
+    done = run("install.py", "--dir", str(pack), "--dry-run", "--json", env=env)
+    assert done.returncode == 0, done.stderr
+    return [c["id"] for c in json.loads(done.stdout.strip().splitlines()[-1])["choices"]]
+
+
+@pytest.mark.parametrize("choice, enabled", [(0, True), (1, False)])
+def test_an_approved_choice_installs_the_pack_it_planned(tmp_path, choice, enabled):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    with FakeDaemon() as d:
+        env = _install_env(d.origin, tmp_path / "editors")
+        ids = _plan_ids(pack, env)
+        d.routes[("POST", "/api/v1/editors")] = (200, {"installed": True, "editors": [{"id": "acme-json"}]})
+        done = run("install.py", "--dir", str(pack), "--target", ids[choice], "--json", env=env)
+        assert [r["body"]["enabled"] for r in d.requests] == [enabled]
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert json.loads(done.stdout)["target"] == ("daemon" if enabled else "daemon-off")
+
+
+def test_a_pack_changed_after_the_approved_plan_is_never_installed(tmp_path):
+    # Planned without mcp.session, then the permission is added while consent is pending: the approved
+    # choice no longer matches, so crew is never asked (and so never writes a grant nobody saw).
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    root = tmp_path / "editors"
+    (root / "acme-json" / "current").mkdir(parents=True)
+    (root / "acme-json" / "current" / "marker").write_text("the install before")
+    with FakeDaemon() as d:
+        env = _install_env(d.origin, root)
+        approved = _plan_ids(pack, env)[0]
+        manifest = json.loads((pack / "wicked-pack.json").read_text())
+        manifest["editors"][0]["permissions"].append({"id": "mcp.session", "why": "x"})
+        (pack / "wicked-pack.json").write_text(json.dumps(manifest))
+        done = run("install.py", "--dir", str(pack), "--target", approved, "--json", env=env)
+        assert d.requests == []
+    assert done.returncode == 1 and "changed after the plan" in json.loads(done.stdout)["error"]
+    assert (root / "acme-json" / "current" / "marker").read_text() == "the install before"
+    assert not (root / "acme-json" / "next").exists()
+
+
+def test_a_manifest_swapped_between_locate_and_staging_never_lands(tmp_path, monkeypatch):
+    # The located manifest picked the install directory; a staged copy that differs from it (even one
+    # matching the approved digest) must not be swapped in over another pack's install.
+    sys.path.insert(0, str(SCRIPTS))
+    import install  # noqa: PLC0415
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    root = tmp_path / "editors"
+    real_stage = install.stage
+
+    def racing_stage(src, manifest, next_dir):
+        copied = real_stage(src, manifest, next_dir)
+        other = dict(manifest, name="acme-other")
+        (next_dir / "wicked-pack.json").write_text(json.dumps(other))
+        return copied
+
+    monkeypatch.setattr(install, "stage", racing_stage)
+    monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = (200, {"installed": True, "editors": [{"id": "acme-json"}]})
+        monkeypatch.setenv("WICKED_CREW_URL", d.origin)
+        code = install.main(["--dir", str(pack), "--install-root", str(root), "--json"])
+        assert d.requests == []
+    assert code == 1
+    assert not (root / "acme-json" / "current").exists() and not (root / "acme-json" / "next").exists()
+
+
+@pytest.mark.parametrize("target", ["daemon_", "daemon-0123456789abcdef01234", "daemon_short", "workers",
+                                    "daemon-off-on", "daemon_" + "a" * 22])
+def test_a_malformed_target_is_refused(tmp_path, target):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    done = run("install.py", "--dir", str(pack), "--target", target, "--json", env=_install_env(closed_origin(), tmp_path / "e"))
+    assert done.returncode == 2 and "invalid target" in done.stderr
+
+
+@pytest.mark.parametrize("reply, expected", [
+    ({"granted": ["editor:acme-json@0.1.0#ab/mcp.session"]}, {"granted": ["editor:acme-json@0.1.0#ab/mcp.session"]}),
+    ({"grantError": "the EDITOR-GRANTS ledger is not in the policy store"},
+     {"grantError": "the EDITOR-GRANTS ledger is not in the policy store"}),
+    ({}, {}),  # a crew without the MCP inspector bridge says nothing about grants
+])
+def test_install_reports_the_grants_crew_wrote_or_why_not(tmp_path, reply, expected):
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    with FakeDaemon() as d:
+        d.routes[("POST", "/api/v1/editors")] = (200, {"installed": True, "editors": [{"id": "acme-json"}], **reply})
+        done = run("install.py", "--dir", str(pack), "--json", env=_install_env(d.origin, tmp_path / "editors"))
+    assert done.returncode == 0, done.stdout + done.stderr
+    out = json.loads(done.stdout)
+    assert {k: out[k] for k in ("granted", "grantError") if k in out} == expected
 
 
 def test_install_stages_registers_and_records(tmp_path):
@@ -209,11 +337,26 @@ def test_inside_a_governed_run_only_the_consent_gated_step_installs(tmp_path):
         refused = run("install.py", "--dir", str(pack), "--json", env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1"})
         assert d.requests == [] and not (root / "acme-json").exists()
         planned = run("install.py", "--dir", str(pack), "--dry-run", "--json", env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1"})
-        gated = run("install.py", "--dir", str(pack), "--json",
-                    env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1", "WICKED_CONSENT_CHOICE": "daemon"})
+        choice = json.loads(planned.stdout.strip().splitlines()[-1])["choices"][0]["id"]
+        # core's preset: --target "$WICKED_CONSENT_CHOICE"
+        gated = run("install.py", "--dir", str(pack), "--target", choice, "--json",
+                    env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1", "WICKED_CONSENT_CHOICE": choice})
     assert refused.returncode == 2 and "consent-gated install step" in json.loads(refused.stdout)["error"]
     assert planned.returncode == 0 and json.loads(planned.stdout.strip().splitlines()[-1])["dry_run"] is True
     assert gated.returncode == 0, gated.stdout
+
+
+def test_inside_a_governed_run_a_choice_not_bound_to_its_plan_never_installs(tmp_path):
+    # A plan from before the binding (bare "daemon"), approved after a garden upgrade, names no manifest.
+    pack = tmp_path / "pack"
+    assert scaffold(pack).returncode == 0
+    root = tmp_path / "editors"
+    with FakeDaemon() as d:
+        done = run("install.py", "--dir", str(pack), "--target", "daemon", "--json",
+                   env={**_install_env(d.origin, root), "WICKED_RUN_ID": "r1", "WICKED_CONSENT_CHOICE": "daemon"})
+        assert d.requests == []
+    assert done.returncode == 2 and "not bound to its plan" in json.loads(done.stdout)["error"]
+    assert not (root / "acme-json").exists()
 
 
 # ── conformance ────────────────────────────────────────────────────────────────────────────
