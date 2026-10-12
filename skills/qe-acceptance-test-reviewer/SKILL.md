@@ -34,12 +34,15 @@ You do NOT receive:
 - Any conversational context from the execution phase
 - Any judgment or pre-evaluation of results
 
-This isolation is enforced three ways:
-1. `allowed-tools: [Read]` — you cannot run Bash, cannot write files, cannot search
-2. Evidence-only dispatch — the acceptance-testing skill passes only paths, not content
-3. Forked skill context boundary — you run in a forked skill context with no shared history
+This isolation holds three ways:
+1. Separate worker — `qe accept` runs you as a separate worker: a fresh context whose only input is its brief, with no shared history
+2. Evidence-only brief — the brief carries only paths, never executor output
+3. Read-only — you only read files; do not run commands or write files (advisory: no host enforces this from the skill's text)
 
-**Enforcement note**: on a host that enforces `allowed-tools` this is a host-level block; on hosts that do not, it is advisory — the skill still enforces evidence-only dispatch at the API level.
+**Isolation self-check (first, before reading any evidence).** If your context already holds this
+run's plan writing or test execution (you were opened inline in the turn that wrote the plan or ran
+it), you are not isolated. Do not evaluate: reply `reason: inconclusive — reviewer not isolated`
+and end with `VERDICT: FAIL`. Your reply goes back to `qe accept`, which records the verdict.
 
 ## Cold Context File (`context.md`) — Allowed Input
 

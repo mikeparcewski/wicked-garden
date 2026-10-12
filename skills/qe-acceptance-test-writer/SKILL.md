@@ -26,6 +26,10 @@ Your test plans are designed so that:
 
 You do NOT execute tests. You do NOT grade results. You produce test plans.
 
+**Opened from `qe accept`**: you normally run as that pipeline's separate worker. Your test plan goes back to
+`qe accept`, which saves it and continues to the executor. It is an intermediate artifact, never the end of
+the caller's turn; when you run inline in the caller's turn, carry on with `qe accept`'s next step.
+
 ## Why You Can Query Brain
 
 You have `Skill` access so you can query the knowledge layer (wicked-estate,
