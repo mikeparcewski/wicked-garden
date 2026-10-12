@@ -57,6 +57,37 @@ executor's reasoning, so its verdict would be self-grading. Isolation is:
 do not review the evidence yourself. Record the verdict as `FAIL` with
 `reason: inconclusive — no isolated reviewer (this seat cannot run a separate worker)`
 in step 6. The same rule applies to a council: an inline invocation is not a seat.
+Inside a governed wicked-crew run the ENGINE runs the reviewer for you, on any
+seat — see "Engine-run reviewer" below.
+
+## Engine-run reviewer (inside a governed run)
+
+When the unit's directive says `accept --phase evidence`, wicked-core runs the
+reviewer itself: a fresh worker session on a run seat, handed only the evidence
+path. That works on every seat, including ones with no sub-agent. Two halves:
+
+1. **`--phase evidence [--resume <dir>]`**: you are the executor seat. Run
+   steps 0–4 only, write no verdict, and save a copy of the scenario to
+   `{EVIDENCE_DIR}/scenario.md`. The writer and the executor may run inline
+   when the seat has no separate worker: they produce artifacts, not a
+   verdict. Then put the line `QE-EVIDENCE: {EVIDENCE_DIR}` in your reply,
+   before your `VERDICT:` line, and continue the unit. That `VERDICT:` line is
+   your own phase's verdict, never the QE verdict. With `--resume <dir>`,
+   step 0 reuses that run instead of creating one (see step 0).
+2. **`--phase review --evidence <dir>`**: when `WICKED_QE_REVIEW_SESSION` is set,
+   wicked-core started this session for this review alone. It holds no plan
+   writing or test execution, so it IS the separate worker. Resume the run
+   whose id is the dir's basename (`store.get('runs', id)`, which must carry
+   this `WICKED_RUN_ID`). Open the `wicked-garden-qe-acceptance-test-reviewer`
+   skill inline here with the step-5 brief, using `{dir}/scenario.md` as the
+   scenario path. Then run step 6, stamping `review_session` (see step 6), and
+   end your reply with the reviewer's `VERDICT:` line. **Without the
+   variable**, `--phase review` keeps step 5's rule: a separate worker, else
+   `FAIL` inconclusive.
+
+The engine binds the verdict. The newest verdict on that run must carry this
+session's `review_session`, this run's `crew_run_id` and the token you ended
+on; anything else denies the unit.
 
 ## Separate workers
 
@@ -85,6 +116,8 @@ dev-loop fast path.
 
 ```
 wicked-garden-qe accept <scenario-file> [--phase write|execute|review|all] [--json]
+wicked-garden-qe accept <scenario-file> --phase evidence [--resume <evidence-dir>]
+wicked-garden-qe accept --phase review --evidence <evidence-dir>
 ```
 
 (`wicked-garden-qe accept` is the historical alias — treat it as the same
@@ -95,6 +128,9 @@ invocation.)
 - `--phase write` — generate test plan only (for review before execution)
 - `--phase execute` — execute with existing plan
 - `--phase review` — review existing evidence
+- `--phase evidence` — write + execute + cold context, no verdict; ends with the
+  `QE-EVIDENCE:` line (the engine-run reviewer's first half, above)
+- `--evidence <dir>` / `--resume <dir>` — resume the run whose evidence dir this is
 - `--json` — emit JSON envelope
 
 ## Instructions
@@ -157,6 +193,9 @@ const run = store.create('runs', {
   status: 'running',
   ...CREW_RUN,
 });
+// --resume <dir> (engine-run reviewer, same-tree retry): reuse that run instead of creating one —
+// it must exist, carry this WICKED_RUN_ID and point at <dir>; reset it to 'running' and overwrite
+// its plan and evidence. (`--phase review --evidence <dir>` resumes the same way, without a reset.)
 const RUN_ID       = run.id;                               // canonical UUID
 const EVIDENCE_DIR = join(LEDGER_ROOT, 'evidence', RUN_ID);     // under the ledger root, never the worktree
 // mkdir -p EVIDENCE_DIR; write evidence_path back onto the run record
@@ -419,6 +458,9 @@ const verdictRecord = store.create('verdicts', {
   reason: reviewerSummary,
   ...(reviewerEquivalence ? { equivalence_json: JSON.stringify(reviewerEquivalence) } : {}),
   ...CREW_RUN,
+  // The engine-run reviewer session's nonce (see "Engine-run reviewer"): the engine binds the
+  // verdict to the session it started. Absent outside that session.
+  ...(process.env.WICKED_QE_REVIEW_SESSION ? { review_session: process.env.WICKED_QE_REVIEW_SESSION } : {}),
 });
 
 // 3. Materialize the public manifest at the contract path
