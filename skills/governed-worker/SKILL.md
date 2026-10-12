@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -82,6 +82,17 @@ acceptance criteria); move in small verifiable steps; record what you ran.
   When a tool writes into the tree by default, pass its output flag
   (`--outputFile`, `--reporter-dir`, `--coverage.reportsDirectory`, …) or delete
   the file before the turn ends; deliver ships what the tree holds.
+- **C8 — Check what the chosen stack already provides before you write code.**
+  The user and the steering policies choose the framework or library (wicked-core
+  rule POL-2101). Work inside that choice and never swap in another. Before you
+  write new code, read the chosen stack's docs or source at the version the repo
+  pins, and find what it already ships for the job. Record the check in your
+  output: what you looked at and what it offers. If you still write custom code
+  that duplicates a built-in, say why the built-in does not fit (for example, it
+  is missing at the pinned version, it has a measured defect, or it conflicts with
+  a policy). Example: before you expose
+  an MCP server as an HTTP/REST API, check what the pinned fastmcp offers for HTTP
+  and OpenAPI. Do not write a generator first.
 
 Method: read the design and scenarios; list the files you will touch; one change
 at a time, checked (C1) before the next; follow the repo's patterns; say so when
@@ -121,6 +132,13 @@ verdict with reasons. You are output-only.
   composer sends `humanConfirm: "before:1"` and its test pins `before:1`, but
   the form's own resolver sends `before:2` for the same choice (it shifts past
   the scope step) — quote both lines; the item FAILs.
+- **E5 — Flag every duplicate of a built-in.** Custom code that re-implements
+  what the chosen framework or library already provides is a finding (POL-2101),
+  even when the creator gave a reason. Cite the custom code (`file:line`) and the
+  built-in it duplicates (its doc or source at the pinned version), then judge the
+  creator's reason. An unjustified duplicate is at least a Concern. So is new code
+  whose output records no built-in check (C8). Code that swaps out the framework the
+  user or a policy chose is a Critical.
 
 Method: read the outcome and design, then the changed files; for each, ask
 whether it follows the design, whether tests cover the key paths, and whether
@@ -142,7 +160,8 @@ refuse the verdict — write no VERDICT line; the gate treats that as FAIL.
   handed notes root (outside the repository) or into your output.
 
 Method: state the question; map the structure that matters (entry points,
-owners, dependencies, tests); name the exact files a creator would touch and the
+owners, dependencies, tests); name what the chosen stack already provides for
+the job, so the plan builds on it (the C8 check, done up front); name the exact files a creator would touch and the
 risks (blast radius, hidden couplings, missing tests); separate fact from
 inference and say where you found each; end with a plan a creator can execute
 without asking you anything.
@@ -155,7 +174,8 @@ Every unit's final message contains, in this order:
 2. **Commands run** — each with its exit code, in the order run.
 3. **Counts** — derived N / submitted M / failed K (A4), with K explained.
 4. **Findings or plan** — evaluator: findings by severity with `file:line`;
-   neutral: the plan; creator: what changed against the design.
+   neutral: the plan; creator: what changed against the design, and the
+   built-in check (C8).
 5. **Open questions as statements** — "X is unknown; I assumed Y" — never a
    request that waits for an answer (A3).
 6. **The contract line (evaluators only)** — exactly `VERDICT: PASS` or
@@ -181,10 +201,12 @@ Rules cite the acceptance-program findings that motivated them.
 | C5 | program rule — no version bump without "release" |
 | C6 | F35 (garden#1223) |
 | C7 | garden#1229 (S17b reporter file in the worktree) |
+| C8 | operator ruling 2026-10-12 (wicked-core POL-2101; origin: MCP-as-API on fastmcp's built-ins, not a hand-written generator) |
 | E1 | F-RC1-060, F-RC1-062, F-RC1-071, F-RC2-037 |
 | E2 | program rule — the floor provisions |
 | E3 | garden#1223 (companion to wicked-core#760) |
 | E4 | garden#1253 (S19a: `before:1` vs the form's `before:2`, passed on presence) |
+| E5 | operator ruling 2026-10-12 (wicked-core POL-2101) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions

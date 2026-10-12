@@ -60,6 +60,21 @@ Apply when `--focus tests` or when reviewing test files directly.
 - Over-engineering / speculative generality (YAGNI violations)
 - Scope creep: restructuring files not mentioned in the task
 - Refactoring mixed into a bug fix (makes rollback impossible)
+- Custom code that duplicates a built-in of the chosen stack (see below)
+
+## Duplicates of a built-in — always flag
+
+The user and the steering policies choose the framework or library (wicked-core rule
+POL-2101). Flag every piece of custom code that re-implements something the chosen stack
+already provides, even when the author gave a reason. Cite the code (`file:line`) and the
+built-in it duplicates, from the stack's docs or source at the version the repo pins. Then
+judge the author's reason against what the change actually needs. Reasons that can hold
+include a feature the built-in lacks at the pinned version, a measured defect, a policy
+conflict, or a behavior the change requires that the built-in does not give. The list is not
+exhaustive. With no reason, or a reason that does not hold, the finding is at least MEDIUM.
+Code that replaces the chosen framework with another is HIGH. Example: a change adds a
+hand-written HTTP/OpenAPI layer to a fastmcp server. Check what the pinned fastmcp offers for
+HTTP and OpenAPI, then judge the author's reason against that.
 
 ## Focus lanes (applied when `--focus` given)
 
@@ -116,6 +131,9 @@ severity: "Critical|High"
 
 ### Agent Overstepping
 {Any out-of-scope edits, commented-out code, or scope creep found — cite file:line}
+
+### Duplicates of a Built-in
+{Each piece of custom code that duplicates a built-in of the chosen stack: file:line, the built-in, the author's reason and whether it holds — or "none found"}
 
 ### Recommendations
 1. {Highest priority with rationale}
