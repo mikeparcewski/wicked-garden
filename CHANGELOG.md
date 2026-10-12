@@ -1118,7 +1118,18 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.48.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.54.0...HEAD
+[12.54.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.3...v12.54.0
+[12.53.3]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.2...v12.53.3
+[12.53.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.1...v12.53.2
+[12.53.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.0...v12.53.1
+[12.53.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.52.1...v12.53.0
+[12.52.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.52.0...v12.52.1
+[12.52.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.51.1...v12.52.0
+[12.51.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.51.0...v12.51.1
+[12.51.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.50.0...v12.51.0
+[12.50.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.49.0...v12.50.0
+[12.49.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.48.0...v12.49.0
 [12.48.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.47.0...v12.48.0
 [12.47.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.46.0...v12.47.0
 [12.46.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.45.0...v12.46.0
