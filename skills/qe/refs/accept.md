@@ -73,7 +73,9 @@ path. That works on every seat, including ones with no sub-agent. Two halves:
    verdict. Then put the line `QE-EVIDENCE: {EVIDENCE_DIR}` in your reply,
    before your `VERDICT:` line, and continue the unit. That `VERDICT:` line is
    your own phase's verdict, never the QE verdict. With `--resume <dir>`,
-   step 0 reuses that run instead of creating one (see step 0).
+   step 0 reuses that run instead of creating one, and empties `<dir>` first
+   (the previous `manifest.json` included) so the reviewer sees only this
+   attempt's artifacts (see step 0).
 2. **`--phase review --evidence <dir>`**: when `WICKED_QE_REVIEW_SESSION` is set,
    wicked-core started this session for this review alone. It holds no plan
    writing or test execution, so it IS the separate worker. Resume the run
@@ -194,8 +196,11 @@ const run = store.create('runs', {
   ...CREW_RUN,
 });
 // --resume <dir> (engine-run reviewer, same-tree retry): reuse that run instead of creating one —
-// it must exist, carry this WICKED_RUN_ID and point at <dir>; reset it to 'running' and overwrite
-// its plan and evidence. (`--phase review --evidence <dir>` resumes the same way, without a reset.)
+// it must exist, carry this WICKED_RUN_ID and point at <dir>; reset it to 'running', then EMPTY
+// <dir> (every file in it, the previous manifest.json included: the next reviewer must see only
+// this attempt's artifacts) before writing the plan, the scenario copy and the evidence afresh.
+// The run and verdict rows stay — they are the run's lineage. (`--phase review --evidence <dir>`
+// resumes the run the same way, without the reset or the emptying.)
 const RUN_ID       = run.id;                               // canonical UUID
 const EVIDENCE_DIR = join(LEDGER_ROOT, 'evidence', RUN_ID);     // under the ledger root, never the worktree
 // mkdir -p EVIDENCE_DIR; write evidence_path back onto the run record

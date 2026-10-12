@@ -164,3 +164,9 @@ def test_reviewer_skill_names_the_engine_session_as_isolated():
     m = re.search(r"\*\*Isolation self-check[^\n]*\n(.*?)\n\n", text, re.S)
     assert m
     assert "WICKED_QE_REVIEW_SESSION" in m.group(1) and "it is isolated" in m.group(1)
+
+
+def test_resume_empties_the_evidence_dir_so_the_reviewer_sees_only_this_attempt():
+    text = _read(ACCEPT)
+    assert "EMPTY\n// <dir> (every file in it, the previous manifest.json included" in text
+    assert "empties `<dir>` first" in _engine_section()
