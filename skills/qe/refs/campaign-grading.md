@@ -34,24 +34,20 @@ crew acceptance gate (TH-6)         ──►  "done" re-derived  (deny-dominate
 ## Reviewer isolation — the boundary, written down
 
 The campaign reviewer is the SAME isolated reviewer as `refs/accept.md`
-(3 layers: `allowed-tools: Read` + evidence-only dispatch + `context: fork`).
+(a separate worker with a fresh context + an evidence-only brief + read-only by
+instruction; with no separate worker there is no graded verdict: FAIL `inconclusive`).
 Dispatch it per scenario with **evidence paths only** — the scenario file
 path, the evidence directory path, and (when one exists) the test-plan path.
 Never the executor's stdout, reasoning, spec-authoring context, or the
 campaign orchestrator's conversation.
 
-**Enforcement boundary — know which tier you are on:**
-
-| CLI | Isolation enforcement |
-|-----|-----------------------|
-| Host-level tool blocking (a host that enforces `allowed-tools`) | **Hard-enforced** — `allowed-tools: [Read]` is blocked at the host level; the reviewer cannot shell out, browse, or re-run anything even if prompted to |
-| Gemini CLI, Codex, Cursor, Kiro | **Advisory** — the skill's dispatch contract still passes paths only, but the host does not block tools; a prompt-injected or misbehaving reviewer could technically reach beyond the evidence |
-
-On advisory hosts the evidence-only dispatch is the only real layer, so:
-never inline evidence content into the dispatch, and treat campaign
-certifications produced on advisory hosts as exactly that — the environment
-manifest (TH-8) records which CLI graded, so the claim is auditable. Tests
-tagged `@requires-enforcement: claude-code` validate the hard tier only.
+**Enforcement boundary:** the separate worker keeps the reviewer's context
+clean, but no host blocks the reviewer's tools from the skill's text, so
+"read-only" is advisory everywhere; a prompt-injected or misbehaving reviewer
+could technically reach beyond the evidence. The evidence-only brief is the
+other real layer, so never inline evidence content into the dispatch. The
+environment manifest (TH-8) records which CLI graded, so the claim is
+auditable.
 
 ## Validate before grading (wicked-ledger manifest 2.1)
 

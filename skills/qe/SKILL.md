@@ -150,8 +150,9 @@ On `ERR_NO_CONFIG`, run § setup first (safe to auto-run: it only scaffolds `.wi
 
 1. Read `refs/accept.md` — full playbook.
    **Isolation is the point**: Writer plans, Executor captures, Reviewer
-   judges from evidence paths only (`allowed-tools: Read`, `context: fork`,
-   evidence-only dispatch). Never leak executor context to the reviewer.
+   judges from evidence paths only, as a separate worker (a fresh context
+   whose only input is its brief). Never review inline in the turn that
+   planned or ran the test; no separate worker = FAIL `inconclusive`.
 2. Verdict + run rows are written via the wicked-ledger DomainStore and the
    public manifest lands at `.wicked-qe/evidence/<run-id>/manifest.json`.
 

@@ -50,11 +50,12 @@ Arguments map onto the dispatch table below:
 
 ### Dispatch block (executable)
 
-Every id in the tables above is a worker skill — reach it by name through a Hand-off, so it runs in an isolated context. For the
-reviewer this is isolation-critical: the forked context is what guarantees
-it never sees the executor's history.
+Every id in the tables above is a worker skill — reach it by name through a Hand-off. For the
+reviewer this is isolation-critical: it runs as a separate worker (a fresh
+context whose only input is its brief), which is what guarantees it never
+sees the executor's history.
 
-**Hand-off** — open the `wicked-garden-qe-acceptance-test-reviewer` skill with the brief below as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+**Hand-off** — run `wicked-garden-qe-acceptance-test-reviewer` as a separate worker with the brief below: a sub-agent whose whole prompt is the brief and whose first instruction is to open that skill. On Claude Code this is the Agent tool with the `general-purpose` agent type; any other harness uses its own sub-agent or fresh-session mechanism. Never open it inline in a turn that wrote the plan or ran the test; when the seat cannot run a separate worker, report the review as FAIL `inconclusive — no isolated reviewer`. Its reply comes back to you; continue here.
 
 ```markdown
 Review the evidence manifest at the path below and render an
@@ -88,8 +89,8 @@ dispatch `wicked-garden-qe-code-analyzer` + the relevant Tier-2 specialist from 
 ## Independence
 
 Reviewers work from evidence and spec, not from the executor's story.
-`wicked-garden-qe-acceptance-test-reviewer` is isolated (Read-only tools, `context: fork`
-forked invocation, scrubbed `context.md` via `{WT_LIB}/context-md-validator.mjs`)
+`wicked-garden-qe-acceptance-test-reviewer` is isolated (a separate worker with a fresh
+context, read-only by instruction, scrubbed `context.md` via `{WT_LIB}/context-md-validator.mjs`)
 to keep its verdict honest. Do not pre-narrate what it should find.
 
 ## Reviewing produced tests (the `author` output: a PLAN + test files)
