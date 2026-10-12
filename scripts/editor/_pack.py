@@ -35,7 +35,12 @@ PERMISSIONS = {
     "artifact.export": "to download it",
     "ui.fullscreen": "to go full screen",
     "network.media": "to load images and fonts from the internet",
+    # Granted only by this build's install consent (no steering rule allows it); never a write grant.
+    "mcp.session": "to start and talk to the MCP servers you connect it to",
 }
+# Permissions the install consent itself grants (crew writes the build's token into EDITOR-GRANTS),
+# each with the line the consent gate shows.
+INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
 
 

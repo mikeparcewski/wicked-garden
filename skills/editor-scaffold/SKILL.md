@@ -46,7 +46,8 @@ wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<na
 - **Names**: the vendor and the id are kebab-case; the id starts with `<vendor>-`. `wicked` and
   `wicked-*` are reserved for the editors that ship inside studio and are refused in every pack.
 - **Kinds** are the artifact kinds it opens (`^[a-z][a-z0-9-]{1,40}$`): `page`, `document`,
-  `deck`, `demo-video`, `walkthrough`, `rfp-response`, or a kind of your own.
+  `deck`, `demo-video`, `walkthrough`, `rfp-response`, `mcp-server` (an MCP inspector: see
+  *Kind mcp-server*), or a kind of your own.
 - **Permissions** default to `artifact.read,selection.chip,ui.fullscreen`. Ask for no more than the
   editor uses (see *Permissions*). `network.media` is refused: a pack editor has no network.
 - It prints JSON with the pack path, the editor's sha256 and the next commands.
@@ -111,7 +112,9 @@ place; the copy it replaces is kept in `previous/`), then `POST /api/v1/editors`
 which re-runs `pack check` **and the conformance run itself** before it records the editor in its
 registry. A refusal rolls the staged copy back and exits 1. `--target daemon` (the default)
 installs it on; `daemon-off` installs it turned off. `--dry-run` writes nothing and prints the
-one JSON plan line the install's consent gate shows. After install the editor is listed in studio
+one JSON plan line the install's consent gate shows. Each choice id carries a digest of the planned
+manifest: approving it installs that pack only, and a pack changed since (another permission, version
+or hash) is refused, so the operator is asked again. After install the editor is listed in studio
 **Settings → Developer → Editor plugins** and opens in the editor dev host.
 
 ## Permissions
@@ -125,9 +128,20 @@ one JSON plan line the install's consent gate shows. After install the editor is
 | `artifact.write` | change it, as versions you can undo | asks |
 | `composer.draft` | suggest a message (the operator sends it) | asks |
 | `checks.read`, `sources.read`, `media.read`, `artifact.export` | see checks, sources, media; download | asks |
+| `mcp.session` | start and talk to the MCP servers you connect it to | granted only by its install consent |
 
 The operator's grants are decided by steering (deny dominates) and keyed by
 `editor:<id>@<version>#<sha256>/<permission>`: a new version or a changed entry asks again.
+No rule allows `mcp.session`. The install plan says "This plugin can start and talk to MCP servers"
+with the build's token, and approving the install writes that one token. It is never a write grant.
+
+## Kind `mcp-server`
+
+An MCP inspector: the host connects to the server and the editor sends `mcp.request {method, params?}`
+(`tools/call` only from a click; 60 s) and renders the `mcp.state` and `mcp.log` events. A write
+tool on a registered server answers `write_not_granted` (403) until a human enables it on the MCP
+tools page. A server re-saved since the connect answers `server_changed` (409): reconnect. The full
+contract (methods, errors, events, conformance) is in `refs/mcp-server.md`; read it before you build one.
 
 ## In a governed run
 
@@ -140,7 +154,7 @@ skill was handed to you (`WICKED_RUN_ID` is set). Follow `wicked-garden-governed
   Read `GET $WICKED_CREW_URL/api/v1/editors` and pick an id no installed editor holds.
 - **design**: the contract table — each host → plugin message it handles, each plugin → host
   request it makes with the permission it needs, its sizes, keys, theme and focus behaviour —
-  checked against section 2. Name every deviation.
+  checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`). Name every deviation.
 - **build**: scaffold (section 1), write the editor, re-pin, `pack check`, and run the
   conformance (section 3); put its JSON in your output. A failed case is a finding to fix.
 - **test**: run the conformance against the delivered tree yourself; a failed case, or no
