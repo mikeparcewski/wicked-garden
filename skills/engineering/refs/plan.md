@@ -12,6 +12,9 @@ Before drafting a plan, explore the codebase to understand:
 - [ ] Existing patterns and conventions (naming, error handling, module structure)
 - [ ] Test patterns and coverage for affected areas
 - [ ] Any feature flags or config that gates the change
+- [ ] What the chosen framework or library already provides for the job, at the version the
+      repo pins (its docs or source). The user and the steering policies choose the stack
+      (wicked-core rule POL-2101); plan inside that choice
 
 Use the `wicked-garden-search` skill's `blast-radius` action on `{symbol}` to find all call sites. Fall back to
 the estate MCP SearchEntity tool, or Grep when the index is unavailable.
@@ -40,6 +43,10 @@ For each change, evaluate:
 ### Scope
 - **In scope**: {what will change}
 - **Out of scope**: {explicitly NOT changing}
+
+### Built-ins Checked
+- {Framework/library @ pinned version}: {what you read} → {what it already provides for this job}
+- Custom code that duplicates a built-in: {none, or what and why the built-in does not fit}
 
 ### Changes Required
 

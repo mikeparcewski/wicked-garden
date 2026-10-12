@@ -59,7 +59,34 @@ def test_review_archetype_points_parity_items_at_e4():  # garden#1253
     assert "Parity items compare values (garden#1253)" in review and "rule E4" in review
 
 
+def test_c8_checks_the_chosen_stack_before_writing_code():  # operator ruling 2026-10-12, POL-2101
+    rule = _rule("C8")
+    assert "The user and the steering policies choose the framework or library" in rule
+    assert "POL-2101" in rule and "never swap in another" in rule
+    assert "at the version the repo pins" in rule
+    assert "Record the check in your output" in rule
+    assert "say why the built-in does not fit" in rule
+    assert "fastmcp" in rule
+
+
+def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 2026-10-12, POL-2101
+    rule = _rule("E5")
+    assert "even when the creator gave a reason" in rule and "`file:line`" in rule
+    assert "judge the creator's reason" in rule
+    assert "An unjustified duplicate is at least a Concern" in rule
+    assert "records no built-in check (C8)" in rule
+
+
+def test_engineering_review_and_plan_carry_the_built_in_check():  # POL-2101
+    eng = FLOOR.parents[1] / "engineering"
+    review = (eng / "refs" / "review.md").read_text(encoding="utf-8")
+    assert "## Duplicates of a built-in — always flag" in review
+    assert "### Duplicates of a Built-in" in review and "POL-2101" in review
+    plan = (eng / "refs" / "plan.md").read_text(encoding="utf-8")
+    assert "### Built-ins Checked" in plan and "POL-2101" in plan
+
+
 def test_new_rules_have_provenance_rows():
     body = FLOOR.read_text(encoding="utf-8")
-    for rule_id in ("C6", "C7", "E3", "E4"):
+    for rule_id in ("C6", "C7", "C8", "E3", "E4", "E5"):
         assert re.search(rf"^\| {rule_id} \|", body, re.M), rule_id

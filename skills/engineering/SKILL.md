@@ -63,7 +63,9 @@ code-level; greenfield design is the [architecture module](architecture/SKILL.md
    persona's frame. If not found, warn and fall through.
 4. Read the target file(s) / diff. Apply R1–R6 to all code; add T1–T6 when `--focus tests` or
    reviewing test files. If `--focus` given, deepen that lane. Flag agent overstepping (scope creep,
-   commented-out code, over-engineering) with `file:line` citations.
+   commented-out code, over-engineering) with `file:line` citations. Flag every piece of custom code
+   that duplicates a built-in of the chosen framework or library: cite the code and the built-in, and
+   judge the author's stated reason (`refs/review.md`, "Duplicates of a built-in").
 5. Emit the standard Engineering Review output (Strengths, Issues table with rule + location,
    Architecture Notes, Maintainability Concerns, Agent Overstepping, Recommendations).
    If `--scenarios`, append wicked-scenarios blocks for each Critical/High finding.
@@ -114,10 +116,14 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
    risk assessment checklist, plan output format, and security/performance heuristics.
 3. Explore the affected code: entry points, key files, callers, existing patterns, test coverage.
    Use the `wicked-garden-search` skill's `blast-radius` action on `{symbol}` for impact analysis.
+   Check what the chosen framework or library already provides for the job, at the version the repo
+   pins. The user and the steering policies choose the stack; the plan works inside that choice and
+   does not swap it out.
 4. Apply the risk assessment checklist (breaking changes, performance, security, data integrity,
    test gaps, deployment coordination).
-5. Emit the Implementation Plan output format: Summary, Scope (in/out), Changes Required per
-   file, Risk Assessment table, Test Plan, Rollout Considerations, Open Questions.
+5. Emit the Implementation Plan output format: Summary, Scope (in/out), Built-ins Checked,
+   Changes Required per file, Risk Assessment table, Test Plan, Rollout Considerations, Open
+   Questions. Any custom code that duplicates a built-in states why the built-in does not fit.
 6. Present the plan and ask: "Ready to proceed with implementation, or would you like to adjust
    the approach?" Do not write any code until approved.
 
