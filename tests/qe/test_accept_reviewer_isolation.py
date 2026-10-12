@@ -116,3 +116,57 @@ def test_reviewer_skill_self_checks_for_an_inline_opening():
     assert m, "reviewer skill needs an Isolation self-check paragraph"
     assert "inconclusive — reviewer not isolated" in m.group(1)
     assert "`VERDICT: FAIL`" in m.group(1)
+
+
+# --- engine-run reviewer (DES-QE-EVERY-SEAT): QE on every seat, isolation held by the engine ---
+
+def _engine_section() -> str:
+    m = re.search(r"^## Engine-run reviewer[^\n]*\n(.*?)(?=^## )", _read(ACCEPT), re.S | re.M)
+    assert m, "accept.md needs an '## Engine-run reviewer' section"
+    return m.group(1)
+
+
+def test_evidence_phase_writes_no_verdict_and_names_the_dir_before_the_verdict_line():
+    body = _engine_section()
+    assert "--phase evidence [--resume <dir>]" in body
+    assert "write no verdict" in body
+    assert "`{EVIDENCE_DIR}/scenario.md`" in body
+    assert "`QE-EVIDENCE: {EVIDENCE_DIR}`" in body
+    assert "before your `VERDICT:` line" in body
+    assert "never the QE verdict" in body
+
+
+def test_engine_review_session_reviews_inline_only_under_the_engine_variable():
+    body = _engine_section()
+    assert "--phase review --evidence <dir>" in body
+    assert "when `WICKED_QE_REVIEW_SESSION` is set" in body
+    assert "IS the separate worker" in body
+    assert "store.get('runs', id)" in body
+    # Without the variable the step-5 rule still holds: never inline.
+    assert re.search(r"\*\*Without the\s+variable\*\*, `--phase review` keeps step 5's rule", body)
+
+
+def test_the_verdict_row_carries_the_review_session_stamp():
+    step6 = _phase(_read(ACCEPT), 6)
+    assert "review_session: process.env.WICKED_QE_REVIEW_SESSION" in step6
+    # …only when the engine started the session.
+    assert "process.env.WICKED_QE_REVIEW_SESSION ?" in step6
+
+
+def test_usage_lists_the_engine_phases():
+    text = _read(ACCEPT)
+    assert "--phase evidence [--resume <evidence-dir>]" in text
+    assert "--phase review --evidence <evidence-dir>" in text
+
+
+def test_reviewer_skill_names_the_engine_session_as_isolated():
+    text = _read(REVIEWER)
+    m = re.search(r"\*\*Isolation self-check[^\n]*\n(.*?)\n\n", text, re.S)
+    assert m
+    assert "WICKED_QE_REVIEW_SESSION" in m.group(1) and "it is isolated" in m.group(1)
+
+
+def test_resume_empties_the_evidence_dir_so_the_reviewer_sees_only_this_attempt():
+    text = _read(ACCEPT)
+    assert "EMPTY\n// <dir> (every file in it, the previous manifest.json included" in text
+    assert "empties `<dir>` first" in _engine_section()

@@ -43,6 +43,8 @@ This isolation holds three ways:
 run's plan writing or test execution (you were opened inline in the turn that wrote the plan or ran
 it), you are not isolated. Do not evaluate: reply `reason: inconclusive — reviewer not isolated`
 and end with `VERDICT: FAIL`. Your reply goes back to `qe accept`, which records the verdict.
+A session wicked-core started for this review alone (`WICKED_QE_REVIEW_SESSION` set,
+`qe accept --phase review --evidence <dir>`) holds no plan writing or execution: it is isolated.
 
 ## Cold Context File (`context.md`) — Allowed Input
 
