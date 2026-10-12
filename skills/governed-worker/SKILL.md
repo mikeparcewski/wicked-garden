@@ -88,8 +88,9 @@ acceptance criteria); move in small verifiable steps; record what you ran.
   write new code, read the chosen stack's docs or source at the version the repo
   pins, and find what it already ships for the job. Record the check in your
   output: what you looked at and what it offers. If you still write custom code
-  that duplicates a built-in, say why the built-in does not fit (missing at the
-  pinned version, a measured defect, a policy conflict). Example: before you expose
+  that duplicates a built-in, say why the built-in does not fit (for example, it
+  is missing at the pinned version, it has a measured defect, or it conflicts with
+  a policy). Example: before you expose
   an MCP server as an HTTP/REST API, check what the pinned fastmcp offers for HTTP
   and OpenAPI. Do not write a generator first.
 

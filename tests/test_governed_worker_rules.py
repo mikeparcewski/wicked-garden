@@ -84,6 +84,11 @@ def test_engineering_review_and_plan_carry_the_built_in_check():  # POL-2101
     assert "### Duplicates of a Built-in" in review and "POL-2101" in review
     plan = (eng / "refs" / "plan.md").read_text(encoding="utf-8")
     assert "### Built-ins Checked" in plan and "POL-2101" in plan
+    archetype = FLOOR.parents[1] / "archetype" / "refs"
+    assert "POL-2101" in (archetype / "build.md").read_text(encoding="utf-8")
+    assert "Duplicates of a built-in are findings (POL-2101)" in (archetype / "review.md").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_new_rules_have_provenance_rows():

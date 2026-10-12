@@ -276,10 +276,12 @@ run. Follow `wicked-garden-governed-worker`, and:
 - Write the server into the run's deliverable directory with step 1. Implement the tools
   the intent names, annotated per step 3.
 - Before you add a layer the template does not have (an HTTP or REST surface, an OpenAPI
-  description, auth, sessions), check what the pinned fastmcp version already provides
-  and use it. Record the check in your output: the version, what you read, what it offers.
-  Hand-written code that duplicates a fastmcp built-in needs a stated reason, and the review
-  phase flags it (`wicked-garden-governed-worker`, C8 and E5).
+  description, auth, sessions), check what the chosen stack already provides at the
+  version the project pins: fastmcp for the TypeScript template, the Node or Python
+  standard library for a one-file server. Use what it provides, and do not bring in
+  another framework the run did not choose. Record the check in your output: the version,
+  what you read, what it offers. Hand-written code that duplicates a built-in needs a
+  stated reason, and the review phase flags it (`wicked-garden-governed-worker`, C8 and E5).
 - Probe it (step 4) and put the probe's JSON in your output as the evidence that it
   answers. A probe failure is a finding to fix, not to report as done.
 - Do not register the server, add it to any CLI's MCP configuration, or start it outside

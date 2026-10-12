@@ -68,11 +68,13 @@ The user and the steering policies choose the framework or library (wicked-core 
 POL-2101). Flag every piece of custom code that re-implements something the chosen stack
 already provides, even when the author gave a reason. Cite the code (`file:line`) and the
 built-in it duplicates, from the stack's docs or source at the version the repo pins. Then
-judge the author's reason: the built-in is missing at the pinned version, it has a measured
-defect, or it conflicts with a policy. With no reason, or a reason that does not hold, the
-finding is at least MEDIUM. Code that replaces the chosen framework with another is HIGH.
-Example: a hand-written OpenAPI generator beside fastmcp, when the pinned fastmcp already
-serves the server over HTTP with an OpenAPI description.
+judge the author's reason against what the change actually needs. Reasons that can hold
+include a feature the built-in lacks at the pinned version, a measured defect, a policy
+conflict, or a behavior the change requires that the built-in does not give. The list is not
+exhaustive. With no reason, or a reason that does not hold, the finding is at least MEDIUM.
+Code that replaces the chosen framework with another is HIGH. Example: a change adds a
+hand-written HTTP/OpenAPI layer to a fastmcp server. Check what the pinned fastmcp offers for
+HTTP and OpenAPI, then judge the author's reason against that.
 
 ## Focus lanes (applied when `--focus` given)
 

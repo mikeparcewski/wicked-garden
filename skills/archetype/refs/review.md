@@ -81,7 +81,14 @@ in three domains").
    with `file:line`. Presence of the field, or a test the author wrote pinning
    a value, is not evidence; a difference is a blocker (the governed-worker
    floor's rule E4).
-4. For high-stakes reviews, run a council via the
+4. **Duplicates of a built-in are findings (POL-2101).** Flag every piece of
+   custom code that re-implements what the chosen framework or library already
+   provides, even when the author gave a reason. Cite the code and the built-in,
+   both with `file:line` or the stack's doc at the pinned version, and judge the
+   reason against what the change actually needs. An unjustified duplicate is at
+   least `minor`. Code that swaps out the framework the user or a policy chose is a
+   `blocker` (the governed-worker floor's rule E5).
+5. For high-stakes reviews, run a council via the
    `wicked-garden-jam-council` skill — independent multi-model verdicts
    catch what a single reviewer misses.
 

@@ -78,10 +78,16 @@ method." Absent? Discover it the usual way — and consider
 
 ### implement
 
-1. Write the change. Stay tight to the plan.
-2. Use the `wicked-garden-engineering-patch` module for patch-style edits when the
+1. Before you write code, check what the chosen framework or library already
+   provides for the job, at the version the repo pins. The user and the steering
+   policies choose the stack (wicked-core rule POL-2101); never swap in another.
+   Record the check in the phase output: what you read and what it offers. Custom
+   code that duplicates a built-in states why the built-in does not fit (the
+   `wicked-garden-governed-worker` floor's rule C8).
+2. Write the change. Stay tight to the plan.
+3. Use the `wicked-garden-engineering-patch` module for patch-style edits when the
    change is well-scoped.
-3. **Don't refactor adjacent code unless plan said so.** Drift is the
+4. **Don't refactor adjacent code unless plan said so.** Drift is the
    #1 source of inflated build cycles.
 
 ### test
