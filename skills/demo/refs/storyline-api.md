@@ -33,7 +33,8 @@ export default {
   brand: {
     name: "Acme Console",                  // shown in the window's address bar and the caption band
     logo: "./brand/logo.svg",              // optional, path relative to this file (SVG inlined)
-    accent: "#ee0000",                     // kicker, callouts, chapter numbers, progress
+    accent: "#224a5e",                     // optional: kicker, callouts, chapter numbers, progress.
+                                           // Omit it to follow the studio skin (the default; see below).
   },
   startPath: "/",                          // optional, page each segment opens on (default "/")
   stickyOffset: 88,                        // optional, px left above tall elements scrolled into view (app header)
@@ -69,6 +70,13 @@ frame-accurate stitching.
 The closing card, if any, is appended to the last segment and baked into its frames. Whenever you re-record any other
 segment, the runner re-records the last segment too so the card never shows stale numbers (`--keep-closing` skips
 that). Keep the last segment short (a wrap-up) for that reason.
+
+## Colours: the studio skin by default
+
+The stage, cards, captions, chapter numbers and callouts take their colours and typeface from the operator's studio
+skin (Workspace → Theme): the recorder reads `GET $WICKED_CREW_URL/api/v1/appearance/video-palette` from the
+wicked-crew daemon running the unit. `brand.accent` overrides only the accent. With no daemon, the stage is neutral
+(light greys, a slate accent). The recorder prints which it used (`palette: studio-skin | studio-default | fallback`).
 
 ## The `ctx` object
 

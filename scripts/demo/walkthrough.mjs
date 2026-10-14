@@ -32,6 +32,7 @@
 // Runtime: wicked-garden run scripts/demo/walkthrough.mjs <action> [args]
 //   Manual alternative: node scripts/demo/walkthrough.mjs <action> [args]
 
+import { fetchVideoPalette } from "./palette.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
@@ -1024,7 +1025,9 @@ async function main() {
   const writableOrigin = fixtureOrigin(fixtureOriginStr);
   const demoVideoDir = path.join(ROOT, "demo-video");
   const segmentsDir = path.join(demoVideoDir, "segments");
-  const brand = { name: story.title || "Walkthrough", accent: story.brand?.accent ?? "#ee0000", logoSvg: story.brand?.logoSvg ?? "" };
+  // The storyline's brand colour if it names one, else the studio skin's (crew's video palette), else neutral.
+  const brand = { name: story.title || "Walkthrough", accent: story.brand?.accent ?? null, logoSvg: story.brand?.logoSvg ?? "" };
+  const skin = await fetchVideoPalette();
 
   // 4-5. Record each segment with check capture
   const chapterCaptures = {}; // { [segKey]: { [checkId]: captureResult } }
@@ -1037,6 +1040,7 @@ async function main() {
     fixture: writableOrigin,
     ffmpeg: process.env.FFMPEG || "ffmpeg",
     brand,
+    palette: skin.palette,
     segmentsDir,
     consoleHandler: (msg) => {
       if (msg.type() === "error" || msg.type() === "warning") {

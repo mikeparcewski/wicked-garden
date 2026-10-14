@@ -19,6 +19,7 @@
 import { loadChromium } from "./_playwright.mjs";
 import { armGuard } from "./readonly.mjs";
 import { CAPTURE, FPS } from "./postprocess.mjs";
+import { NEUTRAL_PALETTE } from "./palette.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -30,33 +31,36 @@ export const FRAME = { x: 160, y: 20, w: 1600, h: 900, bar: 38 };
 
 function hexToRgb(hex) {
   const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || "");
-  return m ? m.slice(1).map((h) => parseInt(h, 16)) : [238, 0, 0];
+  return m ? m.slice(1).map((h) => parseInt(h, 16)) : hexToRgb(NEUTRAL_PALETTE.accent);
 }
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-function stageHtml({ name, logoSvg, accent }, appUrl) {
+export function stageHtml({ name, logoSvg, accent }, appUrl, palette = NEUTRAL_PALETTE) {
   const logo = (logoSvg || "").replace(/<\?xml[^>]*>/, "");
-  const [r, g, b] = hexToRgb(accent);
+  // The storyline's own brand colour, else the studio skin's accent (palette.mjs), never a fixed red.
+  const [r, g, b] = hexToRgb(accent || palette.accent);
+  const p = palette;
+  const face = encodeURIComponent(p.font).replace(/%20/g, "+");
   const lk = logo ? `${logo}<span class="nm">${esc(name)}</span>` : `<span class="nm solo">${esc(name)}</span>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(name)} demo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=${face}:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0b0b0c;--ink2:#2b2b30;--muted:#62626b;--line:#e4e4e8;--bg:#f3f3f5;--brand:rgb(${r},${g},${b});--brand-soft:rgba(${r},${g},${b},.14);--brand-glow:rgba(${r},${g},${b},.45);
+:root{--ink:${p.ink};--ink2:${p.ink2};--muted:${p.muted};--line:${p.line};--bg:${p.canvas};--surface:${p.surface};--brand:rgb(${r},${g},${b});--brand-soft:rgba(${r},${g},${b},.14);--brand-glow:rgba(${r},${g},${b},.45);
  --brand-light:rgb(${Math.min(255, r + 60)},${Math.min(255, g + 90)},${Math.min(255, b + 90)})}
 *{box-sizing:border-box}html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:var(--bg);
- font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
-body{background:radial-gradient(1200px 700px at 50% 0%,#fafafa 0%,var(--bg) 60%,#ececef 100%)}
-#win{position:absolute;left:${FRAME.x}px;top:${FRAME.y}px;width:${FRAME.w}px;height:${FRAME.h}px;border-radius:14px;overflow:hidden;background:#fff;
- border:1px solid #dcdce1;box-shadow:0 1px 2px rgba(16,16,20,.05),0 18px 50px -12px rgba(16,16,20,.18)}
-#bar{height:${FRAME.bar}px;display:flex;align-items:center;gap:14px;padding:0 16px;background:#f7f7f8;border-bottom:1px solid var(--line)}
-.dots{display:flex;gap:7px}.dots i{width:11px;height:11px;border-radius:50%;background:#dadadf;display:block}
-#url{flex:0 1 560px;margin:0 auto;height:24px;border-radius:7px;background:#fff;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+ font-family:"${p.font}",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--bg) 70%,var(--surface)) 0%,var(--bg) 60%,color-mix(in srgb,var(--bg) 94%,var(--ink)) 100%)}
+#win{position:absolute;left:${FRAME.x}px;top:${FRAME.y}px;width:${FRAME.w}px;height:${FRAME.h}px;border-radius:14px;overflow:hidden;background:var(--surface);
+ border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,16,20,.05),0 18px 50px -12px rgba(16,16,20,.18)}
+#bar{height:${FRAME.bar}px;display:flex;align-items:center;gap:14px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--line)}
+.dots{display:flex;gap:7px}.dots i{width:11px;height:11px;border-radius:50%;background:var(--line);display:block}
+#url{flex:0 1 560px;margin:0 auto;height:24px;border-radius:7px;background:var(--bg);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
  gap:8px;font-size:12.5px;color:var(--muted);letter-spacing:.01em}
 #url b{color:var(--ink2);font-weight:600;flex:none}
 #url #path{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#app{display:block;width:${FRAME.w}px;height:${FRAME.h - FRAME.bar}px;border:0;background:#fff}
+#app{display:block;width:${FRAME.w}px;height:${FRAME.h - FRAME.bar}px;border:0;background:var(--surface)}
 #band{position:absolute;left:${FRAME.x}px;width:${FRAME.w}px;top:${FRAME.y + FRAME.h + 22}px;height:${H - FRAME.y - FRAME.h - 40}px;display:flex;gap:40px;align-items:flex-start}
 #cap{flex:1;min-width:0;position:relative}
 .cap{position:absolute;inset:0;transition:opacity .45s ease,transform .45s cubic-bezier(.2,.7,.2,1)}
@@ -68,20 +72,20 @@ body{background:radial-gradient(1200px 700px at 50% 0%,#fafafa 0%,var(--bg) 60%,
 .body em{font-style:normal;color:var(--ink2);font-weight:600}
 #brand{width:300px;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:12px;padding-top:2px}
 #brand .lk{display:flex;align-items:center;gap:12px}#brand svg{height:21px;width:auto}
-#brand .nm{font-size:15px;font-weight:650;color:var(--ink);padding-left:12px;border-left:1px solid #cfcfd6}
+#brand .nm{font-size:15px;font-weight:650;color:var(--ink);padding-left:12px;border-left:1px solid var(--line)}
 .nm.solo{padding-left:0!important;border-left:0!important}
-#prog{display:flex;gap:5px}#prog i{width:22px;height:4px;border-radius:2px;background:#d9d9de;display:block;transition:background .4s}
-#prog i.done{background:#8d8d96}#prog i.on{background:var(--brand)}
+#prog{display:flex;gap:5px}#prog i{width:22px;height:4px;border-radius:2px;background:var(--line);display:block;transition:background .4s}
+#prog i.done{background:var(--muted)}#prog i.on{background:var(--brand)}
 #chap{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
 #speed{position:absolute;right:${W - FRAME.x - FRAME.w + 12}px;top:${FRAME.y + 5}px;height:28px;display:flex;align-items:center;gap:9px;padding:0 12px;border-radius:999px;
- background:rgba(11,11,12,.9);color:#fff;font-size:13px;font-weight:600;box-shadow:0 6px 18px -8px rgba(0,0,0,.45);opacity:0;transform:translateY(-4px);transition:all .35s;z-index:30;
+ background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;box-shadow:0 6px 18px -8px rgba(0,0,0,.45);opacity:0;transform:translateY(-4px);transition:all .35s;z-index:30;
  pointer-events:none}
-#speed.on{opacity:1;transform:none}#speed .x{color:var(--brand-light);font-variant-numeric:tabular-nums}#speed .t{font-weight:500;color:#cfcfd6;font-variant-numeric:tabular-nums}
+#speed.on{opacity:1;transform:none}#speed .x{color:var(--brand-light);font-variant-numeric:tabular-nums}#speed .t{font-weight:500;color:color-mix(in srgb,var(--bg) 75%,var(--ink));font-variant-numeric:tabular-nums}
 #speed svg{width:15px;height:15px}
 #hl{position:absolute;border-radius:12px;border:3px solid var(--brand);box-shadow:0 0 0 7px var(--brand-soft),0 10px 30px -10px var(--brand-glow);opacity:0;
  transition:opacity .35s,left .45s,top .45s,width .45s,height .45s;pointer-events:none;z-index:20}
 #hl.on{opacity:1}
-#hl span{position:absolute;left:-3px;bottom:calc(100% + 9px);white-space:nowrap;background:var(--ink);color:#fff;font-size:13.5px;font-weight:600;padding:6px 11px;border-radius:8px;
+#hl span{position:absolute;left:-3px;bottom:calc(100% + 9px);white-space:nowrap;background:var(--ink);color:var(--bg);font-size:13.5px;font-weight:600;padding:6px 11px;border-radius:8px;
  box-shadow:0 6px 18px -6px rgba(0,0,0,.35)}
 #hl.below span{bottom:auto;top:calc(100% + 9px)}
 #cur{position:absolute;left:0;top:0;width:26px;height:26px;z-index:40;pointer-events:none;transition:transform .7s cubic-bezier(.25,.8,.25,1),opacity .3s;opacity:0}
@@ -89,16 +93,16 @@ body{background:radial-gradient(1200px 700px at 50% 0%,#fafafa 0%,var(--bg) 60%,
 .rip{position:absolute;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2.5px solid var(--brand);background:var(--brand-soft);z-index:39;
  pointer-events:none;animation:rip .6s ease-out forwards}
 @keyframes rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.35);opacity:0}}
-#card{position:absolute;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 700px at 50% 30%,#fff 0%,#f4f4f6 70%,#ececef 100%);
+#card{position:absolute;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:radial-gradient(1200px 700px at 50% 30%,var(--surface) 0%,var(--bg) 70%,color-mix(in srgb,var(--bg) 94%,var(--ink)) 100%);
  opacity:0;pointer-events:none;transition:opacity .7s ease}
 #card.on{opacity:1}
 #card .in{width:1180px;transform:translateY(12px);transition:transform .9s cubic-bezier(.2,.7,.2,1)}#card.on .in{transform:none}
-#card .lk{display:flex;align-items:center;gap:18px}#card .lk svg{height:38px;width:auto}#card .lk .nm{font-size:26px;font-weight:650;padding-left:18px;border-left:1.5px solid #cfcfd6}
+#card .lk{display:flex;align-items:center;gap:18px}#card .lk svg{height:38px;width:auto}#card .lk .nm{font-size:26px;font-weight:650;padding-left:18px;border-left:1.5px solid var(--line)}
 #card h1{margin:46px 0 0;font-size:66px;line-height:1.05;font-weight:700;letter-spacing:-.025em}
 #card h1 span{color:var(--brand)}
 #card p{margin:22px 0 0;font-size:24px;line-height:1.5;color:var(--muted);max-width:1000px}
 #card .meta{margin-top:44px;display:flex;gap:12px;flex-wrap:wrap}
-#card .meta b{font-size:15px;font-weight:600;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:999px;padding:8px 15px}
+#card .meta b{font-size:15px;font-weight:600;color:var(--ink2);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:8px 15px}
 #card ol{margin:34px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:12px 48px}
 #card .seg{display:flex;gap:64px;align-items:flex-start}
 #card .seg .num{font-size:150px;line-height:.82;font-weight:700;letter-spacing:-.05em;color:var(--brand);font-variant-numeric:tabular-nums}
@@ -177,13 +181,15 @@ export class Stage {
    * @param {string} [o.ffmpeg]           ffmpeg binary for the live master (default FFMPEG env or "ffmpeg")
    * @param {boolean} [o.keepFrames=false]  also write every screencast frame to frames/ (debugging; DEMO_KEEP_FRAMES=1)
    */
-  constructor({ baseUrl, outDir, chapters, brand, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
+  constructor({ baseUrl, outDir, chapters, brand, palette = null, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
     ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.ffmpeg = ffmpeg;
     this.keepFrames = keepFrames;
-    this.brand = { name: brand?.name ?? "Demo", logoSvg: brand?.logoSvg ?? "", accent: brand?.accent ?? "#ee0000" };
+    // accent null = the skin's (palette); a storyline's brand.accent overrides it.
+    this.brand = { name: brand?.name ?? "Demo", logoSvg: brand?.logoSvg ?? "", accent: brand?.accent ?? null };
+    this.palette = palette ?? NEUTRAL_PALETTE;
     this.chapterNames = chapters;
     this.stickyOffset = stickyOffset;
     this.headful = headful;
@@ -214,7 +220,7 @@ export class Stage {
     this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
     this.page = await this.context.newPage();
     if (this.consoleHandler) this.page.on("console", this.consoleHandler);
-    const html = stageHtml(this.brand, this.baseUrl + firstPath);
+    const html = stageHtml(this.brand, this.baseUrl + firstPath, this.palette);
     await this.page.route(this.baseUrl + STAGE_PATH, (route) => route.fulfill({ status: 200, contentType: "text/html", body: html }));
     this.page.on("framenavigated", (f) => {
       if (f !== this.page.mainFrame() && f.url().startsWith(this.baseUrl)) {
