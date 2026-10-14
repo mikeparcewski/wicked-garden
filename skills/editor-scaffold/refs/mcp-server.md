@@ -75,6 +75,10 @@ content, the same way a page's HTML is.
 ## Building one
 
 - Scaffold with `--kinds mcp-server --permissions artifact.read,mcp.session,ui.fullscreen`.
+- A worked example ships with garden: the pack `packs/garden-mcp-inspector` (`wicked-garden path
+  packs/garden-mcp-inspector`). Its card is the tools, the argument form, Call and the result ("List
+  again" is its card action); its options tabs are Resources, Prompts and the Log; full screen is the
+  whole inspector, and Advanced adds the last call's raw request and answer from the log.
 - The arguments form is built from the tool's `inputSchema`. A value the form can't express falls back
   to a raw JSON box, which is checked before sending.
 - **Conformance:** the conformance host has no session, so every `mcp.request` answers `unavailable`.

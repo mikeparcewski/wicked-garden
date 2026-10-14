@@ -107,7 +107,7 @@ before you change the declaration.
 ## 3. Conformance
 
 ```
-wicked-garden run scripts/editor/conformance.py --pack <dir> [--host-url <crew URL> | --studio-dist <dir>] --json
+wicked-garden run scripts/editor/conformance.py --pack <dir> [--host-url <crew URL> | --studio-dist <dir>] [--timeout <s>] --json
 ```
 
 Runs each editor in headless Chromium inside studio's own conformance host page, proxied from
@@ -116,10 +116,14 @@ the daemon (`--host-url`, else `$WICKED_CREW_URL` — never a typed port) or ser
 runs: 0 manifest (`pack check`), 1 handshake, 2 sizes, 3 no network, 4 permissions withdrawn,
 5 typing never acts, 6 key forwarding, 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
 12 the pinned hash; for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
-14 the card (height, actions answered in 2 s), 15 each options tab (and the controls' values),
+14 the card (height, actions answered in 2 s), 15 each options tab mounted as its own options
+instance, told its tab (and `host.tab` to the others and back; the controls' values),
 16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-12 under the
 protocol-2 host. Its report lists the gaps it cannot see (case 7, a scripted edit, is your
-editor's own UI; axe is not run; WebRTC is invisible to request interception). Exit 0 all
+editor's own UI; axe is not run; WebRTC is invisible to request interception). Each page load and
+daemon read may take `--timeout` seconds (else `$WG_EDITOR_CONFORMANCE_TIMEOUT`, default 120): a slow
+host never fails a correct editor, and the editor's own 3 s / 2 s deadlines never stretch (crew's install
+reads the variable from the daemon's environment, inside its own overall cap). Exit 0 all
 passed, 1 a case failed (named in the report), 3 no headless browser — **fail closed**: never
 call an editor conformant without the run. **Manual alternative:** none; report the editor as
 not verified.
@@ -167,6 +171,8 @@ An MCP inspector: the host connects to the server and the editor sends `mcp.requ
 tool on a registered server answers `write_not_granted` (403) until a human enables it on the MCP
 tools page. A server re-saved since the connect answers `server_changed` (409): reconnect. The full
 contract (methods, errors, events, conformance) is in `refs/mcp-server.md`; read it before you build one.
+A finished one ships with garden, made by this scaffold: `wicked-garden path packs/garden-mcp-inspector`
+(install it with `install.py --dir` on that path).
 
 ## In a governed run
 

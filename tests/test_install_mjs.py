@@ -122,7 +122,7 @@ def transients(config_dir: Path) -> list[str]:
                   if p.name.startswith((".staging-wicked-garden-", ".old-wicked-garden-", ".failed-wicked-garden-")))
 
 
-_PLUGIN_DIRS = [".claude-plugin", "hooks", "scripts", "skills", "schemas"]
+_PLUGIN_DIRS = [".claude-plugin", "hooks", "scripts", "skills", "schemas", "packs"]
 _PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BUS_EVENTS.md", "pyproject.toml"]
 
 
@@ -303,7 +303,7 @@ def test_dry_run_prints_the_plan_and_writes_nothing(sandbox: Sandbox, argv: list
     assert res.returncode == 0, res.stderr
     assert f"[dry-run] Installing wicked-garden v{_PKG_VERSION} to {dest_of(cfg)}" in res.stdout
     assert "would stage into" in res.stdout and ".staging-wicked-garden-" in res.stdout
-    for planned in (".claude-plugin/", "hooks/", "scripts/", "skills/", "schemas/", "pyproject.toml"):
+    for planned in (".claude-plugin/", "hooks/", "scripts/", "skills/", "schemas/", "packs/", "pyproject.toml"):
         assert f"would copy {planned}" in res.stdout
     assert "would run: uv sync --quiet" in res.stdout and "not probed in dry-run" in res.stdout
     assert "[dry-run] Nothing was written" in res.stdout

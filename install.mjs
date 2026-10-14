@@ -61,7 +61,8 @@ import { execSync, spawnSync } from "node:child_process";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
 
-const PLUGIN_DIRS  = [".claude-plugin", "hooks", "scripts", "skills", "schemas"];
+// packs/ = the editor plugin packs garden ships (`wicked-garden path packs/<name>` resolves inside the copy).
+const PLUGIN_DIRS  = [".claude-plugin", "hooks", "scripts", "skills", "schemas", "packs"];
 // uv.lock rides along so the copy's `uv sync` (and the launcher's `uv run --frozen`) resolve
 // the same pins the release was tested with.
 const PLUGIN_FILES = ["ETHOS.md", "CHANGELOG.md", "README.md", "WICKED_GARDEN_BUS_EVENTS.md", "pyproject.toml", "uv.lock"];
