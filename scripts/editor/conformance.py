@@ -367,7 +367,10 @@ WIRE_REPLY = """([t0, type]) => {{ const w = window.__wgWire; if (!w) return {{ 
   const ok = (p) => {shape};
   const r = w.in.find(e => e.m && e.m.re === req.id);
   if (!r) return {{ error: 'no reply to ' + req.id }};
-  const m = r.m, valid = m.p === 'wicked.editor' && m.v === 1 && m.ok === true && m.payload !== null && typeof m.payload === 'object' && ok(m.payload);
+  // A reply's envelope is exactly {{p, v, re, ok, payload}}: a `type` or `id` on it makes the host refuse it as ambiguous.
+  const m = r.m, keys = Object.keys(m).sort().join(',');
+  const valid = keys === 'ok,p,payload,re,v' && m.p === 'wicked.editor' && m.v === 1 && m.ok === true
+    && m.payload !== null && typeof m.payload === 'object' && ok(m.payload);
   return {{ ms: r.at - req.at, valid, payload: m.payload ?? null, envelope: {{ p: m.p ?? null, v: m.v ?? null, ok: m.ok ?? null }} }}; }}"""
 ACTION_SHAPE = "typeof p.handled === 'boolean' && (p.status === undefined || (typeof p.status === 'string' && p.status.length <= 120))"
 CHANGE_SHAPE = "typeof p.applied === 'boolean' && Number.isInteger(p.rev) && p.values !== null && typeof p.values === 'object' && !Array.isArray(p.values)"
@@ -420,6 +423,9 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) ->
         out = page.evaluate(js)
         reply = page.evaluate(WIRE_REPLY.format(shape=shape), [t0, type_])
         ok = "error" not in reply and reply["valid"] and reply["ms"] <= HOST_ANSWER_S * 1000
+        # host.action: the host itself must also have taken the reply (null = it refused or timed out).
+        if type_ == "host.action":
+            ok = ok and out is not None
         return {"answer": out, "reply": reply, "ok": ok}
 
     pages = []

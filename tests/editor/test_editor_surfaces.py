@@ -296,6 +296,8 @@ def test_an_action_reply_without_a_boolean_handled_fails_case_14(tmp_path):
     "answer(d.id, new (class { toJSON() { return { handled: true }; } })());",
     # a wrong envelope is not an answer, however right its payload
     "port.postMessage({ p: 'wrong', v: 1, re: d.id, ok: true, payload: { handled: true } });",
+    # an extra `type` makes the envelope ambiguous: the host refuses it, so must conformance
+    "port.postMessage({ p: 'wicked.editor', v: 1, re: d.id, ok: true, type: 'host.action', payload: { handled: true } });",
 ])
 def test_a_reply_the_host_would_not_accept_fails_case_14(tmp_path, reply):
     pack = _mutated(tmp_path, "answer(d.id, onAction(String(p.id)));", reply)
