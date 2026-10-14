@@ -4,16 +4,19 @@ The visual system the recorder draws. Everything here is stage DOM (a page wrapp
 rendered with real fonts and CSS transitions, and none of it ever sits on top of the product UI except callouts and
 the cursor, which point *at* it.
 
+Colours and typeface follow the studio skin (crew's video palette; `refs/storyline-api.md`, "Colours"); the
+cursor keeps its universal dark arrow with a white edge.
+
 ## Layout (1920x1080 canvas)
 
 | Element | Position and size | Notes |
 |---|---|---|
-| Window | x 160, y 20, 1600x900, radius 14 px, soft shadow | White, 1 px border; app viewport is 1600x862 below the title bar |
+| Window | x 160, y 20, 1600x900, radius 14 px, soft shadow | The skin's surface colour, 1 px line-colour border; app viewport is 1600x862 below the title bar |
 | Title bar | 38 px high | Three muted dots, centred address pill: **brand name** + current path (path only, no query string, single line with ellipsis) |
 | Caption band | x 160, from y ~942 to the bottom, width 1600 | Caption on the left, brand block on the right (300 px) |
-| Speed badge | In the title bar, right-aligned, 28 px pill | Dark pill: fast-forward icon, `8×`, label, `m:ss real time`. `pointer-events: none` |
+| Speed badge | In the title bar, right-aligned, 28 px pill | An ink-coloured pill with ground-coloured text and icon (readable on light and dark skins): fast-forward icon, `8×`, label, `m:ss real time`. `pointer-events: none` |
 | Cursor | 26 px arrow, dark fill with white stroke, drop shadow | Hidden until first use; glides 0.7 s between targets |
-| Background | Very light neutral radial gradient | Keeps the white window distinct without drawing attention |
+| Background | A quiet radial gradient of the skin's ground | Keeps the window distinct without drawing attention |
 
 Why a window and a band: captions over the UI hide the thing being explained, and a full-bleed recording of a
 browser looks like a screen grab. A framed window on a quiet canvas reads as a produced video and leaves a

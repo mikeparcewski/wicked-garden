@@ -13,6 +13,7 @@
 // on the plain stage background, so segments join with a clean cut. Each segment keeps its master (capture.mp4,
 // encoded live while it recorded) and timeline.json, so a segment can be re-recorded alone and the whole video
 // re-cut (--reencode) without recording again. No frame files are written (DEMO_KEEP_FRAMES=1 dumps them for debugging).
+import { fetchVideoPalette } from "./palette.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -139,6 +140,7 @@ export function extractFrame(video, atSec, outFile, { ffmpeg = "ffmpeg" } = {}) 
  * @param {Function|null} [opts.extendCtx] (baseCtx, seg, stage) => extra ctx keys to spread in
  */
 export function makeSegmentRecorder({
+  palette = null,
   story,
   baseUrl,
   fixture: writableOrigin = null,
@@ -205,7 +207,7 @@ export function makeSegmentRecorder({
     const take = (readLocalGuard(seg.key)?.take ?? 0) + 1;
     console.log(`● ${seg.key} (take ${take})`);
     const stage = new Stage({
-      baseUrl, outDir: localSegDir(seg.key), chapters: CHAPTERS_LIST, brand,
+      baseUrl, outDir: localSegDir(seg.key), chapters: CHAPTERS_LIST, brand, palette,
       stickyOffset: story.stickyOffset, headful: process.env.DEMO_HEADFUL === "1", keepFrames: process.env.DEMO_KEEP_FRAMES === "1",
       locale: story.locale, timezoneId: story.timezoneId, writableOrigin, consoleHandler, ffmpeg: FFMPEG_BIN,
     });
@@ -330,7 +332,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   }
   const brand = {
     name: story.brand?.name ?? story.title ?? "Demo",
-    accent: story.brand?.accent ?? "#ee0000",
+    accent: story.brand?.accent ?? null, // null = the studio skin's accent (palette.mjs)
     logoSvg: readLogo(story.brand?.logo),
   };
   const SEGMENTS = story.segments;
@@ -392,7 +394,10 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const ffCheck = spawnSync(FFMPEG, ["-version"], { stdio: "ignore" });
   if (ffCheck.error || ffCheck.status !== 0) usage(`ffmpeg not found (${FFMPEG}); install it or set FFMPEG=/path/to/ffmpeg`);
 
-  const recordSegment = makeSegmentRecorder({ story, baseUrl: BASE, fixture: FIXTURE, ffmpeg: FFMPEG, brand, segmentsDir: SEG_DIR });
+  // The studio skin's colours by default (crew's video palette), the neutral palette without a daemon.
+  const skin = await fetchVideoPalette();
+  console.log(`palette: ${skin.source}`);
+  const recordSegment = makeSegmentRecorder({ story, baseUrl: BASE, fixture: FIXTURE, ffmpeg: FFMPEG, brand, palette: skin.palette, segmentsDir: SEG_DIR });
 
   if (flags.has("--list")) {
     for (const s of SEGMENTS) console.log(`${fs.existsSync(segVideo(s.key)) ? "recorded" : "missing "}  ${s.key}  ${s.intro ? "(intro)" : s.title}`);
