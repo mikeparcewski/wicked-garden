@@ -309,19 +309,20 @@
     list.textContent = '';
     if (tab === 'log') { list.appendChild(el('li', { class: 'empty' }, log.length + ' lines')); drawLog(); return; }
     const xs = items[tab] || [];
+    // An item's identity: a resource is its URI (names may repeat), a tool or a prompt its name.
+    const keyOf = (x) => String((x && (tab === 'resources' ? x.uri : x.name)) || '');
     if (listErr[tab]) list.appendChild(el('li', { class: 'err', role: 'alert' }, listErr[tab]));
     else if (xs.length === 0) list.appendChild(el('li', { class: 'empty' }, state === 'ready' ? 'None.' : 'Not connected.'));
     for (const x of xs) {
-      const key = String(x.name || x.uri || '');
+      const key = keyOf(x);
       const li = el('li');
-      const b = el('button', { type: 'button', 'data-item': key }, key);
-      if (current && String(current.name || current.uri || '') === key) b.setAttribute('aria-current', 'true');
+      const b = el('button', { type: 'button', 'data-item': key }, String(x.name || x.uri || ''));
+      if (current && keyOf(current) === key) b.setAttribute('aria-current', 'true');
       if (typeof x.description === 'string' && x.description) b.appendChild(el('span', { class: 'desc' }, x.description));
       b.addEventListener('click', () => { current = x; lastCall = null; drawList(); drawDetail(); });
       li.appendChild(b); list.appendChild(li);
     }
     // A new listing keeps the item shown (and what was typed for it) when the item is still there.
-    const keyOf = (x) => String((x && (x.name || x.uri)) || '');
     const still = current && !xs.includes(current) ? xs.find((x) => keyOf(x) === keyOf(current)) : null;
     let redraw = false;
     if (still) { redraw = JSON.stringify(still) !== JSON.stringify(current); current = still; }

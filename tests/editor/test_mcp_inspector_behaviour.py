@@ -294,3 +294,19 @@ def test_two_relists_whose_answers_cross_keep_the_newer_one(inspector):
     page.evaluate("() => window.__h.flush()")  # A's old answers land last
     page.wait_for_timeout(500)
     assert page.locator("input[data-arg='new']").count() == 1 and page.locator("input[data-arg='old']").count() == 0
+
+
+def test_resources_with_the_same_name_are_told_apart_by_uri(inspector):
+    page, start, ready, calls = inspector
+    res = [{"uri": "file:///a/config.json", "name": "config.json"}, {"uri": "file:///b/config.json", "name": "config.json"}]
+    start(f"""(m) => m === 'resources/list' ? {{ result: {{ resources: {json.dumps(res)} }} }}
+              : m === 'resources/read' ? {{ result: {{ contents: [] }} }} : {{ result: {{ tools: [], prompts: [] }} }}""")
+    ready()
+    page.locator("nav button[data-tab='resources']").click()
+    page.locator("button[data-item='file:///b/config.json']").click()
+    page.evaluate("() => window.__h.send('host.action', { id: 'refresh' }, 'a6')")
+    page.wait_for_timeout(500)
+    assert page.locator("#list button[aria-current='true']").evaluate_all("bs => bs.map(b => b.dataset.item)") == ["file:///b/config.json"]
+    page.locator("button.primary").click()
+    page.locator("#result:not([hidden])").wait_for(timeout=5000)
+    assert calls("resources/read")[-1]["params"] == {"uri": "file:///b/config.json"}

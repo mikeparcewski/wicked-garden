@@ -17,7 +17,7 @@
         "mcp-server"
       ],
       "entry": "editors/garden-mcp-inspector/index.html",
-      "sha256": "9dc3d01dceb7fbc4afaff39e2b8aec4498ee26e7a05debeeb906a52866ff9451",
+      "sha256": "6797c576c79c77a02c435c6cd257d69680eb6653d5a6202ee5bf9498b87c96e0",
       "sizes": [
         "inline",
         "pane",
