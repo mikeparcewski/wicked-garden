@@ -131,6 +131,9 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "permissions"],
+        "if": { "required": ["protocol"], "properties": { "protocol": { "contains": { "const": 2 } } } },
+        "then": { "required": ["surfaces"] },
+        "else": { "not": { "required": ["surfaces"] } },
         "properties": {
           "id": {
             "type": "string",
@@ -194,7 +197,7 @@
               "required": ["id", "why"],
               "properties": {
                 "id": {
-                  "enum": ["artifact.read", "artifact.write", "selection.chip", "composer.draft", "checks.read", "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media", "mcp.session"]
+                  "enum": ["artifact.read", "artifact.write", "selection.chip", "composer.draft", "checks.read", "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media", "mcp.session", "artifact.theme"]
                 },
                 "why": {
                   "type": "string",
@@ -204,6 +207,101 @@
               }
             },
             "description": "What it asks for (§6.1), each with its reason."
+          },
+          "surfaces": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["card"],
+            "description": "Protocol 2 (DES-EDITOR-PLUGIN-CONTRACT-001 §5): the surfaces the host renders this editor from. Required when protocol includes 2, refused when it doesn't. `pack check` also applies the host's label rules (1-24 plain characters, none of the host's decision words) and the per-type control bounds.",
+            "properties": {
+              "card": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "interactive": { "type": "boolean", "description": "The frame takes pointer and keys inside the card (default false)." },
+                  "aspect": { "enum": ["16:9", "4:3", "auto"], "description": "auto: the plugin reports its height (ui.height, 120-560 px)." },
+                  "actions": {
+                    "type": "array",
+                    "maxItems": 4,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["id", "label", "verb"],
+                      "properties": {
+                        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+                        "label": { "type": "string", "pattern": "^[A-Za-z0-9 ·'-]{1,24}$" },
+                        "primary": { "type": "boolean" },
+                        "verb": { "enum": ["plugin", "host:export", "host:ask"] }
+                      }
+                    },
+                    "description": "Drawn by the HOST in the card footer."
+                  }
+                }
+              },
+              "options": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["tabs"],
+                "properties": {
+                  "tabs": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 5,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["id", "label", "render"],
+                      "properties": {
+                        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+                        "label": { "type": "string", "pattern": "^[A-Za-z0-9 ·'-]{1,24}$" },
+                        "render": { "enum": ["plugin", "controls"] },
+                        "controls": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 12,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": ["id", "label", "type"],
+                            "properties": {
+                              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+                              "label": { "type": "string", "pattern": "^[A-Za-z0-9 ·'-]{1,24}$" },
+                              "type": { "enum": ["toggle", "segmented", "select", "color", "text", "range"] },
+                              "options": {
+                                "type": "array",
+                                "minItems": 2,
+                                "maxItems": 8,
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": ["id", "label"],
+                                  "properties": {
+                                    "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+                                    "label": { "type": "string", "pattern": "^[A-Za-z0-9 ·'-]{1,24}$" }
+                                  }
+                                }
+                              },
+                              "min": { "type": "number" },
+                              "max": { "type": "number" },
+                              "step": { "type": "number", "exclusiveMinimum": 0 },
+                              "maxChars": { "type": "integer", "minimum": 1, "maximum": 200 }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "full": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "modes": { "const": ["simple", "advanced"], "description": "Omit for one mode (no Simple/Advanced toggle)." },
+                  "default": { "enum": ["simple", "advanced"] }
+                }
+              }
+            }
           },
           "limits": {
             "type": "object",

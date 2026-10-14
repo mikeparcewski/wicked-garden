@@ -37,6 +37,8 @@ PERMISSIONS = {
     "network.media": "to load images and fonts from the internet",
     # Granted only by this build's install consent (no steering rule allows it); never a write grant.
     "mcp.session": "to start and talk to the MCP servers you connect it to",
+    # Protocol 2 `theme.set` (DES-EDITOR-PLUGIN-CONTRACT-001 §7.2): a write, versioned and undoable.
+    "artifact.theme": "to change its theme, as new versions you can undo",
 }
 # Permissions the install consent itself grants (crew writes the build's token into EDITOR-GRANTS),
 # each with the line the consent gate shows.

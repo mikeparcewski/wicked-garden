@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **The editor-plugin builder speaks wicked.editor/2 (DES-EDITOR-PLUGIN-CONTRACT-001).** A protocol-2 editor declares its surfaces: the card in the run's thread, options tabs in the host panel (plugin-rendered, or host-drawn controls), and full screen with Simple/Advanced. The host renders all three from that declaration. The pack schema and `pack check` (new code PK069) require `surfaces` when `protocol` lists 2 and refuse it otherwise, using the same rules as studio's host. `scaffold.py` writes a protocol-[1,2] plugin with all three surfaces (`--surfaces <file>` for your own declaration), and the template implements every part of it while still speaking protocol 1 to an older host. Conformance adds cases 13-16 (surfaces, card, options, full screen) and 17 (a protocol-1 plugin under a protocol-2 host). Cases 13-16 need a studio whose conformance page reads `surface`, `tab` and `mode` and reports options values; without one they fail closed. New editor permission: `artifact.theme`.
+
 ## [12.54.0] — 2026-10-12
 
 ### Changed

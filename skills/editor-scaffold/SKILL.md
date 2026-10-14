@@ -3,7 +3,8 @@ name: wicked-garden-editor-scaffold
 description: |
   Build an artifact editor plugin for wicked-studio: scaffold a
   wicked-pack.json spec-2 pack with one self-contained HTML editor speaking
-  wicked.editor/1, ask only for the permissions it needs, re-pin its hash,
+  wicked.editor/2 (its card, options and full-screen surfaces, Simple/Advanced)
+  and /1 to older hosts, ask only for the permissions it needs, re-pin its hash,
   run the conformance cases in headless Chromium against studio's own
   plugin host, then install it into a wicked-crew daemon's editors.
 
@@ -23,7 +24,7 @@ metadata:
 # Editor scaffold
 
 Scaffold → write the editor → pin → conformance → install. The editor you build runs in
-studio's **plugin host** (DES-EDITOR-PLUGINS-001): one sandboxed frame with no network and no
+studio's **plugin host** (DES-EDITOR-PLUGINS-001, DES-EDITOR-PLUGIN-CONTRACT-001): sandboxed frames with no network and no
 same-origin access, one MessagePort, and every request checked against the grants the operator
 allowed. The editor never learns a URL, an id or a path, and it can never send, approve, launch,
 deliver or remember anything; those stay host actions behind a human click.
@@ -36,7 +37,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 ## 1. Scaffold
 
 ```
-wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<name> --title "<plain words>" --kinds <kind[,kind]> [--permissions <id[,id]>] --out <dir>
+wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<name> --title "<plain words>" --kinds <kind[,kind]> [--permissions <id[,id]>] [--surfaces <file.json>] --out <dir>
 ```
 
 - **The pack** is `wicked-pack.json` spec 2 with one `editors[]` entry, plus
@@ -48,20 +49,28 @@ wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<na
 - **Kinds** are the artifact kinds it opens (`^[a-z][a-z0-9-]{1,40}$`): `page`, `document`,
   `deck`, `demo-video`, `walkthrough`, `rfp-response`, `mcp-server` (an MCP inspector: see
   *Kind mcp-server*), or a kind of your own.
+- **Surfaces** (protocol 2): the default declares an interactive card with a "Next part" action and
+  the host's "Ask about it", an options panel with one plugin tab ("Parts") and one host-drawn
+  controls tab ("View"), and full screen with Simple/Advanced. `--surfaces` takes your own
+  declaration (checked by the same rules the host uses; see *Surfaces*). The scaffold writes the
+  same JSON into the manifest and the entry's `plugin.ready`.
 - **Permissions** default to `artifact.read,selection.chip,ui.fullscreen`. Ask for no more than the
   editor uses (see *Permissions*). `network.media` is refused: a pack editor has no network.
 - It prints JSON with the pack path, the editor's sha256 and the next commands.
 - **Manual alternative:** copy `assets/pack/` into `<dir>`, rename `editors/__EDITOR_ID__` to
-  your id, replace `__EDITOR_ID__`, `__EDITOR_VERSION__`, `__EDITOR_TITLE__` and
-  `__EDITOR_KINDS__`, and write `wicked-pack.json` by hand in the shape above.
+  your id, replace `__EDITOR_ID__`, `__EDITOR_VERSION__`, `__EDITOR_TITLE__`, `__EDITOR_KINDS__`
+  and `__EDITOR_SURFACES__` (the JSON declaration), and write `wicked-pack.json` by hand in the
+  shape above, with `"protocol": [1, 2]` and the same `surfaces`.
 
 ## 2. Write the editor: the contract
 
 The template's plumbing is what the conformance run checks; keep it and put your editor in
 `render()` and the handlers marked YOUR EDITOR.
 
-- **Handshake**: post ONE `plugin.ready {editor, version, protocol:[1]}` to `parent`; take the
-  first `host.hello` that carries a port; from then on every message rides that port.
+- **Handshake**: post ONE `plugin.ready {editor, version, protocol:[1,2], surfaces}` to `parent`
+  (`surfaces` byte-for-byte the manifest's); take the first `host.hello` that carries a port; from
+  then on every message rides that port. `host.hello.protocol` is what the host chose: speak 1 to
+  an older host (sizes only), 2 to a new one (surfaces; see *Surfaces*).
 - **Requests** (`{p:'wicked.editor', v:1, type, id, payload}`) get one reply `{re, ok, payload |
   error}`. `artifact.read` → `{version, content}` where `content` is `{type:'html', html}`,
   `{type:'demo', …}`, `{type:'walkthrough', view}` or `{type:'rfp', requirements, answers}`.
@@ -83,6 +92,18 @@ The template's plumbing is what the conformance run checks; keep it and put your
   grant is keyed by that hash): `wicked-garden run scripts/editor/pin.py <dir>`. Then
   `npx wicked-garden pack check <dir>`.
 
+## Surfaces (protocol 2)
+
+The host draws the editor in up to three places from its `surfaces` declaration: the **card** in the
+run's thread (host chrome, its declared actions as HOST buttons, Options, Full screen), the
+**options** tabs in the host panel (plugin-rendered frames, or host-drawn controls whose values the
+editor owns), and **full screen** (host header, Simple/Advanced, the chat drawer). The card and full
+screen are one instance that morphs (`host.surface`): never reload. A host action (`host.action`)
+carries no user activation. Labels are 1-24 plain characters and never use the host's decision
+words (approve, accept, deliver, merge, send, launch, delete, remove, stop, deny, allow, grant,
+install). The shape, every message and its reply, and the bounds are in `refs/surfaces.md`; read it
+before you change the declaration.
+
 ## 3. Conformance
 
 ```
@@ -94,7 +115,10 @@ the daemon (`--host-url`, else `$WICKED_CREW_URL` — never a typed port) or ser
 `dist`. It serves the candidate's entry on the bundle route itself (hash-checked, no network) and
 runs: 0 manifest (`pack check`), 1 handshake, 2 sizes, 3 no network, 4 permissions withdrawn,
 5 typing never acts, 6 key forwarding, 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
-12 the pinned hash. Its report lists the gaps it cannot see (case 7, a scripted edit, is your
+12 the pinned hash; for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
+14 the card (height, actions answered in 2 s), 15 each options tab (and the controls' values),
+16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-12 under the
+protocol-2 host. Its report lists the gaps it cannot see (case 7, a scripted edit, is your
 editor's own UI; axe is not run; WebRTC is invisible to request interception). Exit 0 all
 passed, 1 a case failed (named in the report), 3 no headless browser — **fail closed**: never
 call an editor conformant without the run. **Manual alternative:** none; report the editor as
@@ -126,6 +150,7 @@ or hash) is refused, so the operator is asked again. After install the editor is
 | `checks.contribute` | add its own notes (never a verdict) | allowed |
 | `ui.fullscreen` | go full screen (the host's container) | allowed |
 | `artifact.write` | change it, as versions you can undo | asks |
+| `artifact.theme` | change its theme (protocol 2 `theme.set`), as versions you can undo | asks |
 | `composer.draft` | suggest a message (the operator sends it) | asks |
 | `checks.read`, `sources.read`, `media.read`, `artifact.export` | see checks, sources, media; download | asks |
 | `mcp.session` | start and talk to the MCP servers you connect it to | granted only by its install consent |
@@ -153,7 +178,8 @@ skill was handed to you (`WICKED_RUN_ID` is set). Follow `wicked-garden-governed
   (the root of a near-empty repo, or a subdirectory such as `editors-pack/` of an existing one).
   Read `GET $WICKED_CREW_URL/api/v1/editors` and pick an id no installed editor holds.
 - **design**: the contract table — each host → plugin message it handles, each plugin → host
-  request it makes with the permission it needs, its sizes, keys, theme and focus behaviour —
+  request it makes with the permission it needs, its surfaces declaration (card actions, options
+  tabs, full-screen modes), its sizes, keys, theme and focus behaviour —
   checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`). Name every deviation.
 - **build**: scaffold (section 1), write the editor, re-pin, `pack check`, and run the
   conformance (section 3); put its JSON in your output. A failed case is a finding to fix.
