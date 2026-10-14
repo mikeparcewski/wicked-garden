@@ -674,13 +674,19 @@ def main(argv: list[str] | None = None) -> int:
                 if m0["ok"]:
                     run_editor(browser, origin, e, er["sha256"], er)
                     base_ok = len(er["cases"]) == 12 and all(c.get("ok") for c in er["cases"].values())
-                    if speaks(e, 2) and base_ok:
+                    if speaks(e, 2) and base_ok and er.get("negotiated") is None:
+                        # A host before protocol 2 runs this editor the protocol-1 way: its surfaces cannot be
+                        # checked here (not a failure of the editor). crew requires 13-16 of a protocol-2 install,
+                        # so such a report never installs it as protocol 2 there.
+                        er["gaps"].append("cases 13-16 not run: this conformance host speaks protocol 1 only")
+                        er["expected"] = 12
+                    elif speaks(e, 2) and base_ok:
                         run_editor_v2(browser, origin, e, er["sha256"], er)
                     elif not speaks(e, 2):
                         er["cases"]["17-v1-compat"] = {
                             "ok": base_ok and er.get("negotiated") == 1, "negotiated": er.get("negotiated"),
                             **({"error": "the conformance host does not speak protocol 2"} if er.get("negotiated") is None else {})}
-                er["ok"] = len(er["cases"]) == expected_cases(e) and all(c.get("ok") for c in er["cases"].values())
+                er["ok"] = len(er["cases"]) == er.pop("expected", expected_cases(e)) and all(c.get("ok") for c in er["cases"].values())
                 report["editors"].append(er)
             browser.close()
     finally:
