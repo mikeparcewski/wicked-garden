@@ -47,6 +47,8 @@ Rule codes
   PK066  editor kinds value is not an artifact kind (^[a-z][a-z0-9-]{1,40}$)
   PK067  editor sizes must include "inline" (and only inline | pane | full)
   PK068  editor permission unknown, or without its "why"
+  PK069  editor surfaces refused (DES-EDITOR-PLUGIN-CONTRACT-001 §5.2): missing on a protocol-2 editor, present
+         on a protocol-1 one, or breaking a word, id or bound rule the host also enforces
   PK070  block malformed (id, label, preset file, produces_kind)
   PK071  block names a skill that is not in this pack
   PK072  block id uses the reserved "wicked" prefix
@@ -73,6 +75,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from _skill_meta import skill_role, split_frontmatter  # noqa: E402
+from editor._surfaces import check_declaration  # noqa: E402
 from _pack_registry import (  # noqa: E402
     MANIFEST_NAME,
     _KEBAB_RE,
@@ -112,9 +115,11 @@ EDITOR_PERMISSIONS = (
     "checks.contribute", "sources.read", "media.read", "artifact.export", "ui.fullscreen", "network.media",
     # DES-MCP-INSPECTOR-001 §6: granted per editor build by its install consent only (no rule allows it).
     "mcp.session",
+    # DES-EDITOR-PLUGIN-CONTRACT-001 §7.2: protocol 2 `theme.set`, change this artifact's theme.
+    "artifact.theme",
 )
 _EDITOR_FIELDS = {"id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "panels",
-                  "permissions", "limits"}
+                  "permissions", "limits", "surfaces"}
 _EDITOR_REQUIRED = ("id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "permissions")
 _BLOCK_FIELDS = {"id", "label", "preset", "produces_kind", "skills"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024  # the host's cap on an editor entry (§8.5); a pack's limit may only be lower
@@ -326,6 +331,10 @@ def _check_editors(manifest: dict, pack_root: Path, err) -> None:
         if "protocol" in ed and (not isinstance(protocol, list) or not protocol
                                  or not all(isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in protocol)):
             err("PK060", where, f"protocol must list the wicked.editor protocol versions it speaks, e.g. [1] (got {protocol!r})")
+        if "protocol" in ed:
+            refused = check_declaration(protocol, ed.get("surfaces"), "surfaces" in ed)
+            if refused is not None:
+                err("PK069", where, refused)
         panels = ed.get("panels", [])
         if not isinstance(panels, list) or any(p not in _EDITOR_PANELS for p in panels):
             err("PK060", where, f"panels may only name host-fed panels {list(_EDITOR_PANELS)} (got {panels!r})")

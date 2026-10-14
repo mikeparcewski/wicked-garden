@@ -12,7 +12,8 @@ proxied from a wicked-crew daemon (``--host-url``, else ``$WICKED_CREW_URL``), o
 bundle route, hash-checked and with the third-party bundle policy (no network at all). Nothing is
 installed, registered or written outside a temporary directory.
 
-Cases, per editor (the plugin's half of §12.1; the host-control cases 13-18 belong to studio's CI):
+Cases, per editor (the plugin's half of §12.1 and DES-EDITOR-PLUGIN-CONTRACT-001 §8.3; the host-control
+cases against a hostile bundle belong to studio's CI):
 
   0  manifest      wicked-garden's ``pack check`` passes (schema, entry inside the pack, hash, size,
                    nothing loaded from outside it, kinds, sizes, permissions)
@@ -29,6 +30,22 @@ Cases, per editor (the plugin's half of §12.1; the host-control cases 13-18 bel
   10 keyboard      every control in it can take focus (axe is not run: a reported gap)
   11 theme         a ``host.theme`` change leaves it alive, with no running animation
   12 hash-pinned   a wrong pinned hash never starts it
+
+Protocol 2 (an editor whose ``protocol`` lists 2; DES-EDITOR-PLUGIN-CONTRACT-001 §8.3):
+
+  13 surfaces      the host negotiated 2, and the surfaces it renders from (``plugin.ready``'s) are the
+                   manifest's, as canonical JSON; the labels pass the word and length rules
+  14 card          it mounts as the card; with ``aspect:"auto"`` a ``ui.height`` arrives within 2 s and is
+                   accepted; every ``verb:"plugin"`` action answers ``host.action`` within 2 s
+  15 options       each plugin tab mounts as ``surface:'options', tab`` and survives ``host.selection``;
+                   every controls tab's ``options.values`` is accepted, and a valid change gets a well-formed
+                   answer within 2 s (applied or refused)
+  16 full          ``host.surface`` card→full keeps the instance (no reload, no second ``plugin.ready``);
+                   with modes, every ``host.mode`` is answered within 2 s with the same mode
+
+Protocol 1 only:
+
+  17 v1-compat     the host negotiated 1, and cases 1-12 passed under this protocol-2 host
 
 Case 7 (a scripted edit) needs the editor's own UI and is not run here: an editor asking for
 ``artifact.write`` gets it reported as a gap for its author's tests.
@@ -62,6 +79,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
 from _pack import PackError, editors_of, entry_path, read_manifest  # noqa: E402
+from _surfaces import SurfacesError, canonical_surfaces, parse_surfaces  # noqa: E402
 
 # The third-party bundle policy, as wicked-crew serves it (crew `editors/csp.ts`, no `https:` media).
 BUNDLE_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
@@ -204,6 +222,9 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         page.wait_for_timeout(300)
         check("1-handshake", count("handshake") == 1 and count("ignored-window-message") == 0,
               seconds=round(time.time() - t0, 2), ignored_window_messages=count("ignored-window-message"))
+        # What the host negotiated (a host before protocol 2 has no `negotiated`: it speaks 1).
+        # null = a host before protocol 2 (it has no `negotiated`): case 17 then cannot be shown.
+        report["negotiated"] = page.evaluate("() => window.__wickedEditor.host()?.negotiated ?? null")
 
         reads_before = page.evaluate("() => window.__wickedEditor.adapter.reads")
         for size in ("inline", "full", "pane"):
@@ -310,6 +331,225 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         if errors:
             report["page_errors"] = errors[:5]
         page.close()
+
+
+def speaks(editor: dict, version: int) -> bool:
+    protocol = editor.get("protocol")
+    return isinstance(protocol, list) and version in protocol
+
+
+def expected_cases(editor: dict) -> int:
+    """0-6 and 8-12, plus 13-16 for a protocol-2 editor or 17 for a protocol-1 one."""
+    return 12 + (4 if speaks(editor, 2) else 1)
+
+
+HOST_ANSWER_S = 2.0
+# On the HOST side, before any page script runs: every message a host MessagePort receives (the structured clone the
+# editor actually transmitted, read from the event, never re-serialized) and every request the host posts, both on
+# the page's clock. The host's API normalizes a reply (a `{}` reply to host.action reads as handled:false), so the
+# editor's own answer is read here, correlated to the request by its id.
+HOST_WIRE = """(() => {
+  if (window.top !== window || window.__wgWire) return;
+  const wire = window.__wgWire = { out: [], in: [] };
+  const post = MessagePort.prototype.postMessage;
+  MessagePort.prototype.postMessage = function (m, t) {
+    if (m && typeof m === 'object' && typeof m.id === 'string' && typeof m.type === 'string') wire.out.push({ at: performance.now(), id: m.id, type: m.type });
+    return post.call(this, m, t);
+  };
+  const d = Object.getOwnPropertyDescriptor(MessagePort.prototype, 'onmessage');
+  Object.defineProperty(MessagePort.prototype, 'onmessage', { configurable: true, get() { return d.get.call(this); },
+    set(fn) { d.set.call(this, typeof fn === 'function' ? function (ev) { wire.in.push({ at: performance.now(), m: ev.data }); return fn.call(this, ev); } : fn); } });
+})();"""
+# The reply to the newest host request of `type` sent after `t0`: a valid envelope with `re` = that request's id, ok,
+# and a payload of the shape `{shape}` (a JS expression over `p`), and its delay from the request.
+WIRE_REPLY = """([t0, type]) => {{ const w = window.__wgWire; if (!w) return {{ error: 'no wire hook' }};
+  const req = w.out.filter(e => e.at >= t0 && e.type === type).at(-1); if (!req) return {{ error: 'no ' + type + ' request was sent' }};
+  const ok = (p) => {shape};
+  const r = w.in.find(e => e.m && e.m.re === req.id);
+  if (!r) return {{ error: 'no reply to ' + req.id }};
+  const m = r.m, valid = m.p === 'wicked.editor' && m.v === 1 && m.ok === true && m.payload !== null && typeof m.payload === 'object' && ok(m.payload);
+  return {{ ms: r.at - req.at, valid, payload: m.payload ?? null, envelope: {{ p: m.p ?? null, v: m.v ?? null, ok: m.ok ?? null }} }}; }}"""
+ACTION_SHAPE = "typeof p.handled === 'boolean' && (p.status === undefined || (typeof p.status === 'string' && p.status.length <= 120))"
+CHANGE_SHAPE = "typeof p.applied === 'boolean' && Number.isInteger(p.rev) && p.values !== null && typeof p.values === 'object' && !Array.isArray(p.values)"
+OPTIONS_WAIT_MS = 5000
+
+
+def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) -> None:
+    """Cases 13-16: the three surfaces of a protocol-2 editor, each in its own host instance."""
+    eid, version, title = editor["id"], editor["version"], editor.get("title") or editor["id"]
+    grants = [p.get("id") for p in editor.get("permissions", []) if isinstance(p, dict) and p.get("id") != "network.media"]
+    cases: dict = report["cases"]
+    try:
+        declared = parse_surfaces(editor.get("surfaces"))
+    except SurfacesError as exc:
+        cases["13-surfaces"] = {"ok": False, "error": f"the manifest's surfaces are refused: {exc}"}
+        return
+
+    def check(name: str, ok: bool, **detail) -> None:
+        cases[name] = {"ok": bool(ok), **detail}
+        if not ok:
+            raise CaseFailed(name)
+
+    def open_page(**extra):
+        q = {"editor": eid, "version": version, "sha": sha, "title": title, "grants": ",".join(grants), **extra}
+        page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+        errors: list[str] = []
+        page.on("pageerror", lambda e: errors.append(str(e)))
+        page.add_init_script(HOST_WIRE)
+        page.goto(f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}", wait_until="networkidle")
+        page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=15000)
+        page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
+        page.wait_for_timeout(300)
+        return page, errors
+
+    def count(page, kind: str, type_: str | None = None) -> int:
+        return sum(1 for e in page.evaluate(LOG) if e["kind"] == kind and (type_ is None or e["type"] == type_))
+
+    def size_of(page) -> str | None:
+        return page.get_by_test_id("editor-artifact-frame").get_attribute("data-size")
+
+    def timed(page, js: str):
+        t0 = time.time()
+        out = page.evaluate(js)
+        return out, round(time.time() - t0, 2)
+
+    def answered(page, js: str, type_: str, shape: str) -> dict:
+        """Run a host request and read the editor's own reply as the host received it: correlated by id, a valid
+        envelope, the payload's shape, and within 2 s of the request."""
+        t0 = page.evaluate("() => performance.now()")
+        out = page.evaluate(js)
+        reply = page.evaluate(WIRE_REPLY.format(shape=shape), [t0, type_])
+        ok = "error" not in reply and reply["valid"] and reply["ms"] <= HOST_ANSWER_S * 1000
+        return {"answer": out, "reply": reply, "ok": ok}
+
+    pages = []
+    try:
+        # 13: the declaration the host renders from is the manifest's.
+        page, errors = open_page(surface="card")
+        pages.append(page)
+        negotiated = page.evaluate("() => window.__wickedEditor.host()?.negotiated ?? null")
+        shown = page.evaluate("() => window.__wickedEditor.host()?.surfaces ?? null")
+        same = shown is not None and canonical_surfaces(shown) == canonical_surfaces(declared)
+        check("13-surfaces", negotiated == 2 and same, negotiated=negotiated,
+              **({} if same else {"host": shown, "manifest": declared}))
+
+        # 14: the card. The page mounts it as the card (its frame at the card's size), it reports its height when
+        # it sizes itself, and every plugin action is answered in time.
+        card = declared["card"]
+        if card["aspect"] == "auto":
+            try:
+                page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'in' && e.type === 'ui.height')",
+                                       timeout=int(HOST_ANSWER_S * 1000))
+            except Exception:  # noqa: BLE001 — reported as the case's detail below
+                pass
+        heights, dropped_h = count(page, "in", "ui.height"), count(page, "dropped", "ui.height")
+        # §8.3: the first height within 2 s of the card starting (the handshake), by the host's own clock.
+        height_ms = page.evaluate("""() => { const log = window.__wickedEditor?.log ?? [];
+            const hs = log.find(e => e.kind === 'handshake'); const h = log.find(e => e.kind === 'in' && e.type === 'ui.height');
+            return hs && h ? h.at - hs.at : null; }""")
+        answers = []
+        for a in card["actions"]:
+            if a["verb"] != "plugin":
+                continue
+            r = answered(page, f"() => window.__wickedEditor.host().action({json.dumps(a['id'])})", "host.action", ACTION_SHAPE)
+            answers.append({"id": a["id"], **r})
+        late = [x for x in answers if not x["ok"]]
+        on_time = card["aspect"] != "auto" or (heights >= 1 and height_ms is not None and height_ms <= HOST_ANSWER_S * 1000)
+        check("14-card", size_of(page) == "inline" and dropped_h == 0 and on_time
+              and not late and count(page, "teardown") == 0 and not errors,
+              frame_size=size_of(page), heights=heights, first_height_ms=height_ms, heights_dropped=dropped_h, actions=answers,
+              uncaught=errors[:3])
+
+        # 16: the same instance morphs to full screen and back; with modes, each is echoed in time. A declaration
+        # without `full` (optional, §5.2) has no full-screen surface to probe.
+        if declared["full"] is None:
+            check("16-full", True, note="no full surface declared")
+        else:
+            loads_before = count(page, "load")
+            page.evaluate("() => window.__wickedEditor.host().setSurface('full')")
+            page.wait_for_timeout(300)
+            echoes = []
+            if declared["full"] is not None and declared["full"]["modes"] is not None:
+                for m in ("advanced", "simple"):
+                    got, secs = timed(page, f"() => window.__wickedEditor.host().setMode('{m}')")
+                    echoes.append({"mode": m, "echo": got, "seconds": secs})
+            page.evaluate("() => window.__wickedEditor.host().setSurface('card')")
+            page.wait_for_timeout(200)
+            bad = [e for e in echoes if e["echo"] != e["mode"] or e["seconds"] > HOST_ANSWER_S]
+            check("16-full", count(page, "load") == loads_before == 1
+                  and count(page, "handshake") == 1 and count(page, "ignored-window-message") == 0 and not bad
+                  and count(page, "teardown") == 0 and not errors,
+                  loads=count(page, "load"), readies=count(page, "handshake"), modes=echoes, uncaught=errors[:3])
+    except CaseFailed:
+        pass
+    finally:
+        for pg in pages:
+            pg.close()
+
+    # 15: every plugin tab in its own options instance; the controls tabs' values from the first one.
+    tabs = declared["options"]["tabs"] if declared["options"] is not None else []
+    plugin_tabs = [t for t in tabs if t["render"] == "plugin"]
+    controls_tabs = [t for t in tabs if t["render"] == "controls"]
+    if not tabs:
+        cases["15-options"] = {"ok": True, "tabs": 0, "note": "no options surface declared"}
+        return
+    detail: list = []
+    ok = True
+    for i, t in enumerate(plugin_tabs or [None]):
+        page, errors = open_page(surface="options", **({"tab": t["id"]} if t else {}))
+        try:
+            page.evaluate("() => window.__wickedEditor.host().relaySelection([{kind:'element', id:'conformance-probe'}])")
+            page.wait_for_timeout(300)
+            row = {"tab": t["id"] if t else None, "frame_size": size_of(page),
+                   "alive": page.evaluate("() => window.__wickedEditor.host()?.alive === true") and count(page, "teardown") == 0}
+            row_ok = True
+            if i == 0 and controls_tabs:
+                # Every controls tab needs its own accepted snapshot (the host keeps the newest per tab), and one
+                # valid change per tab gets a well-formed answer, applied or refused. A host page that does not report
+                # the snapshots fails closed.
+                want = json.dumps([t2["id"] for t2 in controls_tabs])
+                try:  # every controls tab's first snapshot, however late the editor starts (a finite wait)
+                    page.wait_for_function(f"() => {{ const v = window.__wickedEditor.optionsValues?.(); "
+                                           f"return v != null && {want}.every(t => t in v); }}", timeout=OPTIONS_WAIT_MS)
+                except Exception:  # noqa: BLE001 — reported below as the tabs that never arrived
+                    pass
+                seen = page.evaluate("() => window.__wickedEditor.optionsValues?.() ?? null")
+                row["values_dropped"] = count(page, "dropped", "options.values")
+                row["values_tabs"] = sorted(seen) if isinstance(seen, dict) else None
+                changes = []
+                for t2 in controls_tabs:
+                    first = t2["controls"][0]
+                    value = _probe_value(first)
+                    r = answered(page, f"() => window.__wickedEditor.host().changeOption("
+                                       f"{json.dumps(t2['id'])}, {json.dumps(first['id'])}, {json.dumps(value)})", "options.changed", CHANGE_SHAPE)
+                    # Applied or refused are both answers (§6): a well-formed reply within 2 s is what counts.
+                    changes.append({"tab": t2["id"], "id": first["id"], "value": value, "applied": r["answer"],
+                                    "reply": r["reply"], "answered": r["ok"]})
+                row["changes"] = changes
+                row_ok = (isinstance(seen, dict) and all(t2["id"] in seen for t2 in controls_tabs)
+                          and row["values_dropped"] == 0 and all(c["answered"] for c in changes))
+                if not isinstance(seen, dict):
+                    row["error"] = "the conformance host page reports no options values per tab (window.__wickedEditor.optionsValues)"
+            row["uncaught"] = errors[:3]
+            ok = ok and row_ok and row["alive"] and row["frame_size"] == "pane" and not errors
+            detail.append(row)
+        finally:
+            page.close()
+    cases["15-options"] = {"ok": ok, "tabs": detail}
+
+
+def _probe_value(control: dict):
+    """A value the control can hold that differs from the template's first one, for the change probe."""
+    kind = control["type"]
+    if kind == "toggle":
+        return True
+    if kind in ("segmented", "select"):
+        return control["options"][-1]["id"]
+    if kind == "range":
+        return control["min"] + control["step"]  # on the step grid, and ≤ max since step ≤ max - min
+    if kind == "color":
+        return "#aa0000"
+    return "conformance"[: control.get("maxChars", 200)]
 
 
 def _torn(page, wait: bool = False):
@@ -422,11 +662,19 @@ def main(argv: list[str] | None = None) -> int:
                           "not that it applied the tokens",
                           "case 10 checks focus reach only; axe is not run",
                           "case 3 cannot see WebRTC/STUN or DNS prefetch (DES §12.1)",
-                          "cases 13-18 test the host against a hostile bundle: studio CI runs them"]}
+                          "the host-control cases against a hostile bundle: studio CI runs them",
+                          "16b (host.action grants no activation for a tools/call) is the host's rule: studio CI runs "
+                          "it with a test plugin"]}
                 if m0["ok"]:
                     run_editor(browser, origin, e, er["sha256"], er)
-                expected = 12  # cases 0-6 and 8-12
-                er["ok"] = len(er["cases"]) == expected and all(c.get("ok") for c in er["cases"].values())
+                    base_ok = len(er["cases"]) == 12 and all(c.get("ok") for c in er["cases"].values())
+                    if speaks(e, 2) and base_ok:
+                        run_editor_v2(browser, origin, e, er["sha256"], er)
+                    elif not speaks(e, 2):
+                        er["cases"]["17-v1-compat"] = {
+                            "ok": base_ok and er.get("negotiated") == 1, "negotiated": er.get("negotiated"),
+                            **({"error": "the conformance host does not speak protocol 2"} if er.get("negotiated") is None else {})}
+                er["ok"] = len(er["cases"]) == expected_cases(e) and all(c.get("ok") for c in er["cases"].values())
                 report["editors"].append(er)
             browser.close()
     finally:

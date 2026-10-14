@@ -2,17 +2,19 @@
 """Scaffold an artifact editor plugin as a wicked-pack.json spec-2 pack.
 
     wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<name> --title <words>
-        --kinds <kind[,kind]> [--permissions <id[,id]>] [--version 0.1.0] --out <dir>
+        --kinds <kind[,kind]> [--permissions <id[,id]>] [--surfaces <file.json>] [--version 0.1.0] --out <dir>
 
 Writes into ``<dir>`` (a repo root or a subdirectory; it may exist, but every file it would write
 must be absent — it refuses naming the first collision and writes nothing):
 
-- ``wicked-pack.json``: spec 2 with one ``editors[]`` entry (id, title, version, protocol [1], the
-  kinds, sizes inline/pane/full, each permission with its plain-words ``why``, the entry, and the
-  entry's sha256 pinned);
+- ``wicked-pack.json``: spec 2 with one ``editors[]`` entry (id, title, version, protocol [1, 2], the
+  kinds, sizes inline/pane/full, the protocol-2 ``surfaces`` declaration, each permission with its
+  plain-words ``why``, the entry, and the entry's sha256 pinned);
 - ``editors/<id>/index.html``: the one self-contained editor file, from the skill's template — the
-  wicked.editor/1 plumbing (handshake, port, ping, size, theme, keys, typing) with a read-only
-  viewer to replace;
+  wicked.editor/2 plumbing (handshake, port, ping, size, theme, keys, typing; the card, options and
+  full-screen surfaces, Simple/Advanced, card actions and host-drawn controls) that also speaks /1 to
+  an older host, with a read-only viewer to replace. The same ``surfaces`` JSON is written into the
+  manifest and the entry's ``plugin.ready`` (DES-EDITOR-PLUGIN-CONTRACT-001 §5.1: they must agree);
 - ``README.md``.
 
 The default permissions are the least an editor that reads and points needs: ``artifact.read``,
@@ -32,10 +34,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _pack import (  # noqa: E402
     ID_RE, KIND_RE, MANIFEST_NAME, PERMISSIONS, RESERVED_RE, SEMVER_RE, SIZES, sha256_file, write_manifest,
 )
+from _surfaces import SurfacesError, parse_surfaces  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 ASSETS = ROOT / "skills" / "editor-scaffold" / "assets" / "pack"
 DEFAULT_PERMISSIONS = "artifact.read,selection.chip,ui.fullscreen"
+# The default protocol-2 declaration (DES-EDITOR-PLUGIN-CONTRACT-001 §5.2): an interactive card that reports
+# its height with a plugin action and the host's "ask about it"; one plugin-rendered options tab and one
+# host-drawn controls tab; full screen with Simple/Advanced. The template implements every part of it.
+DEFAULT_SURFACES = {
+    "card": {
+        "interactive": True,
+        "aspect": "auto",
+        "actions": [
+            {"id": "next", "label": "Next part", "verb": "plugin"},
+            {"id": "ask", "label": "Ask about it", "verb": "host:ask"},
+        ],
+    },
+    "options": {
+        "tabs": [
+            {"id": "parts", "label": "Parts", "render": "plugin"},
+            {"id": "view", "label": "View", "render": "controls", "controls": [
+                {"id": "density", "label": "Density", "type": "segmented",
+                 "options": [{"id": "roomy", "label": "Roomy"}, {"id": "compact", "label": "Compact"}]},
+                {"id": "numbers", "label": "Show numbers", "type": "toggle"},
+            ]},
+        ],
+    },
+    "full": {"modes": ["simple", "advanced"], "default": "simple"},
+}
 
 
 def _fail(message: str) -> int:
@@ -56,6 +83,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--title", required=True, help="the editor's name in plain words")
     parser.add_argument("--kinds", required=True, help="artifact kinds it opens, comma-separated")
     parser.add_argument("--permissions", default=DEFAULT_PERMISSIONS, help=f"default {DEFAULT_PERMISSIONS}")
+    parser.add_argument("--surfaces", type=Path, default=None,
+                        help="a JSON file with the protocol-2 surfaces declaration (default: card, options, full)")
     parser.add_argument("--version", default="0.1.0")
     parser.add_argument("--out", required=True, type=Path)
     args = parser.parse_args(argv)
@@ -80,6 +109,19 @@ def main(argv: list[str] | None = None) -> int:
     if "network.media" in perms:
         return _fail("network.media is not offered to a pack editor: its frame has no network (img/font from data: and blob: only)")
 
+    surfaces = DEFAULT_SURFACES
+    if args.surfaces is not None:
+        try:
+            surfaces = json.loads(args.surfaces.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            return _fail(f"--surfaces {args.surfaces}: not readable JSON ({exc})")
+    try:
+        parse_surfaces(surfaces)
+    except SurfacesError as exc:
+        return _fail(f"--surfaces refused: {exc}")
+    if any(a.get("verb") == "host:export" for a in surfaces["card"].get("actions", [])) and "artifact.export" not in perms:
+        return _fail("a host:export card action needs the artifact.export permission")
+
     out: Path = args.out
     if out.exists() and not out.is_dir():
         return _fail(f"{out} exists and is not a directory")
@@ -94,7 +136,10 @@ def main(argv: list[str] | None = None) -> int:
             return _fail(f"template missing: {src}")
 
     values = {"__EDITOR_ID__": editor_id, "__EDITOR_VERSION__": args.version, "__EDITOR_TITLE__": title,
-              "__EDITOR_KINDS__": ", ".join(kinds)}
+              "__EDITOR_KINDS__": ", ".join(kinds),
+              # The same JSON as the manifest's `surfaces`; JSON is a JS expression, and `</` is escaped so the
+              # declaration can never close the inline <script>.
+              "__EDITOR_SURFACES__": json.dumps(surfaces, indent=2).replace("</", "<\\/")}
     for src, rel in files:
         target = out / rel
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -111,11 +156,12 @@ def main(argv: list[str] | None = None) -> int:
             "id": editor_id,
             "title": title,
             "version": args.version,
-            "protocol": [1],
+            "protocol": [1, 2],
             "kinds": kinds,
             "entry": entry_rel.as_posix(),
             "sha256": sha,
             "sizes": list(SIZES),
+            "surfaces": surfaces,
             "permissions": [{"id": p, "why": PERMISSIONS[p]} for p in perms],
         }],
     }
@@ -124,7 +170,8 @@ def main(argv: list[str] | None = None) -> int:
         "ok": True,
         "pack": str(out),
         "files": [p.as_posix() for p in targets],
-        "editor": {"id": editor_id, "version": args.version, "sha256": sha, "kinds": kinds, "permissions": perms},
+        "editor": {"id": editor_id, "version": args.version, "sha256": sha, "kinds": kinds, "permissions": perms,
+                   "protocol": [1, 2], "surfaces": sorted(k for k in ("card", "options", "full") if k in surfaces)},
         "pin": f'wicked-garden run scripts/editor/pin.py "{out}"',
         "check": f'npx wicked-garden pack check "{out}"',
         "conformance": f'wicked-garden run scripts/editor/conformance.py --pack "{out}" --json',
