@@ -2,7 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+- **The MCP inspector ships as an editor plugin pack: `packs/garden-mcp-inspector` (DES-EDITOR-PLUGIN-CONTRACT-001 slice 5).** The editor-plugin scaffold made it (kind `mcp-server`, protocol [1,2], sizes inline/pane/full, permissions `artifact.read`, `mcp.session`, `ui.fullscreen`). The card holds the tools, the argument form, Call and the result. The options tabs are Resources, Prompts and the JSON-RPC Log. Full screen shows the whole inspector, and Advanced adds the last call's raw exchange. It follows list pages, shows a list the server refuses as its error, and starts the log over on Restart. Arguments come from the tool's schema, with a JSON box for anything the fields can't express. A tool call is sent only from a click on Call. Install it with `install.py --dir "$(wicked-garden path packs/garden-mcp-inspector)"`. A test re-runs the scaffold and holds the pack to its output.
+
 ### Changed
+- **Editor conformance tolerates a slow host and checks the options mount.** Each page load and each read proxied to the daemon may take `--timeout` seconds (else `$WG_EDITOR_CONFORMANCE_TIMEOUT`, default 120; it was Playwright's 30 s). No load waits for "network idle", which never comes while studio holds its live socket. The host page's own files are fetched once per run. Case 15 now reads the `host.hello` the editor's frame received: each plugin tab must be mounted as an options instance told that tab, and `host.tab` must switch it to the other tabs and back without a reload. Case 14 checks the card is told `surface: card`. Before, a host page that ignored `tab` passed case 15.
 - **Demo videos follow the studio skin by default.** The recorder's stage, title and chapter cards, captions, progress and callouts take their colours and typeface from the operator's studio Theme. It reads them from wicked-crew's `GET /api/v1/appearance/video-palette` (`$WICKED_CREW_URL`), replacing the fixed grey palette and its red accent (`#ee0000`). A storyline's `brand.accent` still overrides the accent. With no daemon, the stage uses a neutral grey-and-slate look.
 
 ### Added

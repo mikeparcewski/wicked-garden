@@ -1,0 +1,662 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  MCP inspector (garden-mcp-inspector 0.1.0): an artifact editor plugin speaking wicked.editor/2, and
+  /1 to an older host (DES-EDITOR-PLUGIN-CONTRACT-001; DES-EDITOR-PLUGINS-001 §5; DES-MCP-INSPECTOR-001). ONE
+  self-contained file: every script and style is inline, nothing is loaded from outside it (the bundle's policy
+  has connect-src 'none' and the pack check refuses outside references). It talks only to the host, over the
+  MessagePort the host transfers with host.hello.
+
+  Scaffolded by wicked-garden's editor-scaffold skill (scripts/editor/scaffold.py --kinds mcp-server
+  --permissions artifact.read,mcp.session,ui.fullscreen --surfaces <the declaration below>); the protocol plumbing
+  is the template's, the inspector is in the parts marked YOUR EDITOR. The contract it follows is the skill's
+  refs/mcp-server.md: the HOST connects to the server and draws Connect, Restart, Disconnect and the call line;
+  this editor sees the server's traffic only (mcp.state, mcp.log) and asks through mcp.request. A tools/call is
+  sent only from a click on its own Call button.
+
+  Protocol 2: the host draws this editor in up to three places from the SURFACES declaration below, which is
+  the same JSON as `surfaces` in wicked-pack.json (the host and the conformance run compare the two):
+    card     the tools, the argument form, Call and the result; "List again" is a host-drawn card action
+    options  one plugin tab per frame: Resources, Prompts or the JSON-RPC Log (host.tab switches it)
+    full     the whole inspector; Advanced adds the raw request and answer of the last call, from the log
+  The card and full screen are ONE instance that morphs (host.surface): never reload on a morph.
+
+  After every change to this file, re-pin its hash: wicked-garden run scripts/editor/pin.py <pack dir>
+-->
+<html lang="en"><head><meta charset="utf-8"><title>MCP inspector</title>
+<style>
+  :root { --surface: #ffffff; --raised: #f3f5f8; --ink: #0d1117; --body: #2b3440; --ink-muted: #59636e; --border: #d0d7de;
+          --accent: #224a5e; --accent-fg: #ffffff; --fail: #b42318; --ok: #1a7f37; --font: system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.45 var(--font); color: var(--body); background: var(--surface); }
+  main { display: grid; grid-template-rows: auto auto minmax(0, 1fr); height: 100%; }
+  header button { margin-left: auto; font: inherit; font-size: 13px; color: var(--ink); background: transparent; border: 1px solid var(--border); border-radius: 6px; padding: 3px 10px; }
+  header button[hidden] { display: none; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  #status { font-weight: 600; color: var(--ink); }
+  #status[data-state="ready"]::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); margin-right: 8px; }
+  #status[data-stale="1"] { color: var(--ink-muted); }
+  .note { color: var(--ink-muted); font-size: 12px; margin: 0; }
+  nav { display: flex; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--border); }
+  nav[hidden] { display: none; }
+  nav button { border: 0; background: none; padding: 8px 12px; font: inherit; color: var(--ink-muted); border-bottom: 2px solid transparent; }
+  nav button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 600; }
+  .panes { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); min-height: 0; }
+  .panes > * { min-height: 0; overflow: auto; }
+  #list { border-right: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 2px; margin: 0; list-style: none; }
+  #list button { width: 100%; text-align: left; border: 0; background: none; padding: 7px 10px; border-radius: 8px; font: inherit; color: var(--body); }
+  #list button[aria-current="true"] { background: var(--raised); color: var(--ink); font-weight: 600; }
+  #list .desc { display: block; font-size: 12px; color: var(--ink-muted); font-weight: normal; }
+  #detail { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  h2 { margin: 0; font-size: 16px; color: var(--ink); }
+  label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink); }
+  input, textarea, select { font: 13px ui-monospace, monospace; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--raised); color: var(--ink); }
+  textarea { min-height: 64px; resize: vertical; }
+  button.primary { align-self: flex-start; border: 0; border-radius: 8px; padding: 7px 14px; background: var(--accent); color: var(--accent-fg); font: inherit; font-weight: 600; }
+  button:disabled { opacity: 0.6; }
+  button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  pre { margin: 0; padding: 10px 12px; background: var(--raised); border-radius: 8px; font: 12px/1.5 ui-monospace, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); }
+  pre[data-error="1"] { box-shadow: inset 3px 0 0 var(--fail); }
+  .err { color: var(--fail); margin: 0; font-size: 13px; }
+  #log { list-style: none; margin: 0; padding: 0; font: 12px/1.5 ui-monospace, monospace; }
+  #log li { padding: 4px 0; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+  #log .dir { display: inline-block; width: 2.2em; color: var(--ink-muted); }
+  #log li[data-error="1"] { color: var(--fail); }
+  #log li.gap { color: var(--ink-muted); font-style: italic; }
+  .empty { color: var(--ink-muted); }
+  .raw { display: none; }
+  body[data-surface="full"][data-mode="advanced"] .raw:not([hidden]) { display: block; }
+  /* Protocol 1: the inline card has no input (a host hit layer turns a click into "grow"). */
+  body[data-protocol="1"][data-size="inline"] main { pointer-events: none; }
+  /* Protocol 2: the card sizes itself (ui.height), so it is as tall as its content. */
+  body[data-surface="card"], body[data-surface="card"] main { height: auto; }
+  body[data-surface="card"] .panes > * { overflow: visible; }
+  @media (max-width: 560px) {
+    .panes { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+    #list { border-right: 0; border-bottom: 1px solid var(--border); flex-direction: row; flex-wrap: wrap; }
+    #list button { width: auto; }
+    #list .desc { display: none; }
+    header, nav, #detail { padding-inline: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style></head>
+<body data-size="pane" data-protocol="1">
+<main>
+  <header>
+    <span id="status" data-state="none">Not connected</span>
+    <p class="note" id="hint">Connect in studio, beside this inspector.</p>
+    <button type="button" id="full" hidden>Full screen</button>
+  </header>
+  <nav id="tabs" role="tablist" aria-label="What to inspect">
+    <button type="button" role="tab" data-tab="tools" aria-selected="true">Tools</button>
+    <button type="button" role="tab" data-tab="resources" aria-selected="false">Resources</button>
+    <button type="button" role="tab" data-tab="prompts" aria-selected="false">Prompts</button>
+    <button type="button" role="tab" data-tab="log" aria-selected="false">Log</button>
+  </nav>
+  <div class="panes">
+    <ul id="list" aria-label="Items"></ul>
+    <section id="detail" aria-live="polite"><p class="empty">Nothing to show yet.</p></section>
+  </div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const EDITOR = 'garden-mcp-inspector', VERSION = '0.1.0';
+  // The protocol-2 declaration: byte-for-byte the manifest's `surfaces` (the scaffold writes both).
+  const SURFACES = {
+  "card": {
+    "interactive": true,
+    "aspect": "auto",
+    "actions": [
+      {
+        "id": "refresh",
+        "label": "List again",
+        "verb": "plugin"
+      }
+    ]
+  },
+  "options": {
+    "tabs": [
+      {
+        "id": "resources",
+        "label": "Resources",
+        "render": "plugin"
+      },
+      {
+        "id": "prompts",
+        "label": "Prompts",
+        "render": "plugin"
+      },
+      {
+        "id": "log",
+        "label": "Log",
+        "render": "plugin"
+      }
+    ]
+  },
+  "full": {
+    "modes": [
+      "simple",
+      "advanced"
+    ],
+    "default": "simple"
+  }
+};
+  let port = null, grants = [], seq = 0, protocol = 1;
+  let surface = 'card', mode = 'simple', size = 'pane', optionsTab = null, lastHeight = null;
+  const pending = new Map();
+  const env = (type, payload) => ({ p: 'wicked.editor', v: 1, type, payload });
+  // A request expects one reply on the port (mcp.request within 60 s, everything else within 10 s).
+  const req = (type, payload) => new Promise((resolve) => {
+    if (!port) { resolve({ ok: false, error: { code: 'unavailable', message: 'no port' } }); return; }
+    const id = 'r' + (++seq);
+    pending.set(id, resolve);
+    port.postMessage({ p: 'wicked.editor', v: 1, type, id, payload });
+  });
+  const send = (type, payload) => { if (port) port.postMessage(env(type, payload)); };
+  const answer = (id, payload) => { if (port) port.postMessage({ p: 'wicked.editor', v: 1, re: id, ok: true, payload }); };
+  const granted = (p) => grants.includes(p);
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, attrs, text) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    if (text !== undefined) e.textContent = text; // the server's words are text, never markup
+    return e;
+  };
+
+  // ── YOUR EDITOR: the inspector ────────────────────────────────────────────────────────────────
+  const OPTION_TABS = ((SURFACES.options && SURFACES.options.tabs) || []).filter((t) => t.render === 'plugin').map((t) => t.id);
+  const WORDS = {
+    not_granted: 'Not allowed to talk to MCP servers.',
+    unavailable: 'Not connected. Use Connect in studio.',
+    bad_request: "This studio can't inspect MCP servers.",
+    refused: 'A tool call needs your click on Call.',
+  };
+  // Refused before anything was sent. A timeout or a transport failure may still have reached the server.
+  const NOT_SENT = ['not_granted', 'refused', 'bad_request', 'write_not_granted', 'server_changed', 'rate_limited'];
+  let state = 'none', serverName = null, tab = 'tools', current = null, lastSeq = null, lastCall = null;
+  const items = { tools: [], resources: [], prompts: [] };
+  const log = [];
+  let calling = false, viewGen = 0, connGen = 0, listGen = 0;
+  // Why a list could not be read (null: it was): a failed list keeps what it showed, and says so.
+  const listErr = { tools: null, resources: null, prompts: null };
+
+  const words = (r) => {
+    const c = (r.error && r.error.code) || 'refused', m = (r.error && r.error.message) || '';
+    if (c === 'write_not_granted') return m + ' Enable it on the MCP tools page.';
+    if (c === 'server_changed') return m + ' Restart to reconnect.';
+    return WORDS[c] || (c + (m ? ': ' + m : ''));
+  };
+
+  // Each call keeps its own cursor (the log seq when it left), so a later call can never take its log entries.
+  async function mcp(method, params) {
+    const call = { method, after: lastSeq === null ? -1 : lastSeq, refused: null,
+                   name: params && typeof params.name === 'string' ? params.name : (params && params.uri) || null };
+    const r = await req('mcp.request', params === undefined ? { method } : { method, params });
+    if (!r.ok) { const c = (r.error && r.error.code) || 'refused'; if (NOT_SENT.includes(c)) call.refused = c; }
+    return Object.assign(r, { call });
+  }
+  // A list reply: its items and the next page's cursor, or why there are none to show (the bridge refused, or the
+  // server answered an error).
+  function outcome(r, key) {
+    if (!r.ok) return { why: words(r) };
+    const res = (r.payload && r.payload.response) || {};
+    if (res.error) return { why: 'The server answered an error: ' + String(res.error.message || res.error.code || '') };
+    const xs = res.result && res.result[key];
+    if (!Array.isArray(xs)) return { why: 'The server sent no ' + key + ' list.' };
+    const next = res.result.nextCursor;
+    return { xs, next: typeof next === 'string' && next !== '' ? next : null };
+  }
+
+  // Every page of one list (MCP pagination: follow nextCursor), at most MAX_PAGES. A page that fails keeps the pages
+  // before it and says why; a list longer than that says so.
+  const MAX_PAGES = 20;
+  async function listPaged(method, key, live) {
+    let xs = [], cursor = null;
+    for (let page = 0; page < MAX_PAGES; page += 1) {
+      if (!live()) return { xs: null, why: null }; // a newer listing or another connection took over: stop paging
+      const o = outcome(await mcp(method, cursor === null ? undefined : { cursor }), key);
+      if (!o.xs) return { xs: page === 0 ? null : xs, why: o.why };
+      xs = xs.concat(o.xs);
+      if (o.next === null) return { xs, why: null };
+      cursor = o.next;
+    }
+    return { xs, why: 'Only the first ' + MAX_PAGES + ' pages are shown.' };
+  }
+
+  // One call at a time, and a reply for a detail view no longer shown never touches the one on screen.
+  async function once(fn) {
+    if (calling) return;
+    calling = true;
+    const gen = viewGen;
+    try { await fn(gen); } finally { calling = false; }
+  }
+
+  // Lists for THIS connection only: a reply that lands after the connection changed (closed, failed, reconnected)
+  // never replaces what is shown, and a failed list keeps its last items, marked with why.
+  async function listAll() {
+    if (state !== 'ready') return;
+    // Only the NEWEST listing of THIS connection publishes: two "List again" whose answers cross never let the older
+    // one restore what the newer one replaced.
+    const gen = connGen, mine = ++listGen;
+    const live = () => gen === connGen && mine === listGen && state === 'ready';
+    const got = await Promise.all([listPaged('tools/list', 'tools', live), listPaged('resources/list', 'resources', live),
+                                   listPaged('prompts/list', 'prompts', live)]);
+    if (!live()) return;
+    ['tools', 'resources', 'prompts'].forEach((key, i) => {
+      if (got[i].xs !== null) items[key] = got[i].xs;
+      listErr[key] = got[i].why;
+    });
+    drawList();
+  }
+
+  // The card's "List again": answered at once (the host waits 2 s at most), the list follows when the server answers.
+  function onAction(id) {
+    if (id !== 'refresh') return { handled: false };
+    if (state !== 'ready') return { handled: false, status: 'Not connected' };
+    void listAll();
+    return { handled: true, status: 'Listing again' };
+  }
+
+  // The card's height, when it declares aspect "auto" (the host clamps it to 120-560 px): the content's own
+  // height, not the frame's (html and body are 100% tall outside the card).
+  function reportHeight() {
+    if (protocol < 2 || surface !== 'card' || SURFACES.card.aspect !== 'auto' || !port) return;
+    let bottom = 0;
+    for (const c of Array.from(document.body.children)) if (!c.hidden && c.tagName !== 'SCRIPT') bottom = Math.max(bottom, c.getBoundingClientRect().bottom);
+    const px = Math.ceil(bottom + 8);
+    if (px !== lastHeight) { lastHeight = px; send('ui.height', { px }); }
+  }
+
+  function syncTabs() {
+    for (const o of document.querySelectorAll('nav button')) o.setAttribute('aria-selected', String(o.dataset.tab === tab));
+  }
+
+  function showTab(next) {
+    if (next === tab) return;
+    tab = next; current = null; lastCall = null;
+    syncTabs();
+    drawList();
+  }
+
+  // Which surface shows what: the card is the tools; an options instance on a tab is that tab only; full screen,
+  // an options instance with no tab, and every protocol-1 size show all four tabs.
+  function applySurface() {
+    document.body.dataset.protocol = String(protocol);
+    document.body.dataset.size = protocol >= 2 ? (surface === 'card' ? 'inline' : surface === 'options' ? 'pane' : 'full') : size;
+    const nav = $('tabs');
+    $('full').hidden = protocol >= 2 || !granted('ui.fullscreen');
+    if (protocol < 2) {
+      delete document.body.dataset.surface;
+      nav.hidden = false;
+    } else {
+      document.body.dataset.surface = surface;
+      document.body.dataset.mode = mode;
+      document.documentElement.style.height = surface === 'card' ? 'auto' : '';
+      if (surface === 'card') { nav.hidden = true; lastHeight = null; showTab('tools'); }
+      else if (surface === 'options' && optionsTab !== null) { nav.hidden = true; showTab(optionsTab); }
+      else nav.hidden = false;
+      if (surface === 'card' && document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    }
+    syncTabs();
+    syncRaw();
+    reportHeight();
+  }
+
+  function drawList() {
+    const list = $('list');
+    list.textContent = '';
+    if (tab === 'log') { list.appendChild(el('li', { class: 'empty' }, log.length + ' lines')); drawLog(); return; }
+    const xs = items[tab] || [];
+    if (listErr[tab]) list.appendChild(el('li', { class: 'err', role: 'alert' }, listErr[tab]));
+    else if (xs.length === 0) list.appendChild(el('li', { class: 'empty' }, state === 'ready' ? 'None.' : 'Not connected.'));
+    for (const x of xs) {
+      const key = String(x.name || x.uri || '');
+      const li = el('li');
+      const b = el('button', { type: 'button', 'data-item': key }, key);
+      if (current && String(current.name || current.uri || '') === key) b.setAttribute('aria-current', 'true');
+      if (typeof x.description === 'string' && x.description) b.appendChild(el('span', { class: 'desc' }, x.description));
+      b.addEventListener('click', () => { current = x; lastCall = null; drawList(); drawDetail(); });
+      li.appendChild(b); list.appendChild(li);
+    }
+    // A new listing keeps the item shown (and what was typed for it) when the item is still there.
+    const keyOf = (x) => String((x && (x.name || x.uri)) || '');
+    const still = current && !xs.includes(current) ? xs.find((x) => keyOf(x) === keyOf(current)) : null;
+    let redraw = false;
+    if (still) { redraw = JSON.stringify(still) !== JSON.stringify(current); current = still; }
+    if (!current || !xs.includes(current)) {
+      current = null; lastCall = null; viewGen += 1;
+      $('detail').replaceChildren(el('p', { class: 'empty' }, xs.length ? 'Pick one.' : 'Nothing to show yet.'));
+    } else if (redraw) {
+      drawDetail(); // the server changed this item's declaration: its form is rebuilt from the new one
+      return;
+    }
+    reportHeight();
+  }
+
+  // The arguments form, from the tool's inputSchema: strings, numbers and booleans get a field; anything the form
+  // can't express (objects, arrays, unions) gets a raw JSON box that is checked before anything is sent.
+  function argField(name, schema, required) {
+    const type = schema && typeof schema.type === 'string' ? schema.type : null;
+    const lab = el('label', {}, name + (type ? ' (' + type + ')' : ' (JSON)') + (required ? ' · required' : ''));
+    let input, read;
+    if (type === 'boolean') {
+      input = el('select', { 'data-arg': name });
+      for (const [v, t] of [['', 'not set'], ['true', 'true'], ['false', 'false']]) input.appendChild(el('option', { value: v }, t));
+      read = () => input.value === '' ? undefined : input.value === 'true';
+    } else if (type === 'string' || type === 'number' || type === 'integer') {
+      input = el('input', { 'data-arg': name, type: type === 'string' ? 'text' : 'number', ...(type === 'integer' ? { step: '1' } : {}) });
+      read = () => {
+        // An empty field is unset here; the arguments step below may fill it from More arguments, and only then does
+        // a still-missing REQUIRED string become "" (the empty string is a valid value for it).
+        if (input.value === '') return undefined;
+        if (type === 'string') return input.value;
+        const n = Number(input.value);
+        if (!Number.isFinite(n) || (type === 'integer' && !Number.isInteger(n))) throw new Error(name + ' is not ' + (type === 'integer' ? 'a whole number' : 'a number'));
+        return n;
+      };
+    } else {
+      input = el('textarea', { 'data-arg': name, spellcheck: 'false' });
+      read = () => {
+        if (input.value.trim() === '') return undefined;
+        try { return JSON.parse(input.value); } catch { throw new Error(name + ' is not valid JSON'); }
+      };
+    }
+    lab.appendChild(input);
+    return { lab, read, required, blankIsEmptyString: type === 'string' };
+  }
+
+  function drawDetail() {
+    viewGen += 1;
+    const d = $('detail');
+    d.textContent = '';
+    if (!current) { reportHeight(); return; }
+    const x = current;
+    d.appendChild(el('h2', {}, String(x.name || x.uri || '')));
+    if (typeof x.description === 'string' && x.description) d.appendChild(el('p', { class: 'note' }, x.description));
+    const problem = el('p', { class: 'err', role: 'alert' });
+    problem.hidden = true;
+    const out = el('pre', { id: 'result', 'aria-label': 'Result' }, '');
+    out.hidden = true;
+    const rawReq = el('pre', { id: 'raw-request', class: 'raw', 'aria-label': 'Raw request' }, '');
+    const rawRes = el('pre', { id: 'raw-response', class: 'raw', 'aria-label': 'Raw answer' }, '');
+    rawReq.hidden = true; rawRes.hidden = true;
+    const run = (label, method, params) => {
+      const b = el('button', { type: 'button', class: 'primary' }, label);
+      b.addEventListener('click', () => {
+        // Read the form first, in the click: the call leaves inside this click's activation, or not at all.
+        let p;
+        try { p = params(); problem.hidden = true; } catch (err) { problem.textContent = err.message; problem.hidden = false; reportHeight(); return; }
+        const conn = connGen;
+        void once(async (gen) => {
+          b.disabled = true;
+          try { const r = await mcp(method, p); if (gen === viewGen && conn === connGen) show(out, r); } finally { b.disabled = false; }
+        });
+      });
+      return b;
+    };
+    if (tab === 'tools') {
+      const schema = x.inputSchema && typeof x.inputSchema === 'object' ? x.inputSchema : {};
+      const props = schema.properties && typeof schema.properties === 'object' && !Array.isArray(schema.properties) ? schema.properties : {};
+      const needed = Array.isArray(schema.required) ? schema.required : [];
+      // A root the fields can't express (pattern keys, a union, a reference, a condition, not an object) gets ONE raw
+      // JSON box for the whole arguments object. Otherwise the fields, plus a "more arguments" JSON box whenever the
+      // schema permits keys beyond them (additionalProperties not false, or a required key with no field). Both are
+      // checked before anything is sent.
+      const raw = ['patternProperties', 'oneOf', 'anyOf', 'allOf', '$ref', 'not', 'if'].some((k) => k in schema)
+        || (typeof schema.type === 'string' && schema.type !== 'object');
+      const jsonObject = (text, what) => {
+        let v;
+        try { v = JSON.parse(text); } catch { throw new Error(what + ' are not valid JSON'); }
+        if (v === null || typeof v !== 'object' || Array.isArray(v)) throw new Error(what + ' must be a JSON object');
+        return v;
+      };
+      let read;
+      if (raw) {
+        const lab = el('label', {}, 'Arguments (JSON object)');
+        const box = el('textarea', { 'data-arg': '*', spellcheck: 'false' });
+        box.value = '{}';
+        lab.appendChild(box);
+        d.appendChild(lab);
+        read = () => jsonObject(box.value, 'The arguments');
+      } else {
+        const fields = Object.entries(props).map(([k, s]) => [k, argField(k, s, needed.includes(k))]);
+        for (const [, f] of fields) d.appendChild(f.lab);
+        const unlisted = needed.filter((k) => typeof k === 'string' && !Object.hasOwn(props, k));
+        // Always offered: keys the fields don't list, and values a field can't hold (an optional "", null), as JSON.
+        const lab = el('label', {}, 'More arguments (JSON object' + (unlisted.length ? ', needs ' + unlisted.join(', ') : ', optional') + ')');
+        const more = el('textarea', { 'data-arg': '+', spellcheck: 'false' });
+        lab.appendChild(more);
+        d.appendChild(lab);
+        read = () => {
+          const args = Object.create(null); // a "__proto__" argument is an own key, never the prototype setter
+          for (const [k, f] of fields) {
+            const v = f.read();
+            if (v !== undefined) args[k] = v;
+          }
+          if (more.value.trim() !== '') {
+            for (const [k, v] of Object.entries(jsonObject(more.value, 'The more arguments'))) {
+              if (Object.hasOwn(args, k)) throw new Error(k + ' is set twice');
+              args[k] = v;
+            }
+          }
+          for (const [k, f] of fields) if (f.required && f.blankIsEmptyString && !Object.hasOwn(args, k)) args[k] = '';
+          for (const k of needed) if (typeof k === 'string' && !Object.hasOwn(args, k)) throw new Error(k + ' is required');
+          return args;
+        };
+      }
+      d.appendChild(run('Call ' + String(x.name), 'tools/call', () => ({ name: x.name, arguments: read() })));
+    } else if (tab === 'resources') {
+      d.appendChild(run('Read it', 'resources/read', () => ({ uri: x.uri })));
+    } else if (tab === 'prompts') {
+      // A prompt's declared arguments are strings (MCP prompts/get).
+      const declared = Array.isArray(x.arguments) ? x.arguments.filter((a) => a && typeof a.name === 'string') : [];
+      const fields = declared.map((a) => {
+        const lab = el('label', {}, a.name + (a.required ? ' · required' : ''));
+        const input = el('input', { 'data-arg': a.name, type: 'text' });
+        lab.appendChild(input);
+        if (typeof a.description === 'string' && a.description) lab.appendChild(el('span', { class: 'note' }, a.description));
+        d.appendChild(lab);
+        return { a, input };
+      });
+      d.appendChild(run('Get it', 'prompts/get', () => {
+        const args = Object.create(null);
+        for (const { a, input } of fields) {
+          if (input.value === '') { if (a.required) throw new Error(a.name + ' is required'); continue; }
+          args[a.name] = input.value;
+        }
+        return { name: x.name, arguments: args };
+      }));
+    }
+    d.appendChild(problem); d.appendChild(out); d.appendChild(rawReq); d.appendChild(rawRes);
+    syncRaw();
+    reportHeight();
+  }
+
+  function show(out, r) {
+    out.hidden = false;
+    lastCall = r.call || null;
+    if (!r.ok) { out.dataset.error = '1'; out.textContent = words(r); syncRaw(); reportHeight(); return; }
+    const res = (r.payload && r.payload.response) || {};
+    out.dataset.error = res.error || (res.result && res.result.isError) ? '1' : '0';
+    out.textContent = (res.error ? 'The server answered an error\n' : '') + JSON.stringify(res.error || res.result, null, 2)
+      + '\n· ' + r.payload.ms + ' ms' + (r.payload.truncated ? ' · cut' : '');
+    syncRaw();
+    reportHeight();
+  }
+
+  // Advanced (full screen): the last call's raw exchange as the bridge logged it (scrubbed text, the real rpc id).
+  // The editor is never told a call's rpc id, so it shows the NEWEST matching request since the call left, and
+  // that request's own answer by rpc id, and says so.
+  function syncRaw() {
+    const reqEl = $('raw-request'), resEl = $('raw-response');
+    if (!reqEl || !resEl) return;
+    const vis = protocol >= 2 && surface === 'full' && mode === 'advanced' && lastCall !== null;
+    reqEl.hidden = !vis; resEl.hidden = !vis;
+    if (!vis) return;
+    if (lastCall.refused) { reqEl.textContent = 'Not sent: the host refused it (' + lastCall.refused + ')'; resEl.textContent = ''; return; }
+    const named = (e) => {
+      if (lastCall.name === null) return true;
+      if (e.truncated || typeof e.text !== 'string') return false;
+      try { const m = JSON.parse(e.text); const p = (m && m.params) || {}; return (lastCall.method === 'resources/read' ? p.uri : p.name) === lastCall.name; } catch { return false; }
+    };
+    const matches = log.filter((e) => !e.gap && e.seq > lastCall.after && e.dir === 'out' && e.kind === 'request' && e.method === lastCall.method && named(e));
+    const sent = matches[matches.length - 1];
+    const got = sent ? log.find((e) => !e.gap && e.kind === 'response' && e.rpcId === sent.rpcId) : undefined;
+    reqEl.textContent = sent ? 'Newest matching request in the log' + (matches.length > 1 ? ' (' + matches.length + ' since this call)' : '') + ':\n' + sent.text : 'Waiting for the log…';
+    resEl.textContent = got ? got.text : (sent ? 'Waiting for the answer in the log…' : '');
+  }
+
+  function drawLog() {
+    const ul = el('ul', { id: 'log', 'aria-label': 'JSON-RPC log' });
+    for (const e of log) {
+      if (e.gap) { ul.appendChild(el('li', { class: 'gap' }, 'gap: ' + e.gap + ' lines evicted')); continue; }
+      const li = el('li', { 'data-error': e.error ? '1' : '0' });
+      li.appendChild(el('span', { class: 'dir' }, e.dir === 'out' ? '→' : e.dir === 'in' ? '←' : '·'));
+      li.appendChild(document.createTextNode(String(e.method || e.kind || '') + (typeof e.ms === 'number' ? ' · ' + e.ms + ' ms' : '') + '  ' + String(e.text || '').slice(0, 240)));
+      ul.appendChild(li);
+    }
+    viewGen += 1;
+    $('detail').replaceChildren(el('h2', {}, 'JSON-RPC log'), ul);
+    reportHeight();
+  }
+
+  function onState(s) {
+    const next = ['none', 'connecting', 'ready', 'closed', 'failed'].includes(s.state) ? s.state : 'none';
+    if (next !== state) connGen += 1; // every change of connection ends what the previous one was still listing
+    // Connecting starts a new session (Connect or Restart): its log counts from the start again, so the old session's
+    // entries, cursor and last call go (what was listed stays, marked stale, until the new lists arrive).
+    if (next === 'connecting' && state !== 'connecting') { log.length = 0; lastSeq = null; lastCall = null; }
+    state = next;
+    if (s.server && typeof s.server.name === 'string') serverName = s.server.name;
+    const st = $('status');
+    st.dataset.state = state;
+    st.dataset.stale = state === 'closed' || state === 'failed' ? '1' : '0';
+    st.textContent = state === 'ready' ? 'Connected to ' + (serverName || 'the server') : state === 'connecting' ? 'Connecting…'
+      : state === 'none' ? 'Not connected' : state === 'failed' ? 'Failed: what is shown is stale' : 'Closed: what is shown is stale';
+    $('hint').textContent = state === 'ready' ? (typeof s.protocolVersion === 'string' ? 'Protocol ' + s.protocolVersion : '')
+      : state === 'none' ? 'Connect in studio, beside this inspector.' : state === 'connecting' ? '' : 'Restart in studio to reconnect.';
+    if (state === 'ready') void listAll(); else drawList();
+  }
+
+  function onLog(entries) {
+    for (const e of Array.isArray(entries) ? entries : []) {
+      if (!e || typeof e.seq !== 'number') continue;
+      if (lastSeq !== null && e.seq <= lastSeq) continue; // a re-sent entry
+      if (lastSeq !== null && e.seq > lastSeq + 1) log.push({ gap: e.seq - lastSeq - 1 }); // the ring evicted these
+      lastSeq = e.seq; log.push(e);
+    }
+    if (log.length > 1000) log.splice(0, log.length - 1000);
+    if (tab === 'log') drawList();
+    syncRaw();
+  }
+
+  // The artifact is the server itself: its title names it until mcp.state says more.
+  async function load() {
+    if (!granted('artifact.read')) return;
+    const r = await req('artifact.read', {});
+    if (r.ok && r.payload && r.payload.content && typeof r.payload.content.title === 'string' && serverName === null && state === 'none') {
+      $('hint').textContent = r.payload.content.title + ': connect in studio, beside this inspector.';
+      reportHeight();
+    }
+  }
+
+  for (const b of document.querySelectorAll('nav button')) b.addEventListener('click', () => showTab(b.dataset.tab));
+  // Protocol 1 only: full screen is the host's container (ui.fullscreen). Under protocol 2 the host draws Full screen
+  // and Esc around the card, so this button stays hidden.
+  $('full').addEventListener('click', () => { if (protocol < 2 && granted('ui.fullscreen')) void req('ui.fullscreen', {}); });
+  // ── end of YOUR EDITOR ──────────────────────────────────────────────────────────────────────────
+
+  function setMode(m) { mode = m === 'advanced' ? 'advanced' : 'simple'; document.body.dataset.mode = mode; syncRaw(); }
+
+  // Keys (DES §5.10): forward only Escape, Mod+K, the navigation chords and Tab at the edges; outside this
+  // editor's own fields the FIRST printable key goes to the composer as ONE grapheme (rule 2). Typing in an
+  // argument field types there. A key never approves, deletes or sends anything.
+  const isField = (t) => t && t.matches && t.matches('input, textarea, select');
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { send('ui.key', { key: 'Escape' }); return; }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); send('ui.key', { key: 'Mod+K' }); return; }
+    // Only the host's navigation chords; Alt+A (approve), Alt+R / Alt+X (decide), Alt+N (compose) are never sent.
+    if (e.altKey && e.code && /^Key[JKPGBTU]$/.test(e.code)) { e.preventDefault(); send('ui.key', { key: 'Alt+' + e.code.slice(3) }); return; }
+    if (e.altKey && e.code === 'Slash') { e.preventDefault(); send('ui.key', { key: 'Alt+/' }); return; }
+    if (e.key === 'Tab') {
+      const focusables = [...document.querySelectorAll('button, input, textarea, select')].filter((x) => !x.disabled && x.getClientRects().length > 0);
+      const i = focusables.indexOf(document.activeElement);
+      if ((!e.shiftKey && i === focusables.length - 1) || (e.shiftKey && i <= 0)) { e.preventDefault(); send('ui.key', { key: e.shiftKey ? 'Shift+Tab' : 'Tab' }); }
+      return;
+    }
+    if (isField(e.target)) return;
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); send('ui.typed', { grapheme: e.key }); }
+    // Backspace / Delete outside a field: nothing (a stray key never removes anything).
+  });
+
+  function onPort(m) {
+    const d = m.data;
+    try {
+      if (!d || d.p !== 'wicked.editor' || d.v !== 1) return;
+      if (typeof d.re === 'string' && pending.has(d.re)) { const r = pending.get(d.re); pending.delete(d.re); r(d); return; }
+      const p = d.payload && typeof d.payload === 'object' ? d.payload : {};
+      switch (d.type) {
+        case 'host.ping': answer(d.id, {}); break;
+        case 'host.size':
+          if (p.size === 'inline' || p.size === 'pane' || p.size === 'full') {
+            size = p.size;
+            if (protocol < 2) { document.body.dataset.size = size; if (size === 'inline' && document.activeElement) document.activeElement.blur(); }
+          }
+          break;
+        case 'host.theme': {
+          const t = p.theme && typeof p.theme === 'object' ? p.theme : {};
+          const map = { '--surface-card': '--surface', '--surface-raised': '--raised', '--ink-high': '--ink', '--ink-body': '--body',
+                        '--ink-muted': '--ink-muted', '--border': '--border', '--accent': '--accent', '--accent-fg': '--accent-fg',
+                        '--status-fail': '--fail', '--status-ok': '--ok', '--font-sans': '--font' };
+          for (const [k, v] of Object.entries(t)) {
+            if (map[k] && typeof v === 'string' && !/url\(|[;{}]/i.test(v)) document.documentElement.style.setProperty(map[k], v);
+          }
+          break;
+        }
+        case 'artifact.changed': if (p.by !== 'this-editor') void load(); break;
+        case 'mcp.state': onState(p); break;
+        case 'mcp.log': onLog(p.entries); break;
+        // ── protocol 2 (only a host that negotiated 2 sends these) ──
+        case 'host.surface':
+          if (protocol >= 2 && ['card', 'options', 'full'].includes(p.surface)) {
+            surface = p.surface;
+            if (typeof p.mode === 'string') setMode(p.mode);
+            applySurface();
+          }
+          break;
+        case 'host.mode': if (protocol >= 2 && typeof d.id === 'string') { setMode(p.mode); answer(d.id, { mode }); } break;
+        case 'host.action': if (protocol >= 2 && typeof d.id === 'string') answer(d.id, onAction(String(p.id))); break;
+        case 'host.tab': if (protocol >= 2 && OPTION_TABS.includes(p.tab)) { optionsTab = p.tab; applySurface(); } break;
+        case 'host.selection': break; // nothing in a server's traffic is an anchor
+        case 'host.teardown': break;
+        default: break; // an unknown type is ignored, never an error (§5.4)
+      }
+    } catch (err) { /* a malformed host message is ignored */ }
+  }
+
+  window.addEventListener('message', (e) => {
+    // One handshake: the first host.hello carrying a port; everything after rides that port.
+    if (port || !e.data || e.data.p !== 'wicked.editor' || e.data.type !== 'host.hello' || !e.ports || !e.ports[0]) return;
+    port = e.ports[0];
+    port.onmessage = onPort;
+    const p = e.data.payload && typeof e.data.payload === 'object' ? e.data.payload : {};
+    grants = Array.isArray(p.grants) ? p.grants : [];
+    protocol = p.protocol === 2 ? 2 : 1;
+    size = p.size === 'inline' || p.size === 'full' ? p.size : 'pane';
+    if (protocol >= 2) {
+      surface = ['card', 'options', 'full'].includes(p.surface) ? p.surface : 'card';
+      optionsTab = surface === 'options' && OPTION_TABS.includes(p.tab) ? p.tab : null;
+      setMode(typeof p.mode === 'string' ? p.mode : (SURFACES.full && SURFACES.full.default) || 'simple');
+    }
+    const t = p.theme && typeof p.theme === 'object' ? p.theme : null;
+    if (t) onPort({ data: { p: 'wicked.editor', v: 1, type: 'host.theme', payload: { theme: t } } });
+    drawList();
+    applySurface();
+    void load();
+  });
+  parent.postMessage(env('plugin.ready', { editor: EDITOR, version: VERSION, protocol: [1, 2], surfaces: SURFACES }), '*');
+})();
+</script>
+</body></html>

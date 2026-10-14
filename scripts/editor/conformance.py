@@ -2,7 +2,7 @@
 """Run the editor-plugin conformance cases against every editor in a pack (DES-artifact-editor-plugins §12.1).
 
     wicked-garden run scripts/editor/conformance.py --pack <pack dir> [--host-url <crew URL> | --studio-dist <dir>]
-        [--timeout 120] [--json]
+        [--timeout <seconds>] [--json]
 
 The cases run in headless Chromium against studio's own **conformance host page**
 (``/editors/conformance``: the real plugin host, its sandboxed frame, its MessagePort handshake, its
@@ -11,6 +11,14 @@ proxied from a wicked-crew daemon (``--host-url``, else ``$WICKED_CREW_URL``), o
 ``dist`` directory (``--studio-dist``) — and serves the candidate's entry itself on the editor
 bundle route, hash-checked and with the third-party bundle policy (no network at all). Nothing is
 installed, registered or written outside a temporary directory.
+
+``--timeout`` (else ``$WG_EDITOR_CONFORMANCE_TIMEOUT``, default 120 s) bounds each load of the host page and
+each request proxied to the daemon. A page counts as loaded when the DOM is ready and the host page has
+rendered, never on "network idle": studio keeps a live socket and slow reads open, so a busy daemon would
+otherwise fail a correct editor. The host page's own assets are fetched from the daemon once per run and
+then served from memory. The editor's own deadlines (the 3 s handshake, the 2 s answers) do not stretch. The bound
+is per load, not for the whole run: wicked-crew's install runs this script under its own overall cap, which this
+setting does not extend (set ``$WG_EDITOR_CONFORMANCE_TIMEOUT`` in the daemon's environment to change it there).
 
 Cases, per editor (the plugin's half of §12.1 and DES-EDITOR-PLUGIN-CONTRACT-001 §8.3; the host-control
 cases against a hostile bundle belong to studio's CI):
@@ -35,11 +43,12 @@ Protocol 2 (an editor whose ``protocol`` lists 2; DES-EDITOR-PLUGIN-CONTRACT-001
 
   13 surfaces      the host negotiated 2, and the surfaces it renders from (``plugin.ready``'s) are the
                    manifest's, as canonical JSON; the labels pass the word and length rules
-  14 card          it mounts as the card; with ``aspect:"auto"`` a ``ui.height`` arrives within 2 s and is
+  14 card          it mounts as the card (its ``host.hello`` says ``surface:'card'``); with ``aspect:"auto"`` a ``ui.height`` arrives within 2 s and is
                    accepted; every ``verb:"plugin"`` action answers ``host.action`` within 2 s
-  15 options       each plugin tab mounts as ``surface:'options', tab`` and survives ``host.selection``;
-                   every controls tab's ``options.values`` is accepted, and a valid change gets a well-formed
-                   answer within 2 s (applied or refused)
+  15 options       each plugin tab mounts as its own options instance: the ``host.hello`` the frame received
+                   says ``surface:'options'`` and that ``tab``; it survives ``host.selection`` and ``host.tab``
+                   to every other plugin tab and back (no reload); every controls tab's ``options.values`` is
+                   accepted, and a valid change gets a well-formed answer within 2 s (applied or refused)
   16 full          ``host.surface`` card→full keeps the instance (no reload, no second ``plugin.ready``);
                    with modes, every ``host.mode`` is answered within 2 s with the same mode
 
@@ -89,6 +98,34 @@ BUNDLE_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inl
 W, H = 1440, 700
 SAFE_CTYPE = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:; ?charset=[A-Za-z0-9_-]+)?")
 PING_PERIOD_MS = 11_500
+DEFAULT_TIMEOUT_S = 120.0
+TIMEOUT_ENV = "WG_EDITOR_CONFORMANCE_TIMEOUT"
+# In the editor's frame, before its own script: the host.hello it took (the first trusted one from the parent carrying
+# a port), as the frame received it. The surface and tab a host page says it mounted are only claims; this is what the
+# editor was told. Every native it needs is captured before the editor runs, only own primitive fields are read, and
+# the record is a JSON string behind a non-configurable getter: the editor can neither forge the event (isTrusted, the
+# parent as source) nor rewrite the record afterwards.
+FRAME_HELLO = """(() => {
+  if (window.top === window) return;
+  const parentWin = window.parent, stringify = JSON.stringify, hasOwn = Object.hasOwn, apply = Reflect.apply;
+  const getter = (proto, key) => Object.getOwnPropertyDescriptor(proto, key).get;
+  const dataOf = getter(MessageEvent.prototype, 'data'), sourceOf = getter(MessageEvent.prototype, 'source');
+  const portsOf = getter(MessageEvent.prototype, 'ports');
+  const field = (o, k) => { if (o === null || typeof o !== 'object' || !hasOwn(o, k)) return null;
+    const v = o[k]; return typeof v === 'string' || typeof v === 'number' ? v : null; };
+  let seen = null;
+  Object.defineProperty(window, '__wgHello', { configurable: false, enumerable: false, get: () => seen });
+  addEventListener('message', (e) => {
+    if (seen !== null || e.isTrusted !== true || apply(sourceOf, e, []) !== parentWin) return;
+    const d = apply(dataOf, e, []), ports = apply(portsOf, e, []);
+    if (field(d, 'p') !== 'wicked.editor' || field(d, 'type') !== 'host.hello' || !ports || ports.length < 1) return;
+    const p = d.payload;
+    // Built from primitives only: JSON.stringify of a string, number or null never looks up a toJSON, and no object
+    // the editor's prototypes could reach is ever serialized.
+    seen = '{"protocol":' + stringify(field(p, 'protocol')) + ',"surface":' + stringify(field(p, 'surface'))
+      + ',"tab":' + stringify(field(p, 'tab')) + ',"mode":' + stringify(field(p, 'mode')) + '}';
+  }, true);
+})();"""
 LOG = ("() => (window.__wickedEditor?.log ?? []).map(e => ({kind: e.kind, type: e.type ?? null, "
        "code: e.code ?? null, why: e.why ?? e.reason ?? null}))")
 COMPOSER = "() => window.__wickedEditor?.composer() ?? null"
@@ -100,10 +137,20 @@ class CaseFailed(Exception):
     pass
 
 
+class PageFailed(Exception):
+    """The conformance host page did not load or did not start the editor (the message says which)."""
+
+
 # ── the local origin ───────────────────────────────────────────────────────────────────────
 
-def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: str | None, dist: Path | None):
-    """A local origin: the candidate entries on the bundle route, everything else from the host."""
+def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: str | None, dist: Path | None,
+                timeout_s: float = DEFAULT_TIMEOUT_S):
+    """A local origin: the candidate entries on the bundle route, everything else from the host.
+
+    The host page's own files (anything outside ``/api/``) are fetched from the daemon once and then served from
+    memory, so the many page loads of one run cost the daemon one read each; API reads always go through."""
+    static_cache: dict[str, tuple[int, bytes, str]] = {}
+    cache_lock = threading.Lock()
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self, *_args):  # quiet
@@ -121,8 +168,11 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
                 origin = f"http://127.0.0.1:{self.server.server_address[1]}"  # this server's own origin, never the Host header
                 # The shell's frame-src (crew `shellCsp`): a frame may point only at the bundle route.
                 self.send_header("Content-Security-Policy", f"frame-src {origin}/api/v1/editors/ blob: data:")
-            self.end_headers()
-            self.wfile.write(body)
+            try:
+                self.end_headers()
+                self.wfile.write(body)
+            except (BrokenPipeError, ConnectionResetError):
+                return  # the page closed before its read finished (the next case already began): nothing to report
 
         def do_GET(self):  # noqa: N802
             url = urllib.parse.urlparse(self.path)
@@ -142,14 +192,21 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
             return self._static(url.path)
 
         def _proxy(self) -> None:
-            try:
-                req = urllib.request.Request(host_url + self.path, headers={"Accept": self.headers.get("Accept", "*/*")})
-                with urllib.request.urlopen(req, timeout=30) as r:  # noqa: S310 (the operator's own daemon)
-                    return self._send(r.status, r.read(), r.headers.get("Content-Type", "application/octet-stream"))
-            except urllib.error.HTTPError as e:
-                return self._send(e.code, e.read(), e.headers.get("Content-Type", "application/json"))
-            except (urllib.error.URLError, OSError) as e:
-                return self._send(502, json.dumps({"error": f"host unreachable: {e}"}).encode(), "application/json")
+            path = urllib.parse.urlparse(self.path).path
+            accept = self.headers.get("Accept", "*/*")
+            # The whole request target and the one header forwarded: a different query or Accept is another entry.
+            key = (self.path, accept)
+            cacheable = not path.startswith("/api/") and path != "/ws"
+            if cacheable:
+                with cache_lock:
+                    hit = static_cache.get(key)
+                if hit is not None:
+                    return self._send(*hit)
+            got = _fetch(host_url + self.path, accept, timeout_s)
+            if cacheable and got[0] == 200:
+                with cache_lock:
+                    static_cache[key] = got
+            return self._send(*got)
 
         def _static(self, path: str) -> None:
             if path.startswith("/api/") or path == "/ws":
@@ -171,9 +228,39 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
     return server
 
 
+def _fetch(url: str, accept: str, timeout_s: float) -> tuple[int, bytes, str]:
+    """One GET from the daemon, bounded as a whole (connect, headers and every byte of the body): a daemon that
+    trickles its answer gets a 504 at the deadline, never an unbounded wait. The reading thread is left to finish
+    on its own; it holds nothing this run needs."""
+    box: dict = {}
+
+    def get() -> None:
+        try:
+            req = urllib.request.Request(url, headers={"Accept": accept})
+            with urllib.request.urlopen(req, timeout=timeout_s) as r:  # noqa: S310 (the operator's own daemon)
+                box["got"] = (r.status, r.read(), r.headers.get("Content-Type", "application/octet-stream"))
+        except urllib.error.HTTPError as e:
+            box["got"] = (e.code, e.read(), e.headers.get("Content-Type", "application/json"))
+        except (urllib.error.URLError, OSError) as e:
+            box["got"] = (502, json.dumps({"error": f"host unreachable: {e}"}).encode(), "application/json")
+
+    worker = threading.Thread(target=get, daemon=True)
+    worker.start()
+    worker.join(timeout_s)
+    if "got" not in box:
+        return (504, json.dumps({"error": f"the daemon did not answer within {timeout_s:g} s"}).encode(), "application/json")
+    return box["got"]
+
+
+def _remaining_ms(deadline: float) -> int:
+    """What is left of one page load's single budget (at least 1 ms, so a late stage fails fast instead of hanging)."""
+    return max(1, int((deadline - time.monotonic()) * 1000))
+
+
 # ── the cases ──────────────────────────────────────────────────────────────────────────────
 
-def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> None:
+def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeout_s: float = DEFAULT_TIMEOUT_S) -> None:
+    load_ms = int(timeout_s * 1000)
     eid, version, title = editor["id"], editor["version"], editor.get("title") or editor["id"]
     perms = [p.get("id") for p in editor.get("permissions", []) if isinstance(p, dict)]
     grants = [p for p in perms if p != "network.media"]
@@ -207,11 +294,13 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
 
     try:
         t0 = time.time()
-        page.goto(url(sha, grants), wait_until="networkidle")
         try:
-            page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=15000)
+            deadline = time.monotonic() + timeout_s  # ONE budget for the load: the navigation and the host page
+            page.goto(url(sha, grants), wait_until="domcontentloaded", timeout=load_ms)
+            page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001
-            check("1-handshake", False, error=f"the conformance host page did not render: {exc}")
+            check("1-handshake", False, error=f"the conformance host page did not render within {timeout_s:g} s "
+                  f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
         try:
             page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
         except Exception:  # noqa: BLE001
@@ -322,7 +411,13 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict) -> No
         check("3-no-network", frame_requests == [], requests=frame_requests[:10])
 
 
-        page.goto(url("0" * 64, grants), wait_until="networkidle")
+        try:
+            deadline = time.monotonic() + timeout_s
+            page.goto(url("0" * 64, grants), wait_until="domcontentloaded", timeout=load_ms)
+            page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
+        except Exception as exc:  # noqa: BLE001
+            check("12-hash-pinned", False, error=f"the conformance host page did not render within {timeout_s:g} s "
+                  f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
         torn = _torn(page, wait=True)
         check("12-hash-pinned", torn is not None and count("handshake") == 0, torn=torn)
     except CaseFailed:
@@ -377,8 +472,9 @@ CHANGE_SHAPE = "typeof p.applied === 'boolean' && Number.isInteger(p.rev) && p.v
 OPTIONS_WAIT_MS = 5000
 
 
-def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) -> None:
+def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict, timeout_s: float = DEFAULT_TIMEOUT_S) -> None:
     """Cases 13-16: the three surfaces of a protocol-2 editor, each in its own host instance."""
+    load_ms = int(timeout_s * 1000)
     eid, version, title = editor["id"], editor["version"], editor.get("title") or editor["id"]
     grants = [p.get("id") for p in editor.get("permissions", []) if isinstance(p, dict) and p.get("id") != "network.media"]
     cases: dict = report["cases"]
@@ -399,11 +495,31 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) ->
         errors: list[str] = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         page.add_init_script(HOST_WIRE)
-        page.goto(f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}", wait_until="networkidle")
-        page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=15000)
-        page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
+        page.add_init_script(FRAME_HELLO)
+        try:
+            deadline = time.monotonic() + timeout_s
+            page.goto(f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}", wait_until="domcontentloaded", timeout=load_ms)
+            page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
+        except Exception as exc:  # noqa: BLE001 — the case that opened it fails, naming why
+            page.close()
+            raise PageFailed(f"the conformance host page did not render within {timeout_s:g} s (--timeout / "
+                             f"${TIMEOUT_ENV}): {str(exc).splitlines()[0]}") from exc
+        try:
+            page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
+        except Exception as exc:  # noqa: BLE001
+            page.close()
+            raise PageFailed("no plugin.ready the host accepted within its 3 s") from exc
         page.wait_for_timeout(300)
         return page, errors
+
+    def hello(page) -> dict | None:
+        """The host.hello the editor's frame took, as the frame received it (None: no frame or no hello seen)."""
+        for fr in page.frames:
+            if fr is not page.main_frame and "/entry?" in fr.url:
+                with contextlib.suppress(Exception):
+                    raw = fr.evaluate("() => window.__wgHello")
+                    return json.loads(raw) if isinstance(raw, str) else None
+        return None
 
     def count(page, kind: str, type_: str | None = None) -> int:
         return sum(1 for e in page.evaluate(LOG) if e["kind"] == kind and (type_ is None or e["type"] == type_))
@@ -428,10 +544,13 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) ->
             ok = ok and out is not None
         return {"answer": out, "reply": reply, "ok": ok}
 
-    pages = []
+    pages: list = []
     try:
         # 13: the declaration the host renders from is the manifest's.
-        page, errors = open_page(surface="card")
+        try:
+            page, errors = open_page(surface="card")
+        except PageFailed as exc:
+            check("13-surfaces", False, error=str(exc))
         pages.append(page)
         negotiated = page.evaluate("() => window.__wickedEditor.host()?.negotiated ?? null")
         shown = page.evaluate("() => window.__wickedEditor.host()?.surfaces ?? null")
@@ -461,9 +580,10 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) ->
             answers.append({"id": a["id"], **r})
         late = [x for x in answers if not x["ok"]]
         on_time = card["aspect"] != "auto" or (heights >= 1 and height_ms is not None and height_ms <= HOST_ANSWER_S * 1000)
-        check("14-card", size_of(page) == "inline" and dropped_h == 0 and on_time
-              and not late and count(page, "teardown") == 0 and not errors,
-              frame_size=size_of(page), heights=heights, first_height_ms=height_ms, heights_dropped=dropped_h, actions=answers,
+        told = hello(page)
+        check("14-card", size_of(page) == "inline" and told is not None and told.get("surface") == "card"
+              and dropped_h == 0 and on_time and not late and count(page, "teardown") == 0 and not errors,
+              frame_size=size_of(page), hello=told, heights=heights, first_height_ms=height_ms, heights_dropped=dropped_h, actions=answers,
               uncaught=errors[:3])
 
         # 16: the same instance morphs to full screen and back; with modes, each is echoed in time. A declaration
@@ -502,13 +622,45 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) ->
     detail: list = []
     ok = True
     for i, t in enumerate(plugin_tabs or [None]):
-        page, errors = open_page(surface="options", **({"tab": t["id"]} if t else {}))
+        want_tab = t["id"] if t else None
+        row: dict = {"tab": want_tab}
         try:
+            page, errors = open_page(surface="options", **({"tab": want_tab} if t else {}))
+        except PageFailed as exc:
+            row["error"] = str(exc)
+            detail.append(row)
+            ok = False
+            continue
+        try:
+            # The options mount itself: the editor must have been told it is the options instance, on this tab (a
+            # group of controls tabs only has no plugin tab, so no tab). A host page that mounts it as anything else
+            # cannot show the options surface works, so the case fails closed.
+            told = hello(page)
+            row["hello"] = told
+            mounted = told is not None and told.get("surface") == "options" and told.get("tab") == want_tab
+            if not mounted:
+                row.setdefault("errors", []).append(f"the editor was not mounted as the options instance of tab {want_tab!r}: the host.hello its "
+                                f"frame took said {told!r}. The conformance host page must hand surface=options and "
+                                "tab=<id> to the host (a studio whose /editors/conformance page takes them)")
             page.evaluate("() => window.__wickedEditor.host().relaySelection([{kind:'element', id:'conformance-probe'}])")
             page.wait_for_timeout(300)
-            row = {"tab": t["id"] if t else None, "frame_size": size_of(page),
-                   "alive": page.evaluate("() => window.__wickedEditor.host()?.alive === true") and count(page, "teardown") == 0}
-            row_ok = True
+            switched_ok = True
+            if i == 0 and len(plugin_tabs) > 1:
+                # host.tab: the one options instance shows every other plugin tab, then this one again, without a reload.
+                loads_before = count(page, "load")
+                order = [x["id"] for x in plugin_tabs[1:]] + [want_tab]
+                for other in order:
+                    page.evaluate(f"() => window.__wickedEditor.host().setTab({json.dumps(other)})")
+                    page.wait_for_timeout(200)
+                row["host_tab"] = order
+                row["loads"] = count(page, "load")
+                switched_ok = row["loads"] == loads_before == 1 and count(page, "handshake") == 1
+                if not switched_ok:
+                    row.setdefault("errors", []).append("host.tab to the other plugin tabs and back reloaded or "
+                                                        "restarted the options instance")
+            row["frame_size"] = size_of(page)
+            row["alive"] = page.evaluate("() => window.__wickedEditor.host()?.alive === true") and count(page, "teardown") == 0
+            row_ok = mounted and switched_ok
             if i == 0 and controls_tabs:
                 # Every controls tab needs its own accepted snapshot (the host keeps the newest per tab), and one
                 # valid change per tab gets a well-formed answer, applied or refused. A host page that does not report
@@ -532,10 +684,11 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict) ->
                     changes.append({"tab": t2["id"], "id": first["id"], "value": value, "applied": r["answer"],
                                     "reply": r["reply"], "answered": r["ok"]})
                 row["changes"] = changes
-                row_ok = (isinstance(seen, dict) and all(t2["id"] in seen for t2 in controls_tabs)
+                row_ok = (row_ok and isinstance(seen, dict) and all(t2["id"] in seen for t2 in controls_tabs)
                           and row["values_dropped"] == 0 and all(c["answered"] for c in changes))
                 if not isinstance(seen, dict):
-                    row["error"] = "the conformance host page reports no options values per tab (window.__wickedEditor.optionsValues)"
+                    row.setdefault("errors", []).append(
+                        "the conformance host page reports no options values per tab (window.__wickedEditor.optionsValues)")
             row["uncaught"] = errors[:3]
             ok = ok and row_ok and row["alive"] and row["frame_size"] == "pane" and not errors
             detail.append(row)
@@ -595,11 +748,26 @@ def manifest_case(pack: Path) -> dict:
     return {"ok": not errs, "errors": errs[:10]}
 
 
+def load_timeout(arg: float | None, env: str | None) -> float:
+    """The page-load and proxy bound, in seconds: ``--timeout``, else the environment, else the default (5-1800)."""
+    raw: object = arg if arg is not None else (env if env not in (None, "") else DEFAULT_TIMEOUT_S)
+    try:
+        value = float(raw)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        raise ValueError(f"the timeout {raw!r} is not a number of seconds (--timeout / ${TIMEOUT_ENV})") from None
+    if not 5 <= value <= 1800:
+        raise ValueError(f"the timeout {value:g} s is outside 5-1800 s (--timeout / ${TIMEOUT_ENV})")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--pack", required=True, type=Path)
     parser.add_argument("--host-url", default=None, help="a wicked-crew daemon serving studio (default $WICKED_CREW_URL)")
     parser.add_argument("--studio-dist", type=Path, default=None, help="serve studio's built dist instead of a daemon")
+    parser.add_argument("--timeout", type=float, default=None, metavar="SECONDS",
+                        help=f"each host page load and each read proxied to the daemon (default ${TIMEOUT_ENV}, else "
+                             f"{DEFAULT_TIMEOUT_S:g}); the editor's own 3 s / 2 s deadlines never stretch")
     parser.add_argument("--json", action="store_true", help="print the report as JSON (the default output)")
     args = parser.parse_args(argv)
 
@@ -616,6 +784,10 @@ def main(argv: list[str] | None = None) -> int:
             body = entry_path(args.pack, e).read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
     except PackError as exc:
+        return out({"ok": False, "pack": str(args.pack), "error": str(exc)}, 2)
+    try:
+        timeout_s = load_timeout(args.timeout, os.environ.get(TIMEOUT_ENV))
+    except ValueError as exc:
         return out({"ok": False, "pack": str(args.pack), "error": str(exc)}, 2)
     host_url = None
     if args.studio_dist is None:
@@ -642,8 +814,9 @@ def main(argv: list[str] | None = None) -> int:
                     "not installed (pip install playwright && playwright install chromium); refusing to report conformance "
                     "without the run"}, 3)
 
-    report: dict = {"ok": False, "pack": str(args.pack), "host": host_url or str(args.studio_dist), "editors": []}
-    server = make_server(entries, host_url, args.studio_dist)
+    report: dict = {"ok": False, "pack": str(args.pack), "host": host_url or str(args.studio_dist), "timeout_s": timeout_s,
+                    "editors": []}
+    server = make_server(entries, host_url, args.studio_dist, timeout_s)
     origin = f"http://127.0.0.1:{server.server_address[1]}"
     m0 = manifest_case(args.pack)
     try:
@@ -672,7 +845,7 @@ def main(argv: list[str] | None = None) -> int:
                           "16b (host.action grants no activation for a tools/call) is the host's rule: studio CI runs "
                           "it with a test plugin"]}
                 if m0["ok"]:
-                    run_editor(browser, origin, e, er["sha256"], er)
+                    run_editor(browser, origin, e, er["sha256"], er, timeout_s)
                     base_ok = len(er["cases"]) == 12 and all(c.get("ok") for c in er["cases"].values())
                     if speaks(e, 2) and base_ok and er.get("negotiated") is None:
                         # A host before protocol 2 runs this editor the protocol-1 way: its surfaces cannot be
@@ -681,7 +854,7 @@ def main(argv: list[str] | None = None) -> int:
                         er["gaps"].append("cases 13-16 not run: this conformance host speaks protocol 1 only")
                         er["expected"] = 12
                     elif speaks(e, 2) and base_ok:
-                        run_editor_v2(browser, origin, e, er["sha256"], er)
+                        run_editor_v2(browser, origin, e, er["sha256"], er, timeout_s)
                     elif not speaks(e, 2):
                         er["cases"]["17-v1-compat"] = {
                             "ok": base_ok and er.get("negotiated") == 1, "negotiated": er.get("negotiated"),
