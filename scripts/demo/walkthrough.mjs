@@ -1028,6 +1028,7 @@ async function main() {
   // The storyline's brand colour if it names one, else the studio skin's (crew's video palette), else neutral.
   const brand = { name: story.title || "Walkthrough", accent: story.brand?.accent ?? null, logoSvg: story.brand?.logoSvg ?? "" };
   const skin = await fetchVideoPalette();
+  console.error(`palette: ${skin.source}`); // stderr: stdout carries the seal and the bundle hash
 
   // 4-5. Record each segment with check capture
   const chapterCaptures = {}; // { [segKey]: { [checkId]: captureResult } }

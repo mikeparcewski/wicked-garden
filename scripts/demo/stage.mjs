@@ -47,8 +47,7 @@ export function stageHtml({ name, logoSvg, accent }, appUrl, palette = NEUTRAL_P
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=${face}:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--ink:${p.ink};--ink2:${p.ink2};--muted:${p.muted};--line:${p.line};--bg:${p.canvas};--surface:${p.surface};--brand:rgb(${r},${g},${b});--brand-soft:rgba(${r},${g},${b},.14);--brand-glow:rgba(${r},${g},${b},.45);
- --brand-light:rgb(${Math.min(255, r + 60)},${Math.min(255, g + 90)},${Math.min(255, b + 90)})}
+:root{--ink:${p.ink};--ink2:${p.ink2};--muted:${p.muted};--line:${p.line};--bg:${p.canvas};--surface:${p.surface};--brand:rgb(${r},${g},${b});--brand-soft:rgba(${r},${g},${b},.14);--brand-glow:rgba(${r},${g},${b},.45);}
 *{box-sizing:border-box}html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:var(--bg);
  font-family:"${p.font}",Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
 body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--bg) 70%,var(--surface)) 0%,var(--bg) 60%,color-mix(in srgb,var(--bg) 94%,var(--ink)) 100%)}
@@ -80,7 +79,7 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 #speed{position:absolute;right:${W - FRAME.x - FRAME.w + 12}px;top:${FRAME.y + 5}px;height:28px;display:flex;align-items:center;gap:9px;padding:0 12px;border-radius:999px;
  background:var(--ink);color:var(--bg);font-size:13px;font-weight:600;box-shadow:0 6px 18px -8px rgba(0,0,0,.45);opacity:0;transform:translateY(-4px);transition:all .35s;z-index:30;
  pointer-events:none}
-#speed.on{opacity:1;transform:none}#speed .x{color:var(--brand-light);font-variant-numeric:tabular-nums}#speed .t{font-weight:500;color:color-mix(in srgb,var(--bg) 75%,var(--ink));font-variant-numeric:tabular-nums}
+#speed.on{opacity:1;transform:none}#speed .x{color:var(--bg);font-variant-numeric:tabular-nums}#speed .t{font-weight:500;color:color-mix(in srgb,var(--bg) 75%,var(--ink));font-variant-numeric:tabular-nums}
 #speed svg{width:15px;height:15px}
 #hl{position:absolute;border-radius:12px;border:3px solid var(--brand);box-shadow:0 0 0 7px var(--brand-soft),0 10px 30px -10px var(--brand-glow);opacity:0;
  transition:opacity .35s,left .45s,top .45s,width .45s,height .45s;pointer-events:none;z-index:20}
@@ -115,7 +114,7 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 <div id="win"><div id="bar"><div class="dots"><i></i><i></i><i></i></div><div id="url"><b>${esc(name)}</b><span id="path">/</span></div><div style="width:47px"></div></div>
 <iframe id="app" src="${appUrl}"></iframe></div>
 <div id="band"><div id="cap"></div><div id="brand"><div class="lk">${lk}</div><div id="prog"></div><div id="chap"></div></div></div>
-<div id="speed"><svg viewBox="0 0 24 24" fill="var(--brand-light)"><path d="M4 5v14l8-7zM12 5v14l8-7z"/></svg><span class="x"></span><span class="lbl"></span><span class="t"></span></div>
+<div id="speed"><svg viewBox="0 0 24 24" style="fill:var(--bg)"><path d="M4 5v14l8-7zM12 5v14l8-7z"/></svg><span class="x"></span><span class="lbl"></span><span class="t"></span></div>
 <div id="hl"><span></span></div>
 <div id="cur"><svg viewBox="0 0 26 26" width="26" height="26"><path d="M5 3l15.5 9.2-6.9 1.5 3.9 7.3-3 1.6-3.9-7.4-5.1 4.6z" fill="#0b0b0c" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg></div>
 <div id="card"><div class="in"></div></div>
