@@ -28,7 +28,7 @@ skills tree. There is NO signing — the hashes detect post-registration drift,
 they do not prove authorship. See docs/extending.md "Trust model".
 
 Peer floors (gap 6, fail-open): a pack may declare ``peers`` —
-``{"wicked-garden": ">=12.29.0", "wicked-vault": ">=0.5.0"}``.
+``{"wicked-garden": ">=12.29.0", "wicked-vault": ">=0.8.0"}``.
 ``check_peer_floors()`` compares floors against what is actually installed
 and returns violations as data. It NEVER raises and never blocks: an
 unprobeable peer reports status "unknown", not a violation.

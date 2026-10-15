@@ -76,7 +76,7 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 2. **Confirm the bleeding stopped.** Watch the same dashboards that
    surfaced the incident. Don't declare mitigated based on logs alone.
 3. Record the mitigation as re-derivable evidence (vault present;
-   **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
+   **wicked-vault ≥ 0.8.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase incident --claim mitigation
    --kind mitigation-check --source "<the symptom-check command>"
    --criteria "symptom check passes post-mitigation"
@@ -106,7 +106,7 @@ confirming the bleeding stopped. Don't skip to followup before resolve.
 2. Use `wicked-garden-qe-incident-to-scenario-synthesizer` to convert the
    incident into a regression scenario that would catch the same break.
 3. Track action items in github. Don't bury them in a Slack thread.
-4. Record the docs evidence (vault present; **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
+4. Record the docs evidence (vault present; **wicked-vault ≥ 0.8.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase incident --claim rca
    --kind doc --artifact docs/postmortems/INC-{N}.md
    --criteria "required RCA sections present"

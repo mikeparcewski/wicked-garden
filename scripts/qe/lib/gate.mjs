@@ -73,10 +73,10 @@
  *   - A bundle that failed manifest validation (downgraded above) is NOT
  *     vaulted — the downgraded INCONCLUSIVE verdict records with
  *     `vault: {skipped}` instead (never freeze a nonconforming bundle).
- *   - Release dependency: needs the wicked-vault manifest-2.1 twin —
- *     UNRELEASED (npm 0.6.0 predates it). Until the next wicked-vault
- *     release, `WICKED_QE_VAULT_PKG` must point at a local checkout of
- *     wicked-vault main; a pre-2.1 vault is refused fail-closed.
+ *   - Release dependency: needs wicked-vault >= 0.8.0 (the manifest-2.1 twin
+ *     shipped in 0.7.0; garden's floor is 0.8.0). An older vault is refused
+ *     fail-closed — upgrade with `npm i -g wicked-vault@latest` (or set
+ *     `WICKED_QE_VAULT_PKG` to point at a specific 0.8.0+ install).
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -339,7 +339,8 @@ export async function runGate({ projectId, runId, verdict, verdictSummary, ratio
   // 2c. TH-17: resolve wicked-vault up front when vault integrity was asked
   //     for — fail fast (exit 3) on an unresolvable or pre-2.1 vault, BEFORE
   //     anything is written anywhere. The refusal message carries the release
-  //     dependency (the manifest-2.1 twin is unreleased; npm 0.6.0 predates it).
+  //     dependency (the manifest-2.1 twin shipped in 0.7.0; floor is 0.8.0 —
+  //     upgrade with `npm i -g wicked-vault@latest`).
   const wantsVault = Boolean(vaultRecord || vaultEntry);
   let vaultModule = null;
   if (wantsVault) {
@@ -556,8 +557,9 @@ Optional:
                             (content-addressed) and attest the verdict as the reviewer's
                             opinion; the verdicts row carries vault_payload_sha. REFUSES
                             unredacted bundles (TH-19 ordering) — exit 3, nothing recorded.
-                            Needs the wicked-vault manifest-2.1 twin (unreleased; set
-                            WICKED_QE_VAULT_PKG to a wicked-vault main checkout until then)
+                            Needs wicked-vault >= 0.8.0 (the manifest-2.1 twin shipped in
+                            0.7.0; upgrade with \`npm i -g wicked-vault@latest\`, or set
+                            WICKED_QE_VAULT_PKG to a specific 0.8.0+ install)
   --vault-entry <id>        TH-17: link an already-vaulted bundle instead of recording;
                             re-derived fail-closed before the verdict is recorded
   --vault-actor <id>        Recording (worker) identity for --vault-record (default: qe-runner)

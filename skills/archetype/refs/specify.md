@@ -62,7 +62,7 @@ proceed past validate without explicit user agreement on the AC set.
 4. Keep ACs minimal — 3–7 is the sweet spot. More than 10 means you're
    treating ACs as design.
 5. Record the AC artifact as re-derivable evidence (vault present;
-   **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
+   **wicked-vault ≥ 0.8.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase specify
    --claim smart-acceptance-criteria --kind spec-doc
    --artifact <path/to/requirements.md>

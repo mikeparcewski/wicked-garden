@@ -29,7 +29,7 @@ uv run pytest tests/ -x
 
 **For offline CI and dev environments without the wicked-vault peer only.**
 
-wicked-vault (npm, ≥ 0.5.0 <!-- vault-floor -->, install `npm i -g wicked-vault`)
+wicked-vault (npm, ≥ 0.8.0 <!-- vault-floor -->, install `npm i -g wicked-vault`)
 is the one required peer (the loom engine is built into the garden; bus is an
 opt-in layer). The garden's produces-gates re-derive
 evidence through the built-in loom engine — `scripts/qe/vault_gate.py` runs

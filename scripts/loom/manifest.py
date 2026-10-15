@@ -94,10 +94,11 @@ PEERS: dict = {
         name="vault",
         npm_package="wicked-vault",
         env_var="WICKED_VAULT_BIN",
-        # 0.5 floor (Phase 6c): vault >= 0.5.0 stamps bus events with the qe
-        # domain (0.4 floor was the hard-gate attest baseline). Keep this
-        # MAJOR.MINOR floor in lockstep with plugin.json's ``wicked_vault_version``.
-        version_pin="0.5",
+        # 0.8 floor: the manifest-2.1 twin the QE evidence flow needs shipped
+        # in 0.7.0, and 0.8.0 enforces contract pins and re-validates
+        # attestations. Keep this MAJOR.MINOR floor in lockstep with
+        # plugin.json's ``wicked_vault_version``.
+        version_pin="0.8",
         # wicked-vault is a DIRECT infra peer, published from its own repo
         # (mikeparcewski/wicked-vault): self-contained, zero runtime deps. Install
         # it directly. ``npm i -g wicked-vault``

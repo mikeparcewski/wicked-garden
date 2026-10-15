@@ -44,12 +44,10 @@
  *
  * RELEASE DEPENDENCY (documented, enforced by `resolveVaultModule`):
  * this flow needs the wicked-vault manifest-2.1 twin (`validateManifest` +
- * `CLAIM_LEVELS` exports — on wicked-vault main, UNRELEASED as of
- * 2026-08-30; npm wicked-vault 0.6.0 predates it and its vendored schema
- * rejects every 2.1 bundle). Until the next wicked-vault release, point
- * `WICKED_QE_VAULT_PKG` at a local checkout of wicked-vault main (or
- * `npm link` it); a pre-2.1 vault is refused fail-closed, never silently
- * degraded.
+ * `CLAIM_LEVELS` exports, shipped in wicked-vault 0.7.0; garden's floor is
+ * 0.8.0). An older vault is refused fail-closed, never silently degraded —
+ * upgrade with `npm i -g wicked-vault@latest` (or set `WICKED_QE_VAULT_PKG`
+ * to point at a specific wicked-vault 0.8.0+ install).
  *
  * CLI (from the target repo's root):
  *   node vault-evidence.mjs record   --evidence-dir <dir> [--repo-root <dir>]
@@ -75,10 +73,9 @@ import { scanForSecrets, compileExtraPatterns } from "../runner/src/redact.mjs";
 
 /** The one-line release dependency, stamped on every pre-2.1 refusal. */
 export const VAULT_RELEASE_REQUIREMENT =
-  "wicked-vault with the manifest-2.1 twin (validateManifest + CLAIM_LEVELS) is required — " +
-  "on wicked-vault main but UNRELEASED (npm 0.6.0 predates it and rejects 2.1 bundles). " +
-  "Until the next wicked-vault release: set WICKED_QE_VAULT_PKG to a local checkout of " +
-  "wicked-vault main, or `npm link wicked-vault` from one.";
+  "wicked-vault >= 0.8.0 is required (the manifest-2.1 twin, validateManifest + CLAIM_LEVELS, " +
+  "shipped in 0.7.0) — upgrade with `npm i -g wicked-vault@latest`, or set WICKED_QE_VAULT_PKG " +
+  "to a wicked-vault 0.8.0+ install.";
 
 /** Typed refusal so callers (gate.mjs, tests) can tell WHY the write was refused. */
 export class VaultEvidenceError extends Error {
@@ -116,9 +113,9 @@ function esmEntryForPackage(resolvedFile) {
 
 /**
  * Capability gate: is this module a wicked-vault WITH the manifest-2.1 twin?
- * npm 0.6.0 has record/attest/verify but NOT validateManifest/CLAIM_LEVELS —
- * that is the unreleased seam this flow depends on (see
- * VAULT_RELEASE_REQUIREMENT). Exported for tests.
+ * The twin (`validateManifest` + `CLAIM_LEVELS`) shipped in wicked-vault 0.7.0
+ * and garden's floor is 0.8.0; an older vault without those exports is refused
+ * fail-closed (see VAULT_RELEASE_REQUIREMENT). Exported for tests.
  */
 export function checkVaultCapability(mod) {
   if (!mod || typeof mod !== "object") return { ok: false, reason: "not a module" };
@@ -135,8 +132,8 @@ export function checkVaultCapability(mod) {
 
 /**
  * Resolve the wicked-vault module, fail-closed on capability:
- *   1. `WICKED_QE_VAULT_PKG` env — path to a wicked-vault package dir (or its
- *      entry file). The documented bridge until the next vault release.
+ *   1. `WICKED_QE_VAULT_PKG` env — optional pointer to a specific wicked-vault
+ *      package dir (or its entry file).
  *   2. bare `import("wicked-vault")` (global / hoisted install).
  *   3. the target repo's node_modules (cwd-anchored resolution).
  * A resolved-but-pre-2.1 vault is a refusal, not a fallback.
@@ -551,9 +548,10 @@ Subcommands:
             Re-derive the bundle months later: vault hashes + every artifact
             re-hashed on disk. Exit 1 on ANY divergence.
 
-wicked-vault resolution: WICKED_QE_VAULT_PKG (local checkout — required until
-the next wicked-vault release ships the manifest-2.1 twin) → global install →
-the repo's node_modules. A pre-2.1 vault is refused fail-closed.
+wicked-vault resolution: WICKED_QE_VAULT_PKG (optional pointer to a specific
+wicked-vault 0.8.0+ install) → global install → the repo's node_modules. An
+older vault without the manifest-2.1 twin (shipped in 0.7.0; floor 0.8.0) is
+refused fail-closed — upgrade with \`npm i -g wicked-vault@latest\`.
 
 Exit codes: 0 ok · 1 rederive divergence · 3 refusal / usage / system error.
 `;
