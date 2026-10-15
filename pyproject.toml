@@ -7,7 +7,11 @@ name = "wicked-garden"
 # not bump it — PEP 621 requires a value, so it is pinned to the placeholder 0.0.0 (mirrored in uv.lock).
 version = "0.0.0"
 description = "AI-Native SDLC delivered as a single Claude Code plugin"
-requires-python = ">=3.10"
+# <3.15 (garden 12.55.1): pydantic-core (via pydantic) ships no CPython 3.15 wheel yet, so a 3.15
+# default interpreter (macOS runners and Homebrew since 2026-10) made `uv sync` build it from source
+# with Rust — which fails without a toolchain, blocking crew's first skills publish. With the bound,
+# uv picks (or downloads) a 3.14. Lift it once pydantic-core publishes cp315 wheels.
+requires-python = ">=3.10,<3.15"
 dependencies = [
     "rapidfuzz>=3.0",
     "aiofiles>=23.0",
