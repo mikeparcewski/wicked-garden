@@ -107,7 +107,7 @@
     },
     "peers": {
       "type": "object",
-      "description": "Peer version floors (extension-contract gap 6), e.g. {\"wicked-garden\": \">=12.29.0\", \"wicked-vault\": \">=0.5.0\"}. Checked FAIL-OPEN: violations are surfaced at SessionStart and by `pack floors`, never blocked on.",
+      "description": "Peer version floors (extension-contract gap 6), e.g. {\"wicked-garden\": \">=12.29.0\", \"wicked-vault\": \">=0.8.0\"}. Checked FAIL-OPEN: violations are surfaced at SessionStart and by `pack floors`, never blocked on.",
       "additionalProperties": { "type": "string", "pattern": "^(>=|\\^)\\s*\\d+\\.\\d+\\.\\d+$" }
     },
     "provenance": {

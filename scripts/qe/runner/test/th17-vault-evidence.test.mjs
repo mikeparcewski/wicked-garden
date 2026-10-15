@@ -15,11 +15,11 @@
  *      refusal happens in code, not in docs.
  *
  * Release dependency (documented in vault-evidence.mjs): these tests need
- * the wicked-vault manifest-2.1 twin, which is on wicked-vault main but
- * UNRELEASED (npm 0.6.0 predates it). Until the next wicked-vault release,
- * set WICKED_QE_VAULT_PKG to a local checkout of wicked-vault main; without
- * one the vault-dependent tests SKIP with that exact message (the pure
- * mapping/capability tests still run).
+ * the wicked-vault manifest-2.1 twin (shipped in wicked-vault 0.7.0;
+ * garden's floor is 0.8.0). An older vault is refused fail-closed — upgrade
+ * with `npm i -g wicked-vault@latest` (or set WICKED_QE_VAULT_PKG to point
+ * at a specific 0.8.0+ install); without one the vault-dependent tests SKIP
+ * with that message (the pure mapping/capability tests still run).
  */
 
 import test from "node:test";
@@ -149,7 +149,7 @@ test("checkVaultCapability: a pre-2.1 vault is refused WITH the release requirem
   const r = checkVaultCapability(pre21);
   assert.equal(r.ok, false);
   assert.equal(r.pre21, true);
-  assert.match(r.reason, /UNRELEASED/);
+  assert.match(r.reason, /0\.8\.0/);
   assert.match(r.reason, /WICKED_QE_VAULT_PKG/);
   // and a non-vault module is a different refusal (not "release the vault")
   const notVault = checkVaultCapability({ record: fn });

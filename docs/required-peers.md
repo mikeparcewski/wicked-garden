@@ -18,7 +18,7 @@ works.
 
 | Peer | What it does | Install |
 |------|--------------|---------|
-| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npm i -g wicked-vault` — puts the `wicked-vault` binary on PATH (optionally run `wicked-vault-install` afterwards to copy the vault skills into your AI CLIs). Declared floor: **≥ 0.5.0** <!-- vault-floor --> (on 0.4.x or older, upgrade with `npm i -g wicked-vault@latest` — the peer registry's health probe, `loom doctor` / the peer-health command, reports a below-floor vault as `drift` and fails its check). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
+| **wicked-vault** | The honest-evidence backend the gate re-derives against: record → re-hash + re-run the verifier → cross-check. Never trusts a cached status. | `npm i -g wicked-vault` — puts the `wicked-vault` binary on PATH (optionally run `wicked-vault-install` afterwards to copy the vault skills into your AI CLIs). Declared floor: **≥ 0.8.0** <!-- vault-floor --> (below 0.8.0, upgrade with `npm i -g wicked-vault@latest` — the peer registry's health probe, `loom doctor` / the peer-health command, reports a below-floor vault as `drift` and fails its check). Resolved at runtime via `WICKED_VAULT_BIN` → config → `PATH` → `node_modules` → `npx wicked-vault`. |
 
 The core skill's `setup` action (`/wicked-garden-core setup`) **blocks** without
 it — a toolkit whose headline is "done is re-derived, not asserted" cannot ship
@@ -35,7 +35,7 @@ single source of truth; every doc restatement of the number is tagged with a
 `<!-- vault-floor -->` marker (README's bash-comment restatement can't carry an
 HTML comment, so grep the number too). **To bump the floor:** change
 `manifest.py` + `plugin.json`, then
-`grep -rn "vault-floor\|0\.5\.0" README.md CONTRIBUTING.md docs/ skills/` and
+`grep -rn "vault-floor\|0\.8\.0" README.md CONTRIBUTING.md docs/ skills/` and
 update every tagged restatement in the same commit.
 
 ## The built-in gate engine (loom) — nothing to install

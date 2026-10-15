@@ -279,7 +279,7 @@ Rules, all fail-closed:
 3. **Grades are opinions, not re-derivable facts**: `attest` appends, never
    edits; the vault refuses a self-grade (evaluator = recording actor) and
    a grade over a tampered artifact.
-4. **Release dependency**: needs the wicked-vault manifest-2.1 twin —
-   on wicked-vault main, **unreleased** (npm 0.6.0 predates it). Until the
-   next wicked-vault release, set `WICKED_QE_VAULT_PKG` to a local checkout
-   of wicked-vault main; a pre-2.1 vault is refused with that message.
+4. **Release dependency**: needs the wicked-vault manifest-2.1 twin
+   (shipped in wicked-vault 0.7.0; garden's floor is **0.8.0**). An older
+   vault is refused fail-closed — upgrade with `npm i -g wicked-vault@latest`
+   (or set `WICKED_QE_VAULT_PKG` to point at a specific 0.8.0+ install).

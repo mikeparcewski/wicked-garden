@@ -51,7 +51,7 @@ A complete working example (used as garden's own e2e fixture):
       ]
     }
   ],
-  "peers": { "wicked-garden": ">=12.0.0", "wicked-vault": ">=0.5.0" },
+  "peers": { "wicked-garden": ">=12.0.0", "wicked-vault": ">=0.8.0" },
   "provenance": { "source": "https://github.com/acme/acme-seo-pack", "publisher": "acme" }
 }
 ```

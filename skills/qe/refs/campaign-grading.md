@@ -216,10 +216,10 @@ wicked-garden run scripts/qe/lib/gate.mjs \
   ```
 
 - **Release dependency:** needs the wicked-vault **manifest-2.1 twin**
-  (`validateManifest` + `CLAIM_LEVELS`) — merged on wicked-vault main,
-  **unreleased** (npm 0.6.0 predates it). Until the next wicked-vault
-  release, set `WICKED_QE_VAULT_PKG` to a local checkout of wicked-vault
-  main; a pre-2.1 vault is refused fail-closed, never silently degraded.
+  (`validateManifest` + `CLAIM_LEVELS`), which shipped in wicked-vault 0.7.0;
+  garden's floor is **0.8.0**. An older vault is refused fail-closed, never
+  silently degraded — upgrade with `npm i -g wicked-vault@latest` (or set
+  `WICKED_QE_VAULT_PKG` to point at a specific 0.8.0+ install).
 
 ## Wiring context
 

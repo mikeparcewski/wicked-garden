@@ -121,7 +121,7 @@ in three domains").
 4. Append to the audit log with `wicked-garden run scripts/qe/verdict_audit.py append`
    so the verdict is replayable.
    Then record both produces as re-derivable evidence (vault present;
-   **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
+   **wicked-vault ≥ 0.8.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase review --claim verdict
    --kind verdict --source "<verdict.json>" --criteria "<the bar>"
    --verifier exit_code_eq:0 --actor "${WICKED_VAULT_ACTOR:-garden-prove}"

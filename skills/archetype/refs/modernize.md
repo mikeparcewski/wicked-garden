@@ -141,7 +141,7 @@ core's fail-closed build. See `skills/domain/SKILL.md`.
 2. Harden the result with `code-modernization:modernize-harden` (security/CVEs,
    error handling) before it carries traffic.
 3. Record the parity proof as re-derivable evidence (vault present; **wicked-vault
-   ≥ 0.5.0** <!-- vault-floor -->):
+   ≥ 0.8.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase modernize --claim parity-proof
    --kind differential --source "<the differential harness command>"
    --criteria "old(input) == new(input) on seeded data" --verifier exit_code_eq:0

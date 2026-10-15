@@ -218,12 +218,11 @@ the reviewer's grade appended as an opinion attestation — see
 --vault-record`. The vault payload is `manifest.json` (content-addressed; it
 binds every artifact's sha256), so a campaign PASS re-derives months later.
 **Release dependency:** the flow needs the wicked-vault manifest-2.1 twin
-(`validateManifest` + `CLAIM_LEVELS`) — on wicked-vault main, **unreleased**
-(npm 0.6.0 predates it and its vendored schema rejects 2.1 bundles). Until
-the next wicked-vault release, set `WICKED_QE_VAULT_PKG` to a local checkout
-of wicked-vault main (or `npm link` one); a pre-2.1 vault is refused
-fail-closed. The `th17-vault-evidence` tests skip with that exact message
-when no 2.1 vault is resolvable.
+(`validateManifest` + `CLAIM_LEVELS`), which shipped in wicked-vault 0.7.0;
+garden's floor is 0.8.0. An older vault is refused fail-closed — upgrade with
+`npm i -g wicked-vault@latest` (or set `WICKED_QE_VAULT_PKG` to point at a
+specific wicked-vault 0.8.0+ install). The `th17-vault-evidence` tests skip
+with that message when no 2.1-capable vault is resolvable.
 
 ## Tests
 

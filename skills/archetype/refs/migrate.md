@@ -83,7 +83,7 @@ them mid-cutover. Absent? Discover it the usual way — and consider
    the old shape.
 3. Land + deploy expand. Don't combine with backfill.
 4. Record the **shape-change** as re-derivable evidence (vault present;
-   **wicked-vault ≥ 0.5.0** <!-- vault-floor -->):
+   **wicked-vault ≥ 0.8.0** <!-- vault-floor -->):
    `wicked-vault record --scope <scope> --phase migrate --claim shape-change
    --kind schema-state --source "<migration-applied verification>"
    --criteria "<the post-condition>" --verifier exit_code_eq:0
