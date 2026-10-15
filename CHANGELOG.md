@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.55.1] — 2026-10-15
+
 ### Fixed
 - **Bump the `wicked-vault` peer floor to `>= 0.8.0` and drop stale "unreleased manifest-2.1 twin" notes (garden#1309).** `.claude-plugin/plugin.json` now declares `"wicked_vault_version": ">=0.8.0"` (replacing `"^0.5.0"`, whose `0.x` caret excluded every later minor), in lockstep with `scripts/loom/manifest.py` (`version_pin="0.8"`) and every `<!-- vault-floor -->` doc/skill restatement. `VAULT_RELEASE_REQUIREMENT` in `scripts/qe/lib/vault-evidence.mjs` and the QE docs/help strings now point to `npm i -g wicked-vault@latest` (the manifest-2.1 twin shipped in 0.7.0; 0.8.0 is the current floor).
 - **The plugin's Python range stops below 3.15 until its dependencies ship 3.15 wheels.** `pydantic-core` (via `pydantic`) has no CPython 3.15 wheel. A 3.15 default interpreter (the macOS GitHub runners and Homebrew `python@3.15`) made `uv sync` build it from source with Rust, which fails without a toolchain. That blocked wicked-crew's first skills publish (its release smoke S02 on macOS, and any 3.15-only host without Rust). `requires-python` is now `>=3.10,<3.15` (uv.lock relocked at the same lock revision), so uv picks or downloads a 3.14. Lift the bound once pydantic-core publishes cp315 wheels.
@@ -1133,7 +1135,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.1...HEAD
+[12.55.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.0...v12.55.1
 [12.55.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.54.0...v12.55.0
 [12.54.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.3...v12.54.0
 [12.53.3]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.2...v12.53.3
