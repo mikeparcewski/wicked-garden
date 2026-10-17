@@ -45,8 +45,9 @@ is the safe write it still permits). The store is pinned from the worker environ
 unpinned store is refused with `{"ok": false, "reason": …}` — report it, do not guess a
 store. The shim answers `{"ok": true, "id": "<proposal-id>"}` or `{"ok": false,
 "reason": …, "code": <json-rpc code or null>}`: `-32602` is a *your-args* bug (fix the
-shape), `null` means the estate was unreachable (keep the objects — next section). Long
-JSON: pass `-` as the json-args and pipe it on stdin. A `provenance` key is dropped.
+shape), `null` means the estate was unreachable (keep the objects — next section). Pass
+the JSON as ONE quoted argument, even when it is long: `propose` does not read stdin. A
+`provenance` key is dropped.
 
 ### When `propose` fails in a governed run — no file fallback
 

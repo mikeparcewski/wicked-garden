@@ -4,7 +4,7 @@ description: |
   Learn an unfamiliar repo the way a senior engineer does: follow where the code
   actually churns, find what that churn touches that the rest of the system leans
   on, read the load-bearing code for real, then write down BOTH what you learned
-  (memories) and what should hold (policies) — as inert estate proposals a human
+  (knowledge) and what should hold (policies) — as inert estate proposals a human
   reviews, never as asserted fact.
 
   Three BOUNDED phases, one wicked-crew unit each: (1) CHURN — sampled git churn →
@@ -28,8 +28,8 @@ metadata:
 A repo teaches you where to look if you follow two independent signals at once:
 **temporal** (where the code churns) and **structural** (what the rest of the system
 depends on). This skill walks the intersection, reads it for real, and **captures the
-learning back** as estate proposals — memories (what is true) and policies (what should
-hold). Garden ORCHESTRATES; estate GROUNDS (graph + read) and RECEIVES (the proposal
+learning back** as estate proposals — knowledge (what is true, read from the code) and
+policies (what should hold); a memory only for what you witnessed or were told. Garden ORCHESTRATES; estate GROUNDS (graph + read) and RECEIVES (the proposal
 queue); a human APPROVES — every capture is an inert proposal the studio Memories /
 Policies surfaces review, never an asserted fact.
 
@@ -148,8 +148,9 @@ when the proposal is approved, so the learning is lost):
   knowledge. `kind_type: "memory"`; payload
   `{"content": "<1–3 sentences>", "tier": "<value>"}` where `tier` is EXACTLY one
   of `working` / `episodic` / `semantic` / `procedural` / `archival` — for a repo
-  learning use `semantic` (a fact/decision) or `procedural` (a how-to/convention);
-  NEVER invent a tier like `durable`. Facets `{"repo": "<name>", "project": "<name>"}`.
+  learning use `semantic` (a decision or gotcha) or `procedural` (a how-to you were
+  taught); NEVER invent a tier like `durable`. A convention or rule the team must
+  follow ("our convention is always X") is a **policy**, never a memory. Facets `{"repo": "<name>", "project": "<name>"}`.
 - **Policy** — what *should hold*. `kind_type: "policy:<type>"` where `<type>` ∈
   architecture · development · security · testing · operations · compliance ·
   design-ux; payload `{"rule": "<imperative>", "severity": "<value>"}` where

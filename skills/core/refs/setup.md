@@ -233,16 +233,16 @@ First, ask which directories to onboard. **INTERACTIVE mode**: native prompt wit
 
 **Hand-off** — open the `wicked-garden-mem` skill and run its `ingest` action with `{selected_directory}` as the argument; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
-**Step D — Store onboarding memory**. `{DETECTED_TOOLS_SUMMARY}` lists only available tools (e.g. "gh, docker"):
-**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the memory text `Onboarding: {project} fully onboarded on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools available: {DETECTED_TOOLS_SUMMARY}.` and `kind=skill, about=[onboarding, project-context, {project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+**Step D — Record the onboarding scan as knowledge**. `{DETECTED_TOOLS_SUMMARY}` lists only available tools (e.g. "gh, docker"). Languages, frameworks and tools were read from the repository, so they are knowledge, not memory:
+**Hand-off** — open the `wicked-garden-mem` skill and run its `write` action with content `{project} project context: languages {DETECTED_LANGS}; frameworks {DETECTED_FWS}; tools available {DETECTED_TOOLS_SUMMARY}.`, `class=concept` and `source={selected_directory}`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 Show: "Onboarding complete — knowledge store has {N} chunks (mem review reports totals)."
 
 #### 5.2 Quick Scout
 
-Ask which directories to scout (same question mode pattern as 5.1 — native prompt or plain text depending on mode). Then Glob/Read the key entry points and store an enriched onboarding memory with detected context from Step 5.0:
+Ask which directories to scout (same question mode pattern as 5.1 — native prompt or plain text depending on mode). Then Glob/Read the key entry points and record the detected context from Step 5.0 as knowledge (it was read from the repository):
 
-**Hand-off** — open the `wicked-garden-mem` skill and run its `store` action with the memory text `Onboarding: {project} quick-scouted on {date}. Languages: {DETECTED_LANGS}. Frameworks: {DETECTED_FWS}. Tools: {DETECTED_TOOLS_SUMMARY}. Full onboarding not yet run.` and `kind=skill, about=[onboarding, project-context, {project}]`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+**Hand-off** — open the `wicked-garden-mem` skill and run its `write` action with content `{project} project context (quick scout): languages {DETECTED_LANGS}; frameworks {DETECTED_FWS}; tools {DETECTED_TOOLS_SUMMARY}.`, `class=concept` and `source={project}`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
 #### 5.3 Skip
 

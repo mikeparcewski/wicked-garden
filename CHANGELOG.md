@@ -11,7 +11,15 @@
 - **repo-learn no longer files code-wiring facts as memory.** Its 2×2 map and "derive both"
   guidance told the worker to record "how X wires up" as a memory, contradicting its own rule that
   what is read from code is knowledge. Those findings are now `knowledge` proposals; a memory is
-  only what the worker witnessed or was told.
+  only what the worker witnessed or was told. The skill's summary and memory guidance say the
+  same, and a convention the team must follow is a policy. Its capture reference no longer
+  documents piping long JSON to `propose -` (the shim never read stdin).
+- **Onboarding records the detected languages, frameworks and tools as knowledge.** `core` setup
+  stored them as a `skill` memory; they are read from the repository, so they go through the mem
+  `write` action now.
+- **Answer synthesis takes "what should hold" from approved steering rules, not memory.** On a
+  conflict, `search` answer cited an operator memory as the ruling; an approved rule
+  (`rules.recall`) now governs, and a memory gives what was decided and why.
 
 ## [12.55.1] — 2026-10-15
 
