@@ -16,6 +16,7 @@ import Footer from "wicked-web/components/Footer.astro";
 import SameGarden from "wicked-web/components/SameGarden.astro";
 import "../styles/global.css";
 import "../styles/site.css";
+import { G } from "../data/garden";
 import CopyChip from "../components/react/CopyChip.tsx";
 import HeroStamp from "../components/react/HeroStamp.tsx";
 import Toolbox from "../components/react/Toolbox.tsx";
@@ -30,8 +31,8 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
 ---
 
 <Base
-  title="wicked-garden — the capability plane: the catalog agents act through"
-  description="wicked-garden is the capability plane of the wicked platform — THE catalog: the toolkit for what your coding agent can't do alone, where 'done' is re-derived from evidence, never asserted. 143 skills across 14 domains, the absorbed 40-specialist QE fleet and its acceptance wall, estate-backed memory where agents propose and humans promote, graph refactors, a multi-model council that routes and reviews — and an open naming contract to ship your own domain pack. Local-first, MIT."
+  title="wicked-garden — the skills your coding agent can't build alone"
+  description={`wicked-garden is the skill catalog of the wicked platform: the skills your coding agent can't build alone. "Done" is re-checked from evidence, never asserted; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a panel of other models settles disputed decisions; estate-backed memory where agents suggest and you approve. ${G.skills} skills across ${G.domains} domains, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
   bodyClass="has-grain"
   favicon={favicon}
 >
@@ -44,15 +45,15 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
         <div class="gd-hero-grid">
           <div class="gd-hero-pitch">
             <p class="rise kicker" style="animation-delay:.05s">
-              the capability plane · the catalog · MIT
+              the skill catalog · works in your agent, CI or a crew job · MIT
             </p>
             <h1 class="gd-hero-h1">
               <span class="rise block" style="animation-delay:.12s">The tools your coding agent</span>
               <span class="rise block gd-hero-h1-2" style="animation-delay:.2s">can’t build alone.</span>
             </h1>
             <p class="rise gd-hero-sub" style="animation-delay:.3s">
-              Your harness already plans, swarms, and ships. wicked-garden is the
-              capability plane it acts through — the catalog that fills only the gaps a
+              Your agent already plans, swarms, and ships. wicked-garden is the
+              catalog of skills it acts through — filling only the gaps a
               planner-executor can’t fill alone, starting with the one
               that matters most: <span class="gd-hero-em">done is re-derived from evidence, never asserted.</span>
             </p>
@@ -62,8 +63,8 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
               <p class="gd-hero-install-note">interactive · picks your products across CLIs · direct install below</p>
             </div>
             <ul class="rise gd-hero-stats" style="animation-delay:.5s">
-              <li><b>143</b> skills</li>
-              <li><b>14</b> domains</li>
+              <li><b>{G.skills}</b> skills</li>
+              <li><b>{G.domains}</b> domains</li>
               <li><b>40</b> QE specialists</li>
               <li><b>10</b> work-shapes</li>
               <li><b>MIT</b> · local-first</li>

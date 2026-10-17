@@ -4,7 +4,7 @@
    what agents act through. The toolkit for what a coding agent can't do alone.
    The soul: "done is re-derived from evidence, never asserted."
    All claims code-grounded against the wicked-garden repo (skills/**,
-   .claude-plugin/plugin.json v12.35.0): 143 SKILL.md across 14 domain groups,
+   .claude-plugin/plugin.json): the SKILL.md count is counted at build time (G.skills) across 14 domain groups,
    40 qe-* specialist fork skills + the 3-agent acceptance pipeline (absorbed
    from the retired wicked-testing plugin in Phase 6b/6c), the estate-backed // historical
    mem + search + patch stack, and the open {vendor}-{domain}-{role} naming
@@ -113,10 +113,10 @@ export const TOOLS: Tool[] = [
   {
     id: "council",
     name: "council",
-    kind: "multi-model router · panel",
+    kind: "multi-model review panel",
     hue: "solo",
-    gap: "asks itself for a second opinion — and routes on a hunch",
-    fill: "The multi-model council IS the router: a panel of external model CLIs (Antigravity · Codex · …) that classifies the work and returns a second opinion the model can’t grade itself. Short of two usable external CLIs it seats isolated same-family workers and labels them as weaker diversity; short of two isolated seats it reports no quorum. It absorbed the retired wicked-signals — routing is the council’s job now.",
+    gap: "asks itself for a second opinion on a disputed call",
+    fill: "When a decision is disputed, garden convenes a panel of other models (Codex · Antigravity · …) to settle it, so the answer isn’t the model grading itself. Short of two usable external CLIs it uses isolated workers of the same model family and labels them as weaker diversity; short of two isolated workers it reports no quorum.",
     cmd: "wicked-garden-jam",
     cmdLabel: "garden skill · council",
   },
@@ -144,10 +144,10 @@ export const TOOLS: Tool[] = [
 
 /* ── The wider surface — the 14 domains the toolbox samples from ─────────────
    Every chip below is a real skill or routed action in the repo (skills/<dir>/).
-   Counts are honest: 143 SKILL.md under skills/** folded into these 14 domain
-   groups (per-domain routers, routed actions, and fork workers), 10 work-shapes
-   — verified against skills/** at v12.35.0 (143 SKILL.md on disk; the 14
-   domain counts below sum to 143; 40 qe-* specialist dirs; the `draft`
+   The total (G.skills) is counted at build time from skills/**; the per-domain
+   counts below are editorial groupings (per-domain routers, routed actions, and
+   fork workers), 10 work-shapes — last hand-verified at v12.35.0 (40 qe-*
+   specialist dirs; the `draft`
    document-deliverable floor is folded into product & UX). This is an
    editorial verification claim — re-verify by hand on a version bump; the
    RENDERED version stamp itself is build-time injected and never stales. */
@@ -237,7 +237,7 @@ export const DOMAINS: Domain[] = [
     id: "jam",
     name: "multi-model",
     hue: "solo",
-    blurb: "The multi-model council IS the router — external model CLIs classify the work and return a second opinion that isn’t self-grading; same-family fallback seats are labelled as such. It absorbed the retired wicked-signals.",
+    blurb: "A panel of other models settles a disputed decision, so the answer isn’t self-graded; a same-family fallback is labelled as such. Brainstorms run multi-model too.",
     count: 3,
     cmds: ["council", "brainstorm", "multi-model"],
   },
@@ -480,7 +480,7 @@ export const G = {
   ownTools: TOOLS.length,
   peers: PEERS.length,
   domains: DOMAINS.length,   // 14
-  skills: 143,               // real SKILL.md count under skills/**
+  skills: __WICKED_GARDEN_SKILLS__, // real SKILL.md count under skills/**, counted at build time
   qeSpecialists: QE_SPECIALISTS.length, // 40
   workShapes: 10,
 };
