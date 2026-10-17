@@ -178,7 +178,10 @@ capture what we learned", before /clear or exit). It sweeps the conversation
 for decisions, patterns, gotchas, discoveries, and preferences, classifies
 each onto the estate kind/tier vocabulary, and batch-writes them via
 `capture-batch`. A standing rule the user stated ("always…", "never…") is
-filed as a `policy:<type>` proposal for review, not stored as a memory.
+filed as a `policy:<type>` proposal for review (reach `operator`, every
+project, unless they named a project), not stored as a memory. How the user
+works (style, preferences, standing extra steps) is an operator memory at
+`operator:local`, recalled in every project.
 Report what it stored and proposed.
 
 No hook extracts memories from the transcript. The Stop hook used to

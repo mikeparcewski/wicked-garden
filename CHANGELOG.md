@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- **Operator memories and an explicit reach (needs wicked-estate with the operator scope).**
+  - How the user works (style, preferences, the extra steps they always take) is an operator memory. `mem-capture` stores it at `operator:local`, which every project's recall includes, so it is never pinned to one project.
+  - Every policy proposal now carries `payload.reach`: `operator` (every project), or `project` (that project or repo). A rule the user states defaults to `operator` unless they named a project. A rule repo-learn learns from a repo is `project`.
+  - `mem/refs/scopes.md` documents the operator scope and the reach vocabulary.
+
 ### Fixed
 - **Session capture files standing rules for review instead of storing them as memory.** The
   `mem-capture` worker swept "always use…", "never do…" and team conventions into the memory

@@ -28,11 +28,14 @@ Look for things the session *learned*, not things it *did*:
 - **Decisions with a reason**: "chose X over Y because…"
 - **Patterns**: "this always…" (how something behaves, witnessed)
 - **Gotchas**: "this broke because…", "don't X because…"
-- **Standing rules** the user stated for the work: "always use…", "never
-  do…", "the convention is…". These are steering, not memory: Step 3b files
-  them as policy proposals for review.
-- **Preferences** that are not a rule a change can be checked against
-  ("prefers tables in replies", "likes short commit subjects")
+- **Standing rules** the user wants ENFORCED on the work: "always use…",
+  "never do…", "the convention is…", something a change can be checked
+  against. These are steering, not memory: Step 3b files them as policy
+  proposals for review.
+- **How the user works**: their style, preferences and the extra steps they
+  always take ("prefers tables in replies", "likes short commit subjects",
+  "wants a screenshot before calling UI work done"). These are **operator
+  memories**: they apply in every project (Step 3).
 
 Then apply the **provenance test**: memory is what we *witnessed*, were
 *told*, or *decided*. What was read out of code, docs or the web is
@@ -87,8 +90,16 @@ Events ("X happened when Y") are not memories. Keep only the rule the event
 taught, as a `fact`.
 
 Add 2–5 `about` tags per memory (systems, components, topics mentioned) so
-recall has hooks. Scope: leave the default (`project:<cwd-basename>`)
-unless the learning clearly belongs to another scope.
+recall has hooks.
+
+Scope follows what the memory is about:
+
+- **About this project or its code** (a decision, gotcha or pattern here):
+  leave the default (`project:<cwd-basename>`).
+- **About how the user works** (style, preferences, standing extra steps):
+  pass `"scope": "operator:local"`. Every project's recall includes the
+  operator scope, so the memory follows the user everywhere. Never pin an
+  operator memory to one project.
 
 ## Step 3b — standing rules go to review as policy proposals
 
@@ -100,15 +111,21 @@ estate shim's `propose` action (the review queue; nothing applies until the
 user approves it):
 
 ```bash
-wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"policy:development","payload":{"rule":"<imperative: what must hold>","severity":"warn","capture":"rule"},"facets":{"project":"<project>","repo":"<repo>"}}'
+wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"policy:development","payload":{"rule":"<imperative: what must hold>","severity":"warn","capture":"rule","reach":"operator"},"facets":{"project":"<project>"}}'
 ```
 
 - `kind_type` is `policy:<type>`, with `<type>` exactly one of
   `architecture`, `development`, `security`, `testing`, `operations`,
   `compliance` or `design-ux`.
 - `severity` is exactly one of `info`, `warn`, `error` or `critical`.
-- `facets.project` is required (the shim refuses a proposal without it). Add
-  `repo` when the rule is about one repository.
+- `reach` says where the rule applies. A rule the user states is theirs
+  for **every** project: `"reach": "operator"`. Use `"reach": "project"`
+  only when they named this project or one of its repos (add `repo` to the
+  facets for a repo). The reviewer sees the reach and can change it; never
+  leave it out.
+- `facets.project` is required (the shim refuses a proposal without it). It
+  records where the rule was said; with `"reach": "operator"` it does not
+  narrow the rule.
 - Never pass `provenance`.
 
 Store a pointer memory only when the *reason* for the rule is worth
@@ -123,7 +140,8 @@ One backend call, JSON on stdin (never argv — summaries contain quotes):
 ```bash
 printf '%s' '{"memories":[
   {"content":"<summary 1>","kind":"fact","about":["tag1","tag2"]},
-  {"content":"<summary 2>","kind":"skill","about":["tag3"]}
+  {"content":"<summary 2>","kind":"skill","about":["tag3"]},
+  {"content":"<how the user works>","kind":"fact","about":["style"],"scope":"operator:local"}
 ]}' | wicked-garden run \
   scripts/mem/estate_memory.py capture-batch -
 ```

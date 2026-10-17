@@ -135,7 +135,7 @@ implementation fails closed" is knowledge.
 ```json
 {
   "kind_type": "policy:architecture",
-  "payload": { "rule": "<imperative statement of what must hold>", "severity": "error" },
+  "payload": { "rule": "<imperative statement of what must hold>", "severity": "error", "reach": "project" },
   "facets": { "repo": "<repo-name>", "project": "<project-name>", "language": "<lang>" }
 }
 ```
@@ -144,6 +144,9 @@ implementation fails closed" is knowledge.
   a diff against it ("Every emitted Edge carries {confidence, provenance,
   resolved_by}"; "No content-hash or line-number node ids"). Not a description —
   a *ought*.
+- `reach` — `"project"`: a rule learned from this repo applies to this
+  repo's project. (`"operator"` = every project is for rules the operator
+  states, not for what a repo teaches.)
 - `severity` — `info` (advisory) · `warn` (should) · `error` (must; a violation
   blocks) · `critical` (must; a violation is a security/data-loss class). Map from
   the 2×2 below and from what the code's own guardrails signal.
@@ -194,7 +197,8 @@ Policy (architecture, from the same subsystem's invariant):
   "kind_type": "policy:architecture",
   "payload": {
     "rule": "Every emitted Edge must carry {confidence, provenance, resolved_by}; never present a heuristic edge as a fact.",
-    "severity": "error"
+    "severity": "error",
+    "reach": "project"
   },
   "facets": { "repo": "wicked-estate", "project": "wicked", "language": "rust" }
 }
@@ -207,7 +211,8 @@ Policy (development, language-scoped, from a stable core with a clear guardrail)
   "kind_type": "policy:development",
   "payload": {
     "rule": "Rust: no bare panic!/unwrap in library crates; surface a typed error.",
-    "severity": "warn"
+    "severity": "warn",
+    "reach": "project"
   },
   "facets": { "repo": "wicked-estate", "project": "wicked", "language": "rust" }
 }

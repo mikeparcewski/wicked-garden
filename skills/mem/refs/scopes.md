@@ -14,7 +14,17 @@ project:wicked-garden
 org:acme/agent:claude
 brain:wicked-garden/doc:4f2a91
 project:wicked-estate/session:2026-08-11
+operator:local
 ```
+
+**Operator scope.** `operator:<id>` (`operator:local` by default) holds
+memories about how the operator works: style, preferences, the extra steps
+they always take. Every scoped recall includes it, whatever the project, so
+these follow the operator everywhere. A memory about a project's work stays
+at `project:<name>`. A rule the operator wants enforced is neither: it is a
+`policy:<type>` proposal. A proposal says which with `payload.reach`:
+`project`, `pattern`, or `operator`. For a policy it is `project` or
+`operator`.
 
 Rules of thumb:
 
@@ -68,7 +78,7 @@ Brain's memory types map onto estate kinds as follows (used by
 |------------|-------------|------|
 | decision | `fact` | `semantic` |
 | pattern / procedural | `skill` | `procedural` |
-| preference (not a checkable rule) | `fact` | `semantic` |
+| preference, style, standing extra step (how the operator works) | `fact` at `operator:local` | `semantic` |
 | standing rule ("always…", "never…") | none: a `policy:<type>` proposal | n/a |
 | gotcha | `fact` | `semantic` |
 | discovery | `fact` (the rule it taught) | `semantic` |

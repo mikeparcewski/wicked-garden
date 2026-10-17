@@ -153,7 +153,8 @@ when the proposal is approved, so the learning is lost):
   follow ("our convention is always X") is a **policy**, never a memory. Facets `{"repo": "<name>", "project": "<name>"}`.
 - **Policy** — what *should hold*. `kind_type: "policy:<type>"` where `<type>` ∈
   architecture · development · security · testing · operations · compliance ·
-  design-ux; payload `{"rule": "<imperative>", "severity": "<value>"}` where
+  design-ux; payload `{"rule": "<imperative>", "severity": "<value>", "reach": "project"}`
+  (a rule learned from this repo applies to its project) where
   `severity` is EXACTLY one of `info` / `warn` / `error` / `critical` — the middle
   band is `warn`, NOT `warning`. Facets `{"repo": "<name>", "project": "<name>", "language": "<lang>"}`.
 - **Never pass `provenance`** — the server stamps it from `WICKED_RUN_*`. Passing
