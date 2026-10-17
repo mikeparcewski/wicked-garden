@@ -30,12 +30,13 @@ Look for things the session *learned*, not things it *did*:
 - **Gotchas**: "this broke because…", "don't X because…"
 - **Standing rules** the user wants ENFORCED on the work: "always use…",
   "never do…", "the convention is…", something a change can be checked
-  against. These are steering, not memory: Step 3b files them as policy
+  against ("UI work is not done without a screenshot"). These are steering, not memory: Step 3b files them as policy
   proposals for review.
 - **How the user works**: their style, preferences and the extra steps they
   always take ("prefers tables in replies", "likes short commit subjects",
-  "wants a screenshot before calling UI work done"). These are **operator
-  memories**: they apply in every project (Step 3).
+  "usually opens the rendered page before reviewing CSS"). When the user
+  said it must be enforced, it is a standing rule instead. These are
+  **operator memories**: they apply in every project (Step 3).
 
 Then apply the **provenance test**: memory is what we *witnessed*, were
 *told*, or *decided*. What was read out of code, docs or the web is

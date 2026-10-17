@@ -119,7 +119,8 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
 
 By default recall searches the current project (`project:<cwd-basename>`)
 and its ancestors, so root-scoped memories stay visible and other projects'
-memories do not leak in. Pass `"scope"` to recall another project the same
+memories do not leak in. Operator memories (`operator:<id>`, how the user
+works) are recalled in every project. Pass `"scope"` to recall another project the same
 way. Searching everything, brain-migrated leaves
 (`brain:<project>/doc:<id>`) included, is an explicit opt-in:
 `"scope_prefix": ""` (or `"scope_prefix": "project:<name>"` for one subtree). Items return content, scope, tier,

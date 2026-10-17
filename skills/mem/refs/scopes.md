@@ -34,8 +34,9 @@ Rules of thumb:
 - **Recall** uses one of two filters (mutually exclusive on the wire):
   - `scope` — estate's ancestor-visible inheritance: memories at this scope
     plus those inherited from ancestor scopes. **The default**, at
-    `project:<cwd-basename>`, so a session sees its own project's memories
-    and root-scoped ones, never another project's.
+    `project:<cwd-basename>`, so a session sees its own project's memories,
+    root-scoped ones and operator memories (`operator:<id>`), never another
+    project's.
   - `scope_prefix` — subtree match: every memory whose scope equals the
     prefix or descends from it. `scope_prefix: ""` = the root subtree =
     **everything**. Opt-in only: pass it when the user asks to search
