@@ -14,7 +14,17 @@ project:wicked-garden
 org:acme/agent:claude
 brain:wicked-garden/doc:4f2a91
 project:wicked-estate/session:2026-08-11
+operator:local
 ```
+
+**Operator scope.** `operator:<id>` (`operator:local` by default) holds
+memories about how the operator works: style, preferences, the extra steps
+they always take. Every scoped recall includes it, whatever the project, so
+these follow the operator everywhere. A memory about a project's work stays
+at `project:<name>`. A rule the operator wants enforced is neither: it is a
+`policy:<type>` proposal. A proposal says which with `payload.reach`:
+`project`, `pattern`, or `operator`. For a policy it is `project` or
+`operator`.
 
 Rules of thumb:
 
@@ -24,8 +34,9 @@ Rules of thumb:
 - **Recall** uses one of two filters (mutually exclusive on the wire):
   - `scope` — estate's ancestor-visible inheritance: memories at this scope
     plus those inherited from ancestor scopes. **The default**, at
-    `project:<cwd-basename>`, so a session sees its own project's memories
-    and root-scoped ones, never another project's.
+    `project:<cwd-basename>`, so a session sees its own project's memories,
+    root-scoped ones and operator memories (`operator:<id>`), never another
+    project's.
   - `scope_prefix` — subtree match: every memory whose scope equals the
     prefix or descends from it. `scope_prefix: ""` = the root subtree =
     **everything**. Opt-in only: pass it when the user asks to search
@@ -47,7 +58,7 @@ for review or cleanup).
 | Kind | Default tier | Store when… |
 |------|--------------|-------------|
 | `fact` | `semantic` | a decision, gotcha, or stable distilled fact ("we chose X because Y") |
-| `skill` | `procedural` | a pattern, convention, or how-to that gets reinforced by use |
+| `skill` | `procedural` | a pattern or how-to that gets reinforced by use (a convention the team must follow is a rule: a `policy:<type>` proposal, not a memory) |
 | `episode` | `episodic` | raw experience estate distills from; not a capture target (store the rule an event taught as a `fact`) |
 | `entity` | `semantic` | a profile of a person/system/component |
 | `working` | `working` | session-local scratch written by hooks; estate expires it after 24 h |
@@ -68,7 +79,8 @@ Brain's memory types map onto estate kinds as follows (used by
 |------------|-------------|------|
 | decision | `fact` | `semantic` |
 | pattern / procedural | `skill` | `procedural` |
-| preference | `fact` | `semantic` |
+| preference, style, standing extra step (how the operator works) | `fact` at `operator:local` | `semantic` |
+| standing rule ("always…", "never…") | none: a `policy:<type>` proposal | n/a |
 | gotcha | `fact` | `semantic` |
 | discovery | `fact` (the rule it taught) | `semantic` |
 

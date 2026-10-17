@@ -41,9 +41,10 @@ every project, on explicit request); `--budget <tokens>`
      `[knowledge · src docs/adr/0005.md]` or
      `[memory · fact · 2026-10-10 · project:wicked-garden]`, so the reader
      sees which side it came from and how old it is
-   - on conflict, an operator ruling (memory) governs what *should* hold and
-     the source (knowledge) governs what *does*: show the disagreement, never
-     pick silently by date
+   - on conflict, an approved steering rule (estate `rules.recall`) governs
+     what *should* hold and the source (knowledge) governs what *does*; a
+     memory says what was decided or told and why, not what is enforced.
+     Show the disagreement, never pick silently by date
 
    End with a `Sources:` list — every distinct `source` / scope used, so
    the reader can verify each claim.

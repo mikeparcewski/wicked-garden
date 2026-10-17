@@ -4,7 +4,7 @@ description: |
   Learn an unfamiliar repo the way a senior engineer does: follow where the code
   actually churns, find what that churn touches that the rest of the system leans
   on, read the load-bearing code for real, then write down BOTH what you learned
-  (memories) and what should hold (policies) — as inert estate proposals a human
+  (knowledge) and what should hold (policies) — as inert estate proposals a human
   reviews, never as asserted fact.
 
   Three BOUNDED phases, one wicked-crew unit each: (1) CHURN — sampled git churn →
@@ -28,8 +28,8 @@ metadata:
 A repo teaches you where to look if you follow two independent signals at once:
 **temporal** (where the code churns) and **structural** (what the rest of the system
 depends on). This skill walks the intersection, reads it for real, and **captures the
-learning back** as estate proposals — memories (what is true) and policies (what should
-hold). Garden ORCHESTRATES; estate GROUNDS (graph + read) and RECEIVES (the proposal
+learning back** as estate proposals — knowledge (what is true, read from the code) and
+policies (what should hold); a memory only for what you witnessed or were told. Garden ORCHESTRATES; estate GROUNDS (graph + read) and RECEIVES (the proposal
 queue); a human APPROVES — every capture is an inert proposal the studio Memories /
 Policies surfaces review, never an asserted fact.
 
@@ -97,7 +97,7 @@ Churn and centrality answer different questions; the intersection ranks targets.
 
 |                       | **High churn** | **Low churn** |
 |-----------------------|----------------|---------------|
-| **High centrality**   | load-bearing + volatile → **read deeply**; likely yields BOTH a memory (how it works / why it moves) AND a policy (what must hold as it changes) | stable core → **read for invariants**; yields policies (severity `error`/`critical`) more than memories |
+| **High centrality**   | load-bearing + volatile → **read deeply**; likely yields BOTH knowledge (how it works / why it moves, read from the code) AND a policy (what must hold as it changes) | stable core → **read for invariants**; yields policies (severity `error`/`critical`) more than knowledge |
 | **Low centrality**    | churny periphery (config, fixtures, generated) → **mostly noise**; skip unless it's a hot integration seam | quiet leaf → **skip** |
 
 The prime targets are the top-left cell: paths that appear in BOTH the phase-1
@@ -148,18 +148,21 @@ when the proposal is approved, so the learning is lost):
   knowledge. `kind_type: "memory"`; payload
   `{"content": "<1–3 sentences>", "tier": "<value>"}` where `tier` is EXACTLY one
   of `working` / `episodic` / `semantic` / `procedural` / `archival` — for a repo
-  learning use `semantic` (a fact/decision) or `procedural` (a how-to/convention);
-  NEVER invent a tier like `durable`. Facets `{"repo": "<name>", "project": "<name>"}`.
+  learning use `semantic` (a decision or gotcha) or `procedural` (a how-to you were
+  taught); NEVER invent a tier like `durable`. A convention or rule the team must
+  follow ("our convention is always X") is a **policy**, never a memory. Facets `{"repo": "<name>", "project": "<name>"}`.
 - **Policy** — what *should hold*. `kind_type: "policy:<type>"` where `<type>` ∈
   architecture · development · security · testing · operations · compliance ·
-  design-ux; payload `{"rule": "<imperative>", "severity": "<value>"}` where
+  design-ux; payload `{"rule": "<imperative>", "severity": "<value>", "reach": "project"}`
+  (a rule learned from this repo applies to its project) where
   `severity` is EXACTLY one of `info` / `warn` / `error` / `critical` — the middle
   band is `warn`, NOT `warning`. Facets `{"repo": "<name>", "project": "<name>", "language": "<lang>"}`.
 - **Never pass `provenance`** — the server stamps it from `WICKED_RUN_*`. Passing
   it is at best ignored; treat provenance as not yours to set.
-- Derive **both** per target where the 2×2 warrants it: the memory records the
-  *is*, the policy records the *ought*. A stable high-centrality invariant is a
-  policy; a "this is how X actually wires up" discovery is a memory.
+- Derive **both** per target where the 2×2 warrants it: the knowledge record
+  holds the *is*, the policy holds the *ought*. A stable high-centrality
+  invariant is a policy; a "this is how X actually wires up" discovery was read
+  from the code, so it is knowledge, never a memory.
 
 ## In a governed run
 
@@ -187,7 +190,7 @@ default; the shim refuses an unpinned store — report that, never guess one.
    call, no variants, no wrappers (governed-worker A2/A5). The read-only CLI is still
    allowed by the fence but is not a documented rung.
 2. **Capture** (phase 3) submits each proposal through the shim —
-   `wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"memory","payload":{…},"facets":{…}}'`
+   `wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"knowledge","payload":{…},"facets":{…}}'`
    (`proposal.submit`; provenance is server-stamped from the `WICKED_RUN_*` markers on your
    environment, never passed). **There is no deliverable file and no file fallback**: write
    nothing into the repository (governed-worker E1) and nothing elsewhere either. If the shim

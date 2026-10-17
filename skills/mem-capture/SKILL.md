@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-mem-capture
-description: "Session-teardown memory capture: sweep the conversation for durable learnings (decisions with a reason, patterns, gotchas, preferences), keep only what passes the durability test, classify each onto the estate kind/tier vocabulary, and batch-write them to wicked-estate memory. Use when: dispatched by the wicked-garden-mem skill's capture action, at session end, before /clear or exit, or when the user says 'capture what we learned' / 'remember this session'."
+description: "Session-teardown memory capture: sweep the conversation for durable learnings (decisions with a reason, patterns, gotchas, preferences), keep only what passes the durability test, classify each onto the estate kind/tier vocabulary, and batch-write them to wicked-estate memory; standing rules the user stated go to the review queue as policy proposals instead. Use when: dispatched by the wicked-garden-mem skill's capture action, at session end, before /clear or exit, or when the user says 'capture what we learned' / 'remember this session'."
 metadata:
   role: worker
 ---
@@ -26,9 +26,17 @@ Relative paths in this skill are relative to the directory that contains this SK
 Look for things the session *learned*, not things it *did*:
 
 - **Decisions with a reason**: "chose X over Y because…"
-- **Patterns / conventions**: "this always…", "the convention is…"
+- **Patterns**: "this always…" (how something behaves, witnessed)
 - **Gotchas**: "this broke because…", "don't X because…"
-- **Preferences** the user stated: "always use…", "never do…"
+- **Standing rules** the user wants ENFORCED on the work: "always use…",
+  "never do…", "the convention is…", something a change can be checked
+  against ("UI work is not done without a screenshot"). These are steering, not memory: Step 3b files them as policy
+  proposals for review.
+- **How the user works**: their style, preferences and the extra steps they
+  always take ("prefers tables in replies", "likes short commit subjects",
+  "usually opens the rendered page before reviewing CSS"). When the user
+  said it must be enforced, it is a standing rule instead. These are
+  **operator memories**: they apply in every project (Step 3).
 
 Then apply the **provenance test**: memory is what we *witnessed*, were
 *told*, or *decided*. What was read out of code, docs or the web is
@@ -74,14 +82,57 @@ applies), then map it onto the estate vocabulary
 | Finding | `kind` | tier (default) |
 |---------|--------|----------------|
 | decision, preference, gotcha, stable fact | `fact` | `semantic` |
-| pattern, convention, how-to | `skill` | `procedural` |
+| pattern, how-to | `skill` | `procedural` |
+
+A standing rule is not in this table: it goes to Step 3b, never to the
+memory batch.
 
 Events ("X happened when Y") are not memories. Keep only the rule the event
 taught, as a `fact`.
 
 Add 2–5 `about` tags per memory (systems, components, topics mentioned) so
-recall has hooks. Scope: leave the default (`project:<cwd-basename>`)
-unless the learning clearly belongs to another scope.
+recall has hooks.
+
+Scope follows what the memory is about:
+
+- **About this project or its code** (a decision, gotcha or pattern here):
+  leave the default (`project:<cwd-basename>`).
+- **About how the user works** (style, preferences, standing extra steps):
+  pass `"scope": "operator:local"`. Every project's recall includes the
+  operator scope, so the memory follows the user everywhere. Never pin an
+  operator memory to one project.
+
+## Step 3b — standing rules go to review as policy proposals
+
+A rule the user stated for the work ("always use X", "never do Y", "the
+convention is Z") is enforceable: a reviewer can judge a change against it.
+That makes it steering, and steering is approved by a person before it
+applies. Do not write it as a memory. File one proposal per rule through the
+estate shim's `propose` action (the review queue; nothing applies until the
+user approves it):
+
+```bash
+wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"policy:development","payload":{"rule":"<imperative: what must hold>","severity":"warn","capture":"rule","reach":"operator"},"facets":{"project":"<project>"}}'
+```
+
+- `kind_type` is `policy:<type>`, with `<type>` exactly one of
+  `architecture`, `development`, `security`, `testing`, `operations`,
+  `compliance` or `design-ux`.
+- `severity` is exactly one of `info`, `warn`, `error` or `critical`.
+- `reach` says where the rule applies. A rule the user states is theirs
+  for **every** project: `"reach": "operator"`. Use `"reach": "project"`
+  only when they named this project or one of its repos (add `repo` to the
+  facets for a repo). The reviewer sees the reach and can change it; never
+  leave it out.
+- `facets.project` is required (the shim refuses a proposal without it). It
+  records where the rule was said; with `"reach": "operator"` it does not
+  narrow the rule.
+- Never pass `provenance`.
+
+Store a pointer memory only when the *reason* for the rule is worth
+recalling on its own ("we ban X because incident Y"). The rule itself lives
+in the proposal. If the shim answers `ok: false`, report the rule text and
+the degrade; never fall back to storing it as a memory.
 
 ## Step 4 — batch write
 
@@ -90,7 +141,8 @@ One backend call, JSON on stdin (never argv — summaries contain quotes):
 ```bash
 printf '%s' '{"memories":[
   {"content":"<summary 1>","kind":"fact","about":["tag1","tag2"]},
-  {"content":"<summary 2>","kind":"skill","about":["tag3"]}
+  {"content":"<summary 2>","kind":"skill","about":["tag3"]},
+  {"content":"<how the user works>","kind":"fact","about":["style"],"scope":"operator:local"}
 ]}' | wicked-garden run \
   scripts/mem/estate_memory.py capture-batch -
 ```
@@ -112,6 +164,7 @@ wicked-garden run \
 ## Step 6 — report
 
 - `{N} memories stored` (+ `{K} failed` if any, with each refusal reason), with kinds
+- `{P} rules proposed for review` (Step 3b), with each proposal id
 - one-line topic list
 - if estate was unreachable (`ok: false`): report the degrade explicitly so
   the learnings can be re-captured later — never claim success on a

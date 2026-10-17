@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added
+- **Operator memories and an explicit reach (needs wicked-estate with the operator scope).**
+  - How the user works (style, preferences, the extra steps they always take) is an operator memory. `mem-capture` stores it at `operator:local`, which every project's recall includes, so it is never pinned to one project.
+  - Every policy proposal now carries `payload.reach`: `operator` (every project), or `project` (that project or repo). A rule the user states defaults to `operator` unless they named a project. A rule repo-learn learns from a repo is `project`.
+  - `mem/refs/scopes.md` documents the operator scope and the reach vocabulary.
+
+### Fixed
+- **Session capture files standing rules for review instead of storing them as memory.** The
+  `mem-capture` worker swept "always use…", "never do…" and team conventions into the memory
+  batch, so an enforceable rule became a memory nobody approved. A standing rule the user stated
+  now goes to the review queue as a `policy:<type>` proposal (Step 3b); a preference that is not a
+  checkable rule stays a memory. The `mem` skill and `refs/scopes.md` say the same.
+- **repo-learn no longer files code-wiring facts as memory.** Its 2×2 map and "derive both"
+  guidance told the worker to record "how X wires up" as a memory, contradicting its own rule that
+  what is read from code is knowledge. Those findings are now `knowledge` proposals; a memory is
+  only what the worker witnessed or was told. The skill's summary and memory guidance say the
+  same, and a convention the team must follow is a policy. Its capture reference no longer
+  documents piping long JSON to `propose -` (the shim never read stdin).
+- **Onboarding records the detected languages, frameworks and tools as knowledge.** `core` setup
+  stored them as a `skill` memory; they are read from the repository, so they go through the mem
+  `write` action now.
+- **Answer synthesis takes "what should hold" from approved steering rules, not memory.** On a
+  conflict, `search` answer cited an operator memory as the ruling; an approved rule
+  (`rules.recall`) now governs, and a memory gives what was decided and why.
+
 ## [12.55.1] — 2026-10-15
 
 ### Fixed
