@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type JSX } from "react";
 import CopyChip from "./CopyChip";
 import Reveal from "./Reveal";
-import { TOOLS, HUE_VAR, type Tool } from "../../data/garden";
+import { TOOLS, HUE_VAR, G, type Tool } from "../../data/garden";
 
 /* ============================================================================
    The Toolbox — garden's OWN tools, each one DEMONSTRATING itself.
@@ -168,7 +168,7 @@ export default function Toolbox() {
         <p className="tb-intro">
           Your harness plans, swarms, and ships. These are the six things a
           planner-executor genuinely can’t do on its own — and they’re a sample:{" "}
-          the full catalog runs to 142 skills across 14 domains. It plays itself; click any tool to pin it.
+          the full catalog runs to {G.skills} skills across {G.domains} domains. It plays itself; click any tool to pin it.
         </p>
       </Reveal>
 

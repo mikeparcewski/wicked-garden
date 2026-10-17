@@ -6,3 +6,5 @@
  * the site's rendered version stamps true by construction (DT-7).
  */
 declare const __WICKED_GARDEN_VERSION__: string;
+/** The SKILL.md count under skills/**, counted at build time by astro.config.mjs. */
+declare const __WICKED_GARDEN_SKILLS__: number;

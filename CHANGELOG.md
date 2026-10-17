@@ -27,6 +27,9 @@
   conflict, `search` answer cited an operator memory as the ruling; an approved rule
   (`rules.recall`) now governs, and a memory gives what was decided and why.
 
+### Changed
+- **The site's skill count is counted at build time, and the council is described as what it is.** `site/astro.config.mjs` counts `SKILL.md` under `skills/**` (`__WICKED_GARDEN_SKILLS__`), so the hero, the toolbox and the page description can no longer disagree (they said 143 and 142; the tree holds 138). The site no longer says "the multi-model council IS the router": a panel of other models settles a disputed decision. The hero drops "capability plane" for plain words, the README drops the retired Zed/ACP mention, and the npm description names every host it installs into (takes effect on the next publish).
+
 ## [12.55.1] — 2026-10-15
 
 ### Fixed

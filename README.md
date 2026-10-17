@@ -17,7 +17,7 @@
 
 ## The premise
 
-Coding agents grew up. Claude Code, Codex, Cursor, Antigravity, Aider, OpenCode, Zed/ACP — they're not autocomplete anymore. They plan. They parallelize. And each has *strong opinions* about how it likes to work.
+Coding agents grew up. Claude Code, Codex, Cursor, Antigravity, Aider, OpenCode — they're not autocomplete anymore. They plan. They parallelize. And each has *strong opinions* about how it likes to work.
 
 Most plugins try to boss them around — re-implement planning, impose a workflow, make the agent dance. You end up fighting your own tools.
 
