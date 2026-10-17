@@ -47,7 +47,7 @@ for review or cleanup).
 | Kind | Default tier | Store when… |
 |------|--------------|-------------|
 | `fact` | `semantic` | a decision, gotcha, or stable distilled fact ("we chose X because Y") |
-| `skill` | `procedural` | a pattern, convention, or how-to that gets reinforced by use |
+| `skill` | `procedural` | a pattern or how-to that gets reinforced by use (a convention the team must follow is a rule: a `policy:<type>` proposal, not a memory) |
 | `episode` | `episodic` | raw experience estate distills from; not a capture target (store the rule an event taught as a `fact`) |
 | `entity` | `semantic` | a profile of a person/system/component |
 | `working` | `working` | session-local scratch written by hooks; estate expires it after 24 h |
@@ -68,7 +68,8 @@ Brain's memory types map onto estate kinds as follows (used by
 |------------|-------------|------|
 | decision | `fact` | `semantic` |
 | pattern / procedural | `skill` | `procedural` |
-| preference | `fact` | `semantic` |
+| preference (not a checkable rule) | `fact` | `semantic` |
+| standing rule ("always…", "never…") | none: a `policy:<type>` proposal | n/a |
 | gotcha | `fact` | `semantic` |
 | discovery | `fact` (the rule it taught) | `semantic` |
 

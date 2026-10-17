@@ -97,7 +97,7 @@ Churn and centrality answer different questions; the intersection ranks targets.
 
 |                       | **High churn** | **Low churn** |
 |-----------------------|----------------|---------------|
-| **High centrality**   | load-bearing + volatile → **read deeply**; likely yields BOTH a memory (how it works / why it moves) AND a policy (what must hold as it changes) | stable core → **read for invariants**; yields policies (severity `error`/`critical`) more than memories |
+| **High centrality**   | load-bearing + volatile → **read deeply**; likely yields BOTH knowledge (how it works / why it moves, read from the code) AND a policy (what must hold as it changes) | stable core → **read for invariants**; yields policies (severity `error`/`critical`) more than knowledge |
 | **Low centrality**    | churny periphery (config, fixtures, generated) → **mostly noise**; skip unless it's a hot integration seam | quiet leaf → **skip** |
 
 The prime targets are the top-left cell: paths that appear in BOTH the phase-1
@@ -157,9 +157,10 @@ when the proposal is approved, so the learning is lost):
   band is `warn`, NOT `warning`. Facets `{"repo": "<name>", "project": "<name>", "language": "<lang>"}`.
 - **Never pass `provenance`** — the server stamps it from `WICKED_RUN_*`. Passing
   it is at best ignored; treat provenance as not yours to set.
-- Derive **both** per target where the 2×2 warrants it: the memory records the
-  *is*, the policy records the *ought*. A stable high-centrality invariant is a
-  policy; a "this is how X actually wires up" discovery is a memory.
+- Derive **both** per target where the 2×2 warrants it: the knowledge record
+  holds the *is*, the policy holds the *ought*. A stable high-centrality
+  invariant is a policy; a "this is how X actually wires up" discovery was read
+  from the code, so it is knowledge, never a memory.
 
 ## In a governed run
 
@@ -187,7 +188,7 @@ default; the shim refuses an unpinned store — report that, never guess one.
    call, no variants, no wrappers (governed-worker A2/A5). The read-only CLI is still
    allowed by the fence but is not a documented rung.
 2. **Capture** (phase 3) submits each proposal through the shim —
-   `wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"memory","payload":{…},"facets":{…}}'`
+   `wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"knowledge","payload":{…},"facets":{…}}'`
    (`proposal.submit`; provenance is server-stamped from the `WICKED_RUN_*` markers on your
    environment, never passed). **There is no deliverable file and no file fallback**: write
    nothing into the repository (governed-worker E1) and nothing elsewhere either. If the shim

@@ -1,4 +1,4 @@
-# Capture — memories AND policies as estate proposals
+# Capture — knowledge, memories AND policies as estate proposals
 
 The learning phase ends by writing back records through the estate
 **`proposal.submit`** tool (reached through the estate shim): **knowledge** (how the
@@ -17,7 +17,7 @@ the record; a human promotes it.
 
 | Field | Type | Rule |
 |-------|------|------|
-| `kind_type` | string | `"memory"` OR `"policy:<type>"`; must match `^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$` |
+| `kind_type` | string | `"knowledge"`, `"memory"` OR `"policy:<type>"`; must match `^[a-z][a-z0-9_-]*(:[a-z][a-z0-9_-]*)?$` |
 | `payload`   | JSON **object** | required; a present non-object is rejected `-32602` (never silently defaulted) |
 | `facets`    | JSON object of `axis:value` strings | each axis is a lowercase token `^[a-z][a-z0-9_-]*$`, each value non-empty; `project` is **required** (the shim refuses a proposal without it) |
 
@@ -36,7 +36,7 @@ The estate shim reaches `proposal.submit` without an MCP server being registered
 with your harness, on every seat CLI:
 
 ```bash
-wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"memory","payload":{"content":"…","tier":"semantic"},"facets":{"repo":"<name>","project":"<name>"}}'
+wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"knowledge","payload":{"content":"…","class":"concept","source":"<repo>:<path>","source_rev":"<sha>"},"facets":{"repo":"<name>","project":"<name>"}}'
 ```
 
 `--readonly` is literal (the shim spawns `wicked-estate-mcp --readonly`; `proposal.submit`
@@ -113,10 +113,11 @@ implementation fails closed" is knowledge.
 - `content` — distilled, self-contained: the *why* and *what* a future session
   needs, not a paragraph of *how*. One to three sentences. If it needs the current
   file open to make sense, it isn't distilled yet.
-- `tier` — `"semantic"` for stable facts/decisions/gotchas ("X is wired via the
-  bus, not a direct call"); `"procedural"` for a repeatable how-to/convention
-  ("to add a language, drop a row in languages.toml + a .scm file — no core
-  change").
+- `tier` — `"semantic"` for a decision or gotcha you witnessed or were told
+  ("the bus path was chosen over a direct call because direct calls dropped
+  events in incident X"); `"procedural"` for a how-to you were taught. How the
+  code is wired ("X is wired via the bus") was read from the code: that is a
+  `knowledge` proposal, not a memory.
 - `facets` — `repo:` and `project:` locate the memory so faceted recall admits it
   for the right work. Use the repo's directory/remote name and the umbrella
   project (here, `wicked`). **`project:` is required** on every proposal,
@@ -156,16 +157,17 @@ proposal a read target warrants:
 
 | Cell | Signal | Propose |
 |------|--------|---------|
-| **high churn + high centrality** | load-bearing and moving | **BOTH**: a memory (how it works / why it churns / what it wires) + a policy (the invariant that must survive the churn — often `error`) |
-| **low churn + high centrality** | stable core / invariant | mostly **policy** (`error`/`critical`) capturing the invariant; add a memory only if the *why* is non-obvious |
-| **high churn + low centrality** | churny periphery | usually **neither**; a memory only if it's a hot integration seam worth flagging (e.g. "config X is edited every release — treat as an interface") |
+| **high churn + high centrality** | load-bearing and moving | **BOTH**: knowledge (how it works / what it wires, read from the code) + a policy (the invariant that must survive the churn — often `error`) |
+| **low churn + high centrality** | stable core / invariant | mostly **policy** (`error`/`critical`) capturing the invariant; add knowledge only if the *why* is non-obvious from the code, and a memory only if the operator told you the why |
+| **high churn + low centrality** | churny periphery | usually **neither**; knowledge only if it's a hot integration seam worth flagging (e.g. "config X is edited every release — treat as an interface") |
 | **low churn + low centrality** | quiet leaf | **skip** |
 
-The discipline: a memory records the **is** (this is how the system is), a policy
-records the **ought** (this is what a change must preserve). A single load-bearing
-target frequently yields one of each — the memory so the next reader understands
-it, the policy so the next editor doesn't break it. Do not force a proposal from a
-cell that says skip; a thin capture pollutes the queue the operator must triage.
+The discipline: knowledge records the **is** (this is how the system is, read
+from the code), a policy records the **ought** (this is what a change must
+preserve). A single load-bearing target frequently yields one of each — the
+knowledge so the next reader understands it, the policy so the next editor
+doesn't break it. A memory is only for what you witnessed or were told.
+Do not force a proposal from a cell that says skip; a thin capture pollutes the queue the operator must triage.
 
 ## Worked examples
 

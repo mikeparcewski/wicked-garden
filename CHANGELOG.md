@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Session capture files standing rules for review instead of storing them as memory.** The
+  `mem-capture` worker swept "always use…", "never do…" and team conventions into the memory
+  batch, so an enforceable rule became a memory nobody approved. A standing rule the user stated
+  now goes to the review queue as a `policy:<type>` proposal (Step 3b); a preference that is not a
+  checkable rule stays a memory. The `mem` skill and `refs/scopes.md` say the same.
+- **repo-learn no longer files code-wiring facts as memory.** Its 2×2 map and "derive both"
+  guidance told the worker to record "how X wires up" as a memory, contradicting its own rule that
+  what is read from code is knowledge. Those findings are now `knowledge` proposals; a memory is
+  only what the worker witnessed or was told.
+
 ## [12.55.1] — 2026-10-15
 
 ### Fixed

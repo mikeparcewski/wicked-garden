@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-mem-capture
-description: "Session-teardown memory capture: sweep the conversation for durable learnings (decisions with a reason, patterns, gotchas, preferences), keep only what passes the durability test, classify each onto the estate kind/tier vocabulary, and batch-write them to wicked-estate memory. Use when: dispatched by the wicked-garden-mem skill's capture action, at session end, before /clear or exit, or when the user says 'capture what we learned' / 'remember this session'."
+description: "Session-teardown memory capture: sweep the conversation for durable learnings (decisions with a reason, patterns, gotchas, preferences), keep only what passes the durability test, classify each onto the estate kind/tier vocabulary, and batch-write them to wicked-estate memory; standing rules the user stated go to the review queue as policy proposals instead. Use when: dispatched by the wicked-garden-mem skill's capture action, at session end, before /clear or exit, or when the user says 'capture what we learned' / 'remember this session'."
 metadata:
   role: worker
 ---
@@ -26,9 +26,13 @@ Relative paths in this skill are relative to the directory that contains this SK
 Look for things the session *learned*, not things it *did*:
 
 - **Decisions with a reason**: "chose X over Y because…"
-- **Patterns / conventions**: "this always…", "the convention is…"
+- **Patterns**: "this always…" (how something behaves, witnessed)
 - **Gotchas**: "this broke because…", "don't X because…"
-- **Preferences** the user stated: "always use…", "never do…"
+- **Standing rules** the user stated for the work: "always use…", "never
+  do…", "the convention is…". These are steering, not memory: Step 3b files
+  them as policy proposals for review.
+- **Preferences** that are not a rule a change can be checked against
+  ("prefers tables in replies", "likes short commit subjects")
 
 Then apply the **provenance test**: memory is what we *witnessed*, were
 *told*, or *decided*. What was read out of code, docs or the web is
@@ -74,7 +78,10 @@ applies), then map it onto the estate vocabulary
 | Finding | `kind` | tier (default) |
 |---------|--------|----------------|
 | decision, preference, gotcha, stable fact | `fact` | `semantic` |
-| pattern, convention, how-to | `skill` | `procedural` |
+| pattern, how-to | `skill` | `procedural` |
+
+A standing rule is not in this table: it goes to Step 3b, never to the
+memory batch.
 
 Events ("X happened when Y") are not memories. Keep only the rule the event
 taught, as a `fact`.
@@ -82,6 +89,32 @@ taught, as a `fact`.
 Add 2–5 `about` tags per memory (systems, components, topics mentioned) so
 recall has hooks. Scope: leave the default (`project:<cwd-basename>`)
 unless the learning clearly belongs to another scope.
+
+## Step 3b — standing rules go to review as policy proposals
+
+A rule the user stated for the work ("always use X", "never do Y", "the
+convention is Z") is enforceable: a reviewer can judge a change against it.
+That makes it steering, and steering is approved by a person before it
+applies. Do not write it as a memory. File one proposal per rule through the
+estate shim's `propose` action (the review queue; nothing applies until the
+user approves it):
+
+```bash
+wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"policy:development","payload":{"rule":"<imperative: what must hold>","severity":"warn","capture":"rule"},"facets":{"project":"<project>","repo":"<repo>"}}'
+```
+
+- `kind_type` is `policy:<type>`, with `<type>` exactly one of
+  `architecture`, `development`, `security`, `testing`, `operations`,
+  `compliance` or `design-ux`.
+- `severity` is exactly one of `info`, `warn`, `error` or `critical`.
+- `facets.project` is required (the shim refuses a proposal without it). Add
+  `repo` when the rule is about one repository.
+- Never pass `provenance`.
+
+Store a pointer memory only when the *reason* for the rule is worth
+recalling on its own ("we ban X because incident Y"). The rule itself lives
+in the proposal. If the shim answers `ok: false`, report the rule text and
+the degrade; never fall back to storing it as a memory.
 
 ## Step 4 — batch write
 
@@ -112,6 +145,7 @@ wicked-garden run \
 ## Step 6 — report
 
 - `{N} memories stored` (+ `{K} failed` if any, with each refusal reason), with kinds
+- `{P} rules proposed for review` (Step 3b), with each proposal id
 - one-line topic list
 - if estate was unreachable (`ok: false`): report the degrade explicitly so
   the learnings can be re-captured later — never claim success on a

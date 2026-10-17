@@ -97,7 +97,9 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
    (`{"content","class":"concept","source"}`) or `ingest` instead; `store`
    refuses content that carries a `source`.
 2. Pick `kind` (+ tier defaults): `fact` → semantic (decisions, gotchas,
-   stable facts) · `skill` → procedural (patterns, conventions, how-tos) ·
+   stable facts) · `skill` → procedural (patterns, how-tos; a convention the
+   team must follow is a rule: propose it as `policy:<type>`, see the
+   mem-capture worker's Step 3b) ·
    `entity` → semantic (a person/system profile). Add `about` tags for
    recall hooks.
 3. Run the backend:
@@ -175,7 +177,9 @@ Dispatch the **wicked-garden-mem-capture** fork worker at session end ("
 capture what we learned", before /clear or exit). It sweeps the conversation
 for decisions, patterns, gotchas, discoveries, and preferences, classifies
 each onto the estate kind/tier vocabulary, and batch-writes them via
-`capture-batch`. Report what it stored.
+`capture-batch`. A standing rule the user stated ("always…", "never…") is
+filed as a `policy:<type>` proposal for review, not stored as a memory.
+Report what it stored and proposed.
 
 No hook extracts memories from the transcript. The Stop hook used to
 pattern-match "decided to…" / "going to…" and filled the store with
