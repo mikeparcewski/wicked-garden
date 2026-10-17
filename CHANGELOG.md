@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.56.0] — 2026-10-17
+
 ### Added
 - **Operator memories and an explicit reach (needs wicked-estate with the operator scope).**
   - How the user works (style, preferences, the extra steps they always take) is an operator memory. `mem-capture` stores it at `operator:local`, which every project's recall includes, so it is never pinned to one project.
@@ -1163,7 +1165,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.1...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.56.0...HEAD
+[12.56.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.1...v12.56.0
 [12.55.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.0...v12.55.1
 [12.55.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.54.0...v12.55.0
 [12.54.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.53.3...v12.54.0
