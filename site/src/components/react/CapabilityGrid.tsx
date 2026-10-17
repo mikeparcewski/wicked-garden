@@ -78,8 +78,8 @@ export default function CapabilityGrid() {
             record; the evidence backend the gate re-derives against (<b>wicked-vault</b>)
             installs directly; the QE pipeline ships in-catalog as the <b>qe</b> domain.
             Garden is the catalog agents act <em>through</em>: work rides <b>wicked-crew</b>’s
-            control plane and lands in the record — where captured memories and derived policies
-            become citable <b>Steering</b> doctrine only after a human promotes them.
+            control plane and lands in the record — where captured memories join your <b>Memory</b>
+            and derived policies become enforceable <b>Rules</b>, each only after a human approves it.
           </p>
           <div className="cg-family-strip">
             {PEERS.map((p) => (
