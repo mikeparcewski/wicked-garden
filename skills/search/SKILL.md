@@ -87,10 +87,13 @@ wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"BlastRadiu
 ```
 `--readonly` is literal (the spawned estate binary reads only; `WICKED_ESTATE_READONLY=1` rides
 every worker so it spawns read-only by default). The store rides `WICKED_ESTATE_DB` /
-`WICKED_HOME` / `WICKED_MEMORY_DB` from the environment, or `--db <path>`; the shim refuses an
-unpinned store (`{"ok": false, "reason": …}`) — report that, never guess a store. There is no
-other transport: no estate tool is registered on any seat, so there is nothing to "connect",
-nothing to fall back to, and no second rung — a grep is not the graph.
+`WICKED_HOME` / `WICKED_MEMORY_DB` from the environment, or `--db <path>`. A container seat has
+no local store: the same command relays through wicked-crew's broker (the run hands the seat
+its address and a unit token), which answers from the run's own graph. With neither, the shim refuses
+(`{"ok": false, "reason": …}`); a relayed call the broker refused names why in
+`broker_refusal` — report either, never guess a store. There is no other transport: no estate
+tool is registered on any seat, so there is nothing to "connect", nothing to fall back to, and
+no second rung — a grep is not the graph.
 
 **Resolve the symbol.** Estate tools take symbol **names** directly (a file node's name is its
 repo-relative path, e.g. `scripts/_bus.py`); when a name is ambiguous or you need the node id,

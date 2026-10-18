@@ -41,9 +41,10 @@ wicked-garden run scripts/_estate_client.py --readonly propose '{"kind_type":"kn
 
 `--readonly` is literal (the shim spawns `wicked-estate-mcp --readonly`; `proposal.submit`
 is the safe write it still permits). The store is pinned from the worker environment
-(`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`; in a run an
-unpinned store is refused with `{"ok": false, "reason": …}` — report it, do not guess a
-store. The shim answers `{"ok": true, "id": "<proposal-id>"}` or `{"ok": false,
+(`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`; a container seat
+relays the same `propose` through wicked-crew's broker (`WICKED_CREW_URL` + `WICKED_MCP_TOKEN`),
+which files it under the run's project. With neither, a run refuses it with `{"ok": false,
+"reason": …}` — report it, do not guess a store. The shim answers `{"ok": true, "id": "<proposal-id>"}` or `{"ok": false,
 "reason": …, "code": <json-rpc code or null>}`: `-32602` is a *your-args* bug (fix the
 shape), `null` means the estate was unreachable (keep the objects — next section). Pass
 the JSON as ONE quoted argument, even when it is long: `propose` does not read stdin. A
