@@ -64,6 +64,24 @@ never through the raw write CLI. In that mode every spawn is
   invocation only with ``--readonly`` AND a pinned store (core #471); this
   module produces exactly that argv shape for the spawned MCP.
 
+Container seats: the broker relay (wicked-core#1018)
+----------------------------------------------------
+A seat on wicked-crew's container floor has no estate of its own: the host's
+stores are never mounted into it (SQLite WAL across the VM file share is a
+corruption risk), the seat image ships no ``wicked-estate-mcp``, and no store
+pin reaches it. Its one way out is wicked-crew's broker, which every governed
+unit can reach with ``WICKED_CREW_URL`` + ``WICKED_MCP_TOKEN`` (a token bound
+to that unit). So in a governed unit that cannot reach estate locally (the
+container marker ``WICKED_ESTATE_BROKER`` is set, no store is pinned, or no
+``wicked-estate-mcp`` resolves) and that holds the broker channel, every call
+is RELAYED: ``POST <WICKED_CREW_URL>/api/v1/mcp/call {token, subject:
+"mcp:estate/<tool>", args}``. Crew answers it on the host, scoped to the run
+the token belongs to: the read-only lookups plus ``proposal.submit``, exactly
+what a ``--readonly`` MCP allows. No caller changes: the relay is one more
+transport behind the same seam (`_transport`). With neither a pinned local
+store nor the broker channel, a governed unit still fails closed with a reason
+(`governed_refusal`).
+
 Fail-open contract
 ------------------
 Every public function is fail-open: on a missing binary, spawn failure,
@@ -88,6 +106,8 @@ import shutil
 import subprocess
 import sys
 import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Callable, Optional
 
@@ -192,6 +212,22 @@ DB_FLAG = "--db"
 # capture proposals (`facets.project`), overriding whatever the worker self-derived;
 # absent/blank (older cores, or a non-run invocation) it changes nothing.
 RUN_PROJECT_ENV = "WICKED_RUN_PROJECT"
+# The broker relay (wicked-core#1018). wicked-core sets the marker on a container seat whose
+# gateway reaches crew's broker; the URL and the unit-bound token are on every governed unit.
+BROKER_ENV = "WICKED_ESTATE_BROKER"
+CREW_URL_ENV = "WICKED_CREW_URL"
+MCP_TOKEN_ENV = "WICKED_MCP_TOKEN"
+BROKER_SUBJECT_PREFIX = "mcp:estate/"
+# The broker's own per-call deadline is 30 s; the HTTP wait outlasts it so the broker, not the
+# client, decides a slow call (a proposal that timed out client-side may still have landed).
+BROKER_MIN_TIMEOUT_S = 35.0
+# The tools crew relays (`wicked-crew` `src/mcp/estate-relay.ts`): what `list-tools` reports in
+# relay mode. A tool off this list is refused by the broker with its reason.
+BROKER_TOOLS = (
+    "SearchEntity", "RetrieveEntity", "TraverseGraph", "Path", "BlastRadius", "Lineage",
+    "RankHotspots", "Communities", "RulesInventory", "rules.recall", "memory.recall",
+    "knowledge.recall", "proposal.submit",
+)
 
 _readonly_flag: bool = False                  # set by --readonly / set_readonly()
 _governed_flag: bool = False                  # set by --governed / set_governed()
@@ -249,20 +285,48 @@ def store_pinned() -> bool:
     return bool(_db_override) or any(os.environ.get(k, "").strip() for k in STORE_PIN_ENV)
 
 
+def broker_channel() -> Optional[tuple]:
+    """``(url, token)`` for crew's broker when this unit holds the channel, else None."""
+    url = os.environ.get(CREW_URL_ENV, "").strip().rstrip("/")
+    token = os.environ.get(MCP_TOKEN_ENV, "").strip()
+    if not url or not token or not (url.startswith("http://") or url.startswith("https://")):
+        return None
+    return url, token
+
+
+def use_broker() -> bool:
+    """Relay through crew's broker? A governed unit that holds the broker channel and cannot
+    reach estate locally: the container marker is set, no store is pinned, or no
+    `wicked-estate-mcp` resolves (module docstring, wicked-core#1018)."""
+    if not is_governed() or broker_channel() is None:
+        return False
+    return _env_truthy(BROKER_ENV) or not store_pinned() or resolve_mcp_bin() is None
+
+
+def transport_name() -> Optional[str]:
+    """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused)."""
+    if use_broker():
+        return "broker"
+    return None if governed_refusal() else "local"
+
+
 def governed_refusal() -> Optional[str]:
-    """The reason NOT to spawn: a governed run with no pinned store. None = clear to go.
+    """The reason NOT to call estate: a governed run with no pinned store and no broker
+    channel. None = clear to go.
 
     Belt-and-braces with the gate hook (which denies the same shape as `no-pin`):
-    the shim never resolves the operator's default stores from inside a run.
+    the shim never resolves the operator's default stores from inside a run. A unit
+    that holds the broker channel relays instead (`use_broker`): crew picks the store.
     """
     marker = governed_marker()
-    if marker is None or store_pinned():
+    if marker is None or store_pinned() or use_broker():
         return None
     return (
-        f"governed unit ({marker} is set) but no estate store is pinned: pass "
-        f"{DB_FLAG} <path> or set {' / '.join(STORE_PIN_ENV)} in the worker environment; "
-        "refusing to spawn wicked-estate-mcp against an unpinned store (it would resolve "
-        "the operator's defaults)"
+        f"governed unit ({marker} is set) but no estate store is pinned and no broker "
+        f"channel is present: pass {DB_FLAG} <path> or set {' / '.join(STORE_PIN_ENV)} in "
+        f"the worker environment, or run where wicked-crew hands the unit {CREW_URL_ENV} "
+        f"and {MCP_TOKEN_ENV} (its estate relay); refusing to spawn wicked-estate-mcp "
+        "against an unpinned store (it would resolve the operator's defaults)"
     )
 
 
@@ -685,6 +749,120 @@ _maybe_install_broker()
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Broker relay transport (wicked-core#1018) — same contract as `_dispatch`
+# ─────────────────────────────────────────────────────────────────────────────
+
+#: The last reason the broker gave for not answering (a refusal, an unreachable broker), so
+#: the CLI can say WHY a relayed call came back empty instead of a bare empty result.
+_last_broker_refusal: Optional[str] = None
+
+
+def _broker_post(url: str, body: dict, timeout: float) -> "tuple[Optional[int], Optional[dict], Optional[str]]":
+    """POST JSON to the broker: ``(status, body, None)``, or ``(None, None, why)`` unreachable."""
+    req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as res:
+            status, raw = res.status, res.read()
+    except urllib.error.HTTPError as err:
+        status, raw = err.code, err.read()
+    except (urllib.error.URLError, OSError, ValueError) as err:
+        return None, None, f"the broker at {url} did not answer: {getattr(err, 'reason', err)}"
+    try:
+        parsed = json.loads(raw.decode("utf-8")) if raw else {}
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return status, None, f"the broker answered {status} with a body that is not JSON"
+    return (status, parsed, None) if isinstance(parsed, dict) else (status, None, "not a JSON object")
+
+
+def _broker_init(rid: Any) -> dict:
+    return {"jsonrpc": "2.0", "id": rid, "result": {
+        "protocolVersion": "2024-11-05", "capabilities": {},
+        "serverInfo": {"name": "wicked-estate", "version": "relay"}}}
+
+
+def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
+    """Relay transport: answer a JSON-RPC batch through crew's broker. Return {id: response}.
+
+    * ``initialize`` is answered once the broker has answered anything in the batch; alone
+      (a `health()` probe) it asks the broker for this unit's tool list, which spends no
+      call budget, so a dead broker or a revoked token is unhealthy.
+    * ``tools/list`` lists the relayed tools (`BROKER_TOOLS`).
+    * ``tools/call`` is ``POST /api/v1/mcp/call`` with subject ``mcp:estate/<name>``. An
+      ``ok`` answer hands back the envelope crew relayed; a JSON-RPC error estate raised
+      (``result.rpcError``) becomes the same ``error`` a local server would send, code kept
+      (``-32602`` = fix the arguments). Any refusal becomes an ``error`` with code None
+      and its reason and remedy, also kept in `_last_broker_refusal`.
+
+    ``db`` is ignored: crew picks the store (the run's own). Fail-open: an unreachable
+    broker leaves the ids out, as a dead local server does.
+    """
+    global _last_broker_refusal
+    _last_broker_refusal = None
+    channel = broker_channel()
+    if channel is None:
+        return {}
+    url, token = channel
+    calls = [r for r in requests if r.get("id") is not None and r.get("method") == "tools/call"]
+    responses: dict = {}
+    if not calls:
+        # `health()` / `list_tools()`: ask the broker for this unit's tool list — it checks the
+        # token and spends no call budget. A dead broker or a revoked token answers nothing.
+        status, body, why = _broker_post(f"{url}/api/v1/mcp/tools", {"token": token}, max(timeout, 5.0))
+        if status != 200 or body is None:
+            _last_broker_refusal = why or str((body or {}).get("error") or f"the broker answered {status}")
+            return {}
+        for req in requests:
+            rid = req.get("id")
+            if rid is None:
+                continue
+            if req.get("method") == "initialize":
+                responses[rid] = _broker_init(rid)
+            elif req.get("method") == "tools/list":
+                responses[rid] = {"jsonrpc": "2.0", "id": rid,
+                                  "result": {"tools": [{"name": t} for t in BROKER_TOOLS]}}
+        return responses
+    reached = False
+    for req in calls:
+        rid = req["id"]
+        params = req.get("params") or {}
+        tool = str(params.get("name") or "")
+        status, body, why = _broker_post(
+            f"{url}/api/v1/mcp/call",
+            {"token": token, "subject": BROKER_SUBJECT_PREFIX + tool, "args": params.get("arguments") or {}},
+            max(timeout, BROKER_MIN_TIMEOUT_S))
+        if status is None or body is None:
+            _last_broker_refusal = why
+            continue
+        reached = True
+        result = body.get("result")
+        if body.get("outcome") == "ok" and isinstance(result, dict):
+            rpc = result.get("rpcError")
+            if isinstance(rpc, dict):
+                responses[rid] = {"jsonrpc": "2.0", "id": rid, "error": {
+                    "code": rpc.get("code"), "message": rpc.get("message") or "estate error"}}
+            else:
+                responses[rid] = {"jsonrpc": "2.0", "id": rid, "result": result}
+            continue
+        outcome = body.get("outcome") or body.get("code") or f"http {status}"
+        reason = body.get("reason") or body.get("error") or "refused"
+        remedy = body.get("remedy")
+        message = f"broker {outcome}: {reason}" + (f" ({remedy})" if remedy else "")
+        _last_broker_refusal = message
+        responses[rid] = {"jsonrpc": "2.0", "id": rid, "error": {"code": None, "message": message}}
+    if reached:
+        for req in requests:
+            if req.get("method") == "initialize" and req.get("id") is not None:
+                responses[req["id"]] = _broker_init(req["id"])
+    return responses
+
+
+def _transport() -> Callable[..., dict]:
+    """The transport this call uses: the broker relay when `use_broker`, else the local seam."""
+    return _broker_dispatch if use_broker() else _active_dispatch
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # JSON-RPC — handshake + one tool call, all fail-open
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -721,7 +899,7 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
-    responses = _active_dispatch(requests, db=resolve_db(), timeout=timeout)
+    responses = _transport()(requests, db=resolve_db(), timeout=timeout)
     if 1 not in responses:  # handshake never landed → estate unreachable
         return None
     return responses.get(2)
@@ -787,7 +965,7 @@ def health(timeout: float = 5.0) -> bool:
     """
     try:
         requests = [_initialize_request()]
-        responses = _active_dispatch(requests, db=resolve_db(), timeout=timeout)
+        responses = _transport()(requests, db=resolve_db(), timeout=timeout)
         resp = responses.get(1)
         return bool(
             isinstance(resp, dict)
@@ -1189,6 +1367,10 @@ _USAGE = (
 
 
 def _emit(obj: Any) -> None:
+    # A relayed call that came back empty says why (the broker's reason and remedy), additively:
+    # the fail-open empty value is unchanged.
+    if isinstance(obj, dict) and _last_broker_refusal and "broker_refusal" not in obj:
+        obj = {**obj, "broker_refusal": _last_broker_refusal}
     sys.stdout.write(json.dumps(obj))
     sys.stdout.write("\n")
 
@@ -1207,7 +1389,8 @@ def main(argv: list) -> int:
         # A pure local probe — reports the mode without spawning, refusal included.
         _emit({"governed": is_governed(), "marker": governed_marker(),
                "readonly": read_only(), "store_pinned": store_pinned(),
-               "db": resolve_db(), "refusal": governed_refusal()})
+               "db": resolve_db(), "transport": transport_name(),
+               "broker": broker_channel() is not None, "refusal": governed_refusal()})
         return 0
     refusal = governed_refusal()
     if refusal:
