@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.57.0] — 2026-10-18
+
 ### Added
 - **The estate shim relays through wicked-crew's broker on a container seat (wicked-core#1018).** A seat on the container floor has no estate of its own (no store is mounted, no `wicked-estate-mcp` is installed, no store pin reaches it), so every blast-radius, hotspot and recall lookup and every capture proposal was refused there. When a governed unit holds the broker channel (`WICKED_CREW_URL` + `WICKED_MCP_TOKEN`) and cannot reach estate locally (wicked-core's `WICKED_ESTATE_BROKER` marker, no pinned store, or no local binary), `scripts/_estate_client.py` sends each call to `POST /api/v1/mcp/call` as `mcp:estate/<tool>`; crew answers it on the host, scoped to the run. It is one more transport behind the same seam, so the skills that call the shim are unchanged: `--readonly` keeps its meaning (the read-only lookups plus `proposal.submit`), a `-32602` from estate keeps its code, and `health` asks the broker without spending a call. With neither a pinned store nor the channel, a governed unit still fails closed, and the reason now names both fixes. A relayed call the broker refused returns the usual empty value plus `broker_refusal` with its reason; `mode` reports the `transport`. Needs wicked-crew with the estate relay.
 
@@ -1168,7 +1170,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.56.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.57.0...HEAD
+[12.57.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.56.0...v12.57.0
 [12.56.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.1...v12.56.0
 [12.55.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.0...v12.55.1
 [12.55.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.54.0...v12.55.0
