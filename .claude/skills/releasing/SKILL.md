@@ -116,7 +116,7 @@ Supports [Conventional Commits](https://www.conventionalcommits.org/) format:
 1. **Collect commits** since last release tag
 2. **Categorize commits** by type (breaking, features, fixes)
 3. **Determine version bump** from commit types
-4. **Update** `.claude-plugin/plugin.json` version field
+4. **Update** the version in `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json` (`node .github/scripts/sync-plugin-version.mjs` syncs them to package.json)
 5. **Generate** CHANGELOG.md entries
 6. **Create git tag** (e.g., `v1.3.0`)
 7. **Create GitHub release** with release notes via `gh release create`

@@ -64,7 +64,9 @@ python3 .claude/skills/releasing/scripts/release.py . $ARGUMENTS
 2. Categorize commits by type
 3. Determine version bump
 4. Update version in `.claude-plugin/plugin.json`
-5. Update version in `.claude-plugin/marketplace.json`
+5. Update version in `.claude-plugin/marketplace.json` and `.codex-plugin/plugin.json`
+   (`node .github/scripts/sync-plugin-version.mjs` bumps all three from package.json;
+   `scripts/ci/validate.py` fails on drift)
 6. Generate/update `CHANGELOG.md` at repo root
 7. Create git tag (unless --no-tag)
 8. Create GitHub release with release notes via `gh release create`

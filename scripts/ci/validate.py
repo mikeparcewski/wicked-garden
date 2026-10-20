@@ -13,6 +13,8 @@ Checks (skills-only layout: former commands/ + agents/ are now skills/):
   5. No stale presentation/prezzie references in skills/
   6. Self-referential integrity: script paths referenced in skills/ resolve
   7. specialist.json roles match ROLE_CATEGORIES in specialist_discovery.py
+  1c. .codex-plugin/plugin.json is a manifest Codex accepts, in version lockstep, whose skills
+      roots discover exactly the catalog skills (scripts/ci/codex_plugin.py)
 """
 
 import json
@@ -27,6 +29,9 @@ _SCRIPTS_DIR = str(Path(__file__).resolve().parents[1])
 if _SCRIPTS_DIR not in sys.path:
     sys.path.append(_SCRIPTS_DIR)
 from _skill_meta import skill_role, skill_role_of  # noqa: E402
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from codex_plugin import codex_plugin_errors  # noqa: E402
 
 
 def _frontmatter_structure_error(block: str) -> str | None:
@@ -349,6 +354,11 @@ def main(argv: list[str] | None = None):
                     break
         except json.JSONDecodeError as e:
             errors.append(f"marketplace.json is invalid JSON: {e}")
+
+    # --- 1c. Codex plugin manifest (.codex-plugin/plugin.json) ---
+    # Codex loads garden as a plugin; a manifest it would ignore or a skill it would drop
+    # fails here (rules mirrored from openai/codex rust-v0.163.0 — see codex_plugin.py).
+    errors.extend(codex_plugin_errors(root))
 
     # --- 2. SKILL.md line counts ---
     # The cap targets ROUTER / MODULE skills that load into the parent context

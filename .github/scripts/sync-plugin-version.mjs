@@ -2,6 +2,7 @@
 // Runs as the npm `version` lifecycle hook, so `npm version <x>` (including the one the
 // shared release workflow runs from the tag) bumps every anchor at once:
 //   package.json  +  .claude-plugin/plugin.json  +  .claude-plugin/marketplace.json
+//                 +  .codex-plugin/plugin.json (the Codex plugin manifest)
 // marketplace.json carries TWO version fields (plugins[0].version and a top-level version),
 // and plugin.json also carries peer-version keys (wicked_testing_version, …) that must NOT
 // move — so we replace only the exact `"version":` key, format-preserving, never the peers.
@@ -21,3 +22,4 @@ function bump(path) {
 console.log(`Syncing plugin manifests to ${version}`);
 bump(".claude-plugin/plugin.json");
 bump(".claude-plugin/marketplace.json");
+bump(".codex-plugin/plugin.json");

@@ -221,6 +221,24 @@ class ReleaseManager:
         except Exception as e:
             print(f"Warning: Failed to update marketplace.json: {e}")
 
+    def update_other_version_anchors(self, new_version: str):
+        """Set the `"version"` key of package.json and .codex-plugin/plugin.json (format-preserving).
+
+        Same rule as .github/scripts/sync-plugin-version.mjs: only the exact `"version"` key moves,
+        never peer keys such as `wicked_vault_version`."""
+        import re
+
+        for rel in ("package.json", ".codex-plugin/plugin.json"):
+            path = self.component_path / rel
+            if not path.exists():
+                continue
+            if self.dry_run:
+                print(f"[DRY RUN] Would update {rel} to version {new_version}")
+                continue
+            text = path.read_text()
+            path.write_text(re.sub(r'("version"\s*:\s*)"[^"]*"', lambda m: f'{m.group(1)}"{new_version}"', text, count=1))
+            print(f"✓ Updated {rel} to version {new_version}")
+
     def generate_changelog_content(
         self, categorized: Dict[str, List], version: str
     ) -> str:
@@ -497,6 +515,9 @@ class ReleaseManager:
 
         # Update marketplace.json
         self.update_marketplace_version(new_version)
+
+        # package.json + .codex-plugin/plugin.json share the version (validate.py fails on drift)
+        self.update_other_version_anchors(new_version)
 
         # Generate and update changelog
         changelog_content = self.generate_changelog_content(categorized, new_version)
