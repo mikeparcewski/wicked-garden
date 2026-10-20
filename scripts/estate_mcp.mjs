@@ -22,7 +22,7 @@
  * it writes one JSON line on stderr — {"ok": false, "reason": …, "tried": […]} — and exits 1, so
  * the host reports a failed MCP server rather than a hung one.
  *
- * Pure helpers are exported for tests (tests/test_estate_mcp_launcher.py).
+ * Pure helpers are exported for tests (tests/test_codex_plugin_manifest.py).
  */
 import { accessSync, constants as fsConstants, realpathSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";

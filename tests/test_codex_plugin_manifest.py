@@ -139,8 +139,11 @@ def test_hooks_must_be_the_inline_opt_out(tmp_path, hooks):
 ])
 def test_estate_server_must_go_through_the_launcher(tmp_path, server):
     root = _fixture(tmp_path)
-    _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": server}}))
-    assert any("wicked-estate" in e for e in codex_plugin_errors(root))
+    # Valid env_vars, so only the command / script / cwd rule under test can fire.
+    _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": {"env_vars": list(ESTATE_ENV_VARS), **server}}}))
+    errors = codex_plugin_errors(root)
+    assert errors and all("env_vars" not in e for e in errors), errors
+    assert any(("bare name" in e) or ("launch through" in e) or ("under the plugin root" in e) or ("must not set cwd" in e) for e in errors), errors
 
 
 def test_estate_env_overrides_must_be_forwarded(tmp_path):
