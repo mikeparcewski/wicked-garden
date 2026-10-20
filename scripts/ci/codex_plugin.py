@@ -15,7 +15,8 @@ would ignore, or a skill it would silently drop, fails garden's CI instead of a 
   * `hooks` is the explicit inline opt-out (an empty hooks object): without it Codex would load
     `hooks/hooks.json`, which is Claude Code's event model;
   * `mcpServers` names a file whose `wicked-estate` server is launched through the garden launcher,
-    never through an absolute or `~/.cargo` path;
+    never through an absolute or `~/.cargo` path, and forwards the estate env overrides
+    (`env_vars`: Codex passes a stdio server only its default allowlist plus those);
   * the skills Codex discovers from the declared roots (recursive, depth <= 6, hidden directories
     skipped, `SKILL.md` files) are exactly the catalog's `skills/**/SKILL.md`; each has a name of
     at most 64 characters (frontmatter `name`, else the directory name; a list/map name or
@@ -49,6 +50,8 @@ MAX_SCAN_DEPTH = 6  # codex-rs/exec-server/src/capability_discovery.rs / ext/ski
 MAX_NAME_LEN = 64
 MAX_QUALIFIED_NAME_LEN = MAX_NAME_LEN * 2 + 1
 PATH_FIELDS = ("skills", "mcpServers", "apps", "hooks")
+# What the launcher (WICKED_ESTATE_MCP_BIN) and estate itself (store paths) read from the environment.
+ESTATE_ENV_VARS = ("WICKED_ESTATE_MCP_BIN", "WICKED_ESTATE_DB", "WICKED_MEMORY_DB", "WICKED_KNOWLEDGE_DB", "WICKED_XEDGE_DB")
 
 
 def _frontmatter(text: str) -> dict:
@@ -262,6 +265,13 @@ def codex_plugin_errors(root: Path) -> list[str]:
                     errors.append(f"{mcp_value}: `{MCP_SERVER}` script {args[1]!r} must be a file under the plugin root")
                 if "cwd" in server:
                     errors.append(f"{mcp_value}: `{MCP_SERVER}` must not set cwd (estate resolves its store from the session cwd)")
+                # Codex hands a stdio MCP server only its default env allowlist plus `env_vars`
+                # (codex-rs/rmcp-client/src/utils.rs), so the overrides garden's resolver and
+                # estate read must be named or they never arrive.
+                forwarded = server.get("env_vars", [])
+                missing = [v for v in ESTATE_ENV_VARS if not isinstance(forwarded, list) or v not in forwarded]
+                if missing:
+                    errors.append(f"{mcp_value}: `{MCP_SERVER}` env_vars must forward {', '.join(missing)} (Codex drops other variables)")
         except json.JSONDecodeError as exc:
             errors.append(f"{mcp_value} is invalid JSON: {exc}")
 

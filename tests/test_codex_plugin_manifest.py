@@ -59,7 +59,8 @@ def _fixture(tmp_path: Path) -> Path:
         "hooks": {"hooks": {}},
     }))
     _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": {
-        "command": "wicked-garden", "args": ["run", "scripts/estate_mcp.mjs"]}}}))
+        "command": "wicked-garden", "args": ["run", "scripts/estate_mcp.mjs"],
+        "env_vars": ["WICKED_ESTATE_MCP_BIN", "WICKED_ESTATE_DB", "WICKED_MEMORY_DB", "WICKED_KNOWLEDGE_DB", "WICKED_XEDGE_DB"]}}}))
     _write(root / "scripts" / "estate_mcp.mjs", "// stub\n")
     _write(root / "skills" / "alpha" / "SKILL.md", "---\nname: wicked-garden-alpha\ndescription: Alpha.\n---\nbody\n")
     _write(root / "skills" / "alpha" / "beta" / "SKILL.md", "---\nname: wicked-garden-alpha-beta\ndescription: Beta.\n---\n")
@@ -140,6 +141,33 @@ def test_estate_server_must_go_through_the_launcher(tmp_path, server):
     root = _fixture(tmp_path)
     _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": server}}))
     assert any("wicked-estate" in e for e in codex_plugin_errors(root))
+
+
+def test_estate_env_overrides_must_be_forwarded(tmp_path):
+    root = _fixture(tmp_path)
+    _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": {
+        "command": "wicked-garden", "args": ["run", "scripts/estate_mcp.mjs"], "env_vars": ["WICKED_ESTATE_DB"]}}}))
+    errors = codex_plugin_errors(root)
+    assert any("env_vars must forward WICKED_ESTATE_MCP_BIN" in e for e in errors), errors
+
+
+# Codex 0.163 (codex-rs/rmcp-client/src/utils.rs DEFAULT_ENV_VARS, unix): what a stdio MCP server
+# inherits besides the variables its config names in env_vars.
+CODEX_DEFAULT_ENV = ("HOME", "LOGNAME", "PATH", "SHELL", "USER", "__CF_USER_TEXT_ENCODING", "LANG", "LC_ALL", "TERM", "TMPDIR", "TZ")
+
+
+@needs_node
+@posix_only
+def test_override_survives_codex_env_filtering(tmp_path):
+    """The shipped mcp.json forwards WICKED_ESTATE_MCP_BIN through Codex's env filter to the launcher."""
+    bindir = tmp_path / "custom"
+    fake = _fake_bin(bindir)
+    server = json.loads((REPO / ".codex-plugin" / "mcp.json").read_text())["mcpServers"]["wicked-estate"]
+    parent = {**_env(tmp_path, [Path(NODE).parent], override=str(fake)), "UNRELATED": "x"}
+    child = {k: v for k, v in parent.items() if k in CODEX_DEFAULT_ENV or k in server["env_vars"]}
+    res = subprocess.run([NODE, str(LAUNCHER)], env=child, input="", capture_output=True, text=True, timeout=60)
+    assert res.returncode == 7, res.stderr
+    assert "UNRELATED" not in child
 
 
 def test_mcp_servers_must_name_a_file(tmp_path):

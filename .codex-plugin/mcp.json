@@ -5,6 +5,13 @@
       "args": [
         "run",
         "scripts/estate_mcp.mjs"
+      ],
+      "env_vars": [
+        "WICKED_ESTATE_MCP_BIN",
+        "WICKED_ESTATE_DB",
+        "WICKED_MEMORY_DB",
+        "WICKED_KNOWLEDGE_DB",
+        "WICKED_XEDGE_DB"
       ]
     }
   }

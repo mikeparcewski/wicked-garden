@@ -72,7 +72,7 @@ installs/updates the whole wicked-\* family (garden, its peers, and the rest).
 **Codex (codex-cli with `codex plugin`, 0.163+)** — garden is a registered Codex plugin: `.codex-plugin/plugin.json`
 declares the skills (`./skills`, namespaced `wicked-garden:<skill>`), the `wicked-estate` MCP server (started through
 `wicked-garden run scripts/estate_mcp.mjs`, which finds `wicked-estate-mcp` the way garden's scripts do:
-`WICKED_ESTATE_MCP_BIN` → PATH → `~/.local/bin`), and no hooks (`hooks/hooks.json` is Claude Code's). By hand:
+`WICKED_ESTATE_MCP_BIN` → PATH → `~/.local/bin`; that override and estate's `WICKED_*_DB` variables are forwarded through `env_vars`, since Codex passes an MCP server only those plus PATH/HOME and the like), and no hooks (`hooks/hooks.json` is Claude Code's). By hand:
 `npm i -g wicked-garden`, then `codex plugin marketplace add "$(npm root -g)/wicked-garden"` and
 `codex plugin add wicked-garden@wicked-garden`. wicked-installer's Codex script does the same (pick Codex in
 `npx wicked-installer`, or run `node "$(npm root -g)/wicked-installer/dist/install-codex.js" wicked-garden`) and
