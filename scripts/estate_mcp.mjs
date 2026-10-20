@@ -99,24 +99,51 @@ const STORE_PIN_ENV = ["WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB"];
 const truthy = (v) => !["", "0", "false", "no"].includes(String(v ?? "").trim().toLowerCase());
 
 /**
- * The argv to hand estate, or the reason to refuse — `_estate_client.read_only()` /
- * `governed_refusal()` applied to the launcher's own argv and environment.
+ * The argv to hand estate, or the reason to refuse — `_estate_client.parse_cli_flags()`,
+ * `read_only()`, `governed_refusal()` and `mcp_argv()` applied to the launcher's own argv and
+ * environment. Accepted flags: `--readonly`, `--governed`, `--db <path>` / `--db=<path>`
+ * (anywhere); any other `--flag` is refused (a misspelt `--read-only` must never reach a
+ * write-capable server). The child argv is `[--readonly] [--db <path>] …positionals`, the only
+ * `--db` spelling estate reads.
  */
 export function estateArgv(argv, env = process.env) {
-  const marker = truthy(env.WICKED_GOVERNED) ? "WICKED_GOVERNED" : GOVERNED_MARKERS.find((k) => String(env[k] ?? "").trim());
-  const pinned = argv.includes("--db") || argv.some((a) => a.startsWith("--db=")) || STORE_PIN_ENV.some((k) => String(env[k] ?? "").trim());
+  let readonlyFlag = false;
+  let governedFlag = false;
+  let db = null;
+  const rest = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    const tok = argv[i];
+    if (tok === "--readonly") readonlyFlag = true;
+    else if (tok === "--governed") governedFlag = true;
+    else if (tok === "--db") {
+      const value = argv[i + 1];
+      if (!value || value.startsWith("-")) return { usage: "--db requires a store path" };
+      db = value;
+      i += 1;
+    } else if (tok.startsWith("--db=")) {
+      const value = tok.slice("--db=".length);
+      if (!value) return { usage: "--db= requires a store path" };
+      db = value;
+    } else if (tok.startsWith("--") && tok.length > 2) {
+      return { usage: `unknown flag ${JSON.stringify(tok)}: the estate launcher accepts --readonly, --governed and --db <path> only (spell --readonly exactly)` };
+    } else rest.push(tok);
+  }
+  const marker = governedFlag ? "--governed"
+    : truthy(env.WICKED_GOVERNED) ? "WICKED_GOVERNED"
+    : GOVERNED_MARKERS.find((k) => String(env[k] ?? "").trim());
+  const pinned = !!db || STORE_PIN_ENV.some((k) => String(env[k] ?? "").trim());
   if (marker && !pinned) {
     return { refusal: `governed unit (${marker} is set) but no estate store is pinned: set ${STORE_PIN_ENV.join(" / ")} or pass --db; refusing to start wicked-estate-mcp against the operator's default stores` };
   }
-  const readOnly = !!marker || truthy(env.WICKED_ESTATE_READONLY);
-  return { argv: readOnly && !argv.includes("--readonly") ? ["--readonly", ...argv] : argv };
+  const readOnly = readonlyFlag || !!marker || truthy(env.WICKED_ESTATE_READONLY);
+  return { argv: [...(readOnly ? ["--readonly"] : []), ...(db ? ["--db", db] : []), ...rest] };
 }
 
 function main(argv) {
   const plan = estateArgv(argv);
-  if (plan.refusal) {
-    process.stderr.write(JSON.stringify({ ok: false, reason: plan.refusal, tried: [] }) + "\n");
-    return process.exit(1);
+  if (plan.usage || plan.refusal) {
+    process.stderr.write(JSON.stringify({ ok: false, reason: plan.usage ?? plan.refusal, tried: [] }) + "\n");
+    return process.exit(plan.usage ? 2 : 1);
   }
   argv = plan.argv;
   const { bin, tried } = resolveEstateMcpBin();

@@ -206,21 +206,30 @@ def test_governed_unit_without_a_pinned_store_is_refused(tmp_path):
 @pytest.mark.parametrize("env,argv", [
     ({}, []), ({"WICKED_ESTATE_READONLY": "yes"}, []), ({"WICKED_GOVERNED": "1", "WICKED_MEMORY_DB": "/m"}, ["--db", "a"]),
     ({"WICKED_GATE_SCOPE": "s"}, []), ({"WICKED_WRITE_ROOTS": "/w", "WICKED_HOME": "/h"}, ["--readonly"]),
+    ({"WICKED_RUN_ID": "r1"}, ["--db=/run/graph.db"]), ({"WICKED_RUN_ID": "r1"}, ["--db"]), ({}, ["--db", "--readonly"]),
+    ({}, ["--governed"]), ({}, ["--governed", "--db", "/g.db"]), ({}, ["--read-only"]), ({}, ["--readonly=false"]),
+    ({"WICKED_ESTATE_DB": "/e"}, ["--db=", "x"]),
 ])
-def test_launcher_readonly_rules_match_the_estate_client(env, argv):
+def test_launcher_argv_rules_match_the_estate_client(env, argv):
+    """Same flags, same refusal, and the same child argv as `_estate_client.mcp_argv()`."""
     code = (f"import({json.dumps(LAUNCHER.as_uri())}).then(m=>process.stdout.write("
             f"JSON.stringify(m.estateArgv({json.dumps(argv)}, {json.dumps(env)}))))")
     plan = json.loads(subprocess.run([NODE, "-e", code], capture_output=True, text=True, timeout=60, check=True).stdout)
-    py = ("import json,os,sys; sys.path.insert(0, sys.argv[1]); import _estate_client as c; "
-          "c.parse_cli_flags(json.loads(sys.argv[2])); "
-          "print(json.dumps({'refused': c.governed_refusal() is not None, 'readonly': c.read_only()}))")
+    py = ("import json,os,sys; sys.path.insert(0, sys.argv[1]); import _estate_client as c\n"
+          "try:\n    rest = c.parse_cli_flags(json.loads(sys.argv[2]))\n"
+          "except ValueError:\n    print(json.dumps({'usage': True})); sys.exit(0)\n"
+          "refused = c.governed_refusal() is not None\n"
+          "print(json.dumps({'usage': False, 'refused': refused, 'argv': None if refused else c.mcp_argv('X', c.resolve_db())[1:] + rest}))")
     clean = {k: v for k, v in os.environ.items() if not k.startswith("WICKED_") and k not in ("CLAUDE_PLUGIN_ROOT",)}
     out = subprocess.run([sys.executable, "-c", py, str(REPO / "scripts"), json.dumps(argv)], env={**clean, **env},
-                         capture_output=True, text=True, timeout=60, check=True).stdout.strip().splitlines()[-1]
+                         capture_output=True, text=True, timeout=60, check=True, cwd=str(REPO / "tests")).stdout.strip().splitlines()[-1]
     expected = json.loads(out)
-    assert ("refusal" in plan) is expected["refused"]
+    assert ("usage" in plan) is expected["usage"], plan
+    if expected["usage"]:
+        return
+    assert ("refusal" in plan) is expected["refused"], plan
     if not expected["refused"]:
-        assert ("--readonly" in plan["argv"]) is expected["readonly"]
+        assert plan["argv"] == expected["argv"]
 
 
 def test_mcp_servers_must_name_a_file(tmp_path):
