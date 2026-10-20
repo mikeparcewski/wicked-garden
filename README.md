@@ -74,7 +74,8 @@ declares the skills (`./skills`, namespaced `wicked-garden:<skill>`), the `wicke
 `wicked-garden run scripts/estate_mcp.mjs`, which finds `wicked-estate-mcp` the way garden's scripts do:
 `WICKED_ESTATE_MCP_BIN` → PATH → `~/.local/bin`), and no hooks (`hooks/hooks.json` is Claude Code's). By hand:
 `npm i -g wicked-garden`, then `codex plugin marketplace add "$(npm root -g)/wicked-garden"` and
-`codex plugin add wicked-garden@wicked-garden`; `npx wicked-installer install-codex wicked-garden` does the same and
+`codex plugin add wicked-garden@wicked-garden`. wicked-installer's Codex script does the same (pick Codex in
+`npx wicked-installer`, or run `node "$(npm root -g)/wicked-installer/dist/install-codex.js" wicked-garden`) and
 removes the loose skill copies it made earlier. A `[mcp_servers.wicked-estate]` entry in your Codex config takes
 precedence over the plugin's server.
 

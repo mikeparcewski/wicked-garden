@@ -87,6 +87,24 @@ def test_version_drift_from_package_json_fails(tmp_path):
     assert any("sync-plugin-version" in e for e in codex_plugin_errors(root))
 
 
+def test_claude_manifest_drift_fails_even_when_codex_matches_package_json(tmp_path):
+    root = _fixture(tmp_path)
+    # Claude manifest (and marketplace.json with it) moved; package.json + Codex did not.
+    _write(root / ".claude-plugin" / "plugin.json", json.dumps({"name": "wicked-garden", "version": "1.2.4"}))
+    errors = codex_plugin_errors(root)
+    assert any(".claude-plugin/plugin.json: version = '1.2.4'" in e for e in errors), errors
+
+
+def test_release_py_moves_every_version_anchor(tmp_path):
+    root = _fixture(tmp_path)
+    code = ("import sys; sys.path.insert(0, sys.argv[1]); import release; "
+            "release.ReleaseManager(sys.argv[2]).update_other_version_anchors('2.0.0')")
+    subprocess.run([sys.executable, "-c", code, str(REPO / ".claude" / "skills" / "releasing" / "scripts"), str(root)],
+                   check=True, capture_output=True, timeout=60)
+    assert json.loads((root / "package.json").read_text())["version"] == "2.0.0"
+    assert json.loads((root / ".codex-plugin" / "plugin.json").read_text())["version"] == "2.0.0"
+
+
 def test_missing_manifest_fails(tmp_path):
     root = _fixture(tmp_path)
     (root / ".codex-plugin" / "plugin.json").unlink()
@@ -114,11 +132,45 @@ def test_hooks_must_be_the_inline_opt_out(tmp_path, hooks):
     {"command": "wicked-estate-mcp"},
     {"command": "wicked-garden", "args": ["run", "scripts/missing.mjs"]},
     {"command": "wicked-garden", "args": ["run", "scripts/estate_mcp.mjs"], "cwd": "."},
+    {"command": "wicked-garden", "args": ["run", "/usr/local/bin/wicked-estate-mcp"]},
+    {"command": "wicked-garden", "args": ["run", "../outside.mjs"]},
+    {"command": "wicked-garden", "args": ["run", 7]},
 ])
 def test_estate_server_must_go_through_the_launcher(tmp_path, server):
     root = _fixture(tmp_path)
     _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": server}}))
     assert any("wicked-estate" in e for e in codex_plugin_errors(root))
+
+
+def test_mcp_servers_must_name_a_file(tmp_path):
+    root = _fixture(tmp_path)
+    _edit_manifest(root, mcpServers="./.codex-plugin")
+    assert any("must be a file" in e for e in codex_plugin_errors(root))
+
+
+def test_duplicate_reports_once_not_as_undiscovered(tmp_path):
+    root = _fixture(tmp_path)
+    _write(root / "skills" / "gamma" / "SKILL.md", "---\nname: wicked-garden-alpha\ndescription: dup.\n---\n")
+    errors = codex_plugin_errors(root)
+    assert [e for e in errors if "would not discover" in e] == []
+
+
+def test_stdlib_frontmatter_fallback_reads_block_scalars(monkeypatch):
+    import builtins
+    import codex_plugin
+
+    real_import = builtins.__import__
+
+    def no_yaml(name, *a, **k):
+        if name == "yaml":
+            raise ImportError("no yaml")
+        return real_import(name, *a, **k)
+
+    monkeypatch.setattr(builtins, "__import__", no_yaml)
+    fm = codex_plugin._frontmatter("---\nname: x\ndescription: |\n  two\n  lines\nother: y\n---\n")
+    assert fm == {"name": "x", "description": "two lines"}
+    assert codex_plugin._frontmatter("---\nname: x\ndescription: |\n   \n---\n")["description"] == ""
+    assert codex_plugin._frontmatter("---\ndescription:\nname: x\n---\n")["description"] == ""
 
 
 def test_missing_estate_server_fails(tmp_path):
@@ -143,6 +195,24 @@ def test_names_are_whitespace_collapsed_like_codex(tmp_path):
     _write(root / "skills" / "spaced" / "SKILL.md", "---\nname: '  wicked-garden-spaced  '\ndescription: |\n  two\n  lines\n---\n")
     names, errors = codex_skill_names(root, [root / "skills"])
     assert errors == [] and "wicked-garden:wicked-garden-spaced" in names
+
+
+@pytest.mark.parametrize("field,value", [
+    ("name", "[invalid, list]"), ("name", "{a: b}"), ("description", "[one, two]"), ("description", "{k: v}"),
+])
+def test_non_string_name_or_description_fails(tmp_path, field, value):
+    root = _fixture(tmp_path)
+    other = "description: d" if field == "name" else "name: wicked-garden-alpha"
+    _write(root / "skills" / "alpha" / "SKILL.md", f"---\n{field}: {value}\n{other}\n---\n")
+    errors = codex_plugin_errors(root)
+    assert any("skills/alpha/SKILL.md" in e and "not a string" in e for e in errors), errors
+
+
+def test_scalar_name_is_accepted_like_serde_yaml(tmp_path):
+    root = _fixture(tmp_path)
+    _write(root / "skills" / "num" / "SKILL.md", "---\nname: 12345\ndescription: 7\n---\n")
+    names, errors = codex_skill_names(root, [root / "skills"])
+    assert errors == [] and "wicked-garden:12345" in names
 
 
 def test_duplicate_skill_name_fails(tmp_path):
@@ -226,6 +296,7 @@ def _env(tmp_path: Path, path_dirs: list[Path], override: str | None = None) -> 
         env["WICKED_ESTATE_MCP_BIN"] = override
     if sys.platform == "win32":
         env["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", "")
+        env["USERPROFILE"] = env["HOME"]  # Node's homedir() and Python's Path.home() read it on Windows
     return env
 
 
@@ -246,7 +317,7 @@ def _python_resolve(env: dict) -> str | None:
 
 @needs_node
 @posix_only
-@pytest.mark.parametrize("case", ["override", "stale-override", "path", "local-bin", "none"])
+@pytest.mark.parametrize("case", ["override", "stale-override", "path", "local-bin", "none", "non-executable-on-path"])
 def test_launcher_resolves_like_the_estate_client(tmp_path, case):
     on_path = tmp_path / "on-path"
     local = tmp_path / "home" / ".local" / "bin"
@@ -264,13 +335,17 @@ def test_launcher_resolves_like_the_estate_client(tmp_path, case):
         _fake_bin(local)
     elif case == "local-bin":
         _fake_bin(local)
-    env = _env(tmp_path, [on_path, node_dir], override)
+    elif case == "non-executable-on-path":
+        _fake_bin(on_path).chmod(0o644)  # shutil.which skips it; so must the launcher
+        _fake_bin(other)
+    env = _env(tmp_path, [on_path, other, node_dir] if case == "non-executable-on-path" else [on_path, node_dir], override)
     expected = {
         "override": override,
         "stale-override": str(on_path / "wicked-estate-mcp"),
         "path": str(on_path / "wicked-estate-mcp"),
         "local-bin": str(local / "wicked-estate-mcp"),
         "none": None,
+        "non-executable-on-path": str(other / "wicked-estate-mcp"),
     }[case]
     if case == "none" and (node_dir / "wicked-estate-mcp").exists():
         pytest.skip("a real wicked-estate-mcp sits next to node")

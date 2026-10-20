@@ -8,7 +8,8 @@
  * binary and no install path is written into the manifest:
  *
  *   1. WICKED_ESTATE_MCP_BIN, when it names an existing file;
- *   2. `wicked-estate-mcp` on PATH (PATHEXT on Windows);
+ *   2. `wicked-estate-mcp` on PATH — an executable file, as `shutil.which` requires (PATHEXT on
+ *      Windows);
  *   3. ~/.local/bin/wicked-estate-mcp (or `.exe`).
  *
  * stdin/stdout/stderr are inherited (the MCP stream passes straight through), the caller's cwd is
@@ -19,7 +20,7 @@
  *
  * Pure helpers are exported for tests (tests/test_estate_mcp_launcher.py).
  */
-import { realpathSync, statSync } from "node:fs";
+import { accessSync, constants as fsConstants, realpathSync, statSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -36,6 +37,18 @@ function isFile(p) {
   }
 }
 
+/** shutil.which's test: a regular file the user may execute (Windows has no execute bit). */
+function isExecutableFile(p, platform = process.platform) {
+  if (!isFile(p)) return false;
+  if (platform === "win32") return true;
+  try {
+    accessSync(p, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolve the estate MCP binary. Returns { bin, tried } — `bin` is null when nothing qualifies.
  * `env`, `platform`, `home` and `fileExists` are seams for tests.
@@ -45,6 +58,7 @@ export function resolveEstateMcpBin({
   platform = process.platform,
   home = homedir(),
   fileExists = isFile,
+  isExecutable = (p) => isExecutableFile(p, platform),
 } = {}) {
   const p = platform === "win32" ? path.win32 : path.posix;
   const tried = [];
@@ -61,7 +75,9 @@ export function resolveEstateMcpBin({
     if (!dir) continue;
     for (const ext of exts) {
       const candidate = p.join(dir, MCP_BIN_NAME + ext);
-      if (fileExists(candidate)) return { bin: candidate, tried: [...tried, "PATH"] };
+      // PATH entries must be executable (as shutil.which requires); the override and
+      // ~/.local/bin only need to be files, exactly as _estate_client.py checks them.
+      if (isExecutable(candidate)) return { bin: candidate, tried: [...tried, "PATH"] };
     }
   }
   tried.push("PATH");
