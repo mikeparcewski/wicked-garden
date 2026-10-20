@@ -1,0 +1,27 @@
+{
+  "name": "wicked-garden",
+  "version": "12.57.0",
+  "description": "The skills your coding agent can't build alone: \"done\" re-checked from evidence, graph-aware search and multi-file refactor, 40 QE specialists, review panels from other models, and cross-session memory. Works in Claude Code, Codex, Antigravity, OpenCode and Pi, in CI, or in a wicked-crew job.",
+  "keywords": [
+    "coding-agent",
+    "evidence-gate",
+    "code-graph",
+    "refactoring",
+    "testing",
+    "memory",
+    "multi-model"
+  ],
+  "skills": "./skills",
+  "mcpServers": "./.codex-plugin/mcp.json",
+  "hooks": {
+    "description": "No hooks on Codex: hooks/hooks.json is Claude Code's event model; garden's skills run the gate themselves on skills-only hosts.",
+    "hooks": {}
+  },
+  "interface": {
+    "displayName": "Wicked Garden",
+    "shortDescription": "Evidence-gated done, graph-aware search and refactor, QE specialists, review panels, cross-session memory.",
+    "developerName": "Mike Parcewski",
+    "category": "Developer Tools",
+    "websiteURL": "https://github.com/mikeparcewski/wicked-garden"
+  }
+}

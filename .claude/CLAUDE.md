@@ -75,6 +75,9 @@ wicked-garden/
 │   ├── specialist.json
 │   ├── components.json          # derived surface manifest (run scripts/ci/sync_components.py)
 │   └── archetypes.json          # v11 catalog (9 archetypes)
+├── .codex-plugin/               # Codex plugin manifest (version lockstep; scripts/ci/codex_plugin.py checks it)
+│   ├── plugin.json              # skills ./skills, MCP ./.codex-plugin/mcp.json, hooks opted out
+│   └── mcp.json                 # wicked-estate via `wicked-garden run scripts/estate_mcp.mjs`
 ├── skills/                      # skills-only: the former commands/ and agents/ were absorbed here
 │   ├── archetype/               # v11 entry point + 9 ref playbooks
 │   ├── {domain}/                # consolidated per-domain router skills (user-invocable; absorbed the former commands/)

@@ -69,7 +69,16 @@ installs/updates the whole wicked-\* family (garden, its peers, and the rest).
 > and the previous copy is put back). Those transient dirs are **not plugins**; a leftover after an interrupted install is
 > safe to delete (`status` lists them).
 
-**Other CLIs (Codex, OpenCode, Pi, Antigravity)** — `npx wicked-installer install-<cli> wicked-garden` copies
+**Codex (codex-cli with `codex plugin`, 0.163+)** — garden is a registered Codex plugin: `.codex-plugin/plugin.json`
+declares the skills (`./skills`, namespaced `wicked-garden:<skill>`), the `wicked-estate` MCP server (started through
+`wicked-garden run scripts/estate_mcp.mjs`, which finds `wicked-estate-mcp` the way garden's scripts do:
+`WICKED_ESTATE_MCP_BIN` → PATH → `~/.local/bin`), and no hooks (`hooks/hooks.json` is Claude Code's). By hand:
+`npm i -g wicked-garden`, then `codex plugin marketplace add "$(npm root -g)/wicked-garden"` and
+`codex plugin add wicked-garden@wicked-garden`; `npx wicked-installer install-codex wicked-garden` does the same and
+removes the loose skill copies it made earlier. A `[mcp_servers.wicked-estate]` entry in your Codex config takes
+precedence over the plugin's server.
+
+**Other CLIs (OpenCode, Pi, Antigravity, and Codex without `codex plugin`)** — `npx wicked-installer install-<cli> wicked-garden` copies
 the skills only (flat, by name — no `scripts/`, no venv). Every skill's text works there as written: own files are
 referenced relative to the skill's directory, other skills by name, and the shared runtime only through the
 launcher — `wicked-garden run scripts/<x>.py …`. So for script-backed skills the runtime prerequisite on those
@@ -130,7 +139,7 @@ false "done" runs into depends on the host and the entry path:
 |---|---|---|
 | **Any host — the gate, invoked** (`wicked-garden-prove`, an archetype's produces-gate → `scripts/qe/vault_gate.py`) | Re-hashes the recorded evidence and re-runs its verifier through `wicked-vault`: a false claim is **rejected**, an unresolvable backend **fails closed** (`gate: "unavailable"`). Hard gates also need an attestation under an explicit `--actor` that differs from the author's — a local label, not an authenticated identity. The verdict stops whatever acts on it. | With `--no-require`, a backend that cannot run falls back to the claim-only tracker and says so (`claim-only`, not re-derived); a working backend still re-derives. |
 | **Claude Code — plugin hooks** (plain conversation, "just work") | `PreToolUse` denies a few specific tool calls: native `EnterPlanMode` (always — planning goes through the archetype playbooks), writes to `MEMORY.md` / the auto-memory dir, build-phase writes on a high-complexity crew project with no challenge artifacts, a `phase_manager.py approve` whose gate preflight fails, a worktree cwd leak, and — only in `strict` mode (default `warn`) — invalid task metadata (`WG_TASK_METADATA`) and orphan state writes (`WG_BUS_EMIT_LINT`). Prompts are held until `/wicked-garden-core setup` completes. | Everything else. The archetype detector **steers** (it does not gate), the Stop-time claim sentinel is a fail-open **nudge** when a "done/passing" claim has no verdict for HEAD, `TaskCompleted` never blocks, and output governance is advisory. A completion claim is **not** blocked unless a gate is run. |
-| **Codex · OpenCode · Pi · Antigravity — skills only** (`npx wicked-installer install-<cli> wicked-garden`) | Nothing by itself: no plugin hooks are installed on those hosts. | The skill text tells the agent to run the gate; it blocks only when the agent does run it (and the launcher + `wicked-vault` are present). |
+| **Codex (plugin) · OpenCode · Pi · Antigravity — skills only** (`npx wicked-installer install-<cli> wicked-garden`) | Nothing by itself: no hooks are installed on those hosts (the Codex plugin opts out of them). | The skill text tells the agent to run the gate; it blocks only when the agent does run it (and the launcher + `wicked-vault` are present). |
 | **Compiled repo gate** (`/wicked-garden-prove compile <repo> --trigger hook,ci`) | `.wicked/gate.py` fails the **git pre-push hook / CI job** it is wired into, with no wicked-garden installed. | Without a trigger it is a script you run by hand. |
 | **wicked-crew governed run** | crew's engine decides each gated phase deny-dominates, on the layers that actually ran — deterministic floors, repo checks, policies, a judge. Review moves to a distinct seat when the roster has an eligible one; team runs refuse without one. | An ordinary run on a too-small roster keeps review on the creator seat and labels it "evaluator ≠ creator not held"; a pinned floor with no distinct judge is labelled "floor only"; a phase nothing gated is "approved by default, not verified". |
 

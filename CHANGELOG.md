@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+- **garden is a registered Codex plugin.** `.codex-plugin/plugin.json` (Codex prefers it over `.claude-plugin/plugin.json`) declares the skills directory (`./skills`; Codex namespaces them `wicked-garden:<skill>`), the `wicked-estate` MCP server (`.codex-plugin/mcp.json`) and an explicit empty `hooks` block, because without one Codex would load `hooks/hooks.json`, which is Claude Code's hook model. Codex installs it from the existing `.claude-plugin/marketplace.json`: `codex plugin marketplace add <garden package root>`, then `codex plugin add wicked-garden@wicked-garden`. The MCP server starts through `wicked-garden run scripts/estate_mcp.mjs`. That new launcher finds `wicked-estate-mcp` the way `scripts/_estate_client.py` does (`WICKED_ESTATE_MCP_BIN`, then PATH, then `~/.local/bin`), so no install path is written into the manifest. It passes stdio, arguments, cwd and the exit code through, and when no binary is found it prints one JSON line and exits 1. A `wicked-estate` server in the user's Codex config takes precedence over the plugin's.
+- **The Codex manifest is kept in version lockstep and checked in CI.** `sync-plugin-version.mjs` (the npm `version` hook the release runs) now bumps `.codex-plugin/plugin.json` too. `scripts/ci/validate.py` runs `scripts/ci/codex_plugin.py`, which applies the rules Codex 0.163 uses: name and version match `package.json` and the Claude manifest; paths start with `./` and stay under the root; the hooks opt-out is present; the estate server goes through the launcher. It also requires that the skills Codex would discover (recursive, hidden directories skipped, names of at most 64 characters, a description present) are exactly the catalog's. `tests/test_codex_plugin_manifest.py` checks that the npm package ships those same skills plus the manifest files.
+
 ## [12.57.0] — 2026-10-18
 
 ### Added
