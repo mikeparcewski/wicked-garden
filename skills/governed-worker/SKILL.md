@@ -139,6 +139,19 @@ verdict with reasons. You are output-only.
   creator's reason. An unjustified duplicate is at least a Concern. So is new code
   whose output records no built-in check (C8). Code that swaps out the framework the
   user or a policy chose is a Critical.
+- **E6 — Judge what the run can show; defer what only delivery can.** A
+  criterion whose evidence exists only after the deliver phase pushes — CI
+  results on the opened pull request, the pull request's title or body, a merge,
+  a release — is DEFERRED: neither PASS nor FAIL. Judge every part you can check
+  before delivery (the tree, your own runs in it, the floor record: tests,
+  format, lint, CHANGELOG). An item that mixes the two FAILs when its in-run part
+  fails; a deferral never lifts a failing in-run part. Otherwise name what waits:
+  `ITEM <n>: DEFERRED — <the artifact it waits for>` when your brief asks for item
+  lines, else a "Deferred to delivery" list above the verdict line. A deferred
+  item never fails the unit by itself, and a promise that CI will pass is never a
+  PASS. The deliver gate shows each deferred check to the operator. This is not
+  a creator's deferral (E3): an in-run item the creator left as a follow-up is
+  still judged.
 
 Method: read the outcome and design, then the changed files; for each, ask
 whether it follows the design, whether tests cover the key paths, and whether
@@ -146,7 +159,8 @@ the evidence (commands + exit codes) supports the claims; re-run what you can
 without mutating; sort findings into Critical (must fix), Concern, Suggestion;
 verdict: make the LAST line of your output exactly `VERDICT: PASS` or
 `VERDICT: FAIL` — one plain-text line (no `**`, backticks or `#` around it),
-findings above it. FAIL needs at least one Critical or a CONDITIONS list;
+findings above it. FAIL needs at least one Critical or a CONDITIONS list; a
+DEFERRED item (E6) is neither, so it never makes the verdict FAIL;
 there is no conditional pass (CONDITIONAL, APPROVE, REJECT and SKIP are not
 verdicts); never quote another VERDICT line in your message; no verdict line
 = FAIL (human gate). If you are the seat that created the work, say so and
@@ -207,6 +221,7 @@ Rules cite the acceptance-program findings that motivated them.
 | E3 | garden#1223 (companion to wicked-core#760) |
 | E4 | garden#1253 (S19a: `before:1` vs the form's `before:2`, passed on presence) |
 | E5 | operator ruling 2026-10-12 (wicked-core POL-2101) |
+| E6 | operator-approved fix, 2026-10-19 (runs 290a7fee and a74f51ac: reviews FAILed "CI green on every OS" and "PR body says Closes #N", which cannot exist before the deliver phase) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions
