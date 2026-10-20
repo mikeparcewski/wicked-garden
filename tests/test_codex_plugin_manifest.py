@@ -20,7 +20,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "scripts" / "ci"))
-from codex_plugin import codex_plugin_errors, codex_skill_names  # noqa: E402
+from codex_plugin import ESTATE_ENV_VARS, codex_plugin_errors, codex_skill_names  # noqa: E402
 
 NODE = shutil.which("node")
 NPM = shutil.which("npm")
@@ -60,7 +60,7 @@ def _fixture(tmp_path: Path) -> Path:
     }))
     _write(root / ".codex-plugin" / "mcp.json", json.dumps({"mcpServers": {"wicked-estate": {
         "command": "wicked-garden", "args": ["run", "scripts/estate_mcp.mjs"],
-        "env_vars": ["WICKED_ESTATE_MCP_BIN", "WICKED_ESTATE_DB", "WICKED_MEMORY_DB", "WICKED_KNOWLEDGE_DB", "WICKED_XEDGE_DB"]}}}))
+        "env_vars": list(ESTATE_ENV_VARS)}}}))
     _write(root / "scripts" / "estate_mcp.mjs", "// stub\n")
     _write(root / "skills" / "alpha" / "SKILL.md", "---\nname: wicked-garden-alpha\ndescription: Alpha.\n---\nbody\n")
     _write(root / "skills" / "alpha" / "beta" / "SKILL.md", "---\nname: wicked-garden-alpha-beta\ndescription: Beta.\n---\n")
@@ -168,6 +168,56 @@ def test_override_survives_codex_env_filtering(tmp_path):
     res = subprocess.run([NODE, str(LAUNCHER)], env=child, input="", capture_output=True, text=True, timeout=60)
     assert res.returncode == 7, res.stderr
     assert "UNRELATED" not in child
+
+
+@needs_node
+@posix_only
+@pytest.mark.parametrize("extra,expect_readonly", [
+    ({}, False),
+    ({"WICKED_ESTATE_READONLY": "1"}, True),
+    ({"WICKED_ESTATE_READONLY": "0"}, False),
+    ({"WICKED_GOVERNED": "true", "WICKED_HOME": "/pinned"}, True),
+    ({"WICKED_RUN_ID": "r1", "WICKED_ESTATE_DB": "/pinned.db"}, True),
+])
+def test_readonly_and_store_pins_survive_codex_env_filtering(tmp_path, extra, expect_readonly):
+    """WICKED_HOME / WICKED_ESTATE_READONLY / run markers reach the launcher, and --readonly lands on argv."""
+    fake = _fake_bin(tmp_path / "custom")
+    server = json.loads((REPO / ".codex-plugin" / "mcp.json").read_text())["mcpServers"]["wicked-estate"]
+    parent = {**_env(tmp_path, [Path(NODE).parent], override=str(fake)), **extra}
+    child = {k: v for k, v in parent.items() if k in CODEX_DEFAULT_ENV or k in server["env_vars"]}
+    res = subprocess.run([NODE, str(LAUNCHER), "--db", "x.db"] if "WICKED_HOME" not in extra and "WICKED_ESTATE_DB" not in extra else [NODE, str(LAUNCHER)],
+                         env=child, input="", capture_output=True, text=True, timeout=60)
+    assert res.returncode == 7, res.stderr
+    assert ("--readonly" in json.loads(res.stdout)["argv"]) is expect_readonly
+
+
+@needs_node
+def test_governed_unit_without_a_pinned_store_is_refused(tmp_path):
+    env = {**_env(tmp_path, [Path(NODE).parent]), "WICKED_RUN_ID": "r1"}
+    res = subprocess.run([NODE, str(LAUNCHER)], env=env, capture_output=True, text=True, timeout=60)
+    assert res.returncode == 1
+    assert "no estate store is pinned" in json.loads(res.stderr.strip().splitlines()[-1])["reason"]
+
+
+@needs_node
+@pytest.mark.parametrize("env,argv", [
+    ({}, []), ({"WICKED_ESTATE_READONLY": "yes"}, []), ({"WICKED_GOVERNED": "1", "WICKED_MEMORY_DB": "/m"}, ["--db", "a"]),
+    ({"WICKED_GATE_SCOPE": "s"}, []), ({"WICKED_WRITE_ROOTS": "/w", "WICKED_HOME": "/h"}, ["--readonly"]),
+])
+def test_launcher_readonly_rules_match_the_estate_client(env, argv):
+    code = (f"import({json.dumps(LAUNCHER.as_uri())}).then(m=>process.stdout.write("
+            f"JSON.stringify(m.estateArgv({json.dumps(argv)}, {json.dumps(env)}))))")
+    plan = json.loads(subprocess.run([NODE, "-e", code], capture_output=True, text=True, timeout=60, check=True).stdout)
+    py = ("import json,os,sys; sys.path.insert(0, sys.argv[1]); import _estate_client as c; "
+          "c.parse_cli_flags(json.loads(sys.argv[2])); "
+          "print(json.dumps({'refused': c.governed_refusal() is not None, 'readonly': c.read_only()}))")
+    clean = {k: v for k, v in os.environ.items() if not k.startswith("WICKED_") and k not in ("CLAUDE_PLUGIN_ROOT",)}
+    out = subprocess.run([sys.executable, "-c", py, str(REPO / "scripts"), json.dumps(argv)], env={**clean, **env},
+                         capture_output=True, text=True, timeout=60, check=True).stdout.strip().splitlines()[-1]
+    expected = json.loads(out)
+    assert ("refusal" in plan) is expected["refused"]
+    if not expected["refused"]:
+        assert ("--readonly" in plan["argv"]) is expected["readonly"]
 
 
 def test_mcp_servers_must_name_a_file(tmp_path):

@@ -50,8 +50,15 @@ MAX_SCAN_DEPTH = 6  # codex-rs/exec-server/src/capability_discovery.rs / ext/ski
 MAX_NAME_LEN = 64
 MAX_QUALIFIED_NAME_LEN = MAX_NAME_LEN * 2 + 1
 PATH_FIELDS = ("skills", "mcpServers", "apps", "hooks")
-# What the launcher (WICKED_ESTATE_MCP_BIN) and estate itself (store paths) read from the environment.
-ESTATE_ENV_VARS = ("WICKED_ESTATE_MCP_BIN", "WICKED_ESTATE_DB", "WICKED_MEMORY_DB", "WICKED_KNOWLEDGE_DB", "WICKED_XEDGE_DB")
+# What the launcher reads (the binary override, the read-only opt-in, the governed-unit markers
+# and the store pins, as scripts/_estate_client.py does) and what estate itself reads (its store
+# paths and the run provenance it stamps on proposals). Codex drops anything not named.
+ESTATE_ENV_VARS = (
+    "WICKED_ESTATE_MCP_BIN", "WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB",
+    "WICKED_KNOWLEDGE_DB", "WICKED_XEDGE_DB", "WICKED_ESTATE_READONLY", "WICKED_GOVERNED",
+    "WICKED_RUN_ID", "WICKED_RUN_UNIT", "WICKED_RUN_AGENT", "WICKED_RUN_PROJECT",
+    "WICKED_GATE_SCOPE", "WICKED_WRITE_ROOTS",
+)
 
 
 def _frontmatter(text: str) -> dict:

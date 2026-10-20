@@ -9,9 +9,18 @@
       "env_vars": [
         "WICKED_ESTATE_MCP_BIN",
         "WICKED_ESTATE_DB",
+        "WICKED_HOME",
         "WICKED_MEMORY_DB",
         "WICKED_KNOWLEDGE_DB",
-        "WICKED_XEDGE_DB"
+        "WICKED_XEDGE_DB",
+        "WICKED_ESTATE_READONLY",
+        "WICKED_GOVERNED",
+        "WICKED_RUN_ID",
+        "WICKED_RUN_UNIT",
+        "WICKED_RUN_AGENT",
+        "WICKED_RUN_PROJECT",
+        "WICKED_GATE_SCOPE",
+        "WICKED_WRITE_ROOTS"
       ]
     }
   }

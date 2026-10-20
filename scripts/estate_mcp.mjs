@@ -14,7 +14,11 @@
  *
  * stdin/stdout/stderr are inherited (the MCP stream passes straight through), the caller's cwd is
  * kept (the binary resolves its store from it), and arguments after the script name are passed
- * on. The exit code is the server's; SIGINT/SIGTERM/SIGHUP are forwarded. When no binary is found
+ * on. The read-only and governed-unit rules of `_estate_client.py` apply here too: `--readonly`
+ * is added when WICKED_ESTATE_READONLY / WICKED_GOVERNED is truthy or a run marker
+ * (WICKED_RUN_ID, WICKED_GATE_SCOPE, WICKED_WRITE_ROOTS) is set — estate only honours the
+ * literal flag — and a governed unit with no pinned store (--db, WICKED_ESTATE_DB, WICKED_HOME,
+ * WICKED_MEMORY_DB) is refused rather than pointed at the operator's default stores. The exit code is the server's; SIGINT/SIGTERM/SIGHUP are forwarded. When no binary is found
  * it writes one JSON line on stderr — {"ok": false, "reason": …, "tried": […]} — and exits 1, so
  * the host reports a failed MCP server rather than a hung one.
  *
@@ -90,7 +94,31 @@ export function resolveEstateMcpBin({
   return { bin: null, tried };
 }
 
+const GOVERNED_MARKERS = ["WICKED_RUN_ID", "WICKED_GATE_SCOPE", "WICKED_WRITE_ROOTS"];
+const STORE_PIN_ENV = ["WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB"];
+const truthy = (v) => !["", "0", "false", "no"].includes(String(v ?? "").trim().toLowerCase());
+
+/**
+ * The argv to hand estate, or the reason to refuse — `_estate_client.read_only()` /
+ * `governed_refusal()` applied to the launcher's own argv and environment.
+ */
+export function estateArgv(argv, env = process.env) {
+  const marker = truthy(env.WICKED_GOVERNED) ? "WICKED_GOVERNED" : GOVERNED_MARKERS.find((k) => String(env[k] ?? "").trim());
+  const pinned = argv.includes("--db") || argv.some((a) => a.startsWith("--db=")) || STORE_PIN_ENV.some((k) => String(env[k] ?? "").trim());
+  if (marker && !pinned) {
+    return { refusal: `governed unit (${marker} is set) but no estate store is pinned: set ${STORE_PIN_ENV.join(" / ")} or pass --db; refusing to start wicked-estate-mcp against the operator's default stores` };
+  }
+  const readOnly = !!marker || truthy(env.WICKED_ESTATE_READONLY);
+  return { argv: readOnly && !argv.includes("--readonly") ? ["--readonly", ...argv] : argv };
+}
+
 function main(argv) {
+  const plan = estateArgv(argv);
+  if (plan.refusal) {
+    process.stderr.write(JSON.stringify({ ok: false, reason: plan.refusal, tried: [] }) + "\n");
+    return process.exit(1);
+  }
+  argv = plan.argv;
   const { bin, tried } = resolveEstateMcpBin();
   if (!bin) {
     process.stderr.write(JSON.stringify({
