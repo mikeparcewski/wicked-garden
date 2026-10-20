@@ -91,7 +91,24 @@ def test_engineering_review_and_plan_carry_the_built_in_check():  # POL-2101
     )
 
 
+def test_e6_delivery_only_criteria_are_deferred_not_failed():  # operator-approved fix, 2026-10-19
+    rule = _rule("E6")
+    for artifact in ("CI results on the opened pull request", "the pull request's title or body", "a merge"):
+        assert artifact in rule, artifact
+    assert "is DEFERRED: neither PASS nor FAIL" in rule
+    assert "Judge every part you can check before delivery" in rule
+    # Deny-dominates: a failing in-run part is never lifted by the deferral.
+    assert "FAILs when its in-run part fails; a deferral never lifts a failing in-run part" in rule
+    assert "`ITEM <n>: DEFERRED — <the artifact it waits for>`" in rule
+    assert "A deferred item never fails the unit by itself" in rule
+    assert "a promise that CI will pass is never a PASS" in rule
+    assert "The deliver gate shows each deferred check to the operator" in rule
+    assert "not a creator's deferral (E3)" in rule
+    body = " ".join(FLOOR.read_text(encoding="utf-8").split())
+    assert "a DEFERRED item (E6) is neither, so it never makes the verdict FAIL" in body
+
+
 def test_new_rules_have_provenance_rows():
     body = FLOOR.read_text(encoding="utf-8")
-    for rule_id in ("C6", "C7", "C8", "E3", "E4", "E5"):
+    for rule_id in ("C6", "C7", "C8", "E3", "E4", "E5", "E6"):
         assert re.search(rf"^\| {rule_id} \|", body, re.M), rule_id
