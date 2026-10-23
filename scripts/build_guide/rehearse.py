@@ -7,28 +7,30 @@
 A REHEARSAL, not the probe: it never writes ``verified`` and its verdict is not evidence the
 floor reads. It exists so the parser, the ids and the templates can be iterated on quickly (and
 reported honestly when the probe is unavailable). It mirrors wicked-core's ``floor probe``
-(#1066's ``src/floor_probe.rs`` at e2ad012) piece by piece, with exit codes as the referee:
+(#1066's ``src/floor_probe.rs`` at 3fb9c86) piece by piece, with exit codes as the referee:
 
 * ``list``     — the list run exits 0 and names tests.
-* ``run``      — the run's exit code agrees with its parsed failures (0 iff none; else a failedExit).
-* ``mutation`` — with ``probes.mutation`` written, the run fails with a failedExit and its new
-  failures (that still fail alone) are exactly the expected id; deselecting it leaves the clean
-  run's failures; run alone, it fails.
-* ``ids``      — every id the clean run reports (JUnit: all; text: its failures), and the mutated
-  id, is one the list names.
-* ``alone``    — a listed passing id run alone exits 0 with no failure (JUnit: every testcase that
-  ran is that id).
-* ``deselect`` — the list, deselecting that passing id, lists exactly the rest.
-* ``multi``    — with ``probes.mutation2`` written too, the new failures are exactly the two
-  expected ids, and deselecting both leaves the clean run's failures.
-* ``affected`` — when declared: run on the mutation file, its failures include the mutated id.
-
-* ``version`` — when declared: the command passes and prints a line (stdout and stderr merged),
+* ``run``      — the clean run is GREEN (exit 0, no parsed failure). Every later probe needs a
+  green base; on a red one they all fail "needs a green base".
+* ``mutation`` — with ``probes.mutation`` written, the run fails with a failedExit naming EXACTLY
+  the expected test, and the run deselecting it is green.
+* ``multi``    — with ``probes.mutation2`` written too, the run names exactly both; deselecting
+  both is green, and the list deselecting both lists exactly the rest.
+* ``ids``      — every id the results report is in the list.
+* ``alone``    — the mutated test alone fails naming exactly it (JUnit: exactly one testcase
+  ran), and a passing test under its qualifier alone is green (JUnit: exactly it ran). A runner
+  whose qualifier is the test file (cargo: one binary per file) therefore needs a passing test
+  beside the mutation, in the mutation's own file.
+* ``deselect`` — the list deselecting that passing test lists exactly the rest.
+* ``affected`` — when declared: run on the mutation file, its failures include the mutated test.
+* ``version``  — when declared: the command passes and prints a line (stdout and stderr merged),
   reported as ``runnerVersion``. The probe records it; this never writes it.
 
-A probe that fails is retried once on a fresh copy, as core does (``pass (retried)`` counts as a
-pass, ``fail: … (retried)`` does not); a failure for a missing piece is not retried. A check with
-no ``list`` piece is a gate (exit code only) and is skipped, as core skips it.
+When any probe fails (other than for a missing piece), the WHOLE rehearsal re-runs once on a
+fresh copy and that retry's results are the result, each marked `` (retried)``, as core does.
+A check with no ``list`` piece is a gate (exit code only) and is skipped, as core skips it.
+Argvs are composed as core composes them: ``argvAppend`` and ``deselect.append`` tokens go
+around the argv's ``--`` (see ``_guide.compose``).
 
 The copy omits ``.git`` and ``--exclude`` dirs (default ``target``) and symlinks ``--link`` dirs
 (default ``node_modules``, ``.venv``) instead of copying them. Prints one JSON report; exit 0
@@ -48,19 +50,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _guide import (SCHEMA, Failure, deselect_tokens, expand_files, lint, load_json,  # noqa: E402
-                    parse_junit, parse_list, parse_text, passed, schema_errors, substitute)
+from _guide import (ALL_IDS, SCHEMA, Failure, compose, deselected, expand_files, lint,  # noqa: E402
+                    load_json, parse_junit, parse_list, parse_text, passed, re_escape, schema_errors,
+                    substitute)
 
 NOTE = ("rehearsal only: verified is not written and this is not probe evidence; "
         "the floor uses a guide only after `wicked-core floor probe` passes it")
 
 
 class Outcome:
-    def __init__(self, exit_code: int | None, failures: set, every: set | None, error: str = ""):
+    def __init__(self, exit_code: int | None, failures: list, every: list | None, error: str = ""):
         self.exit = exit_code
         self.failures = failures
         self.every = every
         self.error = error
+
+    def green(self) -> bool:
+        return not self.error and self.exit == 0 and not self.failures
 
 
 def make_scratch(repo: Path, exclude: list[str], link: list[str]) -> Path:
@@ -89,51 +95,47 @@ def _keyed(check: dict) -> bool:
     return bool(check.get("list", {}).get("section"))
 
 
-def _unkey(check: dict, ids):
-    return ids if _keyed(check) else type(ids)(("", i) for _q, i in ids)
+def _unique(check: dict, ids) -> list:
+    """Unique, first-seen order; without a keyed list the qualifier is dropped (core ``dedup``)."""
+    out: list = []
+    for q, i in ids:
+        key = (q if _keyed(check) else "", i)
+        if i and key not in out:
+            out.append(key)
+    return out
+
+
+def _env(check: dict) -> dict:
+    return {**os.environ, **check.get("results", {}).get("how", {}).get("env", {})}
 
 
 def execute(check: dict, workdir: Path, argv: list[str], timeout: int) -> Outcome:
-    """A results run, as the interpreter makes it: ``argv`` + ``results.how.argvAppend``."""
+    """A results run, as the interpreter makes it: ``argv`` composed with ``results.how.argvAppend``."""
     results = check["results"]
     how = results.get("how", {})
-    full = list(argv) + list(how.get("argvAppend", []))
-    env = {**os.environ, **how.get("env", {})}
+    full = compose(list(argv), list(how.get("argvAppend", [])))
     result_file = (workdir / how["path"]) if how.get("path") else None
     if result_file is not None and result_file.exists():
         result_file.unlink()
     try:
-        proc = _capture(full, workdir, env, bool(how.get("merge")), timeout)
+        proc = _capture(full, workdir, _env(check), bool(how.get("merge")), timeout)
     except FileNotFoundError:
-        return Outcome(None, set(), None, f"{full[0]!r} is not on PATH")
+        return Outcome(None, [], None, f"{full[0]!r} is not on PATH")
     except subprocess.TimeoutExpired:
-        return Outcome(None, set(), None, f"did not finish within {timeout}s")
+        return Outcome(None, [], None, f"did not finish within {timeout}s")
     if result_file is not None:
         if not result_file.exists():
-            return Outcome(proc.returncode, set(), None, f"`{how['path']}` could not be opened")
+            return Outcome(proc.returncode, [], None, f"`{how['path']}` could not be opened")
         text = result_file.read_text(encoding="utf-8", errors="replace")
     else:
         text = proc.stdout
     if results["kind"] == "text":
-        return Outcome(proc.returncode, _unkey(check, parse_text(check["parser"], text)), None)
+        return Outcome(proc.returncode, _unique(check, sorted(parse_text(check["parser"], text))), None)
     try:
         every, failed = parse_junit(text, results.get("id"), results.get("idJoin", "::"))
     except Exception as exc:  # noqa: BLE001 - any unreadable report is a probe failure, named
-        return Outcome(proc.returncode, set(), None, f"the results do not parse as JUnit ({exc.__class__.__name__})")
-    return Outcome(proc.returncode, _unkey(check, failed), _unkey(check, every))
-
-
-def exit_of(check: dict, workdir: Path, argv: list[str], timeout: int) -> int | None:
-    """A bare run (no argvAppend, no results read), as the interpreter's exit-only runs."""
-    env = {**os.environ, **check["results"].get("how", {}).get("env", {})}
-    try:
-        return _capture(argv, workdir, env, False, timeout).returncode
-    except (FileNotFoundError, subprocess.TimeoutExpired):
-        return None
-
-
-def _ids(keys) -> set:
-    return {i for _q, i in keys}
+        return Outcome(proc.returncode, [], None, f"the results do not parse as JUnit ({exc.__class__.__name__})")
+    return Outcome(proc.returncode, _unique(check, sorted(failed)), _unique(check, every))
 
 
 def _inject(workdir: Path, mutation: dict) -> None:
@@ -145,10 +147,9 @@ def _inject(workdir: Path, mutation: dict) -> None:
 def inventory(check: dict, workdir: Path, timeout: int, deselect: list[Failure] | None = None) -> list | str:
     """The list run (with ``deselect`` ids deselected, when given): its ids, or why it is incomplete."""
     spec = check["list"]
-    argv = _deselected(check, deselect, spec["run"]) if deselect else list(spec["run"])
-    env = {**os.environ, **check["results"].get("how", {}).get("env", {})}
+    argv = deselected(check["deselect"]["append"], spec["run"], deselect) if deselect else list(spec["run"])
     try:
-        proc = _capture(argv, workdir, env, bool(spec.get("merge")), timeout)
+        proc = _capture(argv, workdir, _env(check), bool(spec.get("merge")), timeout)
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return f"its list could not run ({exc.__class__.__name__})"
     if proc.returncode != 0:
@@ -159,130 +160,104 @@ def inventory(check: dict, workdir: Path, timeout: int, deselect: list[Failure] 
     return ids
 
 
-def _deselected(check: dict, ids: list[Failure], argv: list[str] | None = None) -> list[str]:
-    """``argv`` (default ``run``) with ``ids`` deselected, composed as the schema states."""
-    base = list(check["run"] if argv is None else argv)
-    return base + deselect_tokens(check["deselect"]["append"], ids, base)
-
-
 def _verdict(ok: bool, why: str) -> str:
     return "pass" if ok else f"fail: {why}"
 
 
-def _steady(check: dict, workdir: Path, failed, before, timeout: int) -> set:
-    """``failed``'s ids beyond ``before`` that still fail run alone; a new failure that passes
-    alone is the suite's flake, not the parser's mistake, and is set aside (as core does)."""
-    return {t for t in failed if t not in before and
-            exit_of(check, workdir, substitute(check["alone"]["run"], id=t[1], q=t[0]), timeout) in check["failedExit"]}
-
-
-def _matches(t: Failure, m: dict) -> bool:
+def _is(t: Failure, m: dict) -> bool:
     return t[1] == m["expectId"] and m.get("expectQ") in (None, t[0])
 
 
-def _deselect_clean(check: dict, workdir: Path, ids: list, clean_failed: set, timeout: int) -> tuple[bool, Outcome]:
-    """Deselecting ``ids`` leaves the clean run's failures (and exits 0 when it had none)."""
-    d = execute(check, workdir, _deselected(check, ids), timeout)
-    ok = (not d.error and not any(t in d.failures for t in ids)
-          and not _steady(check, workdir, d.failures, clean_failed, timeout)
-          and (bool(clean_failed) or d.exit == 0))
-    return ok, d
+AFTER_RUN = ("ids", "alone", "deselect", "mutation", "multi")
 
 
-def _probe_mutation(check: dict, workdir: Path, clean_failed: set, mutated: Outcome, timeout: int):
-    """The mutated run fails with a failedExit and exactly one new (steady) failure, the expected
-    one; deselecting it leaves the clean run's failures; run alone it fails. Returns (verdict, id)."""
-    m = check["probes"]["mutation"]
-    if mutated.error:
-        return f"fail: the mutated run's results: {mutated.error}", None
-    new = sorted(_steady(check, workdir, mutated.failures, clean_failed, timeout))
-    hit = new[0] if len(new) == 1 and _matches(new[0], m) else None
-    if hit is None:
-        return f"fail: the mutated run's new failures are {new[:5]}, not `{m['expectId']}`", None
-    if mutated.exit not in check["failedExit"]:
-        return f"fail: the mutated run exited {mutated.exit}", hit
-    ok, d = _deselect_clean(check, workdir, [hit], clean_failed, timeout)
-    if not ok:
-        return f"fail: deselecting `{hit[1]}` did not leave the clean run's failures (exit {d.exit})", hit
-    if exit_of(check, workdir, substitute(check["alone"]["run"], id=hit[1], q=hit[0]), timeout) not in check["failedExit"]:
-        return f"fail: `{hit[1]}` run alone does not fail", hit
-    return "pass", hit
+def _deselects_exactly(check: dict, workdir: Path, listed, ids: list, timeout: int) -> bool:
+    rest = inventory(check, workdir, timeout, deselect=ids)
+    return isinstance(listed, list) and isinstance(rest, list) and \
+        sorted(rest) == sorted(t for t in listed if t not in ids)
 
 
-def _probe_ids(clean: Outcome, hit, listed) -> str:
-    """Every id the clean run reports (junit: all; text: the failures), and the mutated id, is listed."""
-    if clean.error or hit is None or not isinstance(listed, list):
-        return "fail: the clean or mutated run's ids could not be established"
-    reported = list(clean.every or []) + sorted(clean.failures) + [hit]
-    stray = next((t for t in reported if t not in listed), None)
-    return _verdict(stray is None, f"the results name `{stray[1] if stray else ''}` (q `{stray[0] if stray else ''}`), "
-                                   "which the list does not")
+def _probes(check: dict, workdir: Path, timeout: int) -> dict:
+    """One attempt of the core probes, in its order, on ``workdir`` (a fresh copy)."""
+    out: dict[str, str] = {}
 
+    def fail_rest(why: str) -> dict:
+        for p in AFTER_RUN:
+            out[p] = f"fail: {why}"
+        return out
 
-def _probe_alone_and_deselect(check: dict, workdir: Path, listed, mutated: Outcome, timeout: int) -> tuple[str, str]:
-    failing = _ids(mutated.failures)
-    passing = next((t for t in listed if t[1] not in failing), None) if isinstance(listed, list) else None
-    if passing is None:
-        return ("fail: the list names no passing test",) * 2
-    one = execute(check, workdir, substitute(check["alone"]["run"], id=passing[1], q=passing[0]), timeout)
-    ran = one.every if one.every is not None else []
-    alone_ok = not one.error and one.exit == 0 and not one.failures and (
-        check["results"]["kind"] != "junit" or (bool(ran) and all(t[1] == passing[1] for t in ran)))
-    alone = _verdict(alone_ok, one.error or f"`{passing[1]}` alone exited {one.exit}, ran {len(ran)} test(s), "
-                                         f"{len(one.failures)} failure(s)")
-    rest = inventory(check, workdir, timeout, deselect=[passing])
-    want = sorted(t for t in listed if t != passing)
-    got = sorted(rest) if isinstance(rest, list) else []
-    deselect = _verdict(isinstance(rest, list) and got == want,
-                        f"the list deselecting `{passing[1]}` lists {len(got)} test(s), not the {len(want)} others"
-                        + (f" ({rest})" if isinstance(rest, str) else ""))
-    return alone, deselect
-
-
-def _probe_multi(check: dict, workdir: Path, clean_failed: set, timeout: int) -> str:
-    """With ``probes.mutation2`` written too, the new failures are exactly the two expected ids,
-    and deselecting both leaves the clean run's failures."""
-    m, m2 = check["probes"]["mutation"], check["probes"].get("mutation2")
-    if not m2:
-        return "fail: no `probes.mutation2`"
+    run_argv = list(check["run"])
+    # core's alone_argv: {id}/{q}/{id:re} filled, and {ids:re|} over just this one id
+    alone = lambda t: [x.replace(ALL_IDS, re_escape(t[1]))  # noqa: E731
+                       for x in substitute(check["alone"]["run"], id=t[1], q=t[0])]
+    desel = lambda ids: deselected(check["deselect"]["append"], run_argv, ids)  # noqa: E731
+    listed0 = inventory(check, workdir, timeout)
+    out["list"] = _verdict(isinstance(listed0, list), str(listed0))
+    clean = execute(check, workdir, run_argv, timeout)
+    out["run"] = _verdict(clean.green(), clean.error or f"needs a green base: the clean run exited {clean.exit} "
+                                                       f"with {len(clean.failures)} parsed failure(s)")
+    probes = check.get("probes", {})
+    for piece, present in (("alone", "alone" in check), ("deselect", "deselect" in check),
+                           ("probes.mutation", "mutation" in probes), ("probes.mutation2", "mutation2" in probes)):
+        if not present:
+            return fail_rest(f"no `{piece}`")
+    if not clean.green():
+        return fail_rest("needs a green base")
+    m, m2 = probes["mutation"], probes["mutation2"]
+    _inject(workdir, m)
+    mutated = execute(check, workdir, run_argv, timeout)
+    if mutated.error or mutated.exit not in check["failedExit"] or len(mutated.failures) != 1 \
+            or not _is(mutated.failures[0], m):
+        return fail_rest(f"the mutated run (exit {mutated.exit}) named {mutated.failures[:5]}, "
+                         f"not exactly `{m['expectId']}`")
+    t = mutated.failures[0]
+    out["mutation"] = _verdict(execute(check, workdir, desel([t]), timeout).green(),
+                               f"deselecting `{t[1]}` did not run green")
     _inject(workdir, m2)
-    run = execute(check, workdir, list(check["run"]), timeout)
-    if run.error:
-        return f"fail: the run's results: {run.error}"
-    new = sorted(_steady(check, workdir, run.failures, clean_failed, timeout))
-    both = len(new) == 2 and any(_matches(t, m) for t in new) and any(_matches(t, m2) for t in new)
-    if not both or run.exit not in check["failedExit"]:
-        return (f"fail: with both mutations the new failures are {new[:5]} (exit {run.exit}), "
-                f"not `{m['expectId']}` and `{m2['expectId']}`")
-    ok, d = _deselect_clean(check, workdir, new, clean_failed, timeout)
-    return _verdict(ok, f"deselecting both did not leave the clean run's failures (exit {d.exit})")
+    listed = inventory(check, workdir, timeout)
+    both = execute(check, workdir, run_argv, timeout)
+    pair = both.failures if (not both.error and both.exit in check["failedExit"] and len(both.failures) == 2
+                             and t in both.failures and any(_is(x, m2) for x in both.failures)) else []
+    out["multi"] = _verdict(bool(pair) and execute(check, workdir, desel(pair), timeout).green()
+                            and _deselects_exactly(check, workdir, listed, pair, timeout),
+                            f"with both mutations: {both.failures[:5]} (exit {both.exit}); both must be named, and "
+                            "deselecting both must run green and list exactly the rest")
+    reported = list(clean.every or []) + list(both.every or []) + list(both.failures)
+    stray = next((x for x in reported if not isinstance(listed, list) or x not in listed), None)
+    out["ids"] = _verdict(isinstance(listed, list) and stray is None,
+                          f"the results name `{stray[1]}` (q `{stray[0]}`), which the list does not" if stray
+                          else str(listed))
+    junit = check["results"]["kind"] == "junit"
 
+    def exactly(o: Outcome, want: Failure, failing: bool) -> bool:
+        return (o.failures == [want] if failing else not o.failures) and (not junit or o.every == [want])
 
-def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
-    """The core probe's pieces, retried as core does: every probe runs on a fresh copy; then the
-    probes that failed (other than for a missing piece, which cannot pass) are taken from a second
-    full attempt on another fresh copy, recorded as ``pass (retried)`` or ``fail: … (retried)``."""
-    if "list" not in check:
-        return {"name": check["name"], "skipped": "no `list` piece: a gate (exit code only), not probed",
-                "ok": True}
-    results, version = _rehearse_once(check, repo, timeout, exclude, link)
-    failed = [p for p, v in results.items() if not passed(v) and not v.startswith("fail: no `")]
-    if failed:
-        second, v2 = _rehearse_once(check, repo, timeout, exclude, link)
-        for p in failed:
-            r = second.get(p, "fail: it did not run on the retry")
-            if p == "version" and passed(r):
-                version = v2
-            results[p] = f"{r} (retried)"
-    return {"name": check["name"], "results": results, "runnerVersion": version,
-            "ok": all(passed(v) for v in results.values())}
+    alone_t = execute(check, workdir, alone(t), timeout)
+    passing = next((x for x in listed if x[0] == t[0] and x != t and not _is(x, m2)), None) \
+        if isinstance(listed, list) else None
+    if alone_t.error:
+        out["alone"] = f"fail: `{t[1]}` alone: {alone_t.error}"
+    elif not (alone_t.exit in check["failedExit"] and exactly(alone_t, t, True)):
+        out["alone"] = f"fail: `{t[1]}` alone (exit {alone_t.exit}) did not fail naming exactly it"
+    elif passing is None:
+        out["alone"] = f"fail: no passing test beside `{t[1]}` under its qualifier"
+    else:
+        alone_p = execute(check, workdir, alone(passing), timeout)
+        out["alone"] = _verdict(alone_p.exit == 0 and not alone_p.error and exactly(alone_p, passing, False),
+                                f"`{passing[1]}` alone (exit {alone_p.exit}) did not run exactly it, green")
+    out["deselect"] = (f"fail: no passing test beside `{t[1]}` under its qualifier" if passing is None else
+                       _verdict(_deselects_exactly(check, workdir, listed, [passing], timeout),
+                                f"the list deselecting `{passing[1]}` does not list exactly the rest"))
+    if "affected" in check:
+        aff = execute(check, workdir, expand_files(list(check["affected"]["run"]), [m["file"]]), timeout)
+        out["affected"] = _verdict(t in aff.failures, f"the affected run's failures do not include `{t[1]}`")
+    return out
 
 
 def _version(check: dict, workdir: Path, timeout: int) -> tuple[str, str]:
     """(verdict, first output line) of the `version` piece, stdout and stderr merged, as core."""
-    env = {**os.environ, **check["results"].get("how", {}).get("env", {})}
     try:
-        proc = _capture(check["version"]["run"], workdir, env, True, min(timeout, 120))
+        proc = _capture(check["version"]["run"], workdir, _env(check), True, min(timeout, 120))
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return f"fail: the version command did not pass ({exc.__class__.__name__})", ""
     line = next((ln.strip() for ln in proc.stdout.splitlines() if ln.strip()), "")
@@ -293,38 +268,31 @@ def _version(check: dict, workdir: Path, timeout: int) -> tuple[str, str]:
     return "pass", line
 
 
-def _rehearse_once(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> tuple[dict, str]:
-    """One attempt of the core probe's pieces, in its order, on a fresh copy: (results, version)."""
-    version = ""
-    results: dict[str, str] = {}
+def _attempt(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> tuple[dict, str]:
     scratch = make_scratch(repo, exclude, link)
     try:
         workdir = scratch / check.get("cwd", ".")
-        listed = inventory(check, workdir, timeout)
-        results["list"] = _verdict(isinstance(listed, list), str(listed))
-        clean = execute(check, workdir, list(check["run"]), timeout)
-        if clean.error:
-            results["run"] = f"fail: {clean.error}"
-        else:
-            ok = not clean.failures if clean.exit == 0 else bool(clean.failures) and clean.exit in check["failedExit"]
-            results["run"] = _verdict(ok, f"exit {clean.exit} with {len(clean.failures)} parsed failure(s)")
-        _inject(workdir, check["probes"]["mutation"])
-        mutated = execute(check, workdir, list(check["run"]), timeout)
-        results["mutation"], hit = _probe_mutation(check, workdir, clean.failures, mutated, timeout)
-        listed_now = inventory(check, workdir, timeout)
-        results["ids"] = _probe_ids(clean, hit, listed_now)
-        results["alone"], results["deselect"] = _probe_alone_and_deselect(check, workdir, listed_now, mutated, timeout)
-        results["multi"] = _probe_multi(check, workdir, clean.failures, timeout)
-        if "affected" in check:
-            aff = execute(check, workdir, expand_files(list(check["affected"]["run"]), [check["probes"]["mutation"]["file"]]),
-                          timeout)
-            results["affected"] = ("fail: the mutation probe did not establish the id" if hit is None else
-                                   _verdict(hit in aff.failures, f"the affected run's failures do not include `{hit[1]}`"))
+        results = _probes(check, workdir, timeout)
+        version = ""
         if "version" in check:
             results["version"], version = _version(check, workdir, timeout)
+        return results, version
     finally:
         shutil.rmtree(scratch.parent, ignore_errors=True)
-    return results, version
+
+
+def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
+    """The core probe's pieces; when any fails (other than for a missing piece), the whole attempt
+    re-runs once on a fresh copy and its results are the result, each marked `` (retried)``."""
+    if "list" not in check:
+        return {"name": check["name"], "skipped": "no `list` piece: a gate (exit code only), not probed",
+                "ok": True}
+    results, version = _attempt(check, repo, timeout, exclude, link)
+    if any(not passed(r) and not r.startswith("fail: no `") for r in results.values()):
+        second, version = _attempt(check, repo, timeout, exclude, link)
+        results = {p: f"{r} (retried)" for p, r in second.items()}
+    return {"name": check["name"], "results": results, "runnerVersion": version,
+            "ok": all(passed(v) for v in results.values())}
 
 
 def main(argv: list[str] | None = None) -> int:

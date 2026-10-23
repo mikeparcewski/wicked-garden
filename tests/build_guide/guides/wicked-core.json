@@ -4,7 +4,8 @@
     "Cargo.toml",
     "Cargo.lock",
     ".wicked/checks.json",
-    ".github/workflows/ci.yml"
+    ".github/workflows/ci.yml",
+    "crates/*/Cargo.toml"
   ],
   "checks": [
     {
@@ -18,10 +19,7 @@
       ],
       "failedExit": [
         1
-      ],
-      "results": {
-        "kind": "text"
-      }
+      ]
     },
     {
       "name": "typecheck",
@@ -35,10 +33,7 @@
       ],
       "failedExit": [
         101
-      ],
-      "results": {
-        "kind": "text"
-      }
+      ]
     },
     {
       "name": "lint",
@@ -55,10 +50,7 @@
       ],
       "failedExit": [
         101
-      ],
-      "results": {
-        "kind": "text"
-      }
+      ]
     },
     {
       "name": "test",
@@ -139,7 +131,7 @@
       "probes": {
         "mutation": {
           "file": "tests/zz_floor_probe_mutation.rs",
-          "content": "#[ctor::ctor(unsafe)]\nfn arm_hermetic_emit_spool() {\n    wicked_apps_core::emit::hermetic_test_spool();\n}\n\n#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n",
+          "content": "#[ctor::ctor(unsafe)]\nfn arm_hermetic_emit_spool() {\n    wicked_apps_core::emit::hermetic_test_spool();\n}\n\n#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n\n#[test]\nfn floor_probe_mutation_beside() {}\n",
           "expectId": "floor_probe_mutation"
         },
         "mutation2": {
@@ -161,6 +153,12 @@
           "mutation": "pass",
           "run": "pass"
         }
+      },
+      "version": {
+        "run": [
+          "cargo",
+          "--version"
+        ]
       }
     }
   ]

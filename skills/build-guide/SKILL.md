@@ -73,13 +73,17 @@ as `--schema`.
 - **The guide replaces detection.** When a usable guide exists, its checks ARE the floor's
   checks, run at the `stage`s they declare (absent means both). So declare EVERY step the
   repo's CI gates on: install, build, format, lint, typecheck and test. A check with no `list`
-  is a gate: its exit code alone decides it, and it is not probed. Only a test check (with
-  `list`) carries the pieces and probes below.
+  is a gate (`name`, `cwd`, `run`, and a `failedExit` where the tool documents one; no
+  `results`, no `version`). Its exit code alone decides it, and it is not probed. Only a test
+  check (with `list`, and so `results`) carries the pieces and probes below.
 - `version: {run: argv}` is the runner's own version command. The probe records its first output
   line as `runnerVersion` and adds a required `version` probe; the floor treats a different
-  version as stale. A failed probe is re-run once on a fresh copy: `pass (retried)` counts, and
-  `fail: … (retried)` leaves the guide unverified. A probe that fails for a missing piece is not
-  retried.
+  version as stale. When any probe fails, the whole probe re-runs once on a fresh copy, and
+  that retry's results are recorded, each marked ` (retried)`. `pass (retried)` counts as a pass;
+  `fail: … (retried)` leaves the guide unverified. A failure for a missing piece is not retried.
+- **Onboard from a GREEN commit.** The probes need a green clean run. On a red base, every
+  probe after `run` fails with "needs a green base". If the repo's tests are red, say so and
+  ask for a green commit (or a fix) before you probe. Don't relax the guide to fit a red suite.
 
 ## 1. Discover what the repo already declares
 
@@ -122,7 +126,11 @@ repo's own language and test framework. Each goes in its own **new** file that t
 normal discovery picks up, with a different id, and each carries the id the parser must name
 (`expectId`, plus `expectQ` when ids are qualified). One proves that the parser, the ids and
 deselect agree. Both together prove that two failures are both parsed and both deselected.
-Never edit an existing test file.
+The `alone` probe runs the mutated test alone (it must fail, naming exactly it), and then a
+**passing test under the same qualifier** (it must run green). When each test file is its own
+qualifier (cargo: one binary per integration-test file), put a passing test beside the failing
+one in the `mutation` file (`fn floor_probe_mutation_beside() {}`). Never edit an existing test
+file.
 
 ## 4. Validate: rehearse, then probe (at most 3 attempts per check)
 
@@ -134,9 +142,9 @@ wicked-garden run scripts/build_guide/probe.py --repo <dir> --guide <draft>
 
 - `check --draft` validates the shape and refuses a draft that carries `verified`.
 - `rehearse` mirrors the core probes (`list`, `run`, `mutation`, `ids`, `alone`, `deselect`,
-  `multi`, plus `affected` and `version` when present, each retried once as core does) in a
-  scratch copy, so you can iterate quickly. It skips gates. It is not evidence and writes
-  nothing.
+  `multi`, plus `affected` and `version` when present, retried as core retries) in a scratch
+  copy, so you can iterate quickly. It composes argvs around `--` as core does, and it skips
+  gates. It is not evidence and writes nothing.
 - `probe` runs `wicked-core floor probe --repo <dir> --guide <file>`. Only that command writes
   `verified`, including `runnerVersion` from the `version` piece you wrote (for example
   `{"run": ["cargo", "--version"]}`). **Never hand-write `verified`** (`runnerVersion`

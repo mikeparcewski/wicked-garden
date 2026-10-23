@@ -40,7 +40,7 @@ from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
 # Where the vendored schema came from: wicked-core#1066's branch, not yet merged.
-SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@e2ad012 schemas/build-guide.v1.json (unmerged, #1066)"
+SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@3fb9c86 schemas/build-guide.v1.json (unmerged, #1066)"
 # The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
 # plus `affected` when the check has that piece.
 REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
@@ -54,7 +54,8 @@ _RE_META = set("\\.+*?()|[]{}^$#&-~")
 
 # Keywords the subset validator implements, plus annotation-only keywords it may ignore.
 _VALIDATED = {"$ref", "type", "const", "enum", "minLength", "pattern", "minimum", "maximum",
-              "minItems", "items", "required", "properties", "additionalProperties", "if", "then"}
+              "minItems", "items", "required", "dependentRequired", "properties", "additionalProperties",
+              "if", "then"}
 _ANNOTATIONS = {"$schema", "$id", "$comment", "$defs", "title", "description", "examples", "default"}
 
 # RE2 rejects these Python-regex constructs (lookaround, backreferences, atomic and possessive
@@ -85,7 +86,8 @@ def unsupported_schema_keywords(node: Any, path: str = "") -> list[str]:
                 continue
             if key not in _VALIDATED and key not in _ANNOTATIONS:
                 found.append(here)
-            if isinstance(val, (dict, list)) and key not in ("enum", "const", "required", "examples", "default"):
+            if isinstance(val, (dict, list)) and key not in ("enum", "const", "required", "examples", "default",
+                                                                    "dependentRequired"):
                 found += unsupported_schema_keywords(val, here)
     elif isinstance(node, list):
         for i, item in enumerate(node):
@@ -129,6 +131,13 @@ def _repo_relative(where: str, value: str) -> list[str]:
     if value.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:", value) or ".." in p.parts:
         return [f"{where}: {value!r} must be repo-relative, with no '..'"]
     return []
+
+
+def _pathspec_matches(repo: Path, spec: str) -> bool:
+    """Does a ``derivedFrom`` entry (a git pathspec; globs such as ``crates/*/Cargo.toml``) match?"""
+    if not any(c in spec for c in "*?["):
+        return (repo / spec).exists()
+    return any(True for _ in repo.glob(spec))
 
 
 def _has_placeholder(argv: list[str]) -> bool:
@@ -219,6 +228,10 @@ def _lint_test(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[li
         errors.append(f"{at}.alone.run: needs an {{id}} (or {{q}}, {{id:re}}) placeholder")
     if "deselect" in check and not _has_placeholder(check["deselect"].get("append", [])):
         errors.append(f"{at}.deselect.append: needs an {{id}} (or {{q}}, {{id:re}}, {{ids:re|}}) placeholder")
+    tokens = check.get("deselect", {}).get("append", [])
+    first, last = per_id_range(tokens)
+    if any(ALL_IDS in t for t in tokens[first:last]):
+        errors.append(f"{at}.deselect.append: `{{ids:re|}}` is once-only and cannot sit among the per-id tokens")
     if not check.get("version", {}).get("run"):
         warnings.append(f"{at}.version: missing; the skill writes the runner's own version command, so a "
                         "runner change marks the guide stale")
@@ -265,9 +278,10 @@ def lint(guide: dict[str, Any], repo: Path | None = None, draft: bool = False) -
     if not guide.get("derivedFrom"):
         errors.append("derivedFrom: missing or empty; record the CI files and manifests the guide came from")
     for i, rel in enumerate(guide.get("derivedFrom", [])):
-        errors += _repo_relative(f"derivedFrom[{i}]", rel)
-        if repo is not None and not (repo / rel).exists():
-            errors.append(f"derivedFrom[{i}]: {rel!r} does not exist in the repo")
+        relative = _repo_relative(f"derivedFrom[{i}]", rel)
+        errors += relative
+        if repo is not None and not relative and not _pathspec_matches(repo, rel):
+            errors.append(f"derivedFrom[{i}]: {rel!r} matches nothing in the repo")
     names: set[str] = set()
     for c, check in enumerate(guide.get("checks", [])):
         at = f"checks[{c}]({check.get('name', '?')})"
@@ -405,23 +419,45 @@ def substitute(argv: list[str], **values: str) -> list[str]:
     return out
 
 
-def deselect_tokens(append: list[str], failures: list[Failure], argv: list[str]) -> list[str]:
-    """The schema's composition: tokens before the first one with ``{id}``/``{q}``/``{id:re}`` once
-    (a leading ``--`` only when ``argv`` has none), the tokens through the last such one once per
-    id, the rest once. ``{ids:re|}`` (in a token added once) is every id regex-escaped, joined by ``|``."""
+def compose(argv: list[str], extra: list[str]) -> list[str]:
+    """``argv`` with ``extra`` added around its end of options, as core's ``compose``: ``extra``'s
+    tokens before its own ``--`` (all of them when it has none) are the runner's options and go
+    just before ``argv``'s ``--`` (at the end when it has none); the tokens after that ``--`` go
+    last, behind ONE ``--``. A second ``--`` is never emitted."""
+    i = extra.index("--") if "--" in extra else None
+    opts, tail = (extra, None) if i is None else (extra[:i], extra[i + 1:])
+    out = list(argv)
+    at = out.index("--") if "--" in out else len(out)
+    out[at:at] = opts
+    if tail is not None:
+        if "--" not in out:
+            out.append("--")
+        out += [t for t in tail if t != "--"]
+    return out
+
+
+def per_id_range(tokens: list[str]) -> tuple[int, int]:
+    """From the first token with ``{id}``, ``{id:re}`` or ``{q}`` through the last one."""
+    marked = [i for i, tok in enumerate(tokens) if any(p in tok for p in PLACEHOLDERS)]
+    return (marked[0], marked[-1] + 1) if marked else (len(tokens), len(tokens))
+
+
+def deselect_tokens(append: list[str], failures: list[Failure]) -> list[str]:
+    """``deselect.append`` filled for ``failures``: tokens before the first per-id token once, the
+    per-id tokens once per id, the rest once; ``{ids:re|}`` (every id regex-escaped, joined by
+    ``|``) fills a once-token. Compose the result onto an argv with ``compose``."""
     joined = "|".join(re_escape(ident) for _q, ident in failures)
     fill_all = lambda tokens: [t.replace(ALL_IDS, joined) for t in tokens]  # noqa: E731
-    marked = [i for i, tok in enumerate(append) if any(p in tok for p in PLACEHOLDERS)]
-    if not marked:
-        return fill_all(append)
-    first, last = marked[0], marked[-1]
-    prefix = list(append[:first])
-    if prefix and prefix[0] == "--" and "--" in argv:
-        prefix = prefix[1:]
+    first, last = per_id_range(append)
     middle: list[str] = []
     for q, ident in failures:
-        middle += substitute(append[first:last + 1], id=ident, q=q)
-    return fill_all(prefix) + fill_all(middle) + fill_all(append[last + 1:])
+        middle += substitute(append[first:last], id=ident, q=q)
+    return fill_all(append[:first]) + middle + fill_all(append[last:])
+
+
+def deselected(append: list[str], argv: list[str], failures: list[Failure]) -> list[str]:
+    """``argv`` with ``failures`` deselected (core's ``deselected``)."""
+    return compose(argv, deselect_tokens(append, failures))
 
 
 def expand_files(argv: list[str], files: list[str]) -> list[str]:

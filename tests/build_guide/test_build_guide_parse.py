@@ -113,12 +113,22 @@ def test_list_ids_carry_the_list_section_qualifier():
 
 def test_deselect_composition_follows_the_schema():
     append = ["--", "--exact", "--skip={id}", "--nocapture"]
-    argv = ["cargo", "test"]
-    assert guide_mod.deselect_tokens(append, [("", "a"), ("", "b")], argv) == [
-        "--", "--exact", "--skip=a", "--skip=b", "--nocapture"]
-    assert guide_mod.deselect_tokens(append, [("", "a")], argv + ["--"])[:2] == ["--exact", "--skip=a"]
+    ids = [("", "a"), ("", "b")]
+    assert guide_mod.deselected(append, ["cargo", "test"], ids) == [
+        "cargo", "test", "--", "--exact", "--skip=a", "--skip=b", "--nocapture"]
+    # The argv's own `--` is reused: never a second one.
+    assert guide_mod.deselected(append, ["cargo", "test", "--", "--list"], ids[:1]) == [
+        "cargo", "test", "--", "--list", "--exact", "--skip=a", "--nocapture"]
     # A flag and its value in two tokens: only the value is per id.
-    assert guide_mod.deselect_tokens(["--skip", "{id}"], [("", "a"), ("", "b")], argv) == ["--skip", "a", "b"]
+    assert guide_mod.deselect_tokens(["--skip", "{id}"], ids) == ["--skip", "a", "b"]
+
+
+def test_compose_puts_runner_options_before_the_argv_end_of_options():
+    """core's compose: tokens before extra's `--` go just before argv's `--`; the rest go last."""
+    assert guide_mod.compose(["cargo", "test", "--", "--exact"], ["--locked", "--", "--nocapture"]) == [
+        "cargo", "test", "--locked", "--", "--exact", "--nocapture"]
+    assert guide_mod.compose(["pytest", "-q"], ["--junitxml=r.xml"]) == ["pytest", "-q", "--junitxml=r.xml"]
+    assert guide_mod.compose(["runner"], ["--", "a", "--", "b"]) == ["runner", "--", "a", "b"]
 
 
 def test_files_placeholder_expands_to_one_token_per_file():
@@ -128,8 +138,8 @@ def test_files_placeholder_expands_to_one_token_per_file():
 
 def test_regex_placeholders_escape_ids_per_id_and_all_at_once():
     ids = [("", "sum > a (b)"), ("", "x.y+z")]
-    assert guide_mod.deselect_tokens(["--testNamePattern=^(?!(?:{ids:re|})$)"], ids, ["npx", "vitest", "run"]) == [
+    assert guide_mod.deselect_tokens(["--testNamePattern=^(?!(?:{ids:re|})$)"], ids) == [
         "--testNamePattern=^(?!(?:sum > a \\(b\\)|x\\.y\\+z)$)"]
-    assert guide_mod.deselect_tokens(["--skip=^{id:re}$"], ids, ["runner"]) == [
+    assert guide_mod.deselect_tokens(["--skip=^{id:re}$"], ids) == [
         "--skip=^sum > a \\(b\\)$", "--skip=^x\\.y\\+z$"]
     assert guide_mod.substitute(["-t", "^{id:re}$"], id="a|b", q="") == ["-t", "^a\\|b$"]

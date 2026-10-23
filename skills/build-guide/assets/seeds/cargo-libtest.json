@@ -17,10 +17,7 @@
       ],
       "failedExit": [
         101
-      ],
-      "results": {
-        "kind": "text"
-      }
+      ]
     },
     {
       "name": "test",
@@ -107,7 +104,7 @@
       "probes": {
         "mutation": {
           "file": "tests/zz_floor_probe_mutation.rs",
-          "content": "#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n",
+          "content": "#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n\n#[test]\nfn floor_probe_mutation_beside() {}\n",
           "expectId": "floor_probe_mutation"
         },
         "mutation2": {
