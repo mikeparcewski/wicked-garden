@@ -71,7 +71,9 @@ round-trip test.
   does not use it). `alone` is `-- {id} --exact`. `deselect.append: ["--","--skip={id}","--exact"]`
   adds the separator once, `--skip=<id>` per id, and `--exact` once; libtest rejects a repeated
   `--exact`. The mutations are new integration test files
-  (`tests/zz_floor_probe_mutation.rs`, `…_two.rs`). wicked-core's own mutations also arm a
+  (`tests/zz_floor_probe_mutation.rs`, `…_two.rs`). Each file is its own test binary, and so its
+  own qualifier, so the first mutation file also holds a passing test
+  (`floor_probe_mutation_beside`) for the `alone` probe. wicked-core's own mutations also arm a
   `ctor` hook its test harness needs, so copy a repo's own test preamble when it has one.
 - **pytest** (`pytest-short-summary.json`): text on `-rfE`. The block runs from
   `^=+ short test summary info =+$` to the final count line, with item

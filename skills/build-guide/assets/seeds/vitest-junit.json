@@ -13,10 +13,7 @@
         "install",
         "--no-audit",
         "--no-fund"
-      ],
-      "results": {
-        "kind": "text"
-      }
+      ]
     },
     {
       "name": "test",

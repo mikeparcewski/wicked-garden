@@ -12,8 +12,8 @@ import pytest
 from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
 
 SCHEMA = REPO / "schemas" / "build-guide.v1.json"
-# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@e2ad012 (#1066).
-CORE_BLOB = "0573640ad39afcaa5f8e6513f7a0441189af9cc2"
+# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@3fb9c86 (#1066).
+CORE_BLOB = "61b12a61b35d21616a1d83316fbd312bad8e44e3"
 SEED_REPOS = {
     "cargo-libtest.json": "cargo-repo",
     "pytest-short-summary.json": "pytest-repo",
@@ -40,7 +40,7 @@ def _seed(name: str = "cargo-libtest.json") -> dict:
 def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
     code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
     assert code == 0, report["errors"]
-    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@e2ad012")
+    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@3fb9c86")
 
 
 @pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
@@ -145,7 +145,7 @@ def test_paths_must_be_repo_relative_and_derived_from_files_must_exist(tmp_path)
                               "--draft")
     text = "\n".join(report["errors"])
     assert code == 1
-    assert "must be repo-relative" in text and "'missing.toml' does not exist" in text
+    assert "must be repo-relative" in text and "'missing.toml' matches nothing in the repo" in text
 
 
 def test_a_mutation_over_an_existing_file_warns(tmp_path):
@@ -174,10 +174,12 @@ def test_a_schema_with_keywords_the_validator_cannot_check_is_refused(tmp_path):
     assert report["schema"] == str(schema_path)
 
 
-def test_core_s_own_guide_checks_clean_and_a_missing_version_piece_is_flagged():
+def test_core_s_own_guide_checks_clean_and_its_stale_verified_is_flagged():
+    """core's guide at 3fb9c86 declares gates without results and a version piece; its committed
+    `verified` predates the version probe, so the floor would not rely on it yet."""
     code, report = run_script("check", "--guide", str(GUIDES / "wicked-core.json"))
     assert code == 0, report["errors"]
-    assert any(".version: missing" in w for w in report["warnings"])
+    assert any("the floor will not rely on this check (version: never ran)" in w for w in report["warnings"])
 
 
 def test_a_probed_guide_whose_required_probe_failed_is_flagged(tmp_path):
@@ -238,3 +240,37 @@ def test_a_retried_pass_counts_as_passed(tmp_path):
                                                              "version")} | {"multi": "pass (retried)"}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
     assert code == 0 and not [w for w in report["warnings"] if "will not rely" in w]
+
+
+def test_ids_re_all_among_the_per_id_tokens_is_refused(tmp_path):
+    guide = _seed("vitest-junit.json")
+    _t(guide)["deselect"]["append"] = ["--not={id}", "--all={ids:re|}", "--raw={id}"]
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any("`{ids:re|}` is once-only" in e for e in report["errors"])
+
+
+def test_a_version_piece_on_a_gate_is_refused_by_the_schema(tmp_path):
+    guide = _seed()
+    next(c for c in guide["checks"] if "list" not in c)["version"] = {"run": ["cargo", "--version"]}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any("property 'version' requires property 'list'" in e for e in report["errors"])
+
+
+def test_a_list_needs_results(tmp_path):
+    guide = _seed()
+    _t(guide).pop("results")
+    _t(guide).pop("parser")
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert any("property 'list' requires property 'results'" in e for e in report["errors"])
+
+
+def test_derived_from_takes_git_pathspec_globs(tmp_path):
+    guide = _seed()
+    guide["derivedFrom"] = ["Cargo.toml", ".github/workflows/*.yml", "crates/*/Cargo.toml"]
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
+                              "--draft")
+    assert code == 1
+    assert [e for e in report["errors"] if "derivedFrom" in e] == [
+        "derivedFrom[2]: 'crates/*/Cargo.toml' matches nothing in the repo"]

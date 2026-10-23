@@ -9,7 +9,7 @@
   "properties": {
     "version": { "const": 1 },
     "derivedFrom": {
-      "description": "Repo-relative paths the guide was derived from (CI files, manifests): a base change to one makes the guide stale.",
+      "description": "Repo-relative paths (git pathspecs: globs such as `crates/*/Cargo.toml` match) the guide was derived from (CI files, manifests): a base change to one makes the guide stale.",
       "type": "array",
       "items": { "type": "string" }
     },
@@ -31,7 +31,9 @@
     },
     "check": {
       "type": "object",
-      "required": ["name", "run", "results"],
+      "description": "A test check has a `list` (and so `results`); a gate check (a build, a lint, an install) has neither and gates on its exit code alone. `version` is for test checks only.",
+      "required": ["name", "run"],
+      "dependentRequired": { "list": ["results"], "version": ["list"] },
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
@@ -64,7 +66,7 @@
               "additionalProperties": false,
               "properties": {
                 "argvAppend": {
-                  "description": "Appended to every argv whose results are read (the base run, the probes' runs).",
+                  "description": "Added to every argv whose results are read (the base run, the probes' runs). Composition with an argv that has an end of options (`--`), for this and for `deselect.append`: the tokens before the list's own `--` (all of them when it has none) go just before the argv's `--` (at the end when it has none); the tokens after it go last, behind ONE `--`. A second `--` is never emitted.",
                   "type": "array",
                   "items": { "type": "string" }
                 },
@@ -149,7 +151,7 @@
             "append": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`)."
+              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`); a guide that puts `{ids:re|}` among the per-id tokens is refused. The tokens are then composed onto the argv around its `--` (see `results.how.argvAppend`)."
             }
           }
         },
@@ -183,7 +185,7 @@
           }
         },
         "verified": {
-          "description": "Written by `wicked-core floor probe`. `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. A probe that failed is retried once: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
+          "description": "Written by `wicked-core floor probe`. `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. The probes need a green clean run. When any probe fails, the whole probe re-runs once on a fresh copy and that retry's results are recorded, each marked ` (retried)`: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
           "type": "object",
           "additionalProperties": false,
           "properties": {

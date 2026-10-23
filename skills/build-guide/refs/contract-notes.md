@@ -2,7 +2,7 @@
 
 The contract is DES-BUILD-GUIDE's "Contract v1". Its machine form is wicked-core's
 `schemas/build-guide.v1.json`, which garden vendors byte for byte as
-`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at e2ad012,
+`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at 3fb9c86,
 which is not merged yet. Re-vendor it when that branch merges; a test pins the copy to its git
 blob. The core interpreter (`src/floor_guide.rs`) and probe (`src/floor_probe.rs`) are
 authoritative, and `rehearse.py` mirrors them piece by piece. The skill never adds a field.
@@ -47,31 +47,45 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 - **`verified`** is written by `floor probe` into the `--guide` file in place, including
   `runnerVersion`, which it records by running the check's `version` piece.
 
-## Rulings, as core implements them at e2ad012
+## Rulings, as core implements them at 3fb9c86
 
 1. **Regex placeholders.** `{id:re}` is the id regex-escaped (Rust `regex::escape`), repeated
    per id like `{id}`. `{ids:re|}` is every id regex-escaped and joined with `|` in ONE token,
-   never repeated. Both are allowed in `deselect.append` and `alone.run`. The vitest seed
-   deselects with `--testNamePattern=^(?!(?:{ids:re|})$)` and runs one test with
+   never repeated. A guide that puts it among the per-id tokens is refused, and `check.py`
+   errors on that too. Both are allowed in `deselect.append` and `alone.run`; in `alone.run`,
+   `{ids:re|}` is the one test's id. The vitest seed deselects with
+   `--testNamePattern=^(?!(?:{ids:re|})$)` and runs one test with
    `--testNamePattern=^{id:re}$`.
-2. **Runner version.** An optional `version: {run: argv}` piece. The probe runs it (stdout and
-   stderr merged), records the first output line as `runnerVersion` and adds a required
-   `version` probe. The floor runs it too, and a different version makes the check stale. The
-   skill writes the piece on every test check, and nothing fills `runnerVersion` by hand.
-3. **Retry.** Only a failed probe is re-run, on a fresh copy (core takes it from a second full
-   attempt). It is recorded as `pass (retried)`, which counts as passed, or
-   `fail: … (retried)`. A probe that fails for a missing piece (`fail: no \`…\``) is not
-   retried. `rehearse.py` does the same.
+2. **Runner version.** An optional `version: {run: argv}` piece, for test checks only (the
+   schema's `dependentRequired` makes `version` need `list`, and `list` need `results`). The
+   probe runs it (stdout and stderr merged), records the first output line as `runnerVersion`
+   and adds a required `version` probe. A different version makes the check stale. Nothing fills
+   `runnerVersion` by hand.
+3. **Green base, and retry.** The probes need a GREEN clean run. On a red one, `run` fails
+   ("needs a green base: …"), and so do `ids`, `alone`, `deselect`, `mutation` and `multi`.
+   Onboard from a green commit. When any probe fails (other than for a missing piece,
+   `fail: no \`…\``), the WHOLE probe re-runs once on a fresh copy, and that retry's results are
+   recorded, each marked ` (retried)`. `pass (retried)` counts as passed.
 4. **Exit codes.** 0 passes. A `failedExit` code with parsed failures is tests failing. A
    `failedExit` code with no parsed failure is `base_red_unseparated` on the base and
    `new_failure` on the head. Any other non-zero code is `could_not_run`.
 5. **The guide replaces detection.** When the base carries a usable guide, its checks ARE the
-   floor's checks (argv, cwd, stage; an absent `stage` means both). So the skill declares
-   EVERY step CI gates on: install, build, format, lint, typecheck and test. A check with no
-   `list` is a gate (`name`, `cwd`, `run`, `results.kind`, and `failedExit` if it has one). The
-   probe skips it, and its exit code alone decides it. `check.py --repo` warns for every CI step
-   no check declares. A step counts as declared when a check's `run` equals its argv, or the
-   argv of the recipe or npm script it runs (for an npm script, also with `npx` in front).
+   floor's checks (argv, cwd, stage; an absent `stage` means both). So the skill declares EVERY
+   step CI gates on: install, build, format, lint, typecheck and test. A check with no `list` is
+   a gate: `name`, `cwd`, `run`, and a `failedExit` if it has one; no `results`, no `version`.
+   The probe skips it, and its exit code alone decides it. `check.py --repo` warns for every CI
+   step no check declares. A step counts as declared when a check's `run` equals its argv, or
+   the argv of the recipe or npm script it runs (for an npm script, also with `npx` in front).
+6. **`alone` covers both sides.** The mutated test run alone must fail, naming exactly it (JUnit:
+   exactly one testcase ran). A passing test under the same qualifier, run alone, must be green
+   (JUnit: exactly it ran). A runner whose qualifier is the test file (cargo) needs that passing
+   test inside the mutation file.
+7. **Composition around `--`.** For `results.how.argvAppend` and `deselect.append`, the tokens
+   before the list's own `--` (all of them when it has none) go just before the argv's `--` (at
+   the end when it has none). The tokens after it go last, behind ONE `--`; a second `--` is never
+   emitted. A results run is `deselected(run, ids)` composed with `argvAppend`.
+8. **`derivedFrom` holds git pathspecs.** Globs such as `crates/*/Cargo.toml` match, and
+   `check.py --repo` errors on an entry that matches nothing.
 
 ## Why the pytest seed is text, not JUnit
 

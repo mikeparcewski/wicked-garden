@@ -12,10 +12,7 @@
         "pip",
         "install",
         "pytest"
-      ],
-      "results": {
-        "kind": "text"
-      }
+      ]
     },
     {
       "name": "test",

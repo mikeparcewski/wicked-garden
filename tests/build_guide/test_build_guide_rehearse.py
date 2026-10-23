@@ -30,6 +30,10 @@ def _results(report: dict) -> dict:
     return next(c for c in report["checks"] if "results" in c)["results"]
 
 
+def _unretried(results: dict) -> dict:
+    return {k: v.removesuffix(" (retried)") for k, v in results.items()}
+
+
 def _variant(tmp_path: Path, source: Path, edit) -> Path:
     guide = json.loads(source.read_text(encoding="utf-8"))
     edit(next(c for c in guide["checks"] if "list" in c))
@@ -52,7 +56,10 @@ def test_a_failed_probe_is_retried_once_and_named(tmp_path, python3_on_path):
     code, report = _rehearse(FIXTURES / "tinyrun-repo", _variant(tmp_path, GUIDES / "tinyrun-text.json", per_line),
                              python3_on_path)
     assert code == 1
-    assert _results(report)["run"] == "fail: exit 0 with 1 parsed failure(s) (retried)"
+    results = _results(report)
+    assert results["run"] == ("fail: needs a green base: the clean run exited 0 with 1 parsed failure(s) "
+                              "(retried)")
+    assert all(v.endswith(" (retried)") for v in results.values())
 
 
 def test_a_passing_rehearsal_retries_nothing(python3_on_path):
@@ -69,6 +76,8 @@ def test_a_failure_for_a_missing_piece_is_not_retried(python3_on_path, monkeypat
     import rehearse as rehearse_mod
     report = rehearse_mod.rehearse_check(guide["checks"][0], FIXTURES / "tinyrun-repo", 120, ["target"], [])
     assert report["results"]["multi"] == "fail: no `probes.mutation2`"
+    assert report["results"]["mutation"] == "fail: no `probes.mutation2`"
+    assert report["results"]["run"] == "pass", "not retried"
 
 
 def test_a_gate_check_is_skipped(python3_on_path):
@@ -84,7 +93,10 @@ def test_tinyrun_per_line_rule_is_forged_by_test_output(tmp_path, python3_on_pat
     code, report = _rehearse(FIXTURES / "tinyrun-repo", _variant(tmp_path, GUIDES / "tinyrun-text.json", per_line),
                              python3_on_path)
     assert code == 1
-    assert _results(report)["run"] == "fail: exit 0 with 1 parsed failure(s) (retried)"
+    results = _results(report)
+    assert results["run"] == ("fail: needs a green base: the clean run exited 0 with 1 parsed failure(s) "
+                              "(retried)")
+    assert all(v.endswith(" (retried)") for v in results.values())
 
 
 def test_rehearsal_never_writes_the_guide(tmp_path, python3_on_path):
@@ -95,12 +107,16 @@ def test_rehearsal_never_writes_the_guide(tmp_path, python3_on_path):
     assert guide.read_bytes() == before
 
 
-def test_a_red_base_still_rehearses_and_the_mutation_is_the_one_new_failure(fixture_copy, python3_on_path):
+def test_a_red_base_fails_every_probe_that_needs_a_green_one(fixture_copy, python3_on_path):
+    """Onboard from a green commit: the probes need a green clean run."""
     repo = fixture_copy("tinyrun-repo")
     (repo / "checks" / "broken.tc").write_text("off 1 == 0\n", encoding="utf-8")
     code, report = _rehearse(repo, GUIDES / "tinyrun-text.json", python3_on_path)
-    assert code == 0, report
-    assert _results(report) == ALL_PASS
+    results = _unretried(_results(report))
+    assert code == 1
+    assert results["run"] == "fail: needs a green base: the clean run exited 3 with 1 parsed failure(s)"
+    assert {results[p] for p in ("mutation", "multi", "ids", "alone", "deselect")} == {"fail: needs a green base"}
+    assert results["list"] == "pass" and results["version"] == "pass"
 
 
 def test_a_red_exit_with_no_parsed_failure_fails_the_run_probe(fixture_copy, python3_on_path):
@@ -108,7 +124,8 @@ def test_a_red_exit_with_no_parsed_failure_fails_the_run_probe(fixture_copy, pyt
     (repo / "checks" / "unreadable.tc").write_text("bad 1 == x\n", encoding="utf-8")
     code, report = _rehearse(repo, GUIDES / "tinyrun-text.json", python3_on_path)
     assert code == 1
-    assert _results(report)["run"] == "fail: exit 1 with 0 parsed failure(s) (retried)"
+    assert _results(report)["run"] == ("fail: needs a green base: the clean run exited 1 with 0 parsed failure(s) "
+                                       "(retried)")
 
 
 def test_a_guide_that_does_not_lint_is_refused_before_anything_runs(tmp_path):
@@ -136,7 +153,7 @@ def test_pytest_seed_without_force_short_summary_loses_failures_in_ci_mode(tmp_p
     guide = _variant(tmp_path, SEEDS / "pytest-short-summary.json", lambda c: c["results"]["how"].update(argvAppend=[]))
     code, report = _rehearse(FIXTURES / "pytest-repo", guide, {**python3_on_path, "CI": "true"})
     assert code == 1
-    assert _results(report)["multi"].startswith("fail: with both mutations the new failures are [('', "
+    assert _results(report)["multi"].startswith("fail: with both mutations: [('', "
                                                 "'tests/test_wicked_mutation.py::test_wicked_mutation_probe')]")
 
 
@@ -146,7 +163,8 @@ def test_pytest_junit_ids_fail_the_ids_probe_for_class_methods(python3_on_path):
     code, report = _rehearse(FIXTURES / "pytest-repo", GUIDES / "pytest-junit.json", python3_on_path)
     results = _results(report)
     assert code == 1
-    assert {k: v for k, v in results.items() if k != "ids"} == {k: v for k, v in ALL_PASS.items() if k != "ids"}
+    assert {k: v for k, v in _unretried(results).items() if k != "ids"} == {
+        k: v for k, v in ALL_PASS.items() if k != "ids"}
     assert results["ids"] == ("fail: the results name `tests/test_calc.py::test_param[1]` (q ``), "
                               "which the list does not (retried)")
 
@@ -173,8 +191,10 @@ def test_cargo_flag_and_value_in_two_tokens_breaks_two_ids(tmp_path):
     code, report = _rehearse(FIXTURES / "cargo-repo", guide, timeout=600)
     results = _results(report)
     assert code == 1
-    assert {k: v for k, v in results.items() if k != "multi"} == {k: v for k, v in ALL_PASS.items() if k != "multi"}
-    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 101) (retried)"
+    assert {k: v for k, v in _unretried(results).items() if k != "multi"} == {
+        k: v for k, v in ALL_PASS.items() if k != "multi"}
+    assert results["multi"].startswith("fail: with both mutations: ") and results["multi"].endswith(
+        "deselecting both must run green and list exactly the rest (retried)")
 
 
 @pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") != "1" or shutil.which("npm") is None,
@@ -202,6 +222,7 @@ def test_vitest_repeated_name_pattern_fails_multi(fixture_copy, tmp_path):
     code, report = _rehearse(repo, guide, timeout=600)
     results = _results(report)
     assert code == 1
-    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 1) (retried)"
-    assert {k: v for k, v in results.items() if k != "multi"} == {k: v for k, v in ALL_PASS.items() if k != "multi"}
+    assert results["multi"].startswith("fail: with both mutations: ") and results["multi"].endswith("(retried)")
+    assert {k: v for k, v in _unretried(results).items() if k != "multi"} == {
+        k: v for k, v in ALL_PASS.items() if k != "multi"}
 
