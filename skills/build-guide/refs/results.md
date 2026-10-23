@@ -82,10 +82,10 @@ round-trip test.
 - **vitest** (`vitest-junit.json`): JUnit through `--reporter=junit --outputFile=…`, with
   `results.id: ["name"]` (the full name, `suite > test`). That matches `vitest list`'s
   `file > name` line with item `^\S+ > (?P<id>.+)$`. The tests a name filter leaves out appear
-  as `<skipped/>` testcases, which neither pass nor fail, so `alone` holds. vitest takes one name
-  pattern only and rejects a repeated one, so `["--testNamePattern=^(?!{id}$)"]` passes the
-  `mutation` probe but fails `multi` (two ids). Say so in the proposal: with two or more base
-  failures, that check does not exclude. `{id}` also lands unescaped inside a regex.
+  as `<skipped/>` testcases, which neither pass nor fail. vitest takes one name pattern only,
+  and rejects a repeated one. So `alone` uses `--testNamePattern=^{id:re}$` and deselect uses
+  one token for every id, `--testNamePattern=^(?!(?:{ids:re|})$)`. Both are regex-escaped, so a
+  name with `(`, `.` or `+` stays literal.
 - **A runner with no structured output** (the `tinyrun` fixture in the garden tests): a block
   from `^--- tinyrun summary ---$` to `^--- [0-9]+ failed, [0-9]+ passed ---$` with item
   `^FAIL (?P<id>\S+)$`. A per-line rule on `... FAIL` would be forged by test output that prints

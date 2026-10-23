@@ -18,28 +18,10 @@
       "package.json"
     ],
     "no_verified": true,
-    "rehearsal": {
-      "list": "pass",
-      "run": "pass",
-      "mutation": "pass",
-      "ids": "pass",
-      "alone": "pass",
-      "deselect": "pass",
-      "multi": "fail"
-    },
-    "message_includes_any": [
-      [
-        "multi",
-        "two ids",
-        "both",
-        "repeated name pattern",
-        "repeated -t",
-        "more than one"
-      ]
-    ],
+    "rehearsal": "all-pass",
     "message_includes": [
       "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
     ]
   },
-  "rationale": "vitest has a JUnit reporter whose ids round-trip with `vitest list`, so the guide is junit (a name filter's left-out tests are <skipped/> testcases, which neither pass nor fail). vitest rejects a repeated name pattern, so deselecting two ids fails the `multi` probe; the skill must report that limit, not hide it."
+  "rationale": "vitest has a JUnit reporter whose ids round-trip with `vitest list`, so the guide is junit (a name filter's left-out tests are <skipped/> testcases, which neither pass nor fail). vitest takes one name pattern and rejects a repeated one, so deselect must put every id in one regex-escaped `{ids:re|}` token; a per-id pattern fails the `multi` probe."
 }

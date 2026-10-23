@@ -23,6 +23,9 @@ reported honestly when the probe is unavailable). It mirrors wicked-core's ``flo
   expected ids, and deselecting both leaves the clean run's failures.
 * ``affected`` — when declared: run on the mutation file, its failures include the mutated id.
 
+A probe that fails is retried once, as core does; failing twice means unverified (``retried``
+names the probes that needed the retry).
+
 The copy omits ``.git`` and ``--exclude`` dirs (default ``target``) and symlinks ``--link`` dirs
 (default ``node_modules``, ``.venv``) instead of copying them. Prints one JSON report; exit 0
 when no probe failed, 1 when one did, 2 when the guide does not check. Standard library only.
@@ -252,6 +255,20 @@ def _probe_multi(check: dict, workdir: Path, clean_failed: set, timeout: int) ->
 
 
 def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
+    """The core probe's pieces, retried once as core does: a probe that failed is run again (a
+    fresh scratch copy, every piece in order) and passes if the retry passes; failing twice
+    leaves the guide unverified."""
+    first = _rehearse_once(check, repo, timeout, exclude, link)
+    failed = [p for p, v in first.items() if v.startswith("fail")]
+    if not failed:
+        return {"name": check["name"], "results": first, "retried": [], "ok": True}
+    second = _rehearse_once(check, repo, timeout, exclude, link)
+    results = {p: (second.get(p, v) if p in failed else v) for p, v in first.items()}
+    return {"name": check["name"], "results": results, "retried": failed,
+            "ok": not any(v.startswith("fail") for v in results.values())}
+
+
+def _rehearse_once(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
     """The core probe's pieces, in its order."""
     results: dict[str, str] = {}
     scratch = make_scratch(repo, exclude, link)
@@ -279,8 +296,7 @@ def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], li
                                    _verdict(hit in aff.failures, f"the affected run's failures do not include `{hit[1]}`"))
     finally:
         shutil.rmtree(scratch.parent, ignore_errors=True)
-    return {"name": check["name"], "results": results,
-            "ok": not any(v.startswith("fail") for v in results.values())}
+    return results
 
 
 def main(argv: list[str] | None = None) -> int:

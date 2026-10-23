@@ -44,25 +44,39 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
   `deselect`, a `list` (to compile) and a `text`/`junit` kind. `run` passes on a red base when
   its failures parse. A new failure that passes when run alone counts as the suite's flake and
   is set aside.
-- **`verified`** is written by `floor probe` into the `--guide` file in place. The probe leaves
-  `runnerVersion` blank, and the skill fills it from `<runner> --version` (`probe.py
-  --version-argv`) before it proposes the guide.
+- **`verified`** is written by `floor probe` into the `--guide` file in place, including
+  `runnerVersion`, which it records by running the check's `version` piece.
 
-## Still open (for wicked-core)
+## Rulings (coordinator, 2026-10-23; core implements them)
 
-1. **`{id}` inside a regex token.** No escaping is needed for a shell, but when the token is a
-   regex for the runner (vitest `--testNamePattern=^(?!{id}$)`), an id with metacharacters
-   still changes its meaning. The contract has no regex-escape form.
-2. **`runnerVersion` and staleness.** The DES calls a guide stale when the runner version
-   changes. The floor's `usable()` checks `derivedFrom` and `invalidatedBy`, but not
-   `runnerVersion`, and the probe leaves the field blank. As it stands, the field is a record,
-   not a staleness check.
-3. **A flake that fails the deselected run.** With a clean base, the mutation and `multi`
-   checks require the deselected run to exit 0. A new failure that passes alone is set aside
-   from the failure list, but it still turns that exit non-zero, so the check fails.
-4. **`failedExit` vs could-not-run.** cargo exits 101 on a compile error and on a libtest usage
-   error, and vitest exits 1 on a config error. A floor run that exits with a `failedExit` code
-   but names no failure is not described.
-5. **`run` must equal the floor's declared check.** The guide is the allowlist (`check_for`
-   matches argv and cwd exactly). How crew declares the floor's check argv, so that it can
-   match `run`, is not stated.
+1. **Regex placeholders.** `{id:re}` is the id regex-escaped, repeated per id like `{id}`.
+   `{ids:re|}` is every id regex-escaped and joined with `|` into one token. A runner that
+   takes a single exclusion pattern uses the second. The vitest seed deselects with
+   `--testNamePattern=^(?!(?:{ids:re|})$)`.
+2. **Runner version.** An optional `version: {run: argv}` piece. The probe records
+   `runnerVersion` from it, and the floor treats a different version as stale. The skill writes
+   the piece; nothing fills `runnerVersion` by hand.
+3. **Flaky probes.** Core retries a failed probe once, and a probe that fails twice leaves the
+   guide unverified. `rehearse.py` does the same, and names the retried probes.
+4. **A `failedExit` code with no parsed failure** is `base_red_unseparated` on the base and
+   `new_failure` on the head. Any other non-zero code is `could_not_run`.
+5. **The guide replaces detection.** When a usable guide exists, its checks replace the floor's
+   own check detection, and each runs at the `stage`s it declares.
+
+## Why the pytest seed is text, not JUnit
+
+pytest's `--collect-only -q` list and `--deselect` take node ids, and a class method's node id
+carries its class: `tests/test_calc.py::TestGroup::test_x`. JUnit has no attribute that holds
+the class alone:
+- `classname` is `tests.test_calc.TestGroup`, dotted, with the module path in front;
+- `name` is `test_x`;
+- `file`, with `-o junit_family=xunit1`, is `tests/test_calc.py`.
+
+`results.id` can only join whole attributes, so the closest it gets, `["file","name"]`, gives
+`tests/test_calc.py::test_x`. That is right for module-level tests and wrong for every class
+method, and the `ids` probe fails on it. Rebuilding the node id would need a transformation
+(take the last dotted segment of `classname`) that the contract does not have, and should not
+grow for one runner. pytest's own short test summary (`-rfE`, with `--force-short-summary` so
+CI mode keeps one line per failure) prints the node id itself. So the seed is `text`, and it
+passes every probe. `tests/build_guide/guides/pytest-junit.json` keeps the JUnit attempt as the
+documented negative case.

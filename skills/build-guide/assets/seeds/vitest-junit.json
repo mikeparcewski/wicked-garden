@@ -47,13 +47,12 @@
           "npx",
           "vitest",
           "run",
-          "-t",
-          "^{id}$"
+          "--testNamePattern=^{id:re}$"
         ]
       },
       "deselect": {
         "append": [
-          "--testNamePattern=^(?!{id}$)"
+          "--testNamePattern=^(?!(?:{ids:re|})$)"
         ]
       },
       "invalidatedBy": [

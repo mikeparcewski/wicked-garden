@@ -169,10 +169,10 @@ def test_a_schema_with_keywords_the_validator_cannot_check_is_refused(tmp_path):
     assert report["schema"] == str(schema_path)
 
 
-def test_core_s_own_guide_checks_clean_and_its_blank_runner_version_is_flagged():
+def test_core_s_own_guide_checks_clean_and_a_missing_version_piece_is_flagged():
     code, report = run_script("check", "--guide", str(GUIDES / "wicked-core.json"))
     assert code == 0, report["errors"]
-    assert any("runnerVersion: blank" in w for w in report["warnings"])
+    assert any(".version: missing" in w for w in report["warnings"])
 
 
 def test_a_probed_guide_whose_required_probe_failed_is_flagged(tmp_path):

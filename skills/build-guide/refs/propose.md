@@ -25,7 +25,7 @@ answer. Put the same body in your unit output.
 ## Build/test guide (.wicked/build-guide.json)
 
 Derived from: <derivedFrom, one per line>
-Runner: <the `--version` output; the same text probe.py --version-argv wrote into verified.runnerVersion>
+Runner: <verified.runnerVersion, which the probe recorded from the `version` piece>
 Schema: <the `schema` field check.py printed>
 
 ### Probe results (`wicked-core floor probe`)
