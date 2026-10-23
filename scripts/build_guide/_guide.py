@@ -9,7 +9,7 @@ Three things live here, used by check.py and rehearse.py:
 * ``lint`` — what the schema does not say: regexes compile and stay inside RE2 (a rule that is
   not anchored ``^...$`` is a warning), the named groups exist, the templates carry their
   placeholders, paths are repo-relative, a draft carries no ``verified`` (only
-  ``wicked-core floor probe`` writes it; the skill only fills its blank ``runnerVersion``), and
+  ``wicked-core floor probe`` writes it, including ``runnerVersion`` from the ``version`` piece), and
   what the FLOOR requires is present — a non-empty ``failedExit``, ``alone``, ``deselect``, a
   ``text`` or ``junit`` results kind, a ``list`` — plus what the skill always writes
   (``derivedFrom``, two distinct mutation probes). The schema makes these optional; the floor
@@ -46,7 +46,11 @@ SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@f88a639 schemas/build-guid
 REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
 SHELLS = {"sh", "bash", "zsh", "dash", "fish", "cmd", "cmd.exe", "powershell", "pwsh"}
 UNAVAILABLE = "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
-PLACEHOLDERS = ("{id}", "{q}")
+# Per-id placeholders (their token repeats once per id) and the all-ids one (its token is added once).
+PLACEHOLDERS = ("{id}", "{q}", "{id:re}")
+ALL_IDS = "{ids:re|}"
+# The characters Rust's regex::escape escapes (the core interpreter's escape).
+_RE_META = set("\\.+*?()|[]{}^$#&-~")
 
 # Keywords the subset validator implements, plus annotation-only keywords it may ignore.
 _VALIDATED = {"$ref", "type", "const", "enum", "minLength", "pattern", "minimum", "maximum",
@@ -128,7 +132,7 @@ def _repo_relative(where: str, value: str) -> list[str]:
 
 
 def _has_placeholder(argv: list[str]) -> bool:
-    return any(p in a for a in argv for p in PLACEHOLDERS)
+    return any(p in a for a in argv for p in PLACEHOLDERS + (ALL_IDS,))
 
 
 def _lint_parser(at: str, parser: dict) -> list[str]:
@@ -189,6 +193,9 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
         errors.append(f"{at}.alone.run: needs an {{id}} (or {{q}}) placeholder")
     if "deselect" in check and not _has_placeholder(check["deselect"].get("append", [])):
         errors.append(f"{at}.deselect.append: needs an {{id}} (or {{q}}) placeholder")
+    if not check.get("version", {}).get("run"):
+        warnings.append(f"{at}.version: missing; the skill writes the runner's own version command, so a "
+                        "runner change marks the guide stale")
     if "affected" in check and not any("{files}" in a for a in check["affected"].get("run", [])):
         errors.append(f"{at}.affected.run: needs a {{files}} placeholder")
     probes = check.get("probes", {})
@@ -214,8 +221,9 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
         unpassed = [f"{p}: {results.get(p, 'never ran')}" for p in needed if results.get(p) != "pass"]
         if unpassed:
             warnings.append(f"{at}.verified: the floor will not rely on this check ({'; '.join(unpassed)})")
-        if not verified.get("runnerVersion"):
-            warnings.append(f"{at}.verified.runnerVersion: blank; fill it from `<runner> --version` before proposing")
+        if "version" in check and not verified.get("runnerVersion"):
+            warnings.append(f"{at}.verified.runnerVersion: blank although the check has a `version` piece; "
+                            "probe again")
     return errors, warnings
 
 
@@ -349,7 +357,15 @@ def parse_list(spec: dict[str, Any], text: str) -> list[Failure]:
     return ids
 
 
+def re_escape(text: str) -> str:
+    """``text`` with every regex metacharacter backslash-escaped, as Rust's ``regex::escape``."""
+    return "".join("\\" + c if c in _RE_META else c for c in text)
+
+
 def substitute(argv: list[str], **values: str) -> list[str]:
+    """Fill ``{id}``, ``{q}`` and ``{id:re}`` (the id regex-escaped) in every token."""
+    if "id" in values:
+        values = {**values, "id:re": re_escape(values["id"])}
     out = []
     for token in argv:
         for key, val in values.items():
@@ -359,11 +375,14 @@ def substitute(argv: list[str], **values: str) -> list[str]:
 
 
 def deselect_tokens(append: list[str], failures: list[Failure], argv: list[str]) -> list[str]:
-    """The schema's composition: tokens before the first one with ``{id}``/``{q}`` once (a leading
-    ``--`` only when ``argv`` has none), the tokens through the last such one once per id, the rest once."""
+    """The schema's composition: tokens before the first one with ``{id}``/``{q}``/``{id:re}`` once
+    (a leading ``--`` only when ``argv`` has none), the tokens through the last such one once per
+    id, the rest once. ``{ids:re|}`` (in a token added once) is every id regex-escaped, joined by ``|``."""
+    joined = "|".join(re_escape(ident) for _q, ident in failures)
+    fill_all = lambda tokens: [t.replace(ALL_IDS, joined) for t in tokens]  # noqa: E731
     marked = [i for i, tok in enumerate(append) if any(p in tok for p in PLACEHOLDERS)]
     if not marked:
-        return list(append)
+        return fill_all(append)
     first, last = marked[0], marked[-1]
     prefix = list(append[:first])
     if prefix and prefix[0] == "--" and "--" in argv:
@@ -371,7 +390,7 @@ def deselect_tokens(append: list[str], failures: list[Failure], argv: list[str])
     middle: list[str] = []
     for q, ident in failures:
         middle += substitute(append[first:last + 1], id=ident, q=q)
-    return prefix + middle + list(append[last + 1:])
+    return fill_all(prefix) + fill_all(middle) + fill_all(append[last + 1:])
 
 
 def expand_files(argv: list[str], files: list[str]) -> list[str]:

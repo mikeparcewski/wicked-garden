@@ -45,6 +45,21 @@ def test_tinyrun_text_parser_passes_every_probe(python3_on_path):
     assert report["rehearsal"] is True and "verified is not written" in report["note"]
 
 
+def test_a_failed_probe_is_retried_once_and_named(tmp_path, python3_on_path):
+    def per_line(check):
+        check["parser"] = {"failed": ["^\\[[a-z]+\\] (?P<id>\\S+) \\.\\.\\. FAIL$"]}
+
+    code, report = _rehearse(FIXTURES / "tinyrun-repo", _variant(tmp_path, GUIDES / "tinyrun-text.json", per_line),
+                             python3_on_path)
+    assert code == 1
+    assert "run" in report["checks"][0]["retried"]
+
+
+def test_a_passing_rehearsal_retries_nothing(python3_on_path):
+    code, report = _rehearse(FIXTURES / "tinyrun-repo", GUIDES / "tinyrun-text.json", python3_on_path)
+    assert code == 0 and report["checks"][0]["retried"] == []
+
+
 def test_tinyrun_per_line_rule_is_forged_by_test_output(tmp_path, python3_on_path):
     def per_line(check):
         check["parser"] = {"failed": ["^\\[[a-z]+\\] (?P<id>\\S+) \\.\\.\\. FAIL$"]}
@@ -147,14 +162,27 @@ def test_cargo_flag_and_value_in_two_tokens_breaks_two_ids(tmp_path):
 
 @pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") != "1" or shutil.which("npm") is None,
                     reason="needs the npm registry: set WICKED_GARDEN_E2E_NPM=1")
-def test_vitest_junit_seed_fails_only_multi(fixture_copy):
-    """vitest's JUnit reports the tests a name filter left out as <skipped/> testcases, which
-    neither pass nor fail, so `alone` passes; vitest rejects a repeated name pattern, so the two-id
-    deselect in `multi` fails."""
+def test_vitest_junit_seed_passes_every_probe(fixture_copy):
+    """vitest takes one name pattern, so the seed deselects every id in one `{ids:re|}` token; the
+    tests a name filter leaves out are <skipped/> testcases, which neither pass nor fail."""
     repo = fixture_copy("vitest-repo")
     subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=repo, check=True, capture_output=True,
                    timeout=300)
     code, report = _rehearse(repo, SEEDS / "vitest-junit.json", timeout=600)
+    assert code == 0, report
+    assert _results(report) == ALL_PASS
+
+
+@pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") != "1" or shutil.which("npm") is None,
+                    reason="needs the npm registry: set WICKED_GARDEN_E2E_NPM=1")
+def test_vitest_repeated_name_pattern_fails_multi(fixture_copy, tmp_path):
+    """The per-id form (`--testNamePattern=^(?!{id:re}$)`) passes one id; vitest rejects it repeated."""
+    repo = fixture_copy("vitest-repo")
+    subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=repo, check=True, capture_output=True,
+                   timeout=300)
+    guide = _variant(tmp_path, SEEDS / "vitest-junit.json",
+                     lambda c: c["deselect"].update(append=["--testNamePattern=^(?!{id:re}$)"]))
+    code, report = _rehearse(repo, guide, timeout=600)
     results = _results(report)
     assert code == 1
     assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 1)"

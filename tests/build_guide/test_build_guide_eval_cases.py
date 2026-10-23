@@ -31,9 +31,7 @@ REFERENCE = {
     "pytest-junit": (SEEDS / "pytest-short-summary.json",
                      f"the ids probe failed: JUnit ids do not round-trip to pytest node ids; using the short test "
                      f"summary. {UNAVAILABLE}"),
-    "vitest-junit": (SEEDS / "vitest-junit.json",
-                     f"multi failed: vitest rejects a repeated name pattern, so two ids cannot be deselected. "
-                     f"{UNAVAILABLE}"),
+    "vitest-junit": (SEEDS / "vitest-junit.json", UNAVAILABLE),
     "fake-runner-no-structured-output": (GUIDES / "tinyrun-text.json", UNAVAILABLE),
     "no-tests": (None, NO_GUIDE),
 }

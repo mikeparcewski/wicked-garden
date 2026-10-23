@@ -124,3 +124,12 @@ def test_deselect_composition_follows_the_schema():
 def test_files_placeholder_expands_to_one_token_per_file():
     assert guide_mod.expand_files(["run", "{files}"], ["a.rs", "b.rs"]) == ["run", "a.rs", "b.rs"]
     assert guide_mod.substitute(["-t", "^(?!{id}$)"], id="sum > adds") == ["-t", "^(?!sum > adds$)"]
+
+
+def test_regex_placeholders_escape_ids_per_id_and_all_at_once():
+    ids = [("", "sum > a (b)"), ("", "x.y+z")]
+    assert guide_mod.deselect_tokens(["--testNamePattern=^(?!(?:{ids:re|})$)"], ids, ["npx", "vitest", "run"]) == [
+        "--testNamePattern=^(?!(?:sum > a \\(b\\)|x\\.y\\+z)$)"]
+    assert guide_mod.deselect_tokens(["--skip=^{id:re}$"], ids, ["runner"]) == [
+        "--skip=^sum > a \\(b\\)$", "--skip=^x\\.y\\+z$"]
+    assert guide_mod.substitute(["-t", "^{id:re}$"], id="a|b", q="") == ["-t", "^a\\|b$"]

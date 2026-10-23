@@ -44,7 +44,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 |--------|------|-----|
 | `discover` (default) | the repo has no guide | steps 1 to 6 below |
 | `refresh` | the guide is stale (a `derivedFrom` file or the runner version changed), a probe failed, or crew dispatched re-onboarding | start from the committed guide; if a `derivedFrom` file changed, redo step 1; otherwise revise only the failing piece; then steps 4 to 6 |
-| `check` | validate a guide file someone wrote | `wicked-garden run scripts/build_guide/check.py --guide <file> --repo <dir> [--schema <file>]`. It flags what the floor needs before it will use a check: a non-empty `failedExit`, `alone`, `deselect`, a `list`, and a `text` or `junit` results kind. On a probed guide it also flags any required probe that did not pass, and a blank `runnerVersion`. |
+| `check` | validate a guide file someone wrote | `wicked-garden run scripts/build_guide/check.py --guide <file> --repo <dir> [--schema <file>]`. It flags what the floor needs before it will use a check: a non-empty `failedExit`, `alone`, `deselect`, a `list`, and a `text` or `junit` results kind. It warns when the `version` piece is missing. On a probed guide it also flags any required probe that did not pass. |
 
 The contract is fixed (DES-BUILD-GUIDE, "Contract v1"). Its schema is wicked-core's
 `schemas/build-guide.v1.json`, which the scripts carry as a vendored copy. Produce exactly that
@@ -57,13 +57,24 @@ as `--schema`.
   lines are allowed), and any other line ends the block.
 - No argv goes through a shell. `{id}`/`{q}` fill whole argv elements, so no quoting is needed;
   `{q}` is allowed in `alone` and `deselect`. `{files}` expands to one argv element per file.
-- Deselect tokens before the first `{id}`/`{q}` token are added once (a leading `--` only when
-  the argv has none). The tokens through the last one repeat per id, and the rest are added once.
-  So a flag and its value are one token (`--skip={id}`).
+  When a token is a regex for the runner, use `{id:re}` (the id regex-escaped, per id) or
+  `{ids:re|}` (every id regex-escaped and joined with `|`, in a single token).
+- Deselect tokens before the first per-id token (`{id}`, `{q}`, `{id:re}`) are added once (a
+  leading `--` only when the argv has none). The tokens through the last one repeat per id, and
+  the rest are added once. So a flag and its value are one token (`--skip={id}`). A runner that
+  takes one exclusion pattern gets one `{ids:re|}` token instead.
 - Paths (`results.how.path`, the mutation files) are relative to `cwd`. `invalidatedBy` globs
   are matched against the files the change touched.
 - A JUnit `<skipped/>` testcase neither passed nor failed. The results kind is `text` or
   `junit`; `json-lines` and `tap` are reserved.
+- How the floor reads exit codes: 0 passes. A code in `failedExit` with parsed failures is
+  tests failing. A `failedExit` code with no parsed failure is `base_red_unseparated` on the
+  base and `new_failure` on the head. Any other non-zero code is `could_not_run`.
+- When a usable guide exists, its checks replace the floor's own detection, run at the
+  `stage`s they declare.
+- `version: {run: argv}` is the runner's own version command. The probe records its output as
+  `runnerVersion`, and the floor treats a different version as stale. A failed probe is retried
+  once; failing twice leaves the guide unverified.
 
 ## 1. Discover what the repo already declares
 
@@ -80,7 +91,8 @@ read those files yourself, in that order.
 Then interrogate each candidate's runner: run its `--version` and `--help`, and any sub-help it
 points to (for example `cargo test -- --help`). From the runner's own words, learn its result
 formats, how it lists tests, how it runs one test, how it deselects exact tests, and which exit
-code means "tests failed". `refs/discover.md` has the checklist. Record every file you derived
+code means "tests failed". Record the version command as the check's `version` piece
+(`{"run": ["<runner>", "--version"]}`). `refs/discover.md` has the checklist. Record every file you derived
 the guide from in `derivedFrom`.
 
 `verdict: no-test-command` → go to step 6.
@@ -119,10 +131,9 @@ wicked-garden run scripts/build_guide/probe.py --repo <dir> --guide <draft>
   `multi`, and `affected` when present) in a scratch copy, so you can iterate quickly. It is not
   evidence and writes nothing.
 - `probe` runs `wicked-core floor probe --repo <dir> --guide <file>`. Only that command writes
-  `verified`. **Never hand-write `verified`**, and never edit what the probe wrote. The one
-  exception: the probe leaves `runnerVersion` blank. Add `--version-argv '["<runner>","--version"]'`
-  (a JSON argv) and `probe.py` fills that blank field from the runner's own output before you
-  propose.
+  `verified`, including `runnerVersion` from the `version` piece you wrote (for example
+  `{"run": ["cargo", "--version"]}`). **Never hand-write `verified`**, and never edit what the
+  probe wrote. Both the probe and the rehearsal retry a failed probe once.
 
 A failed probe names a piece. Revise that piece's argv, parser or template and probe again. Stop
 after **3 probe attempts** for a check, and report each attempt's results. Do not keep tuning.
