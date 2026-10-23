@@ -101,7 +101,8 @@ wicked-garden run scripts/build_guide/probe.py --repo <dir> --guide <draft>
 - `check --draft` validates the shape and refuses a draft that carries `verified`.
 - `rehearse` mirrors the core probes in a scratch copy, so you can iterate quickly. It is not
   evidence and writes nothing. It adds two checks the core probes do not make: `deselect-many`
-  (deselect two ids at once) and, for JUnit, `round-trip` (every reported id is a listed id).
+  (two mutations, both named and both deselected) and, for JUnit, `round-trip` (every reported
+  id is a listed id).
   Report a failure of either, even when the probe passes.
 - `probe` runs `wicked-core floor probe --repo <dir> --guide <file>`. Only that command writes
   `verified`. **Never hand-write `verified`**, and never edit what the probe wrote.

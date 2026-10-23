@@ -34,7 +34,8 @@ round-trip test.
 
 1. **Capture real output** of this repo's runner with the mutation probe in a scratch copy
    (`rehearse.py`, or run it yourself). Write the rules against that text.
-2. **Use the runner's own final summary.** Most runners end with a block that lists the failed
+2. **Use the runner's own final summary** (and check it with more than one failure: one item
+   that wraps onto a second line ends the block). Most runners end with a block that lists the failed
    ids (libtest's second `failures:` list, pytest's `short test summary info`). Express it as a
    `blocks` rule: `start`, `item` with `(?P<id>…)`, `end`, and `use`. Avoid per-line `failed`
    rules on lines interleaved with test output, because a test that prints a look-alike line
@@ -69,7 +70,11 @@ round-trip test.
 - **pytest** (`pytest-short-summary.json`): text on `-rfE`. The block runs from
   `^=+ short test summary info =+$` to the final count line, with item
   `^(?:FAILED|ERROR) (?P<id>.+?)(?: - .*)?$`. `list` is `--collect-only -q`, `deselect` is
-  `--deselect={id}`, and `-p no:cacheprovider` keeps the scratch copy clean.
+  `--deselect={id}`, and `-p no:cacheprovider` keeps the scratch copy clean. When `CI` is set,
+  pytest prints each failure's full, multi-line message in the summary. A continuation line ends
+  the block, so only the first failure would be named. `results.how.argvAppend:
+  ["--force-short-summary"]` keeps one line per failure (check that `pytest --help` lists the
+  flag).
 - **vitest** (`vitest-junit.json`): JUnit through `--reporter=junit --outputFile=…`, with
   `results.id: ["name"]` (the full name, `suite > test`). That matches `vitest list`'s
   `file > name` line with item `^\S+ > (?P<id>.+)$`. vitest takes one name pattern only and

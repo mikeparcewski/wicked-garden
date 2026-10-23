@@ -27,7 +27,9 @@
       "results": {
         "kind": "text",
         "how": {
-          "argvAppend": [],
+          "argvAppend": [
+            "--force-short-summary"
+          ],
           "env": {}
         }
       },
