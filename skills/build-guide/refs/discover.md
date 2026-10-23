@@ -20,7 +20,12 @@ npm's `no test specified` placeholder, which declares that the repo has no tests
 
 ## Choosing the check(s)
 
-- One check per distinct test command CI runs, for example a Rust workspace and a JS package in
+- **Every CI step is a check.** A usable guide replaces the floor's own detection, so a CI step
+  the guide leaves out stops gating. Declare each `ciSteps` entry. Install, build, format, lint
+  and typecheck are gates: `name`, `cwd`, `run`, `results: {"kind": "text"}`, and a
+  `failedExit` where the tool documents one. Gates have no `list` and are not probed.
+  `check.py --repo` warns for any step left out.
+- One test check per distinct test command CI runs, for example a Rust workspace and a JS package in
   the same repo. Give each a short `name` (`test`, `test-web`) and its own `cwd`.
 - `run` is the exact argv, not a shell string. The floor excludes failures only for a check
   whose argv equals `run` exactly, so the guide is the allowlist. Use the CI command's own

@@ -7,6 +7,22 @@
   ],
   "checks": [
     {
+      "name": "build",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "build",
+        "--locked",
+        "--workspace"
+      ],
+      "failedExit": [
+        101
+      ],
+      "results": {
+        "kind": "text"
+      }
+    },
+    {
       "name": "test",
       "cwd": ".",
       "stage": [
@@ -74,6 +90,12 @@
           "--",
           "--skip={id}",
           "--exact"
+        ]
+      },
+      "version": {
+        "run": [
+          "cargo",
+          "--version"
         ]
       },
       "invalidatedBy": [

@@ -57,6 +57,13 @@
           "--skip={id}"
         ]
       },
+      "version": {
+        "run": [
+          "python3",
+          "tinyrun.py",
+          "--version"
+        ]
+      },
       "invalidatedBy": [
         "tinyrun.py",
         "Makefile",

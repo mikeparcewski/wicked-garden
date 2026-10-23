@@ -7,7 +7,7 @@
 A REHEARSAL, not the probe: it never writes ``verified`` and its verdict is not evidence the
 floor reads. It exists so the parser, the ids and the templates can be iterated on quickly (and
 reported honestly when the probe is unavailable). It mirrors wicked-core's ``floor probe``
-(#1066's ``src/floor_probe.rs`` at f88a639) piece by piece, with exit codes as the referee:
+(#1066's ``src/floor_probe.rs`` at e2ad012) piece by piece, with exit codes as the referee:
 
 * ``list``     — the list run exits 0 and names tests.
 * ``run``      — the run's exit code agrees with its parsed failures (0 iff none; else a failedExit).
@@ -23,8 +23,12 @@ reported honestly when the probe is unavailable). It mirrors wicked-core's ``flo
   expected ids, and deselecting both leaves the clean run's failures.
 * ``affected`` — when declared: run on the mutation file, its failures include the mutated id.
 
-A probe that fails is retried once, as core does; failing twice means unverified (``retried``
-names the probes that needed the retry).
+* ``version`` — when declared: the command passes and prints a line (stdout and stderr merged),
+  reported as ``runnerVersion``. The probe records it; this never writes it.
+
+A probe that fails is retried once on a fresh copy, as core does (``pass (retried)`` counts as a
+pass, ``fail: … (retried)`` does not); a failure for a missing piece is not retried. A check with
+no ``list`` piece is a gate (exit code only) and is skipped, as core skips it.
 
 The copy omits ``.git`` and ``--exclude`` dirs (default ``target``) and symlinks ``--link`` dirs
 (default ``node_modules``, ``.venv``) instead of copying them. Prints one JSON report; exit 0
@@ -45,7 +49,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _guide import (SCHEMA, Failure, deselect_tokens, expand_files, lint, load_json,  # noqa: E402
-                    parse_junit, parse_list, parse_text, schema_errors, substitute)
+                    parse_junit, parse_list, parse_text, passed, schema_errors, substitute)
 
 NOTE = ("rehearsal only: verified is not written and this is not probe evidence; "
         "the floor uses a guide only after `wicked-core floor probe` passes it")
@@ -255,21 +259,43 @@ def _probe_multi(check: dict, workdir: Path, clean_failed: set, timeout: int) ->
 
 
 def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
-    """The core probe's pieces, retried once as core does: a probe that failed is run again (a
-    fresh scratch copy, every piece in order) and passes if the retry passes; failing twice
-    leaves the guide unverified."""
-    first = _rehearse_once(check, repo, timeout, exclude, link)
-    failed = [p for p, v in first.items() if v.startswith("fail")]
-    if not failed:
-        return {"name": check["name"], "results": first, "retried": [], "ok": True}
-    second = _rehearse_once(check, repo, timeout, exclude, link)
-    results = {p: (second.get(p, v) if p in failed else v) for p, v in first.items()}
-    return {"name": check["name"], "results": results, "retried": failed,
-            "ok": not any(v.startswith("fail") for v in results.values())}
+    """The core probe's pieces, retried as core does: every probe runs on a fresh copy; then the
+    probes that failed (other than for a missing piece, which cannot pass) are taken from a second
+    full attempt on another fresh copy, recorded as ``pass (retried)`` or ``fail: … (retried)``."""
+    if "list" not in check:
+        return {"name": check["name"], "skipped": "no `list` piece: a gate (exit code only), not probed",
+                "ok": True}
+    results, version = _rehearse_once(check, repo, timeout, exclude, link)
+    failed = [p for p, v in results.items() if not passed(v) and not v.startswith("fail: no `")]
+    if failed:
+        second, v2 = _rehearse_once(check, repo, timeout, exclude, link)
+        for p in failed:
+            r = second.get(p, "fail: it did not run on the retry")
+            if p == "version" and passed(r):
+                version = v2
+            results[p] = f"{r} (retried)"
+    return {"name": check["name"], "results": results, "runnerVersion": version,
+            "ok": all(passed(v) for v in results.values())}
 
 
-def _rehearse_once(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
-    """The core probe's pieces, in its order."""
+def _version(check: dict, workdir: Path, timeout: int) -> tuple[str, str]:
+    """(verdict, first output line) of the `version` piece, stdout and stderr merged, as core."""
+    env = {**os.environ, **check["results"].get("how", {}).get("env", {})}
+    try:
+        proc = _capture(check["version"]["run"], workdir, env, True, min(timeout, 120))
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return f"fail: the version command did not pass ({exc.__class__.__name__})", ""
+    line = next((ln.strip() for ln in proc.stdout.splitlines() if ln.strip()), "")
+    if proc.returncode != 0:
+        return f"fail: the version command did not pass (exit {proc.returncode})", ""
+    if not line:
+        return "fail: the version command printed nothing", ""
+    return "pass", line
+
+
+def _rehearse_once(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> tuple[dict, str]:
+    """One attempt of the core probe's pieces, in its order, on a fresh copy: (results, version)."""
+    version = ""
     results: dict[str, str] = {}
     scratch = make_scratch(repo, exclude, link)
     try:
@@ -294,9 +320,11 @@ def _rehearse_once(check: dict, repo: Path, timeout: int, exclude: list[str], li
                           timeout)
             results["affected"] = ("fail: the mutation probe did not establish the id" if hit is None else
                                    _verdict(hit in aff.failures, f"the affected run's failures do not include `{hit[1]}`"))
+        if "version" in check:
+            results["version"], version = _version(check, workdir, timeout)
     finally:
         shutil.rmtree(scratch.parent, ignore_errors=True)
-    return results
+    return results, version
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -6,6 +6,19 @@
   ],
   "checks": [
     {
+      "name": "install",
+      "cwd": ".",
+      "run": [
+        "npm",
+        "install",
+        "--no-audit",
+        "--no-fund"
+      ],
+      "results": {
+        "kind": "text"
+      }
+    },
+    {
       "name": "test",
       "cwd": ".",
       "stage": [
@@ -53,6 +66,13 @@
       "deselect": {
         "append": [
           "--testNamePattern=^(?!(?:{ids:re|})$)"
+        ]
+      },
+      "version": {
+        "run": [
+          "npx",
+          "vitest",
+          "--version"
         ]
       },
       "invalidatedBy": [

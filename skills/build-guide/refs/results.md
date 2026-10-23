@@ -61,7 +61,9 @@ round-trip test.
 ## Worked examples (also in `assets/seeds/`)
 
 - **cargo / libtest** (`cargo-libtest.json`, reconciled with wicked-core's own probed guide):
-  stable cargo has no JUnit/JSON (`--format junit` is nightly-only), so the guide is text. With
+  stable cargo has no JUnit/JSON (`--format junit` is nightly-only), so the test check is text.
+  The CI `cargo build` step is a separate gate check (no `list`), like wicked-core's own
+  `cargo fmt --check`, `cargo check` and `cargo clippy` gates. `version` is `cargo --version`. With
   `results.how.merge` and `list.merge`, the `section` reads libtest's `Running <binary>` lines
   (on stderr), so ids are qualified by test binary. The block runs from `^failures:$` to
   `^test result: FAILED`, with item `^    (?P<id>\S+)$` and `use: last-before-end`. `run` is
@@ -80,7 +82,8 @@ round-trip test.
   ["--force-short-summary"]` keeps one line per failure (check that `pytest --help` lists the
   flag).
 - **vitest** (`vitest-junit.json`): JUnit through `--reporter=junit --outputFile=…`, with
-  `results.id: ["name"]` (the full name, `suite > test`). That matches `vitest list`'s
+  `results.id: ["name"]` (the full name, `suite > test`), an `npm install` gate for the CI
+  install step, and `version` `npx vitest --version`. That matches `vitest list`'s
   `file > name` line with item `^\S+ > (?P<id>.+)$`. The tests a name filter leaves out appear
   as `<skipped/>` testcases, which neither pass nor fail. vitest takes one name pattern only,
   and rejects a repeated one. So `alone` uses `--testNamePattern=^{id:re}$` and deselect uses

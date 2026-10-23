@@ -16,10 +16,10 @@ from pathlib import Path
 
 import pytest
 
-from bg_helpers import FIXTURES, GUIDES, SEEDS, run_script
+from bg_helpers import FIXTURES, GUIDES, SCRIPTS, SEEDS, run_script
 
 ALL_PASS = {"list": "pass", "run": "pass", "mutation": "pass", "ids": "pass", "alone": "pass",
-            "deselect": "pass", "multi": "pass"}
+            "deselect": "pass", "multi": "pass", "version": "pass"}
 
 
 def _rehearse(repo: Path, guide: Path, env: dict | None = None, timeout: int = 300) -> tuple[int, dict]:
@@ -27,12 +27,12 @@ def _rehearse(repo: Path, guide: Path, env: dict | None = None, timeout: int = 3
 
 
 def _results(report: dict) -> dict:
-    return report["checks"][0]["results"]
+    return next(c for c in report["checks"] if "results" in c)["results"]
 
 
 def _variant(tmp_path: Path, source: Path, edit) -> Path:
     guide = json.loads(source.read_text(encoding="utf-8"))
-    edit(guide["checks"][0])
+    edit(next(c for c in guide["checks"] if "list" in c))
     path = tmp_path / f"variant-{source.name}"
     path.write_text(json.dumps(guide), encoding="utf-8")
     return path
@@ -52,12 +52,29 @@ def test_a_failed_probe_is_retried_once_and_named(tmp_path, python3_on_path):
     code, report = _rehearse(FIXTURES / "tinyrun-repo", _variant(tmp_path, GUIDES / "tinyrun-text.json", per_line),
                              python3_on_path)
     assert code == 1
-    assert "run" in report["checks"][0]["retried"]
+    assert _results(report)["run"] == "fail: exit 0 with 1 parsed failure(s) (retried)"
 
 
 def test_a_passing_rehearsal_retries_nothing(python3_on_path):
     code, report = _rehearse(FIXTURES / "tinyrun-repo", GUIDES / "tinyrun-text.json", python3_on_path)
-    assert code == 0 and report["checks"][0]["retried"] == []
+    assert code == 0 and not [v for v in _results(report).values() if "(retried)" in v]
+
+
+def test_a_failure_for_a_missing_piece_is_not_retried(python3_on_path, monkeypatch):
+    """The CLI refuses such a guide before running it (lint), so this drives one check directly."""
+    guide = json.loads((GUIDES / "tinyrun-text.json").read_text(encoding="utf-8"))
+    guide["checks"][0]["probes"].pop("mutation2")
+    monkeypatch.setenv("PATH", python3_on_path["PATH"])
+    monkeypatch.syspath_prepend(str(SCRIPTS))
+    import rehearse as rehearse_mod
+    report = rehearse_mod.rehearse_check(guide["checks"][0], FIXTURES / "tinyrun-repo", 120, ["target"], [])
+    assert report["results"]["multi"] == "fail: no `probes.mutation2`"
+
+
+def test_a_gate_check_is_skipped(python3_on_path):
+    code, report = _rehearse(FIXTURES / "pytest-repo", SEEDS / "pytest-short-summary.json", python3_on_path)
+    assert report["checks"][0] == {"name": "install", "ok": True,
+                                   "skipped": "no `list` piece: a gate (exit code only), not probed"}
 
 
 def test_tinyrun_per_line_rule_is_forged_by_test_output(tmp_path, python3_on_path):
@@ -67,7 +84,7 @@ def test_tinyrun_per_line_rule_is_forged_by_test_output(tmp_path, python3_on_pat
     code, report = _rehearse(FIXTURES / "tinyrun-repo", _variant(tmp_path, GUIDES / "tinyrun-text.json", per_line),
                              python3_on_path)
     assert code == 1
-    assert _results(report)["run"] == "fail: exit 0 with 1 parsed failure(s)"
+    assert _results(report)["run"] == "fail: exit 0 with 1 parsed failure(s) (retried)"
 
 
 def test_rehearsal_never_writes_the_guide(tmp_path, python3_on_path):
@@ -91,7 +108,7 @@ def test_a_red_exit_with_no_parsed_failure_fails_the_run_probe(fixture_copy, pyt
     (repo / "checks" / "unreadable.tc").write_text("bad 1 == x\n", encoding="utf-8")
     code, report = _rehearse(repo, GUIDES / "tinyrun-text.json", python3_on_path)
     assert code == 1
-    assert _results(report)["run"].startswith("fail: exit 1 with 0 parsed failure(s)")
+    assert _results(report)["run"] == "fail: exit 1 with 0 parsed failure(s) (retried)"
 
 
 def test_a_guide_that_does_not_lint_is_refused_before_anything_runs(tmp_path):
@@ -131,7 +148,7 @@ def test_pytest_junit_ids_fail_the_ids_probe_for_class_methods(python3_on_path):
     assert code == 1
     assert {k: v for k, v in results.items() if k != "ids"} == {k: v for k, v in ALL_PASS.items() if k != "ids"}
     assert results["ids"] == ("fail: the results name `tests/test_calc.py::test_param[1]` (q ``), "
-                              "which the list does not")
+                              "which the list does not (retried)")
 
 
 needs_cargo = pytest.mark.skipif(shutil.which("cargo") is None, reason="needs cargo on PATH")
@@ -157,7 +174,7 @@ def test_cargo_flag_and_value_in_two_tokens_breaks_two_ids(tmp_path):
     results = _results(report)
     assert code == 1
     assert {k: v for k, v in results.items() if k != "multi"} == {k: v for k, v in ALL_PASS.items() if k != "multi"}
-    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 101)"
+    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 101) (retried)"
 
 
 @pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") != "1" or shutil.which("npm") is None,
@@ -185,6 +202,6 @@ def test_vitest_repeated_name_pattern_fails_multi(fixture_copy, tmp_path):
     code, report = _rehearse(repo, guide, timeout=600)
     results = _results(report)
     assert code == 1
-    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 1)"
+    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 1) (retried)"
     assert {k: v for k, v in results.items() if k != "multi"} == {k: v for k, v in ALL_PASS.items() if k != "multi"}
 

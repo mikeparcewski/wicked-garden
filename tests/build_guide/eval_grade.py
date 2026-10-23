@@ -49,7 +49,7 @@ def grade(case: dict, repo: Path, message: str, guide_path: Path | None) -> dict
     if not present or want != "present":
         return {"case_id": case["case_id"], "assertions": out, "ok": all(v == "pass" for v in out.values())}
     guide = json.loads(guide_path.read_text(encoding="utf-8"))
-    check = guide["checks"][0]
+    check = next((c for c in guide["checks"] if "list" in c), guide["checks"][0])
     if expect.get("check_draft_ok"):
         code, report = _script("check", "--guide", str(guide_path), "--repo", str(repo), "--draft")
         out["check --draft"] = "pass" if code == 0 else f"fail: {report.get('errors')}"
@@ -65,10 +65,10 @@ def grade(case: dict, repo: Path, message: str, guide_path: Path | None) -> dict
         out["no hand-written verified"] = "pass" if not hand else f"fail: verified in {hand}"
     if "rehearsal" in expect:
         _code, report = _script("rehearse", "--repo", str(repo), "--guide", str(guide_path))
-        got = (report.get("checks") or [{}])[0].get("results", {})
+        got = next((c["results"] for c in report.get("checks", []) if "results" in c), {})
         wanted = expect["rehearsal"]
         if wanted == "all-pass":
-            bad = {k: v for k, v in got.items() if v != "pass"}
+            bad = {k: v for k, v in got.items() if v not in ("pass", "pass (retried)")}
             out["rehearsal"] = "pass" if got and not bad else f"fail: {bad or report}"
         else:
             bad = {k: got.get(k) for k, v in wanted.items() if not str(got.get(k, "")).startswith(v)}

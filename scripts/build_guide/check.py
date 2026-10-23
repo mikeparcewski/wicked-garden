@@ -6,7 +6,12 @@
 * ``--schema``: the contract schema. The default is ``schemas/build-guide.v1.json``, vendored byte
   for byte from wicked-core's #1066 branch (the report's ``schema`` names that source); pass
   core's current file to check against a newer one.
-* ``--repo``: also check that ``derivedFrom`` files and each ``cwd`` exist there.
+* ``--repo``: also check that ``derivedFrom`` files and each ``cwd`` exist there, and warn for
+  every command the repo's CI runs that no check declares. When a usable guide exists, its checks
+  replace the floor's own detection, so an undeclared install, build, format, lint, typecheck or
+  test step would stop gating. A step counts as declared when a check's ``run`` equals its argv,
+  or the argv of the ``make``/``just`` recipe or npm script it runs (for an npm script, also with
+  ``npx`` in front: npm runs scripts with ``node_modules/.bin`` on PATH).
 * ``--draft``: the guide has not been probed — it must carry no ``verified`` (only
   ``wicked-core floor probe`` writes it).
 
@@ -18,12 +23,39 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _guide import SCHEMA, SCHEMA_SOURCE, lint, load_json, schema_errors  # noqa: E402
+from discover import discover  # noqa: E402
+
+
+def _argv(command: str) -> list[str] | None:
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return None
+
+
+def undeclared_ci_steps(guide: dict, repo: Path) -> list[str]:
+    """A warning for every CI step no check declares."""
+    runs = [c.get("run") for c in guide.get("checks", []) if isinstance(c, dict)]
+    out = []
+    for step in discover(repo)["ciSteps"]:
+        candidates = [_argv(step["command"])]
+        for r in step.get("resolves", []):
+            argv = _argv(r["command"])
+            candidates.append(argv)
+            if argv and r["source"].startswith("package.json"):
+                candidates.append(["npx", *argv])
+        if not any(c and c in runs for c in candidates):
+            out.append(f"CI runs `{step['command']}` ({step['source']}) but no check declares it; a guide's checks "
+                       "replace the floor's detection, so this step would not gate. Declare it as a check (a gate "
+                       "with no `list` when it is not the test run).")
+    return out
 
 
 def run_check(guide_path: Path, repo: Path | None, schema_path: Path | None, draft: bool) -> dict:
@@ -40,6 +72,8 @@ def run_check(guide_path: Path, repo: Path | None, schema_path: Path | None, dra
     if isinstance(guide, dict):
         lint_errors, warnings = lint(guide, repo, draft)
         errors += lint_errors
+        if repo is not None:
+            warnings += undeclared_ci_steps(guide, repo)
     report.update(ok=not errors, errors=errors, warnings=warnings)
     return report
 

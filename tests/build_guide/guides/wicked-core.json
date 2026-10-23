@@ -8,6 +8,59 @@
   ],
   "checks": [
     {
+      "name": "cargo-fmt-check",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "failedExit": [
+        1
+      ],
+      "results": {
+        "kind": "text"
+      }
+    },
+    {
+      "name": "typecheck",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "check",
+        "--locked",
+        "--workspace",
+        "--all-targets"
+      ],
+      "failedExit": [
+        101
+      ],
+      "results": {
+        "kind": "text"
+      }
+    },
+    {
+      "name": "lint",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "failedExit": [
+        101
+      ],
+      "results": {
+        "kind": "text"
+      }
+    },
+    {
       "name": "test",
       "cwd": ".",
       "stage": [
