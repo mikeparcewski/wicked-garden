@@ -12,8 +12,8 @@ import pytest
 from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
 
 SCHEMA = REPO / "schemas" / "build-guide.v1.json"
-# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@df67a95 (#1066).
-CORE_BLOB = "d541aa5eef6c532cfb0a94573496d117d4c3a40c"
+# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@f88a639 (#1066).
+CORE_BLOB = "f0be92e61002e42e8d9395687dbcc6cf01181f0f"
 SEED_REPOS = {
     "cargo-libtest.json": "cargo-repo",
     "pytest-short-summary.json": "pytest-repo",
@@ -35,7 +35,7 @@ def _seed(name: str = "cargo-libtest.json") -> dict:
 def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
     code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
     assert code == 0, report["errors"]
-    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@df67a95")
+    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@f88a639")
 
 
 @pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
@@ -67,8 +67,13 @@ def test_a_probed_guide_may_carry_verified(tmp_path):
     (lambda g: g["checks"][0]["probes"]["mutation"].pop("expectId"), "missing required property 'expectId'"),
     (lambda g: g["checks"][0].update(stage="creator"), "is not of type 'array'"),
     (lambda g: g["checks"][0].update(failedExit=["101"]), "is not of type 'integer'"),
-    (lambda g: g["checks"][0].pop("alone"), "alone: missing; the skill always writes it"),
-    (lambda g: g["checks"][0]["probes"].pop("mutation"), "the skill always writes a mutation probe"),
+    (lambda g: g["checks"][0].pop("alone"), "alone: missing or empty; the floor will not use this check"),
+    (lambda g: g["checks"][0].pop("deselect"), "deselect: missing or empty; the floor will not use this check"),
+    (lambda g: g["checks"][0].update(failedExit=[]), "failedExit: missing or empty; the floor will not use"),
+    (lambda g: g["checks"][0]["probes"].pop("mutation"), "probes.mutation: missing; the `mutation` probe"),
+    (lambda g: g["checks"][0]["probes"].pop("mutation2"), "probes.mutation2: missing; the `multi` probe"),
+    (lambda g: g["checks"][0]["probes"].update(mutation2=dict(g["checks"][0]["probes"]["mutation"])),
+     "must be a second, distinct failing test"),
     (lambda g: g.pop("derivedFrom"), "derivedFrom: missing or empty"),
     (lambda g: g["checks"][0]["results"].update(id=["name"]), "id/idJoin are only for results.kind=junit"),
     (lambda g: (g["checks"][0].pop("parser"), g["checks"][0].update(results={"kind": "tap", "how": {}})),
@@ -162,3 +167,26 @@ def test_a_schema_with_keywords_the_validator_cannot_check_is_refused(tmp_path):
     assert code == 1
     assert "does not implement" in report["errors"][0] and "uniqueItems" in report["errors"][0]
     assert report["schema"] == str(schema_path)
+
+
+def test_core_s_own_guide_checks_clean_and_its_blank_runner_version_is_flagged():
+    code, report = run_script("check", "--guide", str(GUIDES / "wicked-core.json"))
+    assert code == 0, report["errors"]
+    assert any("runnerVersion: blank" in w for w in report["warnings"])
+
+
+def test_a_probed_guide_whose_required_probe_failed_is_flagged(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
+                                      "results": {p: "pass" for p in ("list", "run", "ids", "alone", "deselect",
+                                                                      "mutation")}}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
+    assert code == 0
+    assert any("the floor will not rely on this check (multi: never ran)" in w for w in report["warnings"])
+
+
+def test_a_shell_in_argv_is_flagged(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["run"] = ["sh", "-c", "cargo test"]
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert any("runs through a shell" in w for w in report["warnings"])

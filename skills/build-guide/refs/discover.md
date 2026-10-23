@@ -54,8 +54,8 @@ The deselect tokens are also appended to `list.run`. The probe checks that the l
 id deselected, lists exactly the rest. So the list command must honour the same skip flag.
 
 Check repeatability for real. A flag that takes one value (the last one wins) or rejects
-repeats cannot deselect two ids, even when the one-id probe passes. `rehearse.py` tests two ids
-(`deselect-many`).
+repeats cannot deselect two ids, even when the one-id `mutation` probe passes. The `multi` probe
+(two mutations, `probes.mutation2`) tests two ids.
 
 ## Learn from real output, in a scratch copy
 

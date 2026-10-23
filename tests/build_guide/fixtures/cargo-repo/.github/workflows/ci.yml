@@ -6,4 +6,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cargo build --workspace
-      - run: cargo test --workspace --no-fail-fast
+      - run: cargo test --locked --workspace --no-fail-fast

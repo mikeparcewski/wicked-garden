@@ -91,3 +91,24 @@ def test_a_usage_answer_means_the_probe_exists(tmp_path):
                               str(GUIDES / "tinyrun-text.json"), env=env)
     assert report["probe"] == "ran", report
     assert code == 2, "the stub's usage exit code is passed through"
+
+
+def test_version_argv_fills_only_a_blank_runner_version(tmp_path):
+    guide = tmp_path / "build-guide.json"
+    shutil.copyfile(GUIDES / "tinyrun-text.json", guide)
+    stub = STUB.replace('"runnerVersion": "tinyrun 0.3.1"', '"runnerVersion": ""')
+    env = {**_env_without_core(tmp_path), "WICKED_CORE_BIN": str(_stub(tmp_path, stub)),
+           "PATH": os.environ.get("PATH", "")}
+    version = json.dumps([sys.executable, str(FIXTURES / "tinyrun-repo" / "tinyrun.py"), "--version"])
+    code, report = run_script("probe", "--repo", str(FIXTURES / "tinyrun-repo"), "--guide", str(guide),
+                              "--version-argv", version, env=env)
+    assert report["runnerVersion"] == "tinyrun 0.3.1" and report["runnerVersionFilled"] == ["test"]
+    written = json.loads(guide.read_text(encoding="utf-8"))["checks"][0]["verified"]
+    assert written["runnerVersion"] == "tinyrun 0.3.1"
+    assert written["results"]["deselect"] == "fail: exit 3", "probe results are never rewritten"
+
+
+def test_version_argv_must_be_a_json_argv(tmp_path):
+    code, report = run_script("probe", "--repo", str(FIXTURES / "tinyrun-repo"), "--guide",
+                              str(GUIDES / "tinyrun-text.json"), "--version-argv", "cargo --version")
+    assert code == 2 and "JSON array" in report["error"]

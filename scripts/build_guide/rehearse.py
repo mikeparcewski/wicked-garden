@@ -7,24 +7,21 @@
 A REHEARSAL, not the probe: it never writes ``verified`` and its verdict is not evidence the
 floor reads. It exists so the parser, the ids and the templates can be iterated on quickly (and
 reported honestly when the probe is unavailable). It mirrors wicked-core's ``floor probe``
-(#1066's ``src/floor_probe.rs``) piece by piece, with exit codes as the referee:
+(#1066's ``src/floor_probe.rs`` at f88a639) piece by piece, with exit codes as the referee:
 
 * ``list``     — the list run exits 0 and names tests.
 * ``run``      — the run's exit code agrees with its parsed failures (0 iff none; else a failedExit).
-* ``mutation`` — with the mutation written, the run fails with a failedExit and its parsed failures
-  are the clean run's plus exactly the expected id; deselecting it leaves the clean run's
-  failures; run alone, it fails.
-* ``alone``    — a listed passing id run alone exits 0 with no failure (JUnit: every testcase it
-  reports is that id).
+* ``mutation`` — with ``probes.mutation`` written, the run fails with a failedExit and its new
+  failures (that still fail alone) are exactly the expected id; deselecting it leaves the clean
+  run's failures; run alone, it fails.
+* ``ids``      — every id the clean run reports (JUnit: all; text: its failures), and the mutated
+  id, is one the list names.
+* ``alone``    — a listed passing id run alone exits 0 with no failure (JUnit: every testcase that
+  ran is that id).
 * ``deselect`` — the list, deselecting that passing id, lists exactly the rest.
+* ``multi``    — with ``probes.mutation2`` written too, the new failures are exactly the two
+  expected ids, and deselecting both leaves the clean run's failures.
 * ``affected`` — when declared: run on the mutation file, its failures include the mutated id.
-* ``deselect-many`` (rehearsal only, not a core probe) — a second copy of the mutation: the run
-  names BOTH as new failures, and deselecting both leaves the clean run's failures. The one-id
-  probes cannot see a parser that loses all but one failure, or per-id tokens that collapse
-  (the last one wins) or that the runner rejects when repeated.
-* ``round-trip`` (rehearsal only, JUnit) — every id the clean run's JUnit reports is one the list
-  names. The core probes check one passing id and the mutation, so ids that only some tests get
-  wrong (a class method's) pass them and are never excluded.
 
 The copy omits ``.git`` and ``--exclude`` dirs (default ``target``) and symlinks ``--link`` dirs
 (default ``node_modules``, ``.venv``) instead of copying them. Prints one JSON report; exit 0
@@ -40,7 +37,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -132,26 +129,6 @@ def _ids(keys) -> set:
     return {i for _q, i in keys}
 
 
-def _second(mutation: dict) -> dict | None:
-    """A second, distinct copy of the mutation: the file name gets ``_two`` before its first dot
-    (so runner include globs such as ``*.test.js`` still match), and the id follows it — through
-    the file name when the id contains it, else through the content when the content names it."""
-    p = PurePosixPath(mutation["file"])
-    base, dot, rest = p.name.partition(".")
-    ident = mutation["expectId"]
-    if base and base in ident:
-        new_id = ident.replace(base, base + "_two", 1)
-    elif ident in mutation["content"]:
-        new_id = ident + "_two"
-    else:
-        return None
-    second = {"file": str(p.with_name(base + "_two" + dot + rest)),
-              "content": mutation["content"].replace(ident, new_id), "expectId": new_id}
-    if mutation.get("expectQ"):
-        second["expectQ"] = mutation["expectQ"].replace(base, base + "_two", 1)
-    return second
-
-
 def _inject(workdir: Path, mutation: dict) -> None:
     target = workdir / mutation["file"]
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -185,28 +162,57 @@ def _verdict(ok: bool, why: str) -> str:
     return "pass" if ok else f"fail: {why}"
 
 
+def _steady(check: dict, workdir: Path, failed, before, timeout: int) -> set:
+    """``failed``'s ids beyond ``before`` that still fail run alone; a new failure that passes
+    alone is the suite's flake, not the parser's mistake, and is set aside (as core does)."""
+    return {t for t in failed if t not in before and
+            exit_of(check, workdir, substitute(check["alone"]["run"], id=t[1], q=t[0]), timeout) in check["failedExit"]}
+
+
+def _matches(t: Failure, m: dict) -> bool:
+    return t[1] == m["expectId"] and m.get("expectQ") in (None, t[0])
+
+
+def _deselect_clean(check: dict, workdir: Path, ids: list, clean_failed: set, timeout: int) -> tuple[bool, Outcome]:
+    """Deselecting ``ids`` leaves the clean run's failures (and exits 0 when it had none)."""
+    d = execute(check, workdir, _deselected(check, ids), timeout)
+    ok = (not d.error and not any(t in d.failures for t in ids)
+          and not _steady(check, workdir, d.failures, clean_failed, timeout)
+          and (bool(clean_failed) or d.exit == 0))
+    return ok, d
+
+
 def _probe_mutation(check: dict, workdir: Path, clean_failed: set, mutated: Outcome, timeout: int):
-    """The mutated run fails with a failedExit and exactly one NEW failure, the expected one; the run
-    deselecting it fails exactly as the clean run did; run alone it fails. Returns (verdict, id)."""
+    """The mutated run fails with a failedExit and exactly one new (steady) failure, the expected
+    one; deselecting it leaves the clean run's failures; run alone it fails. Returns (verdict, id)."""
     m = check["probes"]["mutation"]
     if mutated.error:
         return f"fail: the mutated run's results: {mutated.error}", None
-    new = sorted(mutated.failures - clean_failed)
-    hit = new[0] if len(new) == 1 and new[0][1] == m["expectId"] and m.get("expectQ") in (None, new[0][0]) else None
+    new = sorted(_steady(check, workdir, mutated.failures, clean_failed, timeout))
+    hit = new[0] if len(new) == 1 and _matches(new[0], m) else None
     if hit is None:
         return f"fail: the mutated run's new failures are {new[:5]}, not `{m['expectId']}`", None
     if mutated.exit not in check["failedExit"]:
         return f"fail: the mutated run exited {mutated.exit}", hit
-    desel = execute(check, workdir, _deselected(check, [hit]), timeout)
-    if desel.error or desel.failures != clean_failed or (not clean_failed and desel.exit != 0):
-        return f"fail: deselecting `{hit[1]}` did not leave the clean run's failures (exit {desel.exit})", hit
+    ok, d = _deselect_clean(check, workdir, [hit], clean_failed, timeout)
+    if not ok:
+        return f"fail: deselecting `{hit[1]}` did not leave the clean run's failures (exit {d.exit})", hit
     if exit_of(check, workdir, substitute(check["alone"]["run"], id=hit[1], q=hit[0]), timeout) not in check["failedExit"]:
         return f"fail: `{hit[1]}` run alone does not fail", hit
     return "pass", hit
 
 
-def _probe_alone_and_deselect(check: dict, workdir: Path, mutated: Outcome, timeout: int) -> tuple[str, str]:
-    listed = inventory(check, workdir, timeout)
+def _probe_ids(clean: Outcome, hit, listed) -> str:
+    """Every id the clean run reports (junit: all; text: the failures), and the mutated id, is listed."""
+    if clean.error or hit is None or not isinstance(listed, list):
+        return "fail: the clean or mutated run's ids could not be established"
+    reported = list(clean.every or []) + sorted(clean.failures) + [hit]
+    stray = next((t for t in reported if t not in listed), None)
+    return _verdict(stray is None, f"the results name `{stray[1] if stray else ''}` (q `{stray[0] if stray else ''}`), "
+                                   "which the list does not")
+
+
+def _probe_alone_and_deselect(check: dict, workdir: Path, listed, mutated: Outcome, timeout: int) -> tuple[str, str]:
     failing = _ids(mutated.failures)
     passing = next((t for t in listed if t[1] not in failing), None) if isinstance(listed, list) else None
     if passing is None:
@@ -226,31 +232,27 @@ def _probe_alone_and_deselect(check: dict, workdir: Path, mutated: Outcome, time
     return alone, deselect
 
 
-def _probe_deselect_many(check: dict, workdir: Path, clean_failed: set, timeout: int) -> str:
-    m = check["probes"]["mutation"]
-    second = _second(m)
-    if second is None:
-        return ("skipped: neither the mutation file name nor its content carries expectId, "
-                "so no second copy can be derived")
-    _inject(workdir, second)
-    try:
-        both = execute(check, workdir, list(check["run"]), timeout)
-        hits = sorted(both.failures - clean_failed)
-        if len(hits) != 2:
-            return (f"fail: the run with two mutations named {hits[:5]} as new failures, not two: the parser "
-                    "loses failures when there is more than one")
-        desel = execute(check, workdir, _deselected(check, hits), timeout)
-        if desel.error or desel.failures != clean_failed or (not clean_failed and desel.exit != 0):
-            return (f"fail: deselecting two ids did not leave the clean run's failures "
-                    f"({desel.error or f'exit {desel.exit}'}): the per-id tokens collapse or the runner rejects "
-                    "them, so excluding 2+ base failures will not work")
-        return "pass"
-    finally:
-        (workdir / second["file"]).unlink(missing_ok=True)
+def _probe_multi(check: dict, workdir: Path, clean_failed: set, timeout: int) -> str:
+    """With ``probes.mutation2`` written too, the new failures are exactly the two expected ids,
+    and deselecting both leaves the clean run's failures."""
+    m, m2 = check["probes"]["mutation"], check["probes"].get("mutation2")
+    if not m2:
+        return "fail: no `probes.mutation2`"
+    _inject(workdir, m2)
+    run = execute(check, workdir, list(check["run"]), timeout)
+    if run.error:
+        return f"fail: the run's results: {run.error}"
+    new = sorted(_steady(check, workdir, run.failures, clean_failed, timeout))
+    both = len(new) == 2 and any(_matches(t, m) for t in new) and any(_matches(t, m2) for t in new)
+    if not both or run.exit not in check["failedExit"]:
+        return (f"fail: with both mutations the new failures are {new[:5]} (exit {run.exit}), "
+                f"not `{m['expectId']}` and `{m2['expectId']}`")
+    ok, d = _deselect_clean(check, workdir, new, clean_failed, timeout)
+    return _verdict(ok, f"deselecting both did not leave the clean run's failures (exit {d.exit})")
 
 
 def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
-    """The core probe's pieces, in its order, plus ``deselect-many``."""
+    """The core probe's pieces, in its order."""
     results: dict[str, str] = {}
     scratch = make_scratch(repo, exclude, link)
     try:
@@ -266,17 +268,15 @@ def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], li
         _inject(workdir, check["probes"]["mutation"])
         mutated = execute(check, workdir, list(check["run"]), timeout)
         results["mutation"], hit = _probe_mutation(check, workdir, clean.failures, mutated, timeout)
-        results["alone"], results["deselect"] = _probe_alone_and_deselect(check, workdir, mutated, timeout)
+        listed_now = inventory(check, workdir, timeout)
+        results["ids"] = _probe_ids(clean, hit, listed_now)
+        results["alone"], results["deselect"] = _probe_alone_and_deselect(check, workdir, listed_now, mutated, timeout)
+        results["multi"] = _probe_multi(check, workdir, clean.failures, timeout)
         if "affected" in check:
             aff = execute(check, workdir, expand_files(list(check["affected"]["run"]), [check["probes"]["mutation"]["file"]]),
                           timeout)
             results["affected"] = ("fail: the mutation probe did not establish the id" if hit is None else
                                    _verdict(hit in aff.failures, f"the affected run's failures do not include `{hit[1]}`"))
-        results["deselect-many"] = _probe_deselect_many(check, workdir, clean.failures, timeout)
-        if clean.every is not None and isinstance(listed, list):
-            unknown = sorted({i for i in _ids(clean.every)} - _ids(listed))
-            results["round-trip"] = _verdict(not unknown, f"{len(unknown)} JUnit id(s) the list does not name, "
-                                                          f"e.g. {unknown[:3]}: their failures can never be excluded")
     finally:
         shutil.rmtree(scratch.parent, ignore_errors=True)
     return {"name": check["name"], "results": results,

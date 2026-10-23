@@ -18,8 +18,8 @@ import pytest
 
 from bg_helpers import FIXTURES, GUIDES, SEEDS, run_script
 
-ALL_PASS = {"list": "pass", "run": "pass", "mutation": "pass", "alone": "pass", "deselect": "pass",
-            "deselect-many": "pass"}
+ALL_PASS = {"list": "pass", "run": "pass", "mutation": "pass", "ids": "pass", "alone": "pass",
+            "deselect": "pass", "multi": "pass"}
 
 
 def _rehearse(repo: Path, guide: Path, env: dict | None = None, timeout: int = 300) -> tuple[int, dict]:
@@ -104,20 +104,19 @@ def test_pytest_seed_without_force_short_summary_loses_failures_in_ci_mode(tmp_p
     guide = _variant(tmp_path, SEEDS / "pytest-short-summary.json", lambda c: c["results"]["how"].update(argvAppend=[]))
     code, report = _rehearse(FIXTURES / "pytest-repo", guide, {**python3_on_path, "CI": "true"})
     assert code == 1
-    assert _results(report)["deselect-many"].startswith("fail: the run with two mutations named [('', "
-                                                         "'tests/test_wicked_mutation.py::test_wicked_mutation_probe')]")
+    assert _results(report)["multi"].startswith("fail: with both mutations the new failures are [('', "
+                                                "'tests/test_wicked_mutation.py::test_wicked_mutation_probe')]")
 
 
-def test_pytest_junit_ids_pass_the_core_probes_but_miss_class_methods(python3_on_path):
-    """xunit1 JUnit with id [file, name] equals the node id only for module-level tests. The core
-    probes check one passing id and the mutation, both module-level, so they pass; only the
-    rehearsal's round-trip sees that a class method's failure could never be excluded."""
+def test_pytest_junit_ids_fail_the_ids_probe_for_class_methods(python3_on_path):
+    """xunit1 JUnit with id [file, name] equals the node id only for module-level tests; a class
+    method's node id carries its class. Only the `ids` probe sees it."""
     code, report = _rehearse(FIXTURES / "pytest-repo", GUIDES / "pytest-junit.json", python3_on_path)
     results = _results(report)
     assert code == 1
-    assert {k: v for k, v in results.items() if k != "round-trip"} == ALL_PASS
-    assert results["round-trip"].startswith("fail: 2 JUnit id(s) the list does not name, e.g. "
-                                            "['tests/test_calc.py::test_param[1]'")
+    assert {k: v for k, v in results.items() if k != "ids"} == {k: v for k, v in ALL_PASS.items() if k != "ids"}
+    assert results["ids"] == ("fail: the results name `tests/test_calc.py::test_param[1]` (q ``), "
+                              "which the list does not")
 
 
 needs_cargo = pytest.mark.skipif(shutil.which("cargo") is None, reason="needs cargo on PATH")
@@ -136,31 +135,28 @@ def test_cargo_flag_and_value_in_two_tokens_breaks_two_ids(tmp_path):
     `--skip a b`: libtest takes `b` as a filter and runs the second mutation (exit 101)."""
 
     def split_flag(check):
-        check["deselect"]["append"] = ["--", "--exact", "--skip", "{id}"]
+        check["deselect"]["append"] = ["--", "--skip", "{id}", "--exact"]
 
     guide = _variant(tmp_path, SEEDS / "cargo-libtest.json", split_flag)
     code, report = _rehearse(FIXTURES / "cargo-repo", guide, timeout=600)
     results = _results(report)
     assert code == 1
-    assert results["deselect"] == "pass"
-    assert results["deselect-many"] == ("fail: deselecting two ids did not leave the clean run's failures "
-                                        "(exit 101): the per-id tokens collapse or the runner rejects them, so "
-                                        "excluding 2+ base failures will not work")
+    assert {k: v for k, v in results.items() if k != "multi"} == {k: v for k, v in ALL_PASS.items() if k != "multi"}
+    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 101)"
 
 
 @pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") != "1" or shutil.which("npm") is None,
                     reason="needs the npm registry: set WICKED_GARDEN_E2E_NPM=1")
-def test_vitest_junit_seed_fails_alone_on_skipped_testcases_and_two_ids(fixture_copy):
-    """vitest's JUnit reports the tests a name filter left out as <skipped/> testcases, and core's
-    reader (#1066 @ df67a95) counts them, so `alone` fails; vitest also rejects a repeated name
-    pattern, so `deselect-many` fails. Everything else passes."""
+def test_vitest_junit_seed_fails_only_multi(fixture_copy):
+    """vitest's JUnit reports the tests a name filter left out as <skipped/> testcases, which
+    neither pass nor fail, so `alone` passes; vitest rejects a repeated name pattern, so the two-id
+    deselect in `multi` fails."""
     repo = fixture_copy("vitest-repo")
     subprocess.run(["npm", "install", "--no-audit", "--no-fund"], cwd=repo, check=True, capture_output=True,
                    timeout=300)
     code, report = _rehearse(repo, SEEDS / "vitest-junit.json", timeout=600)
     results = _results(report)
     assert code == 1
-    assert results["alone"] == "fail: `sum > adds` alone exited 0, ran 4 test(s), 0 failure(s)"
-    assert results["deselect-many"].startswith("fail: deselecting two ids did not leave the clean run's failures")
-    assert {k: v for k, v in results.items() if k not in ("alone", "deselect-many")} == {
-        **{k: v for k, v in ALL_PASS.items() if k not in ("alone", "deselect-many")}, "round-trip": "pass"}
+    assert results["multi"] == "fail: deselecting both did not leave the clean run's failures (exit 1)"
+    assert {k: v for k, v in results.items() if k != "multi"} == {k: v for k, v in ALL_PASS.items() if k != "multi"}
+

@@ -11,9 +11,8 @@ the runner's structured ids do not round-trip, use the runner's own text summary
 **Worked example (pytest, JUnit vs text).** pytest's `--collect-only -q` list and its
 `--deselect` take node ids (`tests/test_calc.py::TestGroup::test_x`). The best JUnit reading,
 `-o junit_family=xunit1` with `results.id: ["file","name"]`, gives `tests/test_calc.py::test_x`.
-That equals the node id for module-level tests, but not for class methods. The core probes
-check one passing id and the mutation, both module-level, so they pass. The rehearsal's
-`round-trip` check shows the mismatch. pytest's short test summary (`-rfE`) prints `FAILED <node id>`,
+That equals the node id for module-level tests, but not for class methods, and the `ids` probe
+fails on it. pytest's short test summary (`-rfE`) prints `FAILED <node id>`,
 which round-trips for every test. So the pytest seed is `text` on that summary.
 
 ## Structured kinds
@@ -23,7 +22,7 @@ which round-trips for every test. So the pytest seed is `text` on that summary.
   The id is the `results.id` attributes (default `classname`,`name`) joined by `results.idJoin`
   (default `::`). Choose the attributes and the join that make the id equal to what `list`
   prints and `alone`/`deselect` take. A testcase with `<failure>` or `<error>` has failed, and
-  one with `<skipped>` did not run.
+  one with `<skipped/>` neither passed nor failed (a name filter left it out).
 - **json-lines** / **tap**: reserved in v1, because the interpreter reads only `text` and
   `junit`. Use JUnit, or text on the runner's summary.
 
@@ -61,12 +60,17 @@ round-trip test.
 
 ## Worked examples (also in `assets/seeds/`)
 
-- **cargo / libtest** (`cargo-libtest.json`): stable cargo has no JUnit/JSON (`--format junit`
-  is nightly-only), so the guide is text. The block runs from `^failures:$` to
-  `^test result: FAILED\..*$`, with item `^    (?P<id>\S+)$` and `use: last-before-end`. `run`
-  is the CI command exactly. `deselect.append: ["--","--exact","--skip={id}"]` adds the
-  separator and `--exact` once, and `--skip=<id>` per id. libtest rejects a repeated
-  `--exact`. The mutation probe is a new integration test file `tests/wicked_mutation_probe.rs`.
+- **cargo / libtest** (`cargo-libtest.json`, reconciled with wicked-core's own probed guide):
+  stable cargo has no JUnit/JSON (`--format junit` is nightly-only), so the guide is text. With
+  `results.how.merge` and `list.merge`, the `section` reads libtest's `Running <binary>` lines
+  (on stderr), so ids are qualified by test binary. The block runs from `^failures:$` to
+  `^test result: FAILED`, with item `^    (?P<id>\S+)$` and `use: last-before-end`. `run` is
+  the CI command exactly (`cargo test --locked --workspace --no-fail-fast`; drop `--locked` if CI
+  does not use it). `alone` is `-- {id} --exact`. `deselect.append: ["--","--skip={id}","--exact"]`
+  adds the separator once, `--skip=<id>` per id, and `--exact` once; libtest rejects a repeated
+  `--exact`. The mutations are new integration test files
+  (`tests/zz_floor_probe_mutation.rs`, `…_two.rs`). wicked-core's own mutations also arm a
+  `ctor` hook its test harness needs, so copy a repo's own test preamble when it has one.
 - **pytest** (`pytest-short-summary.json`): text on `-rfE`. The block runs from
   `^=+ short test summary info =+$` to the final count line, with item
   `^(?:FAILED|ERROR) (?P<id>.+?)(?: - .*)?$`. `list` is `--collect-only -q`, `deselect` is
@@ -77,12 +81,11 @@ round-trip test.
   flag).
 - **vitest** (`vitest-junit.json`): JUnit through `--reporter=junit --outputFile=…`, with
   `results.id: ["name"]` (the full name, `suite > test`). That matches `vitest list`'s
-  `file > name` line with item `^\S+ > (?P<id>.+)$`. vitest takes one name pattern only and
-  rejects a repeated one, so `["--testNamePattern=^(?!{id}$)"]` passes the one-id probe but
-  cannot deselect two. The rehearsal's `deselect-many` reports this, so say so in the proposal.
-  vitest's JUnit also lists the tests a name filter left out as `<skipped/>` testcases. Core's
-  reader counts them, so the `alone` probe fails at #1066's df67a95 (see `contract-notes.md`).
-  `{id}` is also substituted unescaped into a regex.
+  `file > name` line with item `^\S+ > (?P<id>.+)$`. The tests a name filter leaves out appear
+  as `<skipped/>` testcases, which neither pass nor fail, so `alone` holds. vitest takes one name
+  pattern only and rejects a repeated one, so `["--testNamePattern=^(?!{id}$)"]` passes the
+  `mutation` probe but fails `multi` (two ids). Say so in the proposal: with two or more base
+  failures, that check does not exclude. `{id}` also lands unescaped inside a regex.
 - **A runner with no structured output** (the `tinyrun` fixture in the garden tests): a block
   from `^--- tinyrun summary ---$` to `^--- [0-9]+ failed, [0-9]+ passed ---$` with item
   `^FAIL (?P<id>\S+)$`. A per-line rule on `... FAIL` would be forged by test output that prints

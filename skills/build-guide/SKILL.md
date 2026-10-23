@@ -44,13 +44,26 @@ Relative paths in this skill are relative to the directory that contains this SK
 |--------|------|-----|
 | `discover` (default) | the repo has no guide | steps 1 to 6 below |
 | `refresh` | the guide is stale (a `derivedFrom` file or the runner version changed), a probe failed, or crew dispatched re-onboarding | start from the committed guide; if a `derivedFrom` file changed, redo step 1; otherwise revise only the failing piece; then steps 4 to 6 |
-| `check` | validate a guide file someone wrote | `wicked-garden run scripts/build_guide/check.py --guide <file> --repo <dir> [--schema <file>]` |
+| `check` | validate a guide file someone wrote | `wicked-garden run scripts/build_guide/check.py --guide <file> --repo <dir> [--schema <file>]`. It flags what the floor needs before it will use a check: a non-empty `failedExit`, `alone`, `deselect`, a `list`, and a `text` or `junit` results kind. On a probed guide it also flags any required probe that did not pass, and a blank `runnerVersion`. |
 
 The contract is fixed (DES-BUILD-GUIDE, "Contract v1"). Its schema is wicked-core's
 `schemas/build-guide.v1.json`, which the scripts carry as a vendored copy. Produce exactly that
 shape, and add no fields. `refs/contract-notes.md` lists what core's schema adds to the DES text,
 how this skill reads it, and the open questions. To check against a newer core schema, pass it
 as `--schema`.
+
+**Pinned semantics** (core's interpreter):
+- Regexes apply per line. A block's items are the contiguous item lines after its start (blank
+  lines are allowed), and any other line ends the block.
+- No argv goes through a shell. `{id}`/`{q}` fill whole argv elements, so no quoting is needed;
+  `{q}` is allowed in `alone` and `deselect`. `{files}` expands to one argv element per file.
+- Deselect tokens before the first `{id}`/`{q}` token are added once (a leading `--` only when
+  the argv has none). The tokens through the last one repeat per id, and the rest are added once.
+  So a flag and its value are one token (`--skip={id}`).
+- Paths (`results.how.path`, the mutation files) are relative to `cwd`. `invalidatedBy` globs
+  are matched against the files the change touched.
+- A JUnit `<skipped/>` testcase neither passed nor failed. The results kind is `text` or
+  `junit`; `json-lines` and `tap` are reserved.
 
 ## 1. Discover what the repo already declares
 
@@ -74,8 +87,9 @@ the guide from in `derivedFrom`.
 
 ## 2. Results: structured first
 
-Use JUnit, JSON lines or TAP if the runner already emits it through a flag, a reporter or a
-plugin it has. Put the flag in `results.how.argvAppend` and the file in `results.how.path`. Only
+Use JUnit if the runner already emits it through a flag, a reporter or a plugin it has (JSON
+lines and TAP are reserved in v1). Set `results.id`/`idJoin` so the ids are the ones the list
+prints, and set `results.how.merge`/`list.merge` when the runner names scopes on stderr. Put the flag in `results.how.argvAppend` and the file in `results.how.path`. Only
 when none exists, write a `text` parser: line regexes, an optional section qualifier and summary
 blocks. Learn them from **real output of this repo's runner**, captured by running it on a
 scratch copy with the mutation probe in it. Base the parser on the runner's own final summary
@@ -83,12 +97,14 @@ where one exists, not on per-test lines interleaved with test output. `refs/resu
 rules (RE2 only, every regex `^…$`), the id round-trip test, and worked examples. The starting
 points in `assets/seeds/` (cargo, pytest, vitest) are drafts too: probe them like anything else.
 
-## 3. Write the mutation probe
+## 3. Write the two mutation probes
 
-`probes.mutation` is a minimal, deliberately failing test in the repo's own language and test
-framework. It goes in a **new** file that the runner's normal discovery picks up, together with
-the id the parser must name for it (`expectId`, plus `expectQ` when ids are qualified). One
-probe proves that the parser, the ids and deselect agree. Never edit an existing test file.
+`probes.mutation` and `probes.mutation2` are two minimal, deliberately failing tests in the
+repo's own language and test framework. Each goes in its own **new** file that the runner's
+normal discovery picks up, with a different id, and each carries the id the parser must name
+(`expectId`, plus `expectQ` when ids are qualified). One proves that the parser, the ids and
+deselect agree. Both together prove that two failures are both parsed and both deselected.
+Never edit an existing test file.
 
 ## 4. Validate: rehearse, then probe (at most 3 attempts per check)
 
@@ -99,13 +115,14 @@ wicked-garden run scripts/build_guide/probe.py --repo <dir> --guide <draft>
 ```
 
 - `check --draft` validates the shape and refuses a draft that carries `verified`.
-- `rehearse` mirrors the core probes in a scratch copy, so you can iterate quickly. It is not
-  evidence and writes nothing. It adds two checks the core probes do not make: `deselect-many`
-  (two mutations, both named and both deselected) and, for JUnit, `round-trip` (every reported
-  id is a listed id).
-  Report a failure of either, even when the probe passes.
+- `rehearse` mirrors the core probes (`list`, `run`, `mutation`, `ids`, `alone`, `deselect`,
+  `multi`, and `affected` when present) in a scratch copy, so you can iterate quickly. It is not
+  evidence and writes nothing.
 - `probe` runs `wicked-core floor probe --repo <dir> --guide <file>`. Only that command writes
-  `verified`. **Never hand-write `verified`**, and never edit what the probe wrote.
+  `verified`. **Never hand-write `verified`**, and never edit what the probe wrote. The one
+  exception: the probe leaves `runnerVersion` blank. Add `--version-argv '["<runner>","--version"]'`
+  (a JSON argv) and `probe.py` fills that blank field from the runner's own output before you
+  propose.
 
 A failed probe names a piece. Revise that piece's argv, parser or template and probe again. Stop
 after **3 probe attempts** for a check, and report each attempt's results. Do not keep tuning.
@@ -141,5 +158,5 @@ If the repo has no tests, or no candidate survives step 4 within the attempts, s
 ## Report
 
 Give the check names with their `run` argv, the result kind (and why text, if text), the
-per-probe results with attempt count, any rehearsal-only findings (for example, `deselect-many`
-failed), and the PR link or "no guide". Report a failure exactly as it happened.
+per-probe results with attempt count, any known limit (for example, `multi` failed because the
+runner rejects a repeated deselect flag), the `runnerVersion`, and the PR link or "no guide". Report a failure exactly as it happened.

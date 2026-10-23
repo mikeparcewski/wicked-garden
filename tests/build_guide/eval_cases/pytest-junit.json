@@ -21,6 +21,8 @@
     "rehearsal": "all-pass",
     "message_includes_any": [
       [
+        "ids probe",
+        "`ids`",
         "round-trip",
         "round trip",
         "node id",
@@ -31,5 +33,5 @@
       "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
     ]
   },
-  "rationale": "pytest's JUnit ids are not its node ids for every test: the best reading (xunit1 file + name) misses the class of a class method, so alone/list/deselect do not round-trip. The skill should try JUnit, see the round-trip fail, fall back to pytest's own short test summary, and say why. Proposing the JUnit guide fails this case."
+  "rationale": "pytest's JUnit ids are not its node ids for every test: the best reading (xunit1 file + name) misses the class of a class method, so the `ids` probe fails. The skill should try JUnit, see `ids` fail, fall back to pytest's own short test summary, and say why. Proposing the JUnit guide fails this case."
 }

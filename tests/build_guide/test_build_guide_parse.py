@@ -79,11 +79,18 @@ def test_junit_id_attributes_and_join_come_from_the_guide():
     assert failed == {("src/sum.test.js", "src/sum.test.js > sum > bad one")}
 
 
-def test_junit_counts_skipped_testcases_as_the_core_reader_does():
+def test_a_skipped_junit_testcase_neither_passed_nor_failed():
     xml = ('<testsuites><testsuite name="s"><testcase classname="c" name="a"/>'
            '<testcase classname="c" name="b"><skipped/></testcase></testsuite></testsuites>')
     every, failed = guide_mod.parse_junit(xml)
-    assert every == [("s", "c::a"), ("s", "c::b")] and failed == set()
+    assert every == [("s", "c::a")] and failed == set()
+
+
+def test_core_s_cargo_section_qualifies_by_test_binary_on_merged_output():
+    parser = json.loads((GUIDES / "wicked-core.json").read_text(encoding="utf-8"))["checks"][0]["parser"]
+    found = guide_mod.parse_text(parser, _read("cargo-libtest-fail.merged"))
+    assert found == {("calc-ded4bca6c667b96c", "tests::bad"), ("calc-ded4bca6c667b96c", "tests::forged"),
+                     ("it-afcf5aeb5a33827f", "integration_bad")}
 
 
 def test_tinyrun_parser_uses_the_summary_block():

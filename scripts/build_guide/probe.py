@@ -2,13 +2,16 @@
 """Run `wicked-core floor probe` on a guide, or say plainly that it cannot run.
 
     wicked-garden run scripts/build_guide/probe.py --repo <dir> --guide <file> [--check <name>]
-        [--bin <wicked-core>] [--timeout 3600]
+        [--bin <wicked-core>] [--timeout 3600] [--version-argv '["cargo","--version"]']
 
 The probe is wicked-core's (``wicked-core floor probe --repo <dir> --guide <file> [--check
 <name>]``, DES-BUILD-GUIDE): it runs every probe in a scratch copy of the base and writes
 ``verified``. This wrapper only finds the binary (``--bin``, else ``$WICKED_CORE_BIN``, else
 ``wicked-core`` on PATH), asks it whether it has the command (``floor probe --help``), runs it,
-and summarizes the ``verified`` block it wrote. It never writes ``verified`` itself.
+and summarizes the ``verified`` block it wrote. It never writes a probe result, ``baseSha`` or
+``at``. The probe leaves ``verified.runnerVersion`` blank; with ``--version-argv`` (a JSON argv,
+run in ``--repo`` with no shell) this fills each probed check's blank ``runnerVersion`` with the
+first line that command prints — the runner's own ``--version``.
 
 Prints one JSON object with ``probe`` = ``ran`` | ``unavailable`` and, when it ran, the per-check
 ``verified.results`` plus a Markdown table for the proposal. Exit codes: the probe's own exit
@@ -56,6 +59,29 @@ def has_probe(binary: str) -> tuple[bool, str]:
     return False, f"`{Path(binary).name} floor probe --help` exited {proc.returncode}: this wicked-core has no floor probe"
 
 
+def runner_version(argv: list[str], cwd: Path) -> str:
+    try:
+        proc = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, errors="replace", timeout=HELP_TIMEOUT)
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    return next((ln.strip() for ln in (proc.stdout + proc.stderr).splitlines() if ln.strip()), "")
+
+
+def fill_runner_version(guide_path: Path, wanted: str | None, version: str) -> list[str]:
+    """Write ``version`` into each probed check's blank ``verified.runnerVersion``; names the checks."""
+    guide = load_json(guide_path)
+    filled = []
+    for check in guide.get("checks", []):
+        v = check.get("verified")
+        if (wanted and check.get("name") != wanted) or not isinstance(v, dict) or v.get("runnerVersion"):
+            continue
+        v["runnerVersion"] = version
+        filled.append(check.get("name"))
+    if filled:
+        guide_path.write_text(json.dumps(guide, indent=2) + "\n", encoding="utf-8")
+    return filled
+
+
 def summarize(guide_path: Path, wanted: str | None) -> tuple[list[dict], str]:
     guide = load_json(guide_path)
     rows: list[dict] = []
@@ -81,7 +107,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--check", dest="check_name")
     ap.add_argument("--bin")
     ap.add_argument("--timeout", type=int, default=3600)
+    ap.add_argument("--version-argv", help="JSON argv printing the runner's version, e.g. '[\"cargo\",\"--version\"]'")
     args = ap.parse_args(argv)
+    version_argv = None
+    if args.version_argv:
+        try:
+            version_argv = json.loads(args.version_argv)
+        except ValueError:
+            version_argv = None
+        if not (isinstance(version_argv, list) and version_argv and all(isinstance(a, str) for a in version_argv)):
+            print(json.dumps({"error": "--version-argv must be a JSON array of strings"}))
+            return 2
     if not args.repo.is_dir() or not args.guide.is_file():
         print(json.dumps({"error": "--repo must be a directory and --guide a file"}))
         return 2
@@ -103,8 +139,15 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.TimeoutExpired:
         print(json.dumps({"probe": "ran", "exit": None, "error": f"timed out after {args.timeout}s"}))
         return 1
+    filled: list[str] = []
+    version = ""
+    if version_argv:
+        version = runner_version(version_argv, args.repo)
+        if version:
+            filled = fill_runner_version(args.guide, args.check_name, version)
     rows, table = summarize(args.guide, args.check_name)
     print(json.dumps({"probe": "ran", "exit": proc.returncode, "checks": rows, "markdown": table,
+                      "runnerVersion": version, "runnerVersionFilled": filled,
                       "stderrTail": proc.stderr[-2000:]}, indent=2))
     return proc.returncode
 

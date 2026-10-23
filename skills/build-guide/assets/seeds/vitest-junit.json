@@ -68,6 +68,11 @@
           "file": "src/wicked_mutation.test.js",
           "content": "import { it, expect } from 'vitest';\n\nit('wicked mutation probe', () => {\n  expect(1 + 1).toBe(3);\n});\n",
           "expectId": "wicked mutation probe"
+        },
+        "mutation2": {
+          "file": "src/wicked_mutation_two.test.js",
+          "content": "import { it, expect } from 'vitest';\n\nit('wicked mutation probe two', () => {\n  expect(1 + 1).toBe(3);\n});\n",
+          "expectId": "wicked mutation probe two"
         }
       }
     }
