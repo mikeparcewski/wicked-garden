@@ -1,0 +1,18 @@
+{
+  "case_id": "cargo-text-parser",
+  "skill": "wicked-garden-build-guide",
+  "fixture": "cargo-repo",
+  "prompt": "Write the build/test guide for this repo.",
+  "host": { "floor_probe": "unavailable", "runners": ["cargo"] },
+  "expect": {
+    "guide": "present",
+    "check_draft_ok": true,
+    "results_kind": "text",
+    "parser_uses": "blocks",
+    "derivedFrom_includes": [".github/workflows/ci.yml", "Cargo.toml"],
+    "no_verified": true,
+    "rehearsal": "all-pass",
+    "message_includes": ["probe unavailable: the guide is unverified, so the floor will not use it for exclusion"]
+  },
+  "rationale": "Stable cargo has no JUnit/JSON (--format junit is nightly-only), so the skill must learn a text parser from libtest's own failures: summary, keep --exact out of the per-id deselect tokens, and say plainly that the probe is unavailable."
+}

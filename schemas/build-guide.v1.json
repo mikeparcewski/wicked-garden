@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wickedagile.com/schemas/build-guide.v1.json",
+  "title": "Build guide (DES-BUILD-GUIDE, contract v1)",
+  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` file changed since, and the change touches no `invalidatedBy` file. All regexes are RE2 syntax, applied to one line at a time.",
+  "type": "object",
+  "required": ["version", "checks"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "derivedFrom": {
+      "description": "Repo-relative paths the guide was derived from (CI files, manifests): a base change to one makes the guide stale.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } }
+  },
+  "$defs": {
+    "argv": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "regex": { "type": "string", "minLength": 1 },
+    "check": {
+      "type": "object",
+      "required": ["name", "run", "results"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "cwd": { "type": "string", "default": "." },
+        "stage": { "type": "array", "items": { "enum": ["creator", "verify"] } },
+        "run": {
+          "$ref": "#/$defs/argv",
+          "description": "The exact argv. Exclusion happens only for a floor check whose argv equals this exactly: the guide is the allowlist."
+        },
+        "failedExit": {
+          "description": "Exit codes that mean 'tests failed'; any other non-zero exit is a crash or could-not-run.",
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "results": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": ["text", "junit", "json-lines", "tap"],
+              "description": "v1 reads `text` and `junit`; `json-lines` and `tap` are reserved."
+            },
+            "how": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "argvAppend": {
+                  "description": "Appended to every argv whose results are read (the base run, the probes' runs).",
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "env": { "type": "object", "additionalProperties": { "type": "string" } },
+                "path": { "type": "string", "description": "The results file, relative to `cwd`, when not stdout." },
+                "merge": {
+                  "type": "boolean",
+                  "description": "Capture stderr into the same stream as stdout, in order (a runner that names its test binaries on stderr)."
+                }
+              }
+            },
+            "id": {
+              "description": "(junit) The testcase attributes whose values, joined by `idJoin`, form an id. Default [\"classname\", \"name\"].",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "idJoin": {
+              "description": "(junit) What joins the `id` attributes (default `::`), so the ids can be the list's.",
+              "type": "string"
+            }
+          }
+        },
+        "parser": {
+          "description": "Only for results.kind = text.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "section": {
+              "$ref": "#/$defs/regex",
+              "description": "Lines that open a qualifier scope (a test binary), with a named group `q`; ids are (q, id)."
+            },
+            "failed": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/regex" },
+              "description": "Per-line failures, each with a named group `id`."
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["start", "item", "end"],
+                "additionalProperties": false,
+                "properties": {
+                  "start": { "$ref": "#/$defs/regex" },
+                  "item": { "$ref": "#/$defs/regex", "description": "With a named group `id`." },
+                  "end": { "$ref": "#/$defs/regex" },
+                  "use": {
+                    "enum": ["last-before-end", "all"],
+                    "default": "last-before-end",
+                    "description": "A block is the contiguous item lines (blank lines allowed) after a start; any other line ends it. At an end, the last block since the previous end (or every one) is taken."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "list": {
+          "type": "object",
+          "required": ["run", "item"],
+          "additionalProperties": false,
+          "properties": {
+            "run": { "$ref": "#/$defs/argv" },
+            "item": { "$ref": "#/$defs/regex", "description": "With a named group `id`." },
+            "section": {
+              "$ref": "#/$defs/regex",
+              "description": "With a named group `q`. Without it ids carry no qualifier, and results are compared by id alone."
+            },
+            "merge": { "type": "boolean" }
+          }
+        },
+        "alone": {
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{id}` (and optionally `{q}`)." } }
+        },
+        "deselect": {
+          "type": "object",
+          "required": ["append"],
+          "additionalProperties": false,
+          "properties": {
+            "append": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens through the last such one once per id, the rest once."
+            }
+          }
+        },
+        "affected": {
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{files}`; absent = the full run at every stage." } }
+        },
+        "invalidatedBy": {
+          "description": "Globs (`**`, `*`, `?`): a file the change touches that matches one disables exclusion for this check.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "probes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mutation": {
+              "type": "object",
+              "required": ["file", "content", "expectId"],
+              "additionalProperties": false,
+              "properties": {
+                "file": { "type": "string", "description": "Relative to `cwd`." },
+                "content": { "type": "string", "description": "A deliberately failing test." },
+                "expectId": { "type": "string" },
+                "expectQ": { "type": "string" }
+              }
+            }
+          }
+        },
+        "verified": {
+          "description": "Written by `wicked-core floor probe`.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "baseSha": { "type": "string" },
+            "runnerVersion": { "type": "string" },
+            "at": { "type": "string" },
+            "results": {
+              "type": "object",
+              "additionalProperties": { "type": "string", "pattern": "^(pass|fail: .*)$" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

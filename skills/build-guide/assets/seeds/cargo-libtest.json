@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "derivedFrom": [
+    ".github/workflows/ci.yml",
+    "Cargo.toml"
+  ],
+  "checks": [
+    {
+      "name": "test",
+      "cwd": ".",
+      "stage": [
+        "creator",
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "test",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "failedExit": [
+        101
+      ],
+      "results": {
+        "kind": "text",
+        "how": {
+          "argvAppend": [],
+          "env": {}
+        }
+      },
+      "parser": {
+        "blocks": [
+          {
+            "start": "^failures:$",
+            "item": "^    (?P<id>\\S+)$",
+            "end": "^test result: FAILED\\..*$",
+            "use": "last-before-end"
+          }
+        ]
+      },
+      "list": {
+        "run": [
+          "cargo",
+          "test",
+          "--workspace",
+          "--",
+          "--list"
+        ],
+        "item": "^(?P<id>\\S+): test$"
+      },
+      "alone": {
+        "run": [
+          "cargo",
+          "test",
+          "--workspace",
+          "--no-fail-fast",
+          "--",
+          "--exact",
+          "{id}"
+        ]
+      },
+      "deselect": {
+        "append": [
+          "--",
+          "--exact",
+          "--skip={id}"
+        ]
+      },
+      "invalidatedBy": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "**/Cargo.toml",
+        "rust-toolchain*",
+        ".cargo/**",
+        ".github/workflows/**"
+      ],
+      "probes": {
+        "mutation": {
+          "file": "tests/wicked_mutation_probe.rs",
+          "content": "#[test]\nfn wicked_mutation_probe() {\n    assert_eq!(1 + 1, 3, \"deliberately failing: the build-guide mutation probe\");\n}\n",
+          "expectId": "wicked_mutation_probe"
+        }
+      }
+    }
+  ]
+}

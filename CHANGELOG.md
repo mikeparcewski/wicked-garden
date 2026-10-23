@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added
+- **`wicked-garden-build-guide`: discover how a repo builds and tests, and propose its build/test guide (DES-BUILD-GUIDE; pairs with wicked-core#1066).** The guide is `.wicked/build-guide.json` in contract v1. The wicked-core floor interprets it instead of hardcoding runners, and reads it from the base tree.
+  - **Discover.** `scripts/build_guide/discover.py` reads CI config first, then the manifests, follows `make`/`just`/`npm` one level into what they run, and lists every test candidate with its `file:line`. It holds no runner table. The agent then learns each runner's formats and its list, run-one and deselect flags from the runner's own `--version` and `--help`.
+  - **Results.** Structured results come first, but only when their ids round-trip through `list`, `alone` and `deselect`. Otherwise the skill writes a text parser: RE2-only, `^…$` rules on the runner's own final summary.
+  - **Validate.** The skill writes a mutation probe, then runs `wicked-core floor probe`, which alone writes `verified`. It stops after at most 3 attempts per check. When the probe is unavailable, it says plainly that the guide is unverified and the floor will not use it for exclusion.
+  - **Propose.** The guide lands as a PR, or through the deliver gate inside a crew run. It is never written silently.
+  - **Scripts.** `check.py` validates a guide against `schemas/build-guide.v1.json`, vendored byte for byte from wicked-core#1066's branch and pinned to its git blob by a test; re-vendor it when that branch merges. `rehearse.py` mirrors the core probe (`list`, `run`, `mutation`, `alone`, `deselect`, `affected`) in a scratch copy. It adds two checks the probe does not make: `deselect-many` (two ids) and, for JUnit, `round-trip` (every reported id is listed). `probe.py` wraps the core command.
+  - **Seeds** for cargo/libtest (text), pytest (text on the short summary) and vitest (JUnit).
+  - **Onboarding.** Full onboarding in `wicked-garden-core` `setup` (step E) hands off to it.
+  - **Tests and evals.** `tests/build_guide/` holds real-runner tests on five fixture repos: cargo with a text parser, pytest with JUnit, vitest with a JUnit reporter, a fake runner with no structured output, and a repo with no tests. It also holds five eval cases with a deterministic grader.
+  - **Open contract questions** are listed in the skill's `refs/contract-notes.md`. Found while rehearsing against core #1066 @ df67a95:
+    - The JUnit reader counts `<skipped/>` testcases, so vitest fails `alone`.
+    - The probes check one passing id, so pytest's JUnit ids, which are wrong only for class methods, pass.
+    - The one-id probes cannot catch a per-id deselect that breaks with two ids.
+    - `{id}` is substituted unescaped.
+
 ### Fixed
 - Constrain the MCP TypeScript template's `@opentelemetry/api` dependency to `~1.9.0`, so a fresh `npm install` no longer hits the `@opentelemetry/sdk-logs` peer conflict now that API 1.10.0 is published.
 
