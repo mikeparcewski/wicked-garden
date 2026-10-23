@@ -1,0 +1,12 @@
+{
+  "case_id": "no-tests",
+  "skill": "wicked-garden-build-guide",
+  "fixture": "no-tests-repo",
+  "prompt": "Write the build/test guide for this repo.",
+  "host": { "floor_probe": "unavailable", "runners": [] },
+  "expect": {
+    "guide": "absent",
+    "message_includes": ["no build/test guide: the floor will run this repo's checks exit-code only"]
+  },
+  "rationale": "The only test script is npm's 'no test specified' placeholder and CI only builds. The skill must say there is no guide and propose no file, never invent a test command."
+}

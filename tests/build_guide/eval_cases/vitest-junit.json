@@ -1,0 +1,47 @@
+{
+  "case_id": "vitest-junit",
+  "skill": "wicked-garden-build-guide",
+  "fixture": "vitest-repo",
+  "prompt": "Write the build/test guide for this repo.",
+  "host": {
+    "floor_probe": "unavailable",
+    "runners": [
+      "vitest (after npm install)"
+    ]
+  },
+  "expect": {
+    "guide": "present",
+    "check_draft_ok": true,
+    "results_kind": "junit",
+    "derivedFrom_includes": [
+      ".github/workflows/ci.yml",
+      "package.json"
+    ],
+    "no_verified": true,
+    "rehearsal": {
+      "list": "pass",
+      "run": "pass",
+      "mutation": "pass",
+      "alone": "fail",
+      "deselect": "pass",
+      "deselect-many": "fail",
+      "round-trip": "pass"
+    },
+    "message_includes_any": [
+      [
+        "deselect-many",
+        "two ids",
+        "repeated name pattern",
+        "repeated -t",
+        "more than one"
+      ],
+      [
+        "skipped"
+      ]
+    ],
+    "message_includes": [
+      "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
+    ]
+  },
+  "rationale": "vitest has a JUnit reporter whose ids round-trip with `vitest list`, so the guide is junit. Two limits must be reported, not hidden: vitest rejects a repeated name pattern, so deselect cannot exclude two ids; and its JUnit lists the tests a name filter left out as <skipped/> testcases, which core's reader (#1066 @ df67a95) counts, so the alone probe fails."
+}

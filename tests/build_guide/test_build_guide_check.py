@@ -1,0 +1,164 @@
+"""check.py: a guide against contract v1 (wicked-core's schema, vendored) plus the lint the schema does not express."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
+
+SCHEMA = REPO / "schemas" / "build-guide.v1.json"
+# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@df67a95 (#1066).
+CORE_BLOB = "d541aa5eef6c532cfb0a94573496d117d4c3a40c"
+SEED_REPOS = {
+    "cargo-libtest.json": "cargo-repo",
+    "pytest-short-summary.json": "pytest-repo",
+    "vitest-junit.json": "vitest-repo",
+}
+
+
+def _write(tmp_path: Path, guide: dict) -> Path:
+    path = tmp_path / "guide.json"
+    path.write_text(json.dumps(guide), encoding="utf-8")
+    return path
+
+
+def _seed(name: str = "cargo-libtest.json") -> dict:
+    return json.loads((SEEDS / name).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("seed,repo", sorted(SEED_REPOS.items()))
+def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
+    code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
+    assert code == 0, report["errors"]
+    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@df67a95")
+
+
+@pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
+def test_test_guides_are_clean_drafts(guide, repo):
+    code, report = run_script("check", "--guide", str(GUIDES / guide), "--repo", str(FIXTURES / repo), "--draft")
+    assert code == 0, report["errors"]
+
+
+def test_a_draft_carrying_verified_is_refused(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["verified"] = {"baseSha": "abc", "runnerVersion": "x", "at": "now", "results": {"mutation": "pass"}}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any("only `wicked-core floor probe` writes it" in e for e in report["errors"])
+
+
+def test_a_probed_guide_may_carry_verified(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
+                                      "results": {"mutation": "pass", "deselect": "fail: exit 101"}}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
+    assert code == 0, report["errors"]
+
+
+@pytest.mark.parametrize("mutate,needle", [
+    (lambda g: g.update(extra=1), "additional property 'extra'"),
+    (lambda g: g["checks"][0].update(results={"kind": "xml", "how": {}}), "is not one of"),
+    (lambda g: g["checks"][0].pop("parser"), "results.kind=text needs a parser"),
+    (lambda g: g["checks"][0]["probes"]["mutation"].pop("expectId"), "missing required property 'expectId'"),
+    (lambda g: g["checks"][0].update(stage="creator"), "is not of type 'array'"),
+    (lambda g: g["checks"][0].update(failedExit=["101"]), "is not of type 'integer'"),
+    (lambda g: g["checks"][0].pop("alone"), "alone: missing; the skill always writes it"),
+    (lambda g: g["checks"][0]["probes"].pop("mutation"), "the skill always writes a mutation probe"),
+    (lambda g: g.pop("derivedFrom"), "derivedFrom: missing or empty"),
+    (lambda g: g["checks"][0]["results"].update(id=["name"]), "id/idJoin are only for results.kind=junit"),
+    (lambda g: (g["checks"][0].pop("parser"), g["checks"][0].update(results={"kind": "tap", "how": {}})),
+     "tap is reserved in v1"),
+    (lambda g: g.update(version=2), "!= const 1"),
+])
+def test_schema_violations_are_named(tmp_path, mutate, needle):
+    guide = _seed()
+    mutate(guide)
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any(needle in e for e in report["errors"]), report["errors"]
+
+
+@pytest.mark.parametrize("rule,needle", [
+    ("^(?=x)failures:$", "lookaround"),
+    ("^(a)\\1$", "backreference"),
+    ("^failures:(", "does not compile"),
+])
+def test_parser_regexes_must_be_anchored_re2(tmp_path, rule, needle):
+    guide = _seed()
+    guide["checks"][0]["parser"]["blocks"][0]["start"] = rule
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any(needle in e for e in report["errors"]), report["errors"]
+
+
+def test_an_unanchored_rule_is_a_warning_not_an_error(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["parser"]["blocks"][0]["end"] = "^test result: FAILED"
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 0, report["errors"]
+    assert any("not anchored ^...$" in w for w in report["warnings"])
+
+
+def test_item_rules_need_an_id_group_and_templates_their_placeholders(tmp_path):
+    guide = _seed()
+    check = guide["checks"][0]
+    check["parser"]["blocks"][0]["item"] = "^    (\\S+)$"
+    check["alone"]["run"] = ["cargo", "test"]
+    check["deselect"]["append"] = ["--skip"]
+    check["affected"] = {"run": ["cargo", "test"]}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    text = "\n".join(report["errors"])
+    assert code == 1
+    for needle in ("needs a (?P<id>...) group", "alone.run: needs an {id}", "deselect.append: needs an {id}",
+                   "affected.run: needs a {files}"):
+        assert needle in text
+
+
+def test_a_parser_on_a_structured_kind_is_refused(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["results"] = {"kind": "junit", "how": {"path": "out.xml"}}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any("only for results.kind=text" in e for e in report["errors"])
+
+
+def test_paths_must_be_repo_relative_and_derived_from_files_must_exist(tmp_path):
+    guide = _seed()
+    guide["derivedFrom"] = ["../outside.yml", "missing.toml"]
+    guide["checks"][0]["probes"]["mutation"]["file"] = "/abs/probe.rs"
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
+                              "--draft")
+    text = "\n".join(report["errors"])
+    assert code == 1
+    assert "must be repo-relative" in text and "'missing.toml' does not exist" in text
+
+
+def test_a_mutation_over_an_existing_file_warns(tmp_path):
+    guide = _seed()
+    guide["checks"][0]["probes"]["mutation"]["file"] = "src/lib.rs"
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
+                              "--draft")
+    assert code == 0
+    assert any("would overwrite a real file" in w for w in report["warnings"])
+
+
+def test_the_vendored_schema_is_byte_for_byte_wicked_cores():
+    data = SCHEMA.read_bytes()
+    assert hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest() == CORE_BLOB
+
+
+def test_a_schema_with_keywords_the_validator_cannot_check_is_refused(tmp_path):
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    strict = copy.deepcopy(schema)
+    strict["properties"]["checks"]["uniqueItems"] = True
+    schema_path = tmp_path / "core-schema.json"
+    schema_path.write_text(json.dumps(strict), encoding="utf-8")
+    code, report = run_script("check", "--guide", str(SEEDS / "cargo-libtest.json"), "--schema", str(schema_path))
+    assert code == 1
+    assert "does not implement" in report["errors"][0] and "uniqueItems" in report["errors"][0]
+    assert report["schema"] == str(schema_path)

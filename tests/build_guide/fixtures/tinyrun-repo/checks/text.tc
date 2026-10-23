@@ -1,0 +1,2 @@
+upper say [text] shout ... FAIL
+len 5 == 5

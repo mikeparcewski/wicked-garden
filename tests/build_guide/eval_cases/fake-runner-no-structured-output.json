@@ -1,0 +1,18 @@
+{
+  "case_id": "fake-runner-no-structured-output",
+  "skill": "wicked-garden-build-guide",
+  "fixture": "tinyrun-repo",
+  "prompt": "Write the build/test guide for this repo.",
+  "host": { "floor_probe": "unavailable", "runners": ["tinyrun (python3)"] },
+  "expect": {
+    "guide": "present",
+    "check_draft_ok": true,
+    "results_kind": "text",
+    "parser_uses": "blocks",
+    "derivedFrom_includes": [".github/workflows/ci.yml", "Makefile"],
+    "no_verified": true,
+    "rehearsal": "all-pass",
+    "message_includes": ["probe unavailable: the guide is unverified, so the floor will not use it for exclusion"]
+  },
+  "rationale": "tinyrun has no JUnit, JSON or TAP (its --help says so), and its tests print look-alike FAIL lines. The parser has to be generated from real output and anchored on the runner's own summary block; a per-line FAIL rule fails the run probe."
+}
