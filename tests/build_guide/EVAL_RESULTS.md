@@ -10,6 +10,8 @@ still to do (see `eval_cases/README.md`).
 
 **Schema.** `schemas/build-guide.v1.json` is vendored from wicked-core#1066's branch at df67a95.
 
+**Runs.** The five cases ran twice, once plain and once with `CI=true` (pytest changes its summary format in CI). Both runs graded 5/5.
+
 **Host.** `wicked-core floor probe` is not available yet (it lands with wicked-core#1066), so
 every run took the probe-unavailable path. The runners were cargo 1.99.0, pytest 9.1.1,
 vitest 5.0.5 (after `npm install`) and python3 for tinyrun.
