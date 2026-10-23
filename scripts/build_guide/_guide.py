@@ -10,10 +10,10 @@ Three things live here, used by check.py and rehearse.py:
   not anchored ``^...$`` is a warning), the named groups exist, the templates carry their
   placeholders, paths are repo-relative, a draft carries no ``verified`` (only
   ``wicked-core floor probe`` writes it, including ``runnerVersion`` from the ``version`` piece), and
-  what the FLOOR requires is present — a non-empty ``failedExit``, ``alone``, ``deselect``, a
-  ``text`` or ``junit`` results kind, a ``list`` — plus what the skill always writes
-  (``derivedFrom``, two distinct mutation probes). The schema makes these optional; the floor
-  will not use a check without them.
+  what the FLOOR requires of a test check (one with ``list``) is present — a non-empty
+  ``failedExit``, ``alone``, ``deselect``, a ``text`` or ``junit`` results kind — plus what the
+  skill always writes (``derivedFrom``, ``version``, two distinct mutation probes). A check with
+  no ``list`` is a gate (install, build, format, lint, typecheck): exit code only, never probed.
 * ``parse_text`` / ``parse_junit`` / ``parse_list`` / ``deselect_tokens`` — a REHEARSAL of the
   core interpreter, following the semantics the schema's descriptions state (blocks, JUnit
   ``id``/``idJoin``, deselect composition, ``merge``). wicked-core's interpreter is authoritative;
@@ -40,7 +40,7 @@ from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
 # Where the vendored schema came from: wicked-core#1066's branch, not yet merged.
-SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@f88a639 schemas/build-guide.v1.json (unmerged, #1066)"
+SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@e2ad012 schemas/build-guide.v1.json (unmerged, #1066)"
 # The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
 # plus `affected` when the check has that piece.
 REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
@@ -150,29 +150,31 @@ def _lint_parser(at: str, parser: dict) -> list[str]:
     return errors
 
 
-def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[list[str], list[str]]:
+def passed(result: str) -> bool:
+    """A probe result the floor counts as passed (core: `pass`, or `pass (retried)`)."""
+    return result in ("pass", "pass (retried)")
+
+
+def _lint_common(at: str, check: dict, repo: Path | None) -> tuple[list[str], list[str]]:
+    """What every check needs, a gate (no `list`) or a test check."""
     errors: list[str] = []
     warnings: list[str] = []
     cwd = check.get("cwd", ".")
     errors += _repo_relative(f"{at}.cwd", cwd)
     if repo is not None and not (repo / cwd).is_dir():
         errors.append(f"{at}.cwd: {cwd!r} is not a directory in the repo")
-    for key in ("failedExit", "list", "alone", "deselect"):
-        if not check.get(key):
-            errors.append(f"{at}.{key}: missing or empty; the floor will not use this check without it")
     run = check.get("run", [])
     if len(run) == 1 and " " in run[0]:
         warnings.append(f"{at}.run: one token with spaces looks like a shell string; run is an exact argv")
     for where, argv in (("run", run), ("list.run", check.get("list", {}).get("run", [])),
-                        ("alone.run", check.get("alone", {}).get("run", []))):
+                        ("alone.run", check.get("alone", {}).get("run", [])),
+                        ("version.run", check.get("version", {}).get("run", []))):
         if argv and PurePosixPath(argv[0]).name in SHELLS:
             warnings.append(f"{at}.{where}: runs through a shell ({argv[0]}); argv never passes through a "
                             "shell, so name the runner itself")
     results = check.get("results", {})
     kind = results.get("kind")
     parser = check.get("parser")
-    if kind == "text" and parser is None:
-        errors.append(f"{at}.parser: results.kind=text needs a parser")
     if kind != "text" and parser is not None:
         errors.append(f"{at}.parser: a parser is only for results.kind=text (kind is {kind!r})")
     if kind != "junit" and ("id" in results or "idJoin" in results):
@@ -184,15 +186,39 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
         errors += _repo_relative(f"{at}.results.how.path", path)
     if isinstance(parser, dict):
         errors += _lint_parser(at, parser)
+    return errors, warnings
+
+
+def _lint_gate(at: str, check: dict) -> tuple[list[str], list[str]]:
+    """A check with no `list` piece (install, build, format, lint, typecheck): it gates on its exit
+    code only and is not probed."""
+    warnings: list[str] = []
+    extra = [k for k in ("alone", "deselect", "probes", "affected") if k in check]
+    if extra:
+        warnings.append(f"{at}: has {', '.join(extra)} but no `list`, so it is a gate (exit code only) and "
+                        "none of them is probed or used")
+    return [], warnings
+
+
+def _lint_test(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[list[str], list[str]]:
+    """A test check (it has `list`): everything the floor needs to exclude base failures."""
+    errors: list[str] = []
+    warnings: list[str] = []
+    cwd = check.get("cwd", ".")
+    for key in ("failedExit", "alone", "deselect"):
+        if not check.get(key):
+            errors.append(f"{at}.{key}: missing or empty; the floor will not use this check without it")
+    if check.get("results", {}).get("kind") == "text" and check.get("parser") is None:
+        errors.append(f"{at}.parser: results.kind=text needs a parser")
     lst = check.get("list", {})
     if "item" in lst:
         errors += _regex_problems(f"{at}.list.item", lst["item"], ["id"])
     if "section" in lst:
         errors += _regex_problems(f"{at}.list.section", lst["section"], ["q"])
     if "alone" in check and not _has_placeholder(check["alone"].get("run", [])):
-        errors.append(f"{at}.alone.run: needs an {{id}} (or {{q}}) placeholder")
+        errors.append(f"{at}.alone.run: needs an {{id}} (or {{q}}, {{id:re}}) placeholder")
     if "deselect" in check and not _has_placeholder(check["deselect"].get("append", [])):
-        errors.append(f"{at}.deselect.append: needs an {{id}} (or {{q}}) placeholder")
+        errors.append(f"{at}.deselect.append: needs an {{id}} (or {{q}}, {{id:re}}, {{ids:re|}}) placeholder")
     if not check.get("version", {}).get("run"):
         warnings.append(f"{at}.version: missing; the skill writes the runner's own version command, so a "
                         "runner change marks the guide stale")
@@ -216,15 +242,20 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
     if draft and verified is not None:
         errors.append(f"{at}.verified: a draft carries no verified; only `wicked-core floor probe` writes it")
     elif verified is not None:
-        needed = list(REQUIRED_PROBES) + (["affected"] if "affected" in check else [])
+        needed = list(REQUIRED_PROBES) + [p for p in ("affected", "version") if p in check]
         results = verified.get("results", {})
-        unpassed = [f"{p}: {results.get(p, 'never ran')}" for p in needed if results.get(p) != "pass"]
+        unpassed = [f"{p}: {results.get(p, 'never ran')}" for p in needed if not passed(results.get(p, ""))]
         if unpassed:
             warnings.append(f"{at}.verified: the floor will not rely on this check ({'; '.join(unpassed)})")
-        if "version" in check and not verified.get("runnerVersion"):
-            warnings.append(f"{at}.verified.runnerVersion: blank although the check has a `version` piece; "
-                            "probe again")
     return errors, warnings
+
+
+def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[list[str], list[str]]:
+    errors, warnings = _lint_common(at, check, repo)
+    e, w = _lint_test(at, check, repo, draft) if "list" in check else _lint_gate(at, check)
+    if "list" not in check and draft and "verified" in check:
+        e.append(f"{at}.verified: a draft carries no verified; only `wicked-core floor probe` writes it")
+    return errors + e, warnings + w
 
 
 def lint(guide: dict[str, Any], repo: Path | None = None, draft: bool = False) -> tuple[list[str], list[str]]:

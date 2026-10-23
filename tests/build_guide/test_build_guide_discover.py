@@ -51,3 +51,12 @@ def test_a_repo_with_no_tests_says_so_even_with_the_npm_placeholder():
 def test_a_missing_repo_is_a_usage_error(tmp_path):
     code, report = run_script("discover", "--repo", str(tmp_path / "nope"))
     assert code == 2 and "is not a directory" in report["error"]
+
+
+def test_ci_steps_list_every_gating_command_not_only_tests():
+    report = _discover("cargo-repo")
+    assert [(s["source"], s["command"]) for s in report["ciSteps"]] == [
+        (".github/workflows/ci.yml:8", "cargo build --locked --workspace"),
+        (".github/workflows/ci.yml:9", "cargo test --locked --workspace --no-fail-fast")]
+    vitest = _discover("vitest-repo")
+    assert [s["command"] for s in vitest["ciSteps"]] == ["npm install --no-audit --no-fund", "npm test"]

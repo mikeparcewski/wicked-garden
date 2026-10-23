@@ -44,7 +44,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 |--------|------|-----|
 | `discover` (default) | the repo has no guide | steps 1 to 6 below |
 | `refresh` | the guide is stale (a `derivedFrom` file or the runner version changed), a probe failed, or crew dispatched re-onboarding | start from the committed guide; if a `derivedFrom` file changed, redo step 1; otherwise revise only the failing piece; then steps 4 to 6 |
-| `check` | validate a guide file someone wrote | `wicked-garden run scripts/build_guide/check.py --guide <file> --repo <dir> [--schema <file>]`. It flags what the floor needs before it will use a check: a non-empty `failedExit`, `alone`, `deselect`, a `list`, and a `text` or `junit` results kind. It warns when the `version` piece is missing. On a probed guide it also flags any required probe that did not pass. |
+| `check` | validate a guide file someone wrote | `wicked-garden run scripts/build_guide/check.py --guide <file> --repo <dir> [--schema <file>]`. For a test check (one with `list`), it flags what the floor needs before it will use it: a non-empty `failedExit`, `alone`, `deselect`, two mutations, and a `text` or `junit` results kind. It warns when the `version` piece is missing. With `--repo`, it warns for every CI step no check declares. On a probed guide, it flags any required probe that did not pass. |
 
 The contract is fixed (DES-BUILD-GUIDE, "Contract v1"). Its schema is wicked-core's
 `schemas/build-guide.v1.json`, which the scripts carry as a vendored copy. Produce exactly that
@@ -70,11 +70,16 @@ as `--schema`.
 - How the floor reads exit codes: 0 passes. A code in `failedExit` with parsed failures is
   tests failing. A `failedExit` code with no parsed failure is `base_red_unseparated` on the
   base and `new_failure` on the head. Any other non-zero code is `could_not_run`.
-- When a usable guide exists, its checks replace the floor's own detection, run at the
-  `stage`s they declare.
-- `version: {run: argv}` is the runner's own version command. The probe records its output as
-  `runnerVersion`, and the floor treats a different version as stale. A failed probe is retried
-  once; failing twice leaves the guide unverified.
+- **The guide replaces detection.** When a usable guide exists, its checks ARE the floor's
+  checks, run at the `stage`s they declare (absent means both). So declare EVERY step the
+  repo's CI gates on: install, build, format, lint, typecheck and test. A check with no `list`
+  is a gate: its exit code alone decides it, and it is not probed. Only a test check (with
+  `list`) carries the pieces and probes below.
+- `version: {run: argv}` is the runner's own version command. The probe records its first output
+  line as `runnerVersion` and adds a required `version` probe; the floor treats a different
+  version as stale. A failed probe is re-run once on a fresh copy: `pass (retried)` counts, and
+  `fail: … (retried)` leaves the guide unverified. A probe that fails for a missing piece is not
+  retried.
 
 ## 1. Discover what the repo already declares
 
@@ -85,7 +90,8 @@ wicked-garden run scripts/build_guide/discover.py --repo <dir>
 It reads CI config first (`.github/workflows/*`, `.gitlab-ci.yml`, `Makefile`, `justfile`), then
 the manifests (Cargo.toml, package.json scripts, pyproject/setup.cfg/tox.ini, go.mod,
 gradle/maven). It follows `make test`, `just test` and `npm test` one level into what they run,
-and lists every test candidate with its `file:line`. It runs nothing. **Manual alternative:**
+and lists every test candidate with its `file:line`. It also lists `ciSteps`: every command CI
+runs. Each one becomes a check, a gate unless it is the test run. It runs nothing. **Manual alternative:**
 read those files yourself, in that order.
 
 Then interrogate each candidate's runner: run its `--version` and `--help`, and any sub-help it
@@ -128,12 +134,13 @@ wicked-garden run scripts/build_guide/probe.py --repo <dir> --guide <draft>
 
 - `check --draft` validates the shape and refuses a draft that carries `verified`.
 - `rehearse` mirrors the core probes (`list`, `run`, `mutation`, `ids`, `alone`, `deselect`,
-  `multi`, and `affected` when present) in a scratch copy, so you can iterate quickly. It is not
-  evidence and writes nothing.
+  `multi`, plus `affected` and `version` when present, each retried once as core does) in a
+  scratch copy, so you can iterate quickly. It skips gates. It is not evidence and writes
+  nothing.
 - `probe` runs `wicked-core floor probe --repo <dir> --guide <file>`. Only that command writes
   `verified`, including `runnerVersion` from the `version` piece you wrote (for example
-  `{"run": ["cargo", "--version"]}`). **Never hand-write `verified`**, and never edit what the
-  probe wrote. Both the probe and the rehearsal retry a failed probe once.
+  `{"run": ["cargo", "--version"]}`). **Never hand-write `verified`** (`runnerVersion`
+  included), and never edit what the probe wrote.
 
 A failed probe names a piece. Revise that piece's argv, parser or template and probe again. Stop
 after **3 probe attempts** for a check, and report each attempt's results. Do not keep tuning.

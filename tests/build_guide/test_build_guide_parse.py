@@ -18,7 +18,7 @@ _spec.loader.exec_module(guide_mod)
 
 
 def _parser(path) -> dict:
-    return json.loads(path.read_text(encoding="utf-8"))["checks"][0]["parser"]
+    return next(c for c in json.loads(path.read_text(encoding="utf-8"))["checks"] if "parser" in c)["parser"]
 
 
 def _read(name: str) -> str:
@@ -87,7 +87,7 @@ def test_a_skipped_junit_testcase_neither_passed_nor_failed():
 
 
 def test_core_s_cargo_section_qualifies_by_test_binary_on_merged_output():
-    parser = json.loads((GUIDES / "wicked-core.json").read_text(encoding="utf-8"))["checks"][0]["parser"]
+    parser = _parser(GUIDES / "wicked-core.json")
     found = guide_mod.parse_text(parser, _read("cargo-libtest-fail.merged"))
     assert found == {("calc-ded4bca6c667b96c", "tests::bad"), ("calc-ded4bca6c667b96c", "tests::forged"),
                      ("it-afcf5aeb5a33827f", "integration_bad")}

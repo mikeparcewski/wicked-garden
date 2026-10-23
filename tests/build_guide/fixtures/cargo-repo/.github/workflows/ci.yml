@@ -5,5 +5,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: cargo build --workspace
+      - run: cargo build --locked --workspace
       - run: cargo test --locked --workspace --no-fail-fast

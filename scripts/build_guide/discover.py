@@ -18,8 +18,10 @@ command that really runs. Which candidate is the check, and what its runner can 
 agent's call after running the runner's ``--version`` and ``--help``.
 
 Prints one JSON object: ``files`` (repo-relative CI and manifest paths found — the
-``derivedFrom`` candidates), ``commands`` (every candidate with its source ``file:line`` and any
-resolved recipe), and ``verdict``: ``candidates`` or ``no-test-command``. Exit 0; 2 on bad usage.
+``derivedFrom`` candidates), ``commands`` (every test candidate with its source ``file:line`` and
+any resolved recipe), ``ciSteps`` (EVERY command CI runs — install, build, format, lint,
+typecheck, test — each of which the guide must declare as a check, because a guide's checks
+replace the floor's own detection), and ``verdict``: ``candidates`` or ``no-test-command``. Exit 0; 2 on bad usage.
 Standard library only.
 """
 
@@ -48,6 +50,15 @@ _INDIRECT = re.compile(r"(?:^|[\s;&|(])(make|just|npm|pnpm|yarn)\s+(?:(?:-\S+\s+
 
 def is_test(cmd: str) -> bool:
     return "test" in cmd.lower()
+
+
+# Shell builtins that set up a step rather than gate it.
+_TRIVIAL = {"echo", "cd", "export", "set", "true", ":", "printf", "pushd", "popd"}
+
+
+def is_trivial(cmd: str) -> bool:
+    first = cmd.strip().split(" ", 1)[0] if cmd.strip() else ""
+    return not first or first.startswith("#") or first in _TRIVIAL
 
 
 def _block_lines(lines: list[str], start: int, indent: int) -> list[tuple[int, str]]:
@@ -115,13 +126,14 @@ def discover(repo: Path) -> dict:
     # otherwise also "exist" next to `Makefile`.
     present = set(os.listdir(repo))
     files: list[str] = []
-    commands: list[dict] = []
+    steps: list[dict] = []
     for pattern in CI_GLOBS:
         for path in sorted(repo.glob(pattern)):
             rel = path.relative_to(repo).as_posix()
             files.append(rel)
-            commands += [c for c in ci_commands(rel, path.read_text(encoding="utf-8", errors="replace"))
-                         if is_test(c["command"])]
+            steps += [c for c in ci_commands(rel, path.read_text(encoding="utf-8", errors="replace"))
+                      if not is_trivial(c["command"])]
+    commands: list[dict] = [dict(c) for c in steps if is_test(c["command"])]
     recipe_map: dict[str, dict] = {}
     for name in RECIPE_FILES:
         path = repo / name
@@ -150,7 +162,7 @@ def discover(repo: Path) -> dict:
     for key, value in scripts.items():
         if is_test(key):
             commands.append({"source": f"package.json#scripts.{key}", "command": value})
-    for cmd in commands:
+    for cmd in commands + steps:
         resolved = resolve(cmd["command"], repo, recipe_map, scripts)
         if resolved:
             cmd["resolves"] = resolved
@@ -158,7 +170,7 @@ def discover(repo: Path) -> dict:
             cmd["placeholder"] = True
     real = [c for c in commands if not c.get("placeholder")]
     return {"repo": str(repo), "files": files, "manifests": manifests, "commands": commands,
-            "verdict": "candidates" if real else "no-test-command"}
+            "ciSteps": steps, "verdict": "candidates" if real else "no-test-command"}
 
 
 def main(argv: list[str] | None = None) -> int:

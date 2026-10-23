@@ -8,7 +8,7 @@ path, **not an independent eval**: the creator ran it, and the drafts started fr
 creator wrote. An independent run, with a different agent that has only the skill installed, is
 still to do (see `eval_cases/README.md`).
 
-**Schema.** `schemas/build-guide.v1.json` is vendored from wicked-core#1066's branch at f88a639 (re-run after the contract settled; the earlier df67a95 run also graded 5/5).
+**Schema.** `schemas/build-guide.v1.json` is vendored from wicked-core#1066's branch at e2ad012 (re-run after the coordinator's rulings; the earlier df67a95 and f88a639 runs also graded 5/5).
 
 **Runs.** The five cases ran twice, once plain and once with `CI=true` (pytest changes its summary format in CI). Both runs graded 5/5.
 
@@ -18,12 +18,12 @@ vitest 5.0.5 (after `npm install`) and python3 for tinyrun.
 
 | Case | Attempts | Outcome | Grade |
 |---|---|---|---|
-| `cargo-text-parser` | 1 | the seed reconciled with wicked-core's own guide: text parser on libtest's `failures:` block, merged stderr, binary-qualified ids, two mutations; every probe (`list`, `run`, `mutation`, `ids`, `alone`, `deselect`, `multi`) passes in rehearsal; probe unavailable | 9/9 pass |
-| `pytest-junit` | 2 | attempt 1 (JUnit, xunit1, `results.id: ["file","name"]`) failed `ids`: a class method's JUnit id `tests/test_calc.py::test_param[1]` is not its node id `…::TestGroup::test_param[1]`. Attempt 2 (text on `-rfE` with `--force-short-summary`) passed every probe. Probe unavailable | 9/9 pass |
-| `vitest-junit` | 1 | JUnit with `results.id: ["name"]`; every probe passes except `multi`, which fails because vitest rejects a repeated name pattern; the limit is reported; probe unavailable | 9/9 pass |
-| `fake-runner-no-structured-output` | 1 | text parser generated from real output, anchored on tinyrun's summary block; every probe passes; probe unavailable | 9/9 pass |
+| `cargo-text-parser` | 1 | a `build` gate for CI's `cargo build` step, and a test check reconciled with wicked-core's own probed guide (merged stderr, binary-qualified ids, two mutations, `version` `cargo --version`); every probe passes, `version` included; probe unavailable | 9/9 pass |
+| `pytest-junit` | 2 | attempt 1 (JUnit, xunit1, `results.id: ["file","name"]`) failed `ids` twice (`… (retried)`): a class method's JUnit id is not its node id. Attempt 2 (text on `-rfE` with `--force-short-summary`, plus an `install` gate) passed every probe. Probe unavailable | 9/9 pass |
+| `vitest-junit` | 1 | an `npm install` gate, and JUnit with `results.id: ["name"]`; deselect takes every id in one `{ids:re\|}` token, so every probe passes, `multi` included; probe unavailable | 8/8 pass |
+| `fake-runner-no-structured-output` | 1 | text parser generated from real output, anchored on tinyrun's summary block; CI's `make test` is declared through its recipe; every probe passes; probe unavailable | 9/9 pass |
 | `no-tests` | n/a | no guide; reported in the exact words "no build/test guide: the floor will run this repo's checks exit-code only" | 2/2 pass |
 
 **What this does not show.** It does not show that the core probe agrees with the rehearsal.
-It cannot: the probe is not installed here. The rehearsal mirrors #1066's `src/floor_probe.rs` at f88a639, read from source. Re-run every case once `floor probe` ships, and add a
+It cannot: the probe is not installed here. The rehearsal mirrors #1066's `src/floor_probe.rs` at e2ad012, read from source. Re-run every case once `floor probe` ships, and add a
 `probe` expectation.

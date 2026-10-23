@@ -12,8 +12,8 @@ import pytest
 from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
 
 SCHEMA = REPO / "schemas" / "build-guide.v1.json"
-# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@f88a639 (#1066).
-CORE_BLOB = "f0be92e61002e42e8d9395687dbcc6cf01181f0f"
+# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@e2ad012 (#1066).
+CORE_BLOB = "0573640ad39afcaa5f8e6513f7a0441189af9cc2"
 SEED_REPOS = {
     "cargo-libtest.json": "cargo-repo",
     "pytest-short-summary.json": "pytest-repo",
@@ -27,6 +27,11 @@ def _write(tmp_path: Path, guide: dict) -> Path:
     return path
 
 
+def _t(guide: dict) -> dict:
+    """The guide's test check (the one with a `list`)."""
+    return next(c for c in guide["checks"] if "list" in c)
+
+
 def _seed(name: str = "cargo-libtest.json") -> dict:
     return json.loads((SEEDS / name).read_text(encoding="utf-8"))
 
@@ -35,7 +40,7 @@ def _seed(name: str = "cargo-libtest.json") -> dict:
 def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
     code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
     assert code == 0, report["errors"]
-    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@f88a639")
+    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@e2ad012")
 
 
 @pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
@@ -46,7 +51,7 @@ def test_test_guides_are_clean_drafts(guide, repo):
 
 def test_a_draft_carrying_verified_is_refused(tmp_path):
     guide = _seed()
-    guide["checks"][0]["verified"] = {"baseSha": "abc", "runnerVersion": "x", "at": "now", "results": {"mutation": "pass"}}
+    _t(guide)["verified"] = {"baseSha": "abc", "runnerVersion": "x", "at": "now", "results": {"mutation": "pass"}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert code == 1
     assert any("only `wicked-core floor probe` writes it" in e for e in report["errors"])
@@ -54,7 +59,7 @@ def test_a_draft_carrying_verified_is_refused(tmp_path):
 
 def test_a_probed_guide_may_carry_verified(tmp_path):
     guide = _seed()
-    guide["checks"][0]["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
+    _t(guide)["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
                                       "results": {"mutation": "pass", "deselect": "fail: exit 101"}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
     assert code == 0, report["errors"]
@@ -62,21 +67,21 @@ def test_a_probed_guide_may_carry_verified(tmp_path):
 
 @pytest.mark.parametrize("mutate,needle", [
     (lambda g: g.update(extra=1), "additional property 'extra'"),
-    (lambda g: g["checks"][0].update(results={"kind": "xml", "how": {}}), "is not one of"),
-    (lambda g: g["checks"][0].pop("parser"), "results.kind=text needs a parser"),
-    (lambda g: g["checks"][0]["probes"]["mutation"].pop("expectId"), "missing required property 'expectId'"),
-    (lambda g: g["checks"][0].update(stage="creator"), "is not of type 'array'"),
-    (lambda g: g["checks"][0].update(failedExit=["101"]), "is not of type 'integer'"),
-    (lambda g: g["checks"][0].pop("alone"), "alone: missing or empty; the floor will not use this check"),
-    (lambda g: g["checks"][0].pop("deselect"), "deselect: missing or empty; the floor will not use this check"),
-    (lambda g: g["checks"][0].update(failedExit=[]), "failedExit: missing or empty; the floor will not use"),
-    (lambda g: g["checks"][0]["probes"].pop("mutation"), "probes.mutation: missing; the `mutation` probe"),
-    (lambda g: g["checks"][0]["probes"].pop("mutation2"), "probes.mutation2: missing; the `multi` probe"),
-    (lambda g: g["checks"][0]["probes"].update(mutation2=dict(g["checks"][0]["probes"]["mutation"])),
+    (lambda g: _t(g).update(results={"kind": "xml", "how": {}}), "is not one of"),
+    (lambda g: _t(g).pop("parser"), "results.kind=text needs a parser"),
+    (lambda g: _t(g)["probes"]["mutation"].pop("expectId"), "missing required property 'expectId'"),
+    (lambda g: _t(g).update(stage="creator"), "is not of type 'array'"),
+    (lambda g: _t(g).update(failedExit=["101"]), "is not of type 'integer'"),
+    (lambda g: _t(g).pop("alone"), "alone: missing or empty; the floor will not use this check"),
+    (lambda g: _t(g).pop("deselect"), "deselect: missing or empty; the floor will not use this check"),
+    (lambda g: _t(g).update(failedExit=[]), "failedExit: missing or empty; the floor will not use"),
+    (lambda g: _t(g)["probes"].pop("mutation"), "probes.mutation: missing; the `mutation` probe"),
+    (lambda g: _t(g)["probes"].pop("mutation2"), "probes.mutation2: missing; the `multi` probe"),
+    (lambda g: _t(g)["probes"].update(mutation2=dict(_t(g)["probes"]["mutation"])),
      "must be a second, distinct failing test"),
     (lambda g: g.pop("derivedFrom"), "derivedFrom: missing or empty"),
-    (lambda g: g["checks"][0]["results"].update(id=["name"]), "id/idJoin are only for results.kind=junit"),
-    (lambda g: (g["checks"][0].pop("parser"), g["checks"][0].update(results={"kind": "tap", "how": {}})),
+    (lambda g: _t(g)["results"].update(id=["name"]), "id/idJoin are only for results.kind=junit"),
+    (lambda g: (_t(g).pop("parser"), _t(g).update(results={"kind": "tap", "how": {}})),
      "tap is reserved in v1"),
     (lambda g: g.update(version=2), "!= const 1"),
 ])
@@ -95,7 +100,7 @@ def test_schema_violations_are_named(tmp_path, mutate, needle):
 ])
 def test_parser_regexes_must_be_anchored_re2(tmp_path, rule, needle):
     guide = _seed()
-    guide["checks"][0]["parser"]["blocks"][0]["start"] = rule
+    _t(guide)["parser"]["blocks"][0]["start"] = rule
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert code == 1
     assert any(needle in e for e in report["errors"]), report["errors"]
@@ -103,7 +108,7 @@ def test_parser_regexes_must_be_anchored_re2(tmp_path, rule, needle):
 
 def test_an_unanchored_rule_is_a_warning_not_an_error(tmp_path):
     guide = _seed()
-    guide["checks"][0]["parser"]["blocks"][0]["end"] = "^test result: FAILED"
+    _t(guide)["parser"]["blocks"][0]["end"] = "^test result: FAILED"
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert code == 0, report["errors"]
     assert any("not anchored ^...$" in w for w in report["warnings"])
@@ -111,7 +116,7 @@ def test_an_unanchored_rule_is_a_warning_not_an_error(tmp_path):
 
 def test_item_rules_need_an_id_group_and_templates_their_placeholders(tmp_path):
     guide = _seed()
-    check = guide["checks"][0]
+    check = _t(guide)
     check["parser"]["blocks"][0]["item"] = "^    (\\S+)$"
     check["alone"]["run"] = ["cargo", "test"]
     check["deselect"]["append"] = ["--skip"]
@@ -126,7 +131,7 @@ def test_item_rules_need_an_id_group_and_templates_their_placeholders(tmp_path):
 
 def test_a_parser_on_a_structured_kind_is_refused(tmp_path):
     guide = _seed()
-    guide["checks"][0]["results"] = {"kind": "junit", "how": {"path": "out.xml"}}
+    _t(guide)["results"] = {"kind": "junit", "how": {"path": "out.xml"}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert code == 1
     assert any("only for results.kind=text" in e for e in report["errors"])
@@ -135,7 +140,7 @@ def test_a_parser_on_a_structured_kind_is_refused(tmp_path):
 def test_paths_must_be_repo_relative_and_derived_from_files_must_exist(tmp_path):
     guide = _seed()
     guide["derivedFrom"] = ["../outside.yml", "missing.toml"]
-    guide["checks"][0]["probes"]["mutation"]["file"] = "/abs/probe.rs"
+    _t(guide)["probes"]["mutation"]["file"] = "/abs/probe.rs"
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
                               "--draft")
     text = "\n".join(report["errors"])
@@ -145,7 +150,7 @@ def test_paths_must_be_repo_relative_and_derived_from_files_must_exist(tmp_path)
 
 def test_a_mutation_over_an_existing_file_warns(tmp_path):
     guide = _seed()
-    guide["checks"][0]["probes"]["mutation"]["file"] = "src/lib.rs"
+    _t(guide)["probes"]["mutation"]["file"] = "src/lib.rs"
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
                               "--draft")
     assert code == 0
@@ -177,16 +182,59 @@ def test_core_s_own_guide_checks_clean_and_a_missing_version_piece_is_flagged():
 
 def test_a_probed_guide_whose_required_probe_failed_is_flagged(tmp_path):
     guide = _seed()
-    guide["checks"][0]["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
+    _t(guide)["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
                                       "results": {p: "pass" for p in ("list", "run", "ids", "alone", "deselect",
                                                                       "mutation")}}
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
     assert code == 0
-    assert any("the floor will not rely on this check (multi: never ran)" in w for w in report["warnings"])
+    assert any("the floor will not rely on this check (multi: never ran; version: never ran)" in w for w in report["warnings"])
 
 
 def test_a_shell_in_argv_is_flagged(tmp_path):
     guide = _seed()
-    guide["checks"][0]["run"] = ["sh", "-c", "cargo test"]
+    _t(guide)["run"] = ["sh", "-c", "cargo test"]
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert any("runs through a shell" in w for w in report["warnings"])
+
+
+def test_a_gate_check_needs_no_list_or_probes(tmp_path):
+    guide = _seed()
+    gate = next(c for c in guide["checks"] if "list" not in c)
+    assert gate["name"] == "build"
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
+                              "--draft")
+    assert code == 0, report["errors"]
+    assert not [w for w in report["warnings"] if "checks[0]" in w]
+
+
+def test_a_ci_step_the_guide_does_not_declare_is_flagged(tmp_path):
+    guide = _seed()
+    guide["checks"] = [c for c in guide["checks"] if "list" in c]
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(FIXTURES / "cargo-repo"),
+                              "--draft")
+    assert code == 0
+    flagged = [w for w in report["warnings"] if w.startswith("CI runs")]
+    assert flagged == ["CI runs `cargo build --locked --workspace` (.github/workflows/ci.yml:8) but no check declares "
+                       "it; a guide's checks replace the floor's detection, so this step would not gate. Declare it as "
+                       "a check (a gate with no `list` when it is not the test run)."]
+
+
+@pytest.mark.parametrize("seed,repo", sorted(SEED_REPOS.items()))
+def test_every_seed_declares_every_ci_step_of_its_fixture(seed, repo):
+    code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
+    assert not [w for w in report["warnings"] if w.startswith("CI runs")], report["warnings"]
+
+
+def test_make_and_npm_indirection_count_as_declared():
+    code, report = run_script("check", "--guide", str(GUIDES / "tinyrun-text.json"), "--repo",
+                              str(FIXTURES / "tinyrun-repo"), "--draft")
+    assert not [w for w in report["warnings"] if w.startswith("CI runs")]
+
+
+def test_a_retried_pass_counts_as_passed(tmp_path):
+    guide = _seed()
+    _t(guide)["verified"] = {"baseSha": "abc", "runnerVersion": "cargo 1.99.0", "at": "2026-10-23T00:00:00Z",
+                             "results": {p: "pass" for p in ("list", "run", "ids", "alone", "deselect", "mutation",
+                                                             "version")} | {"multi": "pass (retried)"}}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)))
+    assert code == 0 and not [w for w in report["warnings"] if "will not rely" in w]

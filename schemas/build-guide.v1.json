@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wickedagile.com/schemas/build-guide.v1.json",
   "title": "Build guide (DES-BUILD-GUIDE, contract v1)",
-  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` file changed since, and the change touches no `invalidatedBy` file. All regexes are RE2 syntax, applied to one line at a time.",
+  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. When the base carries a guide, its `checks` (for the stage) ARE the floor's checks: their argv, cwd and stage replace detection for the repository (a repo that needs a build, lint or install step declares it as a check); detection is the fallback only when the base has no guide or one that does not parse. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` file changed since, and the change touches no `invalidatedBy` file. All regexes are RE2 syntax, applied to one line at a time.",
   "type": "object",
   "required": ["version", "checks"],
   "additionalProperties": false,
@@ -36,13 +36,17 @@
       "properties": {
         "name": { "type": "string" },
         "cwd": { "type": "string", "default": "." },
-        "stage": { "type": "array", "items": { "enum": ["creator", "verify"] } },
+        "stage": {
+          "description": "The floor stages the check runs at; absent or empty = both.",
+          "type": "array",
+          "items": { "enum": ["creator", "verify"] }
+        },
         "run": {
           "$ref": "#/$defs/argv",
           "description": "The exact argv. Exclusion happens only for a floor check whose argv equals this exactly: the guide is the allowlist."
         },
         "failedExit": {
-          "description": "Exit codes that mean 'tests failed'; any other non-zero exit is a crash or could-not-run.",
+          "description": "Exit codes that mean 'tests failed'. Any other non-zero exit (a crash, a build error) decides the check `could_not_run`. A failing exit whose results name no test gives the base no candidates (`base_red_unseparated`), and a deselected head run that fails with nothing named is still a failure (`new_failure`): exclusion never passes a run that failed.",
           "type": "array",
           "items": { "type": "integer" }
         },
@@ -135,7 +139,7 @@
           "type": "object",
           "required": ["run"],
           "additionalProperties": false,
-          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{id}` (and optionally `{q}`): values fill whole argv elements and never pass through a shell, so no escaping is needed." } }
+          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{id}` (and optionally `{q}`, `{id:re}`, `{ids:re|}`, as in `deselect.append`): values fill whole argv elements and never pass through a shell, so no escaping is needed." } }
         },
         "deselect": {
           "type": "object",
@@ -145,7 +149,7 @@
             "append": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements and never pass through a shell: no escaping is needed."
+              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`)."
             }
           }
         },
@@ -154,6 +158,13 @@
           "required": ["run"],
           "additionalProperties": false,
           "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{files}`; absent = the full run at every stage." } }
+        },
+        "version": {
+          "description": "The runner's version command. `floor probe` runs it and records its first output line (stdout and stderr merged) as `verified.runnerVersion`; the floor runs it too, and a check whose runner now prints something else is stale (exit codes only).",
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": { "run": { "$ref": "#/$defs/argv" } }
         },
         "invalidatedBy": {
           "description": "Globs (`**`, `*`, `?`): a file the change touches that matches one disables exclusion for this check.",
@@ -172,16 +183,16 @@
           }
         },
         "verified": {
-          "description": "Written by `wicked-core floor probe`. `results` keys: list, run, ids, alone, deselect, mutation, multi, and affected when the check has that piece.",
+          "description": "Written by `wicked-core floor probe`. `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. A probe that failed is retried once: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "baseSha": { "type": "string" },
-            "runnerVersion": { "type": "string" },
+            "runnerVersion": { "type": "string", "description": "The `version` command's first output line when the probes ran; empty without a `version` piece." },
             "at": { "type": "string" },
             "results": {
               "type": "object",
-              "additionalProperties": { "type": "string", "pattern": "^(pass|fail: .*)$" }
+              "additionalProperties": { "type": "string", "pattern": "^(pass( \\(retried\\))?|fail: .*)$" }
             }
           }
         }

@@ -6,6 +6,18 @@
   ],
   "checks": [
     {
+      "name": "install",
+      "cwd": ".",
+      "run": [
+        "pip",
+        "install",
+        "pytest"
+      ],
+      "results": {
+        "kind": "text"
+      }
+    },
+    {
       "name": "test",
       "cwd": ".",
       "stage": [
@@ -68,6 +80,14 @@
       "deselect": {
         "append": [
           "--deselect={id}"
+        ]
+      },
+      "version": {
+        "run": [
+          "python3",
+          "-m",
+          "pytest",
+          "--version"
         ]
       },
       "invalidatedBy": [
