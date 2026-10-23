@@ -18,8 +18,9 @@ reported honestly when the probe is unavailable). It mirrors wicked-core's ``flo
   reports is that id).
 * ``deselect`` — the list, deselecting that passing id, lists exactly the rest.
 * ``affected`` — when declared: run on the mutation file, its failures include the mutated id.
-* ``deselect-many`` (rehearsal only, not a core probe) — a second copy of the mutation; deselecting
-  BOTH leaves the clean run's failures. The one-id probes cannot see per-id tokens that collapse
+* ``deselect-many`` (rehearsal only, not a core probe) — a second copy of the mutation: the run
+  names BOTH as new failures, and deselecting both leaves the clean run's failures. The one-id
+  probes cannot see a parser that loses all but one failure, or per-id tokens that collapse
   (the last one wins) or that the runner rejects when repeated.
 * ``round-trip`` (rehearsal only, JUnit) — every id the clean run's JUnit reports is one the list
   names. The core probes check one passing id and the mutation, so ids that only some tests get
@@ -236,7 +237,8 @@ def _probe_deselect_many(check: dict, workdir: Path, clean_failed: set, timeout:
         both = execute(check, workdir, list(check["run"]), timeout)
         hits = sorted(both.failures - clean_failed)
         if len(hits) != 2:
-            return f"skipped: the run with two mutations named {hits[:5]} as new failures, not two"
+            return (f"fail: the run with two mutations named {hits[:5]} as new failures, not two: the parser "
+                    "loses failures when there is more than one")
         desel = execute(check, workdir, _deselected(check, hits), timeout)
         if desel.error or desel.failures != clean_failed or (not clean_failed and desel.exit != 0):
             return (f"fail: deselecting two ids did not leave the clean run's failures "

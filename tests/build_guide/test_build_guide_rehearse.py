@@ -92,6 +92,22 @@ def test_pytest_short_summary_seed_passes_every_probe(python3_on_path):
     assert _results(report) == ALL_PASS
 
 
+def test_pytest_seed_passes_in_ci_mode_too(python3_on_path):
+    """With CI set, pytest's short summary prints multi-line messages unless --force-short-summary."""
+    code, report = _rehearse(FIXTURES / "pytest-repo", SEEDS / "pytest-short-summary.json",
+                             {**python3_on_path, "CI": "true"})
+    assert code == 0, report
+    assert _results(report) == ALL_PASS
+
+
+def test_pytest_seed_without_force_short_summary_loses_failures_in_ci_mode(tmp_path, python3_on_path):
+    guide = _variant(tmp_path, SEEDS / "pytest-short-summary.json", lambda c: c["results"]["how"].update(argvAppend=[]))
+    code, report = _rehearse(FIXTURES / "pytest-repo", guide, {**python3_on_path, "CI": "true"})
+    assert code == 1
+    assert _results(report)["deselect-many"].startswith("fail: the run with two mutations named [('', "
+                                                         "'tests/test_wicked_mutation.py::test_wicked_mutation_probe')]")
+
+
 def test_pytest_junit_ids_pass_the_core_probes_but_miss_class_methods(python3_on_path):
     """xunit1 JUnit with id [file, name] equals the node id only for module-level tests. The core
     probes check one passing id and the mutation, both module-level, so they pass; only the

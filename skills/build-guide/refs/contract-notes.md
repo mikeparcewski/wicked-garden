@@ -53,5 +53,9 @@ So deselect tokens must also work on the **list** command: the `deselect` probe 
 6. **`run` must equal the floor's declared check.** The guide is the allowlist (`check_for`
    matches argv and cwd exactly). The cargo seed keeps `run` equal to the CI command, and puts
    `--` in the deselect prefix.
-7. **`json-lines` and `tap`** are reserved in v1. `check.py` refuses them until the
+7. **A block cannot hold a multi-line item.** Any non-item line ends a block, so a summary
+   whose entries wrap loses every failure after the first. pytest does this when `CI` is set,
+   and the seed avoids it with `--force-short-summary`. The one-mutation probe cannot see it;
+   `deselect-many` (two mutations) does.
+8. **`json-lines` and `tap`** are reserved in v1. `check.py` refuses them until the
    interpreter reads them.

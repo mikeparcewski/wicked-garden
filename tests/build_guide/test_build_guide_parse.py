@@ -53,6 +53,14 @@ def test_pytest_short_summary_parser_ignores_a_printed_look_alike():
     assert found == {("", "tests/test_calc.py::test_bad")}
 
 
+def test_ci_mode_multi_line_items_end_the_block_after_the_first_failure():
+    """pytest prints the full (multi-line) message in the short summary when CI is set; a
+    continuation line ends a block, so only the first failure is named. The seed appends
+    --force-short-summary (results.how.argvAppend) to keep one line per failure."""
+    found = guide_mod.parse_text(_parser(SEEDS / "pytest-short-summary.json"), _read("pytest-rf-fail-ci.stdout"))
+    assert found == {("", "tests/test_wicked_mutation.py::test_wicked_mutation_probe")}
+
+
 def test_a_per_line_rule_on_the_same_output_is_forged():
     found = guide_mod.parse_text({"failed": ["^FAILED (?P<id>\\S+) - .*$"]}, _read("pytest-rf-fail.stdout"))
     assert ("", "tests/test_calc.py::test_forged") in found
