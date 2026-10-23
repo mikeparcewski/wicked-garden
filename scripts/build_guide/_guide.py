@@ -7,11 +7,13 @@ Three things live here, used by check.py and rehearse.py:
   repo's own stdlib draft subset validator (``domain.validate_domain_model._validate``); a schema
   that uses a keyword that validator does not implement is refused rather than half-checked.
 * ``lint`` — what the schema does not say: regexes compile and stay inside RE2 (a rule that is
-  not anchored ``^...$`` is a warning), the named groups exist, the templates carry their placeholders, paths are repo-relative,
-  a draft carries no ``verified`` (only ``wicked-core floor probe`` writes it), and the pieces the
-  skill always writes (``derivedFrom``, ``failedExit``, ``list``, ``alone``, ``deselect``, the
-  mutation probe) are present — the schema makes them optional, the floor cannot exclude without
-  them.
+  not anchored ``^...$`` is a warning), the named groups exist, the templates carry their
+  placeholders, paths are repo-relative, a draft carries no ``verified`` (only
+  ``wicked-core floor probe`` writes it; the skill only fills its blank ``runnerVersion``), and
+  what the FLOOR requires is present — a non-empty ``failedExit``, ``alone``, ``deselect``, a
+  ``text`` or ``junit`` results kind, a ``list`` — plus what the skill always writes
+  (``derivedFrom``, two distinct mutation probes). The schema makes these optional; the floor
+  will not use a check without them.
 * ``parse_text`` / ``parse_junit`` / ``parse_list`` / ``deselect_tokens`` — a REHEARSAL of the
   core interpreter, following the semantics the schema's descriptions state (blocks, JUnit
   ``id``/``idJoin``, deselect composition, ``merge``). wicked-core's interpreter is authoritative;
@@ -38,7 +40,11 @@ from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
 # Where the vendored schema came from: wicked-core#1066's branch, not yet merged.
-SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@df67a95 schemas/build-guide.v1.json (unmerged, #1066)"
+SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@f88a639 schemas/build-guide.v1.json (unmerged, #1066)"
+# The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
+# plus `affected` when the check has that piece.
+REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
+SHELLS = {"sh", "bash", "zsh", "dash", "fish", "cmd", "cmd.exe", "powershell", "pwsh"}
 UNAVAILABLE = "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
 PLACEHOLDERS = ("{id}", "{q}")
 
@@ -148,11 +154,16 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
     if repo is not None and not (repo / cwd).is_dir():
         errors.append(f"{at}.cwd: {cwd!r} is not a directory in the repo")
     for key in ("failedExit", "list", "alone", "deselect"):
-        if key not in check:
-            errors.append(f"{at}.{key}: missing; the skill always writes it (the floor cannot exclude without it)")
+        if not check.get(key):
+            errors.append(f"{at}.{key}: missing or empty; the floor will not use this check without it")
     run = check.get("run", [])
     if len(run) == 1 and " " in run[0]:
         warnings.append(f"{at}.run: one token with spaces looks like a shell string; run is an exact argv")
+    for where, argv in (("run", run), ("list.run", check.get("list", {}).get("run", [])),
+                        ("alone.run", check.get("alone", {}).get("run", []))):
+        if argv and PurePosixPath(argv[0]).name in SHELLS:
+            warnings.append(f"{at}.{where}: runs through a shell ({argv[0]}); argv never passes through a "
+                            "shell, so name the runner itself")
     results = check.get("results", {})
     kind = results.get("kind")
     parser = check.get("parser")
@@ -163,7 +174,7 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
     if kind != "junit" and ("id" in results or "idJoin" in results):
         errors.append(f"{at}.results: id/idJoin are only for results.kind=junit")
     if kind in ("json-lines", "tap"):
-        errors.append(f"{at}.results.kind: {kind} is reserved in v1; the interpreter reads text and junit")
+        errors.append(f"{at}.results.kind: {kind} is reserved in v1; the floor reads only text and junit")
     path = results.get("how", {}).get("path")
     if path:
         errors += _repo_relative(f"{at}.results.how.path", path)
@@ -180,16 +191,31 @@ def _lint_check(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[l
         errors.append(f"{at}.deselect.append: needs an {{id}} (or {{q}}) placeholder")
     if "affected" in check and not any("{files}" in a for a in check["affected"].get("run", [])):
         errors.append(f"{at}.affected.run: needs a {{files}} placeholder")
-    mutation = check.get("probes", {}).get("mutation")
-    if not mutation:
-        errors.append(f"{at}.probes.mutation: missing; the skill always writes a mutation probe")
-    else:
-        errors += _repo_relative(f"{at}.probes.mutation.file", mutation.get("file", ""))
+    probes = check.get("probes", {})
+    for key, probe in (("mutation", "mutation"), ("mutation2", "multi")):
+        mutation = probes.get(key)
+        if not mutation:
+            errors.append(f"{at}.probes.{key}: missing; the `{probe}` probe the floor requires cannot pass without it")
+            continue
+        errors += _repo_relative(f"{at}.probes.{key}.file", mutation.get("file", ""))
         if repo is not None and mutation.get("file") and (repo / cwd / mutation["file"]).exists():
-            warnings.append(f"{at}.probes.mutation.file: {mutation['file']!r} exists; "
+            warnings.append(f"{at}.probes.{key}.file: {mutation['file']!r} exists; "
                             "the probe would overwrite a real file — inject a new one")
-    if draft and "verified" in check:
+    m1, m2 = probes.get("mutation") or {}, probes.get("mutation2") or {}
+    if m1 and m2 and (m1.get("file") == m2.get("file") or
+                      (m1.get("expectId"), m1.get("expectQ")) == (m2.get("expectId"), m2.get("expectQ"))):
+        errors.append(f"{at}.probes.mutation2: must be a second, distinct failing test (another file, another id)")
+    verified = check.get("verified")
+    if draft and verified is not None:
         errors.append(f"{at}.verified: a draft carries no verified; only `wicked-core floor probe` writes it")
+    elif verified is not None:
+        needed = list(REQUIRED_PROBES) + (["affected"] if "affected" in check else [])
+        results = verified.get("results", {})
+        unpassed = [f"{p}: {results.get(p, 'never ran')}" for p in needed if results.get(p) != "pass"]
+        if unpassed:
+            warnings.append(f"{at}.verified: the floor will not rely on this check ({'; '.join(unpassed)})")
+        if not verified.get("runnerVersion"):
+            warnings.append(f"{at}.verified.runnerVersion: blank; fill it from `<runner> --version` before proposing")
     return errors, warnings
 
 
@@ -283,14 +309,14 @@ def parse_text(parser: dict[str, Any], text: str) -> set[Failure]:
                 found.add((q, fm.group("id")))
         for state in blocks:
             found.update(state.feed(line, q))
-    return found
+    return {f for f in found if f[1]}
 
 
 def parse_junit(xml_text: str, id_attrs: list[str] | None = None, join: str = "::") -> tuple[list[Failure], set[Failure]]:
-    """(every testcase, failed testcases), as the core reader takes them: the id is the
+    """(every testcase that ran, failed testcases), as the core reader takes them: the id is the
     ``results.id`` attributes (default classname, name) joined by ``results.idJoin`` (default
-    ``::``), q is the enclosing testsuite's ``name``, and a testcase counts whatever its children
-    (a ``<skipped/>`` one too); it failed when it has a ``<failure>`` or ``<error>`` child."""
+    ``::``), q is the enclosing testsuite's ``name``; a testcase with a ``<skipped/>`` child neither
+    passed nor failed (a filter left it out); one with ``<failure>`` or ``<error>`` failed."""
     attrs = id_attrs or ["classname", "name"]
     root = ET.fromstring(xml_text)
     every: list[Failure] = []
@@ -299,9 +325,12 @@ def parse_junit(xml_text: str, id_attrs: list[str] | None = None, join: str = ":
     for suite in suites:
         for case in suite.iter("testcase"):
             key = (suite.get("name", ""), join.join(case.get(a, "") for a in attrs))
-            every.append(key)
+            if not key[1]:
+                continue
             if case.find("failure") is not None or case.find("error") is not None:
                 failed.add(key)
+            if case.find("skipped") is None:
+                every.append(key)
     return every, failed
 
 

@@ -22,26 +22,24 @@
       "list": "pass",
       "run": "pass",
       "mutation": "pass",
-      "alone": "fail",
+      "ids": "pass",
+      "alone": "pass",
       "deselect": "pass",
-      "deselect-many": "fail",
-      "round-trip": "pass"
+      "multi": "fail"
     },
     "message_includes_any": [
       [
-        "deselect-many",
+        "multi",
         "two ids",
+        "both",
         "repeated name pattern",
         "repeated -t",
         "more than one"
-      ],
-      [
-        "skipped"
       ]
     ],
     "message_includes": [
       "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
     ]
   },
-  "rationale": "vitest has a JUnit reporter whose ids round-trip with `vitest list`, so the guide is junit. Two limits must be reported, not hidden: vitest rejects a repeated name pattern, so deselect cannot exclude two ids; and its JUnit lists the tests a name filter left out as <skipped/> testcases, which core's reader (#1066 @ df67a95) counts, so the alone probe fails."
+  "rationale": "vitest has a JUnit reporter whose ids round-trip with `vitest list`, so the guide is junit (a name filter's left-out tests are <skipped/> testcases, which neither pass nor fail). vitest rejects a repeated name pattern, so deselecting two ids fails the `multi` probe; the skill must report that limit, not hide it."
 }

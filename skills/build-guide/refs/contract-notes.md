@@ -2,60 +2,67 @@
 
 The contract is DES-BUILD-GUIDE's "Contract v1". Its machine form is wicked-core's
 `schemas/build-guide.v1.json`, which garden vendors byte for byte as
-`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at df67a95,
+`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at f88a639,
 which is not merged yet. Re-vendor it when that branch merges; a test pins the copy to its git
 blob. The core interpreter (`src/floor_guide.rs`) and probe (`src/floor_probe.rs`) are
-authoritative. `rehearse.py` mirrors them piece by piece, and adds two checks the core probes
-do not make. The skill never adds a field to work around an open question.
+authoritative, and `rehearse.py` mirrors them piece by piece. The skill never adds a field.
 
-## What core's schema and interpreter add to the DES text
+## What core's schema adds to the DES text (all optional)
 
-These are in core's schema or code but not in the DES "Contract v1" block. The skill uses them
-where a runner needs them.
-
-| Addition | Rule | Used for |
+| Field | Rule | Used for |
 |---|---|---|
-| `results.id`, `results.idJoin` | JUnit testcase attributes joined into an id (default `classname`,`name` joined by `::`); q is the enclosing testsuite's `name` | vitest: `["name"]`, so that ids match `vitest list` |
-| `results.how.merge`, `list.merge` | read stderr into the same stream, in order | runners that name their test binaries on stderr (cargo's `Running …`) |
-| `{q}` in `alone` / `deselect` | the qualifier, next to `{id}` | targeting a scope, when the runner has a flag for it |
-| deselect composition | tokens before the first `{id}`/`{q}` token once (a leading `--` only when the argv has none), the tokens through the last such token once per id, the rest once | `["--","--exact","--skip={id}"]` for cargo; a flag and its value go in **one** token |
-| argv order | a results run is `run` + deselect tokens + `results.how.argvAppend`; exit-only runs (the mutation run alone) get no `argvAppend` | — |
-| keyed ids | ids keep their qualifier only when `list` has a `section`; otherwise they compare by id alone | — |
-| line matching | every rule is searched in each line (not anchored for you) | the skill still writes `^…$`, and `check.py` warns on a rule without it |
-| blocks | a block is the contiguous item lines (blank lines allowed) after a start; any other line ends it; at an end, the last block since the previous end (`last-before-end`, the default) or every one (`all`) | libtest's second `failures:` list |
-| probes | `list`, `run` (a red base passes when its failures are parsed), `mutation` (exactly one NEW failure; deselecting it restores the clean failures; alone it fails), `alone` (the first listed passing id), `deselect` (the **list** with that id deselected lists exactly the rest), `affected` | `verified` is written into the `--guide` file in place |
-| required fields | the schema requires only `version`, `name`, `run` and `results.kind`, but the interpreter needs `list` (and a `parser` for text) to compile | the skill always writes every piece |
+| `results.id`, `results.idJoin` | JUnit testcase attributes joined into an id (default `classname`,`name` joined by `::`); q is the enclosing testsuite's `name` | vitest: `["name"]`, so the ids match `vitest list` |
+| `results.how.merge`, `list.merge` | stderr read into stdout, in order | cargo: libtest's `Running <binary>` lines go to stderr, and the section qualifier reads them |
+| `probes.mutation2` | the same shape as `mutation`: a second failing test in another file | the `multi` probe |
 
-So deselect tokens must also work on the **list** command: the `deselect` probe deselects on
-`list.run`.
+## Pinned semantics
 
-## Found while rehearsing against core (for wicked-core; not settled here)
+- **Matching.** Every regex applies to one line at a time, searched. The skill still writes
+  `^…$`, and `check.py` warns on a rule without it.
+- **Blocks.** A block's items are the contiguous item lines after its start. Blank lines are
+  allowed, and any other line ends the block. At an end, the last block since the previous end
+  (`last-before-end`, the default), or every one (`all`), is taken.
+- **No shell.** Argv never passes through a shell. `{id}`/`{q}` values fill whole argv
+  elements, so no escaping is needed for a shell. `{q}` is allowed in `alone` and `deselect`.
+  `{files}` expands to one argv element per file.
+- **Deselect composition.** Tokens before the first `{id}`/`{q}` token are added once (a leading
+  `--` only when the argv has none). The tokens from the first through the last such token
+  repeat per id, and the rest are added once. So a flag and its value are one token
+  (`--skip={id}`). Deselect tokens also apply to `list.run`, because the `deselect` probe lists
+  with one id deselected.
+- **Argv order.** A results run is `run` + deselect tokens + `results.how.argvAppend`. Exit-only
+  runs (a test run alone, during a mutation check) get no `argvAppend`.
+- **Paths** (`results.how.path`, `probes.*.file`) are relative to `cwd`. **`invalidatedBy`**
+  globs (`**`, `*`, `?`) are matched against the repo-relative files the change touched.
+- **Ids.** Ids keep their qualifier only when `list` has a `section`; otherwise they compare by
+  id alone. An empty id is dropped.
+- **JUnit `<skipped/>`.** A skipped testcase neither passed nor failed.
+- **Kinds.** The results kind is `text` or `junit`. `json-lines` and `tap` are reserved.
+- **Probes and the floor.** `verified.results` keys are `list`, `run`, `ids`, `alone`,
+  `deselect`, `mutation`, `multi`, and `affected` when the check has that piece. The floor
+  relies on a check only when all of them pass. It also needs a non-empty `failedExit`, `alone`,
+  `deselect`, a `list` (to compile) and a `text`/`junit` kind. `run` passes on a red base when
+  its failures parse. A new failure that passes when run alone counts as the suite's flake and
+  is set aside.
+- **`verified`** is written by `floor probe` into the `--guide` file in place. The probe leaves
+  `runnerVersion` blank, and the skill fills it from `<runner> --version` (`probe.py
+  --version-argv`) before it proposes the guide.
 
-1. **The JUnit reader counts `<skipped/>` testcases.** vitest's JUnit reports the tests a name
-   filter left out as skipped testcases. Core's `alone` probe requires every reported testcase
-   to be the one id, so it fails for vitest. Reading a `<skipped/>` testcase as not run would
-   fix it.
-2. **The probes check one passing id and the mutation.** A JUnit id that is wrong for some
-   tests passes them. pytest's xunit1 `file`+`name` is the node id of a module-level test but
-   not of a class method (`…::TestGroup::x`). Such a failure is never in the base list, so it
-   is never excluded: the floor fails safe, but the guide is "verified" and does nothing for
-   those tests. `rehearse.py`'s `round-trip` check sees it.
-3. **One id cannot show that per-id deselect works for two.** vitest rejects a repeated name
-   pattern. A flag split from its value (`"--skip","{id}"`) repeats only the value. pytest's
-   `-k` keeps only the last value. Each passes the one-id probes. `rehearse.py`'s
-   `deselect-many` catches it. A two-id mutation probe would too.
-4. **No escaping for placeholders.** `{id}` is substituted raw. When the token is a regex
-   (vitest `--testNamePattern=^(?!{id}$)`), an id with metacharacters changes its meaning.
-5. **`failedExit` vs could-not-run.** cargo exits 101 on a compile error and on a libtest usage
-   error, and vitest exits 1 on a config error. The `run` probe requires parsed failures for a
-   non-zero exit, but a floor run that crashes with a failedExit code and names no failure is
-   not described.
-6. **`run` must equal the floor's declared check.** The guide is the allowlist (`check_for`
-   matches argv and cwd exactly). The cargo seed keeps `run` equal to the CI command, and puts
-   `--` in the deselect prefix.
-7. **A block cannot hold a multi-line item.** Any non-item line ends a block, so a summary
-   whose entries wrap loses every failure after the first. pytest does this when `CI` is set,
-   and the seed avoids it with `--force-short-summary`. The one-mutation probe cannot see it;
-   `deselect-many` (two mutations) does.
-8. **`json-lines` and `tap`** are reserved in v1. `check.py` refuses them until the
-   interpreter reads them.
+## Still open (for wicked-core)
+
+1. **`{id}` inside a regex token.** No escaping is needed for a shell, but when the token is a
+   regex for the runner (vitest `--testNamePattern=^(?!{id}$)`), an id with metacharacters
+   still changes its meaning. The contract has no regex-escape form.
+2. **`runnerVersion` and staleness.** The DES calls a guide stale when the runner version
+   changes. The floor's `usable()` checks `derivedFrom` and `invalidatedBy`, but not
+   `runnerVersion`, and the probe leaves the field blank. As it stands, the field is a record,
+   not a staleness check.
+3. **A flake that fails the deselected run.** With a clean base, the mutation and `multi`
+   checks require the deselected run to exit 0. A new failure that passes alone is set aside
+   from the failure list, but it still turns that exit non-zero, so the check fails.
+4. **`failedExit` vs could-not-run.** cargo exits 101 on a compile error and on a libtest usage
+   error, and vitest exits 1 on a config error. A floor run that exits with a `failedExit` code
+   but names no failure is not described.
+5. **`run` must equal the floor's declared check.** The guide is the allowlist (`check_for`
+   matches argv and cwd exactly). How crew declares the floor's check argv, so that it can
+   match `run`, is not stated.

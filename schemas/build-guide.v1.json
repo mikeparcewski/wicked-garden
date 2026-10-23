@@ -18,6 +18,17 @@
   "$defs": {
     "argv": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "regex": { "type": "string", "minLength": 1 },
+    "mutation": {
+      "type": "object",
+      "required": ["file", "content", "expectId"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "description": "Relative to `cwd`." },
+        "content": { "type": "string", "description": "A deliberately failing test." },
+        "expectId": { "type": "string" },
+        "expectQ": { "type": "string" }
+      }
+    },
     "check": {
       "type": "object",
       "required": ["name", "run", "results"],
@@ -124,7 +135,7 @@
           "type": "object",
           "required": ["run"],
           "additionalProperties": false,
-          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{id}` (and optionally `{q}`)." } }
+          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{id}` (and optionally `{q}`): values fill whole argv elements and never pass through a shell, so no escaping is needed." } }
         },
         "deselect": {
           "type": "object",
@@ -134,7 +145,7 @@
             "append": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens through the last such one once per id, the rest once."
+              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements and never pass through a shell: no escaping is needed."
             }
           }
         },
@@ -153,21 +164,15 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "mutation": {
-              "type": "object",
-              "required": ["file", "content", "expectId"],
-              "additionalProperties": false,
-              "properties": {
-                "file": { "type": "string", "description": "Relative to `cwd`." },
-                "content": { "type": "string", "description": "A deliberately failing test." },
-                "expectId": { "type": "string" },
-                "expectQ": { "type": "string" }
-              }
+            "mutation": { "$ref": "#/$defs/mutation" },
+            "mutation2": {
+              "$ref": "#/$defs/mutation",
+              "description": "A second deliberately failing test (another file): with both written, both must be parsed and deselecting both must run clean."
             }
           }
         },
         "verified": {
-          "description": "Written by `wicked-core floor probe`.",
+          "description": "Written by `wicked-core floor probe`. `results` keys: list, run, ids, alone, deselect, mutation, multi, and affected when the check has that piece.",
           "type": "object",
           "additionalProperties": false,
           "properties": {

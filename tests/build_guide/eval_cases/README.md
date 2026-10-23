@@ -9,7 +9,7 @@ or text results, a summary-anchored parser, an honest "probe unavailable" or "no
 | Case | Fixture | What it proves |
 |---|---|---|
 | `cargo-text-parser` | `cargo-repo` | no structured output on stable cargo, so a text parser on libtest's own summary |
-| `pytest-junit` | `pytest-repo` | JUnit is tried, its ids do not round-trip under contract v1, and the agent falls back to the short summary and says why |
+| `pytest-junit` | `pytest-repo` | JUnit is tried, its ids fail the `ids` probe (class methods), and the agent falls back to the short summary and says why |
 | `vitest-junit` | `vitest-repo` | JUnit with round-tripping ids; the two-id deselect limit is reported |
 | `fake-runner-no-structured-output` | `tinyrun-repo` | a parser generated from real output, anchored on the runner's summary, not forged by test output |
 | `no-tests` | `no-tests-repo` | no guide and a plain statement of it; no invented test command |

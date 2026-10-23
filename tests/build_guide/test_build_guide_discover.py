@@ -16,7 +16,7 @@ def test_cargo_repo_names_the_ci_test_step_and_skips_the_build_step():
     assert report["verdict"] == "candidates"
     assert report["files"] == [".github/workflows/ci.yml", "Cargo.toml"]
     commands = [c["command"] for c in report["commands"]]
-    assert commands == ["cargo test --workspace --no-fail-fast"]
+    assert commands == ["cargo test --locked --workspace --no-fail-fast"]
     assert report["commands"][0]["source"] == ".github/workflows/ci.yml:9"
 
 

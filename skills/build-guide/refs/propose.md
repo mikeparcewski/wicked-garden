@@ -25,7 +25,7 @@ answer. Put the same body in your unit output.
 ## Build/test guide (.wicked/build-guide.json)
 
 Derived from: <derivedFrom, one per line>
-Runner: <name and --version output>
+Runner: <the `--version` output; the same text probe.py --version-argv wrote into verified.runnerVersion>
 Schema: <the `schema` field check.py printed>
 
 ### Probe results (`wicked-core floor probe`)
@@ -37,7 +37,7 @@ Rehearsal (unverified, not evidence): <per-check rehearse.py results>
 ### Notes
 - Result kind: <junit|text …>, and why (for text: the runner has no structured output, or its
   structured ids do not round-trip)
-- Rehearsal-only findings: <for example, deselect-many failed: vitest rejects a repeated name pattern>
+- Known limits: <for example, multi failed: vitest rejects a repeated name pattern, so two base failures are not excluded>
 - Attempts: <n of 3> per check
 ```
 

@@ -29,11 +29,11 @@ _spec.loader.exec_module(grader)
 REFERENCE = {
     "cargo-text-parser": (SEEDS / "cargo-libtest.json", UNAVAILABLE),
     "pytest-junit": (SEEDS / "pytest-short-summary.json",
-                     f"JUnit ids (classname + name) do not round-trip to pytest node ids; using the short test "
+                     f"the ids probe failed: JUnit ids do not round-trip to pytest node ids; using the short test "
                      f"summary. {UNAVAILABLE}"),
     "vitest-junit": (SEEDS / "vitest-junit.json",
-                     f"deselect-many failed: vitest rejects a repeated name pattern; alone failed: vitest's JUnit "
-                     f"lists filtered-out tests as skipped testcases. {UNAVAILABLE}"),
+                     f"multi failed: vitest rejects a repeated name pattern, so two ids cannot be deselected. "
+                     f"{UNAVAILABLE}"),
     "fake-runner-no-structured-output": (GUIDES / "tinyrun-text.json", UNAVAILABLE),
     "no-tests": (None, NO_GUIDE),
 }

@@ -1,8 +1,9 @@
 {
   "version": 1,
   "derivedFrom": [
-    ".github/workflows/ci.yml",
-    "Cargo.toml"
+    "Cargo.toml",
+    "Cargo.lock",
+    ".github/workflows/ci.yml"
   ],
   "checks": [
     {
@@ -15,6 +16,7 @@
       "run": [
         "cargo",
         "test",
+        "--locked",
         "--workspace",
         "--no-fail-fast"
       ],
@@ -25,15 +27,18 @@
         "kind": "text",
         "how": {
           "argvAppend": [],
-          "env": {}
+          "env": {},
+          "merge": true
         }
       },
       "parser": {
+        "section": "^\\s+(?:Running .*\\((?:.*[/\\\\])?|Doc-tests )(?P<q>[^/\\\\()\\s]+)\\)?$",
+        "failed": [],
         "blocks": [
           {
             "start": "^failures:$",
             "item": "^    (?P<id>\\S+)$",
-            "end": "^test result: FAILED\\..*$",
+            "end": "^test result: FAILED",
             "use": "last-before-end"
           }
         ]
@@ -42,43 +47,51 @@
         "run": [
           "cargo",
           "test",
+          "--locked",
           "--workspace",
+          "--no-fail-fast",
           "--",
           "--list"
         ],
-        "item": "^(?P<id>\\S+): test$"
+        "item": "^(?P<id>\\S+): test$",
+        "section": "^\\s+(?:Running .*\\((?:.*[/\\\\])?|Doc-tests )(?P<q>[^/\\\\()\\s]+)\\)?$",
+        "merge": true
       },
       "alone": {
         "run": [
           "cargo",
           "test",
+          "--locked",
           "--workspace",
           "--no-fail-fast",
           "--",
-          "--exact",
-          "{id}"
+          "{id}",
+          "--exact"
         ]
       },
       "deselect": {
         "append": [
           "--",
-          "--exact",
-          "--skip={id}"
+          "--skip={id}",
+          "--exact"
         ]
       },
       "invalidatedBy": [
-        "Cargo.toml",
-        "Cargo.lock",
-        "**/Cargo.toml",
-        "rust-toolchain*",
         ".cargo/**",
-        ".github/workflows/**"
+        "**/.cargo/**",
+        "rust-toolchain*",
+        "**/rust-toolchain*"
       ],
       "probes": {
         "mutation": {
-          "file": "tests/wicked_mutation_probe.rs",
-          "content": "#[test]\nfn wicked_mutation_probe() {\n    assert_eq!(1 + 1, 3, \"deliberately failing: the build-guide mutation probe\");\n}\n",
-          "expectId": "wicked_mutation_probe"
+          "file": "tests/zz_floor_probe_mutation.rs",
+          "content": "#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n",
+          "expectId": "floor_probe_mutation"
+        },
+        "mutation2": {
+          "file": "tests/zz_floor_probe_mutation_two.rs",
+          "content": "#[test]\nfn floor_probe_mutation_two() {\n    panic!(\"the build guide's second mutation probe\");\n}\n",
+          "expectId": "floor_probe_mutation_two"
         }
       }
     }

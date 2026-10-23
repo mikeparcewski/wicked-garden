@@ -67,6 +67,11 @@
           "file": "checks/wicked_mutation.tc",
           "content": "probe 1 == 2\n",
           "expectId": "wicked_mutation/probe"
+        },
+        "mutation2": {
+          "file": "checks/wicked_mutation_two.tc",
+          "content": "probe 1 == 2\n",
+          "expectId": "wicked_mutation_two/probe"
         }
       }
     }
