@@ -7,9 +7,10 @@
   for byte from wicked-core's #1066 branch (the report's ``schema`` names that source); pass
   core's current file to check against a newer one.
 * ``--repo``: also check that ``derivedFrom`` files and each ``cwd`` exist there, and warn for
-  every command the repo's CI runs that no check declares. When a usable guide exists, its checks
-  replace the floor's own detection, so an undeclared install, build, format, lint, typecheck or
-  test step would stop gating. A step counts as declared when a check's ``run`` equals its argv,
+  every command the repo's CI runs that no check declares in that step's working directory
+  (``working-directory``). In the directories a usable guide's checks cover (their ``cwd``s), its
+  checks replace the floor's own detection, so an undeclared install, build, format, lint,
+  typecheck or test step there would stop gating. A step counts as declared when a check's ``run`` equals its argv,
   or the argv of the ``make``/``just`` recipe or npm script it runs (for an npm script, also with
   ``npx`` in front: npm runs scripts with ``node_modules/.bin`` on PATH).
 * ``--draft``: the guide has not been probed — it must carry no ``verified`` (only
@@ -40,9 +41,14 @@ def _argv(command: str) -> list[str] | None:
         return None
 
 
+def _dir(path: str) -> str:
+    path = path.strip().removeprefix("./").rstrip("/")
+    return path or "."
+
+
 def undeclared_ci_steps(guide: dict, repo: Path) -> list[str]:
-    """A warning for every CI step no check declares."""
-    runs = [c.get("run") for c in guide.get("checks", []) if isinstance(c, dict)]
+    """A warning for every CI step no check declares in the step's working directory."""
+    runs = [(c.get("run"), _dir(c.get("cwd", "."))) for c in guide.get("checks", []) if isinstance(c, dict)]
     out = []
     for step in discover(repo)["ciSteps"]:
         candidates = [_argv(step["command"])]
@@ -51,10 +57,13 @@ def undeclared_ci_steps(guide: dict, repo: Path) -> list[str]:
             candidates.append(argv)
             if argv and r["source"].startswith("package.json"):
                 candidates.append(["npx", *argv])
-        if not any(c and c in runs for c in candidates):
-            out.append(f"CI runs `{step['command']}` ({step['source']}) but no check declares it; a guide's checks "
-                       "replace the floor's detection, so this step would not gate. Declare it as a check (a gate "
-                       "with no `list` when it is not the test run).")
+        where = _dir(step.get("cwd", "."))
+        if not any(c and (c, where) in runs for c in candidates):
+            at = "" if where == "." else f" in `{where}`"
+            out.append(f"CI runs `{step['command']}`{at} ({step['source']}) but no check declares it there; in the "
+                       "directories its checks cover, a guide's checks replace the floor's detection, so this step "
+                       "would not gate. Declare it as a check with that `cwd` (a gate with no `list` when it is not "
+                       "the test run).")
     return out
 
 

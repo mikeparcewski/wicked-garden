@@ -143,3 +143,16 @@ def test_regex_placeholders_escape_ids_per_id_and_all_at_once():
     assert guide_mod.deselect_tokens(["--skip=^{id:re}$"], ids) == [
         "--skip=^sum > a \\(b\\)$", "--skip=^x\\.y\\+z$"]
     assert guide_mod.substitute(["-t", "^{id:re}$"], id="a|b", q="") == ["-t", "^a\\|b$"]
+
+
+def test_junit_judges_each_testcase_on_its_own():
+    """Two testcases with one id that both ran are both counted; a skipped twin is not (core)."""
+    twins = '<testsuites><testsuite name="s"><testcase classname="c" name="x"/>{}</testsuite></testsuites>'
+    every, _ = guide_mod.parse_junit(twins.format('<testcase classname="c" name="x"></testcase>'))
+    assert every == [("s", "c::x"), ("s", "c::x")]
+    every, _ = guide_mod.parse_junit(twins.format('<testcase classname="c" name="x"><skipped/></testcase>'))
+    assert every == [("s", "c::x")]
+
+
+def test_placeholders_fill_in_one_pass():
+    assert guide_mod.substitute(["--{id}@{q}"], id="a{q}b", q="Q") == ["--a{q}b@Q"]

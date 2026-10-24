@@ -160,6 +160,53 @@
           "--version"
         ]
       }
+    },
+    {
+      "name": "core-ts-fmt",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "cargo",
+        "fmt",
+        "--check"
+      ]
+    },
+    {
+      "name": "core-ts-clippy",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ]
+    },
+    {
+      "name": "core-ts-test",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "cargo",
+        "test"
+      ]
+    },
+    {
+      "name": "core-ts-finalize-dts",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "sh",
+        "-c",
+        "node --check scripts/finalize-dts.mjs && node scripts/finalize-dts.mjs && git diff --exit-code -- index.d.ts"
+      ]
+    },
+    {
+      "name": "core-ts-tsc",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "sh",
+        "-c",
+        "npm ci --ignore-scripts --no-audit --no-fund && npm run typecheck"
+      ]
     }
   ]
 }

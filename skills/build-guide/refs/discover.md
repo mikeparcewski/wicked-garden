@@ -20,8 +20,10 @@ npm's `no test specified` placeholder, which declares that the repo has no tests
 
 ## Choosing the check(s)
 
-- **Every CI step is a check.** A usable guide replaces the floor's own detection, so a CI step
-  the guide leaves out stops gating. Declare each `ciSteps` entry. Install, build, format, lint
+- **Every CI step is a check, with its `cwd`.** In the directories a usable guide's checks cover,
+  the guide replaces the floor's own detection, so a CI step the guide leaves out there stops
+  gating. Use the step's `working-directory` as the check's `cwd` (`ciSteps` carries it), and give
+  expensive gates `stage: ["verify"]`. Declare each `ciSteps` entry. Install, build, format, lint
   and typecheck are gates: `name`, `cwd`, `run`, and a `failedExit` where the tool documents
   one. Gates have no `list`, `results` or `version`, and are not probed.
   `check.py --repo` warns for any step left out.

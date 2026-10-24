@@ -8,7 +8,7 @@ path, **not an independent eval**: the creator ran it, and the drafts started fr
 creator wrote. An independent run, with a different agent that has only the skill installed, is
 still to do (see `eval_cases/README.md`).
 
-**Schema.** `schemas/build-guide.v1.json` is vendored from wicked-core#1066's branch at 3fb9c86 (green-base probes, whole-probe retry, `--` composition; the earlier df67a95, f88a639 and e2ad012 runs also graded 5/5).
+**Schema.** `schemas/build-guide.v1.json` is vendored from wicked-core#1066's branch at 2ff7e37 (round 16; the earlier df67a95, f88a639, e2ad012 and 3fb9c86 runs also graded 5/5).
 
 **Runs.** The five cases ran twice, once plain and once with `CI=true` (pytest changes its summary format in CI). Both runs graded 5/5.
 
@@ -25,5 +25,5 @@ vitest 5.0.5 (after `npm install`) and python3 for tinyrun.
 | `no-tests` | n/a | no guide; reported in the exact words "no build/test guide: the floor will run this repo's checks exit-code only" | 2/2 pass |
 
 **What this does not show.** It does not show that the core probe agrees with the rehearsal.
-It cannot: the probe is not installed here. The rehearsal mirrors #1066's `src/floor_probe.rs` at 3fb9c86, read from source. Re-run every case once `floor probe` ships, and add a
+It cannot: the probe is not installed here. The rehearsal mirrors #1066's `src/floor_probe.rs` at 2ff7e37, read from source. Re-run every case once `floor probe` ships, and add a
 `probe` expectation.

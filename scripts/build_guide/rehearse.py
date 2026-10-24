@@ -7,7 +7,7 @@
 A REHEARSAL, not the probe: it never writes ``verified`` and its verdict is not evidence the
 floor reads. It exists so the parser, the ids and the templates can be iterated on quickly (and
 reported honestly when the probe is unavailable). It mirrors wicked-core's ``floor probe``
-(#1066's ``src/floor_probe.rs`` at 3fb9c86) piece by piece, with exit codes as the referee:
+(#1066's ``src/floor_probe.rs`` at 2ff7e37) piece by piece, with exit codes as the referee:
 
 * ``list``     — the list run exits 0 and names tests.
 * ``run``      — the clean run is GREEN (exit 0, no parsed failure). Every later probe needs a
@@ -105,7 +105,9 @@ def _unique(check: dict, ids) -> list:
     return out
 
 
-def _env(check: dict) -> dict:
+def _results_env(check: dict) -> dict:
+    """``results.how.env`` applies only to runs whose results are read (core ``results_exec``);
+    the list and version runs get the plain environment."""
     return {**os.environ, **check.get("results", {}).get("how", {}).get("env", {})}
 
 
@@ -118,7 +120,7 @@ def execute(check: dict, workdir: Path, argv: list[str], timeout: int) -> Outcom
     if result_file is not None and result_file.exists():
         result_file.unlink()
     try:
-        proc = _capture(full, workdir, _env(check), bool(how.get("merge")), timeout)
+        proc = _capture(full, workdir, _results_env(check), bool(how.get("merge")), timeout)
     except FileNotFoundError:
         return Outcome(None, [], None, f"{full[0]!r} is not on PATH")
     except subprocess.TimeoutExpired:
@@ -135,7 +137,8 @@ def execute(check: dict, workdir: Path, argv: list[str], timeout: int) -> Outcom
         every, failed = parse_junit(text, results.get("id"), results.get("idJoin", "::"))
     except Exception as exc:  # noqa: BLE001 - any unreadable report is a probe failure, named
         return Outcome(proc.returncode, [], None, f"the results do not parse as JUnit ({exc.__class__.__name__})")
-    return Outcome(proc.returncode, _unique(check, sorted(failed)), _unique(check, every))
+    every = [(q if _keyed(check) else "", i) for q, i in every]  # each testcase on its own, no de-dup
+    return Outcome(proc.returncode, _unique(check, sorted(failed)), every)
 
 
 def _inject(workdir: Path, mutation: dict) -> None:
@@ -149,7 +152,7 @@ def inventory(check: dict, workdir: Path, timeout: int, deselect: list[Failure] 
     spec = check["list"]
     argv = deselected(check["deselect"]["append"], spec["run"], deselect) if deselect else list(spec["run"])
     try:
-        proc = _capture(argv, workdir, _env(check), bool(spec.get("merge")), timeout)
+        proc = _capture(argv, workdir, dict(os.environ), bool(spec.get("merge")), timeout)
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return f"its list could not run ({exc.__class__.__name__})"
     if proc.returncode != 0:
@@ -182,8 +185,9 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
     out: dict[str, str] = {}
 
     def fail_rest(why: str) -> dict:
-        for p in AFTER_RUN:
-            out[p] = f"fail: {why}"
+        # Every probe not yet decided fails with `why` (`affected` too, when the check has it).
+        for p in AFTER_RUN + (("affected",) if "affected" in check else ()):
+            out.setdefault(p, f"fail: {why}")
         return out
 
     run_argv = list(check["run"])
@@ -217,7 +221,7 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
     listed = inventory(check, workdir, timeout)
     both = execute(check, workdir, run_argv, timeout)
     pair = both.failures if (not both.error and both.exit in check["failedExit"] and len(both.failures) == 2
-                             and t in both.failures and any(_is(x, m2) for x in both.failures)) else []
+                             and t in both.failures and any(x != t and _is(x, m2) for x in both.failures)) else []
     out["multi"] = _verdict(bool(pair) and execute(check, workdir, desel(pair), timeout).green()
                             and _deselects_exactly(check, workdir, listed, pair, timeout),
                             f"with both mutations: {both.failures[:5]} (exit {both.exit}); both must be named, and "
@@ -250,14 +254,15 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
                                 f"the list deselecting `{passing[1]}` does not list exactly the rest"))
     if "affected" in check:
         aff = execute(check, workdir, expand_files(list(check["affected"]["run"]), [m["file"]]), timeout)
-        out["affected"] = _verdict(t in aff.failures, f"the affected run's failures do not include `{t[1]}`")
+        out["affected"] = _verdict(aff.exit in check["failedExit"] and t in aff.failures,
+                                   f"the affected run did not fail with a `failedExit` naming `{t[1]}`")
     return out
 
 
 def _version(check: dict, workdir: Path, timeout: int) -> tuple[str, str]:
     """(verdict, first output line) of the `version` piece, stdout and stderr merged, as core."""
     try:
-        proc = _capture(check["version"]["run"], workdir, _env(check), True, min(timeout, 120))
+        proc = _capture(check["version"]["run"], workdir, dict(os.environ), True, min(timeout, 120))
     except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
         return f"fail: the version command did not pass ({exc.__class__.__name__})", ""
     line = next((ln.strip() for ln in proc.stdout.splitlines() if ln.strip()), "")
