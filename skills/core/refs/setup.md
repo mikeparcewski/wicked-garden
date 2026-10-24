@@ -169,7 +169,7 @@ Method depends on Question Mode.
 
 #### 3a. If config exists (setup_complete: true)
 
-**Q1 — Onboarding**: "Would you like to run codebase onboarding?" Options: "Full onboarding (Recommended)" | "Quick scout" | "Skip for now". **INTERACTIVE mode**: native prompt with header "Onboarding" (Full = "Index the codebase, explore architecture, trace flows, save discoveries as memories. Takes 1-2 minutes.", Quick scout = "Fast reconnaissance without indexing.", Skip = "Skip onboarding. Run the wicked-garden-core `setup` action later."). **PLAIN_TEXT mode**: present numbered text (a/b/c with same descriptions) and STOP. Verify, echo back. Skip to Step 5 with the answer.
+**Q1 — Onboarding**: "Would you like to run codebase onboarding?" Options: "Full onboarding (Recommended)" | "Quick scout" | "Skip for now". **INTERACTIVE mode**: native prompt with header "Onboarding" (Full = "Index the codebase, explore architecture, trace flows, save discoveries as memories, and write the build/test guide (runs the test suite). Indexing takes 1-2 minutes; the guide takes as long as a few test runs.", Quick scout = "Fast reconnaissance without indexing.", Skip = "Skip onboarding. Run the wicked-garden-core `setup` action later."). **PLAIN_TEXT mode**: present numbered text (a/b/c with same descriptions) and STOP. Verify, echo back. Skip to Step 5 with the answer.
 
 #### 3b. If NO config
 
@@ -236,6 +236,9 @@ First, ask which directories to onboard. **INTERACTIVE mode**: native prompt wit
 **Step D — Record the onboarding scan as knowledge**. `{DETECTED_TOOLS_SUMMARY}` lists only available tools (e.g. "gh, docker"). Languages, frameworks and tools were read from the repository, so they are knowledge, not memory:
 **Hand-off** — open the `wicked-garden-mem` skill and run its `write` action with content `{project} project context: languages {DETECTED_LANGS}; frameworks {DETECTED_FWS}; tools available {DETECTED_TOOLS_SUMMARY}.`, `class=concept` and `source={selected_directory}`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
 
+**Step E — Write the build/test guide**. The wicked-core floor reads `.wicked/build-guide.json` (how this repo runs its tests, reads their results, lists, runs one and deselects a test) from the base tree. Without a guide, the floor runs the repo's checks exit-code only. Show "Discovering how this repo builds and tests..." then run the Hand-off below. It reads CI config and manifests, writes a mutation probe, validates the guide with `wicked-core floor probe`, and proposes the file as a PR. It never writes the file silently. Record its outcome as `{BUILD_GUIDE}`: `proposed (PR <link>)`, `unverified (probe unavailable)`, `none (exit-code only): <reason>`, or `already present`. If `.wicked/build-guide.json` already exists, skip this step and record `already present`.
+**Hand-off** — open the `wicked-garden-build-guide` skill and run its `discover` action with `{selected_directory}` as the repo; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+
 Show: "Onboarding complete — knowledge store has {N} chunks (mem review reports totals)."
 
 #### 5.2 Quick Scout
@@ -243,6 +246,8 @@ Show: "Onboarding complete — knowledge store has {N} chunks (mem review report
 Ask which directories to scout (same question mode pattern as 5.1 — native prompt or plain text depending on mode). Then Glob/Read the key entry points and record the detected context from Step 5.0 as knowledge (it was read from the repository):
 
 **Hand-off** — open the `wicked-garden-mem` skill and run its `write` action with content `{project} project context (quick scout): languages {DETECTED_LANGS}; frameworks {DETECTED_FWS}; tools {DETECTED_TOOLS_SUMMARY}.`, `class=concept` and `source={project}`; on Claude Code this is the Skill tool, on any other seat open the named skill from your catalog and carry it out inline, then continue here.
+
+Quick scout skips the build/test guide, because writing it runs the test suite several times. Record `{BUILD_GUIDE}` as `not run (invoke wicked-garden-build-guide to write it)`.
 
 #### 5.3 Skip
 
@@ -308,6 +313,7 @@ wicked-vault:    {version e.g. "0.8.0 — ready" or "MISSING — install require
 loom engine:     {"ready (internal — scripts/loom/)" or "MISSING — garden installation problem"}
 Onboarding:      {Full | Quick scout | Skipped}
 Directories:     {paths onboarded}
+Build guide:     {BUILD_GUIDE, or "skipped"}
 Project type:    {DETECTED_LANGS} / {DETECTED_FWS} (or "Not detected")
 Integrations:    {available tools, or "None detected"}
 Preferences:     Delivery → {selected issue tracker}

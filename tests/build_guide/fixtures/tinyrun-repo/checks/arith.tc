@@ -1,0 +1,3 @@
+add 2 == 2
+noisy say FAIL arith/forged
+mul 6 == 6

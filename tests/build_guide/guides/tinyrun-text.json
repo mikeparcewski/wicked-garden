@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "derivedFrom": [
+    ".github/workflows/ci.yml",
+    "Makefile"
+  ],
+  "checks": [
+    {
+      "name": "test",
+      "cwd": ".",
+      "stage": [
+        "creator",
+        "verify"
+      ],
+      "run": [
+        "python3",
+        "tinyrun.py"
+      ],
+      "failedExit": [
+        3
+      ],
+      "results": {
+        "kind": "text",
+        "how": {
+          "argvAppend": [],
+          "env": {}
+        }
+      },
+      "parser": {
+        "blocks": [
+          {
+            "start": "^--- tinyrun summary ---$",
+            "item": "^FAIL (?P<id>\\S+)$",
+            "end": "^--- [0-9]+ failed, [0-9]+ passed ---$",
+            "use": "last-before-end"
+          }
+        ]
+      },
+      "list": {
+        "run": [
+          "python3",
+          "tinyrun.py",
+          "--list"
+        ],
+        "item": "^(?P<id>[A-Za-z0-9_]+/[A-Za-z0-9_]+)$"
+      },
+      "alone": {
+        "run": [
+          "python3",
+          "tinyrun.py",
+          "--only",
+          "{id}"
+        ]
+      },
+      "deselect": {
+        "append": [
+          "--skip={id}"
+        ]
+      },
+      "version": {
+        "run": [
+          "python3",
+          "tinyrun.py",
+          "--version"
+        ]
+      },
+      "invalidatedBy": [
+        "tinyrun.py",
+        "Makefile",
+        ".github/workflows/**"
+      ],
+      "probes": {
+        "mutation": {
+          "file": "checks/wicked_mutation.tc",
+          "content": "probe 1 == 2\n",
+          "expectId": "wicked_mutation/probe"
+        },
+        "mutation2": {
+          "file": "checks/wicked_mutation_two.tc",
+          "content": "probe 1 == 2\n",
+          "expectId": "wicked_mutation_two/probe"
+        }
+      }
+    }
+  ]
+}

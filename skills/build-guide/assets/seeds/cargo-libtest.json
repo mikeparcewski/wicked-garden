@@ -1,0 +1,118 @@
+{
+  "version": 1,
+  "derivedFrom": [
+    "Cargo.toml",
+    "Cargo.lock",
+    ".github/workflows/ci.yml"
+  ],
+  "checks": [
+    {
+      "name": "build",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "build",
+        "--locked",
+        "--workspace"
+      ],
+      "failedExit": [
+        101
+      ]
+    },
+    {
+      "name": "test",
+      "cwd": ".",
+      "stage": [
+        "creator",
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "failedExit": [
+        101
+      ],
+      "results": {
+        "kind": "text",
+        "how": {
+          "argvAppend": [],
+          "env": {},
+          "merge": true
+        }
+      },
+      "parser": {
+        "section": "^\\s+(?:Running .*\\((?:.*[/\\\\])?|Doc-tests )(?P<q>[^/\\\\()\\s]+)\\)?$",
+        "failed": [],
+        "blocks": [
+          {
+            "start": "^failures:$",
+            "item": "^    (?P<id>\\S+)$",
+            "end": "^test result: FAILED",
+            "use": "last-before-end"
+          }
+        ]
+      },
+      "list": {
+        "run": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--no-fail-fast",
+          "--",
+          "--list"
+        ],
+        "item": "^(?P<id>\\S+): test$",
+        "section": "^\\s+(?:Running .*\\((?:.*[/\\\\])?|Doc-tests )(?P<q>[^/\\\\()\\s]+)\\)?$",
+        "merge": true
+      },
+      "alone": {
+        "run": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--no-fail-fast",
+          "--",
+          "{id}",
+          "--exact"
+        ]
+      },
+      "deselect": {
+        "append": [
+          "--",
+          "--skip={id}",
+          "--exact"
+        ]
+      },
+      "version": {
+        "run": [
+          "cargo",
+          "--version"
+        ]
+      },
+      "invalidatedBy": [
+        ".cargo/**",
+        "**/.cargo/**",
+        "rust-toolchain*",
+        "**/rust-toolchain*"
+      ],
+      "probes": {
+        "mutation": {
+          "file": "tests/zz_floor_probe_mutation.rs",
+          "content": "#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n\n#[test]\nfn floor_probe_mutation_beside() {}\n",
+          "expectId": "floor_probe_mutation"
+        },
+        "mutation2": {
+          "file": "tests/zz_floor_probe_mutation_two.rs",
+          "content": "#[test]\nfn floor_probe_mutation_two() {\n    panic!(\"the build guide's second mutation probe\");\n}\n",
+          "expectId": "floor_probe_mutation_two"
+        }
+      }
+    }
+  ]
+}

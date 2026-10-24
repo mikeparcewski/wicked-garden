@@ -1,0 +1,37 @@
+{
+  "case_id": "pytest-junit",
+  "skill": "wicked-garden-build-guide",
+  "fixture": "pytest-repo",
+  "prompt": "Write the build/test guide for this repo. pytest can write JUnit, so prefer that.",
+  "host": {
+    "floor_probe": "unavailable",
+    "runners": [
+      "pytest"
+    ]
+  },
+  "expect": {
+    "guide": "present",
+    "check_draft_ok": true,
+    "results_kind": "text",
+    "derivedFrom_includes": [
+      ".github/workflows/ci.yml",
+      "pyproject.toml"
+    ],
+    "no_verified": true,
+    "rehearsal": "all-pass",
+    "message_includes_any": [
+      [
+        "ids probe",
+        "`ids`",
+        "round-trip",
+        "round trip",
+        "node id",
+        "nodeid"
+      ]
+    ],
+    "message_includes": [
+      "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
+    ]
+  },
+  "rationale": "pytest's JUnit ids are not its node ids for every test: the best reading (xunit1 file + name) misses the class of a class method, so the `ids` probe fails. The skill should try JUnit, see `ids` fail, fall back to pytest's own short test summary, and say why. Proposing the JUnit guide fails this case."
+}

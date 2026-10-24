@@ -1,0 +1,252 @@
+{
+  "version": 1,
+  "derivedFrom": [
+    "Cargo.toml",
+    "Cargo.lock",
+    ".wicked/checks.json",
+    ".github/workflows/ci.yml",
+    "crates/*/Cargo.toml"
+  ],
+  "checks": [
+    {
+      "name": "cargo-fmt-check",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--check"
+      ],
+      "failedExit": [
+        1
+      ]
+    },
+    {
+      "name": "typecheck",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "check",
+        "--locked",
+        "--workspace",
+        "--all-targets"
+      ],
+      "failedExit": [
+        101
+      ]
+    },
+    {
+      "name": "lint",
+      "cwd": ".",
+      "run": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "failedExit": [
+        101
+      ]
+    },
+    {
+      "name": "build-workspace",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "build",
+        "--workspace"
+      ]
+    },
+    {
+      "name": "build-postgres",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "build",
+        "--features",
+        "postgres"
+      ]
+    },
+    {
+      "name": "test",
+      "cwd": ".",
+      "stage": [
+        "creator",
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "failedExit": [
+        101
+      ],
+      "results": {
+        "kind": "text",
+        "how": {
+          "argvAppend": [],
+          "env": {},
+          "merge": true
+        }
+      },
+      "parser": {
+        "section": "^\\s+(?:Running .*\\((?:.*[/\\\\])?|Doc-tests )(?P<q>[^/\\\\()\\s]+)\\)?$",
+        "failed": [],
+        "blocks": [
+          {
+            "start": "^failures:$",
+            "item": "^    (?P<id>\\S+)$",
+            "end": "^test result: FAILED",
+            "use": "last-before-end"
+          }
+        ]
+      },
+      "list": {
+        "run": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--no-fail-fast",
+          "--",
+          "--list"
+        ],
+        "item": "^(?P<id>\\S+): test$",
+        "section": "^\\s+(?:Running .*\\((?:.*[/\\\\])?|Doc-tests )(?P<q>[^/\\\\()\\s]+)\\)?$",
+        "merge": true
+      },
+      "alone": {
+        "run": [
+          "cargo",
+          "test",
+          "--locked",
+          "--workspace",
+          "--no-fail-fast",
+          "--",
+          "{id}",
+          "--exact"
+        ]
+      },
+      "deselect": {
+        "append": [
+          "--",
+          "--skip={id}",
+          "--exact"
+        ]
+      },
+      "invalidatedBy": [
+        ".cargo/**",
+        "**/.cargo/**",
+        "rust-toolchain*",
+        "**/rust-toolchain*"
+      ],
+      "probes": {
+        "mutation": {
+          "file": "tests/zz_floor_probe_mutation.rs",
+          "content": "#[ctor::ctor(unsafe)]\nfn arm_hermetic_emit_spool() {\n    wicked_apps_core::emit::hermetic_test_spool();\n}\n\n#[test]\nfn floor_probe_mutation() {\n    panic!(\"the build guide's mutation probe\");\n}\n\n#[test]\nfn floor_probe_mutation_beside() {}\n",
+          "expectId": "floor_probe_mutation"
+        },
+        "mutation2": {
+          "file": "tests/zz_floor_probe_mutation_two.rs",
+          "content": "#[ctor::ctor(unsafe)]\nfn arm_hermetic_emit_spool() {\n    wicked_apps_core::emit::hermetic_test_spool();\n}\n\n#[test]\nfn floor_probe_mutation_two() {\n    panic!(\"the build guide's second mutation probe\");\n}\n",
+          "expectId": "floor_probe_mutation_two"
+        }
+      },
+      "verified": {
+        "baseSha": "b5ec205f97086e2755f21085c9c7dfcd11902b67",
+        "runnerVersion": "",
+        "at": "2026-10-23T18:59:07Z",
+        "results": {
+          "alone": "pass",
+          "deselect": "pass",
+          "ids": "pass",
+          "list": "pass",
+          "multi": "pass",
+          "mutation": "pass",
+          "run": "pass"
+        }
+      },
+      "version": {
+        "run": [
+          "cargo",
+          "--version"
+        ]
+      }
+    },
+    {
+      "name": "core-ts-fmt",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "cargo",
+        "fmt",
+        "--check"
+      ],
+      "stage": [
+        "verify"
+      ]
+    },
+    {
+      "name": "core-ts-clippy",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "stage": [
+        "verify"
+      ]
+    },
+    {
+      "name": "core-ts-test",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "cargo",
+        "test"
+      ],
+      "stage": [
+        "verify"
+      ]
+    },
+    {
+      "name": "core-ts-finalize-dts",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "sh",
+        "-c",
+        "t=$(mktemp -d) && mkdir \"$t/scripts\" && cp scripts/finalize-dts.mjs \"$t/scripts/\" && cp index.d.ts \"$t/\" && node --check \"$t/scripts/finalize-dts.mjs\" && node \"$t/scripts/finalize-dts.mjs\" >/dev/null && cmp index.d.ts \"$t/index.d.ts\"; r=$?; rm -rf \"$t\"; exit $r"
+      ],
+      "stage": [
+        "verify"
+      ]
+    },
+    {
+      "name": "core-ts-tsc",
+      "cwd": "crates/wicked-core-ts",
+      "run": [
+        "sh",
+        "-c",
+        "npm ci --ignore-scripts --no-audit --no-fund && npm run typecheck"
+      ],
+      "stage": [
+        "verify"
+      ]
+    }
+  ]
+}
