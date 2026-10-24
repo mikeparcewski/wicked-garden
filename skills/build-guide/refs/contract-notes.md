@@ -2,7 +2,7 @@
 
 The contract is DES-BUILD-GUIDE's "Contract v1". Its machine form is wicked-core's
 `schemas/build-guide.v1.json`, which garden vendors byte for byte as
-`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at 3fb9c86,
+`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at 2ff7e37,
 which is not merged yet. Re-vendor it when that branch merges; a test pins the copy to its git
 blob. The core interpreter (`src/floor_guide.rs`) and probe (`src/floor_probe.rs`) are
 authoritative, and `rehearse.py` mirrors them piece by piece. The skill never adds a field.
@@ -47,7 +47,7 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 - **`verified`** is written by `floor probe` into the `--guide` file in place, including
   `runnerVersion`, which it records by running the check's `version` piece.
 
-## Rulings, as core implements them at 3fb9c86
+## Rulings, as core implements them at 2ff7e37 (round 16)
 
 1. **Regex placeholders.** `{id:re}` is the id regex-escaped (Rust `regex::escape`), repeated
    per id like `{id}`. `{ids:re|}` is every id regex-escaped and joined with `|` in ONE token,
@@ -86,6 +86,27 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
    emitted. A results run is `deselected(run, ids)` composed with `argvAppend`.
 8. **`derivedFrom` holds git pathspecs.** Globs such as `crates/*/Cargo.toml` match, and
    `check.py --repo` errors on an entry that matches nothing.
+
+9. **Load-time validation** (the floor and the probe alike). A guide with an empty `run`, a
+   `stage` other than `creator`/`verify`, or a check with a `list` and no `failedExit` does not
+   load, and detection is the whole floor. The schema says the same: `dependentRequired` makes
+   `list` need `results` and `failedExit`, and `failedExit` has `minItems: 1`. `check.py` reports
+   each in the floor's words.
+10. **Coverage is per directory.** A guide replaces detection only in the directories its checks
+    cover (their `cwd`s, at any stage). A detected package that no check covers keeps its
+    detected checks, judged by exit code. The skill still declares every CI gate, sub-packages
+    included, each with the step's `working-directory` as `cwd`. `check.py --repo` matches CI
+    steps by argv and working directory. A job-level `defaults.run.working-directory` is not read.
+    Expensive gates take `stage: ["verify"]`; wicked-core's own guide does this for `core-ts`.
+11. **Deleted files.** A change that deletes a file, or renames one away, makes `affected` run the
+    full check.
+12. **JUnit per testcase.** Each `<testcase>` is judged on its own: two that share an id and both
+    ran are both counted (no de-duplication), and a `<skipped/>` one neither passed nor failed.
+    `multi` needs two DISTINCT failures (the second is not the first again), and `affected` must
+    fail with a `failedExit` naming the mutated test.
+13. **`results.how.env`** applies only to runs whose results are read (the run, the probes' runs).
+    The `list` and `version` runs get the plain environment.
+14. **Placeholders fill in one pass.** A value that itself contains `{q}` is not filled again.
 
 ## Why the pytest seed is text, not JUnit
 

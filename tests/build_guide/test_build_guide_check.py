@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import shutil
 import hashlib
 import json
 from pathlib import Path
@@ -12,8 +13,8 @@ import pytest
 from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
 
 SCHEMA = REPO / "schemas" / "build-guide.v1.json"
-# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@3fb9c86 (#1066).
-CORE_BLOB = "61b12a61b35d21616a1d83316fbd312bad8e44e3"
+# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@2ff7e37 (#1066).
+CORE_BLOB = "53973256b1424a79670edb91e54eb39651a591ef"
 SEED_REPOS = {
     "cargo-libtest.json": "cargo-repo",
     "pytest-short-summary.json": "pytest-repo",
@@ -40,7 +41,7 @@ def _seed(name: str = "cargo-libtest.json") -> dict:
 def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
     code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
     assert code == 0, report["errors"]
-    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@3fb9c86")
+    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@2ff7e37")
 
 
 @pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
@@ -74,7 +75,10 @@ def test_a_probed_guide_may_carry_verified(tmp_path):
     (lambda g: _t(g).update(failedExit=["101"]), "is not of type 'integer'"),
     (lambda g: _t(g).pop("alone"), "alone: missing or empty; the floor will not use this check"),
     (lambda g: _t(g).pop("deselect"), "deselect: missing or empty; the floor will not use this check"),
-    (lambda g: _t(g).update(failedExit=[]), "failedExit: missing or empty; the floor will not use"),
+    (lambda g: _t(g).update(failedExit=[]), "the floor would not load this guide: the check has a `list` and no "
+                                            "`failedExit`"),
+    (lambda g: _t(g).update(stage=["ci"]), "the floor would not load this guide: the check has a `stage` other than"),
+    (lambda g: _t(g).update(run=[]), "the floor would not load this guide: the check has an empty `run`"),
     (lambda g: _t(g)["probes"].pop("mutation"), "probes.mutation: missing; the `mutation` probe"),
     (lambda g: _t(g)["probes"].pop("mutation2"), "probes.mutation2: missing; the `multi` probe"),
     (lambda g: _t(g)["probes"].update(mutation2=dict(_t(g)["probes"]["mutation"])),
@@ -216,9 +220,9 @@ def test_a_ci_step_the_guide_does_not_declare_is_flagged(tmp_path):
                               "--draft")
     assert code == 0
     flagged = [w for w in report["warnings"] if w.startswith("CI runs")]
-    assert flagged == ["CI runs `cargo build --locked --workspace` (.github/workflows/ci.yml:8) but no check declares "
-                       "it; a guide's checks replace the floor's detection, so this step would not gate. Declare it as "
-                       "a check (a gate with no `list` when it is not the test run)."]
+    assert len(flagged) == 1
+    assert flagged[0].startswith("CI runs `cargo build --locked --workspace` (.github/workflows/ci.yml:8) but no check "
+                                 "declares it there")
 
 
 @pytest.mark.parametrize("seed,repo", sorted(SEED_REPOS.items()))
@@ -274,3 +278,19 @@ def test_derived_from_takes_git_pathspec_globs(tmp_path):
     assert code == 1
     assert [e for e in report["errors"] if "derivedFrom" in e] == [
         "derivedFrom[2]: 'crates/*/Cargo.toml' matches nothing in the repo"]
+
+
+def test_a_ci_step_in_a_sub_package_must_be_declared_with_that_cwd(tmp_path):
+    repo = tmp_path / "repo"
+    shutil.copytree(FIXTURES / "cargo-repo", repo)
+    (repo / "web").mkdir()
+    ci = repo / ".github" / "workflows" / "ci.yml"
+    ci.write_text(ci.read_text(encoding="utf-8") + "      - name: web lint\n        working-directory: web\n"
+                  "        run: npm run lint\n", encoding="utf-8")
+    guide = _seed()
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(repo), "--draft")
+    flagged = [w for w in report["warnings"] if w.startswith("CI runs")]
+    assert len(flagged) == 1 and flagged[0].startswith("CI runs `npm run lint` in `web`")
+    guide["checks"].insert(0, {"name": "web-lint", "cwd": "web", "stage": ["verify"], "run": ["npm", "run", "lint"]})
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(repo), "--draft")
+    assert not [w for w in report["warnings"] if w.startswith("CI runs")]

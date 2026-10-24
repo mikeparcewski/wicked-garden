@@ -65,14 +65,23 @@ as `--schema`.
   takes one exclusion pattern gets one `{ids:re|}` token instead.
 - Paths (`results.how.path`, the mutation files) are relative to `cwd`. `invalidatedBy` globs
   are matched against the files the change touched.
-- A JUnit `<skipped/>` testcase neither passed nor failed. The results kind is `text` or
-  `junit`; `json-lines` and `tap` are reserved.
+- Each JUnit `<testcase>` is judged on its own. A `<skipped/>` one neither passed nor failed, and
+  `multi` needs two distinct failures. The results kind is `text` or `junit`; `json-lines` and
+  `tap` are reserved. `results.how.env` applies only to runs whose results are read, not to
+  `list` or `version`.
+- `affected` runs the full check whenever the change deletes a file or renames one away.
+- The floor and the probe both refuse to load a guide with an empty `run`, a `stage` other than
+  `creator`/`verify`, or a check that has a `list` but no `failedExit`. Then detection is the whole
+  floor.
 - How the floor reads exit codes: 0 passes. A code in `failedExit` with parsed failures is
   tests failing. A `failedExit` code with no parsed failure is `base_red_unseparated` on the
   base and `new_failure` on the head. Any other non-zero code is `could_not_run`.
-- **The guide replaces detection.** When a usable guide exists, its checks ARE the floor's
-  checks, run at the `stage`s they declare (absent means both). So declare EVERY step the
-  repo's CI gates on: install, build, format, lint, typecheck and test. A check with no `list`
+- **The guide replaces detection, per directory.** In the directories its checks cover (their
+  `cwd`s), a usable guide's checks ARE the floor's checks, run at the `stage`s they declare
+  (absent means both). A package no check covers keeps its detected checks, judged by exit code.
+  So declare EVERY step the repo's CI gates on (install, build, format, lint, typecheck and test),
+  each with the `cwd` CI runs it in, sub-packages included. Give an expensive gate
+  `stage: ["verify"]`. A check with no `list`
   is a gate (`name`, `cwd`, `run`, and a `failedExit` where the tool documents one; no
   `results`, no `version`). Its exit code alone decides it, and it is not probed. Only a test
   check (with `list`, and so `results`) carries the pieces and probes below.

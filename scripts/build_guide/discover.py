@@ -19,7 +19,7 @@ agent's call after running the runner's ``--version`` and ``--help``.
 
 Prints one JSON object: ``files`` (repo-relative CI and manifest paths found — the
 ``derivedFrom`` candidates), ``commands`` (every test candidate with its source ``file:line`` and
-any resolved recipe), ``ciSteps`` (EVERY command CI runs — install, build, format, lint,
+any resolved recipe), ``ciSteps`` (EVERY command CI runs, with the step's ``working-directory`` as ``cwd`` — install, build, format, lint,
 typecheck, test — each of which the guide must declare as a check, because a guide's checks
 replace the floor's own detection), and ``verdict``: ``candidates`` or ``no-test-command``. Exit 0; 2 on bad usage.
 Standard library only.
@@ -72,6 +72,29 @@ def _block_lines(lines: list[str], start: int, indent: int) -> list[tuple[int, s
     return out
 
 
+_STEP = re.compile(r"^(\s*)-\s")
+_WORKDIR = re.compile(r"^\s*(?:-\s+)?working-directory:\s*(.+?)\s*$")
+
+
+def step_cwd(lines: list[str], i: int) -> str:
+    """The ``working-directory`` of the GitHub Actions step holding line ``i`` ("." when none).
+    (A job-level ``defaults.run.working-directory`` is not read.)"""
+    key_indent = len(lines[i]) - len(lines[i].lstrip(" -"))
+    start = next((j for j in range(i, -1, -1)
+                  if _STEP.match(lines[j]) and len(_STEP.match(lines[j]).group(1)) < key_indent), None)
+    if start is None:
+        return "."
+    dash = len(_STEP.match(lines[start]).group(1))
+    for j in range(start, len(lines)):
+        text = lines[j]
+        if j > start and text.strip() and len(text) - len(text.lstrip()) <= dash:
+            break
+        m = _WORKDIR.match(text)
+        if m:
+            return m.group(1).strip("'\"").rstrip("/") or "."
+    return "."
+
+
 def ci_commands(rel: str, text: str) -> list[dict]:
     lines = text.splitlines()
     found = []
@@ -83,9 +106,10 @@ def ci_commands(rel: str, text: str) -> list[dict]:
         if rest in ("|", ">", "|-", ">-", ""):
             for lineno, cmd in _block_lines(lines, i + 1, indent):
                 item = _LIST_ITEM.match(cmd) if rest == "" else None
-                found.append({"source": f"{rel}:{lineno}", "command": item.group(1) if item else cmd})
+                found.append({"source": f"{rel}:{lineno}", "command": item.group(1) if item else cmd,
+                              "cwd": step_cwd(lines, i)})
         else:
-            found.append({"source": f"{rel}:{i + 1}", "command": rest.strip("'\"")})
+            found.append({"source": f"{rel}:{i + 1}", "command": rest.strip("'\""), "cwd": step_cwd(lines, i)})
     return found
 
 

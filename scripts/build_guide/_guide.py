@@ -40,7 +40,7 @@ from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
 # Where the vendored schema came from: wicked-core#1066's branch, not yet merged.
-SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@3fb9c86 schemas/build-guide.v1.json (unmerged, #1066)"
+SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@2ff7e37 schemas/build-guide.v1.json (unmerged, #1066)"
 # The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
 # plus `affected` when the check has that piece.
 REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
@@ -168,6 +168,15 @@ def _lint_common(at: str, check: dict, repo: Path | None) -> tuple[list[str], li
     """What every check needs, a gate (no `list`) or a test check."""
     errors: list[str] = []
     warnings: list[str] = []
+    # The load-time checks the floor and the probe both make (core ``floor_guide::parse``): a guide
+    # failing one does not load at all, and detection is the whole floor.
+    load = "the floor would not load this guide: the check has "
+    if not check.get("run"):
+        errors.append(f"{at}.run: {load}an empty `run`")
+    if any(s not in ("creator", "verify") for s in check.get("stage", [])):
+        errors.append(f"{at}.stage: {load}a `stage` other than `creator` / `verify`")
+    if "list" in check and not check.get("failedExit"):
+        errors.append(f"{at}.failedExit: {load}a `list` and no `failedExit`")
     cwd = check.get("cwd", ".")
     errors += _repo_relative(f"{at}.cwd", cwd)
     if repo is not None and not (repo / cwd).is_dir():
@@ -179,8 +188,8 @@ def _lint_common(at: str, check: dict, repo: Path | None) -> tuple[list[str], li
                         ("alone.run", check.get("alone", {}).get("run", [])),
                         ("version.run", check.get("version", {}).get("run", []))):
         if argv and PurePosixPath(argv[0]).name in SHELLS:
-            warnings.append(f"{at}.{where}: runs through a shell ({argv[0]}); argv never passes through a "
-                            "shell, so name the runner itself")
+            warnings.append(f"{at}.{where}: runs through a shell ({argv[0]}); fine for a compound CI step, "
+                            "but a test check's pieces never pass through a shell, so name the runner when you can")
     results = check.get("results", {})
     kind = results.get("kind")
     parser = check.get("parser")
@@ -214,7 +223,7 @@ def _lint_test(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[li
     errors: list[str] = []
     warnings: list[str] = []
     cwd = check.get("cwd", ".")
-    for key in ("failedExit", "alone", "deselect"):
+    for key in ("alone", "deselect"):
         if not check.get(key):
             errors.append(f"{at}.{key}: missing or empty; the floor will not use this check without it")
     if check.get("results", {}).get("kind") == "text" and check.get("parser") is None:
@@ -368,8 +377,10 @@ def parse_text(parser: dict[str, Any], text: str) -> set[Failure]:
 def parse_junit(xml_text: str, id_attrs: list[str] | None = None, join: str = "::") -> tuple[list[Failure], set[Failure]]:
     """(every testcase that ran, failed testcases), as the core reader takes them: the id is the
     ``results.id`` attributes (default classname, name) joined by ``results.idJoin`` (default
-    ``::``), q is the enclosing testsuite's ``name``; a testcase with a ``<skipped/>`` child neither
-    passed nor failed (a filter left it out); one with ``<failure>`` or ``<error>`` failed."""
+    ``::``), q is the enclosing testsuite's ``name``. Each ``<testcase>`` is judged on its own: one
+    with a ``<skipped/>`` child neither passed nor failed (a filter left it out), one with
+    ``<failure>`` or ``<error>`` failed, and two testcases with the same id that both ran are
+    both in "every" (not de-duplicated)."""
     attrs = id_attrs or ["classname", "name"]
     root = ET.fromstring(xml_text)
     every: list[Failure] = []
@@ -407,16 +418,15 @@ def re_escape(text: str) -> str:
     return "".join("\\" + c if c in _RE_META else c for c in text)
 
 
+_SLOT = re.compile(r"\{(?:id|id:re|q)\}")
+
+
 def substitute(argv: list[str], **values: str) -> list[str]:
-    """Fill ``{id}``, ``{q}`` and ``{id:re}`` (the id regex-escaped) in every token."""
-    if "id" in values:
-        values = {**values, "id:re": re_escape(values["id"])}
-    out = []
-    for token in argv:
-        for key, val in values.items():
-            token = token.replace("{" + key + "}", val)
-        out.append(token)
-    return out
+    """Fill ``{id}``, ``{q}`` and ``{id:re}`` (the id regex-escaped) in every token, in ONE pass
+    (as core's ``fill``): a value that itself contains ``{q}`` is not filled again."""
+    slots = {"{id}": values.get("id", "{id}"), "{q}": values.get("q", "{q}"),
+             "{id:re}": re_escape(values["id"]) if "id" in values else "{id:re}"}
+    return [_SLOT.sub(lambda m: slots[m.group(0)], token) for token in argv]
 
 
 def compose(argv: list[str], extra: list[str]) -> list[str]:

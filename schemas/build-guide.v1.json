@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wickedagile.com/schemas/build-guide.v1.json",
   "title": "Build guide (DES-BUILD-GUIDE, contract v1)",
-  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. When the base carries a guide, its `checks` (for the stage) ARE the floor's checks: their argv, cwd and stage replace detection for the repository (a repo that needs a build, lint or install step declares it as a check); detection is the fallback only when the base has no guide or one that does not parse. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` file changed since, and the change touches no `invalidatedBy` file. All regexes are RE2 syntax, applied to one line at a time.",
+  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. When the base carries a guide, its `checks` (for the stage) ARE the floor's checks for the directories they cover (their `cwd`s, at any stage): there their argv, cwd and stage replace detection (a build, lint or install step is declared as a check), while a detected package no check covers keeps its detected checks, exit codes only. With no guide, or one that does not parse or fails the load-time checks (a non-empty `run`, `stage` values, `failedExit` on a check with a `list`), detection is the whole floor. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` file changed since, and the change touches no `invalidatedBy` file. All regexes are RE2 syntax, applied to one line at a time.",
   "type": "object",
   "required": ["version", "checks"],
   "additionalProperties": false,
@@ -33,7 +33,7 @@
       "type": "object",
       "description": "A test check has a `list` (and so `results`); a gate check (a build, a lint, an install) has neither and gates on its exit code alone. `version` is for test checks only.",
       "required": ["name", "run"],
-      "dependentRequired": { "list": ["results"], "version": ["list"] },
+      "dependentRequired": { "list": ["results", "failedExit"], "version": ["list"] },
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
@@ -50,6 +50,7 @@
         "failedExit": {
           "description": "Exit codes that mean 'tests failed'. Any other non-zero exit (a crash, a build error) decides the check `could_not_run`. A failing exit whose results name no test gives the base no candidates (`base_red_unseparated`), and a deselected head run that fails with nothing named is still a failure (`new_failure`): exclusion never passes a run that failed.",
           "type": "array",
+          "minItems": 1,
           "items": { "type": "integer" }
         },
         "results": {
