@@ -2,7 +2,7 @@
 
 The contract is DES-BUILD-GUIDE's "Contract v1". Its machine form is wicked-core's
 `schemas/build-guide.v1.json`, which garden vendors byte for byte as
-`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at 2ff7e37,
+`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at b923fed (the final contract),
 which is not merged yet. Re-vendor it when that branch merges; a test pins the copy to its git
 blob. The core interpreter (`src/floor_guide.rs`) and probe (`src/floor_probe.rs`) are
 authoritative, and `rehearse.py` mirrors them piece by piece. The skill never adds a field.
@@ -47,7 +47,7 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 - **`verified`** is written by `floor probe` into the `--guide` file in place, including
   `runnerVersion`, which it records by running the check's `version` piece.
 
-## Rulings, as core implements them at 2ff7e37 (round 16)
+## Rulings, as core implements them at b923fed
 
 1. **Regex placeholders.** `{id:re}` is the id regex-escaped (Rust `regex::escape`), repeated
    per id like `{id}`. `{ids:re|}` is every id regex-escaped and joined with `|` in ONE token,
@@ -107,6 +107,23 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 13. **`results.how.env`** applies only to runs whose results are read (the run, the probes' runs).
     The `list` and `version` runs get the plain environment.
 14. **Placeholders fill in one pass.** A value that itself contains `{q}` is not filled again.
+
+15. **Final load-time rules (b923fed).** A guide does not load when a check has a `0` in
+    `failedExit` (a failure exits nonzero), a `cwd` that is absolute, climbs (`..`) or has an
+    empty segment, `{ids:re|}` among the per-id tokens, or `{ids:re|}` and `{q}` in one
+    `deselect.append` (the pattern cannot bind ids to qualifiers). The schema says the first two
+    (`not: {const: 0}`, a `cwd` pattern), and the stdlib validator implements `not`. `check.py`
+    reports all of them in core's words.
+16. **Probe precision.** The `deselect` and `multi` list checks need every deselected id listed
+    exactly once (else deselecting it proves nothing). `ids` needs at least one parsed id ("the
+    results named no test"). A `failedExit` code counts only when it is nonzero.
+17. **JUnit is read as XML.** Core uses roxmltree; `rehearse.py` uses `xml.etree`. CDATA and
+    `<system-out>` are text, never markup. The NEAREST enclosing `<testsuite>` is the qualifier
+    (suites may nest). A testcase whose id attributes are all empty is dropped, and so is one with
+    a `<skipped/>` child, even if it also has a `<failure>`. Text with no `<testsuite>` is refused
+    ("the results hold no testsuite").
+18. **`alone` fills `{ids:re|}` with its one id**, escaped, in the same single pass as the other
+    placeholders.
 
 ## Why the pytest seed is text, not JUnit
 

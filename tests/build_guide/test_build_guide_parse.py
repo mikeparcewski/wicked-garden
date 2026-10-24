@@ -10,6 +10,8 @@ from __future__ import annotations
 import importlib.util
 import json
 
+import pytest
+
 from bg_helpers import CAPTURED, GUIDES, SCRIPTS, SEEDS
 
 _spec = importlib.util.spec_from_file_location("build_guide_reading", SCRIPTS / "_guide.py")
@@ -156,3 +158,19 @@ def test_junit_judges_each_testcase_on_its_own():
 
 def test_placeholders_fill_in_one_pass():
     assert guide_mod.substitute(["--{id}@{q}"], id="a{q}b", q="Q") == ["--a{q}b@Q"]
+
+
+def test_junit_is_read_with_a_real_xml_parser_and_the_nearest_suite_is_the_qualifier():
+    """core's roxmltree reader: CDATA and <system-out> are text, suites nest, all-empty ids drop."""
+    tricky = ('<testsuites><testsuite name="outer"><testsuite name="inner">'
+              '<testcase classname="c" name="a &amp;quot;q&amp;quot;"><system-out><![CDATA[<failure/><skipped/>]]>'
+              '</system-out></testcase></testsuite><testcase classname="c" name="b"><failure>&lt;skipped/&gt;'
+              '</failure></testcase><testcase/></testsuite></testsuites>')
+    every, failed = guide_mod.parse_junit(tricky)
+    assert every == [("inner", "c::a &quot;q&quot;"), ("outer", "c::b")]
+    assert failed == {("outer", "c::b")}
+
+
+def test_junit_with_no_testsuite_is_refused():
+    with pytest.raises(ValueError, match="the results hold no testsuite"):
+        guide_mod.parse_junit("<report/>")

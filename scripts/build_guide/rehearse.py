@@ -7,7 +7,7 @@
 A REHEARSAL, not the probe: it never writes ``verified`` and its verdict is not evidence the
 floor reads. It exists so the parser, the ids and the templates can be iterated on quickly (and
 reported honestly when the probe is unavailable). It mirrors wicked-core's ``floor probe``
-(#1066's ``src/floor_probe.rs`` at 2ff7e37) piece by piece, with exit codes as the referee:
+(#1066's ``src/floor_probe.rs`` at b923fed) piece by piece, with exit codes as the referee:
 
 * ``list``     — the list run exits 0 and names tests.
 * ``run``      — the clean run is GREEN (exit 0, no parsed failure). Every later probe needs a
@@ -50,9 +50,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from _guide import (ALL_IDS, SCHEMA, Failure, compose, deselected, expand_files, lint,  # noqa: E402
-                    load_json, parse_junit, parse_list, parse_text, passed, re_escape, schema_errors,
-                    substitute)
+from _guide import (SCHEMA, Failure, compose, deselected, expand_files, lint, load_json,  # noqa: E402
+                    parse_junit, parse_list, parse_text, passed, schema_errors, substitute)
 
 NOTE = ("rehearsal only: verified is not written and this is not probe evidence; "
         "the floor uses a guide only after `wicked-core floor probe` passes it")
@@ -135,6 +134,8 @@ def execute(check: dict, workdir: Path, argv: list[str], timeout: int) -> Outcom
         return Outcome(proc.returncode, _unique(check, sorted(parse_text(check["parser"], text))), None)
     try:
         every, failed = parse_junit(text, results.get("id"), results.get("idJoin", "::"))
+    except ValueError as exc:  # no <testsuite>
+        return Outcome(proc.returncode, [], None, str(exc))
     except Exception as exc:  # noqa: BLE001 - any unreadable report is a probe failure, named
         return Outcome(proc.returncode, [], None, f"the results do not parse as JUnit ({exc.__class__.__name__})")
     every = [(q if _keyed(check) else "", i) for q, i in every]  # each testcase on its own, no de-dup
@@ -163,6 +164,11 @@ def inventory(check: dict, workdir: Path, timeout: int, deselect: list[Failure] 
     return ids
 
 
+def _failed_exit(check: dict, code: int | None) -> bool:
+    """A NONZERO exit the guide calls a test failure (core ``failed_exit``)."""
+    return code is not None and code != 0 and code in check["failedExit"]
+
+
 def _verdict(ok: bool, why: str) -> str:
     return "pass" if ok else f"fail: {why}"
 
@@ -175,6 +181,10 @@ AFTER_RUN = ("ids", "alone", "deselect", "mutation", "multi")
 
 
 def _deselects_exactly(check: dict, workdir: Path, listed, ids: list, timeout: int) -> bool:
+    """Each of ``ids`` is listed exactly once (else deselecting it proves nothing), and the list
+    deselecting them lists exactly the rest."""
+    if not isinstance(listed, list) or any(listed.count(i) != 1 for i in ids):
+        return False
     rest = inventory(check, workdir, timeout, deselect=ids)
     return isinstance(listed, list) and isinstance(rest, list) and \
         sorted(rest) == sorted(t for t in listed if t not in ids)
@@ -191,9 +201,8 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
         return out
 
     run_argv = list(check["run"])
-    # core's alone_argv: {id}/{q}/{id:re} filled, and {ids:re|} over just this one id
-    alone = lambda t: [x.replace(ALL_IDS, re_escape(t[1]))  # noqa: E731
-                       for x in substitute(check["alone"]["run"], id=t[1], q=t[0])]
+    # core's alone_argv: {id}, {q}, {id:re} and {ids:re|} (this one id, escaped) in one pass
+    alone = lambda t: substitute(check["alone"]["run"], id=t[1], q=t[0])  # noqa: E731
     desel = lambda ids: deselected(check["deselect"]["append"], run_argv, ids)  # noqa: E731
     listed0 = inventory(check, workdir, timeout)
     out["list"] = _verdict(isinstance(listed0, list), str(listed0))
@@ -210,7 +219,7 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
     m, m2 = probes["mutation"], probes["mutation2"]
     _inject(workdir, m)
     mutated = execute(check, workdir, run_argv, timeout)
-    if mutated.error or mutated.exit not in check["failedExit"] or len(mutated.failures) != 1 \
+    if mutated.error or not _failed_exit(check, mutated.exit) or len(mutated.failures) != 1 \
             or not _is(mutated.failures[0], m):
         return fail_rest(f"the mutated run (exit {mutated.exit}) named {mutated.failures[:5]}, "
                          f"not exactly `{m['expectId']}`")
@@ -220,7 +229,7 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
     _inject(workdir, m2)
     listed = inventory(check, workdir, timeout)
     both = execute(check, workdir, run_argv, timeout)
-    pair = both.failures if (not both.error and both.exit in check["failedExit"] and len(both.failures) == 2
+    pair = both.failures if (not both.error and _failed_exit(check, both.exit) and len(both.failures) == 2
                              and t in both.failures and any(x != t and _is(x, m2) for x in both.failures)) else []
     out["multi"] = _verdict(bool(pair) and execute(check, workdir, desel(pair), timeout).green()
                             and _deselects_exactly(check, workdir, listed, pair, timeout),
@@ -228,9 +237,9 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
                             "deselecting both must run green and list exactly the rest")
     reported = list(clean.every or []) + list(both.every or []) + list(both.failures)
     stray = next((x for x in reported if not isinstance(listed, list) or x not in listed), None)
-    out["ids"] = _verdict(isinstance(listed, list) and stray is None,
+    out["ids"] = _verdict(isinstance(listed, list) and bool(reported) and stray is None,
                           f"the results name `{stray[1]}` (q `{stray[0]}`), which the list does not" if stray
-                          else str(listed))
+                          else (str(listed) if not isinstance(listed, list) else "the results named no test"))
     junit = check["results"]["kind"] == "junit"
 
     def exactly(o: Outcome, want: Failure, failing: bool) -> bool:
@@ -241,7 +250,7 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
         if isinstance(listed, list) else None
     if alone_t.error:
         out["alone"] = f"fail: `{t[1]}` alone: {alone_t.error}"
-    elif not (alone_t.exit in check["failedExit"] and exactly(alone_t, t, True)):
+    elif not (_failed_exit(check, alone_t.exit) and exactly(alone_t, t, True)):
         out["alone"] = f"fail: `{t[1]}` alone (exit {alone_t.exit}) did not fail naming exactly it"
     elif passing is None:
         out["alone"] = f"fail: no passing test beside `{t[1]}` under its qualifier"
@@ -254,7 +263,7 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
                                 f"the list deselecting `{passing[1]}` does not list exactly the rest"))
     if "affected" in check:
         aff = execute(check, workdir, expand_files(list(check["affected"]["run"]), [m["file"]]), timeout)
-        out["affected"] = _verdict(aff.exit in check["failedExit"] and t in aff.failures,
+        out["affected"] = _verdict(_failed_exit(check, aff.exit) and t in aff.failures,
                                    f"the affected run did not fail with a `failedExit` naming `{t[1]}`")
     return out
 

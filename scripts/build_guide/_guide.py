@@ -40,7 +40,7 @@ from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
 # Where the vendored schema came from: wicked-core#1066's branch, not yet merged.
-SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@2ff7e37 schemas/build-guide.v1.json (unmerged, #1066)"
+SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@b923fed schemas/build-guide.v1.json (unmerged, #1066)"
 # The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
 # plus `affected` when the check has that piece.
 REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
@@ -54,7 +54,7 @@ _RE_META = set("\\.+*?()|[]{}^$#&-~")
 
 # Keywords the subset validator implements, plus annotation-only keywords it may ignore.
 _VALIDATED = {"$ref", "type", "const", "enum", "minLength", "pattern", "minimum", "maximum",
-              "minItems", "items", "required", "dependentRequired", "properties", "additionalProperties",
+              "minItems", "items", "required", "dependentRequired", "not", "properties", "additionalProperties",
               "if", "then"}
 _ANNOTATIONS = {"$schema", "$id", "$comment", "$defs", "title", "description", "examples", "default"}
 
@@ -133,6 +133,12 @@ def _repo_relative(where: str, value: str) -> list[str]:
     return []
 
 
+def cwd_ok(cwd: str) -> bool:
+    """core's ``cwd_ok``: empty, ``.``, or relative ``/``-separated segments, none empty or ``..``."""
+    return cwd in ("", ".") or not (cwd.startswith("/") or "\\" in cwd or re.match(r"^[A-Za-z]:", cwd)
+                                     or any(seg in ("", "..") for seg in cwd.split("/")))
+
+
 def _pathspec_matches(repo: Path, spec: str) -> bool:
     """Does a ``derivedFrom`` entry (a git pathspec; globs such as ``crates/*/Cargo.toml``) match?"""
     if not any(c in spec for c in "*?["):
@@ -171,12 +177,24 @@ def _lint_common(at: str, check: dict, repo: Path | None) -> tuple[list[str], li
     # The load-time checks the floor and the probe both make (core ``floor_guide::parse``): a guide
     # failing one does not load at all, and detection is the whole floor.
     load = "the floor would not load this guide: the check has "
+    tokens = check.get("deselect", {}).get("append", [])
+    first, last = per_id_range(tokens)
     if not check.get("run"):
         errors.append(f"{at}.run: {load}an empty `run`")
     if any(s not in ("creator", "verify") for s in check.get("stage", [])):
         errors.append(f"{at}.stage: {load}a `stage` other than `creator` / `verify`")
     if "list" in check and not check.get("failedExit"):
         errors.append(f"{at}.failedExit: {load}a `list` and no `failedExit`")
+    if 0 in check.get("failedExit", []):
+        errors.append(f"{at}.failedExit: {load}`0` in `failedExit` (a failure exits nonzero)")
+    if not cwd_ok(check.get("cwd", ".")):
+        errors.append(f"{at}.cwd: {load}a `cwd` that is absolute, climbs (`..`) or has an empty segment")
+    if any(ALL_IDS in t for t in tokens[first:last]):
+        errors.append(f"{at}.deselect.append: {load}`{{ids:re|}}` among the per-id tokens of `deselect.append` "
+                      "(it is once-only)")
+    elif any(ALL_IDS in t for t in tokens) and any("{q}" in t for t in tokens):
+        errors.append(f"{at}.deselect.append: {load}`{{ids:re|}}` and `{{q}}` in one `deselect.append` (the "
+                      "pattern cannot bind ids to qualifiers)")
     cwd = check.get("cwd", ".")
     errors += _repo_relative(f"{at}.cwd", cwd)
     if repo is not None and not (repo / cwd).is_dir():
@@ -237,10 +255,6 @@ def _lint_test(at: str, check: dict, repo: Path | None, draft: bool) -> tuple[li
         errors.append(f"{at}.alone.run: needs an {{id}} (or {{q}}, {{id:re}}) placeholder")
     if "deselect" in check and not _has_placeholder(check["deselect"].get("append", [])):
         errors.append(f"{at}.deselect.append: needs an {{id}} (or {{q}}, {{id:re}}, {{ids:re|}}) placeholder")
-    tokens = check.get("deselect", {}).get("append", [])
-    first, last = per_id_range(tokens)
-    if any(ALL_IDS in t for t in tokens[first:last]):
-        errors.append(f"{at}.deselect.append: `{{ids:re|}}` is once-only and cannot sit among the per-id tokens")
     if not check.get("version", {}).get("run"):
         warnings.append(f"{at}.version: missing; the skill writes the runner's own version command, so a "
                         "runner change marks the guide stale")
@@ -375,26 +389,45 @@ def parse_text(parser: dict[str, Any], text: str) -> set[Failure]:
 
 
 def parse_junit(xml_text: str, id_attrs: list[str] | None = None, join: str = "::") -> tuple[list[Failure], set[Failure]]:
-    """(every testcase that ran, failed testcases), as the core reader takes them: the id is the
-    ``results.id`` attributes (default classname, name) joined by ``results.idJoin`` (default
-    ``::``), q is the enclosing testsuite's ``name``. Each ``<testcase>`` is judged on its own: one
-    with a ``<skipped/>`` child neither passed nor failed (a filter left it out), one with
-    ``<failure>`` or ``<error>`` failed, and two testcases with the same id that both ran are
-    both in "every" (not de-duplicated)."""
+    """(every testcase that ran, failed testcases), as core's roxmltree reader takes them, with a
+    real XML parser (CDATA, ``<system-out>`` and entities are text, never markup):
+
+    * the id is the ``results.id`` attributes (default classname, name) joined by
+      ``results.idJoin`` (default ``::``); a testcase whose id attributes are ALL empty is dropped;
+    * q is the NEAREST enclosing ``<testsuite>``'s ``name`` (suites may nest);
+    * each ``<testcase>`` is judged on its own: one with a ``<skipped/>`` child is dropped (it
+      neither passed nor failed), one with a ``<failure>`` or ``<error>`` child failed, and two
+      that share an id and both ran are both counted.
+
+    Raises ``ValueError`` when the text holds no ``<testsuite>`` ("the results hold no testsuite").
+    """
     attrs = id_attrs or ["classname", "name"]
     root = ET.fromstring(xml_text)
+    if root.tag != "testsuite" and root.find(".//testsuite") is None:
+        raise ValueError("the results hold no testsuite")
     every: list[Failure] = []
     failed: set[Failure] = set()
-    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
-    for suite in suites:
-        for case in suite.iter("testcase"):
-            key = (suite.get("name", ""), join.join(case.get(a, "") for a in attrs))
-            if not key[1]:
-                continue
-            if case.find("failure") is not None or case.find("error") is not None:
-                failed.add(key)
-            if case.find("skipped") is None:
+
+    def walk(node: ET.Element, suite: str) -> None:
+        for child in node:
+            if child.tag == "testsuite":
+                walk(child, child.get("name", ""))
+            elif child.tag == "testcase":
+                values = [child.get(a, "") for a in attrs]
+                if all(not v for v in values) or child.find("skipped") is not None:
+                    continue
+                key = (suite, join.join(values))
                 every.append(key)
+                if child.find("failure") is not None or child.find("error") is not None:
+                    failed.add(key)
+            else:
+                walk(child, suite)
+
+    top = root
+    if root.tag == "testsuite":  # a bare <testsuite> document: walk it as a child, so it is a suite
+        top = ET.Element("results")
+        top.append(root)
+    walk(top, "")
     return every, failed
 
 
@@ -418,14 +451,15 @@ def re_escape(text: str) -> str:
     return "".join("\\" + c if c in _RE_META else c for c in text)
 
 
-_SLOT = re.compile(r"\{(?:id|id:re|q)\}")
+_SLOT = re.compile(r"\{(?:id|id:re|ids:re\||q)\}")
 
 
 def substitute(argv: list[str], **values: str) -> list[str]:
     """Fill ``{id}``, ``{q}`` and ``{id:re}`` (the id regex-escaped) in every token, in ONE pass
     (as core's ``fill``): a value that itself contains ``{q}`` is not filled again."""
+    escaped = re_escape(values["id"]) if "id" in values else None
     slots = {"{id}": values.get("id", "{id}"), "{q}": values.get("q", "{q}"),
-             "{id:re}": re_escape(values["id"]) if "id" in values else "{id:re}"}
+             "{id:re}": escaped or "{id:re}", "{ids:re|}": escaped or "{ids:re|}"}
     return [_SLOT.sub(lambda m: slots[m.group(0)], token) for token in argv]
 
 
