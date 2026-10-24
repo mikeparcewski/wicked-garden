@@ -13,8 +13,8 @@ import pytest
 from bg_helpers import FIXTURES, GUIDES, REPO, SEEDS, run_script
 
 SCHEMA = REPO / "schemas" / "build-guide.v1.json"
-# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@2ff7e37 (#1066).
-CORE_BLOB = "53973256b1424a79670edb91e54eb39651a591ef"
+# git blob sha of schemas/build-guide.v1.json on wicked-core feat/floor-v2-exit-codes@b923fed (#1066).
+CORE_BLOB = "ea27dc4455945fb6bbcf5a42c0168b86d0216cc2"
 SEED_REPOS = {
     "cargo-libtest.json": "cargo-repo",
     "pytest-short-summary.json": "pytest-repo",
@@ -41,7 +41,7 @@ def _seed(name: str = "cargo-libtest.json") -> dict:
 def test_every_seed_is_a_clean_draft_for_its_fixture_repo(seed, repo):
     code, report = run_script("check", "--guide", str(SEEDS / seed), "--repo", str(FIXTURES / repo), "--draft")
     assert code == 0, report["errors"]
-    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@2ff7e37")
+    assert report["schema"].startswith("wicked-core feat/floor-v2-exit-codes@b923fed")
 
 
 @pytest.mark.parametrize("guide,repo", [("tinyrun-text.json", "tinyrun-repo"), ("pytest-junit.json", "pytest-repo")])
@@ -251,7 +251,8 @@ def test_ids_re_all_among_the_per_id_tokens_is_refused(tmp_path):
     _t(guide)["deselect"]["append"] = ["--not={id}", "--all={ids:re|}", "--raw={id}"]
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert code == 1
-    assert any("`{ids:re|}` is once-only" in e for e in report["errors"])
+    assert any("`{ids:re|}` among the per-id tokens of `deselect.append` (it is once-only)" in e
+               for e in report["errors"])
 
 
 def test_a_version_piece_on_a_gate_is_refused_by_the_schema(tmp_path):
@@ -294,3 +295,26 @@ def test_a_ci_step_in_a_sub_package_must_be_declared_with_that_cwd(tmp_path):
     guide["checks"].insert(0, {"name": "web-lint", "cwd": "web", "stage": ["verify"], "run": ["npm", "run", "lint"]})
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(repo), "--draft")
     assert not [w for w in report["warnings"] if w.startswith("CI runs")]
+
+
+@pytest.mark.parametrize("edit,needle", [
+    (lambda c: c.update(failedExit=[0, 101]), "`0` in `failedExit` (a failure exits nonzero)"),
+    (lambda c: c.update(cwd="../x"), "a `cwd` that is absolute, climbs (`..`) or has an empty segment"),
+    (lambda c: c.update(cwd="/abs"), "a `cwd` that is absolute, climbs (`..`) or has an empty segment"),
+    (lambda c: c.update(cwd="a//b"), "a `cwd` that is absolute, climbs (`..`) or has an empty segment"),
+    (lambda c: c["deselect"].update(append=["--suite={q}", "--p=^(?!(?:{ids:re|})$)"]),
+     "`{ids:re|}` and `{q}` in one `deselect.append` (the pattern cannot bind ids to qualifiers)"),
+])
+def test_core_load_time_refusals_are_reported_in_its_words(tmp_path, edit, needle):
+    guide = _seed()
+    edit(_t(guide))
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert code == 1
+    assert any("the floor would not load this guide" in e and needle in e for e in report["errors"]), report["errors"]
+
+
+def test_a_nested_cwd_is_fine(tmp_path):
+    guide = _seed()
+    guide["checks"].insert(0, {"name": "sub", "cwd": "crates/x", "run": ["cargo", "fmt", "--check"]})
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert not [e for e in report["errors"] if "cwd" in e]

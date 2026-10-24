@@ -71,8 +71,9 @@ as `--schema`.
   `list` or `version`.
 - `affected` runs the full check whenever the change deletes a file or renames one away.
 - The floor and the probe both refuse to load a guide with an empty `run`, a `stage` other than
-  `creator`/`verify`, or a check that has a `list` but no `failedExit`. Then detection is the whole
-  floor.
+  `creator`/`verify`, a `list` without `failedExit`, a `0` in `failedExit`, a `cwd` that is
+  absolute, climbs or has an empty segment, or `{ids:re|}` among the per-id tokens or together
+  with `{q}` in one `deselect`. Then detection is the whole floor.
 - How the floor reads exit codes: 0 passes. A code in `failedExit` with parsed failures is
   tests failing. A `failedExit` code with no parsed failure is `base_red_unseparated` on the
   base and `new_failure` on the head. Any other non-zero code is `could_not_run`.

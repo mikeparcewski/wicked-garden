@@ -12,7 +12,7 @@ vendored ``domain-model.schema.json`` uses):
    model-schema@1.0.0). It resolves local ``$ref`` pointers against ``$defs`` and
    supports: ``type`` (object/array/string/integer/number), ``required``,
    ``properties``, ``additionalProperties`` (``false`` or a sub-schema), ``items``,
-   ``enum``, ``const``, ``pattern``, ``minItems``, ``minLength``, ``dependentRequired``,
+   ``enum``, ``const``, ``not``, ``pattern``, ``minItems``, ``minLength``, ``dependentRequired``,
    ``minimum``/``maximum``, and the ``if``/``then`` conditional. This covers the
    hard invariants the schema expresses: required fields, business_rules minItems
    1, numeric confidence in [0,1], provenance shape, the disposition-drop ->
@@ -119,6 +119,8 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
         err(f"{instance!r} != const {schema['const']!r}")
     if "enum" in schema and instance not in schema["enum"]:
         err(f"{instance!r} is not one of {schema['enum']!r}")
+    if "not" in schema and _conforms(instance, schema["not"], root):
+        err(f"{instance!r} must not match {schema['not']!r}")
 
     if isinstance(instance, str):
         if "minLength" in schema and len(instance) < schema["minLength"]:

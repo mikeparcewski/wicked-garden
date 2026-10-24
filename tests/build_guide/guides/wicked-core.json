@@ -53,6 +53,31 @@
       ]
     },
     {
+      "name": "build-workspace",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "build",
+        "--workspace"
+      ]
+    },
+    {
+      "name": "build-postgres",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "cargo",
+        "build",
+        "--features",
+        "postgres"
+      ]
+    },
+    {
       "name": "test",
       "cwd": ".",
       "stage": [
@@ -168,6 +193,9 @@
         "cargo",
         "fmt",
         "--check"
+      ],
+      "stage": [
+        "verify"
       ]
     },
     {
@@ -180,6 +208,9 @@
         "--",
         "-D",
         "warnings"
+      ],
+      "stage": [
+        "verify"
       ]
     },
     {
@@ -188,6 +219,9 @@
       "run": [
         "cargo",
         "test"
+      ],
+      "stage": [
+        "verify"
       ]
     },
     {
@@ -196,7 +230,10 @@
       "run": [
         "sh",
         "-c",
-        "node --check scripts/finalize-dts.mjs && node scripts/finalize-dts.mjs && git diff --exit-code -- index.d.ts"
+        "t=$(mktemp -d) && mkdir \"$t/scripts\" && cp scripts/finalize-dts.mjs \"$t/scripts/\" && cp index.d.ts \"$t/\" && node --check \"$t/scripts/finalize-dts.mjs\" && node \"$t/scripts/finalize-dts.mjs\" >/dev/null && cmp index.d.ts \"$t/index.d.ts\"; r=$?; rm -rf \"$t\"; exit $r"
+      ],
+      "stage": [
+        "verify"
       ]
     },
     {
@@ -206,6 +243,9 @@
         "sh",
         "-c",
         "npm ci --ignore-scripts --no-audit --no-fund && npm run typecheck"
+      ],
+      "stage": [
+        "verify"
       ]
     }
   ]

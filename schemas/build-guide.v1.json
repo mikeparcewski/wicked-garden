@@ -37,7 +37,12 @@
       "additionalProperties": false,
       "properties": {
         "name": { "type": "string" },
-        "cwd": { "type": "string", "default": "." },
+        "cwd": {
+          "type": "string",
+          "default": ".",
+          "description": "Relative to the repo root: `.` or `/`-separated segments, none empty and none `..`.",
+          "pattern": "^(\\.|(?!.*(^|/)\\.\\.(/|$))[^/\\\\]+(/[^/\\\\]+)*)?$"
+        },
         "stage": {
           "description": "The floor stages the check runs at; absent or empty = both.",
           "type": "array",
@@ -51,7 +56,7 @@
           "description": "Exit codes that mean 'tests failed'. Any other non-zero exit (a crash, a build error) decides the check `could_not_run`. A failing exit whose results name no test gives the base no candidates (`base_red_unseparated`), and a deselected head run that fails with nothing named is still a failure (`new_failure`): exclusion never passes a run that failed.",
           "type": "array",
           "minItems": 1,
-          "items": { "type": "integer" }
+          "items": { "type": "integer", "not": { "const": 0 } }
         },
         "results": {
           "type": "object",
@@ -152,7 +157,7 @@
             "append": {
               "type": "array",
               "items": { "type": "string" },
-              "description": "Tokens before the first one with `{id}`/`{q}` are appended once (a leading `--` only when the argv has none), the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`); a guide that puts `{ids:re|}` among the per-id tokens is refused. The tokens are then composed onto the argv around its `--` (see `results.how.argvAppend`)."
+              "description": "`{ids:re|}` and `{q}` never appear in the same `deselect.append` (the pattern cannot bind ids to qualifiers). Tokens before the first one with `{id}`/`{q}` are appended once, the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`); a guide that puts `{ids:re|}` among the per-id tokens is refused. The tokens are then composed onto the argv around its `--` (see `results.how.argvAppend`)."
             }
           }
         },
