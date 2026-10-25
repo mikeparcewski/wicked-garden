@@ -2,8 +2,10 @@
 
 ## [Unreleased]
 
+## [12.59.0] — 2026-10-25
+
 ### Added
-- **`wicked-garden-build-guide`: discover how a repo builds and tests, and propose its build/test guide (DES-BUILD-GUIDE; pairs with wicked-core#1066).** The guide is `.wicked/build-guide.json` in contract v1. The wicked-core floor interprets it instead of hardcoding runners, and reads it from the base tree.
+- **`wicked-garden-build-guide`: discover how a repo builds and tests, and propose its build/test guide (#1332, DES-BUILD-GUIDE; pairs with wicked-core#1066).** The guide is `.wicked/build-guide.json` in contract v1. The wicked-core floor interprets it instead of hardcoding runners, and reads it from the base tree.
   - **Discover.** `scripts/build_guide/discover.py` reads CI config first, then the manifests, follows `make`/`just`/`npm` one level into what they run, and lists every test candidate with its `file:line`. It holds no runner table. The agent then learns each runner's formats and its list, run-one and deselect flags from the runner's own `--version` and `--help`.
   - **Results.** Structured results come first, but only when their ids round-trip through `list`, `alone` and `deselect`. Otherwise the skill writes a text parser: RE2-only, `^…$` rules on the runner's own final summary.
   - **Validate.** The skill writes two mutation probes (`mutation`, `mutation2`), then runs `wicked-core floor probe`, which alone writes `verified`. It stops after at most 3 attempts per check. When the probe is unavailable, it says plainly that the guide is unverified and the floor will not use it for exclusion.
@@ -15,8 +17,8 @@
   - **Contract notes.** The skill's `refs/contract-notes.md` records the pinned semantics and the coordinator's rulings: `{id:re}`/`{ids:re|}` regex placeholders, the `version` piece, retry once, exit-code classes, and guide checks replacing detection. It also explains why the pytest seed is text: JUnit cannot rebuild a class method's node id.
 
 ### Fixed
-- Constrain the MCP TypeScript template's `@opentelemetry/api` dependency to `~1.9.0`, so a fresh `npm install` no longer hits the `@opentelemetry/sdk-logs` peer conflict now that API 1.10.0 is published.
-- **`install.mjs` finds a binary on PATH without spawning a shell.** `findBin` ran `command -v` (`where` on Windows) under a 2-second timeout, so on a loaded machine a slow fork read as "not installed": `pack check` said Python was missing, and `install` skipped `uv sync` as if uv were absent. Found by the build guide's floor probe on a host at load 50-110, where `tests/packs/*` and `test_uv_sync_failure_is_surfaced_not_swallowed` failed for that reason alone. It now scans PATH itself and returns the absolute path of the first executable file `command -v` or `where` would name: an empty POSIX entry is the current directory, a relative entry is read against the current directory, and Windows looks in the current directory first and tries each `PATHEXT` extension unless the name already ends with one. The dry-run spawn-guard test's positive control now plants a `python3` on PATH, and its negative plants a `uv` the install would run; new tests pin that uv is found without a child process, that a non-executable file is not a binary, and that relative and empty PATH entries resolve as `command -v` resolves them.
+- Constrain the MCP TypeScript template's `@opentelemetry/api` dependency to `~1.9.0`, so a fresh `npm install` no longer hits the `@opentelemetry/sdk-logs` peer conflict now that API 1.10.0 is published (#1344).
+- **`install.mjs` finds a binary on PATH without spawning a shell (#1345).** `findBin` ran `command -v` (`where` on Windows) under a 2-second timeout, so on a loaded machine a slow fork read as "not installed": `pack check` said Python was missing, and `install` skipped `uv sync` as if uv were absent. Found by the build guide's floor probe on a host at load 50-110, where `tests/packs/*` and `test_uv_sync_failure_is_surfaced_not_swallowed` failed for that reason alone. It now scans PATH itself and returns the absolute path of the first executable file `command -v` or `where` would name: an empty POSIX entry is the current directory, a relative entry is read against the current directory, and Windows looks in the current directory first and tries each `PATHEXT` extension unless the name already ends with one. The dry-run spawn-guard test's positive control now plants a `python3` on PATH, and its negative plants a `uv` the install would run; new tests pin that uv is found without a child process, that a non-executable file is not a binary, and that relative and empty PATH entries resolve as `command -v` resolves them.
 
 ## [12.58.0] — 2026-10-20
 
@@ -1195,7 +1197,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.58.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.59.0...HEAD
+[12.59.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.58.0...v12.59.0
 [12.58.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.57.0...v12.58.0
 [12.57.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.56.0...v12.57.0
 [12.56.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.55.1...v12.56.0
