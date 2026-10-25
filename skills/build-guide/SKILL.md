@@ -5,7 +5,7 @@ description: |
   (`.wicked/build-guide.json`, contract v1): the data the wicked-core floor
   interprets instead of hardcoding runners. Reads CI config first, then the
   manifests, then each runner's own --version and --help. Prefers structured
-  results (JUnit, JSON lines, TAP) and writes a text parser, learned from this
+  results (JUnit; JSON lines and TAP are reserved in v1) and writes a text parser, learned from this
   repo's real output, only when none exists. Writes a deliberately failing
   mutation probe, validates with `wicked-core floor probe` (only the probe
   writes `verified`), and proposes the file as a PR or governed change, never

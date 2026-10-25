@@ -60,3 +60,41 @@ def test_ci_steps_list_every_gating_command_not_only_tests():
         (".github/workflows/ci.yml:9", "cargo test --locked --workspace --no-fail-fast")]
     vitest = _discover("vitest-repo")
     assert [s["command"] for s in vitest["ciSteps"]] == ["npm install --no-audit --no-fund", "npm test"]
+
+
+def _repo(tmp_path, workflow: str, files: dict | None = None):
+    repo = tmp_path / "repo"
+    (repo / ".github" / "workflows").mkdir(parents=True)
+    (repo / ".github" / "workflows" / "ci.yml").write_text(workflow, encoding="utf-8")
+    for rel, body in (files or {}).items():
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_text(body, encoding="utf-8")
+    return repo
+
+
+def test_a_dash_run_block_ends_at_the_steps_other_keys(tmp_path):
+    """`- run: |` with sibling keys after the block (agy on #1332): only the block is commands."""
+    repo = _repo(tmp_path, "jobs:\n  t:\n    steps:\n      - run: |\n          cargo test\n"
+                           "        working-directory: crates/foo\n        env:\n          X: 1\n")
+    code, report = run_script("discover", "--repo", str(repo))
+    assert code == 0
+    assert [(s["command"], s["cwd"]) for s in report["ciSteps"]] == [("cargo test", "crates/foo")]
+
+
+def test_a_step_in_a_subdirectory_resolves_that_directorys_scripts(tmp_path):
+    """`npm test` with `working-directory: web` reads web/package.json, not the root's (agy on #1332)."""
+    repo = _repo(tmp_path, "jobs:\n  t:\n    steps:\n      - run: npm test\n        working-directory: web\n",
+                 {"package.json": '{"scripts": {"test": "echo root"}}',
+                  "web/package.json": '{"scripts": {"test": "vitest run"}}'})
+    code, report = run_script("discover", "--repo", str(repo))
+    step = next(s for s in report["ciSteps"] if s["command"] == "npm test")
+    assert step["resolves"] == [{"source": "web/package.json#scripts.test", "command": "vitest run"}]
+
+
+def test_a_wrapper_whose_recipe_runs_the_tests_is_a_candidate(tmp_path):
+    """`make check` running pytest is not "no test command" (codex on #1332)."""
+    repo = _repo(tmp_path, "jobs:\n  t:\n    steps:\n      - run: make check\n",
+                 {"Makefile": "check:\n\tpython3 -m pytest -q\n"})
+    code, report = run_script("discover", "--repo", str(repo))
+    assert report["verdict"] == "candidates"
+    assert any(c["command"] == "make check" for c in report["commands"])

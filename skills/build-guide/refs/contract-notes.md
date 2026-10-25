@@ -39,15 +39,16 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
 - **JUnit `<skipped/>`.** A skipped testcase neither passed nor failed.
 - **Kinds.** The results kind is `text` or `junit`. `json-lines` and `tap` are reserved.
 - **Probes and the floor.** `verified.results` keys are `list`, `run`, `ids`, `alone`,
-  `deselect`, `mutation`, `multi`, and `affected` when the check has that piece. The floor
-  relies on a check only when all of them pass. It also needs a non-empty `failedExit`, `alone`,
-  `deselect`, a `list` (to compile) and a `text`/`junit` kind. `run` passes on a red base when
-  its failures parse. A new failure that passes when run alone counts as the suite's flake and
-  is set aside.
+  `deselect`, `mutation`, `multi`, plus `affected` and `version` when the check has those
+  pieces. The floor relies on a check only when all of them pass. It also needs a non-empty
+  `failedExit`, `alone`, `deselect`, a `list` (to compile) and a `text`/`junit` kind. `run`
+  needs a GREEN clean run: on a red base it fails, and every later probe fails with "needs a
+  green base". A new failure that passes when run alone counts as the suite's flake and is set
+  aside.
 - **`verified`** is written by `floor probe` into the `--guide` file in place, including
   `runnerVersion`, which it records by running the check's `version` piece.
 
-## Rulings, as core implements them at b923fed
+## Rulings, as core implements them (main 72da31b)
 
 1. **Regex placeholders.** `{id:re}` is the id regex-escaped (Rust `regex::escape`), repeated
    per id like `{id}`. `{ids:re|}` is every id regex-escaped and joined with `|` in ONE token,
@@ -108,7 +109,7 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
     The `list` and `version` runs get the plain environment.
 14. **Placeholders fill in one pass.** A value that itself contains `{q}` is not filled again.
 
-15. **Final load-time rules (b923fed).** A guide does not load when a check has a `0` in
+15. **Load-time rules (#1066).** A guide does not load when a check has a `0` in
     `failedExit` (a failure exits nonzero), a `cwd` that is absolute, climbs (`..`) or has an
     empty segment, `{ids:re|}` among the per-id tokens, or `{ids:re|}` and `{q}` in one
     `deselect.append` (the pattern cannot bind ids to qualifiers). The schema says the first two

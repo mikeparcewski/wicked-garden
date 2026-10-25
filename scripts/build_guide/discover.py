@@ -102,7 +102,8 @@ def ci_commands(rel: str, text: str) -> list[dict]:
         m = _RUN_KEY.match(line) or _SCRIPT_KEY.match(line)
         if not m:
             continue
-        indent, rest = len(m.group(1)), m.group(2).strip()
+        # The KEY's column, not the list dash's: `- run: |` blocks end at the step's other keys.
+        indent, rest = len(line) - len(line.lstrip(" -")), m.group(2).strip()
         if rest in ("|", ">", "|-", ">-", ""):
             for lineno, cmd in _block_lines(lines, i + 1, indent):
                 item = _LIST_ITEM.match(cmd) if rest == "" else None
@@ -129,7 +130,7 @@ def recipes(text: str) -> dict[str, list[tuple[int, str]]]:
     return out
 
 
-def resolve(cmd: str, repo: Path, recipe_map: dict, scripts: dict) -> list[dict]:
+def resolve(cmd: str, repo: Path, recipe_map: dict, scripts: dict, prefix: str = "") -> list[dict]:
     m = _INDIRECT.search(cmd)
     if not m:
         return []
@@ -141,8 +142,25 @@ def resolve(cmd: str, repo: Path, recipe_map: dict, scripts: dict) -> list[dict]
         return []
     if name == "test" or run_word:
         if name in scripts:
-            return [{"source": f"package.json#scripts.{name}", "command": scripts[name]}]
+            return [{"source": f"{prefix}package.json#scripts.{name}", "command": scripts[name]}]
     return []
+
+
+def _resolvers(base: Path, prefix: str) -> tuple[dict, dict]:
+    """The recipe files and npm scripts of one directory (``prefix`` names it in sources)."""
+    try:
+        present = set(os.listdir(base))
+    except OSError:
+        return {}, {}
+    recipe_map = {f"{prefix}{n}": recipes((base / n).read_text(encoding="utf-8", errors="replace"))
+                  for n in RECIPE_FILES if n in present and (base / n).is_file()}
+    scripts: dict = {}
+    if "package.json" in present:
+        try:
+            scripts = json.loads((base / "package.json").read_text(encoding="utf-8")).get("scripts", {}) or {}
+        except (ValueError, OSError):
+            scripts = {}
+    return recipe_map, scripts
 
 
 def discover(repo: Path) -> dict:
@@ -157,6 +175,18 @@ def discover(repo: Path) -> dict:
             files.append(rel)
             steps += [c for c in ci_commands(rel, path.read_text(encoding="utf-8", errors="replace"))
                       if not is_trivial(c["command"])]
+    # A CI step runs in its own `working-directory`: its `make`/`just`/`npm` command resolves
+    # against THAT directory's recipes and scripts.
+    by_dir: dict[str, tuple[dict, dict]] = {}
+    for step in steps:
+        where = step.get("cwd", ".")
+        if where == ".":
+            continue
+        if where not in by_dir:
+            by_dir[where] = _resolvers(repo / where, f"{where}/")
+        resolved = resolve(step["command"], repo, *by_dir[where], prefix=f"{where}/")
+        if resolved:
+            step["resolves"] = resolved
     commands: list[dict] = [dict(c) for c in steps if is_test(c["command"])]
     recipe_map: dict[str, dict] = {}
     for name in RECIPE_FILES:
@@ -187,11 +217,17 @@ def discover(repo: Path) -> dict:
         if is_test(key):
             commands.append({"source": f"package.json#scripts.{key}", "command": value})
     for cmd in commands + steps:
-        resolved = resolve(cmd["command"], repo, recipe_map, scripts)
-        if resolved:
-            cmd["resolves"] = resolved
+        if "resolves" not in cmd and cmd.get("cwd", ".") == ".":
+            resolved = resolve(cmd["command"], repo, recipe_map, scripts)
+            if resolved:
+                cmd["resolves"] = resolved
         if NPM_PLACEHOLDER in cmd["command"]:
             cmd["placeholder"] = True
+    # A CI wrapper whose name says nothing (`make check`) but whose recipe runs the tests is a
+    # candidate too: the verdict reads what really runs.
+    for step in steps:
+        if not is_test(step["command"]) and any(is_test(r["command"]) for r in step.get("resolves", [])):
+            commands.append(dict(step))
     real = [c for c in commands if not c.get("placeholder")]
     return {"repo": str(repo), "files": files, "manifests": manifests, "commands": commands,
             "ciSteps": steps, "verdict": "candidates" if real else "no-test-command"}

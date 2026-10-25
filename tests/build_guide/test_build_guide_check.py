@@ -351,3 +351,54 @@ def test_a_plain_env_name_and_a_dotted_name_are_fine(tmp_path):
     _t(guide)["name"] = "test.unit-1"
     code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
     assert code == 0, report["errors"]
+
+
+def test_one_install_per_directory_is_not_a_duplicate(tmp_path):
+    """Core takes the `install` check of the test check's own `cwd` (codex/agy on #1332)."""
+    guide = _seed()
+    guide["checks"].insert(0, {"name": "install", "cwd": ".", "run": ["cargo", "fetch"]})
+    guide["checks"].insert(0, {"name": "install", "cwd": "web", "run": ["npm", "ci"]})
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert not [e for e in report["errors"] if "duplicate" in e], report["errors"]
+    guide["checks"].insert(0, {"name": "install", "cwd": "web", "run": ["npm", "ci"]})
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    assert any("duplicate check name in `web`" in e for e in report["errors"])
+
+
+def test_a_recipe_is_covered_only_when_every_command_is_declared(tmp_path):
+    """`make ci` that builds and tests is not covered by declaring the test alone (codex on #1332)."""
+    repo = tmp_path / "repo"
+    shutil.copytree(FIXTURES / "cargo-repo", repo)
+    ci = repo / ".github" / "workflows" / "ci.yml"
+    ci.write_text(ci.read_text(encoding="utf-8") + "      - run: make ci\n", encoding="utf-8")
+    (repo / "Makefile").write_text("ci:\n\tcargo build --locked\n\tcargo test --locked\n", encoding="utf-8")
+    guide = _seed()
+    guide["checks"].insert(0, {"name": "unit", "cwd": ".", "run": ["cargo", "test", "--locked"]})
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(repo), "--draft")
+    assert any(w.startswith("CI runs `make ci`") for w in report["warnings"]), report["warnings"]
+    guide["checks"].insert(0, {"name": "build", "cwd": ".", "run": ["cargo", "build", "--locked"]})
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--repo", str(repo), "--draft")
+    assert not any(w.startswith("CI runs `make ci`") for w in report["warnings"])
+
+
+def test_a_guide_the_schema_refuses_is_reported_not_a_crash(tmp_path):
+    """Shapes the deeper checks cannot read (agy on #1332) come back as errors, exit 1."""
+    for broken in ({"version": 1, "derivedFrom": ["x"], "checks": ["not-a-check"]},
+                   {"version": 1, "derivedFrom": ["x"], "checks": [{"name": "t", "run": ["x"], "cwd": None}]}):
+        code, report = run_script("check", "--guide", str(_write(tmp_path, broken)), "--draft")
+        assert code == 1 and report["errors"], report
+
+
+@pytest.mark.parametrize("pattern,bad", [
+    (r"^C\++ (?P<id>\S+)$", False),
+    (r"^a\*+(?P<id>x)$", False),
+    (r"^\(?=(?P<id>x)$", False),
+    (r"^a*+(?P<id>x)$", True),
+    (r"^(?=x)(?P<id>x)$", True),
+])
+def test_an_escaped_metacharacter_is_not_a_non_re2_construct(tmp_path, pattern, bad):
+    guide = _seed()
+    _t(guide)["parser"] = {"failed": [pattern]}
+    code, report = run_script("check", "--guide", str(_write(tmp_path, guide)), "--draft")
+    flagged = [e for e in report["errors"] if "RE2 does not support" in e]
+    assert bool(flagged) == bad, (pattern, report["errors"])

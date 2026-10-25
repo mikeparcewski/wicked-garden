@@ -49,7 +49,7 @@ invent one.
 
 | Question | Where it lands | Example of what to look for |
 |---|---|---|
-| Can it write JUnit / JSON lines / TAP? | `results` | a `--reporter`, `--format`, `--junitxml` or `--outputFile` flag |
+| Can it write JUnit? (JSON lines and TAP are reserved in v1: note them, do not use them) | `results` | a `--reporter`, `--format`, `--junitxml` or `--outputFile` flag |
 | Is that format stable on this version? | `results` | cargo's `--format junit` is nightly-only on stable toolchains |
 | How does it list tests without running them? | `list.run`, `list.item` | `--list`, `--collect-only -q`, a `list` subcommand |
 | How does it run exactly one test? | `alone.run` with `{id}` | an exact-match flag, or a positional node id |

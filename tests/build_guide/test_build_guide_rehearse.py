@@ -226,3 +226,39 @@ def test_vitest_repeated_name_pattern_fails_multi(fixture_copy, tmp_path):
     assert {k: v for k, v in _unretried(results).items() if k != "multi"} == {
         k: v for k, v in ALL_PASS.items() if k != "multi"}
 
+
+
+def _with_install(tmp_path: Path, run: list[str]) -> Path:
+    guide = json.loads((GUIDES / "tinyrun-text.json").read_text(encoding="utf-8"))
+    guide["checks"].insert(0, {"name": "install", "cwd": ".", "run": run})
+    path = tmp_path / "with-install.json"
+    path.write_text(json.dumps(guide), encoding="utf-8")
+    return path
+
+
+def test_the_install_step_runs_first_and_a_failed_install_fails_every_probe(tmp_path, python3_on_path):
+    """As core: the guide's install for the check's `cwd` runs in every fresh copy (codex/agy on #1332)."""
+    code, report = _rehearse(FIXTURES / "tinyrun-repo", _with_install(tmp_path, ["sh", "-c", "exit 42"]),
+                             python3_on_path)
+    assert code == 1
+    results = _unretried(_results(report))
+    assert set(results) == set(ALL_PASS) and all(v == "fail: install failed (exit 42)" for v in results.values())
+    marker = tmp_path / "installed"
+    code, report = _rehearse(FIXTURES / "tinyrun-repo", _with_install(tmp_path, ["sh", "-c", f"touch {marker}"]),
+                             python3_on_path)
+    assert code == 0, report
+    assert _results(report) == ALL_PASS and marker.exists()
+
+
+def test_a_mutation_is_never_written_through_a_link(fixture_copy, tmp_path, python3_on_path):
+    """A `tests` link to a directory outside the copy must not receive the failing test (codex on #1332)."""
+    repo = fixture_copy("tinyrun-repo")
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    shutil.move(str(repo / "checks"), str(outside / "checks"))
+    (repo / "checks").symlink_to(outside / "checks", target_is_directory=True)
+    code, report = _rehearse(repo, GUIDES / "tinyrun-text.json", python3_on_path)
+    assert code == 1
+    results = _unretried(_results(report))
+    assert "through the link `checks`" in results["mutation"], results
+    assert sorted(p.name for p in (outside / "checks").iterdir()) == ["arith.tc", "text.tc"]

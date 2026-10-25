@@ -114,8 +114,11 @@ def _regex_problems(where: str, pattern: str, groups: Iterable[str]) -> list[str
         compiled = re.compile(pattern)
     except re.error as exc:
         return [f"{where}: does not compile ({exc})"]
+    # An escaped character is a literal (`C\++` is a literal `+` then a quantifier): judge the
+    # constructs on the pattern with every `\x` pair masked, except a backreference, which IS one.
+    masked = re.sub(r"\\[^1-9]", "__", pattern)
     for rx, what in _NOT_RE2:
-        if rx.search(pattern):
+        if rx.search(masked):
             out.append(f"{where}: uses a {what}, which RE2 does not support")
     if not (pattern.startswith("^") and pattern.endswith("$")):
         out.append(f"{where}: not anchored ^...$; the interpreter searches each line, so it also matches "
@@ -327,12 +330,15 @@ def lint(guide: dict[str, Any], repo: Path | None = None, draft: bool = False) -
         errors += relative
         if repo is not None and not relative and not _pathspec_matches(repo, rel):
             errors.append(f"derivedFrom[{i}]: {rel!r} matches nothing in the repo")
-    names: set[str] = set()
+    # Unique per directory, as core keys them (one `install` per `cwd` is how a monorepo installs
+    # each package it tests).
+    names: set[tuple[str, Any]] = set()
     for c, check in enumerate(guide.get("checks", [])):
         at = f"checks[{c}]({check.get('name', '?')})"
-        if check.get("name") in names:
-            errors.append(f"{at}: duplicate check name")
-        names.add(check.get("name"))
+        key = (str(PurePosixPath(str(check.get("cwd", ".")))), check.get("name"))
+        if key in names:
+            errors.append(f"{at}: duplicate check name in `{key[0]}`")
+        names.add(key)
         e, w = _lint_check(at, check, repo, draft)
         errors += [x for x in e if ANCHOR_NOTE not in x]
         warnings += w + [x for x in e if ANCHOR_NOTE in x]

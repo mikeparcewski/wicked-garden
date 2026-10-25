@@ -7,7 +7,7 @@
 A REHEARSAL, not the probe: it never writes ``verified`` and its verdict is not evidence the
 floor reads. It exists so the parser, the ids and the templates can be iterated on quickly (and
 reported honestly when the probe is unavailable). It mirrors wicked-core's ``floor probe``
-(#1066's ``src/floor_probe.rs`` at b923fed) piece by piece, with exit codes as the referee:
+(wicked-core main's ``src/floor_probe.rs``) piece by piece, with exit codes as the referee:
 
 * ``list``     — the list run exits 0 and names tests.
 * ``run``      — the clean run is GREEN (exit 0, no parsed failure). Every later probe needs a
@@ -46,7 +46,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -142,10 +142,23 @@ def execute(check: dict, workdir: Path, argv: list[str], timeout: int) -> Outcom
     return Outcome(proc.returncode, _unique(check, sorted(failed)), every)
 
 
-def _inject(workdir: Path, mutation: dict) -> None:
-    target = workdir / mutation["file"]
-    target.parent.mkdir(parents=True, exist_ok=True)
+def _inject(workdir: Path, mutation: dict) -> str | None:
+    """Write a mutation file inside the scratch copy, never through a link (as core writes through
+    its held directory): ``None`` when written, else why not."""
+    rel = PurePosixPath(mutation["file"])
+    if rel.is_absolute() or ".." in rel.parts or not rel.parts:
+        return f"the mutation file `{rel}` is not inside the check's directory"
+    cur = workdir
+    for part in rel.parts[:-1]:
+        cur = cur / part
+        if cur.is_symlink():
+            return f"the mutation file `{rel}` would be written through the link `{part}`"
+        cur.mkdir(exist_ok=True)
+    target = cur / rel.name
+    if target.is_symlink():
+        return f"the mutation file `{rel}` is a link"
     target.write_text(mutation["content"], encoding="utf-8")
+    return None
 
 
 def inventory(check: dict, workdir: Path, timeout: int, deselect: list[Failure] | None = None) -> list | str:
@@ -217,7 +230,9 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
     if not clean.green():
         return fail_rest("needs a green base")
     m, m2 = probes["mutation"], probes["mutation2"]
-    _inject(workdir, m)
+    refused = _inject(workdir, m)
+    if refused:
+        return fail_rest(refused)
     mutated = execute(check, workdir, run_argv, timeout)
     if mutated.error or not _failed_exit(check, mutated.exit) or len(mutated.failures) != 1 \
             or not _is(mutated.failures[0], m):
@@ -226,20 +241,26 @@ def _probes(check: dict, workdir: Path, timeout: int) -> dict:
     t = mutated.failures[0]
     out["mutation"] = _verdict(execute(check, workdir, desel([t]), timeout).green(),
                                f"deselecting `{t[1]}` did not run green")
-    _inject(workdir, m2)
+    refused = _inject(workdir, m2)
+    if refused:
+        out["multi"] = f"fail: {refused}"
     listed = inventory(check, workdir, timeout)
     both = execute(check, workdir, run_argv, timeout)
     pair = both.failures if (not both.error and _failed_exit(check, both.exit) and len(both.failures) == 2
                              and t in both.failures and any(x != t and _is(x, m2) for x in both.failures)) else []
-    out["multi"] = _verdict(bool(pair) and execute(check, workdir, desel(pair), timeout).green()
+    out.setdefault("multi", "")
+    out["multi"] = out["multi"] or _verdict(bool(pair) and execute(check, workdir, desel(pair), timeout).green()
                             and _deselects_exactly(check, workdir, listed, pair, timeout),
                             f"with both mutations: {both.failures[:5]} (exit {both.exit}); both must be named, and "
                             "deselecting both must run green and list exactly the rest")
     reported = list(clean.every or []) + list(both.every or []) + list(both.failures)
-    stray = next((x for x in reported if not isinstance(listed, list) or x not in listed), None)
-    out["ids"] = _verdict(isinstance(listed, list) and bool(reported) and stray is None,
-                          f"the results name `{stray[1]}` (q `{stray[0]}`), which the list does not" if stray
-                          else (str(listed) if not isinstance(listed, list) else "the results named no test"))
+    if not isinstance(listed, list):
+        out["ids"] = f"fail: {listed}"
+    else:
+        stray = next((x for x in reported if x not in listed), None)
+        out["ids"] = _verdict(bool(reported) and stray is None,
+                              f"the results name `{stray[1]}` (q `{stray[0]}`), which the list does not" if stray
+                              else "the results named no test")
     junit = check["results"]["kind"] == "junit"
 
     def exactly(o: Outcome, want: Failure, failing: bool) -> bool:
@@ -282,10 +303,36 @@ def _version(check: dict, workdir: Path, timeout: int) -> tuple[str, str]:
     return "pass", line
 
 
-def _attempt(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> tuple[dict, str]:
-    scratch = make_scratch(repo, exclude, link)
+INSTALL_TIMEOUT = 2700
+
+
+def _install_failed(install: dict, scratch: Path) -> str | None:
+    """Run the guide's install step for the check's directory in this fresh copy, as core does
+    before every probe: ``None`` when it passed, else why not."""
+    try:
+        proc = _capture(list(install["run"]), scratch / install.get("cwd", "."), dict(os.environ), True,
+                        INSTALL_TIMEOUT)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as exc:
+        return f"install failed ({exc.__class__.__name__})"
+    return None if proc.returncode == 0 else f"install failed (exit {proc.returncode})"
+
+
+def _all_failed(check: dict, why: str) -> dict:
+    keys = ("list", "run") + AFTER_RUN + (("affected",) if "affected" in check else ()) + \
+        (("version",) if "version" in check else ())
+    return {p: f"fail: {why}" for p in keys}
+
+
+def _attempt(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str],
+             install: dict | None = None) -> tuple[dict, str]:
+    # With an install step, nothing is linked to the host repo: the install writes into the copy,
+    # never into the operator's node_modules or .venv.
+    scratch = make_scratch(repo, exclude, [] if install else link)
     try:
         workdir = scratch / check.get("cwd", ".")
+        why = _install_failed(install, scratch) if install else None
+        if why:
+            return _all_failed(check, why), ""
         results = _probes(check, workdir, timeout)
         version = ""
         if "version" in check:
@@ -295,15 +342,18 @@ def _attempt(check: dict, repo: Path, timeout: int, exclude: list[str], link: li
         shutil.rmtree(scratch.parent, ignore_errors=True)
 
 
-def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str]) -> dict:
+def rehearse_check(check: dict, repo: Path, timeout: int, exclude: list[str], link: list[str],
+                   install: dict | None = None) -> dict:
     """The core probe's pieces; when any fails (other than for a missing piece), the whole attempt
-    re-runs once on a fresh copy and its results are the result, each marked `` (retried)``."""
+    re-runs once on a fresh copy and its results are the result, each marked `` (retried)``. The
+    guide's ``install`` step for the same ``cwd`` runs first in every copy (core: an install that
+    fails fails every probe)."""
     if "list" not in check:
         return {"name": check["name"], "skipped": "no `list` piece: a gate (exit code only), not probed",
                 "ok": True}
-    results, version = _attempt(check, repo, timeout, exclude, link)
+    results, version = _attempt(check, repo, timeout, exclude, link, install)
     if any(not passed(r) and not r.startswith("fail: no `") for r in results.values()):
-        second, version = _attempt(check, repo, timeout, exclude, link)
+        second, version = _attempt(check, repo, timeout, exclude, link, install)
         results = {p: f"{r} (retried)" for p, r in second.items()}
     return {"name": check["name"], "results": results, "runnerVersion": version,
             "ok": all(passed(v) for v in results.values())}
@@ -319,8 +369,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--exclude", action="append", default=None)
     ap.add_argument("--link", action="append", default=None)
     args = ap.parse_args(argv)
+    if not args.repo.is_dir():
+        print(json.dumps({"rehearsal": True, "ok": False, "errors": [f"--repo {args.repo} is not a directory"]}))
+        return 2
     repo = args.repo.resolve()
-    guide = load_json(args.guide)
+    try:
+        guide = load_json(args.guide)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"rehearsal": True, "ok": False, "errors": [f"cannot read the guide: {exc}"]}))
+        return 2
     errors = schema_errors(guide, load_json(args.schema or SCHEMA))
     if not errors:
         errors, _warnings = lint(guide, repo, draft=False)
@@ -333,7 +390,12 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     exclude = args.exclude if args.exclude is not None else ["target"]
     link = args.link if args.link is not None else ["node_modules", ".venv"]
-    reports = [rehearse_check(c, repo, args.timeout, exclude, link) for c in checks]
+    def install_for(check: dict) -> dict | None:
+        where = PurePosixPath(str(check.get("cwd", ".")))
+        return next((c for c in guide["checks"] if c.get("name") == "install" and c is not check
+                     and PurePosixPath(str(c.get("cwd", "."))) == where), None)
+
+    reports = [rehearse_check(c, repo, args.timeout, exclude, link, install_for(c)) for c in checks]
     ok = all(r["ok"] for r in reports)
     print(json.dumps({"rehearsal": True, "note": NOTE, "ok": ok, "checks": reports}, indent=2))
     return 0 if ok else 1

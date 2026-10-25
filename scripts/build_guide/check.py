@@ -4,15 +4,15 @@
     wicked-garden run scripts/build_guide/check.py --guide <file> [--repo <dir>] [--schema <file>] [--draft]
 
 * ``--schema``: the contract schema. The default is ``schemas/build-guide.v1.json``, vendored byte
-  for byte from wicked-core's #1066 branch (the report's ``schema`` names that source); pass
-  core's current file to check against a newer one.
+  for byte from wicked-core main (the report's ``schema`` names that source); pass core's current
+  file to check against a newer one.
 * ``--repo``: also check that ``derivedFrom`` files and each ``cwd`` exist there, and warn for
   every command the repo's CI runs that no check declares in that step's working directory
   (``working-directory``). In the directories a usable guide's checks cover (their ``cwd``s), its
   checks replace the floor's own detection, so an undeclared install, build, format, lint,
   typecheck or test step there would stop gating. A step counts as declared when a check's ``run`` equals its argv,
-  or the argv of the ``make``/``just`` recipe or npm script it runs (for an npm script, also with
-  ``npx`` in front: npm runs scripts with ``node_modules/.bin`` on PATH).
+  or when EVERY command of the ``make``/``just`` recipe or npm script it runs is declared (an npm
+  script's also with ``npx`` in front: npm runs scripts with ``node_modules/.bin`` on PATH).
 * ``--draft``: the guide has not been probed — it must carry no ``verified`` (only
   ``wicked-core floor probe`` writes it).
 
@@ -31,7 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _guide import SCHEMA, SCHEMA_SOURCE, lint, load_json, schema_errors  # noqa: E402
-from discover import discover  # noqa: E402
+from discover import discover, is_trivial  # noqa: E402
 
 
 def _argv(command: str) -> list[str] | None:
@@ -51,14 +51,17 @@ def undeclared_ci_steps(guide: dict, repo: Path) -> list[str]:
     runs = [(c.get("run"), _dir(c.get("cwd", "."))) for c in guide.get("checks", []) if isinstance(c, dict)]
     out = []
     for step in discover(repo)["ciSteps"]:
-        candidates = [_argv(step["command"])]
-        for r in step.get("resolves", []):
-            argv = _argv(r["command"])
-            candidates.append(argv)
-            if argv and r["source"].startswith("package.json"):
-                candidates.append(["npx", *argv])
         where = _dir(step.get("cwd", "."))
-        if not any(c and (c, where) in runs for c in candidates):
+
+        def declared(argv: list[str] | None, npm: bool = False) -> bool:
+            return bool(argv) and ((argv, where) in runs or (npm and (["npx", *argv], where) in runs))
+
+        # The step itself, or every real command of the recipe / script it runs: a guide that
+        # declares `cargo test` alone does not cover a `make ci` that also builds.
+        resolved = [r for r in step.get("resolves", []) if not is_trivial(r["command"])]
+        covered = declared(_argv(step["command"])) or (bool(resolved) and all(
+            declared(_argv(r["command"]), "package.json#scripts." in r["source"]) for r in resolved))
+        if not covered:
             at = "" if where == "." else f" in `{where}`"
             out.append(f"CI runs `{step['command']}`{at} ({step['source']}) but no check declares it there; in the "
                        "directories its checks cover, a guide's checks replace the floor's detection, so this step "
@@ -79,7 +82,14 @@ def run_check(guide_path: Path, repo: Path | None, schema_path: Path | None, dra
     errors = schema_errors(guide, schema)
     warnings: list[str] = []
     if isinstance(guide, dict):
-        lint_errors, warnings = lint(guide, repo, draft)
+        try:
+            lint_errors, warnings = lint(guide, repo, draft)
+        except (AttributeError, TypeError, KeyError) as exc:
+            # A guide the schema already refuses can be shaped so the deeper checks cannot read it.
+            if not errors:
+                raise
+            lint_errors, warnings = [f"the deeper checks were skipped: the guide's shape is invalid "
+                                     f"({exc.__class__.__name__}); fix the schema errors first"], []
         errors += lint_errors
         if repo is not None:
             warnings += undeclared_ci_steps(guide, repo)
