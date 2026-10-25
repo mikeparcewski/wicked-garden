@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "derivedFrom": [
+    ".github/workflows/test.yml",
+    ".github/workflows/validate.yml",
+    "pyproject.toml",
+    "package.json"
+  ],
+  "checks": [
+    {
+      "name": "validate",
+      "cwd": ".",
+      "run": [
+        "python3",
+        "scripts/ci/validate.py"
+      ]
+    },
+    {
+      "name": "validate-registry",
+      "cwd": ".",
+      "run": [
+        "python3",
+        "scripts/_validate_registry.py"
+      ]
+    },
+    {
+      "name": "test",
+      "cwd": ".",
+      "stage": [
+        "creator",
+        "verify"
+      ],
+      "run": [
+        "python3",
+        "-m",
+        "pytest",
+        "tests/",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-rfE"
+      ],
+      "failedExit": [
+        1
+      ],
+      "results": {
+        "kind": "text",
+        "how": {
+          "argvAppend": [
+            "--force-short-summary"
+          ],
+          "env": {
+            "WICKED_REQUIRE_E2E": "1"
+          }
+        }
+      },
+      "parser": {
+        "blocks": [
+          {
+            "start": "^=+ short test summary info =+$",
+            "item": "^(?:FAILED|ERROR) (?P<id>.+?)(?: - .*)?$",
+            "end": "^(?:=+ )?[0-9]+ (?:failed|passed|errors?|skipped|deselected|xfailed|xpassed|warnings?)\\b.* in [0-9.]+s.*$",
+            "use": "last-before-end"
+          }
+        ]
+      },
+      "list": {
+        "run": [
+          "python3",
+          "-m",
+          "pytest",
+          "tests/",
+          "--collect-only",
+          "-q",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "item": "^(?P<id>\\S+\\.py::.+)$"
+      },
+      "alone": {
+        "run": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "-p",
+          "no:cacheprovider",
+          "-rfE",
+          "{id}"
+        ]
+      },
+      "deselect": {
+        "append": [
+          "--deselect={id}"
+        ]
+      },
+      "version": {
+        "run": [
+          "python3",
+          "-m",
+          "pytest",
+          "--version"
+        ]
+      },
+      "invalidatedBy": [
+        "pyproject.toml",
+        "uv.lock",
+        "**/conftest.py",
+        ".github/workflows/**"
+      ],
+      "probes": {
+        "mutation": {
+          "file": "tests/test_zz_floor_probe_mutation.py",
+          "content": "def test_floor_probe_mutation():\n    assert 1 + 1 == 3, \"deliberately failing: the build guide's mutation probe\"\n\n\ndef test_floor_probe_mutation_beside():\n    pass\n",
+          "expectId": "tests/test_zz_floor_probe_mutation.py::test_floor_probe_mutation"
+        },
+        "mutation2": {
+          "file": "tests/test_zz_floor_probe_mutation_two.py",
+          "content": "def test_floor_probe_mutation_two():\n    assert 1 + 1 == 3, \"deliberately failing: the build guide's second mutation probe\"\n",
+          "expectId": "tests/test_zz_floor_probe_mutation_two.py::test_floor_probe_mutation_two"
+        }
+      }
+    },
+    {
+      "name": "mcp-template-e2e",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "env",
+        "WICKED_GARDEN_E2E_NPM=1",
+        "python3",
+        "-m",
+        "pytest",
+        "tests/mcp/test_mcp_scaffold.py",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-k",
+        "installs_builds_tests_and_probes"
+      ],
+      "failedExit": [
+        1
+      ]
+    },
+    {
+      "name": "patch-tests",
+      "cwd": ".",
+      "run": [
+        "python3",
+        "-m",
+        "pytest",
+        "scripts/engineering/patch/tests/",
+        "-q",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "failedExit": [
+        1
+      ]
+    },
+    {
+      "name": "smoke-phase-manager",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "sh",
+        "-c",
+        "python3 scripts/crew/phase_manager.py ci-smoke create --description 'ci smoke' --archetype-mode build --json && python3 scripts/crew/phase_manager.py ci-smoke status --json && python3 scripts/crew/phase_manager.py ci-smoke delete"
+      ]
+    },
+    {
+      "name": "smoke-archetype-detector",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "sh",
+        "-c",
+        "python3 scripts/crew/archetypes_v11.py detect --prompt 'drop the legacy_id column from orders' --signals '{\"reversibility_low\": true, \"state_complexity_high\": true}' --steering | python3 -c \"import json, sys; p = json.load(sys.stdin); assert any(m['archetype'] == 'migrate' for m in p['matches']), p; print('archetype detector smoke: OK')\""
+      ]
+    },
+    {
+      "name": "smoke-verdict-schema",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "sh",
+        "-c",
+        "f=\"${TMPDIR:-/tmp}/wicked-verdict-smoke.json\"; printf '%s' '{\"verdict\": \"APPROVE\", \"reviewer\": \"ci-runner\", \"recorded_at\": \"2026-05-08T10:00:00Z\", \"score\": 0.9, \"conditions\": [], \"findings\": []}' > \"$f\" && python3 scripts/qe/verdict_schema.py \"$f\"; r=$?; rm -f \"$f\"; exit $r"
+      ]
+    },
+    {
+      "name": "smoke-hard-gate",
+      "cwd": ".",
+      "stage": [
+        "verify"
+      ],
+      "run": [
+        "sh",
+        "-c",
+        "python3 scripts/crew/phase_manager.py mig-ci-smoke create --description 'ci hard gate' --archetype-mode migrate --json || exit 1; if python3 scripts/crew/phase_manager.py mig-ci-smoke approve --phase cutover --json; then echo 'FAIL: cutover should have refused without confirmation'; exit 1; fi; python3 scripts/crew/phase_manager.py mig-ci-smoke approve --phase cutover --confirmed-by ci-runner --confirmation-evidence ci:smoke --json && python3 scripts/crew/phase_manager.py mig-ci-smoke delete"
+      ]
+    }
+  ]
+}
