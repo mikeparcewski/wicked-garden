@@ -13,6 +13,7 @@ vendored ``domain-model.schema.json`` uses):
    supports: ``type`` (object/array/string/integer/number), ``required``,
    ``properties``, ``additionalProperties`` (``false`` or a sub-schema), ``items``,
    ``enum``, ``const``, ``not``, ``pattern``, ``minItems``, ``minLength``, ``dependentRequired``,
+   ``propertyNames``,
    ``minimum``/``maximum``, and the ``if``/``then`` conditional. This covers the
    hard invariants the schema expresses: required fields, business_rules minItems
    1, numeric confidence in [0,1], provenance shape, the disposition-drop ->
@@ -152,6 +153,10 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
                 for dep in deps:
                     if dep not in instance:
                         err(f"property {key!r} requires property {dep!r}")
+        names = schema.get("propertyNames")
+        if isinstance(names, dict):
+            for key in instance:
+                _validate(key, names, f"{path}/{key}", root, errors)
         props = schema.get("properties", {})
         for key, sub in props.items():
             if key in instance:

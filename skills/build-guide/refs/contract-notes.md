@@ -2,9 +2,9 @@
 
 The contract is DES-BUILD-GUIDE's "Contract v1". Its machine form is wicked-core's
 `schemas/build-guide.v1.json`, which garden vendors byte for byte as
-`schemas/build-guide.v1.json`. The current copy is from wicked-core#1066's branch at b923fed (the final contract),
-which is not merged yet. Re-vendor it when that branch merges; a test pins the copy to its git
-blob. The core interpreter (`src/floor_guide.rs`) and probe (`src/floor_probe.rs`) are
+`schemas/build-guide.v1.json`. The current copy is from wicked-core main at 72da31b (the file
+last changed when #1066 landed); a test pins the copy to its git blob, so re-vendor it whenever
+core's copy changes. The core interpreter (`src/floor_guide.rs`) and probe (`src/floor_probe.rs`) are
 authoritative, and `rehearse.py` mirrors them piece by piece. The skill never adds a field.
 
 ## What core's schema adds to the DES text (all optional)
@@ -124,6 +124,22 @@ authoritative, and `rehearse.py` mirrors them piece by piece. The skill never ad
     ("the results hold no testsuite").
 18. **`alone` fills `{ids:re|}` with its one id**, escaped, in the same single pass as the other
     placeholders.
+19. **Final sync with core main (72da31b).** Three more load-time rules, said by the schema and by
+    `check.py` in core's words: a check `name` is 1-64 of `A-Z a-z 0-9 . _ -` and never `.` or
+    `..` (it keys files the engine writes); a `results.how.env` name is `[A-Z_][A-Z0-9_]*` and
+    never a loader or shell hook (`LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `SHELLOPTS`, `BASHOPTS`,
+    `IFS`, `GCONV_PATH`, `LOCPATH`); and `cwd` is `.` or segments none of which is empty, `.` or
+    `..`, with no `\` and no `:`, so `""`, `./a` and a drive (`C:x`) are refused. The stdlib
+    validator implements `propertyNames` for the env rule.
+20. **The `install` check.** A check named `install` is the floor's install step: it gets the
+    install timeout, is never compared with the base, and its failure reads as an environment
+    finding. `wicked-core floor probe` runs the `install` check for the same `cwd` first in every
+    fresh copy it probes, so a runner the install provides (`node_modules/.bin`) exists; an
+    install that fails fails every probe of the check. Declare it before the checks that need it.
+21. **A stale guide adds detection, never removes checks.** When a `derivedFrom` file changed on
+    the base since the guide or a check's verification (or the change touches one), the floor runs
+    the UNION of the guide's checks and the detected ones in the directories the guide covers,
+    and relies on no check's exclusion.
 
 ## Why the pytest seed is text, not JUnit
 

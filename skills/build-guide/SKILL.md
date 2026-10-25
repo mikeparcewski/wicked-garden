@@ -72,8 +72,13 @@ as `--schema`.
 - `affected` runs the full check whenever the change deletes a file or renames one away.
 - The floor and the probe both refuse to load a guide with an empty `run`, a `stage` other than
   `creator`/`verify`, a `list` without `failedExit`, a `0` in `failedExit`, a `cwd` that is
-  absolute, climbs or has an empty segment, or `{ids:re|}` among the per-id tokens or together
-  with `{q}` in one `deselect`. Then detection is the whole floor.
+  not `.` or plain relative segments (absolute, climbing, an empty or `.` segment, `\` or `:`),
+  a `name` that is not 1-64 of `A-Z a-z 0-9 . _ -` (or is `.`/`..`), a `results.how.env` name
+  that is not `[A-Z_][A-Z0-9_]*` or is a loader/shell hook (`LD_*`, `DYLD_*`, `BASH_ENV`, …), or
+  `{ids:re|}` among the per-id tokens or together with `{q}` in one `deselect`. Then detection is
+  the whole floor.
+- A check named `install` is the floor's install step. The probe runs it first, in every fresh
+  copy, for checks in the same `cwd`, so declare it whenever a runner comes from the install.
 - How the floor reads exit codes: 0 passes. A code in `failedExit` with parsed failures is
   tests failing. A `failedExit` code with no parsed failure is `base_red_unseparated` on the
   base and `new_failure` on the head. Any other non-zero code is `could_not_run`.

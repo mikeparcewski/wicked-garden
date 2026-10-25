@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wickedagile.com/schemas/build-guide.v1.json",
   "title": "Build guide (DES-BUILD-GUIDE, contract v1)",
-  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. When the base carries a guide, its `checks` (for the stage) ARE the floor's checks for the directories they cover (their `cwd`s, at any stage): there their argv, cwd and stage replace detection (a build, lint or install step is declared as a check), while a detected package no check covers keeps its detected checks, exit codes only. With no guide, or one that does not parse or fails the load-time checks (a non-empty `run`, `stage` values, `failedExit` on a check with a `list`), detection is the whole floor. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` file changed since, and the change touches no `invalidatedBy` file. All regexes are RE2 syntax, applied to one line at a time.",
+  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. When the base carries a guide, its `checks` (for the stage) ARE the floor's checks for the directories they cover (their `cwd`s, at any stage): there their argv, cwd and stage replace detection (a build, lint or install step is declared as a check), while a detected package no check covers keeps its detected checks, exit codes only. A STALE guide (a `derivedFrom` file changed on the base since the guide was last committed or since a check was verified, or the change touches one) may name outdated commands: in the directories it covers, the floor then runs the UNION of its checks and the detected ones (an identical argv in the same directory once), more checks and never fewer. Accepted by design: a directory whose checks are all `verify`-only has no checks at the creator floor; the creator floor is fast feedback, and the verify floor runs every check before delivery. With no guide, or one that does not parse or fails the load-time checks (a non-empty `run`, `stage` values, `failedExit` on a check with a `list`), detection is the whole floor. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` or `invalidatedBy` file changed on the base since, and the change touches neither (a deletion, a rename's old path and a type change, such as a file replaced by a link, count as touching). All regexes are RE2 syntax, applied to one line at a time.",
   "type": "object",
   "required": ["version", "checks"],
   "additionalProperties": false,
   "properties": {
     "version": { "const": 1 },
     "derivedFrom": {
-      "description": "Repo-relative paths (git pathspecs: globs such as `crates/*/Cargo.toml` match) the guide was derived from (CI files, manifests): a base change to one makes the guide stale.",
+      "description": "Repo-relative paths (git pathspecs: globs such as `crates/*/Cargo.toml` match) the guide was derived from (CI files, manifests): a change to one, on the base since the guide or a check's verification or in the change itself, makes the guide stale: no check's exclusion is relied on, and detection runs beside the guide's checks where they cover a directory.",
       "type": "array",
       "items": { "type": "string" }
     },
@@ -31,17 +31,17 @@
     },
     "check": {
       "type": "object",
-      "description": "A test check has a `list` (and so `results`); a gate check (a build, a lint, an install) has neither and gates on its exit code alone. `version` is for test checks only.",
+      "description": "A test check has a `list` (and so `results`); a gate check (a build, a lint, an install) has neither and gates on its exit code alone. A check named `install` is the floor's install step: the install timeout, never compared with the base, and a failure reads as an environment finding; declare it before the checks that need it (the floor's sandbox confines writes, not the network). `version` is for test checks only.",
       "required": ["name", "run"],
       "dependentRequired": { "list": ["results", "failedExit"], "version": ["list"] },
       "additionalProperties": false,
       "properties": {
-        "name": { "type": "string" },
+        "name": { "type": "string", "pattern": "^(?!\\.\\.?$)[A-Za-z0-9._-]{1,64}$", "description": "1-64 of `A-Z a-z 0-9 . _ -`, never `.` or `..` (it keys files the engine writes). A check named `install` is the floor's install step." },
         "cwd": {
           "type": "string",
           "default": ".",
-          "description": "Relative to the repo root: `.` or `/`-separated segments, none empty and none `..`.",
-          "pattern": "^(\\.|(?!.*(^|/)\\.\\.(/|$))[^/\\\\]+(/[^/\\\\]+)*)?$"
+          "description": "Relative to the repo root: `.` or `/`-separated segments, none empty, `.` or `..`, and no `\\` or `:` (no Windows drive).",
+          "pattern": "^(\\.|(?!.*(^|/)\\.\\.?(/|$))[^/\\\\:]+(/[^/\\\\:]+)*)$"
         },
         "stage": {
           "description": "The floor stages the check runs at; absent or empty = both.",
@@ -76,7 +76,7 @@
                   "type": "array",
                   "items": { "type": "string" }
                 },
-                "env": { "type": "object", "additionalProperties": { "type": "string" } },
+                "env": { "type": "object", "propertyNames": { "pattern": "^(?!(LD_|DYLD_))(?!(BASH_ENV|ENV|SHELLOPTS|BASHOPTS|IFS|GCONV_PATH|LOCPATH)$)[A-Z_][A-Z0-9_]*$" }, "additionalProperties": { "type": "string" }, "description": "Set on the command INSIDE the floor sandbox only (never on the sandbox launcher). Names are `[A-Z_][A-Z0-9_]*` and never a loader or shell hook: `LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `SHELLOPTS`, `BASHOPTS`, `IFS`, `GCONV_PATH`, `LOCPATH`." },
                 "path": { "type": "string", "description": "The results file, relative to `cwd`, when not stdout." },
                 "merge": {
                   "type": "boolean",
@@ -175,7 +175,7 @@
           "properties": { "run": { "$ref": "#/$defs/argv" } }
         },
         "invalidatedBy": {
-          "description": "Globs (`**`, `*`, `?`): a file the change touches that matches one disables exclusion for this check.",
+          "description": "Globs (`**`, `*`, `?`): a file that matches one, changed on the base since the check was verified or touched by the change (deleted, renamed away or type-changed included), disables exclusion for this check.",
           "type": "array",
           "items": { "type": "string" }
         },
@@ -191,7 +191,7 @@
           }
         },
         "verified": {
-          "description": "Written by `wicked-core floor probe`. `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. The probes need a green clean run. When any probe fails, the whole probe re-runs once on a fresh copy and that retry's results are recorded, each marked ` (retried)`: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
+          "description": "Written by `wicked-core floor probe`, which first runs the guide's `install` check for the same `cwd` in every fresh copy it probes (an install that fails fails every probe). `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. The probes need a green clean run. When any probe fails, the whole probe re-runs once on a fresh copy and that retry's results are recorded, each marked ` (retried)`: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
           "type": "object",
           "additionalProperties": false,
           "properties": {

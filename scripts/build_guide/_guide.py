@@ -39,8 +39,8 @@ if str(_REPO_ROOT / "scripts") not in sys.path:
 from domain.validate_domain_model import _validate  # noqa: E402
 
 SCHEMA = _REPO_ROOT / "schemas" / "build-guide.v1.json"
-# Where the vendored schema came from: wicked-core#1066's branch, not yet merged.
-SCHEMA_SOURCE = "wicked-core feat/floor-v2-exit-codes@b923fed schemas/build-guide.v1.json (unmerged, #1066)"
+# Where the vendored schema came from: wicked-core main (the file last changed in #1066).
+SCHEMA_SOURCE = "wicked-core main@72da31b schemas/build-guide.v1.json (landed in #1066 as e88ea6a)"
 # The probes the floor requires to have passed before it relies on a check (core REQUIRED_PROBES),
 # plus `affected` when the check has that piece.
 REQUIRED_PROBES = ("list", "run", "ids", "alone", "deselect", "mutation", "multi")
@@ -55,7 +55,7 @@ _RE_META = set("\\.+*?()|[]{}^$#&-~")
 # Keywords the subset validator implements, plus annotation-only keywords it may ignore.
 _VALIDATED = {"$ref", "type", "const", "enum", "minLength", "pattern", "minimum", "maximum",
               "minItems", "items", "required", "dependentRequired", "not", "properties", "additionalProperties",
-              "if", "then"}
+              "propertyNames", "if", "then"}
 _ANNOTATIONS = {"$schema", "$id", "$comment", "$defs", "title", "description", "examples", "default"}
 
 # RE2 rejects these Python-regex constructs (lookaround, backreferences, atomic and possessive
@@ -134,9 +134,25 @@ def _repo_relative(where: str, value: str) -> list[str]:
 
 
 def cwd_ok(cwd: str) -> bool:
-    """core's ``cwd_ok``: empty, ``.``, or relative ``/``-separated segments, none empty or ``..``."""
-    return cwd in ("", ".") or not (cwd.startswith("/") or "\\" in cwd or re.match(r"^[A-Za-z]:", cwd)
-                                     or any(seg in ("", "..") for seg in cwd.split("/")))
+    """core's ``cwd_ok``: ``.``, or relative ``/``-separated segments, none empty, ``.`` or ``..``,
+    and no ``\\`` or ``:`` (no Windows drive, ``C:x`` included). ``""`` is refused."""
+    return cwd == "." or not (cwd.startswith("/") or "\\" in cwd or ":" in cwd
+                              or any(seg in ("", ".", "..") for seg in cwd.split("/")))
+
+
+def name_ok(name: Any) -> bool:
+    """core's ``name_ok``: 1-64 of ``A-Z a-z 0-9 . _ -``, never ``.`` or ``..`` (it keys files)."""
+    return (isinstance(name, str) and 1 <= len(name) <= 64 and name not in (".", "..")
+            and re.fullmatch(r"[A-Za-z0-9._-]+", name) is not None)
+
+
+# core's ``env_name_ok``: the shape, and never a loader or shell hook.
+_ENV_HOOKS = {"BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "IFS", "GCONV_PATH", "LOCPATH"}
+
+
+def env_name_ok(name: str) -> bool:
+    return (re.fullmatch(r"[A-Z_][A-Z0-9_]*", name) is not None and not name.startswith(("LD_", "DYLD_"))
+            and name not in _ENV_HOOKS)
 
 
 def _pathspec_matches(repo: Path, spec: str) -> bool:
@@ -187,6 +203,12 @@ def _lint_common(at: str, check: dict, repo: Path | None) -> tuple[list[str], li
         errors.append(f"{at}.failedExit: {load}a `list` and no `failedExit`")
     if 0 in check.get("failedExit", []):
         errors.append(f"{at}.failedExit: {load}`0` in `failedExit` (a failure exits nonzero)")
+    if not name_ok(check.get("name")):
+        errors.append(f"{at}.name: {load}a name that is not 1-64 of `A-Z a-z 0-9 . _ -` (or is `.` or `..`)")
+    bad_env = [k for k in check.get("results", {}).get("how", {}).get("env", {}) if not env_name_ok(k)]
+    if bad_env:
+        errors.append(f"{at}.results.how.env: {load}env {bad_env[0]!r}: names are `[A-Z_][A-Z0-9_]*`, and never "
+                      "a loader or shell hook (`LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, …)")
     if not cwd_ok(check.get("cwd", ".")):
         errors.append(f"{at}.cwd: {load}a `cwd` that is absolute, climbs (`..`) or has an empty segment")
     if any(ALL_IDS in t for t in tokens[first:last]):
