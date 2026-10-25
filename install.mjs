@@ -49,14 +49,14 @@
  *             diagnostic names where the previous and the failed trees were left).
  */
 import {
-  closeSync, constants, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync,
-  readdirSync, readFileSync, realpathSync, renameSync, rmSync,
+  accessSync, closeSync, constants, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync,
+  readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync,
 } from "node:fs";
-import { join, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { delimiter, join, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { execSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
@@ -97,16 +97,32 @@ function skip(src) {
   return false;
 }
 
+// The first `name` on PATH, as `command -v` (POSIX) or `where` (Windows) would find it, read from
+// the filesystem: no subprocess. The old `command -v` spawn had a 2 s timeout, and on a loaded
+// machine a slow fork read as "not installed": pack tooling said Python was missing, and `install`
+// skipped `uv sync` as if uv were absent. Parity with those commands: an empty POSIX entry is the
+// current directory; Windows looks in the current directory first and tries each PATHEXT extension
+// (unless the name already ends with one). The result is absolute, so a caller may run it from
+// another working directory.
 function findBin(name) {
-  try {
-    const out = execSync(
-      process.platform === "win32" ? `where ${name}` : `command -v ${name}`,
-      { stdio: ["ignore", "pipe", "ignore"], timeout: 2000, encoding: "utf8" }
-    ).trim().split("\n")[0];
-    return out || undefined;
-  } catch {
-    return undefined;
+  const win = process.platform === "win32";
+  const pathext = (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const exts = win && !pathext.some((e) => name.toLowerCase().endsWith(e.toLowerCase())) ? pathext : [""];
+  const dirs = (process.env.PATH || "").split(delimiter).map((d) => (d === "" && !win ? "." : d)).filter(Boolean);
+  if (win) dirs.unshift(".");
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = resolve(dir, name + ext);
+      try {
+        if (!statSync(candidate).isFile()) continue;
+        if (!win) accessSync(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // not here, or not executable: keep looking
+      }
+    }
   }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
