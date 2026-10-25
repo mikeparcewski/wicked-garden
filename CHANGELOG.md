@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Constrain the MCP TypeScript template's `@opentelemetry/api` dependency to `~1.9.0`, so a fresh `npm install` no longer hits the `@opentelemetry/sdk-logs` peer conflict now that API 1.10.0 is published.
+
 ## [12.58.0] — 2026-10-20
 
 ### Added
