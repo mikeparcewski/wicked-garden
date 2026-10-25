@@ -88,6 +88,7 @@ Each domain is one consolidated skill that routes to its actions.
 | Skill | Description | Key actions |
 |-------|-------------|-------------|
 | `wicked-garden-agentic` | Design, review, and audit agentic AI systems | review · design · audit · frameworks |
+| `wicked-garden-build-guide` | Discover how a repo builds and tests and write its build/test guide (`.wicked/build-guide.json`) for the wicked-core floor: CI config first, structured results first, a mutation probe, validated by `wicked-core floor probe`, proposed as a PR. Runs in setup onboarding | discover · refresh · check |
 | `wicked-garden-data` | Data analysis, pipelines, ML, and ontology recommendations | analyze · pipeline · ml · ontology |
 | `wicked-garden-demo` | Plan, record and review a polished product demo video — presenter script, per-chapter recordings, and contact-sheet QA | plan · record · review |
 | `wicked-garden-engineering` | Architecture, code review, debugging, docs, planning, and deterministic multi-file code transformations | review · debug · arch · plan · apply |

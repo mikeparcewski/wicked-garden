@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "derivedFrom": [
+    ".github/workflows/ci.yml",
+    "package.json"
+  ],
+  "checks": [
+    {
+      "name": "install",
+      "cwd": ".",
+      "run": [
+        "npm",
+        "install",
+        "--no-audit",
+        "--no-fund"
+      ]
+    },
+    {
+      "name": "test",
+      "cwd": ".",
+      "stage": [
+        "creator",
+        "verify"
+      ],
+      "run": [
+        "npx",
+        "vitest",
+        "run"
+      ],
+      "failedExit": [
+        1
+      ],
+      "results": {
+        "kind": "junit",
+        "id": [
+          "name"
+        ],
+        "how": {
+          "argvAppend": [
+            "--reporter=junit",
+            "--outputFile=.wicked-floor/junit.xml"
+          ],
+          "env": {},
+          "path": ".wicked-floor/junit.xml"
+        }
+      },
+      "list": {
+        "run": [
+          "npx",
+          "vitest",
+          "list"
+        ],
+        "item": "^\\S+ > (?P<id>.+)$"
+      },
+      "alone": {
+        "run": [
+          "npx",
+          "vitest",
+          "run",
+          "--testNamePattern=^{id:re}$"
+        ]
+      },
+      "deselect": {
+        "append": [
+          "--testNamePattern=^(?!(?:{ids:re|})$)"
+        ]
+      },
+      "version": {
+        "run": [
+          "npx",
+          "vitest",
+          "--version"
+        ]
+      },
+      "invalidatedBy": [
+        "package.json",
+        "package-lock.json",
+        "vitest.config.*",
+        "vite.config.*",
+        ".github/workflows/**"
+      ],
+      "probes": {
+        "mutation": {
+          "file": "src/wicked_mutation.test.js",
+          "content": "import { it, expect } from 'vitest';\n\nit('wicked mutation probe', () => {\n  expect(1 + 1).toBe(3);\n});\n",
+          "expectId": "wicked mutation probe"
+        },
+        "mutation2": {
+          "file": "src/wicked_mutation_two.test.js",
+          "content": "import { it, expect } from 'vitest';\n\nit('wicked mutation probe two', () => {\n  expect(1 + 1).toBe(3);\n});\n",
+          "expectId": "wicked mutation probe two"
+        }
+      }
+    }
+  ]
+}

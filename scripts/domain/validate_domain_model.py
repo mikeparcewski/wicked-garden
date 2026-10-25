@@ -12,7 +12,8 @@ vendored ``domain-model.schema.json`` uses):
    model-schema@1.0.0). It resolves local ``$ref`` pointers against ``$defs`` and
    supports: ``type`` (object/array/string/integer/number), ``required``,
    ``properties``, ``additionalProperties`` (``false`` or a sub-schema), ``items``,
-   ``enum``, ``const``, ``pattern``, ``minItems``, ``minLength``,
+   ``enum``, ``const``, ``not``, ``pattern``, ``minItems``, ``minLength``, ``dependentRequired``,
+   ``propertyNames``,
    ``minimum``/``maximum``, and the ``if``/``then`` conditional. This covers the
    hard invariants the schema expresses: required fields, business_rules minItems
    1, numeric confidence in [0,1], provenance shape, the disposition-drop ->
@@ -119,6 +120,8 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
         err(f"{instance!r} != const {schema['const']!r}")
     if "enum" in schema and instance not in schema["enum"]:
         err(f"{instance!r} is not one of {schema['enum']!r}")
+    if "not" in schema and _conforms(instance, schema["not"], root):
+        err(f"{instance!r} must not match {schema['not']!r}")
 
     if isinstance(instance, str):
         if "minLength" in schema and len(instance) < schema["minLength"]:
@@ -145,6 +148,15 @@ def _validate(instance: Any, schema: dict[str, Any], path: str,
         for req in schema.get("required", []):
             if req not in instance:
                 err(f"missing required property {req!r}")
+        for key, deps in schema.get("dependentRequired", {}).items():
+            if key in instance:
+                for dep in deps:
+                    if dep not in instance:
+                        err(f"property {key!r} requires property {dep!r}")
+        names = schema.get("propertyNames")
+        if isinstance(names, dict):
+            for key in instance:
+                _validate(key, names, f"{path}/{key}", root, errors)
         props = schema.get("properties", {})
         for key, sub in props.items():
             if key in instance:

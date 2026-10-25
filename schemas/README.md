@@ -26,6 +26,7 @@ cosmetic and pre-dates them):
 | Schema | Format it defines | Version field | Validated by |
 |--------|-------------------|---------------|--------------|
 | `wicked-pack.schema.json` | Third-party skill-pack manifest (`wicked-pack.json`) | `spec` (currently 1) | `npx wicked-garden pack check <dir>` (`scripts/pack/check.py`) |
+| `build-guide.v1.json` | A repo's build/test guide (`.wicked/build-guide.json`, DES-BUILD-GUIDE contract v1). **Vendored byte for byte from wicked-core** main (re-vendor whenever core's copy changes) | `version` (1) | `scripts/build_guide/check.py`; `tests/build_guide/test_build_guide_check.py` pins the copy to core's git blob |
 | `campaign-recon.schema.json` | qe campaign recon + plan artifact (capability inventory, environment-manifest ref, dependency-ordered scenario ladder with pass criteria, claim ceilings and per-rung `isolation` — ADR 0006) | `spec` (1 \| 2 — v2 is the TH-16+TH-22 shared bump: rung `isolation` + desktop stub-eligibility; v1 plans still validate) | `tests/qe/test_campaign_recon_schema.py` (fixture round-trip + nonconforming rejection). The sibling evidence contract (`scenario_evidence` + `claim_level`) is owned by wicked-ledger (manifest 2.1). |
 
 ## Usage

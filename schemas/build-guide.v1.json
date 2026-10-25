@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wickedagile.com/schemas/build-guide.v1.json",
+  "title": "Build guide (DES-BUILD-GUIDE, contract v1)",
+  "description": "A repository's build/test guide: `.wicked/build-guide.json`, committed, read by the repo-checks floor from the BASE tree only. When the base carries a guide, its `checks` (for the stage) ARE the floor's checks for the directories they cover (their `cwd`s, at any stage): there their argv, cwd and stage replace detection (a build, lint or install step is declared as a check), while a detected package no check covers keeps its detected checks, exit codes only. A STALE guide (a `derivedFrom` file changed on the base since the guide was last committed or since a check was verified, or the change touches one) may name outdated commands: in the directories it covers, the floor then runs the UNION of its checks and the detected ones (an identical argv in the same directory once), more checks and never fewer. Accepted by design: a directory whose checks are all `verify`-only has no checks at the creator floor; the creator floor is fast feedback, and the verify floor runs every check before delivery. With no guide, or one that does not parse or fails the load-time checks (a non-empty `run`, `stage` values, `failedExit` on a check with a `list`), detection is the whole floor. Each check's pieces are checked by `wicked-core floor probe`; the floor relies on a check's exclusion only when every probe passed on a commit that is an ancestor of the base, no `derivedFrom` or `invalidatedBy` file changed on the base since, and the change touches neither (a deletion, a rename's old path and a type change, such as a file replaced by a link, count as touching). All regexes are RE2 syntax, applied to one line at a time.",
+  "type": "object",
+  "required": ["version", "checks"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "derivedFrom": {
+      "description": "Repo-relative paths (git pathspecs: globs such as `crates/*/Cargo.toml` match) the guide was derived from (CI files, manifests): a change to one, on the base since the guide or a check's verification or in the change itself, makes the guide stale: no check's exclusion is relied on, and detection runs beside the guide's checks where they cover a directory.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "checks": { "type": "array", "items": { "$ref": "#/$defs/check" } }
+  },
+  "$defs": {
+    "argv": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "regex": { "type": "string", "minLength": 1 },
+    "mutation": {
+      "type": "object",
+      "required": ["file", "content", "expectId"],
+      "additionalProperties": false,
+      "properties": {
+        "file": { "type": "string", "description": "Relative to `cwd`." },
+        "content": { "type": "string", "description": "A deliberately failing test." },
+        "expectId": { "type": "string" },
+        "expectQ": { "type": "string" }
+      }
+    },
+    "check": {
+      "type": "object",
+      "description": "A test check has a `list` (and so `results`); a gate check (a build, a lint, an install) has neither and gates on its exit code alone. A check named `install` is the floor's install step: the install timeout, never compared with the base, and a failure reads as an environment finding; declare it before the checks that need it (the floor's sandbox confines writes, not the network). `version` is for test checks only.",
+      "required": ["name", "run"],
+      "dependentRequired": { "list": ["results", "failedExit"], "version": ["list"] },
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^(?!\\.\\.?$)[A-Za-z0-9._-]{1,64}$", "description": "1-64 of `A-Z a-z 0-9 . _ -`, never `.` or `..` (it keys files the engine writes). A check named `install` is the floor's install step." },
+        "cwd": {
+          "type": "string",
+          "default": ".",
+          "description": "Relative to the repo root: `.` or `/`-separated segments, none empty, `.` or `..`, and no `\\` or `:` (no Windows drive).",
+          "pattern": "^(\\.|(?!.*(^|/)\\.\\.?(/|$))[^/\\\\:]+(/[^/\\\\:]+)*)$"
+        },
+        "stage": {
+          "description": "The floor stages the check runs at; absent or empty = both.",
+          "type": "array",
+          "items": { "enum": ["creator", "verify"] }
+        },
+        "run": {
+          "$ref": "#/$defs/argv",
+          "description": "The exact argv. Exclusion happens only for a floor check whose argv equals this exactly: the guide is the allowlist."
+        },
+        "failedExit": {
+          "description": "Exit codes that mean 'tests failed'. Any other non-zero exit (a crash, a build error) decides the check `could_not_run`. A failing exit whose results name no test gives the base no candidates (`base_red_unseparated`), and a deselected head run that fails with nothing named is still a failure (`new_failure`): exclusion never passes a run that failed.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "not": { "const": 0 } }
+        },
+        "results": {
+          "type": "object",
+          "required": ["kind"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": ["text", "junit", "json-lines", "tap"],
+              "description": "v1 reads `text` and `junit`; `json-lines` and `tap` are reserved."
+            },
+            "how": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "argvAppend": {
+                  "description": "Added to every argv whose results are read (the base run, the probes' runs). Composition with an argv that has an end of options (`--`), for this and for `deselect.append`: the tokens before the list's own `--` (all of them when it has none) go just before the argv's `--` (at the end when it has none); the tokens after it go last, behind ONE `--`. A second `--` is never emitted.",
+                  "type": "array",
+                  "items": { "type": "string" }
+                },
+                "env": { "type": "object", "propertyNames": { "pattern": "^(?!(LD_|DYLD_))(?!(BASH_ENV|ENV|SHELLOPTS|BASHOPTS|IFS|GCONV_PATH|LOCPATH)$)[A-Z_][A-Z0-9_]*$" }, "additionalProperties": { "type": "string" }, "description": "Set on the command INSIDE the floor sandbox only (never on the sandbox launcher). Names are `[A-Z_][A-Z0-9_]*` and never a loader or shell hook: `LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `SHELLOPTS`, `BASHOPTS`, `IFS`, `GCONV_PATH`, `LOCPATH`." },
+                "path": { "type": "string", "description": "The results file, relative to `cwd`, when not stdout." },
+                "merge": {
+                  "type": "boolean",
+                  "description": "Capture stderr into the same stream as stdout, in order (a runner that names its test binaries on stderr)."
+                }
+              }
+            },
+            "id": {
+              "description": "(junit) The testcase attributes whose values, joined by `idJoin`, form an id. Default [\"classname\", \"name\"].",
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "idJoin": {
+              "description": "(junit) What joins the `id` attributes (default `::`), so the ids can be the list's.",
+              "type": "string"
+            }
+          }
+        },
+        "parser": {
+          "description": "Only for results.kind = text.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "section": {
+              "$ref": "#/$defs/regex",
+              "description": "Lines that open a qualifier scope (a test binary), with a named group `q`; ids are (q, id)."
+            },
+            "failed": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/regex" },
+              "description": "Per-line failures, each with a named group `id`."
+            },
+            "blocks": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["start", "item", "end"],
+                "additionalProperties": false,
+                "properties": {
+                  "start": { "$ref": "#/$defs/regex" },
+                  "item": { "$ref": "#/$defs/regex", "description": "With a named group `id`." },
+                  "end": { "$ref": "#/$defs/regex" },
+                  "use": {
+                    "enum": ["last-before-end", "all"],
+                    "default": "last-before-end",
+                    "description": "A block is the contiguous item lines (blank lines allowed) after a start; any other line ends it. At an end, the last block since the previous end (or every one) is taken."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "list": {
+          "type": "object",
+          "required": ["run", "item"],
+          "additionalProperties": false,
+          "properties": {
+            "run": { "$ref": "#/$defs/argv" },
+            "item": { "$ref": "#/$defs/regex", "description": "With a named group `id`." },
+            "section": {
+              "$ref": "#/$defs/regex",
+              "description": "With a named group `q`. Without it ids carry no qualifier, and results are compared by id alone."
+            },
+            "merge": { "type": "boolean" }
+          }
+        },
+        "alone": {
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{id}` (and optionally `{q}`, `{id:re}`, `{ids:re|}`, as in `deselect.append`): values fill whole argv elements and never pass through a shell, so no escaping is needed." } }
+        },
+        "deselect": {
+          "type": "object",
+          "required": ["append"],
+          "additionalProperties": false,
+          "properties": {
+            "append": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "`{ids:re|}` and `{q}` never appear in the same `deselect.append` (the pattern cannot bind ids to qualifiers). Tokens before the first one with `{id}`/`{q}` are appended once, the tokens from the first through the last such one are repeated once per id, the rest once. So a flag and its value must be ONE token (`--skip={id}`, not `--skip`, `{id}`). `{id}`/`{q}` values fill whole argv elements verbatim and never pass through a shell: no escaping is needed. For a runner that takes a regex: `{id:re}` is the id regex-escaped, repeated per id like `{id}`; `{ids:re|}` is EVERY id, regex-escaped and joined by `|`, in ONE token that is never repeated (`--testNamePattern=^(?!(?:{ids:re|})$)`); a guide that puts `{ids:re|}` among the per-id tokens is refused. The tokens are then composed onto the argv around its `--` (see `results.how.argvAppend`)."
+            }
+          }
+        },
+        "affected": {
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": { "run": { "$ref": "#/$defs/argv", "description": "With `{files}`; absent = the full run at every stage." } }
+        },
+        "version": {
+          "description": "The runner's version command. `floor probe` runs it and records its first output line (stdout and stderr merged) as `verified.runnerVersion`; the floor runs it too, and a check whose runner now prints something else is stale (exit codes only).",
+          "type": "object",
+          "required": ["run"],
+          "additionalProperties": false,
+          "properties": { "run": { "$ref": "#/$defs/argv" } }
+        },
+        "invalidatedBy": {
+          "description": "Globs (`**`, `*`, `?`): a file that matches one, changed on the base since the check was verified or touched by the change (deleted, renamed away or type-changed included), disables exclusion for this check.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "probes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mutation": { "$ref": "#/$defs/mutation" },
+            "mutation2": {
+              "$ref": "#/$defs/mutation",
+              "description": "A second deliberately failing test (another file): with both written, both must be parsed and deselecting both must run clean."
+            }
+          }
+        },
+        "verified": {
+          "description": "Written by `wicked-core floor probe`, which first runs the guide's `install` check for the same `cwd` in every fresh copy it probes (an install that fails fails every probe). `results` keys: list, run, ids, alone, deselect, mutation, multi, plus affected and version when the check has that piece. The probes need a green clean run. When any probe fails, the whole probe re-runs once on a fresh copy and that retry's results are recorded, each marked ` (retried)`: `pass (retried)` counts as a pass, `fail: … (retried)` does not.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "baseSha": { "type": "string" },
+            "runnerVersion": { "type": "string", "description": "The `version` command's first output line when the probes ran; empty without a `version` piece." },
+            "at": { "type": "string" },
+            "results": {
+              "type": "object",
+              "additionalProperties": { "type": "string", "pattern": "^(pass( \\(retried\\))?|fail: .*)$" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
