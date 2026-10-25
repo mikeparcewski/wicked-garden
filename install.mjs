@@ -97,21 +97,22 @@ function skip(src) {
   return false;
 }
 
-// The first `name` on PATH, as `command -v` (POSIX) or `where` (Windows, with PATHEXT) would
-// find it, read from the filesystem: no subprocess. The old `command -v` spawn had a 2 s timeout,
-// and on a loaded machine a slow fork read as "not installed": pack tooling said Python was
-// missing, and `install` skipped `uv sync` as if uv were absent.
+// The first `name` on PATH, as `command -v` (POSIX) or `where` (Windows) would find it, read from
+// the filesystem: no subprocess. The old `command -v` spawn had a 2 s timeout, and on a loaded
+// machine a slow fork read as "not installed": pack tooling said Python was missing, and `install`
+// skipped `uv sync` as if uv were absent. Parity with those commands: an empty POSIX entry is the
+// current directory; Windows looks in the current directory first and tries each PATHEXT extension
+// (unless the name already ends with one). The result is absolute, so a caller may run it from
+// another working directory.
 function findBin(name) {
   const win = process.platform === "win32";
-  // Windows: a bare name takes each PATHEXT extension (as `where` does); a name that already
-  // carries one is taken as it is.
-  const exts = win && !/\.[^\\/]+$/.test(name)
-    ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)
-    : [""];
-  for (const dir of (process.env.PATH || "").split(delimiter)) {
-    if (!dir) continue;
+  const pathext = (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean);
+  const exts = win && !pathext.some((e) => name.toLowerCase().endsWith(e.toLowerCase())) ? pathext : [""];
+  const dirs = (process.env.PATH || "").split(delimiter).map((d) => (d === "" && !win ? "." : d)).filter(Boolean);
+  if (win) dirs.unshift(".");
+  for (const dir of dirs) {
     for (const ext of exts) {
-      const candidate = join(dir, name + ext);
+      const candidate = resolve(dir, name + ext);
       try {
         if (!statSync(candidate).isFile()) continue;
         if (!win) accessSync(candidate, constants.X_OK);

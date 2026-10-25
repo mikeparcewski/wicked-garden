@@ -34,6 +34,11 @@ import pytest
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _INSTALL_MJS = _REPO_ROOT / "install.mjs"
 _SPAWN_GUARD = _REPO_ROOT / "tests" / "fixtures" / "spawn_guard.cjs"
+
+
+def _exe(name: str) -> str:
+    """A name the installer's PATH scan finds on this platform (Windows: a PATHEXT extension)."""
+    return f"{name}.cmd" if sys.platform == "win32" else name
 _NODE = shutil.which("node")
 _PKG_VERSION = json.loads((_REPO_ROOT / "package.json").read_text(encoding="utf-8"))["version"]
 
@@ -63,7 +68,7 @@ class Sandbox:
     def sentinel_uv(self) -> Path:
         """Plant an executable ``uv`` that records its argv to a marker and exits 1."""
         marker = self.root / "uv-invocations.log"
-        script = self.path_dir / "uv"
+        script = self.path_dir / _exe("uv")
         script.write_text(
             "#!/bin/sh\n"
             f"printf '%s\\n' \"uv $*\" >> \"{marker}\"\n"
@@ -320,7 +325,7 @@ def test_dry_run_spawns_no_child_process(sandbox: Sandbox) -> None:
 
     # positive control: the guard is live — `pack check` runs the python it finds on PATH (found
     # by a PATH scan, no child process) through spawnSync, which the guard refuses and logs
-    python = sandbox.path_dir / "python3"
+    python = sandbox.path_dir / _exe("python3")
     python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     python.chmod(python.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     control = sandbox.run("pack", "check", ".", node_flags=guard, SPAWN_GUARD_LOG=str(log))
@@ -329,6 +334,8 @@ def test_dry_run_spawns_no_child_process(sandbox: Sandbox) -> None:
     assert attempts and set(attempts) <= {"spawnSync"}, attempts
     log.unlink()
     python.unlink()
+    # A uv the install WOULD find and run, so dry-run's "no child process" is a real negative.
+    sandbox.sentinel_uv()
 
     cfg = sandbox.cfg("cfg")
     res = sandbox.run("install", "--dry-run", node_flags=guard, SPAWN_GUARD_LOG=str(log), CLAUDE_CONFIG_DIR=str(cfg))
@@ -709,9 +716,30 @@ def test_a_binary_is_found_on_path_without_a_child_process(sandbox: Sandbox) -> 
     assert log.read_text(encoding="utf-8").split() == ["spawnSync"], res.stderr
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="the executable bit is POSIX")
 def test_a_file_that_is_not_executable_is_not_a_binary(sandbox: Sandbox) -> None:
     (sandbox.path_dir / "uv").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")  # mode 0644
     cfg = sandbox.cfg("cfg")
     res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg))
     assert res.returncode == 0, res.stderr
     assert "uv sync" not in res.stdout, "a non-executable `uv` is not uv, as `command -v` would say"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the sentinel is a POSIX shell script")
+@pytest.mark.parametrize("entry", ["path-dir", "./path-dir"], ids=["relative", "dot-relative"])
+def test_a_relative_path_entry_finds_an_absolute_binary(sandbox: Sandbox, entry: str) -> None:
+    """A relative PATH entry is read against the installer's cwd, and the binary it finds runs from
+    the copy's directory (`uv sync` runs with cwd = the destination), as `command -v` would."""
+    marker = sandbox.sentinel_uv()
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg), PATH=entry)
+    assert marker.read_text(encoding="utf-8").splitlines() == ["uv sync --quiet"], res.stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="an empty PATH entry is POSIX's current directory")
+def test_an_empty_path_entry_is_the_current_directory(sandbox: Sandbox) -> None:
+    marker = sandbox.sentinel_uv()
+    shutil.move(str(sandbox.path_dir / "uv"), str(sandbox.root / "uv"))
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg), PATH=f":{sandbox.root / 'nowhere'}")
+    assert marker.read_text(encoding="utf-8").splitlines() == ["uv sync --quiet"], res.stderr
