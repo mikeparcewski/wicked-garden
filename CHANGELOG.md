@@ -4,6 +4,7 @@
 
 ### Fixed
 - Constrain the MCP TypeScript template's `@opentelemetry/api` dependency to `~1.9.0`, so a fresh `npm install` no longer hits the `@opentelemetry/sdk-logs` peer conflict now that API 1.10.0 is published.
+- **`install.mjs` finds a binary on PATH without spawning a shell.** `findBin` ran `command -v` (`where` on Windows) under a 2-second timeout, so on a loaded machine a slow fork read as "not installed": `pack check` said Python was missing, and `install` skipped `uv sync` as if uv were absent. Found by the build guide's floor probe on a host at load 50-110, where `tests/packs/*` and `test_uv_sync_failure_is_surfaced_not_swallowed` failed for that reason alone. It now scans PATH itself: the first executable file named `<name>` (on Windows, `<name>` plus each `PATHEXT` extension), as those commands would find it. The dry-run spawn-guard test's positive control now plants a `python3` on PATH; new tests pin that uv is found without a child process and that a non-executable file is not a binary.
 
 ## [12.58.0] — 2026-10-20
 

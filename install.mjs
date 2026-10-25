@@ -49,14 +49,14 @@
  *             diagnostic names where the previous and the failed trees were left).
  */
 import {
-  closeSync, constants, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync,
-  readdirSync, readFileSync, realpathSync, renameSync, rmSync,
+  accessSync, closeSync, constants, cpSync, existsSync, fstatSync, lstatSync, mkdirSync, openSync,
+  readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync,
 } from "node:fs";
-import { join, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { delimiter, join, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
-import { execSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf8"));
@@ -97,16 +97,31 @@ function skip(src) {
   return false;
 }
 
+// The first `name` on PATH, as `command -v` (POSIX) or `where` (Windows, with PATHEXT) would
+// find it, read from the filesystem: no subprocess. The old `command -v` spawn had a 2 s timeout,
+// and on a loaded machine a slow fork read as "not installed": pack tooling said Python was
+// missing, and `install` skipped `uv sync` as if uv were absent.
 function findBin(name) {
-  try {
-    const out = execSync(
-      process.platform === "win32" ? `where ${name}` : `command -v ${name}`,
-      { stdio: ["ignore", "pipe", "ignore"], timeout: 2000, encoding: "utf8" }
-    ).trim().split("\n")[0];
-    return out || undefined;
-  } catch {
-    return undefined;
+  const win = process.platform === "win32";
+  // Windows: a bare name takes each PATHEXT extension (as `where` does); a name that already
+  // carries one is taken as it is.
+  const exts = win && !/\.[^\\/]+$/.test(name)
+    ? (process.env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)
+    : [""];
+  for (const dir of (process.env.PATH || "").split(delimiter)) {
+    if (!dir) continue;
+    for (const ext of exts) {
+      const candidate = join(dir, name + ext);
+      try {
+        if (!statSync(candidate).isFile()) continue;
+        if (!win) accessSync(candidate, constants.X_OK);
+        return candidate;
+      } catch {
+        // not here, or not executable: keep looking
+      }
+    }
   }
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------

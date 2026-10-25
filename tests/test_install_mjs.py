@@ -318,12 +318,17 @@ def test_dry_run_spawns_no_child_process(sandbox: Sandbox) -> None:
     guard = ("--require", str(_SPAWN_GUARD))
     log = sandbox.root / "spawn-guard.log"
 
-    # positive control: the guard is live — `pack check` probes for python via execSync
+    # positive control: the guard is live — `pack check` runs the python it finds on PATH (found
+    # by a PATH scan, no child process) through spawnSync, which the guard refuses and logs
+    python = sandbox.path_dir / "python3"
+    python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    python.chmod(python.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
     control = sandbox.run("pack", "check", ".", node_flags=guard, SPAWN_GUARD_LOG=str(log))
     assert control.returncode != 0
     attempts = log.read_text(encoding="utf-8").split()
-    assert attempts and set(attempts) <= {"execSync"}, attempts
+    assert attempts and set(attempts) <= {"spawnSync"}, attempts
     log.unlink()
+    python.unlink()
 
     cfg = sandbox.cfg("cfg")
     res = sandbox.run("install", "--dry-run", node_flags=guard, SPAWN_GUARD_LOG=str(log), CLAUDE_CONFIG_DIR=str(cfg))
@@ -686,3 +691,27 @@ def test_rollback_failure_is_explicit_and_leaves_both_trees(sandbox: Sandbox) ->
     for name in left:
         assert f"leftover transient dir from an interrupted install (not a plugin; safe to delete): {plugins / name}" in st.stdout
     assert "wicked-garden: not installed" in st.stdout
+
+
+# --- finding a binary --------------------------------------------------------
+
+
+def test_a_binary_is_found_on_path_without_a_child_process(sandbox: Sandbox) -> None:
+    """findBin reads PATH from the filesystem: a loaded machine's slow fork (the old `command -v`
+    spawn under a 2 s timeout) no longer reads as "uv is not installed"."""
+    guard = ("--require", str(_SPAWN_GUARD))
+    log = sandbox.root / "spawn-guard.log"
+    sandbox.sentinel_uv()
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", node_flags=guard, SPAWN_GUARD_LOG=str(log), CLAUDE_CONFIG_DIR=str(cfg))
+    # uv was FOUND (the PATH scan spawns nothing), so the only child process attempted is the
+    # `uv sync` itself, which the guard refuses.
+    assert log.read_text(encoding="utf-8").split() == ["spawnSync"], res.stderr
+
+
+def test_a_file_that_is_not_executable_is_not_a_binary(sandbox: Sandbox) -> None:
+    (sandbox.path_dir / "uv").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")  # mode 0644
+    cfg = sandbox.cfg("cfg")
+    res = sandbox.run("install", CLAUDE_CONFIG_DIR=str(cfg))
+    assert res.returncode == 0, res.stderr
+    assert "uv sync" not in res.stdout, "a non-executable `uv` is not uv, as `command -v` would say"
