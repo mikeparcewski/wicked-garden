@@ -171,6 +171,22 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
         assert (rig.root / "current" / f).is_file()
 
 
+def test_a_credential_free_server_registers_with_no_secret_variable(rig):
+    # A local-computation server (no upstream: its config names neither auth nor baseUrl) has nothing to
+    # authenticate to. It registered as pending "UNIT_CONVERT_TOKEN missing" and never reached the registry
+    # (j6-cert, unit-convert, 2026-10-26): it now smokes and registers with no secret variable.
+    (rig.srv / "mcp-server.config.json").write_text(json.dumps(
+        {"key": "acme-notes", "version": "0.1.0", "transport": "stdio", "rateLimitPerMin": 600}), encoding="utf-8")
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+    assert code == 0, out
+    current_js = rig.root / "current" / "dist" / "server.js"
+    assert out["smoke"] == "ok" and out["registered"] is True and out["envNames"] == []
+    (preview,) = [r for r in daemon.requests if r["path"] == PREVIEW]
+    assert preview["body"] == {"name": "acme-notes", "kind": "mcp-stdio", "command": "node", "args": [str(current_js)]}
+
+
 def test_second_install_updates_in_place(rig):
     with FakeDaemon() as daemon:
         _registry(daemon)

@@ -94,6 +94,13 @@ def env_name_for(key: str) -> str:
     return f"{env_prefix(key)}_TOKEN"
 
 
+def credential_free(config: dict) -> bool:
+    """A server with no upstream has nothing to authenticate to: its committed config names neither ``auth`` nor
+    ``baseUrl`` (a local-computation server). It smokes and registers with no secret variable. Any other server,
+    and an --from-npm install (no config to read), reads the one ``<SERVER>_TOKEN`` variable."""
+    return bool(config) and "auth" not in config and "baseUrl" not in config
+
+
 def crew_origin(flag: str | None) -> str:
     """The daemon THIS run belongs to — never a guessed port (garden#1258)."""
     origin = flag or os.environ.get("WICKED_CREW_URL")
@@ -260,8 +267,9 @@ def locate(args) -> tuple[Path | None, dict]:
 
 # ── 3. smoke ───────────────────────────────────────────────────────────────────────────────
 
-def smoke(server_js: Path, var: str) -> tuple[str, dict]:
-    argv = [sys.executable, str(PROBE), "--timeout", str(PROBE_TIMEOUT_S), "--env", var, "--",
+def smoke(server_js: Path, var: str | None) -> tuple[str, dict]:
+    env_args = ["--env", var] if var else []
+    argv = [sys.executable, str(PROBE), "--timeout", str(PROBE_TIMEOUT_S), *env_args, "--",
             "node", str(server_js)]
     try:
         done = subprocess.run(argv, capture_output=True, text=True, timeout=PROBE_TIMEOUT_S + 30)
@@ -270,7 +278,7 @@ def smoke(server_js: Path, var: str) -> tuple[str, dict]:
         return "failed", {"ok": False, "error": f"probe did not run: {err}"}
     if report.get("ok") is True:
         return "ok", report
-    if var in (report.get("stderrNames") or []):
+    if var and var in (report.get("stderrNames") or []):
         return "pending_credential", report
     return "failed", report
 
@@ -319,9 +327,10 @@ def check_key(origin: str, key: str, server_js: Path) -> dict | None:
 
 # ── 5. register ────────────────────────────────────────────────────────────────────────────
 
-def register(origin: str, key: str, server_js: Path, var: str) -> dict:
-    body = {"name": key, "kind": "mcp-stdio", "command": "node", "args": [str(server_js)],
-            "auth": {"ref": f"env:{var}", "env": var}}
+def register(origin: str, key: str, server_js: Path, var: str | None) -> dict:
+    body: dict = {"name": key, "kind": "mcp-stdio", "command": "node", "args": [str(server_js)]}
+    if var:
+        body["auth"] = {"ref": f"env:{var}", "env": var}
     try:
         status, preview = http_json("POST", f"{origin}/api/v1/mcp/servers/preview", body)
     except (urllib.error.URLError, OSError):
@@ -459,7 +468,7 @@ def do_install(args) -> tuple[int, dict]:
     version = config.get("version")
     if args.from_npm:
         version = NPM_SPEC_RE.match(args.from_npm).group("version")
-    var = env_name_for(key)
+    var = None if credential_free(config) else env_name_for(key)
     root = install_root(args.install_root)
     key_root = root / key
     next_dir = key_root / "next"
@@ -483,7 +492,7 @@ def do_install(args) -> tuple[int, dict]:
     current_js = key_root / "current" / staged_js.relative_to(next_dir)
 
     record = {"key": key, "version": version, "source": _source(server_dir, args.from_npm),
-              "command": "node", "args": [str(current_js)], "envNames": [var],
+              "command": "node", "args": [str(current_js)], "envNames": [var] if var else [],
               "installedAt": _now()}
     code = 0
     try:
