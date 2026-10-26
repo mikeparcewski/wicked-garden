@@ -21,7 +21,7 @@ bound URL for every governed unit). There is no port default: a guessed ``:7701`
 daemon's registry. Neither set exits 2 naming the remedy.
 
 1. **Locate** the server: ``--from-run`` finds the one ``mcp-server.config.json`` under
-   ``$WICKED_TREE`` (else the cwd), outside node_modules/dist; ``--dir`` names it. The key and
+   the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/dist; ``--dir`` names it. The key and
    version come from that config.
 2. **Stage** into ``<root>/<key>/next/`` (root: ``--install-root``, ``$WICKED_MCP_INSTALL_ROOT``,
    else ``~/.wicked/mcp-servers``): ``npm ci --ignore-scripts && npm run build`` in the server
@@ -224,6 +224,14 @@ def find_configs(tree: Path) -> list[Path]:
     return found
 
 
+def run_tree() -> Path:
+    """The run's worktree for ``--from-run``. The engine runs an install Tool phase IN the worktree and hands
+    ``$WICKED_TREE`` as that worktree's git tree id (wicked-core#776), never a path; reading the id as a path found
+    no server config in any real run. A ``$WICKED_TREE`` that names a directory is still honoured, else the cwd."""
+    named = os.environ.get("WICKED_TREE")
+    return Path(named) if named and Path(named).is_dir() else Path.cwd()
+
+
 def locate(args) -> tuple[Path | None, dict]:
     if args.dir is not None:
         config_path = args.dir / CONFIG_NAME
@@ -232,7 +240,7 @@ def locate(args) -> tuple[Path | None, dict]:
                 return None, {}
             raise Failure(2, f"{args.dir} has no {CONFIG_NAME}; scaffold the server first")
     elif args.from_run:
-        tree = Path(os.environ.get("WICKED_TREE") or os.getcwd())
+        tree = run_tree()
         found = find_configs(tree)
         if len(found) != 1:
             names = ", ".join(str(p) for p in found) or "none"
@@ -596,7 +604,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     where = parser.add_mutually_exclusive_group()
     where.add_argument("--from-run", action="store_true",
-                       help=f"find the one {CONFIG_NAME} under $WICKED_TREE (else the cwd)")
+                       help=f"find the one {CONFIG_NAME} in the run's worktree (the cwd, or $WICKED_TREE when it names a directory)")
     where.add_argument("--dir", type=Path, help="the server directory")
     where.add_argument("--uninstall", metavar="KEY", help="unregister and remove an installed server")
     parser.add_argument("--key", help="the server key (must equal the config's key)")

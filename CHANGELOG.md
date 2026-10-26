@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **`install.py --from-run` finds the pack in a real run (editor and MCP).** The engine runs the install-plan and install Tool phases in the run's worktree and sets `WICKED_TREE` to that worktree's git tree id (wicked-core#776), not a path. Both install scripts read it as a directory, found nothing, and every editor-plugin run failed at install-plan with "found 0 (none)", so the install consent gate was never reached. `--from-run` now searches the worktree (the cwd) and uses `WICKED_TREE` only when it names a directory.
+
 ## [12.60.0] — 2026-10-26
 
 ### Fixed

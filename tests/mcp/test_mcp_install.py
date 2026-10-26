@@ -373,6 +373,19 @@ def test_a_key_claimed_while_staging_is_never_overwritten(rig):
     assert [r["method"] for r in daemon.requests] == ["GET", "GET"], "nothing previewed or saved"
 
 
+def test_from_run_finds_the_server_in_the_worktree_when_wicked_tree_is_a_tree_id(rig):
+    # The engine runs the install Tool phase IN the run's worktree (the cwd) and sets WICKED_TREE to that worktree's
+    # git tree id (wicked-core#776), never a path; read as a path, the id found no mcp-server.config.json.
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json",
+                               "--crew-url", daemon.origin], capture_output=True, text=True, timeout=120,
+                              env={**rig.env, "WICKED_TREE": "e7f75f7c794795ef010e7d25dc7070b9e98338c3"},
+                              cwd=rig.tree)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert json.loads(done.stdout.strip().splitlines()[-1])["key"] == "acme-notes"
+
+
 # ── core#820: --target worker|operator and --dry-run; garden#1258: no port default ─────────
 
 def _under(path: str, root: Path) -> bool:

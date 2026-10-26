@@ -203,8 +203,8 @@ wicked-garden run scripts/mcp/install.py --uninstall <key> [--target worker|oper
 Installs the built TypeScript server — or updates the installed copy — idempotent by the
 config's `key`:
 
-1. **Locate**: `--from-run` finds the one `mcp-server.config.json` under `$WICKED_TREE`
-   (else the cwd), outside `node_modules`/`dist`; more or fewer than one exits 2 naming the
+1. **Locate**: `--from-run` finds the one `mcp-server.config.json` in the run's worktree (the
+   cwd; `$WICKED_TREE` is the worktree's tree id, used only when it names a directory), outside `node_modules`/`dist`; more or fewer than one exits 2 naming the
    candidates. `--dir` names it. The version is the config's `version`.
 2. **Stage**: `npm ci --ignore-scripts && npm run build` in the server dir, then `dist/`,
    `package.json`, `package-lock.json`, `tools.json` and `mcp-server.config.json` are copied
