@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.60.0] — 2026-10-26
+
 ### Fixed
 - **Per-turn hooks stop injecting on prompts they don't fit (#1333).** The prompt and Stop hooks run on every turn, on every seat that loads garden. An injection that misfires costs context and teaches agents to skim past reminders.
   - **Context Assembly is decided per prompt.** The session intent is sticky, so once a session's first prompt read as research, every later prompt got the directive, including "agree", "still waiting" and "how is it going?". It now fires only when the prompt itself names code, files, symbols, repos or past decisions AND has more than 12 words or asks a question. Acknowledgements (including short ones such as "yes, sounds good to me"), status checks and one- or two-word replies get nothing, even when they name a file or symbol ("how is repo_checks.rs going?"). The directive no longer names the estate MCP `SearchEntity` tool (no estate MCP is registered on a seat). It points at the mem and search skills and the read-only shim instead.
@@ -1210,7 +1212,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.59.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.60.0...HEAD
+[12.60.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.59.0...v12.60.0
 [12.59.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.58.0...v12.59.0
 [12.58.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.57.0...v12.58.0
 [12.57.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.56.0...v12.57.0
