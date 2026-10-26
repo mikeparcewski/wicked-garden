@@ -381,13 +381,25 @@ def memory_directive_target() -> str:
     return "the wicked-garden-mem skill (store action)"
 
 
+#: garden#1333: the exact one-line memory command an agent seat can run. A seat
+#: is read-only (the mem skill refuses `store` under --readonly), so the path
+#: that works everywhere is a pending memory proposal an operator approves.
+MEMORY_PROPOSE_COMMAND = (
+    "wicked-garden run scripts/mem/estate_memory.py --readonly propose "
+    "'<the rule, why it holds, when it applies>'"
+)
+
+
 def grounding_directive_lines() -> List[str]:
     """Numbered grounding steps for the Context Assembly directive."""
+    # No estate MCP is registered on a seat (by design): every pointer here is
+    # a skill or the read-only shim, never an MCP tool name (garden#1333).
     return [
-        "1. Ground in the knowledge layer via the wicked-garden-mem skill "
-        "(recall/answer over wicked-estate knowledge + memory) — concepts, "
-        "files, and past decisions, with source attribution; use the estate "
-        "MCP SearchEntity tool for symbol lookup.",
+        "1. Recall what is already known: the wicked-garden-mem skill "
+        "(`recall` / `answer`) for past decisions, the wicked-garden-search "
+        "skill for symbols and blast radius (or the read-only shim: "
+        "`wicked-garden run scripts/_estate_client.py --readonly search "
+        "'{\"name\":\"<symbol>\"}'`).",
         "2. Open the cited sources with Read before answering; do not answer "
         "from recall snippets alone.",
     ]

@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Per-turn hooks stop injecting on prompts they don't fit (#1333).** The prompt and Stop hooks run on every turn, on every seat that loads garden. An injection that misfires costs context and teaches agents to skim past reminders.
+  - **Context Assembly is decided per prompt.** The session intent is sticky, so once a session's first prompt read as research, every later prompt got the directive, including "agree", "still waiting" and "how is it going?". It now fires only when the prompt itself names code, files, symbols, repos or past decisions AND has more than 12 words or asks a question. Acknowledgements, status checks and short replies get nothing. The directive no longer names the estate MCP `SearchEntity` tool (no estate MCP is registered on a seat). It points at the mem and search skills and the read-only shim instead.
+  - **Output Governance runs once per session and does the work itself.** The per-turn line ("If the estate MCP is connected: call `rules.recall`…") could never run. The first Stop of a session now calls `rules.recall {"rule_type":"policy"}` through the read-only shim. When the store holds policy rules, the hook names the count and the top three once, with the command that lists them all. Zero rules, an unreachable estate or an error: silent. `WG_OUTGOV=off` still opts out.
+  - **No `classify-due` nag.** When the regex router falls through, the hook emits nothing. A medium-confidence regex match (one keyword, such as "outage" in a status question) emits nothing either. Only a high-confidence match (≥ 0.7) tags the turn.
+  - **`prove:` lines ride only a confident archetype** (score ≥ 0.7, from the regex or from a persisted model classification), never a fall-through.
+- **The agent memory path is one line (#1333).**
+  - `_estate_client.py <action> -` reads its JSON from stdin. It used to parse `-` as a literal string, so `propose -` failed with a generic shape error.
+  - `propose` errors name the exact field: `missing kind_type`, `payload must be an object, got str`, `json-args is not valid JSON`; a missing `facets.project` is still reported by name.
+  - New `wicked-garden-mem` action `propose`: `wicked-garden run scripts/mem/estate_memory.py --readonly propose '<text>'` (or `propose -` with text or JSON on stdin) builds the envelope itself: `kind_type: memory`, `payload {content, tier}`, `facets {repo, project}` from the cwd's checkout. It applies the same durability refusals as `store`. It is the write a read-only seat still has, and the memory lands pending until an operator approves it.
+  - The hook that blocks writes to `MEMORY.md` and the native memory directory now prints that exact command.
+
+
 ## [12.59.0] — 2026-10-25
 
 ### Added

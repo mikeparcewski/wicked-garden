@@ -50,8 +50,9 @@ A human operator at a terminal may omit it to `store` / `ingest` / `forget`. The
 read-only with the store pinned from
 the environment (`WICKED_ESTATE_DB` / `WICKED_HOME` / `WICKED_MEMORY_DB`) or `--db <path>`; an
 unpinned store is refused (`ok: false`), and `store` / `capture-batch` / `ingest` / `write` /
-`forget` are refused by the read-only engine — capture learnings as proposals instead (the
-`wicked-garden-repo-learn` skill's capture contract). `recall` / `review` / `sources` / `health`
+`forget` are refused by the read-only engine — save a learning with `propose` instead
+(§ Propose: one line, the backend builds the proposal), or file knowledge/policy proposals
+through the `wicked-garden-repo-learn` skill's capture contract. `recall` / `review` / `sources` / `health`
 work unchanged. Spell `--readonly` exactly (`--read-only` is a usage error). This is the one way
 to the stores on every seat and in every session kind: no estate tool is registered on a seat,
 nothing to connect, nothing to fall back to.
@@ -66,6 +67,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | Action | Use for | How |
 |--------|---------|-----|
 | `store` | persist one learning (decision, pattern, gotcha, discovery) | § Store |
+| `propose` | save one learning from a read-only seat (lands pending for operator approval) | § Propose |
 | `recall` | find memories ("what do we know about X") | § Recall |
 | `answer` | grounded, cited answer from the stores | the `wicked-garden-search` skill's `refs/answer.md` |
 | `review` | browse what's stored (counts by kind/tier, scope digest) | § Review / Maintain |
@@ -110,6 +112,22 @@ A chat seat asked by wicked-crew to label the operator's decisions reads
    (see refs/scopes.md).
 4. Confirm the returned `memory_id`; on `ok: false` report the degrade — do
    not silently drop the learning.
+
+## Propose — the one-line memory path on a seat
+
+A seat is read-only, so `store` is refused there. `propose` is the write it still has:
+
+```bash
+wicked-garden run scripts/mem/estate_memory.py --readonly propose '<the rule, why it holds, when it applies>'
+printf '%s' '<long text>' | wicked-garden run scripts/mem/estate_memory.py --readonly propose -
+```
+
+The backend builds the whole proposal: `kind_type: "memory"`, `payload {content, tier}`
+(`fact` → `semantic`; pass `{"content": …, "kind": "skill"}` for a how-to → `procedural`),
+and `facets` `{repo, project}` from the cwd's checkout (`project` = the cwd name outside one;
+a run's `WICKED_RUN_PROJECT` wins). The § Store durability test applies and the backend
+enforces the same refusals. It answers `{"ok": true, "id": …, "facets": …}`; the memory is
+`pending` until an operator approves it. On `ok: false`, report the reason.
 
 ## Recall
 

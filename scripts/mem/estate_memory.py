@@ -76,6 +76,7 @@ Usage
 -----
   python3 scripts/mem/estate_memory.py [--readonly] [--governed] [--db <path>] <action> '<json-args>'
   printf '%s' '<json-args>' | python3 scripts/mem/estate_memory.py <action> -
+  python3 scripts/mem/estate_memory.py --readonly propose '<memory text>'   # garden#1333
 """
 
 import json
@@ -106,7 +107,7 @@ KIND_DEFAULT_TIER = {
 
 _USAGE = (
     "usage: estate_memory.py [--readonly] [--governed] [--db <path>] "
-    "<store|recall|review|forget|maintain|capture-batch|ingest|write|sources|health> "
+    "<store|propose|recall|review|forget|maintain|capture-batch|ingest|write|sources|health> "
     "['<json-args>' | -]"
 )
 
@@ -297,6 +298,66 @@ def do_store(args):
     warnings = durability_warnings(args.get("content"))
     if warnings:
         out["warnings"] = warnings
+    _emit(out)
+    return 0
+
+
+def _propose_facets():
+    """``facets`` for a memory proposal: ``{repo, project}`` from the enclosing
+    checkout (the same facets recall admits against), else ``project`` = the
+    cwd's directory name. A run's `WICKED_RUN_PROJECT` overrides ``project``
+    (the shim's `propose` applies it)."""
+    facets = dict(_default_intent())
+    if not facets.get("project"):
+        try:
+            facets["project"] = Path.cwd().name or "unknown"
+        except OSError:
+            facets["project"] = "unknown"
+    return facets
+
+
+def do_propose(args):
+    """garden#1333 — the one-line memory path for an agent seat.
+
+    ``propose '<text>'`` (or ``propose -`` with the text or a JSON object on
+    stdin) builds the whole ``proposal.submit`` envelope itself: ``kind_type:
+    memory``, ``payload {content, tier}``, ``facets.project`` (+ ``repo``) from
+    the cwd. It is the write a ``--readonly`` seat still has: the memory lands
+    ``pending`` until an operator approves it. JSON args may set ``content``
+    (or ``text``), ``kind`` (fact → semantic, skill → procedural), ``tier``,
+    ``about`` and ``facets`` (merged over the derived ones).
+    """
+    content = (args.get("content") or args.get("text") or args.get("_") or "").strip()
+    if not content:
+        return _fail_open('nothing to propose: pass the memory text, e.g. propose '
+                          '"<rule, why it holds, when it applies>"')
+    if args.get("source"):
+        return _fail_open("acquired from a source, so it is knowledge, not memory: use the "
+                          "`write` action or a knowledge proposal")
+    rejects = durability_rejects(content)
+    if rejects:
+        return _fail_open("not a durable learning (" + "; ".join(rejects) + "): state the rule, "
+                          "why it holds and when it applies")
+    kind = args.get("kind") or "fact"
+    if kind not in KINDS:
+        return _fail_open(f"unknown kind: {kind} (valid: {', '.join(KINDS)})")
+    tier = args.get("tier") or KIND_DEFAULT_TIER[kind]
+    if tier not in TIERS:
+        return _fail_open(f"unknown tier: {tier} (valid: {', '.join(TIERS)})")
+    payload = {"content": content, "tier": tier}
+    about = args.get("about")
+    if isinstance(about, list) and about:
+        payload["about"] = [str(a) for a in about]
+    facets = _propose_facets()
+    extra = args.get("facets")
+    if isinstance(extra, dict):
+        facets.update({k: v for k, v in extra.items() if isinstance(v, str) and v.strip()})
+    out = _estate_client.propose("memory", payload, facets)
+    if out.get("ok"):
+        out["facets"] = facets
+        warnings = durability_warnings(content)
+        if warnings:
+            out["warnings"] = warnings
     _emit(out)
     return 0
 
@@ -497,6 +558,7 @@ def do_health(_args):
 
 _ACTIONS = {
     "store": do_store,
+    "propose": do_propose,
     "recall": do_recall,
     "review": do_review,
     "forget": do_forget,
@@ -529,6 +591,8 @@ def main(argv):
         raw = sys.stdin.read()
     try:
         args = json.loads(raw) if raw.strip() else {}
+        if isinstance(args, str):
+            args = {"_": args}  # a JSON string is the primary string arg too
     except json.JSONDecodeError:
         # Convenience: a bare positional is the primary string arg.
         args = {"_": raw}

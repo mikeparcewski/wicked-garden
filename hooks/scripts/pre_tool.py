@@ -280,17 +280,19 @@ def _handle_write_guard(tool_input: dict) -> str:
     is_auto_memory = _AUTO_MEMORY_MARKER in file_path and "/memory/" in file_path
 
     if is_memory_md or is_auto_memory:
-        # Name the memory surface (estate memory.capture). Fail-open to the
-        # same wording.
+        # garden#1333: hand over the exact one-line command, not a skill name
+        # the agent then has to route through (and that refuses `store` on a
+        # read-only seat). Fail-open to the same literal command.
         try:
-            from _context_backend import memory_directive_target
-            _mem_target = memory_directive_target()
+            from _context_backend import MEMORY_PROPOSE_COMMAND as _mem_cmd
         except Exception:
-            _mem_target = "the wicked-garden-mem skill (store action)"
+            _mem_cmd = ("wicked-garden run scripts/mem/estate_memory.py --readonly propose "
+                        "'<the rule, why it holds, when it applies>'")
         return _deny(
-            "Do not write to MEMORY.md or the auto memory directory. "
-            "This project uses wicked-garden memory for persistence. "
-            f"Use {_mem_target} to save decisions, patterns, and gotchas instead."
+            "Do not write to MEMORY.md or the auto memory directory; this project keeps "
+            "memory in wicked-estate. Save the learning with one command instead "
+            "(it files a memory proposal for this project; pipe longer text with `propose -`):\n"
+            f"{_mem_cmd}"
         )
 
     # Issue #442: challenge-artifacts gate for build-phase writes

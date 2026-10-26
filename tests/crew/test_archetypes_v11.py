@@ -262,15 +262,18 @@ class TestArchetypeProveHints(unittest.TestCase):
     steering)."""
 
     def test_build_directive_includes_prove_hint(self):
-        # "add a CSV export" routes to the build archetype; whether the regex
-        # emits the single <wg archetype/> tag or the multi-archetype shape
-        # card, the build produces-gate prove hint must be appended.
-        directive = ps._build_archetype_directive("add a CSV export", "feature")
+        # A high-confidence build route carries the build produces-gate hint.
+        directive = ps._build_archetype_directive("add a CSV export feature", "feature")
         self.assertIsNotNone(directive)
         self.assertIn("build", directive)
         self.assertIn("prove: scripts/qe/prove.py tests-pass", directive)
         self.assertIn("--scope build", directive)
         self.assertIn("--phase review", directive)
+
+    def test_medium_confidence_regex_route_is_silent(self):
+        # garden#1333: "add a CSV export" scores build at 0.55 (one keyword).
+        # A medium regex hit neither tags the turn nor emits a prove line.
+        self.assertIsNone(ps._build_archetype_directive("add a CSV export", "feature"))
 
     def test_build_single_high_confidence_directive_includes_prove_hint(self):
         # A more explicit build prompt scores high enough for the single tag.
@@ -280,7 +283,7 @@ class TestArchetypeProveHints(unittest.TestCase):
 
     def test_build_prove_hint_is_soft_gate(self):
         # build is a discrete (soft) gate — no independent attestation.
-        directive = ps._build_archetype_directive("implement a search box", "feature")
+        directive = ps._build_archetype_directive("implement a search box feature", "feature")
         self.assertIn("prove:", directive)
         self.assertNotIn("--with-attestations", directive)
 

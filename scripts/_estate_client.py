@@ -1366,6 +1366,32 @@ _USAGE = (
 )
 
 
+def _propose_arg_problems(args: dict) -> list:
+    """Every field `propose` is missing or has the wrong type, named exactly.
+
+    garden#1333: one generic "requires {kind_type…}" error hid which field was
+    wrong (and was also what `-` produced before stdin was read).
+    """
+    if set(args) == {"_"}:
+        return ["json-args is not valid JSON (pass one JSON object, or `-` and pipe it on stdin)"]
+    problems = []
+    kind_type = args.get("kind_type")
+    if not isinstance(kind_type, str) or not kind_type.strip():
+        problems.append("missing kind_type" if kind_type is None
+                        else "kind_type must be a non-empty string")
+    payload = args.get("payload")
+    if payload is None:
+        problems.append("missing payload")
+    elif not isinstance(payload, dict):
+        problems.append(f"payload must be an object, got {type(payload).__name__}")
+    facets = args.get("facets")
+    if facets is not None and not isinstance(facets, dict):
+        problems.append(f"facets must be an object, got {type(facets).__name__}")
+    # A missing facets.project is named by propose() itself ({"ok": false,
+    # "code": -32602, "reason": "proposal needs facets.project …"}).
+    return problems
+
+
 def _emit(obj: Any) -> None:
     # A relayed call that came back empty says why (the broker's reason and remedy), additively:
     # the fail-open empty value is unchanged.
@@ -1398,11 +1424,19 @@ def main(argv: list) -> int:
         _emit({"ok": False, "reason": refusal, "governed": True})
         return 0
     raw = argv[1] if len(argv) > 1 else "{}"
+    if raw == "-":
+        # `-` reads the json-args from stdin (garden#1333: long or quote-heavy
+        # JSON never fights shell quoting). It used to be parsed as the literal
+        # string "-", so `propose -` failed with a misleading shape error.
+        raw = sys.stdin.read()
     try:
-        args = json.loads(raw) if raw else {}
+        args = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
         # Convenience: a bare positional is treated as the primary string arg.
         args = {"_": raw}
+    if not isinstance(args, dict):
+        _emit({"error": f"json-args must be a JSON object, got {type(args).__name__}; {_USAGE}"})
+        return 1
 
     if action == "health":
         _emit({"reachable": health()})
@@ -1440,12 +1474,16 @@ def main(argv: list) -> int:
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":
-        kind_type = args.get("kind_type")
-        payload = args.get("payload")
-        if not isinstance(kind_type, str) or not kind_type or not isinstance(payload, dict):
-            _emit({"error": 'propose requires {"kind_type": "memory"|"policy:<type>", '
-                            '"payload": {...}, "facets": {...}?} — never "provenance"'})
+        problems = _propose_arg_problems(args)
+        if problems:
+            _emit({"error": "propose: " + "; ".join(problems) + ' (shape: {"kind_type": '
+                            '"memory"|"knowledge"|"policy:<type>", "payload": {...}, '
+                            '"facets": {"project": "<name>", ...}} — never "provenance"; '
+                            "for a plain memory use `wicked-garden run scripts/mem/"
+                            "estate_memory.py --readonly propose '<text>'`)"})
             return 1
+        kind_type = args["kind_type"]
+        payload = args["payload"]
         # `provenance` is deliberately not forwarded (server-stamped from WICKED_RUN_*).
         _emit(propose(kind_type, payload, args.get("facets")))
     else:

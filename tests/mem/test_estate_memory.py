@@ -408,3 +408,81 @@ def test_backend_in_a_pinned_governed_run_proceeds_read_only(monkeypatch, capsys
     out = json.loads(capsys.readouterr().out.strip())
     assert code == 0 and out["items"] == [{"content": "hit"}]
     assert _estate_client.read_only() is True and _estate_client.governed_refusal() is None
+
+
+# ── garden#1333: the one-line `propose` memory path ──────────────────────────
+
+def _propose_capture(monkeypatch):
+    seen: list = []
+
+    def fake_propose(kind_type, payload, facets=None, timeout=8.0):
+        seen.append({"kind_type": kind_type, "payload": payload, "facets": facets})
+        return {"ok": True, "id": "prop-9"}
+
+    monkeypatch.setattr(estate_memory._estate_client, "propose", fake_propose)
+    return seen
+
+
+_RULE = "Hooks fail open because a broken router must never block a user's prompt."
+
+
+def test_propose_builds_the_memory_envelope_from_bare_text(monkeypatch, capsys, tmp_path):
+    root = tmp_path / "wicked" / "wicked-garden"
+    (root / ".git").mkdir(parents=True)
+    monkeypatch.chdir(root)
+    monkeypatch.delenv("WICKED_RUN_PROJECT", raising=False)
+    seen = _propose_capture(monkeypatch)
+    code = estate_memory.main(["--readonly", "propose", _RULE])
+    out = json.loads(capsys.readouterr().out.strip())
+    assert code == 0 and out["ok"] is True and out["id"] == "prop-9"
+    assert seen == [{"kind_type": "memory",
+                     "payload": {"content": _RULE, "tier": "semantic"},
+                     "facets": {"repo": "wicked-garden", "project": "wicked"}}]
+
+
+def test_propose_outside_a_checkout_uses_the_cwd_as_project(monkeypatch, capsys, tmp_path):
+    work = tmp_path / "program-x"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    monkeypatch.delenv("WICKED_RUN_PROJECT", raising=False)
+    monkeypatch.setattr(estate_memory._estate_client, "checkout_root", lambda: None)
+    seen = _propose_capture(monkeypatch)
+    assert estate_memory.main(["propose", _RULE]) == 0
+    assert seen[0]["facets"] == {"project": "program-x"}
+
+
+def test_propose_reads_plain_text_from_stdin(monkeypatch, capsys, tmp_path):
+    import io
+    monkeypatch.chdir(tmp_path)
+    seen = _propose_capture(monkeypatch)
+    monkeypatch.setattr(sys, "stdin", io.StringIO(_RULE + "\n"))
+    assert estate_memory.main(["--readonly", "propose", "-"]) == 0
+    assert seen[0]["payload"]["content"] == _RULE
+
+
+def test_propose_reads_a_json_object_from_stdin(monkeypatch, capsys, tmp_path):
+    import io
+    monkeypatch.chdir(tmp_path)
+    seen = _propose_capture(monkeypatch)
+    body = {"content": "Run the hook tests in an isolated HOME because the setup gate "
+                       "reads the operator's config.", "kind": "skill", "about": ["hooks"]}
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(body)))
+    assert estate_memory.main(["propose", "-"]) == 0
+    assert seen[0]["payload"] == {"content": body["content"], "tier": "procedural",
+                                  "about": ["hooks"]}
+
+
+def test_propose_applies_the_durability_gate(monkeypatch, capsys):
+    seen = _propose_capture(monkeypatch)
+    assert estate_memory.main(["propose", "shipped 2.4.1"]) == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is False and "not a durable learning" in out["reason"]
+    assert seen == []
+
+
+def test_propose_with_nothing_names_what_is_missing(monkeypatch, capsys):
+    seen = _propose_capture(monkeypatch)
+    assert estate_memory.main(["propose"]) == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is False and "nothing to propose" in out["reason"]
+    assert seen == []
