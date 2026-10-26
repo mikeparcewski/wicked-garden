@@ -47,7 +47,9 @@ which files it under the run's project. With neither, a run refuses it with `{"o
 "reason": …}` — report it, do not guess a store. The shim answers `{"ok": true, "id": "<proposal-id>"}` or `{"ok": false,
 "reason": …, "code": <json-rpc code or null>}`: `-32602` is a *your-args* bug (fix the
 shape), `null` means the estate was unreachable (keep the objects — next section). Pass
-the JSON as ONE quoted argument, even when it is long: `propose` does not read stdin. A
+the JSON as ONE quoted argument, or pass `-` and pipe it on stdin (`printf '%s' '<json>' |
+… propose -`). A plain memory needs no envelope at all: `wicked-garden run
+scripts/mem/estate_memory.py --readonly propose '<text>'` builds it. A
 `provenance` key is dropped.
 
 ### When `propose` fails in a governed run — no file fallback

@@ -406,6 +406,9 @@ def test_grounding_lines_are_estate_worded():
     lines = cb.grounding_directive_lines()
     assert any("wicked-garden-mem" in line for line in lines)
     assert not any("wicked-brain" in line for line in lines)
+    # garden#1333: no estate MCP is registered on a seat; never name one.
+    assert not any("SearchEntity" in line or "MCP" in line for line in lines)
+    assert any("_estate_client.py --readonly" in line for line in lines)
 
 
 def test_estate_dependency_missing_binary(monkeypatch):

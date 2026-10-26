@@ -7,9 +7,9 @@ description: |
   reversibility, etc.), and persists to SessionState so subsequent turns
   steer correctly.
 
-  Use when: the prompt_submit hook emitted a `<wg classify-due />` directive,
-  OR explicitly invoked at session start, OR when re-classifying after the
-  user changes scope mid-session.
+  Use when: explicitly invoked at session start, when the work shape is
+  unclear and matters, OR when re-classifying after the user changes scope
+  mid-session.
 metadata:
   role: worker
 ---
@@ -49,8 +49,11 @@ When a routing or decision call is genuinely hard, ambiguous, or high-stakes,
 garden tools for additional processing. The council is the *escalation*, not a
 per-prompt router — convening 20 CLIs on every prompt would be absurd cost.
 
-- **Fast path (always on)** — the `prompt_submit` hook emits `<wg classify-due />`,
-  you classify + persist here, the parent turn steers on the persisted archetype.
+- **Fast path (on demand)** — you invoke this skill when the work shape matters,
+  classify + persist here, and the parent turn steers on the persisted archetype.
+  (The `prompt_submit` hook no longer emits `<wg classify-due />` when its regex
+  falls through: that nag fired on ordinary questions, garden#1333. It stays
+  silent unless the regex is confident.)
 - **Escalation (on demand)** — `wicked-garden-jam council <question> --options "…"`.
 
 ## What the catalog declares

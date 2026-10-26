@@ -997,9 +997,53 @@ def test_main_propose_action_drops_provenance(capsys):
     assert _estate_client.read_only() is True
 
 
-def test_main_propose_requires_kind_type_and_object_payload(capsys):
+def test_main_propose_names_the_wrong_field(capsys):
+    """garden#1333: the error names exactly which field is missing or mistyped."""
     code, out = _main(capsys, ["propose", json.dumps({"kind_type": "memory", "payload": "str"})])
-    assert code == 1 and "propose requires" in out["error"]
+    assert code == 1 and "payload must be an object, got str" in out["error"]
+    assert "kind_type" not in out["error"].split("(shape:")[0]
+    code, out = _main(capsys, ["propose", json.dumps({"payload": {"content": "c"}})])
+    assert code == 1 and "missing kind_type" in out["error"]
+    assert "payload" not in out["error"].split("(shape:")[0]
+    code, out = _main(capsys, ["propose", "not json"])
+    assert code == 1 and "not valid JSON" in out["error"]
+
+
+def test_main_propose_missing_project_is_named(monkeypatch, capsys):
+    monkeypatch.delenv(_estate_client.RUN_PROJECT_ENV, raising=False)
+    code, out = _main(capsys, ["propose", json.dumps(
+        {"kind_type": "memory", "payload": {"content": "c"}})])
+    assert code == 0 and out["ok"] is False and out["code"] == -32602
+    assert "facets.project" in out["reason"]
+
+
+def test_main_propose_reads_json_from_stdin(monkeypatch, capsys):
+    """garden#1333: `propose -` reads the JSON from stdin, exactly like the argument form."""
+    import io
+    seen: list = []
+    _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"id": "prop-3"})))
+    body = {"kind_type": "memory", "payload": {"content": "it's \"quoted\"", "tier": "semantic"},
+            "facets": {"project": "wicked"}}
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(body)))
+    code, out = _main(capsys, ["--readonly", "propose", "-"])
+    assert code == 0 and out == {"ok": True, "id": "prop-3"}
+    assert seen[0]["arguments"]["payload"] == body["payload"]
+    assert seen[0]["arguments"]["facets"] == {"project": "wicked"}
+
+
+def test_main_call_reads_json_from_stdin(monkeypatch, capsys):
+    import io
+    seen: list = []
+    _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"total": 0, "rules": []})))
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(
+        {"tool": "rules.recall", "arguments": {"rule_type": "policy"}, "all_pages": False})))
+    code, out = _main(capsys, ["--readonly", "call", "-"])
+    assert code == 0 and seen[0]["name"] == "rules.recall"
+
+
+def test_main_rejects_non_object_json_args(capsys):
+    code, out = _main(capsys, ["propose", "[1, 2]"])
+    assert code == 1 and "must be a JSON object" in out["error"]
 
 
 def test_main_governed_refusal_is_a_clear_degrade_not_a_crash(monkeypatch, tmp_path, capsys):

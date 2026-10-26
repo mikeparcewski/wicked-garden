@@ -57,27 +57,106 @@ def _session_dir(subdir: str) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Output governance — per-turn policy compliance advisory (garden#984, AW-16)
+# Output governance — once-per-session rules audit (garden#984, AW-16, #1333)
 # ---------------------------------------------------------------------------
 #
-# When WG_OUTGOV=warn|strict, returns a systemMessage asking Claude to recall
-# applicable conformance rules from the estate graph via `rules.recall` — THE
-# single per-turn rule source (arch-R14) — and evaluate this turn's output.
+# The per-turn line ("If the estate MCP is connected: call rules.recall…") is
+# gone: no estate MCP is registered on a seat by design, so it was an
+# instruction that could never run, repeated every turn (garden#1333). In its
+# place, the FIRST Stop of a session runs `rules.recall` itself through the
+# read-only shim (the one way to estate on every seat) and, only when the store
+# holds policy rules, names them once with the command that lists them all.
+# Zero rules, an unreachable estate, or any error: silent.
 #
-# Default is `warn` (default-on advisory, AW-16 after the AW-13 seed corpus).
-# Set WG_OUTGOV=off to opt a repo out (P-5 per-repo noise-budget escape hatch;
-# see docs/outgov-per-turn.md). Any unrecognized value is treated as off.
-#
-# Two-tier doctrine (TARGET-ARCHITECTURE contract 3): this hook is fail-open
-# ADVISORY — it never blocks, even at `strict` (strict only strengthens the
-# wording). Fail-closed enforcement lives in the crew/core gates, never here.
+# WG_OUTGOV=warn (default) | strict | off (per-repo opt-out, P-5). Any
+# unrecognized value is treated as off. Two-tier doctrine (TARGET-ARCHITECTURE
+# contract 3): fail-open ADVISORY at every mode; `strict` only strengthens the
+# wording. Fail-closed enforcement lives in the crew/core gates, never here.
 
-def _check_outgov_compliance(_input_data: dict) -> list:
-    """Per-turn policy compliance advisory unless WG_OUTGOV is off."""
+_OUTGOV_RULES_ARGS = {"rule_type": "policy", "limit": 5}
+_OUTGOV_LIST_CMD = (
+    "wicked-garden run scripts/_estate_client.py --readonly call "
+    '\'{"tool":"rules.recall","arguments":{"rule_type":"policy"}}\''
+)
+
+
+def _recall_policy_rules(timeout: float = 15.0) -> Optional[dict]:
+    """`rules.recall {"rule_type":"policy"}` through the read-only shim.
+
+    Returns the tool's result (`{"rules": [...], "total": N, ...}`) or None on
+    any failure (shim missing, estate unreachable, timeout, bad JSON).
+    """
+    try:
+        import subprocess
+        shim = _PLUGIN_ROOT / "scripts" / "_estate_client.py"
+        if not shim.is_file():
+            return None
+        req = json.dumps({"tool": "rules.recall", "arguments": _OUTGOV_RULES_ARGS,
+                          "all_pages": False})
+        proc = subprocess.run(
+            [sys.executable, str(shim), "--readonly", "call", req],
+            capture_output=True, text=True, timeout=timeout,
+        )
+        if proc.returncode != 0:
+            return None
+        out = json.loads((proc.stdout or "").strip().splitlines()[-1])
+        result = out.get("result") if isinstance(out, dict) else None
+        return result if isinstance(result, dict) else None
+    except Exception:
+        return None
+
+
+def _claim_outgov_audit(input_data: dict) -> bool:
+    """Atomically claim this session's one audit. True exactly once per session.
+
+    An O_EXCL marker file, not a SessionState flag: Stop runs async, and a
+    prompt hook that loaded the state before Stop saved the flag would write
+    the old value back on its own save, re-arming the audit. Two concurrent
+    Stops can't both create the file either.
+    """
+    raw = str(input_data.get("session_id") or os.environ.get("CLAUDE_SESSION_ID") or "default")
+    sid = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw)[:128] or "default"
+    marker_dir = Path(os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()) / "wicked-garden-outgov"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(marker_dir / f"{sid}.audited"), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    os.close(fd)
+    return True
+
+
+def _check_outgov_compliance(input_data: dict, recall=None, claim=None) -> list:
+    """Once-per-session policy-rules audit unless WG_OUTGOV is off.
+
+    `recall` / `claim` are test seams (default: the shim, the marker file).
+    """
     try:
         mode = os.environ.get("WG_OUTGOV", "warn").strip().lower()
         if mode not in ("warn", "strict"):
             return []
+        if os.environ.get("WICKED_CONTEXT_BACKEND", "").strip().lower() == "off":
+            return []  # operator turned estate-backed context off: designed silence
+        # Claim BEFORE the call: a slow or failing estate costs one attempt per
+        # session, never one per turn.
+        if not (claim or _claim_outgov_audit)(input_data or {}):
+            return []
+        result = (recall or _recall_policy_rules)()
+        if not isinstance(result, dict):
+            return []
+        rules = [r for r in (result.get("rules") or []) if isinstance(r, dict)]
+        try:
+            total = int(result.get("total") or len(rules))
+        except (TypeError, ValueError):
+            total = len(rules)
+        if total <= 0 or not rules:
+            return []
+        shown = []
+        for r in rules[:3]:
+            statement = " ".join(str(r.get("statement") or "").split())
+            if len(statement) > 100:
+                statement = statement[:97] + "..."
+            shown.append(f"{r.get('id') or '?'} ({r.get('severity') or '?'}): {statement}")
         deny_hint = (
             " For CRITICAL severity violations: stop and explain the policy conflict "
             "before writing or executing the action that would worsen it."
@@ -85,13 +164,10 @@ def _check_outgov_compliance(_input_data: dict) -> list:
             else ""
         )
         return [
-            "[Output Governance] Evaluate this turn's output against applicable conformance rules. "
-            "If the estate MCP is connected: call the `rules.recall` tool with "
-            '{"rule_type": "policy"} — the single per-turn rule source (severity-ordered, '
-            "graph-backed; add language/layer facets if the turn is scoped) — identify applicable "
-            "rules, and report any violations with rule ID, severity, and a brief explanation. "
-            "This is advisory only. "
-            "If estate or `rules.recall` is unavailable: skip silently." + deny_hint
+            f"[Output Governance] {total} policy rule(s) apply in this store; check "
+            "this session's changes against them (advisory). Top: "
+            + "; ".join(shown)
+            + f". Full list: {_OUTGOV_LIST_CMD}" + deny_hint
         ]
     except Exception:
         return []

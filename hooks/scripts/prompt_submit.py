@@ -185,51 +185,73 @@ def _with_prove_hints(directive: str, archetypes: list[str]) -> str:
         return directive
 
 
+# garden#1333: a `prove:` line is steering the agent acts on at the gate
+# phase, so it rides only a confident classification. Mirrors
+# archetypes_v11.HIGH_CONFIDENCE (kept literal so the hook needs no import
+# to decide; tests lock the two together).
+_PROVE_MIN_SCORE = 0.7
+
+
 def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | None:
     """v11 — emit a slim work-shape archetype steering directive.
 
     Two-tier classification:
 
-    1. **Persisted (LLM)**: when SessionState carries a recent
-       `classified_at` + `archetypes_v11`, prefer that — the model
-       already classified through the wicked-garden-classify skill.
-    2. **Fallback (regex)**: when no persisted classification exists,
-       run archetypes_v11.detect_archetypes() against the prompt
-       directly. If the prompt is non-trivial (intent != simple-edit)
-       AND the regex result is weak (only triage matched), emit a
-       directive asking the model to invoke the classify skill —
-       LLM reasoning beats regex on ambiguous prompts.
+    1. **Persisted (LLM)**: when SessionState carries `archetypes_v11` (the
+       model classified through the wicked-garden-classify skill), emit its
+       tag / shape card.
+    2. **Fallback (regex)**: archetypes_v11.detect_archetypes() on the
+       prompt. Emits only a HIGH-confidence match; a fall-through (only
+       triage) or a medium keyword hit emits nothing (garden#1333: the
+       fall-through used to ask for a model classification on every
+       ordinary question, and medium hits misrouted status questions).
 
-    Skips emission when intent is 'simple-edit' (silence is the signal).
-    Fail-open on any error.
+    Both tiers emit only archetypes scored >= _PROVE_MIN_SCORE, so a
+    `prove:` line never rides a low-confidence route; the persisted tier
+    is echoed once per classification.
+    Silent on simple-edit sessions and on chatter (acknowledgements, status
+    checks, short replies). Fail-open on any error.
     """
     if not prompt or not prompt.strip():
         return None
     if intent == "simple-edit":
         return None
+    try:
+        if _is_chatter(prompt):
+            return None
+    except Exception:
+        return None
 
     # Tier 1: persisted classification from the classify skill
     persisted = (getattr(state, "archetypes_v11", None) or []) if state else []
     if persisted:
-        # Filter triage out unless sole match; emit shape-card from persisted.
-        real = [a for a in persisted if a.get("name") != "triage"]
+        # The model classified this itself (wicked-garden-classify). Echo it
+        # back once per classification, and only its confident archetypes:
+        # repeating it on every later turn added nothing (garden#1333).
+        real = [a for a in persisted
+                if a.get("name") != "triage"
+                and float(a.get("score", 0)) >= _PROVE_MIN_SCORE][:3]
         if not real:
             return None
-        if len(real) == 1 and float(real[0].get("score", 0)) >= 0.7:
+        key = f"{getattr(state, 'classified_at', None)}|" + json.dumps(real, sort_keys=True)
+        if getattr(state, "archetype_echoed", None) == key:
+            return None
+        try:
+            state.update(archetype_echoed=key)
+        except Exception:
+            pass
+        if len(real) == 1:
             n = real[0]["name"]
             s = float(real[0]["score"])
             base = f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"llm\" />"
             return _with_prove_hints(base, [n])
-        shape_lines = [
-            f"  - {a['name']} ({float(a.get('score', 0)):.2f})"
-            for a in real[:3]
-        ]
+        shape_lines = [f"  - {a['name']} ({float(a['score']):.2f})" for a in real]
         base = (
             "<wg archetypes classified=\"llm\">\n"
             + "\n".join(shape_lines)
             + "\n</wg>"
         )
-        return _with_prove_hints(base, [a["name"] for a in real[:3]])
+        return _with_prove_hints(base, [a["name"] for a in real])
 
     # Tier 2: regex fallback
     try:
@@ -240,7 +262,7 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
         for p in (_scripts, _crew):
             if str(p) not in _sys.path:
                 _sys.path.append(str(p))
-        from archetypes_v11 import detect_archetypes, HIGH_CONFIDENCE
+        from archetypes_v11 import detect_archetypes
     except Exception:
         return None
 
@@ -249,33 +271,25 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
     except Exception:
         return None
 
-    real = [(n, s, e) for (n, s, e) in matches if n != "triage"]
-
-    if not real:
-        # Regex couldn't classify cleanly — ask the model to do it instead.
-        # This is the LLM-classifier opt-in path: the model invokes the
-        # wicked-garden-classify skill, persists the result, and on the
-        # next turn the persisted-tier branch above takes over.
-        return (
-            "<wg classify-due />\n"
-            "Regex classifier could not route this prompt to a v11 archetype. "
-            "Invoke the `wicked-garden-classify` skill to classify with model "
-            "reasoning, then run the chosen archetype's playbook."
-        )
-
-    high = [(n, s, e) for (n, s, e) in real if s >= HIGH_CONFIDENCE]
-    if len(high) == 1 and len(real) == 1:
-        n, s, _ = high[0]
+    high = [(n, s) for (n, s, _e) in matches
+            if n != "triage" and s >= _PROVE_MIN_SCORE]
+    if not high:
+        # Fall-through or medium-only: the regex has no confident route, so
+        # it says nothing (garden#1333). The classify skill stays available
+        # for the agent to invoke when the work shape matters.
+        return None
+    if len(high) == 1:
+        n, s = high[0]
         base = f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"regex\" />"
         return _with_prove_hints(base, [n])
 
-    shape_lines = [f"  - {n} ({s:.2f})" for (n, s, _) in real[:3]]
+    shape_lines = [f"  - {n} ({s:.2f})" for (n, s) in high[:3]]
     base = (
         "<wg archetypes classified=\"regex\">\n"
         + "\n".join(shape_lines)
         + "\n</wg>"
     )
-    return _with_prove_hints(base, [n for (n, _s, _e) in real[:3]])
+    return _with_prove_hints(base, [n for (n, _s) in high[:3]])
 
 
 def _suggest_jam(prompt: str, state) -> str | None:
@@ -442,6 +456,122 @@ def _has_code_markers(prompt: str) -> bool:
 def _has_imperative_technical_verb(prompt_lower: str) -> bool:
     """Return True if any imperative technical verb appears in the prompt."""
     return any(verb in prompt_lower for verb in _IMPERATIVE_TECHNICAL_VERBS)
+
+
+# ---------------------------------------------------------------------------
+# garden#1333 — per-prompt grounding gate
+#
+# The session intent above is sticky: once a session's first prompt read as
+# feature/research, every later prompt ("agree", "still waiting", "how is it
+# going?") got the Context Assembly directive. That trained agents to skim
+# past it. The directive is now decided per prompt, from what the prompt
+# itself names: it fires only when the prompt names code, files, symbols,
+# repos or past decisions AND is long enough to need grounding (more than
+# _GROUNDING_MIN_WORDS words) or asks a question about them.
+# ---------------------------------------------------------------------------
+
+_GROUNDING_MIN_WORDS = 12  # "more than ~12 words" (garden#1333 item 1)
+
+# Strong code signals: the prompt points at a concrete thing in the codebase.
+_IDENTIFIER_PATTERN = re.compile(
+    r"\b[A-Za-z][A-Za-z0-9]*_[A-Za-z0-9_]+\b"      # snake_case / SCREAMING_CASE
+    r"|\b[a-z]+[A-Z][A-Za-z0-9]*\b"                # camelCase
+    r"|\b[A-Z][a-z0-9]+[A-Z][A-Za-z0-9]*\b"        # PascalCase (two humps)
+    r"|\b\w+::\w+"                                # Rust/C++ paths
+    r"|\b\w+\(\)"                                # call()
+    r"|\bwicked-[a-z][a-z0-9-]*\b"                  # a wicked-* repo
+)
+_DECISION_PATTERN = re.compile(
+    r"\b(?:why did we|what did we decide|did we decide|we decided|decision|"
+    r"adr|rationale|why do we)\b",
+    re.IGNORECASE,
+)
+# Weak code signals: code nouns. They ground only a question or a long prompt.
+_CODE_NOUN_PATTERN = re.compile(
+    r"\b(?:function|method|class|module|crate|package|codebase|repo|repository|"
+    r"hook|endpoint|schema|symbol|api|script|test|tests|struct|trait|interface|"
+    r"config|migration|query|branch|commit)s?\b",
+    re.IGNORECASE,
+)
+# Status checks and acknowledgements never need grounding.
+_STATUS_PATTERN = re.compile(
+    r"\b(?:how(?:'s| is| are)\b.*\bgoing|status|any (?:update|news|progress)|"
+    r"still (?:waiting|running|working|going)|where are we|are (?:you|we) done|"
+    r"is it done|done yet|how far|eta|progress|update me|what'?s left)\b",
+    re.IGNORECASE,
+)
+_ACKNOWLEDGEMENTS = frozenset({
+    "agree", "agreed", "yes", "ok", "okay", "sure", "yep", "yup", "go",
+    "go ahead", "do it", "continue", "proceed", "thanks", "thank you", "ty",
+    "lgtm", "looks good", "sounds good", "great", "perfect", "nice", "cool",
+    "approved", "approve", "no", "nope", "stop", "wait", "next", "done",
+    "keep going", "carry on", "makes sense", "got it", "right", "correct",
+})
+# `do` opens a question only with a subject ("do we…"), never an imperative
+# ("do not touch the config").
+_QUESTION_START = re.compile(
+    r"^\s*(?:why|how|what|where|which|who|when|does|is|are|can|could|should|"
+    r"would|will|do\s+(?:we|you|i|they|these|those|it)\b)\b",
+    re.IGNORECASE,
+)
+# A reply that opens with an acknowledgement and stays short ("yes, sounds
+# good to me", "thanks for doing that") is still an acknowledgement.
+_ACK_PREFIX = re.compile(
+    r"^\s*(?:yes|yep|yup|ok|okay|sure|thanks|thank you|ty|agreed?|i agree|"
+    r"sounds good|looks good|lgtm|great|perfect|nice|cool|go ahead|do it|"
+    r"makes sense|got it)\b",
+    re.IGNORECASE,
+)
+_ACK_PREFIX_MAX_WORDS = 8
+_SHORT_REPLY_MAX_WORDS = 2  # "go", "still waiting", "repo_checks.rs?"
+
+
+def _normalize(prompt: str) -> str:
+    return re.sub(r"[^\w\s'-]", "", prompt.strip().lower()).strip()
+
+
+def _has_strong_code_signal(prompt: str) -> bool:
+    return (
+        _has_file_path(prompt)
+        or _has_code_markers(prompt)
+        or bool(_IDENTIFIER_PATTERN.search(prompt))
+        or bool(_DECISION_PATTERN.search(prompt))
+    )
+
+
+def _is_chatter(prompt: str) -> bool:
+    """True for acknowledgements, status checks and one- or two-word replies,
+    whatever they name. No per-turn directive belongs on these."""
+    if not prompt or not prompt.strip():
+        return True
+    if _normalize(prompt) in _ACKNOWLEDGEMENTS:
+        return True
+    if _STATUS_PATTERN.search(prompt):
+        return True
+    words = len(prompt.split())
+    if words <= _SHORT_REPLY_MAX_WORDS:
+        return True
+    return (
+        words <= _ACK_PREFIX_MAX_WORDS
+        and bool(_ACK_PREFIX.match(prompt))
+        and not _has_strong_code_signal(prompt)
+    )
+
+
+def _prompt_needs_grounding(prompt: str) -> bool:
+    """garden#1333: the Context Assembly gate, decided per prompt.
+
+    True only when the prompt names code, files, symbols, repos or past
+    decisions AND either has more than _GROUNDING_MIN_WORDS words or asks a
+    question. Never on acknowledgements, status checks or one-word replies.
+    """
+    if _is_chatter(prompt):
+        return False
+    strong = _has_strong_code_signal(prompt)
+    if not strong and not _CODE_NOUN_PATTERN.search(prompt):
+        return False
+    question = "?" in prompt or bool(_QUESTION_START.match(prompt))
+    return question or len(prompt.split()) > _GROUNDING_MIN_WORDS
 
 
 # ---------------------------------------------------------------------------
@@ -723,16 +853,15 @@ def _build_intent_directive(intent: str, turn_count: int, state=None) -> str:
         grounding = grounding_directive_lines()
     except Exception:
         grounding = [
-            "1. Ground in the knowledge layer via the wicked-garden-mem skill "
-            "(recall/answer over wicked-estate knowledge + memory) — concepts, "
-            "files, and past decisions, with source attribution; use the estate "
-            "MCP SearchEntity tool for symbol lookup.",
+            "1. Recall what is already known: the wicked-garden-mem skill "
+            "(`recall` / `answer`) for past decisions, the wicked-garden-search "
+            "skill for symbols and blast radius.",
             "2. Open the cited sources with Read before answering; do not answer "
             "from recall snippets alone.",
         ]
     directive_lines = [
-        f"[Context Assembly — intent={intent}] Deep context needed before answering.",
-        "BEFORE drafting a response:",
+        f"[Context Assembly — intent={intent}] This prompt names code or past "
+        "decisions; ground it before answering:",
         *grounding,
     ]
     if intent == "rigor":
@@ -942,9 +1071,12 @@ def main():
         # turns produce an empty directive; feature/research/rigor produce
         # the synthesis directive.
         _intent = getattr(state, "intent", None) if state else None
-        intent_directive = _build_intent_directive(
-            _intent or "simple-edit", turn_count, state
-        )
+        # garden#1333: the sticky session intent only labels the directive;
+        # whether it fires is decided by THIS prompt (_prompt_needs_grounding).
+        intent_directive = ""
+        if _prompt_needs_grounding(prompt):
+            label = _intent if _intent in ("feature", "research", "rigor") else "research"
+            intent_directive = _build_intent_directive(label, turn_count, state)
 
         # WIP recovery: surface native in-progress tasks (v5 ticket rail gone)
         wip_block = _build_wip_recovery_block(session_id, project)
