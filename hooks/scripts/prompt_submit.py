@@ -206,7 +206,9 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
        fall-through used to ask for a model classification on every
        ordinary question, and medium hits misrouted status questions).
 
-    `prove:` lines ride only archetypes scored >= _PROVE_MIN_SCORE.
+    Both tiers emit only archetypes scored >= _PROVE_MIN_SCORE, so a
+    `prove:` line never rides a low-confidence route; the persisted tier
+    is echoed once per classification.
     Silent on simple-edit sessions and on chatter (acknowledgements, status
     checks, short replies). Fail-open on any error.
     """
@@ -223,27 +225,33 @@ def _build_archetype_directive(prompt: str, intent: str, state=None) -> str | No
     # Tier 1: persisted classification from the classify skill
     persisted = (getattr(state, "archetypes_v11", None) or []) if state else []
     if persisted:
-        # Filter triage out unless sole match; emit shape-card from persisted.
-        real = [a for a in persisted if a.get("name") != "triage"]
+        # The model classified this itself (wicked-garden-classify). Echo it
+        # back once per classification, and only its confident archetypes:
+        # repeating it on every later turn added nothing (garden#1333).
+        real = [a for a in persisted
+                if a.get("name") != "triage"
+                and float(a.get("score", 0)) >= _PROVE_MIN_SCORE][:3]
         if not real:
             return None
-        if len(real) == 1 and float(real[0].get("score", 0)) >= _PROVE_MIN_SCORE:
+        key = f"{getattr(state, 'classified_at', None)}|" + json.dumps(real, sort_keys=True)
+        if getattr(state, "archetype_echoed", None) == key:
+            return None
+        try:
+            state.update(archetype_echoed=key)
+        except Exception:
+            pass
+        if len(real) == 1:
             n = real[0]["name"]
             s = float(real[0]["score"])
             base = f"<wg archetype=\"{n}\" score=\"{s:.2f}\" classified=\"llm\" />"
             return _with_prove_hints(base, [n])
-        shape_lines = [
-            f"  - {a['name']} ({float(a.get('score', 0)):.2f})"
-            for a in real[:3]
-        ]
+        shape_lines = [f"  - {a['name']} ({float(a['score']):.2f})" for a in real]
         base = (
             "<wg archetypes classified=\"llm\">\n"
             + "\n".join(shape_lines)
             + "\n</wg>"
         )
-        confident = [a["name"] for a in real[:3]
-                     if float(a.get("score", 0)) >= _PROVE_MIN_SCORE]
-        return _with_prove_hints(base, confident)
+        return _with_prove_hints(base, [a["name"] for a in real])
 
     # Tier 2: regex fallback
     try:
@@ -499,11 +507,23 @@ _ACKNOWLEDGEMENTS = frozenset({
     "approved", "approve", "no", "nope", "stop", "wait", "next", "done",
     "keep going", "carry on", "makes sense", "got it", "right", "correct",
 })
+# `do` opens a question only with a subject ("do we…"), never an imperative
+# ("do not touch the config").
 _QUESTION_START = re.compile(
-    r"^\s*(?:why|how|what|where|which|who|when|does|do|is|are|can|could|should|"
-    r"would|will)\b",
+    r"^\s*(?:why|how|what|where|which|who|when|does|is|are|can|could|should|"
+    r"would|will|do\s+(?:we|you|i|they|these|those|it)\b)\b",
     re.IGNORECASE,
 )
+# A reply that opens with an acknowledgement and stays short ("yes, sounds
+# good to me", "thanks for doing that") is still an acknowledgement.
+_ACK_PREFIX = re.compile(
+    r"^\s*(?:yes|yep|yup|ok|okay|sure|thanks|thank you|ty|agreed?|i agree|"
+    r"sounds good|looks good|lgtm|great|perfect|nice|cool|go ahead|do it|"
+    r"makes sense|got it)\b",
+    re.IGNORECASE,
+)
+_ACK_PREFIX_MAX_WORDS = 8
+_SHORT_REPLY_MAX_WORDS = 2  # "go", "still waiting", "repo_checks.rs?"
 
 
 def _normalize(prompt: str) -> str:
@@ -520,17 +540,22 @@ def _has_strong_code_signal(prompt: str) -> bool:
 
 
 def _is_chatter(prompt: str) -> bool:
-    """True for acknowledgements, status checks and very short replies that
-    name nothing in the codebase. No per-turn directive belongs on these."""
+    """True for acknowledgements, status checks and one- or two-word replies,
+    whatever they name. No per-turn directive belongs on these."""
     if not prompt or not prompt.strip():
         return True
     if _normalize(prompt) in _ACKNOWLEDGEMENTS:
         return True
-    if _has_strong_code_signal(prompt):
-        return False
     if _STATUS_PATTERN.search(prompt):
         return True
-    return len(prompt.split()) <= 3
+    words = len(prompt.split())
+    if words <= _SHORT_REPLY_MAX_WORDS:
+        return True
+    return (
+        words <= _ACK_PREFIX_MAX_WORDS
+        and bool(_ACK_PREFIX.match(prompt))
+        and not _has_strong_code_signal(prompt)
+    )
 
 
 def _prompt_needs_grounding(prompt: str) -> bool:

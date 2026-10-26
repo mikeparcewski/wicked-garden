@@ -41,15 +41,19 @@ _RULES = {
 }
 
 
-class _State:
-    def __init__(self, audited=False):
-        self.outgov_audited = audited
-        self.updates = []
+class _Claim:
+    """One-shot claim double: True the first time, False after."""
 
-    def update(self, **kw):
-        self.updates.append(kw)
-        for k, v in kw.items():
-            setattr(self, k, v)
+    def __init__(self):
+        self.claimed = False
+        self.calls = 0
+
+    def __call__(self, _input):
+        self.calls += 1
+        if self.claimed:
+            return False
+        self.claimed = True
+        return True
 
 
 def _run(env=None, *, recall=lambda: _RULES, state=None):
@@ -59,8 +63,8 @@ def _run(env=None, *, recall=lambda: _RULES, state=None):
             os.environ.pop("WG_OUTGOV", None)
         if "WICKED_CONTEXT_BACKEND" not in env:
             os.environ.pop("WICKED_CONTEXT_BACKEND", None)
-        st = state if state is not None else _State()
-        return stop._check_outgov_compliance({}, recall=recall, state=st), st
+        st = state if state is not None else _Claim()
+        return stop._check_outgov_compliance({}, recall=recall, claim=st), st
 
 
 class SessionAudit(unittest.TestCase):
@@ -74,7 +78,7 @@ class SessionAudit(unittest.TestCase):
         self.assertNotIn("POL-4", msg)  # top three only
         self.assertIn("_estate_client.py --readonly call", msg)
         self.assertIn('"tool":"rules.recall"', msg)
-        self.assertEqual(st.outgov_audited, True)
+        self.assertTrue(st.claimed)
 
     def test_never_points_at_an_mcp_tool(self):
         messages, _ = _run()
@@ -88,7 +92,7 @@ class SessionAudit(unittest.TestCase):
             calls.append(1)
             return _RULES
 
-        st = _State()
+        st = _Claim()
         first, _ = _run(recall=recall, state=st)
         second, _ = _run(recall=recall, state=st)
         self.assertEqual(len(first), 1)
@@ -98,7 +102,7 @@ class SessionAudit(unittest.TestCase):
     def test_zero_rules_is_silent(self):
         messages, st = _run(recall=lambda: {"rules": [], "total": 0, "returned": 0})
         self.assertEqual(messages, [])
-        self.assertTrue(st.outgov_audited)
+        self.assertTrue(st.claimed)
 
     def test_unreachable_estate_is_silent_and_latched(self):
         calls = []
@@ -107,7 +111,7 @@ class SessionAudit(unittest.TestCase):
             calls.append(1)
             return None
 
-        st = _State()
+        st = _Claim()
         self.assertEqual(_run(recall=recall, state=st)[0], [])
         self.assertEqual(_run(recall=recall, state=st)[0], [])
         self.assertEqual(len(calls), 1, "a failing estate costs one attempt per session")
@@ -134,7 +138,7 @@ class OptOut(unittest.TestCase):
         messages, st = _run({"WG_OUTGOV": "off"},
                             recall=lambda: self.fail("must not call estate"))
         self.assertEqual(messages, [])
-        self.assertEqual(st.updates, [])
+        self.assertEqual(st.calls, 0)
 
     def test_unrecognized_value_treated_as_off(self):
         self.assertEqual(_run({"WG_OUTGOV": "banana"})[0], [])
@@ -146,6 +150,37 @@ class OptOut(unittest.TestCase):
         messages, _ = _run({"WICKED_CONTEXT_BACKEND": "off"},
                            recall=lambda: self.fail("must not call estate"))
         self.assertEqual(messages, [])
+
+
+class MarkerClaim(unittest.TestCase):
+    """The real claim: an O_EXCL marker per session, independent of SessionState
+    (whose whole-file saves from an overlapping prompt hook could reset a flag)."""
+
+    def test_claims_once_per_session_and_per_session_only(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"TMPDIR": tmp}):
+            self.assertTrue(stop._claim_outgov_audit({"session_id": "s-1"}))
+            self.assertFalse(stop._claim_outgov_audit({"session_id": "s-1"}))
+            self.assertTrue(stop._claim_outgov_audit({"session_id": "s-2"}))
+
+    def test_session_state_save_cannot_rearm_the_audit(self):
+        """A stale SessionState snapshot saved after the claim leaves it claimed."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+                os.environ, {"TMPDIR": tmp, "CLAUDE_SESSION_ID": "s-3"}):
+            from _session import SessionState
+            stale = SessionState.load()           # a prompt hook loads first
+            self.assertTrue(stop._claim_outgov_audit({"session_id": "s-3"}))
+            stale.update(turn_count=5)            # ...and saves after the claim
+            self.assertFalse(stop._claim_outgov_audit({"session_id": "s-3"}))
+
+    def test_path_unsafe_session_id_is_sanitized(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, {"TMPDIR": tmp}):
+            self.assertTrue(stop._claim_outgov_audit({"session_id": "../../x"}))
+            created = list((Path(tmp) / "wicked-garden-outgov").iterdir())
+            self.assertEqual(len(created), 1)
+            self.assertEqual(created[0].parent, Path(tmp) / "wicked-garden-outgov")
 
 
 class ShimSeam(unittest.TestCase):

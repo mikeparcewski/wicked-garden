@@ -106,10 +106,30 @@ def _recall_policy_rules(timeout: float = 15.0) -> Optional[dict]:
         return None
 
 
-def _check_outgov_compliance(_input_data: dict, recall=None, state=None) -> list:
+def _claim_outgov_audit(input_data: dict) -> bool:
+    """Atomically claim this session's one audit. True exactly once per session.
+
+    An O_EXCL marker file, not a SessionState flag: Stop runs async, and a
+    prompt hook that loaded the state before Stop saved the flag would write
+    the old value back on its own save, re-arming the audit. Two concurrent
+    Stops can't both create the file either.
+    """
+    raw = str(input_data.get("session_id") or os.environ.get("CLAUDE_SESSION_ID") or "default")
+    sid = "".join(c if c.isalnum() or c in "-_" else "_" for c in raw)[:128] or "default"
+    marker_dir = Path(os.environ.get("TMPDIR") or __import__("tempfile").gettempdir()) / "wicked-garden-outgov"
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        fd = os.open(str(marker_dir / f"{sid}.audited"), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    os.close(fd)
+    return True
+
+
+def _check_outgov_compliance(input_data: dict, recall=None, claim=None) -> list:
     """Once-per-session policy-rules audit unless WG_OUTGOV is off.
 
-    `recall` / `state` are test seams (default: the shim, SessionState).
+    `recall` / `claim` are test seams (default: the shim, the marker file).
     """
     try:
         mode = os.environ.get("WG_OUTGOV", "warn").strip().lower()
@@ -117,14 +137,10 @@ def _check_outgov_compliance(_input_data: dict, recall=None, state=None) -> list
             return []
         if os.environ.get("WICKED_CONTEXT_BACKEND", "").strip().lower() == "off":
             return []  # operator turned estate-backed context off: designed silence
-        if state is None:
-            from _session import SessionState
-            state = SessionState.load()
-        if getattr(state, "outgov_audited", False):
-            return []
-        # Latch BEFORE the call: a slow or failing estate costs one attempt per
+        # Claim BEFORE the call: a slow or failing estate costs one attempt per
         # session, never one per turn.
-        state.update(outgov_audited=True)
+        if not (claim or _claim_outgov_audit)(input_data or {}):
+            return []
         result = (recall or _recall_policy_rules)()
         if not isinstance(result, dict):
             return []

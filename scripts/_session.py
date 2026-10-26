@@ -154,9 +154,10 @@ class SessionState:
     # One-per-session gate for jam suggestion (reset each session).
     jam_hint_shown: bool = False
 
-    # Once-per-session latch for the Stop-hook output-governance audit
-    # (garden#1333): set on the first Stop, so rules.recall runs at most once.
-    outgov_audited: bool = False
+    # The persisted classification prompt_submit last echoed (garden#1333):
+    # "<classified_at>|<archetypes json>". The model's own classification is
+    # echoed back once, not on every turn.
+    archetype_echoed: str | None = None
 
     # Operational log verbosity level for this session.
     # "" means "not set" — the logger defaults to "normal".

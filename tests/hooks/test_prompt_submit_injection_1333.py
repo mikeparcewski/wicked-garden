@@ -40,6 +40,12 @@ CHATTER = ["agree", "go", "still waiting", "how is it going?"]
 
 class _State:
     archetypes_v11 = None
+    classified_at = None
+    archetype_echoed = None
+
+    def update(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
 
 
 class GroundingGate(unittest.TestCase):
@@ -48,6 +54,22 @@ class GroundingGate(unittest.TestCase):
                             "what is the status of the outage", "any update?"]:
             with self.subTest(prompt=p):
                 self.assertFalse(ps._prompt_needs_grounding(p))
+
+    def test_status_checks_and_short_replies_never_ground_even_naming_code(self):
+        for p in ["how is wicked-crew going?", "what is the status of repo_checks.rs?",
+                  "is parse_cli_flags done yet?", "any update on the decision?",
+                  "repo_checks.rs?", "parse_cli_flags?"]:
+            with self.subTest(prompt=p):
+                self.assertFalse(ps._prompt_needs_grounding(p))
+
+    def test_multi_word_acknowledgements_are_chatter(self):
+        for p in ["yes, sounds good to me", "thanks for doing that", "i agree with that"]:
+            with self.subTest(prompt=p):
+                self.assertTrue(ps._is_chatter(p))
+
+    def test_do_imperative_is_not_a_question(self):
+        self.assertFalse(ps._prompt_needs_grounding("do not touch the config"))
+        self.assertTrue(ps._prompt_needs_grounding("do we still need parse_cli_flags?"))
 
     def test_code_question_needs_grounding(self):
         self.assertTrue(ps._prompt_needs_grounding(CODE_QUESTION))
@@ -101,13 +123,29 @@ class ArchetypeDirective(unittest.TestCase):
         self.assertIn('<wg archetype="build"', d)
         self.assertIn("prove:", d)
 
-    def test_persisted_card_carries_prove_only_for_confident_archetypes(self):
+    def test_persisted_classification_drops_low_confidence_archetypes(self):
         st = _State()
         st.archetypes_v11 = [{"name": "build", "score": 0.6}, {"name": "review", "score": 0.8}]
         d = ps._build_archetype_directive("review and build the new export path", "feature", st)
-        self.assertIn("build (0.60)", d)
+        self.assertIn('<wg archetype="review"', d)
         self.assertIn("--scope review", d)
-        self.assertNotIn("--scope build", d)
+        self.assertNotIn("build", d)
+
+    def test_persisted_low_confidence_only_emits_nothing(self):
+        st = _State()
+        st.archetypes_v11 = [{"name": "build", "score": 0.55}]
+        self.assertIsNone(ps._build_archetype_directive(
+            "review and build the new export path", "feature", st))
+
+    def test_persisted_classification_is_echoed_once(self):
+        st = _State()
+        st.classified_at = "2026-10-25T00:00:00Z"
+        st.archetypes_v11 = [{"name": "build", "score": 0.9}]
+        prompt = "wire the export path into the settings page and add tests"
+        self.assertIsNotNone(ps._build_archetype_directive(prompt, "feature", st))
+        self.assertIsNone(ps._build_archetype_directive(prompt, "feature", st))
+        st.classified_at = "2026-10-25T01:00:00Z"  # re-classified: echo the new one
+        self.assertIsNotNone(ps._build_archetype_directive(prompt, "feature", st))
 
     def test_threshold_matches_the_catalog_constant(self):
         sys.path.insert(0, str(_REPO / "scripts" / "crew"))

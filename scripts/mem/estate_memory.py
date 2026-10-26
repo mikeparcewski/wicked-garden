@@ -135,12 +135,19 @@ def _default_intent():
     from the enclosing git checkout: ``repo`` = its directory name, ``project``
     = the run's `WICKED_RUN_PROJECT`, else the checkout's parent directory
     (the umbrella, e.g. ``wicked`` for ``wicked/wicked-estate``). Outside a git
-    checkout: {} (unfaceted memories only, as before).
+    checkout: ``{project}`` = the run's project, else the cwd's directory name,
+    the same facet `propose` files a memory under there (garden#1333), so a
+    memory proposed from a directory is recalled from it.
     """
+    run_project = (os.environ.get("WICKED_RUN_PROJECT") or "").strip()
     root = _estate_client.checkout_root()
     if root is None:
-        return {}
-    project = (os.environ.get("WICKED_RUN_PROJECT") or "").strip() or root.parent.name
+        try:
+            project = run_project or Path.cwd().name
+        except OSError:
+            project = run_project
+        return {"project": project} if project else {}
+    project = run_project or root.parent.name
     return {k: v for k, v in (("repo", root.name), ("project", project)) if v}
 
 
@@ -303,17 +310,14 @@ def do_store(args):
 
 
 def _propose_facets():
-    """``facets`` for a memory proposal: ``{repo, project}`` from the enclosing
-    checkout (the same facets recall admits against), else ``project`` = the
-    cwd's directory name. A run's `WICKED_RUN_PROJECT` overrides ``project``
-    (the shim's `propose` applies it)."""
+    """``facets`` for a memory proposal: exactly the intent default recall
+    admits against (:func:`_default_intent`), so the approved memory is
+    recalled from the same place. ``project`` falls back to ``unknown`` only
+    when the cwd has no name."""
     facets = dict(_default_intent())
-    if not facets.get("project"):
-        try:
-            facets["project"] = Path.cwd().name or "unknown"
-        except OSError:
-            facets["project"] = "unknown"
-    return facets
+    facets.setdefault("project", "unknown")
+    # The same override the shim applies, so the reported facets are the sent ones.
+    return _estate_client._scope_facets_to_run_project(facets)
 
 
 def do_propose(args):
@@ -327,7 +331,10 @@ def do_propose(args):
     (or ``text``), ``kind`` (fact → semantic, skill → procedural), ``tier``,
     ``about`` and ``facets`` (merged over the derived ones).
     """
-    content = (args.get("content") or args.get("text") or args.get("_") or "").strip()
+    content = args.get("content") or args.get("text") or args.get("_") or ""
+    if not isinstance(content, str):
+        return _fail_open(f"content must be a string, got {type(content).__name__}")
+    content = content.strip()
     if not content:
         return _fail_open('nothing to propose: pass the memory text, e.g. propose '
                           '"<rule, why it holds, when it applies>"')
@@ -591,8 +598,8 @@ def main(argv):
         raw = sys.stdin.read()
     try:
         args = json.loads(raw) if raw.strip() else {}
-        if isinstance(args, str):
-            args = {"_": args}  # a JSON string is the primary string arg too
+        if args is None or isinstance(args, (str, int, float, bool)):
+            args = {"_": raw.strip()}  # a JSON scalar is the primary string arg too
     except json.JSONDecodeError:
         # Convenience: a bare positional is the primary string arg.
         args = {"_": raw}

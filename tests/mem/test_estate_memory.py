@@ -449,6 +449,26 @@ def test_propose_outside_a_checkout_uses_the_cwd_as_project(monkeypatch, capsys,
     seen = _propose_capture(monkeypatch)
     assert estate_memory.main(["propose", _RULE]) == 0
     assert seen[0]["facets"] == {"project": "program-x"}
+    # Default recall from the same directory carries the same facet as its
+    # intent, so the approved memory is admitted there.
+    rec = _Recorder({"memory.recall": {"items": []}})
+    capsys.readouterr()
+    _run(monkeypatch, capsys, "recall", {"query": "hooks"}, rec)
+    assert rec.calls[0][1]["intent"] == seen[0]["facets"]
+
+
+def test_propose_facets_match_default_recall_intent_in_a_checkout(monkeypatch, capsys, tmp_path):
+    root = tmp_path / "wicked" / "wicked-garden"
+    (root / ".git").mkdir(parents=True)
+    monkeypatch.chdir(root)
+    monkeypatch.delenv("WICKED_RUN_PROJECT", raising=False)
+    seen = _propose_capture(monkeypatch)
+    assert estate_memory.main(["propose", _RULE]) == 0
+    capsys.readouterr()
+    rec = _Recorder({"memory.recall": {"items": []}})
+    _run(monkeypatch, capsys, "recall", {"query": "hooks"}, rec)
+    assert rec.calls[0][1]["intent"] == seen[0]["facets"] == {"repo": "wicked-garden",
+                                                               "project": "wicked"}
 
 
 def test_propose_reads_plain_text_from_stdin(monkeypatch, capsys, tmp_path):
@@ -478,6 +498,46 @@ def test_propose_applies_the_durability_gate(monkeypatch, capsys):
     out = json.loads(capsys.readouterr().out.strip())
     assert out["ok"] is False and "not a durable learning" in out["reason"]
     assert seen == []
+
+
+def test_propose_rejects_non_string_content_without_a_traceback(monkeypatch, capsys):
+    seen = _propose_capture(monkeypatch)
+    assert estate_memory.main(["propose", json.dumps({"content": ["rule"]})]) == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is False and "content must be a string, got list" in out["reason"]
+    assert seen == []
+
+
+def test_propose_scalar_json_is_treated_as_text(monkeypatch, capsys, tmp_path):
+    import io
+    monkeypatch.chdir(tmp_path)
+    seen = _propose_capture(monkeypatch)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("12345\n"))
+    assert estate_memory.main(["propose", "-"]) == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is False and "not a durable learning" in out["reason"]  # too short, no crash
+    assert seen == []
+
+
+def test_propose_reports_the_run_project_it_sent(monkeypatch, capsys, tmp_path):
+    """Through the real shim: WICKED_RUN_PROJECT wins, and the reply reports it."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(estate_memory._estate_client, "checkout_root", lambda: None)
+    monkeypatch.setenv("WICKED_RUN_PROJECT", "run-proj")
+    sent: list = []
+
+    def fake_call_raw(tool, arguments=None, timeout=8.0):
+        sent.append((tool, arguments))
+        return {"jsonrpc": "2.0", "id": 2,
+                "result": {"content": [{"type": "text", "text": json.dumps({"id": "prop-r"})}]}}
+
+    monkeypatch.setattr(estate_memory._estate_client, "call_raw", fake_call_raw)
+    assert estate_memory.main(["propose", _RULE]) == 0
+    out = json.loads(capsys.readouterr().out.strip())
+    assert out["ok"] is True and out["id"] == "prop-r"
+    assert sent[0][0] == "proposal.submit"
+    assert sent[0][1]["facets"]["project"] == "run-proj"
+    assert out["facets"]["project"] == "run-proj"
 
 
 def test_propose_with_nothing_names_what_is_missing(monkeypatch, capsys):
