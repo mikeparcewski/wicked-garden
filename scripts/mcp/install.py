@@ -27,10 +27,12 @@ daemon's registry. Neither set exits 2 naming the remedy.
    else ``~/.wicked/mcp-servers``): ``npm ci --ignore-scripts && npm run build`` in the server
    dir, copy dist/ + package.json + package-lock.json + tools.json + mcp-server.config.json,
    ``npm ci --omit=dev --ignore-scripts`` there. ``--from-npm`` installs the package instead.
-   A server delivered WITHOUT a package-lock.json (a seat with no npm registry cannot write one)
-   resolves its dependencies once, with ``npm install --ignore-scripts`` in the server dir, and the
-   staged copy installs from that lock. The plan and the record say so (``"lockfile":
-   "resolved at install"``): the versions were chosen at install time, not reviewed in the run.
+   A server delivered WITHOUT a package-lock.json (a seat with no npm registry cannot write one) is
+   copied to a transient ``<root>/<key>/resolve/`` (removed afterwards, like ``next/``), resolved
+   there with ``npm install --package-lock=true --ignore-scripts`` and built there; the staged copy
+   installs from that lock. The delivered tree is not written. The plan and the record say so
+   (``"lockfile": "resolved at install"``): the versions were chosen at install time, not reviewed
+   in the run.
 3. **Smoke** with ``probe.py``. A failure naming ``<SERVER>_TOKEN`` is a pending credential
    (disclosed, not failed); any other failure exits 1 with ``next/`` removed and nothing else
    touched.
@@ -156,16 +158,31 @@ def _now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
 
-def _why(output: str) -> str:
-    """The line that says what went wrong. npm ends with a pointer at its debug log and usage text; its
-    ``npm error code`` line and the one after it are the reason ("EUSAGE The `npm ci` command can only install
-    with an existing package-lock.json...")."""
-    lines = [ln.strip() for ln in output.splitlines()
-             if ln.strip() not in ("", "npm error") and "A complete log of this run" not in ln]
-    codes = [i for i, ln in enumerate(lines) if ln.startswith("npm error code")]
+NPM_META = ("npm error path ", "npm error syscall ", "npm error errno ", "npm error command ", "npm error workspace ",
+            "npm error location ", "npm error signal ", "npm error cwd ")
+
+
+def _lines(output: str) -> list[str]:
+    return [ln.strip() for ln in (output or "").splitlines()
+            if ln.strip() not in ("", "npm error") and "A complete log of this run" not in ln]
+
+
+def _why(stderr: str, stdout: str = "") -> str:
+    """What went wrong, in one line. npm ends with a pointer at its debug log; its reason is the ``npm error code``
+    line and the first line after it that is not metadata (path, syscall, errno, command), e.g. "npm error code
+    EUSAGE npm error The `npm ci` command can only install with an existing package-lock.json...". A script that
+    failed (``npm error code 1``: npm run build) printed its own reason, usually on stdout (tsc): its last line
+    rides along. With nothing useful on stderr, the last line of stdout."""
+    err, out = _lines(stderr), _lines(stdout)
+    codes = [i for i, ln in enumerate(err) if ln.startswith("npm error code")]
     if codes:
-        return " ".join(lines[codes[0]:codes[0] + 2])
-    return lines[-1] if lines else ""
+        head = err[codes[0]]
+        detail = next((ln for ln in err[codes[0] + 1:] if not ln.startswith(NPM_META)), None)
+        parts = [head, *([detail] if detail else [])]
+        if head == "npm error code 1" and out:
+            parts.append(out[-1])
+        return " ".join(parts)
+    return (err or out or [""])[-1]
 
 
 def _run(argv: list[str], cwd: Path, what: str, timeout: float = NPM_TIMEOUT_S) -> None:
@@ -174,7 +191,7 @@ def _run(argv: list[str], cwd: Path, what: str, timeout: float = NPM_TIMEOUT_S) 
     except (OSError, subprocess.TimeoutExpired) as err:
         raise Failure(1, f"{what} failed: {err}") from err
     if done.returncode != 0:
-        raise Failure(1, f"{what} exited {done.returncode}: {_why(done.stderr or done.stdout)[:300]}")
+        raise Failure(1, f"{what} exited {done.returncode}: {_why(done.stderr, done.stdout)[:300]}")
 
 
 def _npm() -> str:
@@ -419,6 +436,11 @@ def lockfile_state(server_dir: Path | None, npm_spec: str | None) -> str | None:
     return "delivered" if (server_dir / "package-lock.json").is_file() else "resolved at install"
 
 
+def resolve_dir(next_dir: Path) -> Path:
+    """Where a server delivered without a lock is copied, resolved and built: beside next/, and as transient."""
+    return next_dir.with_name("resolve")
+
+
 def stage(server_dir: Path | None, npm_spec: str | None, next_dir: Path) -> Path:
     """Build + copy into next/; the server.js path inside next/."""
     npm = _npm()
@@ -431,20 +453,28 @@ def stage(server_dir: Path | None, npm_spec: str | None, next_dir: Path) -> Path
     else:
         assert server_dir is not None
         if lockfile_state(server_dir, None) == "delivered":
-            _run([npm, "ci", "--ignore-scripts"], server_dir, "npm ci (server dir)")
+            build_dir = server_dir
+            _run([npm, "ci", "--ignore-scripts"], build_dir, "npm ci (server dir)")
         else:
             # `npm ci` refuses a tree with no lock, and every server a container seat builds has none (the seat
-            # cannot reach the registry; j6-cert, unit-convert, 2026-10-26). Resolve one here, disclosed.
-            _run([npm, "install", "--ignore-scripts", "--no-audit", "--no-fund"], server_dir,
-                 "npm install (server dir, no package-lock.json)")
-        _run([npm, "run", "build"], server_dir, "npm run build")
-        if not (server_dir / "dist").is_dir():
+            # cannot reach the registry; j6-cert, unit-convert, 2026-10-26). The lock is resolved in a throwaway
+            # copy beside next/, never in the delivered tree: a lock left there would read as "delivered" on the
+            # next plan, and it is a write the consent plan does not list.
+            build_dir = resolve_dir(next_dir)
+            shutil.copytree(server_dir, build_dir, ignore=shutil.ignore_patterns("node_modules", "dist", ".git"))
+            _run([npm, "install", "--package-lock=true", "--ignore-scripts", "--no-audit", "--no-fund"], build_dir,
+                 "npm install (no package-lock.json delivered)")
+            if not (build_dir / "package-lock.json").is_file():
+                raise Failure(1, "npm install wrote no package-lock.json, so the staged copy cannot be installed "
+                                 "from a lock; nothing was installed")
+        _run([npm, "run", "build"], build_dir, "npm run build")
+        if not (build_dir / "dist").is_dir():
             raise Failure(1, f"npm run build left no dist/ in {server_dir}")
         next_dir.mkdir(parents=True)
-        shutil.copytree(server_dir / "dist", next_dir / "dist")
+        shutil.copytree(build_dir / "dist", next_dir / "dist")
         for name in STAGE_FILES:
-            if (server_dir / name).is_file():
-                shutil.copy2(server_dir / name, next_dir / name)
+            if (build_dir / name).is_file():
+                shutil.copy2(build_dir / name, next_dir / name)
         if not (next_dir / "package-lock.json").is_file():
             raise Failure(1, f"{server_dir} has no package-lock.json (npm ci needs it)")
         _run([npm, "ci", "--omit=dev", "--ignore-scripts"], next_dir, "npm ci --omit=dev (staged copy)")
@@ -486,10 +516,11 @@ def do_install(args) -> tuple[int, dict]:
     next_dir = key_root / "next"
     origin = crew_origin(args.crew_url)
     check_key(origin, key, key_root / "current" / installed_rel(args.from_npm))
-    if next_dir.is_symlink():
-        next_dir.unlink()
-    elif next_dir.exists():
-        shutil.rmtree(next_dir)  # a stale half-staged copy from an interrupted run
+    for stale in (next_dir, resolve_dir(next_dir)):  # a half-staged copy from an interrupted run
+        if stale.is_symlink():
+            stale.unlink()
+        elif stale.exists():
+            shutil.rmtree(stale)
     key_root.mkdir(parents=True, exist_ok=True)
 
     lock = lockfile_state(server_dir, args.from_npm)  # before staging: an `npm install` there writes one
@@ -501,6 +532,8 @@ def do_install(args) -> tuple[int, dict]:
     except Failure:
         shutil.rmtree(next_dir, ignore_errors=True)
         raise
+    finally:
+        shutil.rmtree(resolve_dir(next_dir), ignore_errors=True)
     swap(key_root)
     current_js = key_root / "current" / staged_js.relative_to(next_dir)
 
