@@ -95,10 +95,14 @@ def env_name_for(key: str) -> str:
 
 
 def credential_free(config: dict) -> bool:
-    """A server with no upstream has nothing to authenticate to: its committed config names neither ``auth`` nor
-    ``baseUrl`` (a local-computation server). It smokes and registers with no secret variable. Any other server,
-    and an --from-npm install (no config to read), reads the one ``<SERVER>_TOKEN`` variable."""
-    return bool(config) and "auth" not in config and "baseUrl" not in config
+    """A server with no upstream has nothing to authenticate to: its committed config names no ``baseUrl`` and no
+    auth scheme (``auth`` absent, null, or ``{"scheme": "none"}``), a local-computation server. It smokes and
+    registers with no secret variable. Any other server, and an --from-npm install (no config to read), reads the
+    one ``<SERVER>_TOKEN`` variable."""
+    if not config or "baseUrl" in config:
+        return False
+    auth = config.get("auth")
+    return auth is None or (isinstance(auth, dict) and auth.get("scheme") == "none")
 
 
 def crew_origin(flag: str | None) -> str:

@@ -171,12 +171,15 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
         assert (rig.root / "current" / f).is_file()
 
 
-def test_a_credential_free_server_registers_with_no_secret_variable(rig):
+@pytest.mark.parametrize("auth", [{}, {"auth": None}, {"auth": {"scheme": "none"}}], ids=["absent", "null", "none"])
+def test_a_credential_free_server_registers_with_no_secret_variable(rig, auth):
     # A local-computation server (no upstream: its config names neither auth nor baseUrl) has nothing to
     # authenticate to. It registered as pending "UNIT_CONVERT_TOKEN missing" and never reached the registry
-    # (j6-cert, unit-convert, 2026-10-26): it now smokes and registers with no secret variable.
+    # (j6-cert, unit-convert, 2026-10-26): it now smokes and registers with no secret variable. The second run of
+    # the same workflow wrote `"auth": {"scheme": "none"}`, so every spelling of "no scheme" counts.
     (rig.srv / "mcp-server.config.json").write_text(json.dumps(
-        {"key": "acme-notes", "version": "0.1.0", "transport": "stdio", "rateLimitPerMin": 600}), encoding="utf-8")
+        {"key": "acme-notes", "version": "0.1.0", "transport": "stdio", "rateLimitPerMin": 600, **auth}),
+        encoding="utf-8")
     with FakeDaemon() as daemon:
         _registry(daemon)
         code, out = rig.run("--from-run", "--crew-url", daemon.origin)
