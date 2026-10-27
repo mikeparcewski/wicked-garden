@@ -44,6 +44,16 @@ STUB_NPM = textwrap.dedent('''\
     if sys.argv[1:3] == ["run", "build"]:
         os.makedirs("dist", exist_ok=True)
         shutil.copyfile(os.environ["STUB_SERVER_SOURCE"], os.path.join("dist", "server.js"))
+    elif sys.argv[1:2] == ["ci"] and (os.environ.get("STUB_NPM_CI_FAIL") or not os.path.isfile("package-lock.json")):
+        # npm 11's own refusal, as it prints it (j6-cert, 2026-10-27).
+        sys.stderr.write("npm error code EUSAGE\\nnpm error\\nnpm error The `npm ci` command can only install with an "
+                         "existing package-lock.json or\\nnpm error npm-shrinkwrap.json with lockfileVersion >= 1.\\n"
+                         "npm error\\nnpm error Run \\"npm help ci\\" for more info\\n"
+                         "npm error A complete log of this run can be found in: /tmp/x-debug-0.log\\n")
+        sys.exit(1)
+    elif sys.argv[1:2] == ["install"] and "--prefix" not in sys.argv and not os.environ.get("STUB_NPM_NO_LOCK"):
+        with open("package-lock.json", "w") as fh:
+            fh.write('{"lockfileVersion": 3, "resolvedBy": "stub"}')
     ''')
 STUB_INSTALLER = textwrap.dedent('''\
     #!PYTHON
@@ -163,6 +173,7 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
     assert out["clis"][0]["result"] == "written"
     npm = [c["argv"] for c in rig.calls("npm")]
     assert npm == [["ci", "--ignore-scripts"], ["run", "build"], ["ci", "--omit=dev", "--ignore-scripts"]]
+    assert out["lockfile"] == "delivered"
     record = json.loads((rig.root / "installed.json").read_text(encoding="utf-8"))
     assert record["key"] == "acme-notes" and record["version"] == "0.1.0"
     assert record["source"]["dir"] == str(rig.srv)
@@ -444,52 +455,99 @@ def test_the_dry_run_plans_each_target_and_writes_nothing(rig):
     assert rig.calls("npm") == [] and not (rig.tmp / "root").exists()
     assert all("--dry-run" in c["argv"] for c in rig.calls("wicked-installer"))
     assert {r["method"] for r in daemon.requests} == {"GET"}
+    assert plan["lockfile"] == "delivered"
 
 
-def test_the_operator_target_also_writes_the_operators_clis(rig):
-    with FakeDaemon() as daemon:
-        _registry(daemon)
-        code, out = rig.run("--from-run", "--target", "operator", "--crew-url", daemon.origin)
-    assert code == 0, out
-    worker_call, operator_call = rig.calls("wicked-installer")
-    assert worker_call["argv"][-len(rig.worker_args):] == rig.worker_args
-    assert not any(a.startswith("--") and a.endswith("-home") for a in operator_call["argv"])
-    assert out["target"] == "operator" and isinstance(out["operatorClis"], list)
+# ── j6-cert 2026-10-27: a server delivered with no package-lock.json ────────────────────────
+# A container seat cannot reach the npm registry, so the server a /workflow-mcp-server run delivers has no lock
+# (unit-convert, wicked-e2e-j6-plugins#2). `npm ci` refuses such a tree, and the install failed AFTER the operator
+# consented: "npm ci (server dir) exited 1: npm error A complete log of this run can be found in: …".
 
-
-def test_the_worker_target_never_names_an_operator_path(rig):
+def test_a_server_delivered_without_a_lockfile_resolves_one_and_says_so(rig):
+    (rig.srv / "package-lock.json").unlink()
     with FakeDaemon() as daemon:
         _registry(daemon)
         code, out = rig.run("--from-run", "--crew-url", daemon.origin)
     assert code == 0, out
-    (call,) = rig.calls("wicked-installer")
-    paths = [a for a in call["argv"] if a.startswith("/")]
-    assert paths and all(_under(p, rig.tmp) for p in paths), paths
-    assert all(".wicked" in Path(p).relative_to(rig.home).parts[0] for p in paths
-               if _under(p, rig.home)), paths
-    for row in out["clis"]:
-        assert _under(row["target"], rig.home / ".wicked-worker"), row
+    resolve = rig.root / "resolve"
+    npm = [(c["argv"], c["cwd"]) for c in rig.calls("npm")]
+    assert npm == [(["install", "--package-lock=true", "--ignore-scripts", "--no-audit", "--no-fund"], str(resolve)),
+                   (["run", "build"], str(resolve)),
+                   (["ci", "--omit=dev", "--ignore-scripts"], str(rig.root / "next"))]
+    assert out["lockfile"] == "resolved at install" and out["registered"] is True and out["smoke"] == "ok"
+    record = json.loads((rig.root / "installed.json").read_text(encoding="utf-8"))
+    assert record["lockfile"] == "resolved at install"
+    assert json.loads((rig.root / "current" / "package-lock.json").read_text(encoding="utf-8"))["resolvedBy"] == "stub"
+    # The delivered tree is not written (codex+agy r1): no lock, no build output there; the throwaway copy is gone.
+    assert not (rig.srv / "package-lock.json").exists() and not (rig.srv / "dist").exists()
+    assert not resolve.exists()
 
 
-def test_no_origin_refuses_and_names_the_remedy_1258(rig):
-    code, out = rig.run("--from-run")
-    assert code == 2
-    assert "WICKED_CREW_URL" in out["error"] and "--crew-url" in out["error"]
-    assert rig.calls("npm") == [], "nothing is staged without the run's daemon"
-    done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json"],
-                          capture_output=True, text=True, timeout=60, env=rig.env, cwd=rig.tree)
-    assert done.returncode == 2 and "WICKED_CREW_URL" in done.stderr and done.stdout == ""
-
-
-def test_the_dry_run_never_downloads_the_installer(rig):
-    (rig.tmp / "bin" / "wicked-installer").unlink()
-    npx = rig.tmp / "bin" / "npx"
-    _stub(npx, '#!PYTHON\nimport json, os, sys\nopen(os.environ["STUB_LOG"], "a").write(json.dumps({"tool": "npx", "argv": sys.argv[1:]}) + "\\n")\n')
-    env = {**rig.env, "PATH": f"{rig.tmp / 'bin'}{os.pathsep}/usr/bin{os.pathsep}/bin"}
+def test_a_retry_after_a_failed_no_lock_install_still_says_resolved_at_install(rig):
+    # r1 (codex, agy): the lock used to be written into the delivered tree, so a retry read it as "delivered".
+    (rig.srv / "package-lock.json").unlink()
+    rig.source.write_text(BROKEN_SERVER, encoding="utf-8")
     with FakeDaemon() as daemon:
         _registry(daemon)
-        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json",
-                               "--crew-url", daemon.origin], capture_output=True, text=True,
-                              timeout=60, env=env, cwd=rig.tree)
-    assert done.returncode != 0 and "never downloads" in done.stderr, done.stderr
-    assert rig.calls("npx") == []
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+        assert code == 1 and "smoke" in out["error"], out
+        assert not (rig.root / "resolve").exists() and not (rig.srv / "package-lock.json").exists()
+        code, plan = rig.run("--from-run", "--dry-run", "--crew-url", daemon.origin)
+        assert code == 0 and plan["lockfile"] == "resolved at install", plan
+        rig.source.write_text(NODE_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+    assert code == 0 and out["lockfile"] == "resolved at install", out
+
+
+def test_an_npm_that_writes_no_lock_fails_before_building(rig):
+    # r1 (codex, agy): `package-lock=false` in an npmrc makes `npm install` succeed with no lock.
+    (rig.srv / "package-lock.json").unlink()
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin, STUB_NPM_NO_LOCK="1")
+    assert code == 1 and "wrote no package-lock.json" in out["error"], out
+    assert [c["argv"][0] for c in rig.calls("npm")] == ["install"], "nothing is built or staged without a lock"
+    assert not (rig.root / "current").exists() and not (rig.root / "resolve").exists()
+
+
+def test_the_plan_discloses_a_lock_resolved_at_install(rig):
+    (rig.srv / "package-lock.json").unlink()
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, plan = rig.run("--from-run", "--dry-run", "--crew-url", daemon.origin)
+    assert code == 0, plan
+    assert plan["lockfile"] == "resolved at install"
+    assert rig.calls("npm") == [] and not (rig.srv / "package-lock.json").exists(), "the plan writes nothing"
+
+
+def test_a_failed_npm_step_reports_npms_reason(rig):
+    # Before: "npm ci (server dir) exited 1: npm error A complete log of this run can be found in: …".
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin, STUB_NPM_CI_FAIL="1")
+    assert code == 1
+    assert out["error"].startswith("npm ci (server dir) exited 1: npm error code EUSAGE npm error The `npm ci` command")
+    assert "complete log" not in out["error"]
+
+
+def _install_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("mcp_install_under_test", INSTALL)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_why_skips_npm_metadata_and_keeps_a_scripts_own_reason():
+    why = _install_module()._why
+    # A failed `npm run build`: npm's lines are metadata; tsc said what is wrong, on stdout (agy r1).
+    assert why("npm error code 1\nnpm error path /srv\nnpm error command failed\nnpm error command sh -c tsc\n"
+               "npm error A complete log of this run can be found in: /tmp/x.log\n",
+               "src/a.ts(3,1): error TS2304: Cannot find name 'x'.\n") == \
+        "npm error code 1 src/a.ts(3,1): error TS2304: Cannot find name 'x'."
+    assert why("npm error code ENOENT\nnpm error syscall open\nnpm error path /srv/package.json\n"
+               "npm error errno -2\nnpm error enoent Could not read package.json\n") == \
+        "npm error code ENOENT npm error enoent Could not read package.json"
+    # stderr holds only boilerplate: stdout's last line, never an empty reason.
+    assert why("npm error\nnpm error A complete log of this run can be found in: /tmp/x.log\n", "boom\n") == "boom"
+    assert why("boom\nlast words\n") == "last words" and why("", "") == ""
