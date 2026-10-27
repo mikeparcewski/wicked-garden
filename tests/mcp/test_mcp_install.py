@@ -44,6 +44,16 @@ STUB_NPM = textwrap.dedent('''\
     if sys.argv[1:3] == ["run", "build"]:
         os.makedirs("dist", exist_ok=True)
         shutil.copyfile(os.environ["STUB_SERVER_SOURCE"], os.path.join("dist", "server.js"))
+    elif sys.argv[1:2] == ["ci"] and not os.path.isfile("package-lock.json"):
+        # npm 11's own refusal, as it prints it (j6-cert, 2026-10-27).
+        sys.stderr.write("npm error code EUSAGE\\nnpm error\\nnpm error The `npm ci` command can only install with an "
+                         "existing package-lock.json or\\nnpm error npm-shrinkwrap.json with lockfileVersion >= 1.\\n"
+                         "npm error\\nnpm error Run \\"npm help ci\\" for more info\\n"
+                         "npm error A complete log of this run can be found in: /tmp/x-debug-0.log\\n")
+        sys.exit(1)
+    elif sys.argv[1:2] == ["install"] and "--prefix" not in sys.argv:
+        with open("package-lock.json", "w") as fh:
+            fh.write('{"lockfileVersion": 3, "resolvedBy": "stub"}')
     ''')
 STUB_INSTALLER = textwrap.dedent('''\
     #!PYTHON
@@ -163,6 +173,7 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
     assert out["clis"][0]["result"] == "written"
     npm = [c["argv"] for c in rig.calls("npm")]
     assert npm == [["ci", "--ignore-scripts"], ["run", "build"], ["ci", "--omit=dev", "--ignore-scripts"]]
+    assert out["lockfile"] == "delivered"
     record = json.loads((rig.root / "installed.json").read_text(encoding="utf-8"))
     assert record["key"] == "acme-notes" and record["version"] == "0.1.0"
     assert record["source"]["dir"] == str(rig.srv)
@@ -412,6 +423,52 @@ def test_the_dry_run_plans_each_target_and_writes_nothing(rig):
     assert rig.calls("npm") == [] and not (rig.tmp / "root").exists()
     assert all("--dry-run" in c["argv"] for c in rig.calls("wicked-installer"))
     assert {r["method"] for r in daemon.requests} == {"GET"}
+    assert plan["lockfile"] == "delivered"
+
+
+# ── j6-cert 2026-10-27: a server delivered with no package-lock.json ────────────────────────
+# A container seat cannot reach the npm registry, so the server a /workflow-mcp-server run delivers has no lock
+# (unit-convert, wicked-e2e-j6-plugins#2). `npm ci` refuses such a tree, and the install failed AFTER the operator
+# consented: "npm ci (server dir) exited 1: npm error A complete log of this run can be found in: …".
+
+def test_a_server_delivered_without_a_lockfile_resolves_one_and_says_so(rig):
+    (rig.srv / "package-lock.json").unlink()
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+    assert code == 0, out
+    npm = [(c["argv"], c["cwd"]) for c in rig.calls("npm")]
+    assert npm == [(["install", "--ignore-scripts", "--no-audit", "--no-fund"], str(rig.srv)),
+                   (["run", "build"], str(rig.srv)),
+                   (["ci", "--omit=dev", "--ignore-scripts"], str(rig.root / "next"))]
+    assert out["lockfile"] == "resolved at install" and out["registered"] is True and out["smoke"] == "ok"
+    record = json.loads((rig.root / "installed.json").read_text(encoding="utf-8"))
+    assert record["lockfile"] == "resolved at install"
+    assert json.loads((rig.root / "current" / "package-lock.json").read_text(encoding="utf-8"))["resolvedBy"] == "stub"
+
+
+def test_the_plan_discloses_a_lock_resolved_at_install(rig):
+    (rig.srv / "package-lock.json").unlink()
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, plan = rig.run("--from-run", "--dry-run", "--crew-url", daemon.origin)
+    assert code == 0, plan
+    assert plan["lockfile"] == "resolved at install"
+    assert rig.calls("npm") == [] and not (rig.srv / "package-lock.json").exists(), "the plan writes nothing"
+
+
+def test_an_npm_failure_names_npms_reason_not_its_log_path():
+    # Before: "npm ci (server dir) exited 1: npm error A complete log of this run can be found in: …".
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("mcp_install_under_test", INSTALL)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    out = ("npm error code EUSAGE\nnpm error\nnpm error The `npm ci` command can only install with an existing "
+           "package-lock.json or\nnpm error npm-shrinkwrap.json with lockfileVersion >= 1.\nnpm error\n"
+           "npm error A complete log of this run can be found in: /tmp/x-debug-0.log\n")
+    why = mod._why(out)
+    assert why.startswith("npm error code EUSAGE npm error The `npm ci` command") and "complete log" not in why
+    assert mod._why("boom\nlast words\n") == "last words" and mod._why("") == ""
 
 
 def test_the_operator_target_also_writes_the_operators_clis(rig):

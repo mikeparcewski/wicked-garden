@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **An MCP server delivered without a `package-lock.json` installs (`scripts/mcp/install.py`).** A container seat can't reach the npm registry, so the server a `/workflow-mcp-server` run delivers has no lockfile. `npm ci` refuses such a tree, so the install failed after the operator had consented, with only npm's debug-log path as the reason. The installer now resolves the dependencies once with `npm install --ignore-scripts` in the server dir, and the staged copy installs from that lock. The plan and the install record say `"lockfile": "resolved at install"`, because those versions were picked at install time and the run never reviewed them. A delivered lock still goes through `npm ci`, and the output says `"lockfile": "delivered"`. A failing npm step now reports npm's own reason (its `npm error code` line and the line after it) instead of its debug-log path.
+
 ## [12.60.0] — 2026-10-26
 
 ### Fixed
