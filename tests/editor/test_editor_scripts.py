@@ -127,6 +127,23 @@ def test_dry_run_plans_two_choices_with_their_program_owned_writes(tmp_path):
     assert not root.exists()
 
 
+def test_from_run_finds_the_pack_in_the_worktree_when_wicked_tree_is_a_tree_id(tmp_path):
+    # The engine runs the install Tool phase IN the run's worktree and sets WICKED_TREE to that worktree's git tree
+    # id (wicked-core#776), never a path. Read as a path, the id found no pack, so every real run's install-plan
+    # failed with "found 0 (none)" (j6-cert, run 910e3e0b, 2026-10-26).
+    tree = tmp_path / "worktree"
+    pack = tree / "changelog-editor"
+    assert scaffold(pack).returncode == 0
+    root = tmp_path / "home" / ".wicked" / "editors"
+    with FakeDaemon() as d:
+        done = run("install.py", "--from-run", "--dry-run", "--json", cwd=tree,
+                   env={**_install_env(d.origin, root), "WICKED_TREE": "e7f75f7c794795ef010e7d25dc7070b9e98338c3"})
+    assert done.returncode == 0, done.stdout + done.stderr
+    plan = json.loads(done.stdout.strip().splitlines()[-1])
+    assert plan["dry_run"] is True and plan["key"] == "acme-json"
+    assert not root.exists()
+
+
 def test_an_mcp_session_editor_scaffolds_with_its_plain_words_and_passes_pack_check(tmp_path):
     out = tmp_path / "pack"
     done = scaffold(out, "--kinds", "mcp-server", "--permissions", "artifact.read,mcp.session,ui.fullscreen")

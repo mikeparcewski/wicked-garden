@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+- **`install.py --from-run` finds the pack in a real run (editor and MCP).** The engine runs the install-plan and install Tool phases in the run's worktree and sets `WICKED_TREE` to that worktree's git tree id (wicked-core#776), not a path. Both install scripts read it as a directory, found nothing, and every editor-plugin run failed at install-plan with "found 0 (none)", so the install consent gate was never reached. `--from-run` now searches the worktree (the cwd) and uses `WICKED_TREE` only when it names a directory.
+- **A credential-free MCP server installs (`scripts/mcp/install.py`).** The installer assumed every server reads a `<SERVER>_TOKEN` secret. A local-computation server has no upstream, and its config names no `baseUrl` and no auth scheme (`auth` absent, null or `{"scheme": "none"}`). The installer still sent `auth: env:<SERVER>_TOKEN`, crew answered `secret_missing`, and the server was never registered, so a design that correctly invented no credential could not be installed. Such a server now smokes and registers with no secret variable. A server with an upstream, and `--from-npm` installs, are unchanged.
+
 ## [12.60.0] — 2026-10-26
 
 ### Fixed

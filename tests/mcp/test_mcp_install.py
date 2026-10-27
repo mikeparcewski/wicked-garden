@@ -171,6 +171,25 @@ def test_first_install_stages_registers_writes_clis_and_records(rig):
         assert (rig.root / "current" / f).is_file()
 
 
+@pytest.mark.parametrize("auth", [{}, {"auth": None}, {"auth": {"scheme": "none"}}], ids=["absent", "null", "none"])
+def test_a_credential_free_server_registers_with_no_secret_variable(rig, auth):
+    # A local-computation server (no upstream: its config names neither auth nor baseUrl) has nothing to
+    # authenticate to. It registered as pending "UNIT_CONVERT_TOKEN missing" and never reached the registry
+    # (j6-cert, unit-convert, 2026-10-26): it now smokes and registers with no secret variable. The second run of
+    # the same workflow wrote `"auth": {"scheme": "none"}`, so every spelling of "no scheme" counts.
+    (rig.srv / "mcp-server.config.json").write_text(json.dumps(
+        {"key": "acme-notes", "version": "0.1.0", "transport": "stdio", "rateLimitPerMin": 600, **auth}),
+        encoding="utf-8")
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        code, out = rig.run("--from-run", "--crew-url", daemon.origin)
+    assert code == 0, out
+    current_js = rig.root / "current" / "dist" / "server.js"
+    assert out["smoke"] == "ok" and out["registered"] is True and out["envNames"] == []
+    (preview,) = [r for r in daemon.requests if r["path"] == PREVIEW]
+    assert preview["body"] == {"name": "acme-notes", "kind": "mcp-stdio", "command": "node", "args": [str(current_js)]}
+
+
 def test_second_install_updates_in_place(rig):
     with FakeDaemon() as daemon:
         _registry(daemon)
@@ -371,6 +390,19 @@ def test_a_key_claimed_while_staging_is_never_overwritten(rig):
     assert code == 1, out
     assert out["registered"] is False and "different server under the key" in out["error"]
     assert [r["method"] for r in daemon.requests] == ["GET", "GET"], "nothing previewed or saved"
+
+
+def test_from_run_finds_the_server_in_the_worktree_when_wicked_tree_is_a_tree_id(rig):
+    # The engine runs the install Tool phase IN the run's worktree (the cwd) and sets WICKED_TREE to that worktree's
+    # git tree id (wicked-core#776), never a path; read as a path, the id found no mcp-server.config.json.
+    with FakeDaemon() as daemon:
+        _registry(daemon)
+        done = subprocess.run([sys.executable, str(INSTALL), "--from-run", "--dry-run", "--json",
+                               "--crew-url", daemon.origin], capture_output=True, text=True, timeout=120,
+                              env={**rig.env, "WICKED_TREE": "e7f75f7c794795ef010e7d25dc7070b9e98338c3"},
+                              cwd=rig.tree)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert json.loads(done.stdout.strip().splitlines()[-1])["key"] == "acme-notes"
 
 
 # ── core#820: --target worker|operator and --dry-run; garden#1258: no port default ─────────
