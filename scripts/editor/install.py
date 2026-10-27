@@ -9,7 +9,7 @@ An editor plugin is a ``wicked-pack.json`` spec-2 pack with ``editors[]`` (scaff
 ``scripts/editor/scaffold.py``). Install, idempotent by the pack's ``name``:
 
 1. **Locate**: ``--from-run`` finds the one spec-2 ``wicked-pack.json`` with editors under
-   ``$WICKED_TREE`` (else the cwd), outside node_modules/.git/dist; ``--dir`` names it.
+   the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/.git/dist; ``--dir`` names it.
 2. **Stage** into ``<root>/<name>/next/`` (root: ``--install-root``, ``$WICKED_EDITOR_INSTALL_ROOT``,
    else ``~/.wicked/editors``, a program-owned place): ``wicked-pack.json``, every editor's entry
    file at its manifest path, and the README. Nothing else of the tree is copied (an editor is ONE
@@ -127,11 +127,19 @@ def _is_editor_pack(manifest_path: Path) -> bool:
         return False
 
 
+def run_tree() -> Path:
+    """The run's worktree for ``--from-run``. The engine runs an install Tool phase IN the worktree and hands
+    ``$WICKED_TREE`` as that worktree's git tree id (wicked-core#776), never a path; reading the id as a path found
+    no pack in any real run. A ``$WICKED_TREE`` that names a directory is still honoured, else the cwd."""
+    named = os.environ.get("WICKED_TREE")
+    return Path(named) if named and Path(named).is_dir() else Path.cwd()
+
+
 def locate(args) -> tuple[Path, dict]:
     if args.dir is not None:
         pack = args.dir
     elif args.from_run:
-        tree = Path(os.environ.get("WICKED_TREE") or os.getcwd())
+        tree = run_tree()
         found = []
         for dirpath, dirnames, filenames in os.walk(tree):
             dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
@@ -372,7 +380,7 @@ def consent_refusal(args, env) -> str | None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     where = parser.add_mutually_exclusive_group()
-    where.add_argument("--from-run", action="store_true", help="find the one editor pack under $WICKED_TREE (else the cwd)")
+    where.add_argument("--from-run", action="store_true", help="find the one editor pack in the run's worktree (the cwd, or $WICKED_TREE when it names a directory)")
     where.add_argument("--dir", type=Path, help="the pack directory")
     where.add_argument("--uninstall", metavar="NAME", help="unregister and remove an installed editor pack")
     parser.add_argument("--target", type=parse_target, default=("daemon", None),

@@ -21,7 +21,7 @@ bound URL for every governed unit). There is no port default: a guessed ``:7701`
 daemon's registry. Neither set exits 2 naming the remedy.
 
 1. **Locate** the server: ``--from-run`` finds the one ``mcp-server.config.json`` under
-   ``$WICKED_TREE`` (else the cwd), outside node_modules/dist; ``--dir`` names it. The key and
+   the run's worktree (the cwd; ``$WICKED_TREE`` when it names a directory), outside node_modules/dist; ``--dir`` names it. The key and
    version come from that config.
 2. **Stage** into ``<root>/<key>/next/`` (root: ``--install-root``, ``$WICKED_MCP_INSTALL_ROOT``,
    else ``~/.wicked/mcp-servers``): ``npm ci --ignore-scripts && npm run build`` in the server
@@ -98,6 +98,17 @@ def env_prefix(key: str) -> str:
 def env_name_for(key: str) -> str:
     """The ONE variable the server reads its credential from (a NAME, never a value)."""
     return f"{env_prefix(key)}_TOKEN"
+
+
+def credential_free(config: dict) -> bool:
+    """A server with no upstream has nothing to authenticate to: its committed config names no ``baseUrl`` and no
+    auth scheme (``auth`` absent, null, or ``{"scheme": "none"}``), a local-computation server. It smokes and
+    registers with no secret variable. Any other server, and an --from-npm install (no config to read), reads the
+    one ``<SERVER>_TOKEN`` variable."""
+    if not config or "baseUrl" in config:
+        return False
+    auth = config.get("auth")
+    return auth is None or (isinstance(auth, dict) and auth.get("scheme") == "none")
 
 
 def crew_origin(flag: str | None) -> str:
@@ -256,6 +267,14 @@ def find_configs(tree: Path) -> list[Path]:
     return found
 
 
+def run_tree() -> Path:
+    """The run's worktree for ``--from-run``. The engine runs an install Tool phase IN the worktree and hands
+    ``$WICKED_TREE`` as that worktree's git tree id (wicked-core#776), never a path; reading the id as a path found
+    no server config in any real run. A ``$WICKED_TREE`` that names a directory is still honoured, else the cwd."""
+    named = os.environ.get("WICKED_TREE")
+    return Path(named) if named and Path(named).is_dir() else Path.cwd()
+
+
 def locate(args) -> tuple[Path | None, dict]:
     if args.dir is not None:
         config_path = args.dir / CONFIG_NAME
@@ -264,7 +283,7 @@ def locate(args) -> tuple[Path | None, dict]:
                 return None, {}
             raise Failure(2, f"{args.dir} has no {CONFIG_NAME}; scaffold the server first")
     elif args.from_run:
-        tree = Path(os.environ.get("WICKED_TREE") or os.getcwd())
+        tree = run_tree()
         found = find_configs(tree)
         if len(found) != 1:
             names = ", ".join(str(p) for p in found) or "none"
@@ -284,8 +303,9 @@ def locate(args) -> tuple[Path | None, dict]:
 
 # ── 3. smoke ───────────────────────────────────────────────────────────────────────────────
 
-def smoke(server_js: Path, var: str) -> tuple[str, dict]:
-    argv = [sys.executable, str(PROBE), "--timeout", str(PROBE_TIMEOUT_S), "--env", var, "--",
+def smoke(server_js: Path, var: str | None) -> tuple[str, dict]:
+    env_args = ["--env", var] if var else []
+    argv = [sys.executable, str(PROBE), "--timeout", str(PROBE_TIMEOUT_S), *env_args, "--",
             "node", str(server_js)]
     try:
         done = subprocess.run(argv, capture_output=True, text=True, timeout=PROBE_TIMEOUT_S + 30)
@@ -294,7 +314,7 @@ def smoke(server_js: Path, var: str) -> tuple[str, dict]:
         return "failed", {"ok": False, "error": f"probe did not run: {err}"}
     if report.get("ok") is True:
         return "ok", report
-    if var in (report.get("stderrNames") or []):
+    if var and var in (report.get("stderrNames") or []):
         return "pending_credential", report
     return "failed", report
 
@@ -343,9 +363,10 @@ def check_key(origin: str, key: str, server_js: Path) -> dict | None:
 
 # ── 5. register ────────────────────────────────────────────────────────────────────────────
 
-def register(origin: str, key: str, server_js: Path, var: str) -> dict:
-    body = {"name": key, "kind": "mcp-stdio", "command": "node", "args": [str(server_js)],
-            "auth": {"ref": f"env:{var}", "env": var}}
+def register(origin: str, key: str, server_js: Path, var: str | None) -> dict:
+    body: dict = {"name": key, "kind": "mcp-stdio", "command": "node", "args": [str(server_js)]}
+    if var:
+        body["auth"] = {"ref": f"env:{var}", "env": var}
     try:
         status, preview = http_json("POST", f"{origin}/api/v1/mcp/servers/preview", body)
     except (urllib.error.URLError, OSError):
@@ -510,7 +531,7 @@ def do_install(args) -> tuple[int, dict]:
     version = config.get("version")
     if args.from_npm:
         version = NPM_SPEC_RE.match(args.from_npm).group("version")
-    var = env_name_for(key)
+    var = None if credential_free(config) else env_name_for(key)
     root = install_root(args.install_root)
     key_root = root / key
     next_dir = key_root / "next"
@@ -539,7 +560,7 @@ def do_install(args) -> tuple[int, dict]:
 
     record = {"key": key, "version": version, "source": _source(server_dir, args.from_npm),
               **({"lockfile": lock} if lock else {}),
-              "command": "node", "args": [str(current_js)], "envNames": [var],
+              "command": "node", "args": [str(current_js)], "envNames": [var] if var else [],
               "installedAt": _now()}
     code = 0
     try:
@@ -661,7 +682,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     where = parser.add_mutually_exclusive_group()
     where.add_argument("--from-run", action="store_true",
-                       help=f"find the one {CONFIG_NAME} under $WICKED_TREE (else the cwd)")
+                       help=f"find the one {CONFIG_NAME} in the run's worktree (the cwd, or $WICKED_TREE when it names a directory)")
     where.add_argument("--dir", type=Path, help="the server directory")
     where.add_argument("--uninstall", metavar="KEY", help="unregister and remove an installed server")
     parser.add_argument("--key", help="the server key (must equal the config's key)")
