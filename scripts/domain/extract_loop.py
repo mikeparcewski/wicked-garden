@@ -35,6 +35,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -124,7 +125,7 @@ def _seat() -> str:
 
 
 def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str,
-                seat: str | None = None) -> None:
+                seat: str | None = None, read_back=None) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
     (validated=False) + a risk annotation — either way the node is ACCOUNTED, so the
@@ -161,9 +162,13 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         confidence=safe_conf,
                         provenance="extract-loop:risk", replace=True, author=seat)
         estate.set_requirement(sid, requirement=risk_req, validated=False, validated_by=seat)
-    # Read-back re-derive: never trust the write's exit code alone.
-    anns = estate.read_annotations(sid)
-    if not any(a.get("key") == rid for a in anns):
+    # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
+    # reads it back directly (`read_back(sid, key)`, one query instead of a third process).
+    if read_back is not None:
+        durable = read_back(sid, rid)
+    else:
+        durable = any(a.get("key") == rid for a in estate.read_annotations(sid))
+    if not durable:
         raise RuntimeError(f"write not durable: {sid} missing annotation {rid} on read-back")
 
 
@@ -352,6 +357,81 @@ def _edge_kind(raw) -> str:
 
 
 _MAX_HUBS = 25
+
+# wicked-garden#1366: in a JavaScript/TypeScript store, a call such as `s.startsWith(x)` or
+# `map.get(k)` resolves to ANY local symbol of the same name, so a one-line helper that happens to
+# share a builtin's name collects thousands of callers and PageRank makes it the first hub. A
+# symbol whose name is a builtin method, in a JS/TS file, called from many files is such a
+# collision: it is never a hub, never fanned out from (its "callers" are not its neighbourhood),
+# and it is ordered after real code of the same distance. It is still mapped, in its turn.
+_JS_EXTS = (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".mts", ".cts")
+_BUILTIN_NAMES = frozenset(
+    # Object / Function
+    "toString valueOf hasOwnProperty isPrototypeOf toJSON apply call bind constructor "
+    "keys values entries assign create freeze is from of "
+    # Array / iterables
+    "at concat copyWithin every fill filter find findIndex findLast findLastIndex flat flatMap "
+    "forEach includes indexOf join lastIndexOf map pop push reduce reduceRight reverse shift "
+    "slice some sort splice toSorted toReversed unshift with length "
+    # String
+    "charAt charCodeAt codePointAt endsWith localeCompare match matchAll normalize padEnd "
+    "padStart repeat replace replaceAll search split startsWith substring toLowerCase "
+    "toUpperCase trim trimEnd trimStart "
+    # Map / Set / WeakMap
+    "add clear delete get has set size "
+    # Promise
+    "then catch finally resolve reject all allSettled race any "
+    # Math / Number / JSON / Date / RegExp
+    "abs ceil floor max min pow random round sign sqrt trunc parse stringify now test exec "
+    "toFixed parseInt parseFloat isNaN isFinite getTime toISOString "
+    # EventEmitter / streams / timers commonly shadowed
+    "on off once emit write end close open next done send"
+    .split()
+)
+_COLLISION_MIN_FILES = 8
+
+
+def _bare_name(name: str) -> str:
+    """`McpRegistry#test()` / `run-liveness/parse()` / `startsWith` -> the method's own name."""
+    tail = re.split(r"[#./:]", name or "")[-1]
+    return tail.split("(", 1)[0].strip()
+
+
+_TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|spec|e2e|fixtures?)/|\.(test|spec)\.[^/]+$|"
+                        r"(^|/)test_[^/]+\.py$|_test\.(py|go|rs)$")
+
+
+def is_test_path(file: str) -> bool:
+    """A test, spec or fixture file: mapped in its turn, never where a page starts."""
+    return bool(_TEST_PATH.search(file or ""))
+
+
+def _not_a_hub(store, sid) -> bool:
+    """A symbol that never seeds the fan-out: a JS/TS symbol named like a builtin method (its
+    callers are any `x.get()` / `Math.round()` in the repo, wicked-garden#1366), or one in a test
+    file (a page starts at the product's code)."""
+    row = getattr(store, "node_row", {}).get(sid)
+    if row is None:
+        return False
+    name, file = row[0], row[1] or ""
+    if is_test_path(file):
+        return True
+    return file.endswith(_JS_EXTS) and _bare_name(name) in _BUILTIN_NAMES
+
+
+def collision_sids(store) -> set:
+    """The store's builtin-name collisions (wicked-garden#1366): a JS/TS symbol named like a
+    builtin method that callers in at least `_COLLISION_MIN_FILES` distinct files reach."""
+    out = set()
+    for sid, row in getattr(store, "node_row", {}).items():
+        name, file = row[0], row[1] or ""
+        if not file.endswith(_JS_EXTS) or _bare_name(name) not in _BUILTIN_NAMES:
+            continue
+        files = {store.node_row.get(c, (None, None))[1] for c in getattr(store, "callers", {}).get(sid, ())}
+        files.discard(None)
+        if len(files) >= _COLLISION_MIN_FILES:
+            out.add(sid)
+    return out
 # Positions per stripe window for parallel workers: the largest batch `_density_batch` may pick,
 # so a full adaptive batch fits inside one window.
 _STRIPE = 64
@@ -374,9 +454,11 @@ def hub_first_order(store, hubs: list[str]) -> tuple[dict[str, int], dict[str, i
     Returns (rank, hops), both keyed by symbol string."""
     deg = {sid: len(ns) for sid, ns in store.adj.items()}
     sym_of = store.sym_of
+    collide = collision_sids(store)
 
     def by_degree(sids):
-        return sorted(sids, key=lambda x: (-deg.get(x, 0), sym_of.get(x, "")))
+        # A builtin-name collision's degree is its false callers: it goes after real code.
+        return sorted(sids, key=lambda x: (x in collide, -deg.get(x, 0), sym_of.get(x, "")))
 
     rank: dict[str, int] = {}
     hops: dict[str, int] = {}
@@ -384,7 +466,8 @@ def hub_first_order(store, hubs: list[str]) -> tuple[dict[str, int], dict[str, i
     # Seeds: hubs that exist AND have use-graph neighbours (a file or module PageRank ranks high
     # through imports alone would fan out to nothing and burn the hub slot), each once.
     seeds = list(dict.fromkeys(
-        store.sid_of[h] for h in hubs if store.sid_of.get(h) in store.adj
+        store.sid_of[h] for h in hubs
+        if store.sid_of.get(h) in store.adj and not _not_a_hub(store, store.sid_of[h])
     ))[: hub_count(store)]
     remaining = by_degree(store.sym_of.keys())
     cursor = 0  # forward-only: each candidate is skipped at most once (no N² rescans)
@@ -407,6 +490,8 @@ def hub_first_order(store, hubs: list[str]) -> tuple[dict[str, int], dict[str, i
                 if sym is not None:
                     rank[sym] = len(rank)
                     hops[sym] = depth
+                if s in collide:
+                    continue  # its "neighbours" are every caller of a builtin's name
                 for n in by_degree(store.adj.get(s, ())):
                     if n not in seen:
                         seen.add(n)
@@ -423,14 +508,16 @@ def _centrality_hubs(estate, store) -> tuple[list[str], str]:
     own degree (a store without the `rank` command, or a failed call — said on stderr)."""
     try:
         ranked = list(dict.fromkeys(estate.rank(200)))
-        hubs = [h for h in ranked if store.sid_of.get(h) in store.adj]
+        hubs = [h for h in ranked
+                if store.sid_of.get(h) in store.adj and not _not_a_hub(store, store.sid_of[h])]
         if hubs:
             return hubs, "estate rank (PageRank)"
         print("[extract-loop] estate rank named no symbol with use-graph neighbours; hubs by degree "
               "instead", file=sys.stderr)
     except Exception as e:  # centrality is ordering quality, never a reason to stop
         print(f"[extract-loop] estate rank unavailable ({e}); hubs by degree instead", file=sys.stderr)
-    by_deg = sorted(store.adj, key=lambda s: (-len(store.adj[s]), store.sym_of.get(s, "")))
+    by_deg = sorted((s for s in store.adj if not _not_a_hub(store, s)),
+                    key=lambda s: (-len(store.adj[s]), store.sym_of.get(s, "")))
     return [store.sym_of[s] for s in by_deg[:_MAX_HUBS] if s in store.sym_of], "degree"
 
 
@@ -713,7 +800,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
 
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
-                     seat: str | None = None) -> str:
+                     seat: str | None = None, read_back=None) -> str:
     """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
     RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
     in a seat container is judged exactly like one the host's own model returned. Returns
@@ -724,10 +811,10 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
         resolved = adjusted >= RESOLVE_THRESHOLD
         _write_node(estate, sid, name, rule, resolved,
-                    "below confidence threshold" if not resolved else "", seat=seat)
+                    "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back)
         return "resolved" if resolved else "risk"
     if (rule or {}).get("statement"):
-        _write_node(estate, sid, name, rule, False, reason, seat=seat)
+        _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
         return "risk"
     if _has_statement(store, sid):
         # Statement-less floor over existing content would DEGRADE the store — a re-queued
@@ -735,7 +822,7 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # monotonic.
         print(f"[extract-loop] floor skipped for {sid} (existing statement kept)", file=sys.stderr)
         return "kept"
-    _write_node(estate, sid, name, rule, False, reason, seat=seat)
+    _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
     return "risk"
 
 

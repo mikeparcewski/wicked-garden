@@ -145,7 +145,16 @@ INDEXED store annotated to at least the configured minimum to clear core's gate
   --min-coverage-pct` and `wicked-core domain-graph` both read it. Below it they say
   "N% mapped, minimum M%" and fail closed; the mapping done so far stays in the estate store,
   so the next run continues from it. The built graph carries `metadata.coverage`
-  ("82% of behaviours mapped").
+  ("82% of behaviours mapped"). A repository's own target (`wicked-core requirements-target
+  --set N`, kept in its store) comes before the daemon-wide minimum.
+- **A generation keeps going.** A crew `domain-extraction` run maps one page (worklist, 500
+  behaviours by default, `WICKED_DOMAIN_PAGE_SIZE`) at a time; after each page the host step
+  `extract-next` (`scripts/domain/next_page.py`) prints one progress line ("Mapping
+  wicked-crew · 3% → 12% → 19% · target 80% · page 4 · about 2 h left") and the run loops
+  back to `extract-prepare` until the target is reached. Its budget per grant
+  (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240, crew Settings) ends in an
+  ask: map more, lower the target for this repository to the share mapped so far, or stop
+  (what was mapped is kept).
 - **Hub-first, fan-out order.** The extraction harness maps the most central symbols first
   (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
   distance, so the load-bearing behaviour is covered first. The order is deterministic: a
