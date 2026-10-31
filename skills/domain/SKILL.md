@@ -150,6 +150,14 @@ INDEXED store annotated to at least the configured minimum to clear core's gate
   (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
   distance, so the load-bearing behaviour is covered first. The order is deterministic: a
   later run re-derives it and resumes at the frontier.
+- **Across the seat boundary.** In a wicked-crew `domain-extraction` run the extractor seat
+  runs in a container with no `wicked-core`, no `wicked-estate` and a read-only store. Two
+  host steps bracket it: `extract-prepare` writes the hub-first worklist
+  (`.wicked/domain/worklist.json`, `scripts/domain/prepare_worklist.py`), the seat states the
+  rules into `.wicked/domain/rules.json` (the extractor's file mode), and `extract-apply`
+  (`scripts/domain/apply_rules.py`) checks that file against its schema and the store,
+  refuses anything outside it or about a file the repository does not track, writes the rest
+  with the harness's own validation and authorship, and writes `coverage-report.json`.
 - **Corroboration.** Every requirement in the built graph carries `corroboration`:
   `validated` when two or more independent sources support it (callers, tests, docs,
   agreeing extractor seats), else `unconfirmed` with a `why` code and sentence

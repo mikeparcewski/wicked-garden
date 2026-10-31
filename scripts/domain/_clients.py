@@ -360,6 +360,19 @@ class CliCoreClient:
         _run([*self._bin, "coverage", "--db", db, "--out", out])
         return _read_output_json(out, "wicked-core coverage")
 
+    def coverage_against_minimum(self, db: str, out: str) -> tuple[dict[str, Any], bool, str]:
+        """Emit the coverage report to ``out`` checked against the CONFIGURED minimum
+        (``--min-coverage-pct``: ``WICKED_REQUIREMENTS_MIN_COVERAGE_PCT``, else 80). Returns
+        (report, at_or_above_minimum, the CLI's "N% mapped, minimum M%" line). Below the minimum
+        is an answer (exit 3), not an error; any other non-zero exit fails loud."""
+        proc = _invoke([*self._bin, "coverage", "--db", db, "--out", out, "--min-coverage-pct"])
+        if proc.returncode not in (0, 3):
+            raise RuntimeError(f"{self._bin[0]} coverage exited {proc.returncode}: "
+                               f"{(proc.stderr or proc.stdout).strip()[:300]}")
+        lines = [ln.strip() for ln in (proc.stderr or "").splitlines() if "mapped" in ln]
+        return _read_output_json(out, "wicked-core coverage"), proc.returncode == 0, \
+            (lines[-1] if lines else "")
+
     def domain_graph(self, db: str, out: str,
                      coverage: str | None = None) -> dict[str, Any]:
         """Build ``requirements_graph.json`` from the annotated store and return
@@ -447,9 +460,19 @@ def estate_client(db: Optional[str] = None,
     return EstateClient()
 
 
+# The engine's own CLI as wicked-crew resolved it (crew exports it to the daemon; the engine's
+# Tool steps inherit it). It matches the running engine, so it wins over config and PATH.
+ENGINE_CORE_ENV = "WICKED_CORE_EXE"
+
+
 def core_client(project_dir: Optional[Path] = None) -> Optional[CliCoreClient]:
     """A CLI-backed :class:`CliCoreClient` when ``wicked-core`` resolves, else
     ``None`` (the caller falls back to the hermetic ``_mocks.BrainClient`` +
-    ``emit_domain_model`` doc-assembly lane)."""
+    ``emit_domain_model`` doc-assembly lane). ``WICKED_CORE_BIN`` (set-but-empty = the
+    kill-switch) wins; then the engine's ``WICKED_CORE_EXE``; then config, PATH, node_modules."""
+    if CORE_ENV not in os.environ:
+        engine = (os.environ.get(ENGINE_CORE_ENV) or "").strip()
+        if engine:
+            return CliCoreClient([engine])
     bin_argv = _resolve_bin(CORE_ENV, "wicked-core", project_dir)
     return CliCoreClient(bin_argv) if bin_argv else None
