@@ -284,3 +284,28 @@ def test_real_cli_selection_resolves_the_binaries():
     est = _clients.estate_client(db="/tmp/does-not-matter.db")
     assert isinstance(est, _clients.CliEstateClient)
     assert _clients.core_client() is not None
+
+
+def test_two_seats_keep_two_rules_and_a_seat_replaces_only_its_own(monkeypatch):
+    """xreview on #1361: estate's --replace is per (symbol, type, key) whatever the author, so the
+    key is per seat — two seats agreeing leave two author records; a repeat replaces its own."""
+    from domain import extract_loop
+
+    class _Est:
+        def __init__(self):
+            self.rows = {}  # (sid, type, key) -> author, the store's replace semantics
+        def annotate(self, symbol_id, type, key, value, confidence=None, provenance=None,
+                     replace=True, author=None):
+            self.rows[(symbol_id, type, key)] = author
+        def set_requirement(self, *a, **k):
+            pass
+        def read_annotations(self, symbol_id):
+            return [{"key": k} for (s, _t, k) in self.rows if s == symbol_id]
+    est = _Est()
+    rule = {"statement": "amount must be positive", "confidence": 0.9,
+            "provenance": {"source": "m"}}
+    for agent in ("claude", "codex", "claude"):
+        monkeypatch.setenv("WICKED_RUN_AGENT", agent)
+        extract_loop._write_node(est, "sym::a", "a", rule, True, "")
+    authors = sorted(a for (s, t, _k), a in est.rows.items() if t == "business_rule")
+    assert authors == ["extract-loop:claude", "extract-loop:codex"]

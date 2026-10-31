@@ -116,14 +116,20 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
     (validated=False) + a risk annotation — either way the node is ACCOUNTED, so the
     RISK-floor guarantees coverage completeness."""
-    rid = "RULE-%s" % hashlib.sha256(sid.encode()).hexdigest()[:12]
+    # The key is per SEAT: estate's `--replace` deletes every annotation of that symbol, type and
+    # key whatever its author, so a shared key let a second seat's write erase the first seat's —
+    # and wicked-core, which counts agreeing seats by author, would only ever see one. The default
+    # seat (no run agent) keeps the historical key, so a standalone re-run still replaces itself.
+    seat = _seat()
+    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
+    rid = "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
     if resolved and rule:
         stmt = rule["statement"]
         estate.annotate(sid, type="business_rule", key=rid, value=stmt,
                         confidence=float(rule.get("confidence", 0.9)),
                         provenance=str(rule.get("provenance", {}).get("source", "extract-loop")),
-                        replace=True, author=_seat())
-        estate.set_requirement(sid, requirement=stmt, validated=True, validated_by=_seat())
+                        replace=True, author=seat)
+        estate.set_requirement(sid, requirement=stmt, validated=True, validated_by=seat)
     else:
         stmt = (rule or {}).get("statement") or ""
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")
@@ -140,8 +146,8 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
             safe_conf = 0.0
         estate.annotate(sid, type="risk", key=rid, value=risk_req[:500],
                         confidence=safe_conf,
-                        provenance="extract-loop:risk", replace=True, author=_seat())
-        estate.set_requirement(sid, requirement=risk_req, validated=False, validated_by=_seat())
+                        provenance="extract-loop:risk", replace=True, author=seat)
+        estate.set_requirement(sid, requirement=risk_req, validated=False, validated_by=seat)
     # Read-back re-derive: never trust the write's exit code alone.
     anns = estate.read_annotations(sid)
     if not any(a.get("key") == rid for a in anns):
