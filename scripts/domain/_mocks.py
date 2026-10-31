@@ -89,7 +89,7 @@ class EstateClient:
 
     def annotate(self, symbol_id: str, type: str, key: str, value: str,
                  confidence: float | None = None, provenance: str | None = None,
-                 replace: bool = True) -> None:
+                 replace: bool = True, author: str | None = None) -> None:
         if not _looks_like_symbol_id(symbol_id):
             raise ValueError(
                 f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name "
@@ -98,10 +98,11 @@ class EstateClient:
         self.annotation_writes.append({
             "symbol_id": symbol_id, "type": type, "key": key, "value": value,
             "confidence": confidence, "provenance": provenance, "replace": replace,
+            "author": author,
         })
 
     def set_requirement(self, symbol_id: str, requirement: str,
-                        validated: bool) -> None:
+                        validated: bool, validated_by: str = "extract-loop") -> None:
         if not _looks_like_symbol_id(symbol_id):
             raise ValueError(
                 f"refusing set_requirement on non-SymbolId {symbol_id!r} — a bare "

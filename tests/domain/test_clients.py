@@ -146,6 +146,29 @@ def test_set_requirement_routes_to_semantics(monkeypatch):
     assert "sym::billing::A::a1" in argv
     assert argv[argv.index("--requirement") + 1] == "REQ text"
     assert argv[argv.index("--validated") + 1] == "true"
+    # estate >= 0.30 refuses --validated without --validated-by: every write names its validator.
+    assert argv[argv.index("--validated-by") + 1] == "extract-loop"
+    est.set_requirement("sym::billing::A::a1", "[RISK] x", validated=False, validated_by="extract-loop:codex")
+    argv = cap.calls[1]
+    assert argv[argv.index("--validated") + 1] == "false"
+    assert argv[argv.index("--validated-by") + 1] == "extract-loop:codex"
+
+
+def test_annotate_names_its_author_when_given(monkeypatch):
+    est, cap = _cli_estate(monkeypatch)
+    est.annotate("sym::billing::A::a1", "business_rule", "k", "v", author="extract-loop:claude")
+    argv = cap.calls[0]
+    assert argv[argv.index("--author") + 1] == "extract-loop:claude"
+    est.annotate("sym::billing::A::a1", "business_rule", "k", "v")
+    assert "--author" not in cap.calls[1]
+
+
+def test_the_harness_writes_name_the_seat(monkeypatch):
+    from domain import extract_loop
+    monkeypatch.setenv("WICKED_RUN_AGENT", "codex")
+    assert extract_loop._seat() == "extract-loop:codex"
+    monkeypatch.delenv("WICKED_RUN_AGENT")
+    assert extract_loop._seat() == "extract-loop"
 
 
 def test_read_clusters_requests_the_summary_shape(monkeypatch):

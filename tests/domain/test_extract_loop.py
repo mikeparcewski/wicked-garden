@@ -74,7 +74,7 @@ class _FakeEstate:
         return f"source of {name}"
     def annotate(self, symbol_id, **kw):
         self.writes.setdefault(symbol_id, {})["ann"] = kw
-    def set_requirement(self, symbol_id, requirement, validated):
+    def set_requirement(self, symbol_id, requirement, validated, validated_by="extract-loop"):
         self.writes.setdefault(symbol_id, {})["req"] = (requirement, validated)
     def read_annotations(self, symbol_id):
         # honor the harness read-back: echo the key it just wrote

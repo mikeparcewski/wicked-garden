@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **The domain extraction harness can write against estate 0.30 (#1360).** estate >= 0.30 refuses `semantics --validated` without `--validated-by`, so `extract_loop.py`'s first write (a RESOLVED or a RISK node) exited with a usage error and the pass aborted before mapping anything; a `domain-extraction` run could never reach its coverage step. `CliEstateClient.set_requirement` now names its validator, and the harness's writes name the seat: `extract-loop:<WICKED_RUN_AGENT>` as the semantics validator and the business-rule annotation's `--author`, which is what wicked-core's corroboration counts as an extractor seat. Proven against the real estate 0.30.0 and wicked-core main on a copy of tiny-math's store: 8 of 8 mapped hub-first, `coverage --min-coverage-pct` passes, `domain-graph --repo-root` writes the graph (sum/mean/clamp validated by callers, tests and the README; the package.json keys unconfirmed, `config_only`).
+
 ### Added
 - **`wicked-garden-repo-learn` has a style lens, and writing is a source.** Studio's Learn → Style (program DES-LEARN §3.1) runs `capture-learnings` on a showcase repository to learn how the person or team works, not only how the code works. When the run asks for style, phase 2 also reads naming, structure, test shape, change size, and commit and review tone, each with a stated cap (`git log -n 200 --shortstat`, `-n 100 --format=%s`, 3 to 5 reviews when `gh` is signed in). Phase 3 captures those as style memories (`reach: "operator"`, so the person decides at review whether they apply everywhere). An enforced convention stays a policy and what the code does stays knowledge. The same lens covers writing (a blog, a docs site, a document): a sample of at most 10 pages is read, the patterns are found, and they're captured as memories, because the person's own voice is told, not acquired. `refs/style-lens.md`.
 
