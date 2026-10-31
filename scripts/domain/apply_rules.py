@@ -103,12 +103,16 @@ def _annotation_read_back(db: str):
         return None
 
     def check(symbol_id: str, key: str) -> bool:
-        con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
-            row = con.execute("SELECT 1 FROM annotations a JOIN symbols s ON s.sid = a.node_sym "
-                              "WHERE s.sym = ? AND a.key = ? LIMIT 1", (symbol_id, key)).fetchone()
-        finally:
-            con.close()
+            con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
+            try:
+                row = con.execute("SELECT 1 FROM annotations a JOIN symbols s ON "
+                                  "s.sid = a.node_sym WHERE s.sym = ? AND a.key = ? LIMIT 1",
+                                  (symbol_id, key)).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error as e:  # a failed read-back is a failed write, said as one
+            raise RuntimeError(f"read-back of {symbol_id} failed: {e}") from e
         return row is not None
 
     return check

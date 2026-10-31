@@ -138,6 +138,8 @@ def main(argv: list[str] | None = None) -> int:
             args.limit = int(os.environ.get(PAGE_SIZE_ENV) or DEFAULT_LIMIT)
         except ValueError:
             args.limit = DEFAULT_LIMIT
+        if args.limit <= 0:  # the setting is a page size; "all of it" is only --limit 0
+            args.limit = DEFAULT_LIMIT
     try:
         prepare(args.db, args.repo_root, Path.cwd(), args.out, args.limit)
     except (RuntimeError, OSError, rules_file.RulesFileRefused) as e:

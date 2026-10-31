@@ -140,12 +140,13 @@ def _run_json(argv: list[str]) -> Any:
         # opens one. Read without that, `clusters` failed and every node framed as a singleton
         # community, which pulled each rule's confidence under the resolve threshold.
         lines = out.splitlines()
-        start = next((i for i, ln in enumerate(lines) if ln.lstrip()[:1] in ("[", "{")), None)
-        if start:
+        for start in range(1, len(lines)):
+            if lines[start].lstrip()[:1] not in ("[", "{"):
+                continue
             try:
                 return json.loads("\n".join(lines[start:]))
             except json.JSONDecodeError:
-                pass
+                continue  # an advisory line that itself opens with a bracket: keep looking
         raise RuntimeError(f"{argv[0]} output is not JSON: {e}: {out[:200]!r}") from e
 
 

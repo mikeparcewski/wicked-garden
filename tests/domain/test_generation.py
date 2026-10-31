@@ -26,7 +26,10 @@ def _pt(page, mapped, at_min, behaviours=1000):
 
 
 def _doc(*points, grant=(0, 0)):
-    return {"schema": generation.SCHEMA, "run_id": "r1", "repo": "crew", "points": list(points),
+    pts = [dict(p) for p in points]
+    for prev, p in zip(pts, pts[1:]):  # each page ran from the previous one's end
+        p.setdefault("took", p["at"] - prev["at"])
+    return {"schema": generation.SCHEMA, "run_id": "r1", "repo": "crew", "points": pts,
             "grant": {"page": grant[0], "at": grant[1] * MIN}}
 
 
@@ -74,10 +77,29 @@ def test_two_pages_that_map_nothing_new_ask_instead_of_looping():
     assert "the last two pages mapped nothing new" in d["line"]
 
 
+def test_map_more_after_a_stall_tries_again():
+    """codex/agy r1 on #1369: a fresh grant after a stall must run another page, not re-ask."""
+    pts = (_pt(0, 30, 0), _pt(1, 90, 10), _pt(2, 90, 20), _pt(3, 90, 30))
+    assert _decide(_doc(*pts, grant=(3, 31)), now_min=31)["next"] == "continue"
+    # …and stalls again only after two more pages map nothing.
+    more = (*pts, _pt(4, 90, 40))
+    assert _decide(_doc(*more, grant=(3, 31)))["next"] == "continue"
+    assert _decide(_doc(*more, _pt(5, 90, 50), grant=(3, 31)))["next"] == "ask"
+
+
 def test_nothing_left_to_map_offers_only_to_lower_the_target():
     d = _decide(_doc(_pt(0, 30, 0), _pt(1, 600, 10)), left=0)
     assert d["next"] == "ask" and [c["id"] for c in d["choices"]] == ["lower"]
     assert d["line"].endswith("nothing left to map in the files the repository tracks")
+
+
+def test_below_one_percent_no_target_can_be_lowered_to():
+    """codex/agy r1 on #1369: "lower to 1%" at 0.5% mapped could never be met."""
+    stuck = _doc(_pt(0, 2, 0, behaviours=1000), _pt(1, 5, 10, behaviours=1000))
+    d = _decide(stuck, left=0)
+    assert d["next"] == "done", "nothing can change; the coverage step says the share"
+    budget = _decide(stuck, max_pages=1)
+    assert budget["next"] == "ask" and [c["id"] for c in budget["choices"]] == ["continue"]
 
 
 def test_a_long_curve_keeps_its_start_and_its_last_four():
@@ -178,6 +200,30 @@ def test_the_operators_continue_grants_a_fresh_budget(tmp_path, capsys):
     assert rec["grant"] == {"page": 1, "at": 16 * MIN}
 
 
+def test_a_retried_or_answered_step_records_the_same_page_and_keeps_its_time(tmp_path, capsys):
+    """codex r1 on #1369: the engine's pass names the page; an answer is not mapping time."""
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 30}, "repo",
+                           at=0)
+    _run(tmp_path, _Core(120), _env(WICKED_REPEAT_PASS=1, WICKED_DOMAIN_MAX_PAGES=1), 15, capsys)
+    _run(tmp_path, _Core(120), _env(WICKED_REPEAT_PASS=1, WICKED_DOMAIN_MAX_PAGES=1), 16, capsys)
+    rec = generation.load(str(db), "run-1")
+    assert [p["page"] for p in rec["points"]] == [0, 1], "a retry is the same page"
+    # the operator answers a day later: page 1 keeps the 15 minutes it ran
+    d, _, _ = _run(tmp_path, _Core(120), _env(WICKED_REPEAT_PASS=1, WICKED_DOMAIN_MAX_PAGES=1,
+                                              WICKED_REPEAT_CHOICE="continue"), 24 * 60, capsys)
+    rec = generation.load(str(db), "run-1")
+    assert rec["points"][1]["took"] == 16 * MIN and d["next"] == "continue"
+    assert rec["grant"] == {"page": 1, "at": 24 * 60 * MIN}
+    # page 2 ran 15 minutes after the grant: the ETA counts runs, never the wait
+    d, _, _ = _run(tmp_path, _Core(200), _env(WICKED_REPEAT_PASS=2, WICKED_DOMAIN_MAX_PAGES=5),
+                   24 * 60 + 15, capsys)
+    rec = generation.load(str(db), "run-1")
+    assert rec["points"][2]["took"] == 15 * MIN
+    assert "about 2 h 4 min left" in d["line"], d["line"]  # 15.5 min a page, 85 a page
+
+
 def test_lowering_the_target_sets_the_repositorys_own_and_finishes(tmp_path, capsys):
     core = _Core(230)
     d, out, _ = _run(tmp_path, core, _env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"),
@@ -227,7 +273,8 @@ def _collision_store():
              ("s::helper", "helper", "tests/helpers.test.ts")]
     callers = [(f"s::c{i}", f"c{i}", f"src/mod{i}/a.ts") for i in range(10)]
     calls = [(c, "s::startsWith") for c, _, _ in callers] + [("s::checkout", "s::price"),
-                                                            ("s::helper", "s::checkout")]
+                                                            ("s::helper", "s::checkout"),
+                                                            ("s::checkout", "s::startsWith")]
     return _Store(nodes + callers, calls)
 
 
@@ -242,9 +289,17 @@ def test_a_builtin_name_collision_is_never_a_hub_nor_fanned_out_from():
     hubs, how = extract_loop._centrality_hubs(Rank(), st)
     assert hubs == ["s::checkout"], "a builtin-named symbol and a test file never seed a page"
     rank, hops = extract_loop.hub_first_order(st, hubs)
-    assert rank["s::checkout"] == 0 and rank["s::price"] < rank["s::startsWith"]
-    # the collision's ten "callers" are not reached through it: each is seeded on its own later
-    assert hops["s::c0"] != hops["s::startsWith"] + 1 or rank["s::c0"] > rank["s::price"]
+    # the product's code first; the test helper and the collision (reached from the hub) after it
+    assert rank["s::checkout"] == 0
+    assert rank["s::price"] < min(rank["s::startsWith"], rank["s::helper"])
+    assert hops["s::startsWith"] == 1
+    # the collision's ten "callers" are never reached THROUGH it (codex r1 on #1369): fanned out
+    # from it they would all sit one layer past it; each is seeded on its own instead, one after
+    # another, its distance counting on from the last layer
+    first = hops["s::c0"]
+    assert first > hops["s::startsWith"]
+    for i in range(10):
+        assert hops[f"s::c{i}"] == first + i and rank[f"s::c{i}"] > rank["s::startsWith"], i
 
 
 def test_test_files_are_recognised_across_ecosystems():
@@ -264,6 +319,11 @@ def test_a_json_document_after_an_estate_advisory_line_is_read(monkeypatch):
             "[\n  {\"id\": 1}\n]\n"), stderr="")
     monkeypatch.setattr(_clients, "_invoke", fake)
     assert _clients._run_json(["wicked-estate", "clusters"]) == [{"id": 1}]
+
+    def bracketed(argv):  # an advisory line that itself opens with a bracket is skipped too
+        return subprocess.CompletedProcess(argv, 0, stdout="[warn] stale\n{\"ok\": 1}\n", stderr="")
+    monkeypatch.setattr(_clients, "_invoke", bracketed)
+    assert _clients._run_json(["wicked-estate", "clusters"]) == {"ok": 1}
 
     def junk(argv):
         return subprocess.CompletedProcess(argv, 0, stdout="STALENESS only\n", stderr="")

@@ -61,24 +61,43 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         cov = core.coverage(db, str(Path(tmp) / "coverage.json"))
     target, source = core.requirements_target(db)
 
-    doc = generation.load(db, run_id)
-    if doc is None:  # no `extract-prepare` opened one (an older prepare): start here, said below
-        doc = generation.open_record(db, run_id, cov, repo)
+    if run_id == "standalone":
+        # Outside a run there is no generation to keep: decide on this page alone.
+        doc = {"schema": generation.SCHEMA, "run_id": run_id, "repo": repo,
+               "points": [generation.point_of(cov, 0, now)], "grant": {"page": 0, "at": now}}
+    else:
+        doc = generation.load(db, run_id)
+        if doc is None:  # no `extract-prepare` opened one (an older prepare): start here
+            doc = generation.open_record(db, run_id, cov, repo, at=now)
+    points = doc["points"]
+    # The engine's pass names the page (codex r1 on #1369): a retried or re-answered step records
+    # the same page again, never another one.
     try:
         page = int(env.get(PASS_ENV) or 0)
     except ValueError:
         page = 0
-    page = max(page, doc["points"][-1]["page"] + (0 if choice else 1))
-    point = generation.point_of(cov, page, now)
-    pts = [p for p in doc["points"] if p["page"] != page]
-    doc["points"] = [*pts, point]
+    if page <= 0:
+        page = points[-1]["page"] + (0 if choice else 1)
+    page = max(page, 1)
+    kept = next((p for p in points if p["page"] == page), None)
+    if choice and kept is not None:
+        # An answer to an ask: no page ran, so the page keeps its own time (codex r1: an
+        # operator's 24 h wait read as mapping time).
+        point = kept
+    else:
+        earlier = [p for p in points if p["page"] < page]
+        start = max([p["at"] for p in earlier[-1:]] + [doc["grant"]["at"]])
+        point = generation.point_of(cov, page, now, now - start)
+    doc["points"] = sorted([p for p in points if p["page"] != page] + [point],
+                           key=lambda p: p["page"])
 
-    if choice == "continue":
+    if choice == "continue" and doc["grant"]["page"] != page:
         doc["grant"] = {"page": page, "at": now}
-    if choice == "lower" and point["pct"] < target:
-        target, source = core.requirements_target(db, set_pct=max(1, point["pct"]))
+    if choice == "lower" and 1 <= point["pct"] < target:
+        target, source = core.requirements_target(db, set_pct=point["pct"])
         doc["lowered_to"] = target
-    generation.save(db, run_id, doc)
+    if run_id != "standalone":
+        generation.save(db, run_id, doc)
 
     max_pages, max_minutes = generation.budget_from_env(env)
     decision = generation.decide(doc, repo=repo, target=target, now=now, max_pages=max_pages,

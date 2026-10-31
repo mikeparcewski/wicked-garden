@@ -458,7 +458,9 @@ def hub_first_order(store, hubs: list[str]) -> tuple[dict[str, int], dict[str, i
 
     def by_degree(sids):
         # A builtin-name collision's degree is its false callers: it goes after real code.
-        return sorted(sids, key=lambda x: (x in collide, -deg.get(x, 0), sym_of.get(x, "")))
+        # …and so do tests and builtin-named symbols (agy r1 on #1369): never ahead of the product.
+        return sorted(sids, key=lambda x: (x in collide, _not_a_hub(store, x), -deg.get(x, 0),
+                                           sym_of.get(x, "")))
 
     rank: dict[str, int] = {}
     hops: dict[str, int] = {}

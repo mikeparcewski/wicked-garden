@@ -48,12 +48,16 @@ def mapped_pct(mapped: int, behaviours: int) -> int:
     return (mapped * 100) // behaviours
 
 
-def point_of(coverage: dict[str, Any], page: int, at: int | None = None) -> dict[str, Any]:
-    """A curve point from a `wicked-core coverage` report."""
+def point_of(coverage: dict[str, Any], page: int, at: int | None = None,
+             took: int = 0) -> dict[str, Any]:
+    """A curve point from a `wicked-core coverage` report. `took`: how long the page itself ran
+    (ms, from the later of the previous page and the latest grant), so an operator's wait at an
+    ask never counts as mapping time."""
     behaviours = int(coverage.get("behavior_bearing") or 0)
     mapped = int(coverage.get("resolved") or 0) + int(coverage.get("risk_flagged") or 0)
     return {"page": int(page), "pct": mapped_pct(mapped, behaviours), "mapped": mapped,
-            "behaviours": behaviours, "at": int(at if at is not None else now_ms())}
+            "behaviours": behaviours, "at": int(at if at is not None else now_ms()),
+            "took": max(0, int(took))}
 
 
 def budget_from_env(env: dict[str, str] | None = None) -> tuple[int, int]:
@@ -123,13 +127,14 @@ def save(db: str, run_id: str, doc: dict[str, Any]) -> None:
         raise
 
 
-def open_record(db: str, run_id: str, coverage: dict[str, Any], repo: str) -> dict[str, Any]:
+def open_record(db: str, run_id: str, coverage: dict[str, Any], repo: str, *,
+                at: int | None = None) -> dict[str, Any]:
     """The run's record, opened at its starting point when the run has none yet (the first page's
     `extract-prepare`). A later page keeps the record it has."""
     doc = load(db, run_id)
     if doc is not None:
         return doc
-    start = point_of(coverage, 0)
+    start = point_of(coverage, 0, at)
     doc = {"schema": SCHEMA, "run_id": run_id, "repo": repo, "points": [start],
            "grant": {"page": 0, "at": start["at"]}}
     save(db, run_id, doc)
@@ -153,18 +158,24 @@ def curve_text(points: list[dict[str, Any]]) -> str:
     return " → ".join(pcts)
 
 
+def _page_ms(points: list[dict[str, Any]]) -> float | None:
+    """The mean time one page ran (its own `took`, never an operator's wait), or None."""
+    took = [p.get("took", 0) for p in points[1:] if p.get("took", 0) > 0]
+    return sum(took) / len(took) if took else None
+
+
 def eta_ms(points: list[dict[str, Any]], target: int) -> float | None:
-    """How long the rest takes at this generation's own pace (mapped behaviours per page, time
-    per page), or None before a page has mapped anything."""
+    """How long the rest takes at this generation's own pace (mapped behaviours per page, the
+    time a page runs), or None before a page has mapped anything."""
     first, last = points[0], points[-1]
     pages = last["page"] - first["page"]
     gained = last["mapped"] - first["mapped"]
-    if pages <= 0 or gained <= 0:
+    per_page_ms = _page_ms(points)
+    if pages <= 0 or gained <= 0 or per_page_ms is None:
         return None
     need = math.ceil(target * last["behaviours"] / 100) - last["mapped"]
     if need <= 0:
         return 0.0
-    per_page_ms = (last["at"] - first["at"]) / pages
     return math.ceil(need / (gained / pages)) * per_page_ms
 
 
@@ -174,7 +185,8 @@ def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
     last = points[-1]
     if done:
         pages = last["page"] - points[0]["page"]
-        took = _duration(last["at"] - points[0]["at"]) if pages > 0 else None
+        ran = sum(p.get("took", 0) for p in points[1:])
+        took = _duration(ran) if pages > 0 and ran > 0 else None
         return (f"Mapped {repo} · {curve_text(points)} · target {target}% reached"
                 + (f" · {pages} page{'s' if pages != 1 else ''} in {took}" if took else ""))
     parts = [f"Mapping {repo}", curve_text(points), f"target {target}%"]
@@ -198,24 +210,33 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
         return {"next": "done",
                 "line": progress_line(repo, points, target, next_page=None, done=True)}
     line = progress_line(repo, points, target, next_page=page + 1)
-    lower_to = max(1, last["pct"])
-    lower = {"id": "lower", "label": f"Lower the target to {lower_to}% for {repo} and build the "
-                                     f"graph"}
+    # A target is a whole percentage 1..100 the share mapped so far must meet: below 1% nothing
+    # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
+    lower = ({"id": "lower", "label": f"Lower the target to {last['pct']}% for {repo} and build "
+                                      f"the graph"} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {max_pages} more pages"}
     if left_to_map <= 0:
-        return {"next": "ask", "choices": [lower], "recommended": "lower",
-                "line": f"{progress_line(repo, points, target, next_page=None)} · nothing "
-                        f"left to map in the files the repository tracks"}
-    if len(points) >= 3 and points[-3]["mapped"] == last["mapped"] and page >= 2:
-        return {"next": "ask", "choices": [more, lower], "recommended": "lower",
-                "line": f"{line} · the last two pages mapped nothing new"}
+        rest = (f"{progress_line(repo, points, target, next_page=None)} · nothing left to map "
+                f"in the files the repository tracks")
+        if lower is None:
+            # Nothing can change: the coverage step says the share against the target.
+            return {"next": "done", "line": rest}
+        return {"next": "ask", "choices": [lower], "recommended": "lower", "line": rest}
     grant = doc["grant"]
+    # Two pages since the latest grant that mapped nothing new: a fresh grant lets the operator
+    # try again (codex/agy r1 on #1369: "Map more" re-asked at once).
+    since = [p for p in points if p["page"] >= grant["page"]]
+    if len(since) >= 3 and since[-3]["mapped"] == last["mapped"]:
+        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+                "recommended": "lower" if lower is not None else "continue",
+                "line": f"{line} · the last two pages mapped nothing new"}
     pages_used = page - grant["page"]
     minutes_used = (now - grant["at"]) / 60000
     if pages_used >= max_pages or minutes_used >= max_minutes:
         spent = (f"{pages_used} page{'s' if pages_used != 1 else ''}"
                  if pages_used >= max_pages else f"{int(minutes_used)} minutes")
-        return {"next": "ask", "choices": [more, lower], "recommended": "continue",
+        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+                "recommended": "continue",
                 "line": f"{line} · budget reached ({spent}; the budget is {max_pages} pages "
                         f"or {max_minutes} minutes)"}
     return {"next": "continue", "line": line}
