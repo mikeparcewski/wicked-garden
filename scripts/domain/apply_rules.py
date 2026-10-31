@@ -84,6 +84,40 @@ def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int]]:
     return out
 
 
+def _annotation_read_back(db: str):
+    """A read-back for the host's writes: does the symbol carry the annotation `key` now? One
+    query over a fresh read-only connection per check (the estate CLI wrote it in its own
+    process), instead of a third CLI process per rule."""
+    import sqlite3
+    from urllib.parse import quote
+
+    try:  # a store without estate's tables (an injected test client) reads back as before
+        con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
+        try:
+            tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return None
+    if not {"annotations", "symbols"} <= tables:
+        return None
+
+    def check(symbol_id: str, key: str) -> bool:
+        try:
+            con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
+            try:
+                row = con.execute("SELECT 1 FROM annotations a JOIN symbols s ON "
+                                  "s.sid = a.node_sym WHERE s.sym = ? AND a.key = ? LIMIT 1",
+                                  (symbol_id, key)).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error as e:  # a failed read-back is a failed write, said as one
+            raise RuntimeError(f"read-back of {symbol_id} failed: {e}") from e
+        return row is not None
+
+    return check
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -141,6 +175,10 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     # The host writes these, so the host is the author: the seat named in the file is the seat's
     # own claim (a seat-written file proves nothing about who wrote it) and is only reported.
     author = AUTHOR
+    # The estate CLI writes into `db`, so its writes read back from `db` directly; any other
+    # client (an injected one) reads back through itself.
+    read_back = (_annotation_read_back(db) if isinstance(estate, _clients.CliEstateClient)
+                 else None)
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
     in_progress = None  # the symbol whose writes have started and not finished
@@ -157,7 +195,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             in_progress = sid
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
-                                                    sizes, seat=author)
+                                                    sizes, seat=author, read_back=read_back)
             in_progress = None
             outcomes[outcome] += 1
 

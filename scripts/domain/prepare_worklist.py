@@ -11,7 +11,7 @@ WORKLIST file in the run's worktree. The seat container's extract step reads onl
 
 Usage (the preset's command, run from the run's worktree):
     wicked-garden run scripts/domain/prepare_worklist.py --db <store> --repo-root <repo> \
-        [--out .wicked/domain/worklist.json] [--limit 300]
+        [--out .wicked/domain/worklist.json] [--limit 500]
 
 Exit 0 with the worklist written (an empty one when nothing is left to map); 1 on a failure.
 """
@@ -19,15 +19,21 @@ Exit 0 with the worklist written (an empty one when nothing is left to map); 1 o
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, extract_loop, rules_file  # noqa: E402
+from domain import _clients, _rule_extractor, extract_loop, generation, rules_file  # noqa: E402
 
-DEFAULT_LIMIT = 300
+# One page of a generation: what one seat turn states. 300 took a claude seat ~6 min on
+# wicked-crew (rig run 7588cff1, 240 stated + 60 left as risks); a page carries a fixed cost
+# around it (prepare, the page's review, apply, the next-page decision), so a larger page maps more
+# per hour while the seat's turn stays well inside the engine's turn ceiling.
+DEFAULT_LIMIT = 500
+PAGE_SIZE_ENV = "WICKED_DOMAIN_PAGE_SIZE"
 _ENVELOPE = 64 * 1024  # bytes kept for the document around the units (a first cut; trimmed after)
 
 
@@ -40,6 +46,15 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     with tempfile.TemporaryDirectory(prefix="wicked-domain-prepare-") as tmp:
         cov = core.coverage(db, str(Path(tmp) / "coverage.json"))
     unmapped = _clients.unaccounted_nodes(cov)
+    # The generation's record opens at the first page (its starting share and time); a later page
+    # of the same run keeps it. Host-side, beside the store — never in the seat-writable worktree.
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if run_id:
+        try:
+            generation.open_record(db, run_id, cov, Path(repo_root).name)
+        except (OSError, ValueError) as e:  # progress display only; the page is still prepared
+            print(f"[extract-prepare] the generation record could not be opened ({e})",
+                  file=sys.stderr)
     tracked = rules_file.tracked_files(repo_root)
     in_repo = [n for n in unmapped if n.get("file") in tracked]
     skipped = len(unmapped) - len(in_repo)
@@ -49,7 +64,9 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     hubs, how = extract_loop._centrality_hubs(estate, store)
     order, hops = extract_loop.hub_first_order(store, hubs)
     tail = len(order)
-    in_repo.sort(key=lambda n: (order.get(n["symbol_id"], tail), n["symbol_id"]))
+    # The product's code first, hub-first; tests and fixtures after it, in the same order.
+    in_repo.sort(key=lambda n: (extract_loop.is_test_path(n.get("file", "")),
+                                order.get(n["symbol_id"], tail), n["symbol_id"]))
     take = in_repo[:limit] if limit > 0 else in_repo
 
     try:
@@ -112,9 +129,17 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo-root", required=True, help="the registered repository's root")
     ap.add_argument("--out", default=rules_file.WORKLIST_REL,
                     help=f"worklist path under the working directory (default {rules_file.WORKLIST_REL})")
-    ap.add_argument("--limit", type=int, default=DEFAULT_LIMIT,
-                    help=f"most units in one worklist (default {DEFAULT_LIMIT}; 0 = all)")
+    ap.add_argument("--limit", type=int, default=None,
+                    help=f"most units in one worklist (default ${PAGE_SIZE_ENV}, else "
+                         f"{DEFAULT_LIMIT}; 0 = all)")
     args = ap.parse_args(argv)
+    if args.limit is None:
+        try:
+            args.limit = int(os.environ.get(PAGE_SIZE_ENV) or DEFAULT_LIMIT)
+        except ValueError:
+            args.limit = DEFAULT_LIMIT
+        if args.limit <= 0:  # the setting is a page size; "all of it" is only --limit 0
+            args.limit = DEFAULT_LIMIT
     try:
         prepare(args.db, args.repo_root, Path.cwd(), args.out, args.limit)
     except (RuntimeError, OSError, rules_file.RulesFileRefused) as e:

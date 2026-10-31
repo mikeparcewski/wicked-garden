@@ -66,7 +66,7 @@ present) and attack it — find what is missing, weak, or ungrounded.
    multiple communities may hide two requirements wearing one id.
 5. **Coverage holes.** Behavior-bearing SymbolIds not in any requirement's
    `legacy_components[]` are unaccounted. Below the configured minimum they are the
-   gate's failure — enumerate them. At or above it they are the next run's frontier —
+   gate's failure — enumerate them. At or above it they are the next page's frontier —
    report their count, and the most central ones, as a NOTE.
 6. **Low-confidence clusters.** Dense sub-threshold confidences signal guessing.
 7. **Reference integrity.** Broken `legacy_components`/`provenance.ref` entries

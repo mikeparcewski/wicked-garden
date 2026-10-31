@@ -135,6 +135,18 @@ def _run_json(argv: list[str]) -> Any:
     try:
         return json.loads(out)
     except json.JSONDecodeError as e:
+        # estate prints advisory lines BEFORE its JSON on stdout ("STALENESS: 1 commit(s) since
+        # last index — run `wicked-estate index …`"): the document starts at the first line that
+        # opens one. Read without that, `clusters` failed and every node framed as a singleton
+        # community, which pulled each rule's confidence under the resolve threshold.
+        lines = out.splitlines()
+        for start in range(1, len(lines)):
+            if lines[start].lstrip()[:1] not in ("[", "{"):
+                continue
+            try:
+                return json.loads("\n".join(lines[start:]))
+            except json.JSONDecodeError:
+                continue  # an advisory line that itself opens with a bracket: keep looking
         raise RuntimeError(f"{argv[0]} output is not JSON: {e}: {out[:200]!r}") from e
 
 
@@ -372,6 +384,19 @@ class CliCoreClient:
         lines = [ln.strip() for ln in (proc.stderr or "").splitlines() if "mapped" in ln]
         return _read_output_json(out, "wicked-core coverage"), proc.returncode == 0, \
             (lines[-1] if lines else "")
+
+    def requirements_target(self, db: str, set_pct: int | None = None) -> tuple[int, str]:
+        """The coverage target this repository's graph is held to and where it comes from
+        (``"repository"``: its own, kept in its store; ``"daemon"``: the configured minimum).
+        ``set_pct`` WRITES the repository's own target first. Fails loud."""
+        argv = [*self._bin, "requirements-target", "--db", db, "--json"]
+        if set_pct is not None:
+            argv += ["--set", str(int(set_pct))]
+        doc = _run_json(argv)
+        pct = doc.get("min_coverage_pct") if isinstance(doc, dict) else None
+        if not isinstance(pct, int) or isinstance(pct, bool) or not 1 <= pct <= 100:
+            raise RuntimeError(f"wicked-core requirements-target answered no target: {doc!r}")
+        return pct, str(doc.get("source") or "")
 
     def domain_graph(self, db: str, out: str,
                      coverage: str | None = None) -> dict[str, Any]:
