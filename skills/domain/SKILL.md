@@ -5,7 +5,8 @@ description: |
   business rules (with confidence + provenance), entities, requirements — as a
   schema-conformant model on the estate graph. The workers annotate the store;
   wicked-core reads it and builds the requirements graph, coverage-gating
-  fail-closed. Steers three workers.
+  fail-closed below the configured minimum (80% of behaviours by default). Steers
+  three workers.
 
   A shared substrate, not a modernization tool. The `modernize` archetype DERIVES
   from it; build / migrate / review / specify / explore consume the SAME domain
@@ -33,11 +34,11 @@ build / migrate / review / specify / explore consume the same model. Understandi
 a codebase's domain is upstream of building, porting, reviewing, or governing it.
 
 **The contract in one line:** the only thing that crosses repo lines is a
-document validating against the domain-model schema `1.0.0` (vendored at
+document validating against the domain-model schema `1.1.0` (`1.0.0` documents stay valid; vendored at
 `vendor/domain-model.schema.json`, owner: `wicked-core/crates/wicked-governance/schemas/`)
 plus an estate `SymbolId` string. Garden STEERS (annotates the estate store + cross-checks the built document), core
 BUILDS (`wicked-core domain-graph` reads the store, builds the requirements graph,
-and coverage-gates fail-closed), estate GROUNDS (owns SymbolId identity + the
+and coverage-gates fail-closed below the configured minimum), estate GROUNDS (owns SymbolId identity + the
 graph), crew GOVERNS (drives the run). The peer CLIs are shelled via
 `scripts/domain/_clients.py`, or mocked behind fixtures when absent.
 
@@ -128,13 +129,32 @@ against the schema.
 `annotate --replace`, `semantics`, `clusters --json --summary`,
 `annotations`) → `CliEstateClient`; the domain-graph build
 (`wicked-core domain-graph` — reads the store, builds the requirements graph,
-coverage-gates fail-closed) → `CliCoreClient`. When the peers are absent, the
+coverage-gates fail-closed below the configured minimum) → `CliCoreClient`. When the peers are absent, the
 selection seam falls back to `_mocks` for hermetic testing.
 
 **Still stubbed:** the LLM rule-statement extraction step (rules are injected as
-input — the "skill-supplied extractor" seam). And the real end-to-end run needs a
-fully-annotated, INDEXED store (coverage == 1.0) to clear core's fail-closed gate
+input — the "skill-supplied extractor" seam). And the real end-to-end run needs an
+INDEXED store annotated to at least the configured minimum to clear core's gate
 — that store-seeding step is the end-to-end milestone (core#28), not this slice.
+
+## Coverage minimum, extraction order, corroboration (operator ruling 2026-10-31)
+
+- **Minimum, not 100%.** The graph is built once the mapped share of behaviours reaches the
+  configured minimum: crew's `requirementsGraph.minCoveragePct` (Settings, default 80), which
+  the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`. `wicked-core coverage
+  --min-coverage-pct` and `wicked-core domain-graph` both read it. Below it they say
+  "N% mapped, minimum M%" and fail closed; the mapping done so far stays in the estate store,
+  so the next run continues from it. The built graph carries `metadata.coverage`
+  ("82% of behaviours mapped").
+- **Hub-first, fan-out order.** The extraction harness maps the most central symbols first
+  (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
+  distance, so the load-bearing behaviour is covered first. The order is deterministic: a
+  later run re-derives it and resumes at the frontier.
+- **Corroboration.** Every requirement in the built graph carries `corroboration`:
+  `validated` when two or more independent sources support it (callers, tests, docs,
+  agreeing extractor seats), else `unconfirmed` with a `why` code and sentence
+  (`unindexed_file`, `dead_code`, `config_only`, `single_caller`, `test_only`, `doc_only`,
+  `extractors_only`). Core computes it; nothing in garden asserts it.
 
 ## Estate id-scheme migration (2026-08) — when the pipeline must be re-run
 
@@ -156,7 +176,7 @@ its first index under the new binary — in exactly this order:
    nodes simply reappear as unaccounted; the loop's pre-flight also warns when it
    detects orphaned annotations before writing).
 3. Rebuild the domain graph: `wicked-core domain-graph` (coverage-gates
-   fail-closed against the re-annotated store).
+   fail-closed below the configured minimum against the re-annotated store).
 
 Previously emitted `requirements_graph.json` / domain-model documents embedding
 old-scheme SymbolIds are stale until step 3 completes.

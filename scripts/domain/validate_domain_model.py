@@ -49,15 +49,21 @@ def load_schema() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=1)
+def accepted_versions() -> tuple[str, ...]:
+    """Every schema CONTRACT version a document may carry: the vendored schema's
+    ``metadata.schema_version`` const, or its enum once the schema evolved
+    additively (domain-model 1.1.0 accepts ``1.0.0`` and ``1.1.0``). Deliberately
+    NOT the vendored bundle ``VERSION`` file — that tracks the owner's whole
+    4-schema bundle and moves when ANY sibling schema changes."""
+    sv = load_schema()["properties"]["metadata"]["properties"]["schema_version"]
+    if "const" in sv:
+        return (sv["const"],)
+    return tuple(sv["enum"])
+
+
 def pinned_version() -> str:
-    """The schema CONTRACT version a document must carry: the vendored schema's
-    own ``metadata.schema_version`` const (== its ``$id`` version segment).
-    Deliberately NOT the vendored bundle ``VERSION`` file — that tracks the
-    owner's whole 4-schema bundle and moves when ANY sibling schema changes
-    (1.0.0→1.1.0 added conformance-rules.schema.json, 1.1.0→1.2.0 changed only
-    that sibling's steering fields; this schema stayed 1.0.0 throughout)."""
-    schema = load_schema()
-    return schema["properties"]["metadata"]["properties"]["schema_version"]["const"]
+    """The NEWEST accepted contract version (== the schema's ``$id`` segment)."""
+    return max(accepted_versions(), key=lambda v: tuple(int(p) for p in v.split(".")))
 
 
 # --- stdlib draft-07 subset validator ---------------------------------------
@@ -276,10 +282,10 @@ def validate_document(doc: Any) -> list[str]:
         return ["document root must be a JSON object"]
     # Reject an unknown schema_version rather than best-efforting it.
     sv = doc.get("metadata", {}).get("schema_version") if isinstance(doc.get("metadata"), dict) else None
-    if sv is not None and sv != pinned_version():
+    if sv is not None and sv not in accepted_versions():
         return [
-            f"metadata.schema_version {sv!r} has no validator here (pinned "
-            f"{pinned_version()!r}); a consumer rejects an unknown version"
+            f"metadata.schema_version {sv!r} has no validator here (accepted "
+            f"{list(accepted_versions())!r}); a consumer rejects an unknown version"
         ]
     return _schema_errors(doc) + _extra_invariants(doc)
 

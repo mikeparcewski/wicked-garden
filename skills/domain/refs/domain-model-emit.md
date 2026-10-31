@@ -2,7 +2,7 @@
 
 The document every modernize worker emits validates against
 `vendor/domain-model.schema.json` — the vendored, pinned
-`@wicked/domain-model-schema@1.0.0`. This ref is the human-readable map of that
+`@wicked/domain-model-schema@1.1.0` (every 1.0.0 document stays valid). This ref is the human-readable map of that
 schema. The schema is authoritative; where this doc and the schema disagree, the
 schema wins.
 
@@ -11,7 +11,11 @@ schema wins.
 ```json
 {
   "metadata": {
-    "schema_version": "1.0.0",          // const — MUST be exactly this
+    "schema_version": "1.1.0",          // "1.0.0" or "1.1.0"; 1.1.0 adds the optional fields below
+    "coverage": {                       // optional (1.1.0): the share mapped, set by core's build
+      "mapped_pct": 82, "min_pct": 80, "behavior_bearing": 500,
+      "mapped": 410, "resolved": 380, "unmapped": 90
+    },
     "migration_mode": "functional",     // functional (capability-grouped, default) | structural (1:1)
     "source": "acme-billing-legacy"     // optional: the repo/service mined
   },
@@ -53,6 +57,7 @@ schema wins.
 | `disposition` | enum | `keep \| modify \| drop \| new` (HARD) |
 | `disposition_reason` | string | **MANDATORY when `disposition == "drop"`** (schema if/then). A reason-less drop is NOT honored by the coverage gate. |
 | `merged_programs` | string[] | optional |
+| `corroboration` | object | optional (1.1.0), **computed by core, never asserted by a worker**: `{status: validated\|unconfirmed, sources, call_sites, tests, docs, extra_extractors, why?: {code, text}}`. `validated` at 2+ independent sources; `unconfirmed` carries why (`unindexed_file`, `dead_code`, `config_only`, `single_caller`, `test_only`, `doc_only`, `extractors_only`). |
 
 ## Rule (`business_rules[]`) — `required: ["id","statement","confidence","provenance"]`
 

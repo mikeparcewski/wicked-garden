@@ -15,6 +15,13 @@ can't do — stating the business rule. Vault discipline throughout:
     RISK→RESOLVED quality).
   * RE-DERIVE, NEVER TRUST — coverage is recomputed cold from the store (never the
     harness's "I did N" claim); each write is read back.
+  * HUB-FIRST, FAN-OUT ORDER (operator ruling 2026-10-31) — the worklist is taken in
+    graph order: the most central symbols first (estate's PageRank, `wicked-estate rank`),
+    then their neighbours, then theirs, layer by layer. The most important behaviour is
+    mapped first and coverage grows by graph distance, so the configured minimum (80% by
+    default) is reached with the load-bearing code covered. The order is deterministic, so
+    a later run re-derives it and continues from the FRONTIER (the first unmapped node in
+    order) — the mapped prefix is already in the store.
 
 `--dry-run` swaps the model boundary for a deterministic stub (every node → a valid
 rule) so the whole loop + coverage gate can be proven with ZERO model cost.
@@ -186,10 +193,19 @@ class _DirectStore:
         self.callees = {}
         self.callers = {}
         self.in_deg = {}
-        for r in self._c.execute("SELECT source, target FROM edges WHERE kind IN ('calls', '\"calls\"')"):
-            self.callees.setdefault(r["source"], []).append(r["target"])
-            self.callers.setdefault(r["target"], []).append(r["source"])
-            self.in_deg[r["target"]] = self.in_deg.get(r["target"], 0) + 1
+        # undirected USE adjacency for the hub-first fan-out: every relationship that says one
+        # symbol uses another (calls, references, type relations, a route serving a handler).
+        # Structural edges (contains, imports, defines, data flow) are not neighbourhood.
+        self.adj = {}
+        for r in self._c.execute("SELECT source, target, kind FROM edges"):
+            kind = _edge_kind(r["kind"])
+            if kind == "calls":
+                self.callees.setdefault(r["source"], []).append(r["target"])
+                self.callers.setdefault(r["target"], []).append(r["source"])
+                self.in_deg[r["target"]] = self.in_deg.get(r["target"], 0) + 1
+            if kind in _USE_EDGES and r["source"] != r["target"]:
+                self.adj.setdefault(r["source"], set()).add(r["target"])
+                self.adj.setdefault(r["target"], set()).add(r["source"])
         self._file_text = {}
 
     def requirement_of(self, symbol_id: str) -> str:
@@ -244,6 +260,108 @@ class _DirectStore:
         return ""
 
 
+_USE_EDGES = frozenset({"calls", "references", "instantiates", "extends", "implements",
+                        "overrides", "serves", "invokes", "uses", "accesses"})
+
+
+def _edge_kind(raw) -> str:
+    """Normalise a stored edge kind: `calls`, `"calls"` and `{"other":"serves"}` → the bare word."""
+    text = str(raw or "")
+    try:
+        import json as _json
+        v = _json.loads(text)
+    except ValueError:
+        return text
+    if isinstance(v, str):
+        return v
+    if isinstance(v, dict) and len(v) == 1:
+        return str(next(iter(v.values())))
+    return text
+
+
+_MAX_HUBS = 25
+# Positions per stripe window for parallel workers: the largest batch `_density_batch` may pick,
+# so a full adaptive batch fits inside one window.
+_STRIPE = 64
+
+
+def hub_count(store) -> int:
+    """How many hubs the fan-out starts from: about sqrt(connected nodes) / 4, between 1 and
+    25 — one hub for a toy repo, a couple of dozen for a large one (so layer 0 is the
+    load-bearing core, not a degree-sorted list of the whole graph)."""
+    import math
+    return max(1, min(_MAX_HUBS, round(math.sqrt(len(store.adj)) / 4)))
+
+
+def hub_first_order(store, hubs: list[str]) -> tuple[dict[str, int], dict[str, int]]:
+    """Every node's extraction position and hop distance: multi-source BFS over the undirected
+    use graph from `hubs` (most central first), neighbours in degree order. A node the BFS
+    cannot reach (another component) is seeded next, highest degree first, its distance
+    counting on from the last layer — so the order stays total and deterministic.
+
+    Returns (rank, hops), both keyed by symbol string."""
+    deg = {sid: len(ns) for sid, ns in store.adj.items()}
+    sym_of = store.sym_of
+
+    def by_degree(sids):
+        return sorted(sids, key=lambda x: (-deg.get(x, 0), sym_of.get(x, "")))
+
+    rank: dict[str, int] = {}
+    hops: dict[str, int] = {}
+    seen: set[int] = set()
+    # Seeds: hubs that exist AND have use-graph neighbours (a file or module PageRank ranks high
+    # through imports alone would fan out to nothing and burn the hub slot), each once.
+    seeds = list(dict.fromkeys(
+        store.sid_of[h] for h in hubs if store.sid_of.get(h) in store.adj
+    ))[: hub_count(store)]
+    remaining = by_degree(store.sym_of.keys())
+    cursor = 0  # forward-only: each candidate is skipped at most once (no N² rescans)
+    base = 0
+    while True:
+        frontier = [s for s in seeds if s not in seen]
+        if not frontier:
+            while cursor < len(remaining) and remaining[cursor] in seen:
+                cursor += 1
+            if cursor >= len(remaining):
+                break
+            frontier = [remaining[cursor]]
+        for s in frontier:
+            seen.add(s)
+        depth = base
+        while frontier:
+            nxt_layer = []
+            for s in frontier:
+                sym = sym_of.get(s)
+                if sym is not None:
+                    rank[sym] = len(rank)
+                    hops[sym] = depth
+                for n in by_degree(store.adj.get(s, ())):
+                    if n not in seen:
+                        seen.add(n)
+                        nxt_layer.append(n)
+            frontier = nxt_layer
+            depth += 1
+        base = depth
+        seeds = []
+    return rank, hops
+
+
+def _centrality_hubs(estate, store) -> tuple[list[str], str]:
+    """The hubs to fan out from and who answered: estate's PageRank (`rank`), else the store's
+    own degree (a store without the `rank` command, or a failed call — said on stderr)."""
+    try:
+        ranked = list(dict.fromkeys(estate.rank(200)))
+        hubs = [h for h in ranked if store.sid_of.get(h) in store.adj]
+        if hubs:
+            return hubs, "estate rank (PageRank)"
+        print("[extract-loop] estate rank named no symbol with use-graph neighbours; hubs by degree "
+              "instead", file=sys.stderr)
+    except Exception as e:  # centrality is ordering quality, never a reason to stop
+        print(f"[extract-loop] estate rank unavailable ({e}); hubs by degree instead", file=sys.stderr)
+    by_deg = sorted(store.adj, key=lambda s: (-len(store.adj[s]), store.sym_of.get(s, "")))
+    return [store.sym_of[s] for s in by_deg[:_MAX_HUBS] if s in store.sym_of], "degree"
+
+
 def _annotation_preflight(db: str) -> None:
     """Cheap id-scheme migration pre-flight (fail-open, warning only). Estate's
     2026-08 id-scheme migration ("2": type-nested method/field SymbolIds) re-mints
@@ -295,7 +413,12 @@ def _density_batch(members: list[dict], store, base_batch: int) -> int:
 
 
 def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
-        project_dir: Path | None = None, cluster_offset: int = 0) -> int:
+        project_dir: Path | None = None, cluster_offset: int = 0, workers: int = 0) -> int:
+    # Parallel workers stripe the STATIC order: worker k of N owns every window w (of _STRIPE
+    # consecutive positions) with w % N == k, so two workers never select the same node however
+    # fast either finishes. `workers` defaults to offset + 1 (a lone worker owns everything).
+    offset = max(0, cluster_offset)
+    workers = max(workers, offset + 1)
     if not db:
         raise RuntimeError("--db / $WICKED_ESTATE_DB is required but was not provided")
     _annotation_preflight(db)
@@ -332,6 +455,16 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         print(f"[extract-loop] direct store unavailable ({e}); flat context-free fallback", file=sys.stderr)
         store = None
 
+    # HUB-FIRST, FAN-OUT ORDER: computed once per pass over the whole graph (deterministic, so
+    # every run derives the same order and resumes at the frontier).
+    order: dict[str, int] = {}
+    hops: dict[str, int] = {}
+    if store is not None:
+        hubs, how = _centrality_hubs(estate, store)
+        order, hops = hub_first_order(store, hubs)
+        print(f"[extract-loop] order: hub-first from {min(len(hubs), hub_count(store))} hub(s) by {how}, "
+              f"fanning out over {len(order)} node(s)", file=sys.stderr)
+
     processed = 0
     while True:
         cov = core.coverage(db, cov_out)
@@ -346,23 +479,31 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                   "resume with another pass", file=sys.stderr)
             return 0
 
-        # STRUCTURAL ORDER: group the worklist by community, rank clusters by aggregate call
-        # leverage (in+out degree) so high-impact groups extract first, members likewise ranked
-        # within their cluster. Batches then hold RELATED symbols — shared context makes the
-        # model's rules better grounded AND cheaper — with a density-adaptive batch size
-        # (thin wrappers pack bigger batches, dense logic smaller). Flat slice as fallback.
-        if store is not None and node_community:
-            clusters_seen: dict[str, list] = {}
-            for n in worklist:
-                clusters_seen.setdefault(node_community.get(n["symbol_id"], "~singleton"), []).append(n)
-            def _cluster_leverage(members: list) -> int:
-                return sum(store.leverage(m["symbol_id"]) for m in members[:50])
-            # cluster_offset lets parallel workers each own a different leverage-ranked
-            # cluster instead of all fighting over the head (offset 0 = head).
-            ranked = sorted(clusters_seen.values(), key=_cluster_leverage, reverse=True)
-            head = ranked[max(0, cluster_offset) % len(ranked)]
-            head.sort(key=lambda n: store.leverage(n["symbol_id"]), reverse=True)
+        # HUB-FIRST ORDER: the unmapped worklist in graph order — hubs, then their neighbours,
+        # then theirs. Consecutive nodes are graph neighbours, so a batch holds RELATED symbols
+        # (shared context grounds the model's rules better AND cheaper), with a density-adaptive
+        # batch size (thin wrappers pack bigger batches, dense logic smaller). The head of the
+        # ordered worklist IS the frontier: everything before it is already mapped. Flat slice
+        # as fallback (no direct store).
+        if store is not None and order:
+            tail = len(order)
+            worklist.sort(key=lambda n: (order.get(n["symbol_id"], tail), n["symbol_id"]))
+            if workers > 1:
+                def window(n):
+                    return order.get(n["symbol_id"], tail) // _STRIPE
+                mine = [n for n in worklist if window(n) % workers == offset]
+                if not mine:
+                    print(f"[extract-loop] worker {offset} of {workers}: its windows are mapped; "
+                          f"{len(worklist)} unaccounted remain in other workers' windows", file=sys.stderr)
+                    return 0
+                # One window at a time, so a batch never crosses into another worker's stripe.
+                head = [n for n in mine if window(n) == window(mine[0])]
+            else:
+                head = worklist
             take = head[: _density_batch(head, store, batch)]
+            front = take[0]["symbol_id"]
+            print(f"[extract-loop] frontier: {front} (hop {hops.get(front, '?')}, "
+                  f"position {order.get(front, tail) + 1} of {tail})", file=sys.stderr)
         else:
             take = worklist[:batch]
         if limit:
@@ -488,12 +629,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--batch", type=int, default=12, help="framed nodes per model call")
     ap.add_argument("--dry-run", action="store_true", help="deterministic stub instead of the model (zero cost)")
     ap.add_argument("--cluster-offset", type=int, default=0,
-                    help="parallel workers: take the Nth leverage-ranked cluster instead of the head")
+                    help="parallel workers: this worker's index (0-based) among --workers")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="parallel workers sharing the hub-first order (default: --cluster-offset + 1); "
+                         "each owns a disjoint stripe of it")
     args = ap.parse_args(argv)
     if not args.db:
         ap.error("--db is required (or set $WICKED_ESTATE_DB)")
     return run(args.db, time_budget=args.time_budget, limit=args.limit,
-               batch=args.batch, dry_run=args.dry_run, cluster_offset=args.cluster_offset)
+               batch=args.batch, dry_run=args.dry_run, cluster_offset=args.cluster_offset,
+               workers=args.workers)
 
 
 if __name__ == "__main__":

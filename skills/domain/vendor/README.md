@@ -15,9 +15,9 @@ is history, not the contract.
 
 | | |
 |---|---|
-| Bundle version (`VERSION`) | `1.2.1` — mirrors the owner's `schemas/VERSION` (synced 2026-10-04 to wicked-core `main` @ `0f419c3`; `domain-model.schema.json` byte-unchanged since the 2026-09-11 re-vendor) |
-| Schema contract version (`$id` / `metadata.schema_version`) | `1.0.0` |
-| Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.0.0` |
+| Bundle version (`VERSION`) | `1.2.3` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-10-31 from wicked-core's configurable-coverage change: domain-model 1.1.0) |
+| Schema contract version (`$id` / `metadata.schema_version`) | `1.1.0` (accepts `1.0.0` and `1.1.0`) |
+| Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.1.0` |
 | Canonical source | `wicked-core/crates/wicked-governance/schemas/domain-model.schema.json` |
 | Draft | JSON Schema draft-07 |
 
@@ -28,11 +28,12 @@ changes (the 1.0.0→1.1.0 bump added `conformance-rules.schema.json` to the
 bundle; the 1.1.0→1.2.0 bump was the STEERING unification's optional fields on
 `conformance-rules.schema.json`; the 1.2.0→1.2.1 bump was conformance-rules 1.2.0's
 optional DC-S1 project-rule fields, wicked-core#699 — this file was byte-untouched
-every time). The
+every time until 1.2.2→1.2.3, domain-model 1.1.0's optional `metadata.coverage` and
+`requirement.corroboration`). The
 **contract version** a document carries (`metadata.schema_version`,
-const-pinned by the schema, matching the `$id` segment) is independent — the
-schemas document that independence themselves. Documents emitted here still carry
-`schema_version: "1.0.0"`.
+an enum since 1.1.0 whose newest entry matches the `$id` segment) is independent —
+the schemas document that independence themselves. Documents garden emits still carry
+`schema_version: "1.0.0"` (valid under 1.1.0); core's `domain-graph` emits `1.1.0`.
 
 ## Drift gate (the cross-repo CI sync check)
 

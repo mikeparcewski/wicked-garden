@@ -4,7 +4,8 @@ description: |
   Domain-graph worker for the modernize archetype. Groups the estate's
   Louvain communities into business domains, attaches each requirement to its
   cluster (advisory cluster_id provenance), and invokes wicked-core's domain-graph
-  build (which reads the annotated estate store, recomputes coverage fail-closed,
+  build (which reads the annotated estate store, recomputes coverage — fail-closed
+  below the configured minimum —
   and builds the requirements graph) — then validates core's output against the
   vendored schema.
 
@@ -50,8 +51,10 @@ communities). You **invoke core**, you don't reimplement it.
    shells `wicked-core domain-graph --db <db> --out requirements_graph.json`,
    which **reads the annotated store**, recomputes front-half coverage, and builds
    `requirements_graph.json` (a capability plan, not a code skeleton). It **fails
-   closed** (writes nothing, non-zero exit) if coverage < 1.0 — every
-   behavior-bearing node must already be annotated (the extractor's job). There is
+   closed below the configured minimum** (writes nothing, non-zero exit, and says
+   "N% mapped, minimum M%") — the extractor must have mapped at least that share
+   of the behavior-bearing nodes (80% by default; crew's
+   `requirementsGraph.minCoveragePct`). There is
    **no doc handed in and no `--overlay`**: the store is the input. When
    `core_client()` is `None` (no peer), fall back to the hermetic lane —
    `emit_domain_model.py` assembles the doc and `_mocks.BrainClient` stands in.
@@ -75,7 +78,7 @@ The estate `clusters` read and core's `domain-graph` build are **wired to the
 live CLIs** via `scripts/domain/_clients.py` (`estate_client` / `core_client`),
 falling back to `_mocks.py` when the peers are absent. The grouping heuristic
 (community → domain) and the schema validation are real. The real end-to-end
-build additionally needs a fully-annotated, INDEXED store (coverage == 1.0) to
-clear core's fail-closed gate — that store-seeding is the end-to-end milestone
+build additionally needs an INDEXED store annotated to at least the configured
+minimum to clear core's gate — that store-seeding is the end-to-end milestone
 (core#28), not this worker. Full field map:
 the `wicked-garden-domain` skill's `refs/domain-model-emit.md`.

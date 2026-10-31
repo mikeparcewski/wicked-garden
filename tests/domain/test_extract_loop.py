@@ -206,37 +206,184 @@ def test_density_batch_adapts_and_clamps(size, base, expect):
     assert extract_loop._density_batch(members, _SliceStore(size), base) == expect
 
 
-def _run_structural(tmp_path, monkeypatch, cluster_offset):
+def _run_structural(tmp_path, monkeypatch, cluster_offset, workers=0, limit=2, estate=None):
     """Full run() through the structural branch against the fixture db; returns
-    the order nodes settled (estate write order)."""
-    db = _fixture_db(tmp_path)
+    the order nodes settled (estate write order). Hub-first order on this fixture:
+    h::a (the hub), h::b, h::c, then the other component c::x, c::y."""
+    existing = tmp_path / "estate.db"
+    db = str(existing) if existing.exists() else _fixture_db(tmp_path)
     ids = ["h::a", "h::b", "h::c", "c::x", "c::y"]
-    estate = _FakeEstate()
+    estate = estate or _FakeEstate()
+    before = set(estate.writes)
     core = _FakeCore(estate, ids)
     monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
     monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
     monkeypatch.setattr(_clients, "total_node_community",
                         lambda clusters, nodes: {s: s.split("::")[0] for s in ids})
-    rc = extract_loop.run(db, time_budget=30, limit=2, batch=2, dry_run=True,
-                          cluster_offset=cluster_offset)
+    rc = extract_loop.run(db, time_budget=30, limit=limit, batch=2, dry_run=True,
+                          cluster_offset=cluster_offset, workers=workers)
     assert rc == 0
-    return list(estate.writes)
+    return [s for s in estate.writes if s not in before]
 
 
-def test_offset_zero_takes_highest_leverage_cluster_first(tmp_path, monkeypatch):
+def test_offset_zero_takes_the_frontier_first(tmp_path, monkeypatch):
     first = _run_structural(tmp_path, monkeypatch, cluster_offset=0)[0]
-    assert first.startswith("h::")
+    assert first == "h::a"
 
 
-def test_offset_wraps_beyond_cluster_count(tmp_path, monkeypatch):
-    # 2 clusters, offset 5 → 5 % 2 = 1 → the SECOND-ranked cluster, not the tail pile-up
-    first = _run_structural(tmp_path, monkeypatch, cluster_offset=5)[0]
-    assert first.startswith("c::")
+def test_parallel_workers_own_disjoint_stripes(tmp_path, monkeypatch):
+    # xreview on garden#1359: workers stripe the STATIC order, so they never pick the same node
+    # however fast either one finishes. Stripes of 2 positions: worker 0 owns windows 0 and 2
+    # (h::a, h::b | c::y), worker 1 owns window 1 (h::c, c::x).
+    monkeypatch.setattr(extract_loop, "_STRIPE", 2)
+    estate = _FakeEstate()
+    w0 = _run_structural(tmp_path, monkeypatch, 0, workers=2, limit=0, estate=estate)
+    assert w0 == ["h::a", "h::b", "c::y"]
+    w1 = _run_structural(tmp_path, monkeypatch, 1, workers=2, limit=0, estate=estate)
+    assert w1 == ["h::c", "c::x"]
 
 
 def test_negative_offset_clamps_to_head(tmp_path, monkeypatch):
     first = _run_structural(tmp_path, monkeypatch, cluster_offset=-3)[0]
-    assert first.startswith("h::")
+    assert first == "h::a"
+
+
+def test_disconnected_components_are_seeded_without_rescanning(tmp_path):
+    # xreview on garden#1359: thousands of isolated symbols must order in linear time.
+    import time as _t
+
+    class _Iso:
+        def __init__(self, n):
+            self.sym_of = {i: f"iso::{i:06d}" for i in range(n)}
+            self.sid_of = {v: k for k, v in self.sym_of.items()}
+            self.adj = {}
+    store = _Iso(30_000)
+    t0 = _t.monotonic()
+    rank, _ = extract_loop.hub_first_order(store, [])
+    assert len(rank) == 30_000
+    assert _t.monotonic() - t0 < 5.0
+
+
+def test_rank_hubs_without_use_neighbours_are_skipped(tmp_path):
+    # A file PageRank ranks first through imports alone is not a hub: the real hub seeds instead.
+    store = extract_loop._DirectStore(_star_db(tmp_path))
+
+    class _E:
+        def rank(self, limit=200):
+            return ["s::file", "s::file", "s::core"]
+    hubs, how = extract_loop._centrality_hubs(_E(), store)
+    assert hubs == ["s::core"] and "estate rank" in how
+    rank, _ = extract_loop.hub_first_order(store, ["s::file", "s::core"])
+    assert min(rank, key=rank.get) == "s::core"
+
+
+# --- hub-first, fan-out order (operator ruling 2026-10-31) --------------------
+
+def _star_db(tmp_path):
+    """A hub `core` used by a, b, c; `a` used by a1 (2 hops from the hub); an island pair
+    i1 -> i2 nothing reaches; `contains`/`imports` edges are NOT neighbourhood; a route
+    `serves` edge (stored as {"other":"serves"}) IS."""
+    import json as J, sqlite3
+    db = tmp_path / "estate.db"
+    c = sqlite3.connect(db)
+    c.executescript("""
+        CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT);
+        CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);
+        CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
+        CREATE TABLE files (path TEXT, git_sha TEXT);
+        CREATE TABLE content (git_sha TEXT, blob BLOB);
+    """)
+    syms = ["s::core", "s::a", "s::b", "s::c", "s::a1", "s::i1", "s::i2", "s::file", "s::route"]
+    for i, sym in enumerate(syms, start=1):
+        c.execute("INSERT INTO symbols VALUES (?, ?)", (i, sym))
+        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?, NULL)",
+                  (i, sym.split("::")[-1], "f.py", J.dumps({"location": {"span": {}}})))
+    sid = {s: i for i, s in enumerate(syms, start=1)}
+    def e(a, b, kind='"calls"'):
+        c.execute("INSERT INTO edges VALUES (?, ?, ?)", (sid[a], sid[b], kind))
+    e("s::a", "s::core"); e("s::b", "s::core"); e("s::c", "s::core"); e("s::a1", "s::a")
+    e("s::i1", "s::i2")
+    e("s::route", "s::c", '{"other":"serves"}')
+    # structural: a file containing / importing everything must not pull it into layer 1
+    for t in ("s::a1", "s::i1", "s::i2"):
+        e("s::file", t, '"contains"'); e("s::file", t, '"imports"')
+    c.commit(); c.close()
+    return str(db)
+
+
+def test_hub_first_order_fans_out_by_graph_distance(tmp_path):
+    store = extract_loop._DirectStore(_star_db(tmp_path))
+    rank, hops = extract_loop.hub_first_order(store, ["s::core"])
+    ordered = sorted(rank, key=rank.get)
+    assert ordered[0] == "s::core" and hops["s::core"] == 0
+    # 1 hop: the hub's neighbours, best-connected first (a: hub + a1, c: hub + route, b: hub)
+    assert ordered[1:4] == ["s::a", "s::c", "s::b"]
+    assert {hops[s] for s in ("s::a", "s::b", "s::c")} == {1}
+    # 2 hops come after every 1-hop node; the route reaches through `serves`
+    assert hops["s::a1"] == 2 and hops["s::route"] == 2
+    assert max(rank["s::a"], rank["s::b"], rank["s::c"]) < min(rank["s::a1"], rank["s::route"])
+    # the island is reached last, never through the file's contains/imports edges
+    assert min(rank["s::i1"], rank["s::i2"]) > rank["s::route"]
+    assert hops["s::i1"] > hops["s::a1"]
+    assert len(rank) == 9  # total over every symbol, isolated `file` included
+
+
+def _run_star(tmp_path, monkeypatch, done=(), ranked=None, limit=3):
+    db = _star_db(tmp_path)
+    ids = ["s::core", "s::a", "s::b", "s::c", "s::a1", "s::i1", "s::i2", "s::route"]
+    estate = _FakeEstate()
+    if ranked is not None:
+        estate.rank = lambda limit=200: list(ranked)
+    for sid in done:  # a previous run already mapped these
+        estate.writes[sid] = {"req": ("earlier", True), "ann": {"key": "k"}}
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    before = set(estate.writes)
+    rc = extract_loop.run(db, time_budget=30, limit=limit, batch=3, dry_run=True)
+    assert rc == 0
+    return [s for s in estate.writes if s not in before]
+
+
+def test_the_loop_maps_the_hub_and_its_neighbours_first(tmp_path, monkeypatch):
+    # estate's PageRank names the hub; the first batch is the hub + its nearest neighbours
+    written = _run_star(tmp_path, monkeypatch, ranked=["s::core", "s::i1"])
+    assert written[0] == "s::core"
+    assert set(written) <= {"s::core", "s::a", "s::b", "s::c"}
+
+
+def test_without_estate_rank_the_hubs_come_from_degree(tmp_path, monkeypatch):
+    written = _run_star(tmp_path, monkeypatch, ranked=None)  # _FakeEstate has no rank()
+    assert written[0] == "s::core"  # highest degree
+
+
+def test_a_later_run_continues_from_the_frontier(tmp_path, monkeypatch):
+    # The hub and its 1-hop ring were mapped by an earlier run: this run starts at hop 2,
+    # not back at the hub, and never re-writes what is already mapped.
+    done = ("s::core", "s::a", "s::b", "s::c")
+    written = _run_star(tmp_path, monkeypatch, done=done, ranked=["s::core"], limit=2)
+    assert set(written) == {"s::a1", "s::route"}
+
+
+def test_edge_kind_normalises_every_stored_spelling():
+    assert extract_loop._edge_kind("calls") == "calls"
+    assert extract_loop._edge_kind('"calls"') == "calls"
+    assert extract_loop._edge_kind('{"other":"serves"}') == "serves"
+
+
+def test_estate_rank_parses_hotspots(monkeypatch):
+    seen = {}
+    def fake_run_json(argv):
+        seen["argv"] = argv
+        return {"hotspots": [{"symbol": "x::a", "score": 0.2}, {"symbol": "x::b"}, {"nope": 1}],
+                "total": 3}
+    monkeypatch.setattr(_clients, "_run_json", fake_run_json)
+    client = _clients.CliEstateClient(["wicked-estate"], "g.db")
+    assert client.rank(50) == ["x::a", "x::b"]
+    assert seen["argv"] == ["wicked-estate", "rank", "--limit", "50", "--json", "--db", "g.db"]
+    monkeypatch.setattr(_clients, "_run_json", lambda argv: [])
+    with pytest.raises(RuntimeError, match="hotspots"):
+        client.rank()
 
 
 # --- infra failures abort the pass (outage ≠ judgment) ------------------------

@@ -26,13 +26,19 @@ Run the coverage emitter from the estate store. This produces the
 `coverage-report.json` file the deterministic gate validator checks.
 
 ```bash
-wicked-core coverage --db "${WICKED_ESTATE_DB:-$HOME/.wicked-estate/graph.db}" --out coverage-report.json
+wicked-core coverage --db "${WICKED_ESTATE_DB:-$HOME/.wicked-estate/graph.db}" --out coverage-report.json --min-coverage-pct
 ```
+
+`--min-coverage-pct` with no value checks the report against the CONFIGURED MINIMUM
+(`WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, crew's `requirementsGraph.minCoveragePct`,
+default 80). It writes the report either way, prints `coverage: N% mapped, minimum M%
+(… of … behaviours)` on stderr, and exits 3 below the minimum.
 
 If `wicked-core` is not on PATH, find it at `$HOME/.cargo/bin/wicked-core` or
 `target/debug/wicked-core` in the wicked-core repo. If the coverage emitter
-fails or produces `coverage < 1.0`, do NOT fabricate a passing report — record
-the real metrics and RISK-flag every unaccounted node in your output.
+fails or reports less than the minimum, do NOT fabricate a passing report —
+record the real metrics and that line, and emit a `BLOCK` naming the shortfall and
+the unaccounted nodes (see the threat checklist's coverage holes).
 
 Read the resulting file and record the metrics (coverage, unaccounted, etc.).
 
@@ -53,7 +59,9 @@ present) and attack it — find what is missing, weak, or ungrounded.
 4. **Cross-cluster smear.** Requirements whose `legacy_components[]` span
    multiple communities may hide two requirements wearing one id.
 5. **Coverage holes.** Behavior-bearing SymbolIds not in any requirement's
-   `legacy_components[]` are unaccounted — enumerate them.
+   `legacy_components[]` are unaccounted. Below the configured minimum they are the
+   gate's failure — enumerate them. At or above it they are the next run's frontier —
+   report their count, and the most central ones, as a NOTE.
 6. **Low-confidence clusters.** Dense sub-threshold confidences signal guessing.
 7. **Reference integrity.** Broken `legacy_components`/`provenance.ref` entries
    break the traceability thread. Flag broken links.
@@ -69,9 +77,10 @@ COVERAGE_SUMMARY: {"coverage": <float>, "unaccounted": <int>, "behavior_bearing"
 Then one threat per line: `[RISK|BLOCK|NOTE] <location> — <finding>`.
 
 A `BLOCK` means the domain model must not proceed to build until resolved.
-`coverage == 1.0` with zero unaccounted is the gate bar; any hole is a `BLOCK`.
+The gate is fail-closed below the configured minimum: a mapped share under it is a
+`BLOCK`; holes above it are NOTEs (the graph is built and labelled with its share).
 
 Then the verdict — the LAST line of your output, one plain-text line, never
-quoting another VERDICT line: `VERDICT: PASS` iff `coverage == 1.0`, zero
-unaccounted and no `BLOCK`; otherwise `VERDICT: FAIL` (the threats above it
-are the conditions).
+quoting another VERDICT line: `VERDICT: PASS` iff the emitter's check met the
+configured minimum (exit 0) and there is no `BLOCK`; otherwise `VERDICT: FAIL`
+(the threats above it are the conditions).

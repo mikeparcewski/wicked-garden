@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Changed
+- **Domain extraction maps hub-first and stops gating on 100% (operator ruling 2026-10-31; pairs with wicked-core#1215).**
+  - *Hub-first, fan-out order.* `scripts/domain/extract_loop.py` takes the unmapped worklist in graph order: the most central symbols first (estate's PageRank via `wicked-estate rank`, `CliEstateClient.rank`; the store's own degree when the command is unavailable, said on stderr), then their neighbours and onward by hop distance over the use graph (calls, references, type relations, a route serving a handler; never contains/imports/data flow). The hub count scales with the graph (about √n/4, 1..25). The order is deterministic, so a re-invoked pass or a later run re-derives it and resumes at the frontier (each batch logs `frontier: <symbol> (hop H, position P of T)`); `--cluster-offset N` now takes the Nth batch window of that order.
+  - *Fail-closed below the configured minimum.* The domain skills (`domain`, `domain-extractor`, `domain-coverage`, `domain-modeler`, refs) say the graph is built once the mapped share reaches the configured minimum (crew's `requirementsGraph.minCoveragePct`, `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, default 80), not 1.0; below it the run says "N% mapped, minimum M%" and keeps the mapping. The coverage evaluator runs `wicked-core coverage … --min-coverage-pct` and its verdict follows that check; holes above the minimum are NOTEs, the next run's frontier.
+  - *Schema re-vendored at domain-model 1.1.0 (bundle 1.2.3).* The optional `metadata.coverage` and `requirement.corroboration` core now emits (validated by two or more independent sources, or unconfirmed with why). `validate_domain_model.py` accepts every version the schema's `schema_version` enum lists (1.0.0 and 1.1.0); garden's own emitter still writes 1.0.0.
+
 ## [12.61.0] — 2026-10-26
 
 ### Fixed
