@@ -685,12 +685,9 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
 # model states the rules and they go to the RULES file beside it — never to a store. The host's
 # `extract-apply` step checks that file and writes it (`apply_rules.py`).
 
-_WORKLIST_BYTES = 64 * 1024 * 1024
-
-
 def read_worklist(base: Path, rel: str) -> dict:
     """The worklist the host prepared, shape-checked (it sits in a seat-writable tree)."""
-    doc = rules_file.read_json_file(base, rel, limit=_WORKLIST_BYTES)
+    doc = rules_file.read_json_file(base, rel, limit=rules_file.MAX_WORKLIST_BYTES)
     if not isinstance(doc, dict) or doc.get("schema") != rules_file.WORKLIST_SCHEMA:
         raise rules_file.RulesFileRefused(
             f"{rel!r} is not a {rules_file.WORKLIST_SCHEMA} worklist")
@@ -814,6 +811,11 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         rules_file.write_json_file(base, rules_rel, doc)
         processed += len(take)
         pending = pending[len(take):]
+    if rc == 0 and units and not done:
+        # Nothing stated (the budget or a limit ran out on the first batch): no file, so the host's
+        # apply step refuses instead of applying an empty one; resume continues from the start.
+        print("[extract-loop] no unit was stated in this pass", file=sys.stderr)
+        rc = 75
     final = rules_file.rules_doc(seat, done)
     if rc == 0 and len(rules_file.encoded(final)) <= rules_file.MAX_RULES_BYTES:
         # Also when nothing new was stated (an empty worklist, a finished resume), so the host's

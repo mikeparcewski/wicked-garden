@@ -39,6 +39,7 @@ RULES_REL = ".wicked/domain/rules.json"
 
 # Bounds. A rules file is model output carried across a trust boundary: every size is capped.
 MAX_RULES_BYTES = 16 * 1024 * 1024
+MAX_WORKLIST_BYTES = 64 * 1024 * 1024  # what prepare may publish and the seat will read
 MAX_RULES = 20000
 MAX_SYMBOL_ID = 1000
 MAX_STATEMENT = 2000
@@ -229,17 +230,22 @@ def _open_dirs(base: Path, rel: str, dirs: tuple[str, ...], create: bool) -> int
         for part in dirs:
             flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
             try:
-                nfd = os.open(part, flags, dir_fd=fd)
+                try:
+                    nfd = os.open(part, flags, dir_fd=fd)
+                except FileNotFoundError:
+                    if not create:
+                        raise
+                    try:
+                        os.mkdir(part, 0o755, dir_fd=fd)
+                    except FileExistsError:
+                        pass
+                    nfd = os.open(part, flags, dir_fd=fd)
             except FileNotFoundError:
                 if not create:
                     raise
-                try:
-                    os.mkdir(part, 0o755, dir_fd=fd)
-                except FileExistsError:
-                    pass
-                nfd = os.open(part, flags, dir_fd=fd)
-            except OSError as e:  # ELOOP (a symlink) or ENOTDIR (not a directory)
-                raise RulesFileRefused(f"{rel!r}: {part!r} is not a directory of the run's "
+                raise RulesFileRefused(f"{rel!r}: {part!r} vanished while it was created") from None
+            except OSError as e:  # ELOOP (a symlink), ENOTDIR, EACCES on mkdir, …
+                raise RulesFileRefused(f"{rel!r}: {part!r} is not a usable directory of the run's "
                                        f"worktree ({e.strerror})") from None
             os.close(fd)
             fd = nfd
@@ -315,9 +321,13 @@ def read_json_file(base: Path, rel: str, *, limit: int = MAX_RULES_BYTES) -> Any
                                    ) from None
     finally:
         os.close(dfd)
-    with os.fdopen(ffd, "rb") as f:
-        if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+    try:  # checked on the descriptor, before a file object is made of it (a directory refuses)
+        if not stat.S_ISREG(os.fstat(ffd).st_mode):
             raise RulesFileRefused(f"{rel!r} is not a regular file")
+    except BaseException:
+        os.close(ffd)
+        raise
+    with os.fdopen(ffd, "rb") as f:
         return _decode(rel, f.read(limit + 1), limit)
 
 

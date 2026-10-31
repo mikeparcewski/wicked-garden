@@ -58,6 +58,7 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         node_community = {}
 
     units = []
+    room = rules_file.MAX_WORKLIST_BYTES - 64 * 1024  # what the seat reads, less the envelope
     for n in take:
         sid = n["symbol_id"]
         slice_txt = store.source_slice(sid)
@@ -70,6 +71,9 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                                              neighbor_names=store.blast_neighbors(sid))
         unit.update(kind=n.get("kind", ""), position=order.get(sid, tail) + 1,
                     hop=hops.get(sid))
+        room -= len(rules_file.encoded(unit))
+        if room < 0:  # the seat refuses a bigger worklist; the rest is the next pass's
+            break
         units.append(unit)
 
     n_hubs = min(len(hubs), extract_loop.hub_count(store))

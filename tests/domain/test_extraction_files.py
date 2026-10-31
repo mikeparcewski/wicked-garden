@@ -609,9 +609,19 @@ def test_a_planted_git_in_the_worktree_never_runs(tmp_path, monkeypatch):
     assert not list(tmp_path.rglob("*.ran"))
 
 
+def _star_with_annotations(db):
+    import sqlite3
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE IF NOT EXISTS annotations (node_sym INTEGER, type TEXT, key TEXT, "
+                "author TEXT)")
+    con.commit()
+    con.close()
+
+
 def test_a_rule_mapped_by_another_writer_meanwhile_is_not_overwritten(tmp_path):
     import sqlite3
     db, repo, wt, estate, core = _apply_env(tmp_path)
+    _star_with_annotations(db)
     _write_rules(wt, "", [_rule("s::core"), _rule("s::a")])
 
     def another_writer_maps_core():
@@ -673,3 +683,76 @@ def test_a_resume_never_rewrites_a_file_past_the_byte_limit(tmp_path, monkeypatc
     assert extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
                                   time_budget=30, limit=0, batch=4, dry_run=True) == 0
     assert (tmp_path / rules_file.RULES_REL).read_bytes() == raw  # the checkpoint is kept
+
+
+# --- review round 3 (codex + agy on #1363) -------------------------------------------------------
+
+def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path):
+    import sqlite3
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _star_with_annotations(db)
+    _write_rules(wt, "", [_rule("s::core")])
+
+    def another_writer_annotates_core():
+        con = sqlite3.connect(db)
+        con.execute("INSERT INTO annotations VALUES ((SELECT sid FROM symbols WHERE sym = "
+                    "'s::core'), 'business_rule', 'RULE-x', 'extract-loop:codex')")
+        con.commit()
+        con.close()
+        return []
+    estate.read_clusters = another_writer_annotates_core
+    report = _apply(wt, db, repo, estate, core)
+    assert estate.writes == {} and "another writer" in report["refused"][0]["why"]
+
+
+@pytest.mark.parametrize("rel", [rules_file.RULES_REL, rules_file.WORKLIST_REL])
+def test_a_directory_where_a_file_belongs_is_refused_not_a_crash(tmp_path, rel):
+    (tmp_path / rel).mkdir(parents=True)
+    with pytest.raises(rules_file.RulesFileRefused, match="not a regular file"):
+        rules_file.read_json_file(tmp_path, rel)
+
+
+def test_a_directory_that_cannot_be_created_is_refused_not_a_crash(tmp_path):
+    (tmp_path / ".wicked").mkdir()
+    (tmp_path / ".wicked").chmod(0o555)
+    try:
+        if os.access(tmp_path / ".wicked", os.W_OK):
+            pytest.skip("running as a user that writes read-only directories (root)")
+        with pytest.raises(rules_file.RulesFileRefused, match="not a usable directory"):
+            rules_file.write_json_file(tmp_path, rules_file.RULES_REL, {})
+    finally:
+        (tmp_path / ".wicked").chmod(0o755)
+
+
+def test_a_pass_that_states_nothing_leaves_no_file_and_says_so(tmp_path, monkeypatch):
+    _worklist(tmp_path)
+    monkeypatch.setattr(extract_loop, "_ask_model", lambda *a, **k: extract_loop._OUT_OF_TIME)
+    assert extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 75
+    assert not (tmp_path / rules_file.RULES_REL).exists()
+
+
+def test_a_failure_before_any_write_says_nothing_was_written(tmp_path, monkeypatch, capsys):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    estate.writes["s::core"] = {"req": ("earlier", True, "x"), "ann": {"key": "k"}}  # not unmapped
+    _write_rules(wt, "", [_rule("s::core")])
+    monkeypatch.setattr(core, "coverage_against_minimum",
+                        lambda db, out: (_ for _ in ()).throw(RuntimeError("core crashed")))
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: core)
+    monkeypatch.chdir(wt)
+    assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1
+    err = capsys.readouterr().err
+    assert "FAILED: core crashed" in err and "after writing" not in err
+
+
+def test_prepare_never_publishes_a_worklist_the_seat_would_refuse(tmp_path, monkeypatch):
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.source = lambda sid: "x" * 3000
+    core = _Core(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setattr(rules_file, "MAX_WORKLIST_BYTES", 64 * 1024 + 9000)
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                   core=core)
+    assert 0 < len(doc["units"]) < len(_STAR)
+    assert extract_loop.read_worklist(wt, rules_file.WORKLIST_REL)["units"] == doc["units"]

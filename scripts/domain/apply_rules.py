@@ -53,20 +53,33 @@ class AppliedThenFailed(RuntimeError):
     """A failure AFTER the store changed: said as such, never as "nothing written"."""
 
 
-def _mapped_since(db: str, symbol_id: str, before: str) -> bool:
-    """Whether another writer changed `symbol_id`'s requirement since this step read the store
-    (`before`): a fresh read, compared. False when the store cannot say (an older schema)."""
+_ACCOUNTING_TYPES = ("business_rule", "risk", "advisory")
+
+
+def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int]]:
+    """For each symbol, what accounts for it in the store right now: its requirement text and how
+    many accounting annotations (business_rule, risk, advisory — coverage counts any of them)
+    it carries. One fresh read-only connection; {} when the store cannot say (older schema)."""
     import sqlite3
+    from urllib.parse import quote
+    out: dict[str, tuple[str, int]] = {}
     try:
-        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
-            row = con.execute("SELECT n.requirement FROM nodes n JOIN symbols s ON s.sid = n.symbol "
-                              "WHERE s.sym = ?", (symbol_id,)).fetchone()
+            marks = ",".join("?" * len(_ACCOUNTING_TYPES))
+            for sym in symbol_ids:
+                row = con.execute("SELECT s.sid, n.requirement FROM symbols s LEFT JOIN nodes n "
+                                  "ON n.symbol = s.sid WHERE s.sym = ?", (sym,)).fetchone()
+                if row is None:
+                    continue
+                count = con.execute(f"SELECT count(*) FROM annotations WHERE node_sym = ? AND "
+                                    f"type IN ({marks})", (row[0], *_ACCOUNTING_TYPES)).fetchone()
+                out[sym] = ((row[1] or ""), int(count[0]))
         finally:
             con.close()
     except sqlite3.Error:
-        return False
-    return ((row[0] if row else None) or "") != (before or "")
+        return {}
+    return out
 
 
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
@@ -86,8 +99,9 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     rules_file.check_writable(base, coverage_rel)
     rules_file.check_writable(base, REPORT_REL)
 
-    # The store as it stands BEFORE the coverage snapshot: a requirement that differs from it at
-    # write time was written by someone else meanwhile (and it guards a floor over a statement).
+    # What accounts for each named symbol BEFORE the coverage snapshot: if that has changed at
+    # write time (a requirement or an accounting annotation), someone else mapped it meanwhile.
+    before_state = _accounting(db, [e["symbol_id"] for e in accepted])
     try:
         store = extract_loop._DirectStore(db)
     except Exception as e:
@@ -130,7 +144,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     try:
         for entry in eligible:
             sid = entry["symbol_id"]
-            if _mapped_since(db, sid, store.requirement_of(sid) if store is not None else ""):
+            now = _accounting(db, [sid])
+            if sid in before_state and sid in now and now[sid] != before_state[sid]:
                 # Another writer mapped it after the coverage snapshot: theirs stands. (This narrows
                 # the window to one read before the write; the store has no conditional write.)
                 refused.append({"index": None, "symbol_id": rules_file._shown(sid),
@@ -147,9 +162,13 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
         rules_file.write_json_file(base, coverage_rel, after)
     except (rules_file.RulesFileRefused, RuntimeError, OSError) as e:
-        done = sum(outcomes.values())
-        raise AppliedThenFailed(f"{done} rule(s) were written to the store before this failed: "
-                                f"{e}") from e
+        written = outcomes["resolved"] + outcomes["risk"]
+        if not written and not isinstance(e, rules_file.RulesFileRefused):
+            raise  # nothing reached the store; a plain failure
+        if not written:
+            raise RuntimeError(f"nothing was written to the store, then: {e}") from e
+        raise AppliedThenFailed(f"{written} rule(s) were written to the store before this "
+                                f"failed: {e}") from e
 
     report = {
         "declared_seat": seat,
@@ -166,7 +185,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     try:
         rules_file.write_json_file(base, REPORT_REL, report)
     except (rules_file.RulesFileRefused, OSError) as e:
-        raise AppliedThenFailed(f"{sum(outcomes.values())} rule(s) were written to the store and "
+        raise AppliedThenFailed(f"{outcomes['resolved'] + outcomes['risk']} rule(s) were written to "
+                                f"the store and "
                                 f"{coverage_rel} was written, but the report was not: {e}") from e
     for r in refused[:20]:
         print(f"[extract-apply] refused {r['symbol_id'] or '#' + str(r['index'])}: {r['why']}",
