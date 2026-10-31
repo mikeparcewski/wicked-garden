@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on p
 from domain import _clients, _rule_extractor, extract_loop, rules_file  # noqa: E402
 
 DEFAULT_LIMIT = 300
+_ENVELOPE = 64 * 1024  # bytes kept for the document around the units (a first cut; trimmed after)
 
 
 def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
@@ -44,6 +45,7 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     skipped = len(unmapped) - len(in_repo)
 
     store = extract_loop._DirectStore(db)
+    store.repo_root = repo_root  # source slices from the repository when the store's are unreadable
     hubs, how = extract_loop._centrality_hubs(estate, store)
     order, hops = extract_loop.hub_first_order(store, hubs)
     tail = len(order)
@@ -58,15 +60,13 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         node_community = {}
 
     units = []
-    room = rules_file.MAX_WORKLIST_BYTES - 64 * 1024  # what the seat reads, less the envelope
+    room = rules_file.MAX_WORKLIST_BYTES - _ENVELOPE  # what the seat reads, less the envelope
     for n in take:
         sid = n["symbol_id"]
+        # The store's content, else the repository's file at the same span. Never `estate source`
+        # here: it looks a NAME up, and for a symbol id it answers "no symbols found" — text the
+        # seat would read as the code.
         slice_txt = store.source_slice(sid)
-        if not slice_txt:
-            try:
-                slice_txt = estate.source(sid)[:4000]
-            except Exception:
-                slice_txt = ""
         unit = _rule_extractor.frame_context(n, slice_txt, cluster_label=node_community.get(sid),
                                              neighbor_names=store.blast_neighbors(sid))
         unit.update(kind=n.get("kind", ""), position=order.get(sid, tail) + 1,
@@ -86,6 +86,18 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         "not_in_repo": skipped,
         "units": units,
     }
+    # The per-unit budget above is an estimate (nesting indents every line); the published
+    # document must fit what the seat reads, so trim to the largest prefix that does.
+    if len(rules_file.encoded(doc)) > rules_file.MAX_WORKLIST_BYTES:
+        lo, hi = 0, len(units)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if len(rules_file.encoded({**doc, "units": units[:mid]})) <= rules_file.MAX_WORKLIST_BYTES:
+                lo = mid
+            else:
+                hi = mid - 1
+        units = units[:lo]
+        doc["units"] = units
     rules_file.write_json_file(base, out_rel, doc)
     front = units[0]["symbol_id"] if units else "-"
     print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s); {skipped} in files the "

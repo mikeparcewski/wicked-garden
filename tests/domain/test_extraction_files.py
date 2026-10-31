@@ -687,7 +687,8 @@ def test_a_resume_never_rewrites_a_file_past_the_byte_limit(tmp_path, monkeypatc
 
 # --- review round 3 (codex + agy on #1363) -------------------------------------------------------
 
-def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path):
+@pytest.mark.parametrize("kind", ["business_rule", "risk", "assumption", "question"])
+def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path, kind):
     import sqlite3
     db, repo, wt, estate, core = _apply_env(tmp_path)
     _star_with_annotations(db)
@@ -696,7 +697,7 @@ def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path):
     def another_writer_annotates_core():
         con = sqlite3.connect(db)
         con.execute("INSERT INTO annotations VALUES ((SELECT sid FROM symbols WHERE sym = "
-                    "'s::core'), 'business_rule', 'RULE-x', 'extract-loop:codex')")
+                    "'s::core'), ?, 'K-x', 'someone')", (kind,))
         con.commit()
         con.close()
         return []
@@ -749,10 +750,104 @@ def test_a_failure_before_any_write_says_nothing_was_written(tmp_path, monkeypat
 def test_prepare_never_publishes_a_worklist_the_seat_would_refuse(tmp_path, monkeypatch):
     db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
-    estate.source = lambda sid: "x" * 3000
+    monkeypatch.setattr(extract_loop._DirectStore, "source_slice", lambda self, sid, cap=4000: "x" * 3000)
     core = _Core(estate, {s: "f.py" for s in _STAR})
     monkeypatch.setattr(rules_file, "MAX_WORKLIST_BYTES", 64 * 1024 + 9000)
     doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
                                    core=core)
     assert 0 < len(doc["units"]) < len(_STAR)
+    assert extract_loop.read_worklist(wt, rules_file.WORKLIST_REL)["units"] == doc["units"]
+
+
+# --- the live rig run (c612ae61 on :7721) ----------------------------------------------------------
+
+def test_a_model_that_is_not_signed_in_in_the_seat_hands_over_at_once(tmp_path, monkeypatch):
+    """In a seat container the nested `claude -p` answered "Not logged in": that is no model, not
+    a judgment — the harness used to RISK-floor every unit into empty placeholders."""
+    _worklist(tmp_path)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["claude", "-p"])
+
+    def not_signed_in(batch, argv, timeout=None):
+        raise RuntimeError("rule model exited 1: Not logged in · Please run /login")
+    monkeypatch.setattr(_rule_extractor, "extract_rules", not_signed_in)
+    monkeypatch.setattr(extract_loop.time, "sleep", lambda s: pytest.fail("retried a login failure"))
+    assert extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=False) == 2
+    assert not (tmp_path / rules_file.RULES_REL).exists()
+
+
+def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadable(tmp_path,
+                                                                                monkeypatch):
+    import json as J, sqlite3
+    db = tmp_path / "e.db"
+    c = sqlite3.connect(db)
+    c.executescript("""
+        CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT);
+        CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);
+        CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
+        CREATE TABLE files (path TEXT, git_sha TEXT);
+        CREATE TABLE content (git_sha TEXT, blob BLOB);
+    """)
+    span = {"location": {"span": {"start_byte": 4, "end_byte": 9}}}
+    for i, (sym, file) in enumerate([("s::ok", "m.js"), ("s::out", "../secret.js")], start=1):
+        c.execute("INSERT INTO symbols VALUES (?, ?)", (i, sym))
+        c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?, NULL)", (i, sym, file, J.dumps(span)))
+        c.execute("INSERT INTO files VALUES (?, ?)", (file, f"sha{i}"))
+        c.execute("INSERT INTO content VALUES (?, ?)", (f"sha{i}", b"\x28\xb5\x2f\xfd" + b"zstd"))
+    c.commit(); c.close()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "m.js").write_text("let total = 0;")
+    (tmp_path / "secret.js").write_text("SECRET-VALUE")
+    # The rig's seat-snapshot Python (3.13, no zstandard) cannot read zstd blobs.
+    monkeypatch.setattr(extract_loop, "_maybe_decompress", lambda blob: b"")
+    store = extract_loop._DirectStore(str(db))
+    assert store.source_slice("s::ok") == ""  # no decompressor and no repository: nothing
+    store = extract_loop._DirectStore(str(db))
+    store.repo_root = str(repo)
+    assert store.source_slice("s::ok") == "total"
+    assert store.source_slice("s::out") == ""  # never outside the repository
+
+
+# --- review round 4 (codex on #1363) -------------------------------------------------------------
+
+def test_a_write_that_fails_halfway_through_a_rule_says_so(tmp_path, monkeypatch, capsys):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+
+    def semantics_times_out(*a, **k):
+        raise RuntimeError("wicked-estate exceeded 120s")
+    estate.set_requirement = semantics_times_out  # the annotation lands, the requirement does not
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: core)
+    monkeypatch.chdir(wt)
+    assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1
+    err = capsys.readouterr().err
+    assert "FAILED after writing" in err and "s::core may be partly written" in err
+
+
+def test_prepare_reads_a_store_whose_path_has_uri_characters(tmp_path):
+    import shutil as sh
+    odd = tmp_path / "Issue#1362?x%"
+    odd.mkdir()
+    db = str(odd / "estate.db")
+    sh.copy(_star(tmp_path), db)
+    repo, wt = _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                   core=_Core(estate, {s: "f.py" for s in _STAR}))
+    assert doc["units"][0]["symbol_id"] == "s::core"
+
+
+def test_the_published_worklist_fits_even_when_the_estimate_does_not(tmp_path, monkeypatch):
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    monkeypatch.setattr(extract_loop._DirectStore, "source_slice",
+                        lambda self, sid, cap=4000: "line\n" * 300)
+    monkeypatch.setattr(prepare_worklist, "_ENVELOPE", 0)  # the estimate alone would let all in
+    unit_bytes = 8 * len(rules_file.encoded({"symbol_id": "s::core", "source": "line\n" * 300}))
+    monkeypatch.setattr(rules_file, "MAX_WORKLIST_BYTES", unit_bytes + 2000)
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                   core=_Core(estate, {s: "f.py" for s in _STAR}))
+    assert len(rules_file.encoded(doc)) <= rules_file.MAX_WORKLIST_BYTES
     assert extract_loop.read_worklist(wt, rules_file.WORKLIST_REL)["units"] == doc["units"]

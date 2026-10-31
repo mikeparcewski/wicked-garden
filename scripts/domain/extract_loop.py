@@ -63,6 +63,17 @@ _INFRA_MARKERS = ("session limit", "rate limit", "rate_limit", "overloaded", "qu
                   "usage limit", "insufficient")
 
 
+# The model CLI is there but cannot answer for this seat at all (no login, no key): in a seat
+# container the nested CLI is usually not signed in. Not a judgment and not a passing outage.
+_AUTH_MARKERS = ("not logged in", "please run /login", "please log in", "invalid api key",
+                 "unauthorized", "authentication")
+
+
+def _is_auth_failure(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(m in msg for m in _AUTH_MARKERS)
+
+
 def _is_infra_failure(exc: Exception) -> bool:
     """True when the model boundary failed for infrastructure reasons (quota, auth,
     network) rather than judgment. A per-batch timeout stays a judgment failure —
@@ -188,7 +199,8 @@ class _DirectStore:
 
     def __init__(self, db: str):
         import sqlite3
-        self._c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        from urllib.parse import quote
+        self._c = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         self._c.row_factory = sqlite3.Row
         # symbols: sym string ↔ sid
         self.sid_of = {}
@@ -224,6 +236,26 @@ class _DirectStore:
                 self.adj.setdefault(r["source"], set()).add(r["target"])
                 self.adj.setdefault(r["target"], set()).add(r["source"])
         self._file_text = {}
+        # When the store's content cannot be read here (zstd blobs on a Python without a zstd
+        # decompressor), a caller that knows the repository root reads the file from it instead.
+        self.repo_root: str | None = None
+
+    def _repo_file(self, rel: str) -> bytes:
+        """`rel` read from the registered repository (`repo_root`), bounded, a regular file
+        inside it; b"" otherwise."""
+        if not self.repo_root or not rel:
+            return b""
+        root = os.path.realpath(self.repo_root)
+        path = os.path.realpath(os.path.join(root, rel))
+        if not path.startswith(root + os.sep) or not os.path.isfile(path):
+            return b""
+        try:
+            if os.path.getsize(path) > 4 * 1024 * 1024:
+                return b""
+            with open(path, "rb") as f:
+                return f.read()
+        except OSError:
+            return b""
 
     def requirement_of(self, symbol_id: str) -> str:
         sid = self.sid_of.get(symbol_id)
@@ -268,7 +300,8 @@ class _DirectStore:
                 ).fetchone()
                 if len(self._file_text) >= 128:  # bounded FIFO — long runs must not grow without limit
                     self._file_text.pop(next(iter(self._file_text)))
-                self._file_text[file] = _maybe_decompress(r["blob"]) if r else b""
+                self._file_text[file] = (_maybe_decompress(r["blob"]) if r else b"") \
+                    or self._repo_file(file)
             blob = self._file_text[file]
             if end > start and end <= len(blob):
                 return blob[start:end].decode("utf-8", errors="replace")[:cap]
@@ -389,7 +422,8 @@ def _annotation_preflight(db: str) -> None:
     fail-open, and a partially-orphaned store is still valid to (re-)extract into."""
     try:
         import sqlite3
-        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        from urllib.parse import quote
+        con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
             total, orphaned = con.execute(
                 "SELECT count(*), COALESCE(sum(CASE WHEN n.symbol IS NULL THEN 1 ELSE 0 END), 0) "
@@ -430,6 +464,7 @@ def _density_batch(members: list[dict], store, base_batch: int) -> int:
 
 
 _OUT_OF_TIME = -1  # _ask_model: the budget ran out mid-batch; nothing from it is kept
+_NO_MODEL = -2  # _ask_model (file mode): the model CLI cannot answer for this seat (not signed in)
 
 
 def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, dry_run: bool,
@@ -477,6 +512,10 @@ def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, 
                         r["symbol_id"] = canon[rid.strip().rstrip(".")]
                         by_id[r["symbol_id"]] = r
             except Exception as e:
+                if deadline is not None and _is_auth_failure(e):
+                    print(f"[extract-loop] the rule model cannot answer in this seat ({e})",
+                          file=sys.stderr)
+                    return _NO_MODEL
                 if _is_infra_failure(e):
                     infra_exc = e
                 elif "exceeded" in str(e) and no_time(_RETRY_PAUSE + 30):
@@ -794,6 +833,12 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
         ids = {u["symbol_id"] for u in take}
         by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
+        if by_id == _NO_MODEL:
+            print("[extract-loop] no usable rule model in this seat. State the rules yourself as "
+                  "the extractor skill says, then check the file: extract_loop.py --check-rules "
+                  f"{rules_rel}", file=sys.stderr)
+            rc = 2
+            break
         if by_id == _OUT_OF_TIME:
             print("[extract-loop] the budget ran out inside a batch; it is left for the next "
                   "pass", file=sys.stderr)

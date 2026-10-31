@@ -53,12 +53,14 @@ class AppliedThenFailed(RuntimeError):
     """A failure AFTER the store changed: said as such, never as "nothing written"."""
 
 
-_ACCOUNTING_TYPES = ("business_rule", "risk", "advisory")
+# What coverage counts as accounting for a symbol besides its requirement (wicked-governance
+# domain_model.rs: business_rule, risk, and estate's advisory types assumption / question).
+_ACCOUNTING_TYPES = ("business_rule", "risk", "assumption", "question")
 
 
 def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int]]:
     """For each symbol, what accounts for it in the store right now: its requirement text and how
-    many accounting annotations (business_rule, risk, advisory — coverage counts any of them)
+    many accounting annotations (business_rule, risk, assumption, question — coverage counts any)
     it carries. One fresh read-only connection; {} when the store cannot say (older schema)."""
     import sqlite3
     from urllib.parse import quote
@@ -141,6 +143,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     author = AUTHOR
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
+    in_progress = None  # the symbol whose writes have started and not finished
     try:
         for entry in eligible:
             sid = entry["symbol_id"]
@@ -151,9 +154,11 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 refused.append({"index": None, "symbol_id": rules_file._shown(sid),
                                 "why": "was mapped by another writer while this step ran"})
                 continue
+            in_progress = sid
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author)
+            in_progress = None
             outcomes[outcome] += 1
 
         # The report is computed in a host temp directory and published through the safe writer
@@ -161,13 +166,15 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
         rules_file.write_json_file(base, coverage_rel, after)
-    except (rules_file.RulesFileRefused, RuntimeError, OSError) as e:
+    except (rules_file.RulesFileRefused, RuntimeError, OSError, ValueError) as e:
         written = outcomes["resolved"] + outcomes["risk"]
-        if not written and not isinstance(e, rules_file.RulesFileRefused):
+        partly = (f"; {rules_file._shown(in_progress)} may be partly written (its annotation "
+                  "without its requirement)") if in_progress else ""
+        if not written and not in_progress:
+            if isinstance(e, rules_file.RulesFileRefused):
+                raise RuntimeError(f"nothing was written to the store, then: {e}") from e
             raise  # nothing reached the store; a plain failure
-        if not written:
-            raise RuntimeError(f"nothing was written to the store, then: {e}") from e
-        raise AppliedThenFailed(f"{written} rule(s) were written to the store before this "
+        raise AppliedThenFailed(f"{written} rule(s) were written to the store{partly} before this "
                                 f"failed: {e}") from e
 
     report = {
