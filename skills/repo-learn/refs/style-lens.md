@@ -23,11 +23,18 @@ with a guess.
 
 ## What to capture (phase 3)
 
-- A **style memory** is how this person or team chooses to work: told by their own record, so it is
-  memory, not knowledge. `kind_type: "memory"`; payload
+Why style is memory here: the person pointed Learn at this repository or writing as **their own example**
+("this is how we work"), and nothing is kept until they accept it in review. That makes the pattern
+*told*, the memory side of the memory-vs-knowledge rule. A fact about how the code itself behaves is still
+*acquired*, so it stays knowledge with `source` and `source_rev`, exactly as in
+[capture-proposals.md](capture-proposals.md). Without the person's hand-off (a repo learned for orientation
+only) there is no style lens and no style memory.
+
+- A **style memory** is how this person or team chooses to work. `kind_type: "memory"`; payload
   `{"content": "<one sentence, what they do>", "tier": "semantic", "capture": "memory", "reach": "operator"}`;
-  facets `{"repo": "<name>", "project": "<name>"}`. Name the evidence in the sentence or a trailing
-  source: "… (212 merged PRs, last 6 months)". `reach: "operator"` lets the person decide, when they
+  facets `{"repo": "<name>", "project": "<name>"}`. Name the evidence inside the sentence: "… (212 merged
+  PRs, last 6 months)". A memory payload carries no `source` key (that marks acquired knowledge, and the
+  memory shim refuses it). `reach: "operator"` lets the person decide, when they
   accept it, whether it applies everywhere they work.
 - A convention the repo **enforces** (a lint rule, a CI check, a CONTRIBUTING line that says "must")
   is a **policy**, as in [capture-proposals.md](capture-proposals.md), not a style memory.
@@ -42,6 +49,6 @@ When the material is the person's writing rather than a repository, there is no 
    Fetch only public addresses; a page that needs a sign-in is skipped and named.
 2. **Spot patterns**: sentence length, voice (active or passive), person (I, we, you), how a piece
    opens and ends, jargon, headings, lists against prose.
-3. **Capture** each pattern as a style memory as above, with `"source": "<url or file>"` in the
-   payload and facets `{"project": "<name>"}`. The person's writing is their own voice, so it is
-   memory (told), never knowledge.
+3. **Capture** each pattern as a style memory as above, naming the writing inside the sentence ("…, across
+   14 posts on the team blog"), facets `{"project": "<name>"}`, no `source` key. The person handed over
+   their own voice, so it is memory (told), never knowledge.
