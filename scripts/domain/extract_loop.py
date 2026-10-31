@@ -240,22 +240,43 @@ class _DirectStore:
         # decompressor), a caller that knows the repository root reads the file from it instead.
         self.repo_root: str | None = None
 
-    def _repo_file(self, rel: str) -> bytes:
-        """`rel` read from the registered repository (`repo_root`), bounded, a regular file
-        inside it; b"" otherwise."""
-        if not self.repo_root or not rel:
+    _REPO_FILE_LIMIT = 4 * 1024 * 1024
+
+    def _repo_file(self, rel: str, git_sha: str | None) -> bytes:
+        """`rel` read from the registered repository (`repo_root`) — only when its bytes are the
+        exact blob the store indexed (`git_sha`, git's blob id), since the node spans are offsets
+        into THAT content. A regular file inside the root, opened without following a link and
+        read bounded; b"" otherwise."""
+        if not self.repo_root or not rel or not git_sha:
             return b""
+        import stat as _stat
         root = os.path.realpath(self.repo_root)
-        path = os.path.realpath(os.path.join(root, rel))
-        if not path.startswith(root + os.sep) or not os.path.isfile(path):
+        path = os.path.join(root, rel)
+        if not os.path.realpath(path).startswith(root + os.sep):
             return b""
         try:
-            if os.path.getsize(path) > 4 * 1024 * 1024:
-                return b""
-            with open(path, "rb") as f:
-                return f.read()
+            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
         except OSError:
             return b""
+        try:
+            if not _stat.S_ISREG(os.fstat(fd).st_mode):
+                return b""
+            with os.fdopen(fd, "rb") as f:
+                fd = -1
+                data = f.read(self._REPO_FILE_LIMIT + 1)
+        except OSError:
+            return b""
+        finally:
+            if fd >= 0:
+                os.close(fd)
+        if len(data) > self._REPO_FILE_LIMIT:
+            return b""
+        blob_id = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+        if blob_id != git_sha:
+            print(f"[extract-loop] {rel}: the checkout differs from the indexed content; its source "
+                  "is left out", file=sys.stderr)
+            return b""
+        return data
 
     def requirement_of(self, symbol_id: str) -> str:
         sid = self.sid_of.get(symbol_id)
@@ -295,13 +316,14 @@ class _DirectStore:
             start, end = int(span.get("start_byte", 0)), int(span.get("end_byte", 0))
             if file not in self._file_text:
                 r = self._c.execute(
-                    "SELECT c.blob FROM files f JOIN content c ON c.git_sha = f.git_sha WHERE f.path = ?",
+                    "SELECT c.blob, f.git_sha FROM files f LEFT JOIN content c "
+                    "ON c.git_sha = f.git_sha WHERE f.path = ?",
                     (file,),
                 ).fetchone()
                 if len(self._file_text) >= 128:  # bounded FIFO — long runs must not grow without limit
                     self._file_text.pop(next(iter(self._file_text)))
-                self._file_text[file] = (_maybe_decompress(r["blob"]) if r else b"") \
-                    or self._repo_file(file)
+                text = _maybe_decompress(r["blob"]) if r and r["blob"] is not None else b""
+                self._file_text[file] = text or self._repo_file(file, r["git_sha"] if r else None)
             blob = self._file_text[file]
             if end > start and end <= len(blob):
                 return blob[start:end].decode("utf-8", errors="replace")[:cap]

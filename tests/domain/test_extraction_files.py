@@ -799,6 +799,12 @@ def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadabl
     repo.mkdir()
     (repo / "m.js").write_text("let total = 0;")
     (tmp_path / "secret.js").write_text("SECRET-VALUE")
+    import hashlib
+    blob = lambda b: hashlib.sha1(b"blob %d\0" % len(b) + b).hexdigest()
+    c = sqlite3.connect(db)
+    c.execute("UPDATE files SET git_sha = ? WHERE path = 'm.js'", (blob(b"let total = 0;"),))
+    c.execute("UPDATE files SET git_sha = ? WHERE path = '../secret.js'", (blob(b"SECRET-VALUE"),))
+    c.commit(); c.close()
     # The rig's seat-snapshot Python (3.13, no zstandard) cannot read zstd blobs.
     monkeypatch.setattr(extract_loop, "_maybe_decompress", lambda blob: b"")
     store = extract_loop._DirectStore(str(db))
@@ -807,6 +813,18 @@ def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadabl
     store.repo_root = str(repo)
     assert store.source_slice("s::ok") == "total"
     assert store.source_slice("s::out") == ""  # never outside the repository
+    # A checkout that differs from what was indexed (codex round 5): the spans would point into
+    # other code, so the source is left out rather than mis-sliced.
+    (repo / "m.js").write_text("let other = 1;")
+    store = extract_loop._DirectStore(str(db))
+    store.repo_root = str(repo)
+    assert store.source_slice("s::ok") == ""
+    # A link where the file was is not followed.
+    (repo / "m.js").unlink()
+    (repo / "m.js").symlink_to(tmp_path / "secret.js")
+    store = extract_loop._DirectStore(str(db))
+    store.repo_root = str(repo)
+    assert store.source_slice("s::ok") == ""
 
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------
