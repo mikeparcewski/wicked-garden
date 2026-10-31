@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- **`wicked-garden-repo-learn` has a style lens, and writing is a source.** Studio's Learn → Style (program DES-LEARN §3.1) runs `capture-learnings` on a showcase repository to learn how the person or team works, not only how the code works. When the run asks for style, phase 2 also reads naming, structure, test shape, change size, and commit and review tone, each with a stated cap (`git log -n 200 --shortstat`, `-n 100 --format=%s`, 3 to 5 reviews when `gh` is signed in). Phase 3 captures those as style memories (`reach: "operator"`, so the person decides at review whether they apply everywhere). An enforced convention stays a policy and what the code does stays knowledge. The same lens covers writing (a blog, a docs site, a document): a sample of at most 10 pages is read, the patterns are found, and they're captured as memories, because the person's own voice is told, not acquired. `refs/style-lens.md`.
+
 ### Changed
 - **Domain extraction maps hub-first and stops gating on 100% (operator ruling 2026-10-31; pairs with wicked-core#1215).**
   - *Hub-first, fan-out order.* `scripts/domain/extract_loop.py` takes the unmapped worklist in graph order: the most central symbols first (estate's PageRank via `wicked-estate rank`, `CliEstateClient.rank`; the store's own degree when the command is unavailable, said on stderr), then their neighbours and onward by hop distance over the use graph (calls, references, type relations, a route serving a handler; never contains/imports/data flow). The hub count scales with the graph (about √n/4, 1..25). The order is deterministic, so a re-invoked pass or a later run re-derives it and resumes at the frontier (each batch logs `frontier: <symbol> (hop H, position P of T)`); `--cluster-offset N` now takes the Nth batch window of that order.
