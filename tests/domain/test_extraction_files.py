@@ -567,3 +567,109 @@ def test_check_rules_names_entries_outside_the_worklist_and_a_missing_worklist(t
     _write_rules(tmp_path, "", [_rule("s::typo")])
     assert extract_loop.main(["--check-rules", rules_file.RULES_REL,
                               "--worklist", rules_file.WORKLIST_REL]) == 1
+
+
+# --- review round 2 (codex on #1363) -------------------------------------------------------------
+
+def test_a_worktree_link_on_path_is_refused_even_when_it_points_outside(tmp_path, monkeypatch):
+    for var in ("WICKED_ESTATE_BIN", "WICKED_CORE_BIN", "WICKED_CORE_EXE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(_clients, "_config_preference", lambda key: None)
+    (tmp_path / "bin").mkdir()
+    (tmp_path / "bin" / "wicked-core").symlink_to(shutil.which("true") or "/usr/bin/true")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))
+    with pytest.raises(RuntimeError, match="inside the working directory"):
+        _clients.host_core_client()
+    monkeypatch.setenv("WICKED_CORE_BIN", "wicked-core")  # a bare-name override is looked up too
+    with pytest.raises(RuntimeError, match="inside the working directory"):
+        _clients.host_core_client()
+
+
+def test_a_trusted_binary_is_pinned_to_the_file_that_runs(tmp_path, monkeypatch):
+    real = tmp_path / "opt" / "wicked-estate-0.30"
+    _plant(real)
+    link = tmp_path / "bin" / "wicked-estate"
+    link.parent.mkdir()
+    link.symlink_to(real)
+    wt = _wt(tmp_path)
+    monkeypatch.chdir(wt)
+    monkeypatch.delenv("WICKED_ESTATE_BIN", raising=False)
+    monkeypatch.setattr(_clients, "_config_preference", lambda key: None)
+    monkeypatch.setenv("PATH", str(link.parent))
+    assert _clients.host_estate_client("x.db")._bin == [os.path.realpath(real)]
+
+
+def test_a_planted_git_in_the_worktree_never_runs(tmp_path, monkeypatch):
+    _plant(tmp_path / "bin" / "git")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", str(tmp_path / "bin") + os.pathsep + os.environ.get("PATH", ""))
+    with pytest.raises(RuntimeError, match="inside the working directory"):
+        rules_file.tracked_files(tmp_path)
+    assert not list(tmp_path.rglob("*.ran"))
+
+
+def test_a_rule_mapped_by_another_writer_meanwhile_is_not_overwritten(tmp_path):
+    import sqlite3
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core"), _rule("s::a")])
+
+    def another_writer_maps_core():
+        con = sqlite3.connect(db)
+        con.execute("UPDATE nodes SET requirement = 'theirs' WHERE symbol = "
+                    "(SELECT sid FROM symbols WHERE sym = 's::core')")
+        con.commit()
+        con.close()
+        return []
+    estate.read_clusters = another_writer_maps_core  # runs after the coverage snapshot
+    report = _apply(wt, db, repo, estate, core)
+    assert set(estate.writes) == {"s::a"}
+    assert any(r["symbol_id"] == "s::core" and "another writer" in r["why"]
+               for r in report["refused"])
+
+
+def test_a_failure_after_the_store_changed_is_never_called_nothing_written(tmp_path, monkeypatch,
+                                                                           capsys):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    real_write = rules_file.write_json_file
+
+    def report_fails(base, rel, doc):
+        if rel == apply_rules.REPORT_REL:
+            raise rules_file.RulesFileRefused("swapped after the check")
+        return real_write(base, rel, doc)
+    monkeypatch.setattr(rules_file, "write_json_file", report_fails)
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: core)
+    monkeypatch.chdir(wt)
+    assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1
+    err = capsys.readouterr().err
+    assert "FAILED after writing" in err and "1 rule(s) were written" in err
+    assert "nothing written" not in err
+
+
+def test_a_destination_that_cannot_take_a_file_is_refused_before_any_store_write(tmp_path):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    report_dir = wt / ".wicked" / "domain"
+    report_dir.chmod(0o555)
+    try:
+        if os.access(report_dir, os.W_OK):
+            pytest.skip("running as a user that writes read-only directories (root)")
+        with pytest.raises(rules_file.RulesFileRefused, match="cannot take a new file"):
+            _apply(wt, db, repo, estate, core)
+    finally:
+        report_dir.chmod(0o755)
+    assert estate.writes == {}
+
+
+def test_a_resume_never_rewrites_a_file_past_the_byte_limit(tmp_path, monkeypatch):
+    units = _worklist(tmp_path, n=3)
+    compact = rules_file.rules_doc("", [_rule(u["symbol_id"], "y" * 200) for u in units])
+    raw = json.dumps(compact, separators=(",", ":")).encode()
+    (tmp_path / rules_file.RULES_REL).write_bytes(raw)
+    monkeypatch.setattr(rules_file, "MAX_RULES_BYTES", len(raw) + 10)  # fits compact, not indented
+    assert len(rules_file.encoded(compact)) > rules_file.MAX_RULES_BYTES
+    assert extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 0
+    assert (tmp_path / rules_file.RULES_REL).read_bytes() == raw  # the checkpoint is kept

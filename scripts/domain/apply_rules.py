@@ -49,6 +49,26 @@ AUTHOR = "extract-loop"
 COVERAGE_REL = "coverage-report.json"
 
 
+class AppliedThenFailed(RuntimeError):
+    """A failure AFTER the store changed: said as such, never as "nothing written"."""
+
+
+def _mapped_since(db: str, symbol_id: str, before: str) -> bool:
+    """Whether another writer changed `symbol_id`'s requirement since this step read the store
+    (`before`): a fresh read, compared. False when the store cannot say (an older schema)."""
+    import sqlite3
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        try:
+            row = con.execute("SELECT n.requirement FROM nodes n JOIN symbols s ON s.sid = n.symbol "
+                              "WHERE s.sym = ?", (symbol_id,)).fetchone()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return False
+    return ((row[0] if row else None) or "") != (before or "")
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -66,6 +86,13 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     rules_file.check_writable(base, coverage_rel)
     rules_file.check_writable(base, REPORT_REL)
 
+    # The store as it stands BEFORE the coverage snapshot: a requirement that differs from it at
+    # write time was written by someone else meanwhile (and it guards a floor over a statement).
+    try:
+        store = extract_loop._DirectStore(db)
+    except Exception as e:
+        print(f"[extract-apply] direct store unavailable ({e})", file=sys.stderr)
+        store = None
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
     unmapped = {n["symbol_id"]: n for n in _clients.unaccounted_nodes(before)
@@ -73,7 +100,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     tracked = rules_file.tracked_files(repo_root)
 
     eligible: list[dict] = []
-    for i, entry in enumerate(accepted):
+    for entry in accepted:
         sid = entry["symbol_id"]
         node = unmapped.get(sid)
         if node is None:
@@ -94,28 +121,35 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     sizes: dict[str, int] = {}
     for label in nc.values():
         sizes[label] = sizes.get(label, 0) + 1
-    try:
-        store = extract_loop._DirectStore(db)
-    except Exception as e:  # only guards a floor over an existing statement
-        print(f"[extract-apply] direct store unavailable ({e})", file=sys.stderr)
-        store = None
 
     # The host writes these, so the host is the author: the seat named in the file is the seat's
     # own claim (a seat-written file proves nothing about who wrote it) and is only reported.
     author = AUTHOR
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
-    for entry in eligible:
-        sid = entry["symbol_id"]
-        outcome = extract_loop.decide_and_write(estate, store, sid, unmapped[sid].get("name", ""),
-                                                entry, ids, nc, sizes, seat=author)
-        outcomes[outcome] += 1
+    try:
+        for entry in eligible:
+            sid = entry["symbol_id"]
+            if _mapped_since(db, sid, store.requirement_of(sid) if store is not None else ""):
+                # Another writer mapped it after the coverage snapshot: theirs stands. (This narrows
+                # the window to one read before the write; the store has no conditional write.)
+                refused.append({"index": None, "symbol_id": rules_file._shown(sid),
+                                "why": "was mapped by another writer while this step ran"})
+                continue
+            outcome = extract_loop.decide_and_write(estate, store, sid,
+                                                    unmapped[sid].get("name", ""), entry, ids, nc,
+                                                    sizes, seat=author)
+            outcomes[outcome] += 1
 
-    # The report is computed in a host temp directory and published through the safe writer
-    # (core writes its --out in place, which would follow a planted link or hard link).
-    with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
-        after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
-    rules_file.write_json_file(base, coverage_rel, after)
+        # The report is computed in a host temp directory and published through the safe writer
+        # (core writes its --out in place, which would follow a planted link or hard link).
+        with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
+            after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+        rules_file.write_json_file(base, coverage_rel, after)
+    except (rules_file.RulesFileRefused, RuntimeError, OSError) as e:
+        done = sum(outcomes.values())
+        raise AppliedThenFailed(f"{done} rule(s) were written to the store before this failed: "
+                                f"{e}") from e
 
     report = {
         "declared_seat": seat,
@@ -129,7 +163,11 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "minimum_met": met,
         "coverage_line": line,
     }
-    rules_file.write_json_file(base, REPORT_REL, report)
+    try:
+        rules_file.write_json_file(base, REPORT_REL, report)
+    except (rules_file.RulesFileRefused, OSError) as e:
+        raise AppliedThenFailed(f"{sum(outcomes.values())} rule(s) were written to the store and "
+                                f"{coverage_rel} was written, but the report was not: {e}") from e
     for r in refused[:20]:
         print(f"[extract-apply] refused {r['symbol_id'] or '#' + str(r['index'])}: {r['why']}",
               file=sys.stderr)
@@ -150,6 +188,9 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         apply(args.db, args.repo_root, Path.cwd(), args.rules, args.coverage_out)
+    except AppliedThenFailed as e:
+        print(f"[extract-apply] FAILED after writing: {e}", file=sys.stderr)
+        return 1
     except rules_file.RulesFileRefused as e:
         print(f"[extract-apply] REFUSED, nothing written: {e}", file=sys.stderr)
         return 1

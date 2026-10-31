@@ -24,6 +24,7 @@ import json
 import math
 import os
 import re
+import shutil
 import stat
 import tempfile
 from pathlib import Path
@@ -173,6 +174,11 @@ def check_rules_doc(doc: Any) -> tuple[str, list[dict], list[dict]]:
     return seat, accepted, refused
 
 
+def encoded(doc: Any) -> bytes:
+    """A document as `write_json_file` writes it (so a size check sees the real size)."""
+    return (json.dumps(doc, ensure_ascii=False, indent=1) + "\n").encode("utf-8", "backslashreplace")
+
+
 def rules_doc(seat: str, rules: list[dict]) -> dict:
     return {"schema": RULES_SCHEMA, "seat": seat, "rules": rules}
 
@@ -265,6 +271,14 @@ def check_writable(base: Path, rel: str) -> None:
     dfd = _open_dirs(base, rel, parts[:-1], create=True)
     try:
         _leaf_must_be_file_or_absent(dfd, rel, parts[-1])
+        probe = f".probe-{os.getpid()}-{os.urandom(4).hex()}"
+        try:  # the directory must take the temp file the write will create
+            os.close(os.open(probe, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600,
+                             dir_fd=dfd))
+            os.unlink(probe, dir_fd=dfd)
+        except OSError as e:
+            raise RulesFileRefused(f"{rel!r}: its directory cannot take a new file "
+                                   f"({e.strerror})") from None
     finally:
         os.close(dfd)
 
@@ -312,7 +326,7 @@ def write_json_file(base: Path, rel: str, doc: Any) -> None:
     renamed over the target. Creates missing directories; refuses symlinks and non-directories
     on the way and a non-file at the leaf."""
     parts = _parts(rel)
-    data = (json.dumps(doc, ensure_ascii=False, indent=1) + "\n").encode("utf-8", "backslashreplace")
+    data = encoded(doc)
     if not _FD_SAFE:
         path = inside(base, rel)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -348,14 +362,34 @@ def write_json_file(base: Path, rel: str, doc: Any) -> None:
         os.close(dfd)
 
 
+def trusted_executable(name_or_path: str) -> str | None:
+    """A host step's executable, pinned: a bare name is looked up on PATH now, and the answer is
+    the real path of the file that will run. Refused when the path as found, or the file it
+    resolves to, lies under the working directory (the seat-writable worktree): a link there could
+    be re-pointed between this check and the exec. None when nothing is found."""
+    found = name_or_path if os.sep in name_or_path or (os.altsep and os.altsep in name_or_path) \
+        else shutil.which(name_or_path)
+    if not found:
+        return None
+    here = os.path.realpath(os.getcwd())
+    for candidate in (os.path.abspath(found), os.path.realpath(found)):
+        if candidate == here or candidate.startswith(here + os.sep):
+            raise RuntimeError(f"{name_or_path} resolves inside the working directory ({found}); "
+                               "a host step never runs a binary from the run's worktree")
+    return os.path.realpath(found)
+
+
 def tracked_files(repo_root: str | Path) -> set[str]:
     """Every path git tracks in the repository at `repo_root`, repo-relative with `/` — the
     authority for "a file in the repo". Fails loud: no answer is never "everything"."""
     import subprocess
+    git = trusted_executable("git")
+    if git is None:
+        raise RuntimeError("git is not on PATH; cannot tell which files the repository tracks")
     try:
         # core.fsmonitor would run a configured command; the repository's config is shared with
         # its worktrees, so it is not taken on trust here.
-        proc = subprocess.run(["git", "-c", "core.fsmonitor=false", "-C", str(repo_root),
+        proc = subprocess.run([git, "-c", "core.fsmonitor=false", "-C", str(repo_root),
                                "ls-files", "-z"], capture_output=True,
                               stdin=subprocess.DEVNULL, timeout=120)
     except (OSError, subprocess.TimeoutExpired) as e:

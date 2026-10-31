@@ -468,25 +468,21 @@ ENGINE_CORE_ENV = "WICKED_CORE_EXE"
 def _resolve_trusted(env_vars: tuple[str, ...], package: str) -> Optional[list[str]]:
     """The HOST steps' resolver (`prepare_worklist.py`, `apply_rules.py`): they run as the daemon
     user in a worktree a seat can write, so a binary may come only from the operator and the
-    engine — the env (set-but-empty = the kill-switch), config, or PATH — and never from the
-    working directory: no `node_modules/.bin` fallback, and a PATH hit inside the working
-    directory (a relative PATH entry) is refused."""
+    engine — the env (set-but-empty = the kill-switch), config, or PATH — never from the working
+    directory (no `node_modules/.bin` fallback), and every answer is pinned to the real path of
+    the file that will run (`rules_file.trusted_executable`)."""
+    from domain import rules_file  # stdlib-only sibling; imported late to keep this module light
+    choice: Optional[str] = None
     for env_var in env_vars:
         if env_var in os.environ:
-            val = os.environ[env_var].strip()
-            return [val] if val else None
-    pref = _config_preference(package)
-    if pref:
-        return [pref]
-    found = shutil.which(package)
-    if not found:
-        return None
-    here = os.path.realpath(os.getcwd())
-    real = os.path.realpath(found)
-    if not os.path.isabs(found) or real == here or real.startswith(here + os.sep):
-        raise RuntimeError(f"{package} resolved inside the working directory ({found}); a host "
-                           "step never runs a binary from the run's worktree")
-    return [found]
+            choice = os.environ[env_var].strip()
+            if not choice:
+                return None
+            break
+    if choice is None:
+        choice = _config_preference(package) or package
+    pinned = rules_file.trusted_executable(choice)
+    return [pinned] if pinned else None
 
 
 def host_estate_client(db: str) -> "CliEstateClient":

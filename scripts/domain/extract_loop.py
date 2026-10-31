@@ -34,7 +34,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import os
 import sys
 import time
@@ -807,8 +806,7 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
             break
         grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"])) for u in take]
         doc = rules_file.rules_doc(seat, grown)
-        if len(json.dumps(doc, ensure_ascii=False, indent=1).encode("utf-8")) \
-                > rules_file.MAX_RULES_BYTES - 1024:
+        if len(rules_file.encoded(doc)) > rules_file.MAX_RULES_BYTES:
             print(f"[extract-loop] {rules_rel} is at the size one file may carry; stopping here",
                   file=sys.stderr)
             break
@@ -816,11 +814,13 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         rules_file.write_json_file(base, rules_rel, doc)
         processed += len(take)
         pending = pending[len(take):]
-    if rc == 0:
+    final = rules_file.rules_doc(seat, done)
+    if rc == 0 and len(rules_file.encoded(final)) <= rules_file.MAX_RULES_BYTES:
         # Also when nothing new was stated (an empty worklist, a finished resume), so the host's
         # apply step finds the file. After an outage (rc 75) a pass that stated nothing leaves no
-        # file, and apply refuses rather than applying an empty one.
-        rules_file.write_json_file(base, rules_rel, rules_file.rules_doc(seat, done))
+        # file, and apply refuses rather than applying an empty one. A rewrite that would outgrow
+        # the limit keeps the conforming checkpoint already on disk.
+        rules_file.write_json_file(base, rules_rel, final)
     with_rule = sum(1 for e in done if e["statement"].strip())
     print(f"[extract-loop] {len(done)} of {len(units)} unit(s) in {rules_rel} ({with_rule} with a "
           f"stated rule); the host's extract-apply step checks and writes them", file=sys.stderr)
