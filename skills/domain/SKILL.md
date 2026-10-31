@@ -65,7 +65,7 @@ estate is the sole writer of graph structure.
 | Ask | Worker | Produces |
 |-----|--------|----------|
 | Mine business rules from the estate → domain-model doc | domain-extractor (`wicked-garden-domain-extractor`) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
-| Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | `domains{}` keyed to estate Louvain communities; `requirements_graph.json` built by `wicked-core domain-graph` |
+| Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | `domains{}` keyed to estate Louvain communities; the requirements graph saved into the estate store by `wicked-core domain-graph` (`--out` writes a JSON export) |
 | Threat-model the extracted model before build | domain-coverage (`wicked-garden-domain-coverage`) | pre-build threat list / RISK-flag reasons |
 
 **Hand-off** — open the worker's skill by name (`wicked-garden-domain-extractor`,
