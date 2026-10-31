@@ -33,11 +33,43 @@ Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
-## You DRIVE the deterministic harness — you don't loop yourself
+## Inside a crew run: the worklist is in your worktree (file mode)
+
+When `.wicked/domain/worklist.json` exists in your working directory, the run's host step
+`extract-prepare` wrote it: the next unmapped behaviours, hub-first, each framed with its
+source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
+`wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
+and only this:
+
+1. Run the harness in file mode (one `Bash` call; it stops inside its budget):
+   ```bash
+   wicked-garden run scripts/domain/extract_loop.py --worklist .wicked/domain/worklist.json \
+     --rules-out .wicked/domain/rules.json --time-budget 480
+   ```
+   It states each unit's rule with the bounded rule model and writes
+   `.wicked/domain/rules.json`. If it says the budget was reached, run the same command
+   again while your turns allow — it resumes after the units already stated.
+2. **Exit 2, "no rule model in this seat"**: state the rules yourself. For each unit of the
+   worklist, in order, add one entry to `.wicked/domain/rules.json` — the whole file is
+   `{"schema": "wicked-garden/domain-rules@1", "seat": "<a plain token: $WICKED_RUN_AGENT, or
+   claude / codex / pi / copilot>", "rules": [...]}` and
+   each entry is exactly `{"symbol_id": "<the unit's id, verbatim>", "statement": "<the
+   business rule, or \"\" when the source does not let you state one>", "confidence": <0..1>,
+   "provenance": {"source": "<module>", "ref": "<the symbol_id>", "source_kinds":
+   ["code-body"|"type-def"|"comment"|"doc"]}}` — no other keys. Then check it:
+   `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
+   --worklist .wicked/domain/worklist.json` and fix what it names.
+3. Report how many units you stated. Write no other file, and never try to reach the store.
+   The host refuses anything outside the schema, and any entry whose symbol the store does not
+   report unmapped or whose file the repository does not track; it re-judges the rest itself
+   and writes it as `extract-loop` (the seat a file names is reported, never trusted).
+
+## Outside a run: you DRIVE the deterministic harness — you don't loop yourself
 
 A single agent (max-turns 12) cannot iterate thousands of nodes. Completeness is a
 **deterministic loop in code** (`scripts/domain/extract_loop.py`); you are its
-driver, not the loop. Your whole job:
+driver, not the loop. With `wicked-core`, `wicked-estate` and a writable store at hand
+(no worklist file in your working directory), your whole job:
 
 1. **Run the harness** (one `Bash` call):
    ```bash
@@ -84,9 +116,11 @@ Extraction is split exactly like the vault:
 
 ## Config
 
-- `WICKED_ESTATE_BIN` / `WICKED_CORE_BIN` — the peer binaries (resolved by `_clients`).
+- `WICKED_ESTATE_BIN` / `WICKED_CORE_BIN` — the peer binaries (resolved by `_clients`; on a
+  crew host `WICKED_CORE_EXE`, the engine's own CLI, is used when `WICKED_CORE_BIN` is unset).
 - `WICKED_RULE_MODEL_BIN` — the bounded per-node rule model (default `claude -p`).
-  Set-but-empty is the kill-switch → the harness's `--dry-run` deterministic stub only.
+  Set-but-empty is the kill-switch: no model, so only `--dry-run` (the deterministic stub)
+  runs; file mode without `--dry-run` then exits 2 and you state the rules yourself.
 
 ## Hard invariants (fail-closed — enforced by the harness + validator)
 

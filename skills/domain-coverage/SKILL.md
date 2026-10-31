@@ -34,8 +34,14 @@ wicked-core coverage --db "${WICKED_ESTATE_DB:-$HOME/.wicked-estate/graph.db}" -
 default 80). It writes the report either way, prints `coverage: N% mapped, minimum M%
 (… of … behaviours)` on stderr, and exits 3 below the minimum.
 
-If `wicked-core` is not on PATH, find it at `$HOME/.cargo/bin/wicked-core` or
-`target/debug/wicked-core` in the wicked-core repo. If the coverage emitter
+Inside a crew run your seat may have no `wicked-core` (a seat container has none). The run's
+host step `extract-apply` has already written `coverage-report.json` into your working
+directory from the store, checked against the minimum, and the gate's validator recomputes
+it on the host whatever you do — so when `wicked-core` is not available, read that file
+instead of running the emitter, and take the "N% mapped, minimum M%" line from
+`.wicked/domain/apply-report.json` (`coverage_line`). Outside a run, if `wicked-core` is not on
+PATH, find it at `$HOME/.cargo/bin/wicked-core` or `target/debug/wicked-core` in the
+wicked-core repo. If the coverage emitter
 fails or reports less than the minimum, do NOT fabricate a passing report —
 record the real metrics and that line, and emit a `BLOCK` naming the shortfall and
 the unaccounted nodes (see the threat checklist's coverage holes).

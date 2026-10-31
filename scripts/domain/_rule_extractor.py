@@ -137,21 +137,23 @@ def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
     return True, "ok"
 
 
-def extract_rules(batch: list[dict[str, Any]], model_argv: list[str]) -> list[dict[str, Any]]:
+def extract_rules(batch: list[dict[str, Any]], model_argv: list[str],
+                  timeout: float | None = None) -> list[dict[str, Any]]:
     """Shell the bounded model CLI over one batch of framed contexts; return the
     parsed (UNvalidated) rule objects. Fail-loud on a non-zero exit / timeout /
     unparseable output — the caller then validates each rule and RISK-floors the
     residue, so a model failure degrades to RISK, never to a silent gap."""
     prompt = _build_prompt(batch)
+    limit = _MODEL_TIMEOUT if timeout is None else max(1.0, min(float(_MODEL_TIMEOUT), timeout))
     try:
         proc = subprocess.run(
             model_argv, input=prompt, capture_output=True, text=True,
-            encoding="utf-8", timeout=_MODEL_TIMEOUT,
+            encoding="utf-8", timeout=limit,
         )
     except FileNotFoundError as e:
         raise RuntimeError(f"rule model {model_argv[0]} not found: {e}") from e
     except subprocess.TimeoutExpired as e:
-        raise RuntimeError(f"rule model exceeded {_MODEL_TIMEOUT}s") from e
+        raise RuntimeError(f"rule model exceeded {int(limit)}s") from e
     if proc.returncode != 0:
         raise RuntimeError(
             f"rule model exited {proc.returncode}: {(proc.stderr or proc.stdout).strip()[:300]}"

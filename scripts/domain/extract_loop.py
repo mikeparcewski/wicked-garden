@@ -34,13 +34,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import sys
 import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor  # noqa: E402
+from domain import _clients, _rule_extractor, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
 
@@ -60,6 +61,17 @@ _INFRA_MARKERS = ("session limit", "rate limit", "rate_limit", "overloaded", "qu
                   "credit balance", "billing", "unauthorized", "authentication",
                   "connection refused", "connection reset", "network", "econnrefused",
                   "usage limit", "insufficient")
+
+
+# The model CLI is there but cannot answer for this seat at all (no login, no key): in a seat
+# container the nested CLI is usually not signed in. Not a judgment and not a passing outage.
+_AUTH_MARKERS = ("not logged in", "please run /login", "please log in", "invalid api key",
+                 "unauthorized", "authentication")
+
+
+def _is_auth_failure(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return any(m in msg for m in _AUTH_MARKERS)
 
 
 def _is_infra_failure(exc: Exception) -> bool:
@@ -111,7 +123,8 @@ def _seat() -> str:
     return f"extract-loop:{agent}" if agent else "extract-loop"
 
 
-def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str) -> None:
+def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str,
+                seat: str | None = None) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
     (validated=False) + a risk annotation — either way the node is ACCOUNTED, so the
@@ -120,7 +133,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     # key whatever its author, so a shared key let a second seat's write erase the first seat's —
     # and wicked-core, which counts agreeing seats by author, would only ever see one. The default
     # seat (no run agent) keeps the historical key, so a standalone re-run still replaces itself.
-    seat = _seat()
+    seat = seat or _seat()
     basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
     rid = "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
     if resolved and rule:
@@ -186,7 +199,8 @@ class _DirectStore:
 
     def __init__(self, db: str):
         import sqlite3
-        self._c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        from urllib.parse import quote
+        self._c = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         self._c.row_factory = sqlite3.Row
         # symbols: sym string ↔ sid
         self.sid_of = {}
@@ -222,6 +236,47 @@ class _DirectStore:
                 self.adj.setdefault(r["source"], set()).add(r["target"])
                 self.adj.setdefault(r["target"], set()).add(r["source"])
         self._file_text = {}
+        # When the store's content cannot be read here (zstd blobs on a Python without a zstd
+        # decompressor), a caller that knows the repository root reads the file from it instead.
+        self.repo_root: str | None = None
+
+    _REPO_FILE_LIMIT = 4 * 1024 * 1024
+
+    def _repo_file(self, rel: str, git_sha: str | None) -> bytes:
+        """`rel` read from the registered repository (`repo_root`) — only when its bytes are the
+        exact blob the store indexed (`git_sha`, git's blob id), since the node spans are offsets
+        into THAT content. A regular file inside the root, opened without following a link and
+        read bounded; b"" otherwise."""
+        if not self.repo_root or not rel or not git_sha:
+            return b""
+        import stat as _stat
+        root = os.path.realpath(self.repo_root)
+        path = os.path.join(root, rel)
+        if not os.path.realpath(path).startswith(root + os.sep):
+            return b""
+        try:
+            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
+        except OSError:
+            return b""
+        try:
+            if not _stat.S_ISREG(os.fstat(fd).st_mode):
+                return b""
+            with os.fdopen(fd, "rb") as f:
+                fd = -1
+                data = f.read(self._REPO_FILE_LIMIT + 1)
+        except OSError:
+            return b""
+        finally:
+            if fd >= 0:
+                os.close(fd)
+        if len(data) > self._REPO_FILE_LIMIT:
+            return b""
+        blob_id = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
+        if blob_id != git_sha:
+            print(f"[extract-loop] {rel}: the checkout differs from the indexed content; its source "
+                  "is left out", file=sys.stderr)
+            return b""
+        return data
 
     def requirement_of(self, symbol_id: str) -> str:
         sid = self.sid_of.get(symbol_id)
@@ -261,12 +316,14 @@ class _DirectStore:
             start, end = int(span.get("start_byte", 0)), int(span.get("end_byte", 0))
             if file not in self._file_text:
                 r = self._c.execute(
-                    "SELECT c.blob FROM files f JOIN content c ON c.git_sha = f.git_sha WHERE f.path = ?",
+                    "SELECT c.blob, f.git_sha FROM files f LEFT JOIN content c "
+                    "ON c.git_sha = f.git_sha WHERE f.path = ?",
                     (file,),
                 ).fetchone()
                 if len(self._file_text) >= 128:  # bounded FIFO — long runs must not grow without limit
                     self._file_text.pop(next(iter(self._file_text)))
-                self._file_text[file] = _maybe_decompress(r["blob"]) if r else b""
+                text = _maybe_decompress(r["blob"]) if r and r["blob"] is not None else b""
+                self._file_text[file] = text or self._repo_file(file, r["git_sha"] if r else None)
             blob = self._file_text[file]
             if end > start and end <= len(blob):
                 return blob[start:end].decode("utf-8", errors="replace")[:cap]
@@ -387,7 +444,8 @@ def _annotation_preflight(db: str) -> None:
     fail-open, and a partially-orphaned store is still valid to (re-)extract into."""
     try:
         import sqlite3
-        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        from urllib.parse import quote
+        con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
             total, orphaned = con.execute(
                 "SELECT count(*), COALESCE(sum(CASE WHEN n.symbol IS NULL THEN 1 ELSE 0 END), 0) "
@@ -425,6 +483,102 @@ def _density_batch(members: list[dict], store, base_batch: int) -> int:
     avg = sum(len(store.source_slice(m["symbol_id"], cap=2000)) for m in sample) / len(sample)
     mult = 1.6 if avg < 300 else (0.6 if avg > 1500 else 1.0)
     return max(4, min(64, int(base_batch * mult)))
+
+
+_OUT_OF_TIME = -1  # _ask_model: the budget ran out mid-batch; nothing from it is kept
+_NO_MODEL = -2  # _ask_model (file mode): the model CLI cannot answer for this seat (not signed in)
+
+
+def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, dry_run: bool,
+               deadline: float | None = None):
+    """THE MODEL BOUNDARY (or the deterministic stub) for one batch: the rules by symbol id, or
+    75 (EX_TEMPFAIL) when an outage persisted after one retry — the pass stops and nothing from
+    the batch is written. A judgment failure over the whole batch returns {} (every node then
+    RISK-floors — never a gap). With a `deadline` (file mode), no call or retry pause runs past
+    it: a batch the budget cannot finish returns _OUT_OF_TIME and is left for the next pass."""
+    by_id: dict[str, dict] = {}
+
+    def left() -> float | None:
+        return None if deadline is None else deadline - time.monotonic()
+
+    def no_time(need: float = 1.0) -> bool:
+        rem = left()
+        return rem is not None and rem < need
+    if dry_run:
+        by_id = {n["symbol_id"]: _stub_rule(n) for n in take}
+    else:
+        # Providers blip: an occasional empty response or transient error is normal,
+        # a REPEAT on the same batch is an outage. One in-pass retry (after a short
+        # pause) before EX_TEMPFAIL keeps transients from costing a whole pass.
+        for attempt in (1, 2):
+            by_id = {}
+            floor_batch = False
+            infra_exc = None
+            # Models normalize punctuation-bearing ids (a trailing '.' in the symbol
+            # grammar came back stripped, dropping EVERY rule of certain batches as a
+            # "mismatch" and mimicking an outage). Exact match first; else re-canonize
+            # by trailing-dot-insensitive lookup. Anything else stays a hallucination.
+            canon = {sid.rstrip("."): sid for sid in ids}
+            if no_time():
+                return _OUT_OF_TIME
+            try:
+                rules = (_rule_extractor.extract_rules(framed, model_argv) if deadline is None
+                         else _rule_extractor.extract_rules(framed, model_argv, timeout=left()))
+                for r in rules:
+                    if not isinstance(r, dict):
+                        continue
+                    rid = r.get("symbol_id")
+                    if rid in ids:
+                        by_id[rid] = r
+                    elif isinstance(rid, str) and rid.strip().rstrip(".") in canon:
+                        r["symbol_id"] = canon[rid.strip().rstrip(".")]
+                        by_id[r["symbol_id"]] = r
+            except Exception as e:
+                if deadline is not None and _is_auth_failure(e):
+                    print(f"[extract-loop] the rule model cannot answer in this seat ({e})",
+                          file=sys.stderr)
+                    return _NO_MODEL
+                if _is_infra_failure(e):
+                    infra_exc = e
+                elif "exceeded" in str(e) and no_time(_RETRY_PAUSE + 30):
+                    return _OUT_OF_TIME  # the budget, not the batch, ran out
+                elif "exceeded" in str(e) and attempt == 1:
+                    # A batch timeout is often provider slowness, not batch difficulty
+                    # — one retry before conceding. A repeat floors (termination), it
+                    # does not abort: a genuinely oversized batch must not wedge passes.
+                    print(f"[extract-loop] model batch timeout ({e}) — retrying once "
+                          f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
+                    time.sleep(_RETRY_PAUSE)
+                    continue
+                else:
+                    print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch",
+                          file=sys.stderr)
+                    floor_batch = True
+            if floor_batch or by_id:
+                break
+            if infra_exc is None and len(take) < 4:
+                # Tiny batch, no objects, no classified error: could be one genuinely
+                # unstatable node — floor it rather than wedge the loop.
+                break
+            if attempt == 2:
+                # An outage is not a judgment. Flooring here would burn the whole
+                # remaining worklist into placeholders — stop the pass instead;
+                # nothing from this batch is written, resume re-derives it. NO
+                # parseable rule objects for a whole real batch is the same outage
+                # signature (notice printed with exit 0, or a wholesale empty array);
+                # per-unit objects with explicit empty statements are a JUDGMENT and
+                # floor as designed.
+                why = f"infra: {infra_exc}" if infra_exc else f"zero-yield ({len(take)} framed, 0 rule objects)"
+                print(f"[extract-loop] {why} — persisted after retry; pass aborted, batch NOT floored",
+                      file=sys.stderr)
+                return 75  # EX_TEMPFAIL — the caller ends the pass
+            if no_time(_RETRY_PAUSE + 30):
+                return _OUT_OF_TIME
+            print("[extract-loop] transient zero-yield/infra on batch — retrying once "
+                  f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
+            time.sleep(_RETRY_PAUSE)
+
+    return by_id
 
 
 def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
@@ -545,91 +699,233 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
 
         # THE MODEL BOUNDARY (or the deterministic stub). A model failure over the
         # whole batch degrades every node to RISK — never a gap.
-        by_id: dict[str, dict] = {}
-        if dry_run:
-            by_id = {n["symbol_id"]: _stub_rule(n) for n in take}
-        else:
-            # Providers blip: an occasional empty response or transient error is normal,
-            # a REPEAT on the same batch is an outage. One in-pass retry (after a short
-            # pause) before EX_TEMPFAIL keeps transients from costing a whole pass.
-            for attempt in (1, 2):
-                by_id = {}
-                floor_batch = False
-                infra_exc = None
-                # Models normalize punctuation-bearing ids (a trailing '.' in the symbol
-                # grammar came back stripped, dropping EVERY rule of certain batches as a
-                # "mismatch" and mimicking an outage). Exact match first; else re-canonize
-                # by trailing-dot-insensitive lookup. Anything else stays a hallucination.
-                canon = {sid.rstrip("."): sid for sid in ids}
-                try:
-                    for r in _rule_extractor.extract_rules(framed, model_argv):
-                        if not isinstance(r, dict):
-                            continue
-                        rid = r.get("symbol_id")
-                        if rid in ids:
-                            by_id[rid] = r
-                        elif isinstance(rid, str) and rid.strip().rstrip(".") in canon:
-                            r["symbol_id"] = canon[rid.strip().rstrip(".")]
-                            by_id[r["symbol_id"]] = r
-                except Exception as e:
-                    if _is_infra_failure(e):
-                        infra_exc = e
-                    elif "exceeded" in str(e) and attempt == 1:
-                        # A batch timeout is often provider slowness, not batch difficulty
-                        # — one retry before conceding. A repeat floors (termination), it
-                        # does not abort: a genuinely oversized batch must not wedge passes.
-                        print(f"[extract-loop] model batch timeout ({e}) — retrying once "
-                              f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
-                        time.sleep(_RETRY_PAUSE)
-                        continue
-                    else:
-                        print(f"[extract-loop] model batch failed ({e}); RISK-flooring the batch",
-                              file=sys.stderr)
-                        floor_batch = True
-                if floor_batch or by_id:
-                    break
-                if infra_exc is None and len(take) < 4:
-                    # Tiny batch, no objects, no classified error: could be one genuinely
-                    # unstatable node — floor it rather than wedge the loop.
-                    break
-                if attempt == 2:
-                    # An outage is not a judgment. Flooring here would burn the whole
-                    # remaining worklist into placeholders — stop the pass instead;
-                    # nothing from this batch is written, resume re-derives it. NO
-                    # parseable rule objects for a whole real batch is the same outage
-                    # signature (notice printed with exit 0, or a wholesale empty array);
-                    # per-unit objects with explicit empty statements are a JUDGMENT and
-                    # floor as designed.
-                    why = f"infra: {infra_exc}" if infra_exc else f"zero-yield ({len(take)} framed, 0 rule objects)"
-                    print(f"[extract-loop] {why} — persisted after retry; pass aborted, batch NOT floored",
-                          file=sys.stderr)
-                    return 75  # EX_TEMPFAIL
-                print("[extract-loop] transient zero-yield/infra on batch — retrying once "
-                      f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
-                time.sleep(_RETRY_PAUSE)
+        by_id = _ask_model(take, framed, ids, model_argv, dry_run)
+        if isinstance(by_id, int):
+            return by_id
 
         # Deterministic decision + write per node — RISK-FLOOR: every node terminates.
         for n in take:
-            sid, name = n["symbol_id"], n.get("name", "")
-            rule = by_id.get(sid)
-            ok, reason = (_rule_extractor.validate_rule(rule, ids) if rule
-                          else (False, "no rule returned for this node"))
-            if ok:
-                adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
-                resolved = adjusted >= RESOLVE_THRESHOLD
-                _write_node(estate, sid, name, rule, resolved,
-                            "below confidence threshold" if not resolved else "")
-            elif (rule or {}).get("statement"):
-                _write_node(estate, sid, name, rule, False, reason)
-            elif _has_statement(store, sid):
-                # Statement-less floor over existing content would DEGRADE the store —
-                # a re-queued node keeps its prior statement instead. Floors only ever
-                # fill blanks; content is monotonic.
-                print(f"[extract-loop] floor skipped for {sid} (existing statement kept)",
-                      file=sys.stderr)
-            else:
-                _write_node(estate, sid, name, rule, False, reason)
+            sid = n["symbol_id"]
+            decide_and_write(estate, store, sid, n.get("name", ""), by_id.get(sid), ids,
+                             node_community, community_sizes)
             processed += 1
+
+
+def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
+                     node_community: dict[str, str], community_sizes: dict[str, int],
+                     seat: str | None = None) -> str:
+    """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
+    RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
+    in a seat container is judged exactly like one the host's own model returned. Returns
+    "resolved", "risk" or "kept" (a statement-less floor skipped over existing content)."""
+    ok, reason = (_rule_extractor.validate_rule(rule, ids) if rule
+                  else (False, "no rule returned for this node"))
+    if ok:
+        adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
+        resolved = adjusted >= RESOLVE_THRESHOLD
+        _write_node(estate, sid, name, rule, resolved,
+                    "below confidence threshold" if not resolved else "", seat=seat)
+        return "resolved" if resolved else "risk"
+    if (rule or {}).get("statement"):
+        _write_node(estate, sid, name, rule, False, reason, seat=seat)
+        return "risk"
+    if _has_statement(store, sid):
+        # Statement-less floor over existing content would DEGRADE the store — a re-queued
+        # node keeps its prior statement instead. Floors only ever fill blanks; content is
+        # monotonic.
+        print(f"[extract-loop] floor skipped for {sid} (existing statement kept)", file=sys.stderr)
+        return "kept"
+    _write_node(estate, sid, name, rule, False, reason, seat=seat)
+    return "risk"
+
+
+# --- FILE MODE: the seat-container half of domain-extraction (wicked-garden#1362) ------------
+#
+# A seat container has no `wicked-core`, no `wicked-estate` and no writable store. The host's
+# `extract-prepare` step leaves the framed hub-first WORKLIST in the run's worktree; here the
+# model states the rules and they go to the RULES file beside it — never to a store. The host's
+# `extract-apply` step checks that file and writes it (`apply_rules.py`).
+
+def read_worklist(base: Path, rel: str) -> dict:
+    """The worklist the host prepared, shape-checked (it sits in a seat-writable tree)."""
+    doc = rules_file.read_json_file(base, rel, limit=rules_file.MAX_WORKLIST_BYTES)
+    if not isinstance(doc, dict) or doc.get("schema") != rules_file.WORKLIST_SCHEMA:
+        raise rules_file.RulesFileRefused(
+            f"{rel!r} is not a {rules_file.WORKLIST_SCHEMA} worklist")
+    units = doc.get("units")
+    if not isinstance(units, list) or not all(
+            isinstance(u, dict) and isinstance(u.get("symbol_id"), str) for u in units):
+        raise rules_file.RulesFileRefused(f"{rel!r} has no list of units with symbol ids")
+    return doc
+
+
+def _units_batch(units: list[dict], base_batch: int) -> int:
+    """`_density_batch` over the framed source the worklist already carries."""
+    if not units:
+        return base_batch
+    sample = units[: min(len(units), 12)]
+    avg = sum(len(str(u.get("source") or "")[:2000]) for u in sample) / len(sample)
+    mult = 1.6 if avg < 300 else (0.6 if avg > 1500 else 1.0)
+    return max(4, min(64, int(base_batch * mult)))
+
+
+def to_entry(sid: str, rule: dict | None) -> dict:
+    """A model's rule as a rules-file entry that conforms to the schema. What the model got
+    wrong stays wrong (an empty statement, missing provenance) so the host's validator
+    RISK-flags it; what cannot be carried at all (a non-number confidence, unknown keys,
+    oversized or control-character text) is dropped or clamped here."""
+    rule = rule if isinstance(rule, dict) else {}
+    stmt = rule.get("statement")
+    stmt = rules_file._CONTROL_RE.sub(" ", stmt)[: rules_file.MAX_STATEMENT] \
+        if isinstance(stmt, str) else ""
+    conf = rule.get("confidence")
+    ok_conf = isinstance(conf, (int, float)) and not isinstance(conf, bool) \
+        and conf == conf and 0.0 <= conf <= 1.0
+    entry = {"symbol_id": sid, "statement": stmt, "confidence": float(conf) if ok_conf else 0.0}
+    prov = rule.get("provenance")
+    if isinstance(prov, dict):
+        # Carry what the schema can hold (as the store-mode harness ignores extra keys): known
+        # keys only, text cleaned and clamped, source kinds filtered to the valid ones.
+        clean: dict = {}
+        for key, limit in (("source", rules_file.MAX_PROVENANCE_STR),
+                           ("ref", rules_file.MAX_SYMBOL_ID)):
+            if isinstance(prov.get(key), str):
+                clean[key] = rules_file._CONTROL_RE.sub(" ", prov[key])[:limit]
+        kinds = prov.get("source_kinds")
+        if isinstance(kinds, list):
+            clean["source_kinds"] = [k for k in kinds if isinstance(k, str)
+                                     and k in rules_file.SOURCE_KINDS][: rules_file.MAX_SOURCE_KINDS]
+        if rules_file.check_rule_entry({**entry, "provenance": clean}) is None:
+            entry["provenance"] = clean
+    if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
+        entry["statement"] = ""
+    return entry
+
+
+def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: float, limit: int,
+              batch: int, dry_run: bool) -> int:
+    worklist = read_worklist(base, worklist_rel)
+    units = worklist["units"]
+    rules_file.check_writable(base, rules_rel)  # an unusable destination fails before any model call
+    seat = rules_file.seat_name(os.environ.get("WICKED_RUN_AGENT"))
+    model_argv = None if dry_run else _clients.rule_model_argv(base)
+    if not dry_run and model_argv is None:
+        print("[extract-loop] no rule model in this seat (no `claude` on PATH and no "
+              "WICKED_RULE_MODEL_BIN). State the rules yourself as the extractor skill says, then "
+              f"check the file: extract_loop.py --check-rules {rules_rel}", file=sys.stderr)
+        return 2
+
+    # Resume: entries already in a conforming rules file are kept and their units skipped.
+    done: list[dict] = []
+    try:
+        _, done, refused = rules_file.check_rules_doc(rules_file.read_json_file(base, rules_rel))
+        if refused:
+            print(f"[extract-loop] {len(refused)} entr(ies) of the existing {rules_rel} are outside "
+                  "the schema and are dropped", file=sys.stderr)
+    except FileNotFoundError:
+        pass
+    except rules_file.RulesFileRefused as e:
+        print(f"[extract-loop] starting {rules_rel} afresh: {e}", file=sys.stderr)
+    unit_ids = {u["symbol_id"] for u in units}
+    done = [e for e in done if e["symbol_id"] in unit_ids]  # an earlier pass's leftovers drop out
+    stated = {e["symbol_id"] for e in done}
+    pending = [u for u in units if u["symbol_id"] not in stated]
+    print(f"[extract-loop] file mode: {len(units)} unit(s) in the worklist, {len(stated)} already "
+          f"stated, {len(pending)} to go; {worklist.get('order', '')}", file=sys.stderr)
+
+    deadline = time.monotonic() + time_budget
+    processed = 0
+    rc = 0
+    while pending:
+        if time.monotonic() >= deadline or (limit and processed >= limit):
+            print(f"[extract-loop] budget reached; {len(pending)} unit(s) left — re-invoke to "
+                  "resume", file=sys.stderr)
+            break
+        take = pending[: _units_batch(pending, batch)]
+        if limit:
+            take = take[: max(0, limit - processed)]
+        room = rules_file.MAX_RULES - len(done)
+        if room <= 0:
+            print(f"[extract-loop] {rules_rel} holds the most entries one file may carry "
+                  f"({rules_file.MAX_RULES}); stopping here", file=sys.stderr)
+            break
+        take = take[:room]
+        framed = [_rule_extractor.frame_context(
+            u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
+            neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
+        ids = {u["symbol_id"] for u in take}
+        by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
+        if by_id == _NO_MODEL:
+            print("[extract-loop] no usable rule model in this seat. State the rules yourself as "
+                  "the extractor skill says, then check the file: extract_loop.py --check-rules "
+                  f"{rules_rel}", file=sys.stderr)
+            rc = 2
+            break
+        if by_id == _OUT_OF_TIME:
+            print("[extract-loop] the budget ran out inside a batch; it is left for the next "
+                  "pass", file=sys.stderr)
+            break
+        if isinstance(by_id, int):
+            rc = by_id
+            break
+        grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"])) for u in take]
+        doc = rules_file.rules_doc(seat, grown)
+        if len(rules_file.encoded(doc)) > rules_file.MAX_RULES_BYTES:
+            print(f"[extract-loop] {rules_rel} is at the size one file may carry; stopping here",
+                  file=sys.stderr)
+            break
+        done = grown
+        rules_file.write_json_file(base, rules_rel, doc)
+        processed += len(take)
+        pending = pending[len(take):]
+    if rc == 0 and units and not done:
+        # Nothing stated (the budget or a limit ran out on the first batch): no file, so the host's
+        # apply step refuses instead of applying an empty one; resume continues from the start.
+        print("[extract-loop] no unit was stated in this pass", file=sys.stderr)
+        rc = 75
+    final = rules_file.rules_doc(seat, done)
+    if rc == 0 and len(rules_file.encoded(final)) <= rules_file.MAX_RULES_BYTES:
+        # Also when nothing new was stated (an empty worklist, a finished resume), so the host's
+        # apply step finds the file. After an outage (rc 75) a pass that stated nothing leaves no
+        # file, and apply refuses rather than applying an empty one. A rewrite that would outgrow
+        # the limit keeps the conforming checkpoint already on disk.
+        rules_file.write_json_file(base, rules_rel, final)
+    with_rule = sum(1 for e in done if e["statement"].strip())
+    print(f"[extract-loop] {len(done)} of {len(units)} unit(s) in {rules_rel} ({with_rule} with a "
+          f"stated rule); the host's extract-apply step checks and writes them", file=sys.stderr)
+    return rc
+
+
+def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
+    """`--check-rules`: is the rules file inside the schema? Exit 0 when every entry conforms."""
+    try:
+        seat, accepted, refused = rules_file.check_rules_doc(
+            rules_file.read_json_file(base, rules_rel))
+    except FileNotFoundError:
+        print(f"[extract-loop] no rules file at {rules_rel}", file=sys.stderr)
+        return 1
+    except rules_file.RulesFileRefused as e:
+        print(f"[extract-loop] REFUSED: {e}", file=sys.stderr)
+        return 1
+    left = ""
+    if worklist_rel:
+        try:
+            units = read_worklist(base, worklist_rel)["units"]
+        except (FileNotFoundError, rules_file.RulesFileRefused) as e:
+            print(f"[extract-loop] worklist {worklist_rel}: {e}", file=sys.stderr)
+            return 1
+        unit_ids = {u["symbol_id"] for u in units}
+        refused += [{"index": None, "symbol_id": e["symbol_id"],
+                     "why": "is not a unit of the worklist (copy the symbol_id verbatim)"}
+                    for e in accepted if e["symbol_id"] not in unit_ids]
+        have = {e["symbol_id"] for e in accepted}
+        left = f"; {sum(1 for u in units if u['symbol_id'] not in have)} worklist unit(s) not stated"
+    for r in refused[:50]:
+        print(f"[extract-loop] entry {r['index'] if r['index'] is not None else '-'} "
+              f"({r['symbol_id'] or '?'}): {r['why']}", file=sys.stderr)
+    print(f"[extract-loop] {rules_rel}: {len(accepted)} entr(ies) conform, {len(refused)} outside "
+          f"the schema (seat {seat or '-'}){left}", file=sys.stderr)
+    return 0 if not refused else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -648,7 +944,31 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--workers", type=int, default=0,
                     help="parallel workers sharing the hub-first order (default: --cluster-offset + 1); "
                          "each owns a disjoint stripe of it")
+    ap.add_argument("--worklist", default=None,
+                    help="FILE MODE (seat container): the host-prepared worklist, relative to the "
+                         f"working directory (the preset's is {rules_file.WORKLIST_REL})")
+    ap.add_argument("--rules-out", default=None,
+                    help="FILE MODE: where the stated rules go, relative to the working directory "
+                         f"(the preset's is {rules_file.RULES_REL}); no store is written")
+    ap.add_argument("--check-rules", default=None, metavar="RULES",
+                    help="check a rules file against the schema and exit (0 = it conforms)")
     args = ap.parse_args(argv)
+    base = Path.cwd()
+    if args.check_rules:
+        return check_rules(base, args.check_rules, args.worklist)
+    if args.worklist or args.rules_out:
+        if not (args.worklist and args.rules_out):
+            ap.error("file mode needs both --worklist and --rules-out")
+        try:
+            return run_files(base, args.worklist, args.rules_out, time_budget=args.time_budget,
+                             limit=args.limit, batch=args.batch, dry_run=args.dry_run)
+        except FileNotFoundError as e:
+            print(f"[extract-loop] no worklist at {e}: the host's extract-prepare step writes it",
+                  file=sys.stderr)
+            return 1
+        except rules_file.RulesFileRefused as e:
+            print(f"[extract-loop] REFUSED: {e}", file=sys.stderr)
+            return 1
     if not args.db:
         ap.error("--db is required (or set $WICKED_ESTATE_DB)")
     return run(args.db, time_budget=args.time_budget, limit=args.limit,
