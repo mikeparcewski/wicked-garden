@@ -50,15 +50,19 @@ driver, not the loop. Your whole job:
    the load-bearing behaviour is mapped first. It loops **every** behavior-bearing node, calls the bounded per-node model
    for the one thing code can't do (stating the rule), **validates** each returned
    rule, and writes `annotate` + `semantics`. Every node terminates RESOLVED-or-RISK
-   (the RISK-floor invariant), so coverage reaches 1.0 deterministically; the model
-   only upgrades RISK→RESOLVED quality.
+   (the RISK-floor invariant), so given enough passes coverage reaches 1.0
+   deterministically; the model only upgrades RISK→RESOLVED quality.
 2. **Watch stderr** (`coverage=… unaccounted=… processed=…`). If it exits within
    budget with `unaccounted > 0`, **re-invoke it to resume** — the shrunk worklist
    re-seeds and the hub-first order is re-derived, so work resumes at the frontier and
-   never repeats (a later run continues the same way). Stop when `unaccounted` hits 0
-   or stops shrinking. The graph is built once the mapped share reaches the configured
-   minimum (`WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, default 80); below it the run says
-   "N% mapped, minimum M%" and keeps the mapping for the next run.
+   never repeats (a later run continues the same way). The graph is built once the
+   mapped share reaches the configured minimum (`WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`,
+   default 80) — check it with `wicked-core coverage --db "<estate-store>"
+   --min-coverage-pct` (exit 0 at or above it; below, it prints "N% mapped, minimum M%"
+   and exits 3). Keep re-invoking while you are below the minimum; once it passes, more
+   is better but enough, so stop when your budget is spent. Always stop when
+   `unaccounted` hits 0 or stops shrinking. What you mapped stays in the store for the
+   next run either way.
    A `WARNING: … annotation node_syms no longer exist` line is the estate
    id-scheme migration signature — prior annotations are orphaned; see the
    migration section in `wicked-garden-domain` for the

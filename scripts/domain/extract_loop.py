@@ -280,6 +280,9 @@ def _edge_kind(raw) -> str:
 
 
 _MAX_HUBS = 25
+# Positions per stripe window for parallel workers: the largest batch `_density_batch` may pick,
+# so a full adaptive batch fits inside one window.
+_STRIPE = 64
 
 
 def hub_count(store) -> int:
@@ -306,16 +309,22 @@ def hub_first_order(store, hubs: list[str]) -> tuple[dict[str, int], dict[str, i
     rank: dict[str, int] = {}
     hops: dict[str, int] = {}
     seen: set[int] = set()
-    seeds = [store.sid_of[h] for h in hubs if h in store.sid_of][: hub_count(store)]
+    # Seeds: hubs that exist AND have use-graph neighbours (a file or module PageRank ranks high
+    # through imports alone would fan out to nothing and burn the hub slot), each once.
+    seeds = list(dict.fromkeys(
+        store.sid_of[h] for h in hubs if store.sid_of.get(h) in store.adj
+    ))[: hub_count(store)]
     remaining = by_degree(store.sym_of.keys())
+    cursor = 0  # forward-only: each candidate is skipped at most once (no N² rescans)
     base = 0
     while True:
         frontier = [s for s in seeds if s not in seen]
         if not frontier:
-            nxt = next((s for s in remaining if s not in seen), None)
-            if nxt is None:
+            while cursor < len(remaining) and remaining[cursor] in seen:
+                cursor += 1
+            if cursor >= len(remaining):
                 break
-            frontier = [nxt]
+            frontier = [remaining[cursor]]
         for s in frontier:
             seen.add(s)
         depth = base
@@ -341,9 +350,12 @@ def _centrality_hubs(estate, store) -> tuple[list[str], str]:
     """The hubs to fan out from and who answered: estate's PageRank (`rank`), else the store's
     own degree (a store without the `rank` command, or a failed call — said on stderr)."""
     try:
-        hubs = estate.rank(200)
+        ranked = list(dict.fromkeys(estate.rank(200)))
+        hubs = [h for h in ranked if store.sid_of.get(h) in store.adj]
         if hubs:
             return hubs, "estate rank (PageRank)"
+        print("[extract-loop] estate rank named no symbol with use-graph neighbours; hubs by degree "
+              "instead", file=sys.stderr)
     except Exception as e:  # centrality is ordering quality, never a reason to stop
         print(f"[extract-loop] estate rank unavailable ({e}); hubs by degree instead", file=sys.stderr)
     by_deg = sorted(store.adj, key=lambda s: (-len(store.adj[s]), store.sym_of.get(s, "")))
@@ -401,7 +413,12 @@ def _density_batch(members: list[dict], store, base_batch: int) -> int:
 
 
 def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
-        project_dir: Path | None = None, cluster_offset: int = 0) -> int:
+        project_dir: Path | None = None, cluster_offset: int = 0, workers: int = 0) -> int:
+    # Parallel workers stripe the STATIC order: worker k of N owns every window w (of _STRIPE
+    # consecutive positions) with w % N == k, so two workers never select the same node however
+    # fast either finishes. `workers` defaults to offset + 1 (a lone worker owns everything).
+    offset = max(0, cluster_offset)
+    workers = max(workers, offset + 1)
     if not db:
         raise RuntimeError("--db / $WICKED_ESTATE_DB is required but was not provided")
     _annotation_preflight(db)
@@ -471,12 +488,19 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         if store is not None and order:
             tail = len(order)
             worklist.sort(key=lambda n: (order.get(n["symbol_id"], tail), n["symbol_id"]))
-            # cluster_offset lets parallel workers each own a different window of the order
-            # instead of all fighting over the frontier (offset 0 = the frontier itself).
-            windows = max(1, -(-len(worklist) // max(1, batch)))
-            start = (max(0, cluster_offset) % windows) * max(1, batch)
-            head = worklist[start:]
-            take = head[: _density_batch(head[: max(batch, 12)], store, batch)]
+            if workers > 1:
+                def window(n):
+                    return order.get(n["symbol_id"], tail) // _STRIPE
+                mine = [n for n in worklist if window(n) % workers == offset]
+                if not mine:
+                    print(f"[extract-loop] worker {offset} of {workers}: its windows are mapped; "
+                          f"{len(worklist)} unaccounted remain in other workers' windows", file=sys.stderr)
+                    return 0
+                # One window at a time, so a batch never crosses into another worker's stripe.
+                head = [n for n in mine if window(n) == window(mine[0])]
+            else:
+                head = worklist
+            take = head[: _density_batch(head, store, batch)]
             front = take[0]["symbol_id"]
             print(f"[extract-loop] frontier: {front} (hop {hops.get(front, '?')}, "
                   f"position {order.get(front, tail) + 1} of {tail})", file=sys.stderr)
@@ -605,12 +629,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--batch", type=int, default=12, help="framed nodes per model call")
     ap.add_argument("--dry-run", action="store_true", help="deterministic stub instead of the model (zero cost)")
     ap.add_argument("--cluster-offset", type=int, default=0,
-                    help="parallel workers: take the Nth batch window of the hub-first order instead of the frontier")
+                    help="parallel workers: this worker's index (0-based) among --workers")
+    ap.add_argument("--workers", type=int, default=0,
+                    help="parallel workers sharing the hub-first order (default: --cluster-offset + 1); "
+                         "each owns a disjoint stripe of it")
     args = ap.parse_args(argv)
     if not args.db:
         ap.error("--db is required (or set $WICKED_ESTATE_DB)")
     return run(args.db, time_budget=args.time_budget, limit=args.limit,
-               batch=args.batch, dry_run=args.dry_run, cluster_offset=args.cluster_offset)
+               batch=args.batch, dry_run=args.dry_run, cluster_offset=args.cluster_offset,
+               workers=args.workers)
 
 
 if __name__ == "__main__":

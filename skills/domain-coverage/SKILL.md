@@ -37,7 +37,8 @@ default 80). It writes the report either way, prints `coverage: N% mapped, minim
 If `wicked-core` is not on PATH, find it at `$HOME/.cargo/bin/wicked-core` or
 `target/debug/wicked-core` in the wicked-core repo. If the coverage emitter
 fails or reports less than the minimum, do NOT fabricate a passing report —
-record the real metrics and that line, and RISK-flag the unaccounted nodes.
+record the real metrics and that line, and emit a `BLOCK` naming the shortfall and
+the unaccounted nodes (see the threat checklist's coverage holes).
 
 Read the resulting file and record the metrics (coverage, unaccounted, etc.).
 
