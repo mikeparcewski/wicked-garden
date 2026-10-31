@@ -164,6 +164,15 @@ when the proposal is approved, so the learning is lost):
   invariant is a policy; a "this is how X actually wires up" discovery was read
   from the code, so it is knowledge, never a memory.
 
+## Style lens (when the run asks for style)
+
+When the problem asks for **style** (studio's Learn → Style: "learn the style of <repo>"), keep the three
+phases and read for how the person or team works as well: naming, structure, test shape, change size, commit
+and review tone, each with a stated cap. Capture those as **style memories** (`reach: "operator"`, the
+person decides at review whether they apply everywhere), an enforced convention as a policy, and what the
+code does as knowledge. The same lens covers **writing** (a blog, a docs site, a document): read a bounded
+sample, spot the patterns, capture them as memories. Full method: [refs/style-lens.md](refs/style-lens.md).
+
 ## In a governed run
 
 You are in a governed run when you were dispatched as a unit of a wicked-crew run — a phase
@@ -239,6 +248,9 @@ default; the shim refuses an unpinned store — report that, never guess one.
 
 - [refs/churn-sampling.md](refs/churn-sampling.md) — the bounded/sampled git-log method:
   window sizing, the sample rule, the top-N cap, directory rollup, noise filters, counting fallback.
+- [refs/style-lens.md](refs/style-lens.md) — the style lens: what to read for (naming,
+  structure, test shape, change size, commit and review tone), style memories vs policies, and writing
+  (a blog, a docs site, a document) as a source.
 - [refs/capture-proposals.md](refs/capture-proposals.md) — the `proposal.submit`
   contract for memories and policies, the derivation heuristics (2×2 → what to
   propose), worked examples, the idempotency/dedup discipline, and the shim `propose`
