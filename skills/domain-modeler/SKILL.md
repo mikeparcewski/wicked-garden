@@ -49,8 +49,11 @@ communities). You **invoke core**, you don't reimplement it.
    dominant one; note the split.
 3. **Invoke core's domain-graph build.** `core_client().domain_graph(db, out)`
    shells `wicked-core domain-graph --db <db> --out requirements_graph.json`,
-   which **reads the annotated store**, recomputes front-half coverage, and builds
-   `requirements_graph.json` (a capability plan, not a code skeleton). It **fails
+   which **reads the annotated store**, recomputes front-half coverage, and saves
+   the requirements graph **into the estate store** (domain, requirement and
+   business-rule nodes, `SatisfiedBy` edges to code — the source of truth crew
+   reads); `--out` also writes it as the `requirements_graph.json` export this
+   step validates (a capability plan, not a code skeleton). It **fails
    closed below the configured minimum** (writes nothing, non-zero exit, and says
    "N% mapped, minimum M%") — the extractor must have mapped at least that share
    of the behavior-bearing nodes (80% by default; crew's

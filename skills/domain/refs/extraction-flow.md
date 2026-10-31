@@ -60,12 +60,13 @@ not a warning.
 
 **core owns the domain-model build.** The translator does **not** hand core an
 assembled document; it annotates the estate store (via the estate surface above),
-then invokes core, which **reads the store and builds `requirements_graph.json`
-itself**. `CliCoreClient`:
+then invokes core, which **reads the store and builds the requirements graph
+itself**, saving it back into the store (the source of truth; crew reads it from
+there). `CliCoreClient`:
 
 | Method | Production | Purpose |
 |---|---|---|
-| `domain_graph(db, out, coverage?) -> doc` | `wicked-core domain-graph --db <db> --out requirements_graph.json [--coverage F]` | Reads the annotated store, **recomputes front-half coverage**, and builds the capability plan. **Fails closed below the configured minimum** (writes nothing, non-zero exit, "N% mapped, minimum M%") — `--min-coverage-pct`, else `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT` (crew's `requirementsGraph.minCoveragePct`), else 80. With `--repo-root <dir>` (what the `domain-extraction` preset passes) the default out is `<dir>/.wicked-estate/requirements/requirements_graph.json`, the path crew reads. A supplied `--coverage` file is an optional cross-check that must agree. |
+| `domain_graph(db, out, coverage?) -> doc` | `wicked-core domain-graph --db <db> --out requirements_graph.json [--coverage F]` | Reads the annotated store, **recomputes front-half coverage**, and builds the capability plan. **Fails closed below the configured minimum** (writes nothing, non-zero exit, "N% mapped, minimum M%") — `--min-coverage-pct`, else `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT` (crew's `requirementsGraph.minCoveragePct`), else 80. The graph is saved into the estate store either way (domain, requirement and business-rule nodes, `SatisfiedBy` edges to code); `--out` writes the same document as a JSON export, and without it no file is written (the `domain-extraction` preset passes `--repo-root <dir>`, whose tracked files the corroboration reads, and no `--out`). A supplied `--coverage` file is an optional cross-check that must agree. |
 | `coverage(db, out) -> report` | `wicked-core coverage --db <db> --out coverage.json` | Emit the store's front-half coverage report (optional — `domain_graph` recomputes internally). `--min-coverage-pct` makes it a check: exit 3 below the configured minimum. |
 
 There is **no `--overlay`** and **no doc-in/summary-out** shape: the store is the
