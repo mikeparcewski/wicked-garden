@@ -59,6 +59,12 @@ and only this:
    ["code-body"|"type-def"|"comment"|"doc"]}}` — no other keys. Then check it:
    `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
    --worklist .wicked/domain/worklist.json` and fix what it names.
+   **Read each unit's source and write each statement yourself.** A helper that writes the
+   file is fine; a script that composes statements from names or slices is not — it describes
+   code, and the page's review fails it. State what the business requires (who may do what,
+   what must hold, what is refused and why), not what the function does. Give the confidence
+   the source supports: a statement you could check against a whole body may be high; one you
+   inferred from a cut-off slice is low, and the host records it as a risk.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
    report unmapped or whose file the repository does not track; it re-judges the rest itself
