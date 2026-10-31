@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import sys
 import time
@@ -429,12 +430,24 @@ def _density_batch(members: list[dict], store, base_batch: int) -> int:
     return max(4, min(64, int(base_batch * mult)))
 
 
-def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, dry_run: bool):
+_OUT_OF_TIME = -1  # _ask_model: the budget ran out mid-batch; nothing from it is kept
+
+
+def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, dry_run: bool,
+               deadline: float | None = None):
     """THE MODEL BOUNDARY (or the deterministic stub) for one batch: the rules by symbol id, or
     75 (EX_TEMPFAIL) when an outage persisted after one retry — the pass stops and nothing from
     the batch is written. A judgment failure over the whole batch returns {} (every node then
-    RISK-floors — never a gap)."""
+    RISK-floors — never a gap). With a `deadline` (file mode), no call or retry pause runs past
+    it: a batch the budget cannot finish returns _OUT_OF_TIME and is left for the next pass."""
     by_id: dict[str, dict] = {}
+
+    def left() -> float | None:
+        return None if deadline is None else deadline - time.monotonic()
+
+    def no_time(need: float = 1.0) -> bool:
+        rem = left()
+        return rem is not None and rem < need
     if dry_run:
         by_id = {n["symbol_id"]: _stub_rule(n) for n in take}
     else:
@@ -450,8 +463,12 @@ def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, 
             # "mismatch" and mimicking an outage). Exact match first; else re-canonize
             # by trailing-dot-insensitive lookup. Anything else stays a hallucination.
             canon = {sid.rstrip("."): sid for sid in ids}
+            if no_time():
+                return _OUT_OF_TIME
             try:
-                for r in _rule_extractor.extract_rules(framed, model_argv):
+                rules = (_rule_extractor.extract_rules(framed, model_argv) if deadline is None
+                         else _rule_extractor.extract_rules(framed, model_argv, timeout=left()))
+                for r in rules:
                     if not isinstance(r, dict):
                         continue
                     rid = r.get("symbol_id")
@@ -463,6 +480,8 @@ def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, 
             except Exception as e:
                 if _is_infra_failure(e):
                     infra_exc = e
+                elif "exceeded" in str(e) and no_time(_RETRY_PAUSE + 30):
+                    return _OUT_OF_TIME  # the budget, not the batch, ran out
                 elif "exceeded" in str(e) and attempt == 1:
                     # A batch timeout is often provider slowness, not batch difficulty
                     # — one retry before conceding. A repeat floors (termination), it
@@ -493,6 +512,8 @@ def _ask_model(take: list[dict], framed: list[dict], ids: set[str], model_argv, 
                 print(f"[extract-loop] {why} — persisted after retry; pass aborted, batch NOT floored",
                       file=sys.stderr)
                 return 75  # EX_TEMPFAIL — the caller ends the pass
+            if no_time(_RETRY_PAUSE + 30):
+                return _OUT_OF_TIME
             print("[extract-loop] transient zero-yield/infra on batch — retrying once "
                   f"in {int(_RETRY_PAUSE)}s", file=sys.stderr)
             time.sleep(_RETRY_PAUSE)
@@ -705,8 +726,22 @@ def to_entry(sid: str, rule: dict | None) -> dict:
         and conf == conf and 0.0 <= conf <= 1.0
     entry = {"symbol_id": sid, "statement": stmt, "confidence": float(conf) if ok_conf else 0.0}
     prov = rule.get("provenance")
-    if isinstance(prov, dict) and rules_file.check_rule_entry({**entry, "provenance": prov}) is None:
-        entry["provenance"] = prov
+    if isinstance(prov, dict):
+        # Carry what the schema can hold (as the store-mode harness ignores extra keys): known
+        # keys only, text cleaned and clamped, source kinds filtered to the valid ones.
+        clean: dict = {}
+        for key, limit in (("source", rules_file.MAX_PROVENANCE_STR),
+                           ("ref", rules_file.MAX_SYMBOL_ID)):
+            if isinstance(prov.get(key), str):
+                clean[key] = rules_file._CONTROL_RE.sub(" ", prov[key])[:limit]
+        kinds = prov.get("source_kinds")
+        if isinstance(kinds, list):
+            clean["source_kinds"] = [k for k in kinds if isinstance(k, str)
+                                     and k in rules_file.SOURCE_KINDS][: rules_file.MAX_SOURCE_KINDS]
+        if rules_file.check_rule_entry({**entry, "provenance": clean}) is None:
+            entry["provenance"] = clean
+    if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
+        entry["statement"] = ""
     return entry
 
 
@@ -714,6 +749,7 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
               batch: int, dry_run: bool) -> int:
     worklist = read_worklist(base, worklist_rel)
     units = worklist["units"]
+    rules_file.check_writable(base, rules_rel)  # an unusable destination fails before any model call
     seat = rules_file.seat_name(os.environ.get("WICKED_RUN_AGENT"))
     model_argv = None if dry_run else _clients.rule_model_argv(base)
     if not dry_run and model_argv is None:
@@ -733,6 +769,8 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         pass
     except rules_file.RulesFileRefused as e:
         print(f"[extract-loop] starting {rules_rel} afresh: {e}", file=sys.stderr)
+    unit_ids = {u["symbol_id"] for u in units}
+    done = [e for e in done if e["symbol_id"] in unit_ids]  # an earlier pass's leftovers drop out
     stated = {e["symbol_id"] for e in done}
     pending = [u for u in units if u["symbol_id"] not in stated]
     print(f"[extract-loop] file mode: {len(units)} unit(s) in the worklist, {len(stated)} already "
@@ -749,19 +787,40 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         take = pending[: _units_batch(pending, batch)]
         if limit:
             take = take[: max(0, limit - processed)]
+        room = rules_file.MAX_RULES - len(done)
+        if room <= 0:
+            print(f"[extract-loop] {rules_rel} holds the most entries one file may carry "
+                  f"({rules_file.MAX_RULES}); stopping here", file=sys.stderr)
+            break
+        take = take[:room]
         framed = [_rule_extractor.frame_context(
             u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
         ids = {u["symbol_id"] for u in take}
-        by_id = _ask_model(take, framed, ids, model_argv, dry_run)
+        by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
+        if by_id == _OUT_OF_TIME:
+            print("[extract-loop] the budget ran out inside a batch; it is left for the next "
+                  "pass", file=sys.stderr)
+            break
         if isinstance(by_id, int):
             rc = by_id
             break
-        done.extend(to_entry(u["symbol_id"], by_id.get(u["symbol_id"])) for u in take)
-        rules_file.write_json_file(base, rules_rel, rules_file.rules_doc(seat, done))
+        grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"])) for u in take]
+        doc = rules_file.rules_doc(seat, grown)
+        if len(json.dumps(doc, ensure_ascii=False, indent=1).encode("utf-8")) \
+                > rules_file.MAX_RULES_BYTES - 1024:
+            print(f"[extract-loop] {rules_rel} is at the size one file may carry; stopping here",
+                  file=sys.stderr)
+            break
+        done = grown
+        rules_file.write_json_file(base, rules_rel, doc)
         processed += len(take)
         pending = pending[len(take):]
-    rules_file.write_json_file(base, rules_rel, rules_file.rules_doc(seat, done))
+    if rc == 0:
+        # Also when nothing new was stated (an empty worklist, a finished resume), so the host's
+        # apply step finds the file. After an outage (rc 75) a pass that stated nothing leaves no
+        # file, and apply refuses rather than applying an empty one.
+        rules_file.write_json_file(base, rules_rel, rules_file.rules_doc(seat, done))
     with_rule = sum(1 for e in done if e["statement"].strip())
     print(f"[extract-loop] {len(done)} of {len(units)} unit(s) in {rules_rel} ({with_rule} with a "
           f"stated rule); the host's extract-apply step checks and writes them", file=sys.stderr)
@@ -779,14 +838,22 @@ def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
     except rules_file.RulesFileRefused as e:
         print(f"[extract-loop] REFUSED: {e}", file=sys.stderr)
         return 1
-    for r in refused[:50]:
-        print(f"[extract-loop] entry {r['index']} ({r['symbol_id'] or '?'}): {r['why']}",
-              file=sys.stderr)
     left = ""
     if worklist_rel:
-        units = read_worklist(base, worklist_rel)["units"]
+        try:
+            units = read_worklist(base, worklist_rel)["units"]
+        except (FileNotFoundError, rules_file.RulesFileRefused) as e:
+            print(f"[extract-loop] worklist {worklist_rel}: {e}", file=sys.stderr)
+            return 1
+        unit_ids = {u["symbol_id"] for u in units}
+        refused += [{"index": None, "symbol_id": e["symbol_id"],
+                     "why": "is not a unit of the worklist (copy the symbol_id verbatim)"}
+                    for e in accepted if e["symbol_id"] not in unit_ids]
         have = {e["symbol_id"] for e in accepted}
         left = f"; {sum(1 for u in units if u['symbol_id'] not in have)} worklist unit(s) not stated"
+    for r in refused[:50]:
+        print(f"[extract-loop] entry {r['index'] if r['index'] is not None else '-'} "
+              f"({r['symbol_id'] or '?'}): {r['why']}", file=sys.stderr)
     print(f"[extract-loop] {rules_rel}: {len(accepted)} entr(ies) conform, {len(refused)} outside "
           f"the schema (seat {seat or '-'}){left}", file=sys.stderr)
     return 0 if not refused else 1

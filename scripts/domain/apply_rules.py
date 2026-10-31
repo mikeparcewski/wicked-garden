@@ -14,7 +14,9 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence x community
     cohesion >= 0.75 to resolve, the RISK floor, a read-back per write), authored
-    `extract-loop:<seat>`.
+    `extract-loop` — the seat a file names is the seat's own claim, so it is only reported;
+  * binaries come from the operator and the engine (env, config, PATH), never the worktree, and
+    every read and write in the worktree is descriptor-relative and refuses symlinks.
 
 Then it writes `coverage-report.json` (checked against the configured minimum) into the
 worktree, where the coverage step reads it; that step's own validator recomputes it from the
@@ -41,31 +43,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on p
 from domain import _clients, extract_loop, rules_file  # noqa: E402
 
 REPORT_REL = ".wicked/domain/apply-report.json"
+# Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
+# would take a seat's identity from the seat's own file.
+AUTHOR = "extract-loop"
 COVERAGE_REL = "coverage-report.json"
 
 
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
-    core = core or _clients.core_client()
-    if core is None:
-        raise RuntimeError("wicked-core is not resolvable on this host (WICKED_CORE_EXE, "
-                           "WICKED_CORE_BIN or PATH) — cannot tell what is unmapped")
-    if estate is None:
-        estate = _clients.estate_client(db=db)
-        if not isinstance(estate, _clients.CliEstateClient):
-            raise RuntimeError("wicked-estate is not resolvable on this host (WICKED_ESTATE_BIN "
-                               "or PATH) — cannot write the store")
+    # Binaries from the operator and the engine only — never from the seat-writable worktree.
+    core = core or _clients.host_core_client()
+    estate = estate or _clients.host_estate_client(db)
     try:
         doc = rules_file.read_json_file(base, rules_rel)
     except FileNotFoundError:
         raise rules_file.RulesFileRefused(
             f"the extract step left no rules file at {rules_rel}") from None
     seat, accepted, refused = rules_file.check_rules_doc(doc)
-    # Where the report goes is checked BEFORE anything is written (the worktree is seat-writable).
-    cov_path = rules_file.inside(base, coverage_rel)
-    if cov_path.exists() and not cov_path.is_file():
-        raise rules_file.RulesFileRefused(f"{coverage_rel!r} is not a regular file")
-    rules_file.inside(base, REPORT_REL)
+    # Where the outputs go is checked BEFORE anything is written: a symlink, a non-directory on
+    # the way or a directory at the leaf (the worktree is seat-writable) is refused now, not after
+    # the store has changed. The writes themselves go through descriptors (rules_file).
+    rules_file.check_writable(base, coverage_rel)
+    rules_file.check_writable(base, REPORT_REL)
 
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
@@ -84,7 +83,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         else:
             eligible.append(entry)
             continue
-        refused.append({"index": None, "symbol_id": sid, "why": why})
+        refused.append({"index": None, "symbol_id": rules_file._shown(sid), "why": why})
 
     try:
         nc = _clients.total_node_community(estate.read_clusters(), estate.list_nodes())
@@ -101,7 +100,9 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         print(f"[extract-apply] direct store unavailable ({e})", file=sys.stderr)
         store = None
 
-    author = f"extract-loop:{seat}" if seat else "extract-loop"
+    # The host writes these, so the host is the author: the seat named in the file is the seat's
+    # own claim (a seat-written file proves nothing about who wrote it) and is only reported.
+    author = AUTHOR
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
     for entry in eligible:
@@ -110,11 +111,14 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                                                 entry, ids, nc, sizes, seat=author)
         outcomes[outcome] += 1
 
-    cov_path.parent.mkdir(parents=True, exist_ok=True)
-    after, met, line = core.coverage_against_minimum(db, str(cov_path))
+    # The report is computed in a host temp directory and published through the safe writer
+    # (core writes its --out in place, which would follow a planted link or hard link).
+    with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
+        after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+    rules_file.write_json_file(base, coverage_rel, after)
 
     report = {
-        "seat": seat,
+        "declared_seat": seat,
         "author": author,
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
@@ -129,7 +133,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     for r in refused[:20]:
         print(f"[extract-apply] refused {r['symbol_id'] or '#' + str(r['index'])}: {r['why']}",
               file=sys.stderr)
-    print(f"[extract-apply] {rules_rel} from seat {seat or '-'}: {outcomes['resolved']} resolved, "
+    print(f"[extract-apply] {rules_rel} (declared seat {seat or '-'}): {outcomes['resolved']} resolved, "
           f"{outcomes['risk']} RISK-flagged, {outcomes['kept']} kept, {len(refused)} refused "
           f"(written as {author}). {line or ''}".rstrip(), file=sys.stderr)
     return report
@@ -149,7 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     except rules_file.RulesFileRefused as e:
         print(f"[extract-apply] REFUSED, nothing written: {e}", file=sys.stderr)
         return 1
-    except RuntimeError as e:
+    except (RuntimeError, OSError) as e:
         print(f"[extract-apply] FAILED: {e}", file=sys.stderr)
         return 1
     return 0

@@ -32,15 +32,10 @@ DEFAULT_LIMIT = 300
 
 def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
             estate=None, core=None) -> dict:
-    core = core or _clients.core_client()
-    if core is None:
-        raise RuntimeError("wicked-core is not resolvable on this host (WICKED_CORE_EXE, "
-                           "WICKED_CORE_BIN or PATH) — cannot read what is left to map")
-    if estate is None:
-        estate = _clients.estate_client(db=db)
-        if not isinstance(estate, _clients.CliEstateClient):
-            raise RuntimeError("wicked-estate is not resolvable on this host (WICKED_ESTATE_BIN "
-                               "or PATH) — cannot order or frame the worklist")
+    # Binaries from the operator and the engine only — never from the seat-writable worktree.
+    core = core or _clients.host_core_client()
+    estate = estate or _clients.host_estate_client(db)
+    rules_file.check_writable(base, out_rel)
     with tempfile.TemporaryDirectory(prefix="wicked-domain-prepare-") as tmp:
         cov = core.coverage(db, str(Path(tmp) / "coverage.json"))
     unmapped = _clients.unaccounted_nodes(cov)
@@ -106,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
     try:
         prepare(args.db, args.repo_root, Path.cwd(), args.out, args.limit)
-    except (RuntimeError, rules_file.RulesFileRefused) as e:
+    except (RuntimeError, OSError, rules_file.RulesFileRefused) as e:
         print(f"[extract-prepare] FAILED: {e}", file=sys.stderr)
         return 1
     return 0

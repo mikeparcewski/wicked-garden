@@ -465,6 +465,54 @@ def estate_client(db: Optional[str] = None,
 ENGINE_CORE_ENV = "WICKED_CORE_EXE"
 
 
+def _resolve_trusted(env_vars: tuple[str, ...], package: str) -> Optional[list[str]]:
+    """The HOST steps' resolver (`prepare_worklist.py`, `apply_rules.py`): they run as the daemon
+    user in a worktree a seat can write, so a binary may come only from the operator and the
+    engine — the env (set-but-empty = the kill-switch), config, or PATH — and never from the
+    working directory: no `node_modules/.bin` fallback, and a PATH hit inside the working
+    directory (a relative PATH entry) is refused."""
+    for env_var in env_vars:
+        if env_var in os.environ:
+            val = os.environ[env_var].strip()
+            return [val] if val else None
+    pref = _config_preference(package)
+    if pref:
+        return [pref]
+    found = shutil.which(package)
+    if not found:
+        return None
+    here = os.path.realpath(os.getcwd())
+    real = os.path.realpath(found)
+    if not os.path.isabs(found) or real == here or real.startswith(here + os.sep):
+        raise RuntimeError(f"{package} resolved inside the working directory ({found}); a host "
+                           "step never runs a binary from the run's worktree")
+    return [found]
+
+
+def host_estate_client(db: str) -> "CliEstateClient":
+    """The real estate client for a host step, from a trusted binary only (fails loud)."""
+    bin_argv = _resolve_trusted((ESTATE_ENV,), "wicked-estate")
+    if not bin_argv:
+        raise RuntimeError("wicked-estate is not resolvable on this host (WICKED_ESTATE_BIN or "
+                           "PATH)")
+    return CliEstateClient(bin_argv, db)
+
+
+def host_core_client() -> "CliCoreClient":
+    """The real core client for a host step: WICKED_CORE_BIN, else the engine's WICKED_CORE_EXE,
+    else config or PATH — never the working directory (fails loud)."""
+    if CORE_ENV in os.environ:
+        bin_argv = _resolve_trusted((CORE_ENV,), "wicked-core")
+    else:
+        bin_argv = _resolve_trusted((ENGINE_CORE_ENV,), "wicked-core") \
+            if (os.environ.get(ENGINE_CORE_ENV) or "").strip() \
+            else _resolve_trusted((), "wicked-core")
+    if not bin_argv:
+        raise RuntimeError("wicked-core is not resolvable on this host (WICKED_CORE_BIN, "
+                           "WICKED_CORE_EXE or PATH)")
+    return CliCoreClient(bin_argv)
+
+
 def core_client(project_dir: Optional[Path] = None) -> Optional[CliCoreClient]:
     """A CLI-backed :class:`CliCoreClient` when ``wicked-core`` resolves, else
     ``None`` (the caller falls back to the hermetic ``_mocks.BrainClient`` +

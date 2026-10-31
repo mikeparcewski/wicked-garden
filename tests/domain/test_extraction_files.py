@@ -76,7 +76,7 @@ def test_a_repeated_symbol_keeps_only_its_first_entry():
 def test_paths_never_leave_the_worktree(tmp_path):
     outside = tmp_path / "outside"
     outside.mkdir()
-    wt = tmp_path / "wt"
+    wt = _wt(tmp_path)
     (wt / ".wicked").mkdir(parents=True)
     (wt / ".wicked" / "domain").symlink_to(outside, target_is_directory=True)
     for rel in (rules_file.RULES_REL, "../x.json", str(outside / "x.json")):
@@ -87,10 +87,18 @@ def test_paths_never_leave_the_worktree(tmp_path):
 
 # --- fixture: a store, a repository, and the host's binaries faked ------------------------------
 
+def _wt(tmp_path):
+    """The run's worktree (it exists before any step runs)."""
+    wt = tmp_path / "wt"
+    wt.mkdir(exist_ok=True)
+    return wt
+
+
 def _git_repo(tmp_path, tracked=("f.py",)):
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "core.fsmonitor", "false"], check=True)
     for name in tracked:
         (repo / name).write_text("x = 1\n")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
@@ -159,23 +167,25 @@ def _write_rules(wt, seat, rules):
 # --- apply: the host's trust line ---------------------------------------------------------------
 
 def test_apply_writes_conforming_rules_as_the_seat_and_reports_coverage(tmp_path):
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), tmp_path / "wt"
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
     core = _Core(estate, {s: "f.py" for s in _STAR})
     _write_rules(wt, "codex", [_rule("s::core"), {"symbol_id": "s::a", "statement": "",
                                                   "confidence": 0.0}])
     report = _apply(wt, db, repo, estate, core)
     assert report["applied"] == {"resolved": 1, "risk": 1, "kept": 0}
-    assert estate.writes["s::core"]["req"] == ("amount must be positive", True, "extract-loop:codex")
-    assert estate.writes["s::core"]["ann"]["author"] == "extract-loop:codex"
+    # The host authors what it applies: the seat a file names is the seat's own claim.
+    assert estate.writes["s::core"]["req"] == ("amount must be positive", True, "extract-loop")
+    assert estate.writes["s::core"]["ann"]["author"] == "extract-loop"
     req, validated, _ = estate.writes["s::a"]["req"]
     assert req.startswith("[RISK]") and validated is False
     assert json.loads((wt / "coverage-report.json").read_text())["resolved"] == 2
-    assert json.loads((wt / apply_rules.REPORT_REL).read_text())["refused_count"] == 0
+    report_file = json.loads((wt / apply_rules.REPORT_REL).read_text())
+    assert (report_file["refused_count"], report_file["declared_seat"]) == (0, "codex")
 
 
 def test_apply_refuses_a_bad_file_and_writes_nothing(tmp_path):
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), tmp_path / "wt"
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
     core = _Core(estate, {s: "f.py" for s in _STAR})
     rules_file.write_json_file(wt, rules_file.RULES_REL,
@@ -188,12 +198,10 @@ def test_apply_refuses_a_bad_file_and_writes_nothing(tmp_path):
 
 
 def test_apply_main_exits_1_on_a_refused_or_missing_file(tmp_path, monkeypatch):
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), tmp_path / "wt"
-    wt.mkdir()
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
-    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
-    monkeypatch.setattr(_clients, "CliEstateClient", _Estate)
-    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: _Core(estate, {}))
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: _Core(estate, {}))
     monkeypatch.chdir(wt)
     assert apply_rules.main(["--db", db, "--repo-root", repo]) == 1  # no rules file
     (wt / ".wicked" / "domain").mkdir(parents=True)
@@ -203,7 +211,7 @@ def test_apply_main_exits_1_on_a_refused_or_missing_file(tmp_path, monkeypatch):
 
 
 def test_apply_refuses_rules_about_files_not_in_the_repo_or_not_unmapped(tmp_path):
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), tmp_path / "wt"
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
     estate.writes["s::b"] = {"req": ("earlier", True, "extract-loop"), "ann": {"key": "k"}}
     nodes = {s: "f.py" for s in _STAR}
@@ -225,7 +233,7 @@ def test_apply_refuses_rules_about_files_not_in_the_repo_or_not_unmapped(tmp_pat
 def test_apply_re_derives_the_judgment_the_seat_cannot_vouch_for(tmp_path):
     """A conforming entry is still judged by the host: ungrounded provenance or a low confidence
     is RISK-flagged, never resolved, whatever the seat wanted."""
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), tmp_path / "wt"
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
     core = _Core(estate, {s: "f.py" for s in _STAR})
     _write_rules(wt, "", [{"symbol_id": "s::core", "statement": "x is y", "confidence": 1.0},
@@ -246,7 +254,7 @@ def test_file_mode_states_every_unit_into_a_conforming_file_and_resumes(tmp_path
     monkeypatch.setenv("WICKED_RUN_AGENT", "claude")
     calls = []
 
-    def model(batch, argv):
+    def model(batch, argv, **kw):
         calls.append([c["symbol_id"] for c in batch])
         return [{**_rule(c["symbol_id"]), "junk": 1, "confidence": "high" if c["name"] == "1"
                  else 0.9} for c in batch]
@@ -295,7 +303,7 @@ def test_file_mode_needs_no_store_or_binaries(tmp_path, monkeypatch):
 # --- the chain on a fixture: prepare (host) → extract (seat) → apply (host) ---------------------
 
 def test_prepare_seat_apply_maps_the_fixture_hub_first(tmp_path, monkeypatch):
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), tmp_path / "wt"
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
     estate = _Estate()
     nodes = {s: "f.py" for s in _STAR}
     nodes["s::i2"] = "untracked.py"
@@ -313,7 +321,8 @@ def test_prepare_seat_apply_maps_the_fixture_hub_first(tmp_path, monkeypatch):
     report = _apply(wt, db, repo, estate, core)
     assert report["applied"]["resolved"] == 7 and report["refused_count"] == 0
     assert report["coverage"]["unaccounted"] == 1  # the untracked file's node stays unmapped
-    assert {w["req"][2] for w in estate.writes.values()} == {"extract-loop:copilot"}
+    assert {w["req"][2] for w in estate.writes.values()} == {"extract-loop"}
+    assert report["declared_seat"] == "copilot"
 
 
 # --- opt-in: the same chain on the real binaries -------------------------------------------------
@@ -325,7 +334,10 @@ def _bin(env, package):
 
 
 _ESTATE = _bin("WICKED_ESTATE_BIN", "wicked-estate")
-_CORE = _bin("WICKED_CORE_BIN", "wicked-core") or os.environ.get("WICKED_CORE_EXE")
+# The precedence `_clients.host_core_client` uses: WICKED_CORE_BIN (empty = off), then the
+# engine's WICKED_CORE_EXE, then PATH.
+_CORE = (_bin("WICKED_CORE_BIN", "wicked-core") if "WICKED_CORE_BIN" in os.environ
+         else (os.environ.get("WICKED_CORE_EXE") or "").strip() or shutil.which("wicked-core"))
 
 
 @pytest.mark.skipif(_ESTATE is None or _CORE is None,
@@ -341,8 +353,7 @@ def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
     subprocess.run([_ESTATE, "index", str(repo), "--db", db], check=True, capture_output=True)
     monkeypatch.setenv("WICKED_CORE_BIN", _CORE)
     monkeypatch.setenv("WICKED_ESTATE_BIN", _ESTATE)
-    wt = tmp_path / "wt"
-    wt.mkdir()
+    wt = _wt(tmp_path)
     monkeypatch.chdir(wt)
     assert prepare_worklist.main(["--db", db, "--repo-root", str(repo)]) == 0
     monkeypatch.setenv("WICKED_RUN_AGENT", "claude")
@@ -364,3 +375,195 @@ def test_the_host_uses_the_engines_core_cli(monkeypatch):
     assert _clients.core_client()._bin == ["/engine/wicked-core"]
     monkeypatch.setenv("WICKED_CORE_BIN", "")  # the kill-switch still wins
     assert _clients.core_client() is None
+
+
+# --- review round 1 (codex + agy on #1363): every finding, a regression ---------------------------
+
+def _plant(path, mode=0o755):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\ntouch \"$0.ran\"\n")
+    path.chmod(mode)
+
+
+def test_host_steps_never_run_a_binary_from_the_worktree(tmp_path, monkeypatch):
+    for var in ("WICKED_ESTATE_BIN", "WICKED_CORE_BIN", "WICKED_CORE_EXE"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(_clients, "_config_preference", lambda key: None)
+    _plant(tmp_path / "node_modules" / ".bin" / "wicked-estate")
+    _plant(tmp_path / "bin" / "wicked-core")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("PATH", "bin")  # a relative PATH entry resolves inside the worktree
+    with pytest.raises(RuntimeError, match="not resolvable"):
+        _clients.host_estate_client("x.db")  # node_modules/.bin is never consulted
+    with pytest.raises(RuntimeError, match="inside the working directory"):
+        _clients.host_core_client()
+    monkeypatch.setenv("PATH", str(tmp_path / "bin"))  # absolute, but still the worktree
+    with pytest.raises(RuntimeError, match="inside the working directory"):
+        _clients.host_core_client()
+    assert not list(tmp_path.rglob("*.ran"))
+
+
+def test_the_engines_cli_and_the_operators_env_are_trusted(monkeypatch):
+    monkeypatch.delenv("WICKED_CORE_BIN", raising=False)
+    monkeypatch.setenv("WICKED_CORE_EXE", "/engine/wicked-core")
+    assert _clients.host_core_client()._bin == ["/engine/wicked-core"]
+    monkeypatch.setenv("WICKED_ESTATE_BIN", "/opt/wicked-estate")
+    assert _clients.host_estate_client("x.db")._bin == ["/opt/wicked-estate"]
+
+
+def _apply_env(tmp_path):
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    return db, repo, wt, estate, _Core(estate, {s: "f.py" for s in _STAR})
+
+
+def test_a_symlinked_rules_file_is_refused_and_nothing_is_read_through_it(tmp_path):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    secret = tmp_path / "secret.json"
+    secret.write_text(json.dumps(rules_file.rules_doc("", [_rule("s::core")])))
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    (wt / rules_file.RULES_REL).symlink_to(secret)
+    with pytest.raises(rules_file.RulesFileRefused, match="plain file"):
+        _apply(wt, db, repo, estate, core)
+    assert estate.writes == {}
+
+
+@pytest.mark.parametrize("plant", ["symlink", "hardlink"])
+def test_the_coverage_report_replaces_a_planted_link_instead_of_writing_through_it(tmp_path, plant):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    target = tmp_path / "outside.txt"
+    target.write_text("keep me")
+    _write_rules(wt, "", [_rule("s::core")])
+    leaf = wt / "coverage-report.json"
+    if plant == "symlink":
+        leaf.symlink_to(target)
+        with pytest.raises(rules_file.RulesFileRefused):
+            _apply(wt, db, repo, estate, core)
+        assert estate.writes == {}  # refused before the store changed
+    else:
+        os.link(target, leaf)
+        _apply(wt, db, repo, estate, core)
+        assert json.loads(leaf.read_text())["behavior_bearing"] == len(_STAR)
+    assert target.read_text() == "keep me"
+
+
+def test_an_unusable_report_destination_is_refused_before_any_store_write(tmp_path):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "", [_rule("s::core")])
+    (wt / apply_rules.REPORT_REL).mkdir(parents=True)
+    with pytest.raises(rules_file.RulesFileRefused, match="not a regular file"):
+        _apply(wt, db, repo, estate, core)
+    assert estate.writes == {}
+
+
+def test_a_seat_cannot_name_its_author(tmp_path):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    _write_rules(wt, "not-the-actual-seat", [_rule("s::core")])
+    report = _apply(wt, db, repo, estate, core)
+    assert estate.writes["s::core"]["ann"]["author"] == "extract-loop"
+    assert (report["author"], report["declared_seat"]) == ("extract-loop", "not-the-actual-seat")
+
+
+@pytest.mark.parametrize("entry,why", [
+    ({**_rule("s::a"), "statement": "bad \ud800 text"}, "not valid Unicode"),
+    ({**_rule("s::a"), "confidence": 10 ** 400}, "confidence"),
+])
+def test_an_unencodable_or_huge_value_is_a_refused_entry_and_its_siblings_apply(tmp_path, entry, why):
+    db, repo, wt, estate, core = _apply_env(tmp_path)
+    rules_file.write_json_file(wt, rules_file.RULES_REL,
+                               rules_file.rules_doc("", [_rule("s::core"), entry]))
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"]["resolved"] == 1 and set(estate.writes) == {"s::core"}
+    assert why in report["refused"][0]["why"]
+    json.loads((wt / apply_rules.REPORT_REL).read_text())  # the report still serializes
+
+
+def test_a_seat_name_with_a_trailing_newline_is_refused():
+    with pytest.raises(rules_file.RulesFileRefused, match="seat"):
+        rules_file.check_rules_doc(rules_file.rules_doc("codex\n", []))
+    assert rules_file.seat_name("codex\n") == "codex"  # stripped from the env, then checked
+    assert rules_file.seat_name("a b") == ""
+
+
+def test_a_long_symbol_keeps_its_provenance_ref():
+    sid = "s::" + "x" * 700
+    _, accepted, refused = rules_file.check_rules_doc(rules_file.rules_doc("", [_rule(sid)]))
+    assert refused == [] and accepted[0]["provenance"]["ref"] == sid
+
+
+def test_model_provenance_is_cleaned_not_dropped():
+    entry = extract_loop.to_entry("s::a", {
+        "statement": "x", "confidence": 0.9,
+        "provenance": {"source": "m\x01", "ref": "s::a", "line": 4,
+                       "source_kinds": ["code-body", "vibes"]}})
+    assert entry["provenance"] == {"source": "m ", "ref": "s::a", "source_kinds": ["code-body"]}
+    assert _rule_extractor.validate_rule(entry, {"s::a"})[0]
+
+
+def _worklist(wt, n=6):
+    units = [{"symbol_id": f"s::{i}", "name": str(i), "file": "f.py", "source": "def f(): ..."}
+             for i in range(n)]
+    rules_file.write_json_file(wt, rules_file.WORKLIST_REL,
+                               {"schema": rules_file.WORKLIST_SCHEMA, "units": units})
+    return units
+
+
+def test_an_outage_on_a_fresh_pass_leaves_no_rules_file_for_apply_to_accept(tmp_path, monkeypatch):
+    _worklist(tmp_path)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["m"])
+    monkeypatch.setattr(extract_loop, "_ask_model", lambda *a, **k: 75)
+    rc = extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                time_budget=30, limit=0, batch=4, dry_run=False)
+    assert rc == 75 and not (tmp_path / rules_file.RULES_REL).exists()
+
+
+def test_the_budget_bounds_the_model_call_and_skips_a_retry_it_cannot_afford(monkeypatch):
+    seen = []
+
+    def slow(batch, argv, timeout=None):
+        seen.append(timeout)
+        raise RuntimeError("rule model exceeded 5s")
+    monkeypatch.setattr(_rule_extractor, "extract_rules", slow)
+    monkeypatch.setattr(extract_loop.time, "sleep", lambda s: pytest.fail("slept past the budget"))
+    take = [{"symbol_id": "s::a"}]
+    deadline = extract_loop.time.monotonic() + 5
+    assert extract_loop._ask_model(take, take, {"s::a"}, ["m"], False, deadline=deadline) \
+        == extract_loop._OUT_OF_TIME
+    assert seen and seen[0] <= 5
+    assert extract_loop._ask_model(take, take, {"s::a"}, ["m"], False,
+                                   deadline=extract_loop.time.monotonic() - 1) \
+        == extract_loop._OUT_OF_TIME
+
+
+def test_file_mode_never_writes_more_entries_than_apply_accepts(tmp_path, monkeypatch):
+    _worklist(tmp_path, n=10)
+    monkeypatch.setattr(rules_file, "MAX_RULES", 5)
+    rc = extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                time_budget=30, limit=0, batch=4, dry_run=True)
+    assert rc == 0
+    _, accepted, refused = rules_file.check_rules_doc(
+        rules_file.read_json_file(tmp_path, rules_file.RULES_REL))
+    assert 0 < len(accepted) <= 5 and refused == []
+
+
+def test_resume_drops_entries_the_worklist_no_longer_holds(tmp_path):
+    _worklist(tmp_path, n=2)
+    _write_rules(tmp_path, "", [_rule("s::old")])
+    assert extract_loop.run_files(tmp_path, rules_file.WORKLIST_REL, rules_file.RULES_REL,
+                                  time_budget=30, limit=0, batch=4, dry_run=True) == 0
+    _, accepted, _ = rules_file.check_rules_doc(
+        rules_file.read_json_file(tmp_path, rules_file.RULES_REL))
+    assert [e["symbol_id"] for e in accepted] == ["s::0", "s::1"]
+
+
+def test_check_rules_names_entries_outside_the_worklist_and_a_missing_worklist(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _write_rules(tmp_path, "", [_rule("s::0")])
+    assert extract_loop.main(["--check-rules", rules_file.RULES_REL,
+                              "--worklist", rules_file.WORKLIST_REL]) == 1  # no worklist
+    _worklist(tmp_path, n=1)
+    assert extract_loop.main(["--check-rules", rules_file.RULES_REL,
+                              "--worklist", rules_file.WORKLIST_REL]) == 0
+    _write_rules(tmp_path, "", [_rule("s::typo")])
+    assert extract_loop.main(["--check-rules", rules_file.RULES_REL,
+                              "--worklist", rules_file.WORKLIST_REL]) == 1
