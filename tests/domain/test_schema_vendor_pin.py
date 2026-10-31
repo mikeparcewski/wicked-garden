@@ -44,9 +44,13 @@ def test_schema_version_const_matches_schema_id():
     (The bundle VERSION file is a different, independent version — it tracks the
     owner's whole 4-schema bundle and is checked against the owner below.)"""
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
-    const = schema["properties"]["metadata"]["properties"]["schema_version"]["const"]
-    assert schema["$id"].endswith(f"/{const}"), (
-        f"schema_version const {const!r} does not match schema $id {schema['$id']!r}"
+    sv = schema["properties"]["metadata"]["properties"]["schema_version"]
+    # A const while one version is accepted; an enum once the schema evolved additively
+    # (domain-model 1.1.0 accepts 1.0.0 and 1.1.0) — its NEWEST entry is the $id segment.
+    versions = [sv["const"]] if "const" in sv else list(sv["enum"])
+    newest = max(versions, key=lambda v: tuple(int(p) for p in v.split(".")))
+    assert schema["$id"].endswith(f"/{newest}"), (
+        f"newest schema_version {newest!r} does not match schema $id {schema['$id']!r}"
     )
 
 

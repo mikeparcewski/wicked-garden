@@ -65,8 +65,8 @@ itself**. `CliCoreClient`:
 
 | Method | Production | Purpose |
 |---|---|---|
-| `domain_graph(db, out, coverage?) -> doc` | `wicked-core domain-graph --db <db> --out requirements_graph.json [--coverage F]` | Reads the annotated store, **recomputes front-half coverage**, and builds the capability plan. **Fails closed** (writes nothing, non-zero exit) when coverage < 1.0 — so every behavior-bearing node must be annotated first. A supplied `--coverage` file is an optional cross-check that must agree. |
-| `coverage(db, out) -> report` | `wicked-core coverage --db <db> --out coverage.json` | Emit the store's front-half coverage report (optional — `domain_graph` recomputes internally). |
+| `domain_graph(db, out, coverage?) -> doc` | `wicked-core domain-graph --db <db> --out requirements_graph.json [--coverage F]` | Reads the annotated store, **recomputes front-half coverage**, and builds the capability plan. **Fails closed below the configured minimum** (writes nothing, non-zero exit, "N% mapped, minimum M%") — `--min-coverage-pct`, else `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT` (crew's `requirementsGraph.minCoveragePct`), else 80. With `--repo-root <dir>` (what the `domain-extraction` preset passes) the default out is `<dir>/.wicked-estate/requirements/requirements_graph.json`, the path crew reads. A supplied `--coverage` file is an optional cross-check that must agree. |
+| `coverage(db, out) -> report` | `wicked-core coverage --db <db> --out coverage.json` | Emit the store's front-half coverage report (optional — `domain_graph` recomputes internally). `--min-coverage-pct` makes it a check: exit 3 below the configured minimum. |
 
 There is **no `--overlay`** and **no doc-in/summary-out** shape: the store is the
 input, the built doc is the output. Garden's `validate_domain_model.py` then runs

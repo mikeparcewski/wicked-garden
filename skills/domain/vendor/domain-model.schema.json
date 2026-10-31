@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://wickedagile.com/schemas/domain-model/1.0.0",
-  "title": "wicked domain-model (v1.0.0)",
-  "description": "Canonical, GENERIC, config-driven domain model — the shared spine of the wicked domain-brain effort (estate GROUNDS, brain EQUIPS, garden STEERS, crew GOVERNS). Successor to anti-legacy's requirements-graph.enriched.schema.json with the COBOL/CICS-specific vocabulary genericized: miner kind-sets live in config.coverage.* (NOT hardcoded here), provenance is {source, ref, source_kinds} (not {source_app, program, ...}), and source_kinds uses the generic 'type-def' tier (not COBOL 'data-def'). HARD INVARIANTS preserved from the donor: every requirement carries the full field set; business_rules has minItems 1; every business rule carries a numeric confidence in [0,1] AND a provenance{source, ref, source_kinds}; disposition is keep|modify|drop|new; a 'drop' needs a disposition_reason to be honored by the coverage gate. Rule/Validation/ErrorPath items are OBJECT-ONLY (the transitional string form is not accepted). IDs are RULE-/VAL-/ERR- + 3-to-6-digit zero-padded, unique within a requirement; the canonical global key is legacy_component + '#' + id. A domain fact REFERENCES an estate SymbolId (in legacy_components / provenance.ref) and never embeds a copy of the symbol's code, name-uniqueness, file, or line. Every emitted document MUST carry metadata.schema_version = '1.0.0'; a consumer rejects a schema_version it has no validator for.",
+  "$id": "https://wickedagile.com/schemas/domain-model/1.1.0",
+  "title": "wicked domain-model (v1.1.0)",
+  "description": "Canonical, GENERIC, config-driven domain model — the shared spine of the wicked domain-brain effort (estate GROUNDS, brain EQUIPS, garden STEERS, crew GOVERNS). Successor to anti-legacy's requirements-graph.enriched.schema.json with the COBOL/CICS-specific vocabulary genericized: miner kind-sets live in config.coverage.* (NOT hardcoded here), provenance is {source, ref, source_kinds} (not {source_app, program, ...}), and source_kinds uses the generic 'type-def' tier (not COBOL 'data-def'). HARD INVARIANTS preserved from the donor: every requirement carries the full field set; business_rules has minItems 1; every business rule carries a numeric confidence in [0,1] AND a provenance{source, ref, source_kinds}; disposition is keep|modify|drop|new; a 'drop' needs a disposition_reason to be honored by the coverage gate. Rule/Validation/ErrorPath items are OBJECT-ONLY (the transitional string form is not accepted). IDs are RULE-/VAL-/ERR- + 3-to-6-digit zero-padded, unique within a requirement; the canonical global key is legacy_component + '#' + id. A domain fact REFERENCES an estate SymbolId (in legacy_components / provenance.ref) and never embeds a copy of the symbol's code, name-uniqueness, file, or line. Every emitted document MUST carry a metadata.schema_version this schema accepts ('1.0.0' or '1.1.0'); a consumer rejects a schema_version it has no validator for. v1.1.0 adds two OPTIONAL fields, so every 1.0.0 document stays valid: metadata.coverage (the share of behaviours the model maps, against the configured minimum it was built at) and requirement.corroboration (validated by several independent sources, or unconfirmed and why).",
   "type": "object",
   "required": ["domains", "metadata"],
   "additionalProperties": false,
@@ -158,6 +158,38 @@
         "merged_programs": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "corroboration": {
+          "type": "object",
+          "description": "v1.1.0, optional. How many INDEPENDENT sources in the repository support this requirement beyond the extractor's own statement: distinct non-test callers, distinct tests, docs that name it, and extractor seats beyond the first. 'validated' at 2 or more; 'unconfirmed' below, with why (a stable code and a sentence).",
+          "required": ["status", "sources", "call_sites", "tests", "docs", "extra_extractors"],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "type": "string", "enum": ["validated", "unconfirmed"] },
+            "sources": { "type": "integer", "minimum": 0 },
+            "call_sites": { "type": "integer", "minimum": 0 },
+            "tests": { "type": "integer", "minimum": 0 },
+            "docs": { "type": "integer", "minimum": 0 },
+            "extra_extractors": { "type": "integer", "minimum": 0 },
+            "why": {
+              "type": "object",
+              "required": ["code", "text"],
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": ["unindexed_file", "dead_code", "config_only", "single_caller", "test_only", "doc_only", "extractors_only"]
+                },
+                "text": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "if": {
+            "properties": { "status": { "const": "unconfirmed" } }
+          },
+          "then": {
+            "required": ["why"]
+          }
         }
       },
       "if": {
@@ -201,8 +233,8 @@
       "additionalProperties": false,
       "properties": {
         "schema_version": {
-          "const": "1.0.0",
-          "description": "The bundle semver. Every emitted document MUST carry this; a consumer rejects a schema_version it has no validator for (no silent best-effort)."
+          "enum": ["1.0.0", "1.1.0"],
+          "description": "The contract version (1.1.0 adds the optional metadata.coverage and requirement.corroboration; every 1.0.0 document stays valid). Every emitted document MUST carry this; a consumer rejects a schema_version it has no validator for (no silent best-effort)."
         },
         "migration_mode": {
           "type": "string",
@@ -212,6 +244,20 @@
         "source": {
           "type": "string",
           "description": "The repo/service the model was mined from (optional)."
+        },
+        "coverage": {
+          "type": "object",
+          "description": "v1.1.0, optional. The share of behavior-bearing nodes this model maps (resolved or risk-flagged) and the configured minimum it was built at — a graph is built once the minimum is reached, so a reader needs the share: '82% of behaviours mapped'.",
+          "required": ["mapped_pct", "min_pct", "behavior_bearing", "mapped", "resolved", "unmapped"],
+          "additionalProperties": false,
+          "properties": {
+            "mapped_pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "min_pct": { "type": "integer", "minimum": 1, "maximum": 100 },
+            "behavior_bearing": { "type": "integer", "minimum": 0 },
+            "mapped": { "type": "integer", "minimum": 0 },
+            "resolved": { "type": "integer", "minimum": 0 },
+            "unmapped": { "type": "integer", "minimum": 0 }
+          }
         }
       }
     },

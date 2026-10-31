@@ -35,7 +35,7 @@ FIXTURE = REPO / "skills" / "domain" / "refs" / "fixtures" / "example-domain-mod
 def test_vendored_schema_is_present_and_draft07():
     schema = load_schema()
     assert schema["$schema"].startswith("http://json-schema.org/draft-07")
-    assert schema["$id"] == "https://wickedagile.com/schemas/domain-model/1.0.0"
+    assert schema["$id"] == "https://wickedagile.com/schemas/domain-model/1.1.0"
     assert schema["required"] == ["domains", "metadata"] or set(
         schema["required"]
     ) == {"domains", "metadata"}
@@ -302,3 +302,39 @@ def test_validate_document_non_list_business_rules_does_not_crash():
     doc["domains"][domain_key]["requirements"][req_key]["business_rules"] = 42
     errors = validate_document(doc)
     assert isinstance(errors, list)  # no AttributeError, just schema errors
+
+
+def _core_1_1_doc():
+    """The shape `wicked-core domain-graph` emits since the configurable coverage minimum."""
+    rule = {"id": "RULE-001", "statement": "sum adds every element", "confidence": 0.9,
+            "provenance": {"source": "code-graph", "ref": "src/math.js#sum",
+                           "source_kinds": ["code-body"]}}
+    req = {"title": "sum", "description": "adds", "legacy_components": ["src/math.js#sum"],
+           "data_access": [], "dependencies": [], "business_rules": [rule],
+           "validations": [], "error_paths": [], "status": "active",
+           "corroboration": {"status": "validated", "sources": 3, "call_sites": 1,
+                             "tests": 1, "docs": 1, "extra_extractors": 0}}
+    return {"metadata": {"schema_version": "1.1.0", "migration_mode": "functional",
+                         "source": "estate-graph",
+                         "coverage": {"mapped_pct": 82, "min_pct": 80, "behavior_bearing": 100,
+                                      "mapped": 82, "resolved": 70, "unmapped": 18}},
+            "domains": {"src": {"description": "src", "requirements": {"REQ-001": req},
+                                "entities": {}}}}
+
+
+def test_a_1_1_0_document_with_coverage_and_corroboration_conforms():
+    assert validate_document(_core_1_1_doc()) == []
+    old = _core_1_1_doc()
+    old["metadata"]["schema_version"] = "1.0.0"  # 1.0.0 stays an accepted version
+    assert validate_document(old) == []
+
+
+def test_an_unconfirmed_item_must_say_why():
+    doc = _core_1_1_doc()
+    corr = doc["domains"]["src"]["requirements"]["REQ-001"]["corroboration"]
+    corr.update(status="unconfirmed", sources=1, docs=0, tests=0)
+    assert validate_document(doc), "unconfirmed without why must not conform"
+    corr["why"] = {"code": "single_caller", "text": "One caller, and no test or doc touches it."}
+    assert validate_document(doc) == []
+    corr["why"]["code"] = "vibes"
+    assert validate_document(doc)

@@ -24,8 +24,8 @@ metadata:
 
 You extract **testable business rules** from a codebase — *what the business
 requires*, not *how the code does it* — and annotate them into the estate store,
-so `wicked-core` builds the `domain-model@1.0.0` requirements graph (coverage-gated
-fail-closed). You are the `Creator` role; a seat-distinct evaluator (domain-coverage)
+so `wicked-core` builds the `domain-model` requirements graph (coverage-gated,
+fail-closed below the configured minimum: 80% of behaviours by default). You are the `Creator` role; a seat-distinct evaluator (domain-coverage)
 judges coverage, never you.
 
 ## Runtime
@@ -45,14 +45,20 @@ driver, not the loop. Your whole job:
    ```
    It seeds its worklist from `wicked-core coverage`'s own `unaccounted_nodes` — the
    SAME authority the coverage gate re-derives against, so there is no denominator
-   drift — loops **every** behavior-bearing node, calls the bounded per-node model
+   drift — and takes it **hub-first**: the most central symbols (estate's PageRank,
+   `wicked-estate rank`) first, then their neighbours and onward by graph distance, so
+   the load-bearing behaviour is mapped first. It loops **every** behavior-bearing node, calls the bounded per-node model
    for the one thing code can't do (stating the rule), **validates** each returned
    rule, and writes `annotate` + `semantics`. Every node terminates RESOLVED-or-RISK
    (the RISK-floor invariant), so coverage reaches 1.0 deterministically; the model
    only upgrades RISK→RESOLVED quality.
 2. **Watch stderr** (`coverage=… unaccounted=… processed=…`). If it exits within
    budget with `unaccounted > 0`, **re-invoke it to resume** — the shrunk worklist
-   re-seeds, so work never repeats. Stop when `unaccounted` hits 0 or stops shrinking.
+   re-seeds and the hub-first order is re-derived, so work resumes at the frontier and
+   never repeats (a later run continues the same way). Stop when `unaccounted` hits 0
+   or stops shrinking. The graph is built once the mapped share reaches the configured
+   minimum (`WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, default 80); below it the run says
+   "N% mapped, minimum M%" and keeps the mapping for the next run.
    A `WARNING: … annotation node_syms no longer exist` line is the estate
    id-scheme migration signature — prior annotations are orphaned; see the
    migration section in `wicked-garden-domain` for the
@@ -88,7 +94,8 @@ Extraction is split exactly like the vault:
 4. `disposition ∈ {keep, modify, drop, new}`; a `drop` needs a `disposition_reason`.
 5. Rule ids: `RULE-`/`VAL-`/`ERR-` + 3–6 zero-padded digits, unique within a requirement.
 6. Facts REFERENCE SymbolIds; never embed code/file/line.
-7. `metadata.schema_version == "1.0.0"`.
+7. `metadata.schema_version ∈ {"1.0.0", "1.1.0"}` (1.1.0 adds the optional coverage and
+   corroboration fields core emits).
 
 ## Depth
 

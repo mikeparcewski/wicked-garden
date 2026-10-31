@@ -230,6 +230,19 @@ class CliEstateClient:
             )
         return data
 
+    def rank(self, limit: int = 200) -> list[str]:
+        """The store's most central symbols, most central first — estate's PageRank over
+        Calls+Imports (`rank --json`, the CLI twin of the `RankHotspots` MCP tool the search
+        domain's hotspots use). The tool clamps `limit` to its own ceiling. Fail-loud on a
+        shape break; callers that can do without centrality catch and fall back."""
+        data = _run_json(self._argv("rank", "--limit", str(int(limit)), "--json"))
+        hot = data.get("hotspots") if isinstance(data, dict) else None
+        if not isinstance(hot, list):
+            raise RuntimeError(
+                "wicked-estate rank returned no `hotspots` array — expected {hotspots:[{symbol,…}]}"
+            )
+        return [h["symbol"] for h in hot if isinstance(h, dict) and isinstance(h.get("symbol"), str)]
+
     def source(self, name_or_symbol: str) -> str:
         """The source slice(s) for a symbol (`source <name>`) — the untrusted DATA
         the model reads to state a rule. Fail-loud (empty ⇒ no slice to reason over)."""
