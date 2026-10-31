@@ -268,7 +268,7 @@ class CliEstateClient:
 
     def annotate(self, symbol_id: str, type: str, key: str, value: str,
                  confidence: float | None = None, provenance: str | None = None,
-                 replace: bool = True) -> None:
+                 replace: bool = True, author: str | None = None) -> None:
         if not _looks_like_symbol_id(symbol_id):
             raise ValueError(
                 f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name fans "
@@ -280,20 +280,28 @@ class CliEstateClient:
             argv += ["--confidence", repr(float(confidence))]
         if provenance is not None:
             argv += ["--provenance", provenance]
+        if author:
+            # The seat that stated it: wicked-core's corroboration counts extractor SEATS by
+            # annotation author (never provenance), so two seats agreeing read as two sources.
+            argv += ["--author", author]
         if replace:
             argv.append("--replace")  # else the CLI APPENDs (stacks duplicates)
         _run(argv)
 
     def set_requirement(self, symbol_id: str, requirement: str,
-                        validated: bool) -> None:
+                        validated: bool, validated_by: str = "extract-loop") -> None:
         if not _looks_like_symbol_id(symbol_id):
             raise ValueError(
                 f"refusing set_requirement on non-SymbolId {symbol_id!r} — a bare "
                 "name is a silent no-op in estate; resolve() first"
             )
-        # node_semantics (requirement/validated), a SEPARATE subcommand from annotate.
+        # node_semantics (requirement/validated), a SEPARATE subcommand from annotate. estate
+        # >= 0.30 refuses `--validated` without `--validated-by` (who made the claim), so every
+        # write names its validator — a usage error here used to abort the whole pass on its first
+        # node.
         _run(self._argv("semantics", symbol_id, "--requirement", requirement,
-                        "--validated", "true" if validated else "false"))
+                        "--validated", "true" if validated else "false",
+                        "--validated-by", validated_by or "extract-loop"))
 
     def read_annotations(self, symbol_id: str) -> list[dict[str, Any]]:
         if not _looks_like_symbol_id(symbol_id):

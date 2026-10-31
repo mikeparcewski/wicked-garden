@@ -146,6 +146,29 @@ def test_set_requirement_routes_to_semantics(monkeypatch):
     assert "sym::billing::A::a1" in argv
     assert argv[argv.index("--requirement") + 1] == "REQ text"
     assert argv[argv.index("--validated") + 1] == "true"
+    # estate >= 0.30 refuses --validated without --validated-by: every write names its validator.
+    assert argv[argv.index("--validated-by") + 1] == "extract-loop"
+    est.set_requirement("sym::billing::A::a1", "[RISK] x", validated=False, validated_by="extract-loop:codex")
+    argv = cap.calls[1]
+    assert argv[argv.index("--validated") + 1] == "false"
+    assert argv[argv.index("--validated-by") + 1] == "extract-loop:codex"
+
+
+def test_annotate_names_its_author_when_given(monkeypatch):
+    est, cap = _cli_estate(monkeypatch)
+    est.annotate("sym::billing::A::a1", "business_rule", "k", "v", author="extract-loop:claude")
+    argv = cap.calls[0]
+    assert argv[argv.index("--author") + 1] == "extract-loop:claude"
+    est.annotate("sym::billing::A::a1", "business_rule", "k", "v")
+    assert "--author" not in cap.calls[1]
+
+
+def test_the_harness_writes_name_the_seat(monkeypatch):
+    from domain import extract_loop
+    monkeypatch.setenv("WICKED_RUN_AGENT", "codex")
+    assert extract_loop._seat() == "extract-loop:codex"
+    monkeypatch.delenv("WICKED_RUN_AGENT")
+    assert extract_loop._seat() == "extract-loop"
 
 
 def test_read_clusters_requests_the_summary_shape(monkeypatch):
@@ -261,3 +284,28 @@ def test_real_cli_selection_resolves_the_binaries():
     est = _clients.estate_client(db="/tmp/does-not-matter.db")
     assert isinstance(est, _clients.CliEstateClient)
     assert _clients.core_client() is not None
+
+
+def test_two_seats_keep_two_rules_and_a_seat_replaces_only_its_own(monkeypatch):
+    """xreview on #1361: estate's --replace is per (symbol, type, key) whatever the author, so the
+    key is per seat — two seats agreeing leave two author records; a repeat replaces its own."""
+    from domain import extract_loop
+
+    class _Est:
+        def __init__(self):
+            self.rows = {}  # (sid, type, key) -> author, the store's replace semantics
+        def annotate(self, symbol_id, type, key, value, confidence=None, provenance=None,
+                     replace=True, author=None):
+            self.rows[(symbol_id, type, key)] = author
+        def set_requirement(self, *a, **k):
+            pass
+        def read_annotations(self, symbol_id):
+            return [{"key": k} for (s, _t, k) in self.rows if s == symbol_id]
+    est = _Est()
+    rule = {"statement": "amount must be positive", "confidence": 0.9,
+            "provenance": {"source": "m"}}
+    for agent in ("claude", "codex", "claude"):
+        monkeypatch.setenv("WICKED_RUN_AGENT", agent)
+        extract_loop._write_node(est, "sym::a", "a", rule, True, "")
+    authors = sorted(a for (s, t, _k), a in est.rows.items() if t == "business_rule")
+    assert authors == ["extract-loop:claude", "extract-loop:codex"]
