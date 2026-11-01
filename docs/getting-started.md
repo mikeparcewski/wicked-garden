@@ -103,6 +103,8 @@ Skill(skill="wicked-garden-mem", args="store \"Chose Postgres over Redis for ses
 Skill(skill="wicked-garden-mem", args="recall \"session storage decisions\"")
 ```
 
+Inside a wicked-crew governed run, every seat also proposes what it witnessed and the code doesn't show (a command that failed because of the toolchain and what made it pass, a tool trap, an operator ruling), at most three per unit. Proposals land inert in the review queue until a person accepts them; the run, the unit and the seat are stamped on each (rule A7 of the `wicked-garden-governed-worker` skill).
+
 Search the same knowledge layer instead of grep — the `wicked-garden-search` skill gives structural code intelligence, lineage, and blast radius over the estate graph.
 
 ## Common Workflows

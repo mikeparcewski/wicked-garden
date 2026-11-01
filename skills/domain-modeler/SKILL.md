@@ -19,33 +19,36 @@ metadata:
   role: worker
 ---
 
-# Modernize Translator
+# Domain Modeler
 
 You turn a **flat set of extracted rules** into a **cluster-keyed domain model**
-and invoke core's domain-graph build to produce the requirements graph. A domain
-is *derived from* an estate Louvain community, not hand-partitioned.
+and invoke core's domain-graph build to produce the requirements graph. Your
+grouping is *derived from* estate's Louvain communities, not hand-partitioned.
 
 ## Contract you emit against
 
-Same vendored `domain-model@1.0.0` schema as the extractor. Your `domains{}`
+Same vendored domain-model schema as the extractor (`1.1.0`; `1.0.0` documents
+stay valid). Your `domains{}`
 grouping — each domain groups the requirements whose components fall in one estate
 community, carries an advisory `cluster_id` (the Louvain index), and declares its
 `entities{}` — is **advisory provenance**. The authoritative requirements graph is
-**built by core** from the annotated store (core derives domains from estate's
-communities). You **invoke core**, you don't reimplement it.
+**built by core** from the annotated store, and core groups its domains by package
+directory (the parent directory of each behaviour's file; it sets no `cluster_id`),
+because dense modern code collapses into one community. You **invoke core**, you
+don't reimplement it.
 
 ## The loop
 
 1. **Read clusters from estate** — the full-membership feed
    `clusters --json --summary` → `[{id, size, members:[symbol_id], …}]`, via
    `estate_client(db).read_clusters()` (CLI) or `_mocks.EstateClient` (hermetic).
-   On the real path this is **informational** (core derives the authoritative
-   domains when it builds the graph); the id is a volatile positional index, so
+   On the real path this is **informational** (core builds the authoritative
+   domains itself when it builds the graph); the id is a volatile positional index, so
    key durable grouping on a hash of the sorted member set, not the raw id (record
    the raw id only as advisory `cluster_id`).
 2. **Assign each requirement to a domain** by the community its
    `legacy_components[]` SymbolIds belong to (advisory grouping / provenance for
-   the antagonist). A requirement whose components span communities goes to the
+   the coverage evaluator). A requirement whose components span communities goes to the
    dominant one; note the split.
 3. **Invoke core's domain-graph build.** `core_client().domain_graph(db, out)`
    shells `wicked-core domain-graph --db <db> --out requirements_graph.json`,
@@ -55,9 +58,10 @@ communities). You **invoke core**, you don't reimplement it.
    reads); `--out` also writes it as the `requirements_graph.json` export this
    step validates (a capability plan, not a code skeleton). It **fails
    closed below the configured minimum** (writes nothing, non-zero exit, and says
-   "N% mapped, minimum M%") — the extractor must have mapped at least that share
-   of the behavior-bearing nodes (80% by default; crew's
-   `requirementsGraph.minCoveragePct`). There is
+   "N% real requirements, minimum M% (…)") — real requirements (behaviours resolved
+   to a stated, sourced rule; placeholders never count) must reach at least that
+   share of the behaviours in product code (the repository's own minimum, else crew's
+   `requirementsGraph.minCoveragePct`, else 80). There is
    **no doc handed in and no `--overlay`**: the store is the input. When
    `core_client()` is `None` (no peer), fall back to the hermetic lane —
    `emit_domain_model.py` assembles the doc and `_mocks.BrainClient` stands in.
@@ -80,8 +84,7 @@ communities). You **invoke core**, you don't reimplement it.
 The estate `clusters` read and core's `domain-graph` build are **wired to the
 live CLIs** via `scripts/domain/_clients.py` (`estate_client` / `core_client`),
 falling back to `_mocks.py` when the peers are absent. The grouping heuristic
-(community → domain) and the schema validation are real. The real end-to-end
-build additionally needs an INDEXED store annotated to at least the configured
-minimum to clear core's gate — that store-seeding is the end-to-end milestone
-(core#28), not this worker. Full field map:
+(community → domain) and the schema validation are real. A real build
+additionally needs an INDEXED store whose real requirements reach the configured
+minimum; a crew `domain-extraction` run maps it there, not this worker. Full field map:
 the `wicked-garden-domain` skill's `refs/domain-model-emit.md`.

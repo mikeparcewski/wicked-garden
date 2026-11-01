@@ -6,7 +6,7 @@ Work is shaped by the **archetypes** (triage, explore, specify, decide, ship, re
 
 The plugin is **skills-only** (v12.25). Each domain is one consolidated, user-invokable skill — `skills/{domain}/SKILL.md`, frontmatter name `wicked-garden-{domain}` — that routes to its **actions** (the former `/wicked-garden:{domain}:{command}` surfaces) and loads rubrics on demand from `skills/{domain}/refs/` and nested knowledge modules. The former dispatch agents are **fork worker skills** — `skills/{domain}-{role}/SKILL.md` with `context: fork`, frontmatter name `wicked-garden-{domain}-{role}` — reached by `Skill()`/`Task()` dispatch, never invoked as entry points. Invoke a domain action as `/wicked-garden-{domain} {action} [args]` (or just describe what you want — the skill descriptions carry the triggers).
 
-There are **8 domains**: engineering, platform, product, data, jam, search, agentic, persona.
+There are **9 domains** here: engineering, platform, product, data, jam, search, agentic, persona, domain. The `qe` (evidence-gated testing) and `mem` (memory over wicked-estate) domains are covered in the [README](../README.md).
 
 > **v12 cleanup (ADR 0002).** Most former domain commands were *rubric-wrappers* — a checklist the agent already applies. These were **collapsed**: the rubric moved to an on-demand `skills/{domain}/refs/{name}.md` and the action now loads it and works **inline** (no `Task` dispatch hop). Dispatch is kept only where it earns it — real parallelism (multiple lenses at once), a real external tool, or an independent gate. The dispatch-only agents that nothing reaches anymore were removed; workers still referenced by a surviving action, skill, scenario, or the specialist registry live on as fork skills. Capability is preserved; only the token-burning hop is gone.
 
@@ -160,6 +160,18 @@ They do not overlap; pick by target:
 | `list` | List all available personas (Methodology vs Generic tiers) |
 
 **Worker**: none — the former `wicked-garden-persona-agent` worker is retired into `refs/as.md` (wave-2 B9): the `as` action builds the profile from the registry at runtime and embodies it inline. `define` runs inline from `refs/define.md`; the no-op `persona:submit` stub was deleted.
+
+## domain — The Domain Model and the Requirements Graph
+
+`wicked-garden-domain` — extracts a codebase's domain (testable business rules with a confidence and a provenance, entities, requirements) onto the estate graph, so wicked-core can build the repository's **requirements graph**. A shared substrate: `modernize` derives from it, and build, migrate, review, specify and explore read the same model.
+
+| Worker | What It Does |
+|--------|-------------|
+| `wicked-garden-domain-extractor` | States one business rule per behaviour (hub-first, the most central symbols first) and annotates the estate store |
+| `wicked-garden-domain-modeler` | Groups the rules into domains and invokes `wicked-core domain-graph`, which saves the graph into the estate store |
+| `wicked-garden-domain-coverage` | Checks the share against the minimum and threat-models the extracted model (ungrounded rules, reason-less drops, holes) |
+
+Only **real requirements** count toward the minimum (80% by default; a repository can keep its own with `wicked-core requirements-target`): behaviours resolved to a stated, sourced rule. A placeholder (an empty statement, or a rule under the confidence threshold) is shown and never counted, and tests, data and documents are not behaviours. In wicked-crew, a `domain-extraction` run maps a repository page by page until real requirements reach the minimum, printing one line per page ("Mapping wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders · about 2 h left"), and asks the operator when its budget is spent or a page stalls: map more, lower the minimum for this repository, or stop.
 
 ## How archetypes invoke domains
 

@@ -4,8 +4,8 @@ description: |
   The FOUNDATIONAL domain-model capability: extract a codebase's domain — testable
   business rules (with confidence + provenance), entities, requirements — as a
   schema-conformant model on the estate graph. The workers annotate the store;
-  wicked-core reads it and builds the requirements graph, coverage-gating
-  fail-closed below the configured minimum (80% of behaviours by default). Steers
+  wicked-core reads it and builds the requirements graph, fail-closed below
+  the configured minimum share of real requirements (80% by default). Steers
   three workers.
 
   A shared substrate, not a modernization tool. The `modernize` archetype DERIVES
@@ -65,7 +65,7 @@ estate is the sole writer of graph structure.
 | Ask | Worker | Produces |
 |-----|--------|----------|
 | Mine business rules from the estate → domain-model doc | domain-extractor (`wicked-garden-domain-extractor`) | `business_rules[]` with confidence + provenance; estate `requirement` annotations |
-| Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | `domains{}` keyed to estate Louvain communities; the requirements graph saved into the estate store by `wicked-core domain-graph` (`--out` writes a JSON export) |
+| Group clusters into domains → invoke core's domain-graph build | domain-modeler (`wicked-garden-domain-modeler`) | an advisory `domains{}` grouping by estate community; the requirements graph saved into the estate store by `wicked-core domain-graph` (core groups its domains by package directory; `--out` writes a JSON export) |
 | Threat-model the extracted model before build | domain-coverage (`wicked-garden-domain-coverage`) | pre-build threat list / RISK-flag reasons |
 
 **Hand-off** — open the worker's skill by name (`wicked-garden-domain-extractor`,
@@ -73,7 +73,7 @@ estate is the sole writer of graph structure.
 with the ask as the argument; on Claude Code this is the Skill tool, on any
 other seat open the named skill from your catalog and run it inline, keeping its output
 separate from yours, then continue here. Run order for a full extraction: **extractor →
-translator → antagonist**. Each is independently invocable.
+modeler → coverage**. Each is independently invocable.
 
 ## The document this skill emits
 
@@ -132,30 +132,42 @@ against the schema.
 coverage-gates fail-closed below the configured minimum) → `CliCoreClient`. When the peers are absent, the
 selection seam falls back to `_mocks` for hermetic testing.
 
-**Still stubbed:** the LLM rule-statement extraction step (rules are injected as
-input — the "skill-supplied extractor" seam). And the real end-to-end run needs an
-INDEXED store annotated to at least the configured minimum to clear core's gate
-— that store-seeding step is the end-to-end milestone (core#28), not this slice.
+**The model's one job:** stating each rule. The harness calls a bounded rule model
+(`WICKED_RULE_MODEL_BIN`, default `claude -p`); in a crew run's file mode the seat
+states the rules itself when no model is available. Everything around that call
+(enumeration, validation, the writes, coverage) is deterministic code. A real build
+needs an INDEXED store whose real requirements reach the configured minimum; a crew
+`domain-extraction` run maps it there page by page.
 
 ## Coverage minimum, extraction order, corroboration (operator ruling 2026-10-31)
 
-- **Minimum, not 100%.** The graph is built once the mapped share of behaviours reaches the
-  configured minimum: crew's `requirementsGraph.minCoveragePct` (Settings, default 80), which
-  the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`. `wicked-core coverage
-  --min-coverage-pct` and `wicked-core domain-graph` both read it. Below it they say
-  "N% mapped, minimum M%" and fail closed; the mapping done so far stays in the estate store,
-  so the next run continues from it. The built graph carries `metadata.coverage`
-  ("82% of behaviours mapped"). A repository's own target (`wicked-core requirements-target
-  --set N`, kept in its store) comes before the daemon-wide minimum.
+- **Minimum, not 100%, and only real requirements count.** The graph is built once real
+  requirements (behaviours resolved to a stated, sourced rule) reach the configured minimum
+  share of the behaviours in product code: crew's `requirementsGraph.minCoveragePct`
+  (Settings, default 80), which the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`.
+  A placeholder (an empty statement, or a rule under the confidence threshold) is shown,
+  never counted; tests, fixtures, data, manifests and documents are not behaviours.
+  `wicked-core coverage --min-coverage-pct` and `wicked-core domain-graph` both read it.
+  Below it they say "23% real requirements, minimum 80% (1362 of 5786 behaviours; 4397
+  placeholders, 27 unmapped)" and fail closed; the mapping done so far stays in the estate
+  store, so the next run continues from it. The built graph carries `metadata.coverage`
+  (`real_pct`, `min_pct`, `behavior_bearing`, `real`, `placeholders`, `unmapped`,
+  `not_product`). A repository's
+  own minimum (`wicked-core requirements-target --set N`, kept in its store) comes before
+  the daemon-wide one.
 - **A generation keeps going.** A crew `domain-extraction` run maps one page (worklist, 500
   behaviours by default, `WICKED_DOMAIN_PAGE_SIZE`) at a time; after each page the host step
   `extract-next` (`scripts/domain/next_page.py`) prints one progress line ("Mapping
   wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders ·
   about 2 h left") and the run loops
-  back to `extract-prepare` until the target is reached. Its budget per grant
-  (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240, crew Settings) ends in an
-  ask: map more, lower the target for this repository to the share mapped so far, or stop
-  (what was mapped is kept).
+  back to `extract-prepare` until the minimum is reached. Each page frames the unmapped
+  behaviours first, then the placeholders earlier pages left, and never frames a unit twice
+  in one run. The run asks the operator instead of mapping on when the budget per grant
+  (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240, crew Settings) is spent,
+  when nothing is left to map, when two pages added no real requirement, or when a page of
+  20 or more units resolved under 1 in 20. The choices: map more, lower the minimum for this
+  repository to the real share so far and build the graph, or stop (what was mapped is
+  kept). A minimum the units left to ask cannot reach gets no time estimate.
 - **Hub-first, fan-out order.** The extraction harness maps the most central symbols first
   (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
   distance, so the load-bearing behaviour is covered first. The order is deterministic: a
