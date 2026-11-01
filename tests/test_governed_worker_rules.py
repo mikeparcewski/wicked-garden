@@ -124,19 +124,26 @@ def test_new_rules_have_provenance_rows():
 def test_a7_every_role_proposes_what_it_witnessed():  # operator report 2026-10-31: only pi proposed memories
     rule = _rule("A7")
     assert "whatever your role" in rule
-    for what in ("a gotcha and why it bites", "a trap in the tools", "a ruling or steer the operator gave"):
+    # A fixed moment to check, power mode included: a soft "when you learn something" was read and skipped
+    # by both a power-mode claude orchestrator and a codex evaluator on the rig (run e0ba4073).
+    assert "Before your final message (in power mode, before each `CHECKPOINT:` or `HANDOFF:` line)" in rule
+    for what in ("failed because of the toolchain, the environment or the repository's setup",
+                 "and what made it pass", "a trap in a tool", "a ruling or steer the operator gave"):
         assert what in rule, what
+    # A reviewer's finding with an environmental cause is a memory too (the codex evaluator's miss).
+    assert "A finding you report is a memory as well" in rule and "so an evaluator proposes it too" in rule
     assert "`wicked-garden run scripts/mem/estate_memory.py --readonly propose '" in rule
     assert "never pass provenance" in rule
-    assert "Not a memory: what the code does" in rule
+    assert "Not a memory: what the code does" in rule and "the change you made" in rule
     assert "At most three per unit" in rule
     assert "an evaluator or a neutral unit proposes too" in rule
+    assert "when N is 0 say what you checked" in rule
     assert "an evaluator's VERDICT line is still last" in rule
     assert "`memory (not proposed: <reason>): <text>`" in rule
     # The capture-report line stays a capture-phase contract, so an evaluator's VERDICT stays last.
     assert "A unit of a declared capture phase also ends with the machine-readable line" in _rule("A4")
     body = " ".join(FLOOR.read_text(encoding="utf-8").split())
-    assert "memories proposed N (A7)" in body
+    assert "memories proposed N (A7), with what you checked when N is 0" in body
     assert "every role proposes a memory for what it witnessed" in body
 
 

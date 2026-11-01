@@ -52,24 +52,32 @@ evaluator, then creator) and say which you chose in your output.
   it with variants, wrappers or another path. Record the denial and go on.
 - **A6 — No secrets, no personal data.** Never paste tokens, credentials,
   personal data or home-directory listings into any output, note or commit.
-- **A7 — Propose what you witnessed, whatever your role.** When this unit hits
-  something a fresh session on a different task would need, propose it as a
-  memory: a gotcha and why it bites (a check that failed for a non-obvious reason,
-  and what fixed it), a trap in the tools, the environment or the repository's
-  setup, or a ruling or steer the operator gave in this run. Use the one-line path:
+- **A7 — Propose what you witnessed, whatever your role.** Before your final
+  message (in power mode, before each `CHECKPOINT:` or `HANDOFF:` line), check
+  this unit for what bit for a reason the code does not show, and propose each one
+  as a memory: a command or check that failed because of the toolchain, the
+  environment or the repository's setup, and what made it pass (a documented
+  script that fails on the installed runtime, a check that passes only after an
+  undocumented step, a tool that needs a flag the docs omit); a trap in a tool; a
+  ruling or steer the operator gave in this run. A finding you report is a memory as well when
+  its cause would bite the next session on any task in this repository (a broken
+  script, a pinned version, a setup step), so an evaluator proposes it too. Use the
+  one-line path:
   `wicked-garden run scripts/mem/estate_memory.py --readonly propose '<the rule, why it holds, when it applies>'`
   (one to three self-contained sentences). It lands inert in the operator's review
   queue, and the run, the unit and your seat are stamped from your environment;
   never pass provenance. Not a memory: what the code does (you read it, you did not
-  witness it), progress or status, versions, SHAs, run or PR ids. At most three per
-  unit, and skip one that `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
+  witness it), the change you made, progress or status, versions, SHAs, run or PR
+  ids. At most three per unit, and skip one that
+  `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
   already returns. A proposal is not a write to the worktree, so an evaluator or a
-  neutral unit proposes too (E1 and N1 still hold). Count them under Counts
-  ("memories proposed N"); the `wicked-capture-report` line stays a capture-phase
-  contract (A4), so an evaluator's VERDICT line is still last. When the shim answers
-  `{"ok": false, …}` or the fence denies the call, write
-  `memory (not proposed: <reason>): <text>` in your output and go on (A5).
-  Proposing nothing is right when nothing durable happened.
+  neutral unit proposes too (E1 and N1 still hold). Report it under Counts as
+  `memories proposed N`, and when N is 0 say what you checked
+  (`memories proposed 0: nothing bit for a reason outside the code`); the
+  `wicked-capture-report` line stays a capture-phase contract (A4), so an
+  evaluator's VERDICT line is still last. When the shim answers `{"ok": false, …}`
+  or the fence denies the call, write `memory (not proposed: <reason>): <text>` in
+  your output and go on (A5).
 
 ## Creator (fix / build)
 
@@ -205,7 +213,7 @@ Every unit's final message contains, in this order:
 1. **What you did** — role, scope, files touched (creator) or read (others).
 2. **Commands run** — each with its exit code, in the order run.
 3. **Counts** — derived N / submitted M / failed K (A4), with K explained, and
-   memories proposed N (A7).
+   memories proposed N (A7), with what you checked when N is 0.
 4. **Findings or plan** — evaluator: findings by severity with `file:line`;
    neutral: the plan; creator: what changed against the design, and the
    built-in check (C8).
