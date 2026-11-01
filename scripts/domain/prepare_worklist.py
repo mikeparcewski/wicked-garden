@@ -129,12 +129,14 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         units = units[:lo]
         doc["units"] = units
     rules_file.write_json_file(base, out_rel, doc)
-    if run_id and record is not None:
+    if run_id:
+        # Not optional bookkeeping: the record decides what the next page skips and the page's
+        # yield (codex on #1375), so a page whose units cannot be recorded is not prepared.
         try:
             generation.frame_page(db, run_id, [u["symbol_id"] for u in units])
-        except (OSError, ValueError) as e:  # the next page may then re-ask these units
-            print(f"[extract-prepare] the page's units could not be recorded ({e})",
-                  file=sys.stderr)
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"the page's units could not be recorded in the generation "
+                               f"record ({e})") from e
     front = units[0]["symbol_id"] if units else "-"
     no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
     again = sum(1 for u in units if u["symbol_id"] in revisit)

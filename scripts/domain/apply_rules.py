@@ -38,13 +38,14 @@ missing or refused, or a write fails.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, extract_loop, rules_file  # noqa: E402
+from domain import _clients, extract_loop, generation, rules_file  # noqa: E402
 
 REPORT_REL = ".wicked/domain/apply-report.json"
 # Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
@@ -62,25 +63,32 @@ class AppliedThenFailed(RuntimeError):
 _ACCOUNTING_TYPES = ("business_rule", "risk", "assumption", "question")
 
 
-def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int]]:
-    """For each symbol, what accounts for it in the store right now: its requirement text and how
-    many accounting annotations (business_rule, risk, assumption, question — coverage counts any)
-    it carries. One fresh read-only connection; {} when the store cannot say (older schema)."""
+def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int, int]]:
+    """For each symbol, what accounts for it in the store right now: its requirement text, whether
+    it is validated (a placeholder another writer promoted keeps its text, codex on #1375) and
+    how many accounting annotations (business_rule, risk, assumption, question — coverage counts
+    any) it carries. One fresh read-only connection; {} when the store cannot say (older schema)."""
     import sqlite3
     from urllib.parse import quote
-    out: dict[str, tuple[str, int]] = {}
+    out: dict[str, tuple[str, int, int]] = {}
     try:
         con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
             marks = ",".join("?" * len(_ACCOUNTING_TYPES))
             for sym in symbol_ids:
-                row = con.execute("SELECT s.sid, n.requirement FROM symbols s LEFT JOIN nodes n "
-                                  "ON n.symbol = s.sid WHERE s.sym = ?", (sym,)).fetchone()
+                try:
+                    row = con.execute("SELECT s.sid, n.requirement, n.requirement_validated FROM "
+                                      "symbols s LEFT JOIN nodes n ON n.symbol = s.sid "
+                                      "WHERE s.sym = ?", (sym,)).fetchone()
+                except sqlite3.OperationalError:  # a store before the validated column
+                    row = con.execute("SELECT s.sid, n.requirement, 0 FROM symbols s LEFT JOIN "
+                                      "nodes n ON n.symbol = s.sid WHERE s.sym = ?",
+                                      (sym,)).fetchone()
                 if row is None:
                     continue
                 count = con.execute(f"SELECT count(*) FROM annotations WHERE node_sym = ? AND "
                                     f"type IN ({marks})", (row[0], *_ACCOUNTING_TYPES)).fetchone()
-                out[sym] = ((row[1] or ""), int(count[0]))
+                out[sym] = ((row[1] or ""), int(row[2] or 0), int(count[0]))
         finally:
             con.close()
     except sqlite3.Error:
@@ -153,6 +161,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
     # Not real requirements yet: the unmapped behaviours and the risk-flagged placeholders a page
     # may revisit (wicked-core#1233). A resolved behaviour is never rewritten from a page.
+    held = {n["symbol_id"] for n in _clients.placeholder_nodes(before)
+            if isinstance(n.get("symbol_id"), str)}
     unmapped = {n["symbol_id"]: n for n in [*_clients.unaccounted_nodes(before),
                                             *_clients.placeholder_nodes(before)]
                 if isinstance(n, dict) and isinstance(n.get("symbol_id"), str)}
@@ -193,6 +203,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
     unconfirmed = {extract_loop.NO_SOURCE_REASON: 0, extract_loop.NOT_PRODUCT_REASON: 0}
     in_progress = None  # the symbol whose writes have started and not finished
+    answered: list[str] = []  # the page's units written (or kept): closed with the page
     try:
         for entry in eligible:
             sid = entry["symbol_id"]
@@ -202,6 +213,12 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 # the window to one read before the write; the store has no conditional write.)
                 refused.append({"index": None, "symbol_id": rules_file._shown(sid),
                                 "why": "was mapped by another writer while this step ran"})
+                continue
+            if sid in held and not (entry.get("statement") or "").strip():
+                # An empty answer adds nothing to a placeholder and must never replace what it
+                # holds (codex on #1375: without a readable store the floor guard cannot see it).
+                outcomes["kept"] += 1
+                answered.append(sid)
                 continue
             in_progress = sid
             # The source is re-read here, on the host: a rule about a unit whose code cannot be
@@ -218,6 +235,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 outcome = "risk"
             in_progress = None
             outcomes[outcome] += 1
+            answered.append(sid)
 
         # The report is computed in a host temp directory and published through the safe writer
         # (core writes its --out in place, which would follow a planted link or hard link).
@@ -235,6 +253,13 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         raise AppliedThenFailed(f"{written} rule(s) were written to the store{partly} before this "
                                 f"failed: {e}") from e
 
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if run_id:
+        try:  # which units the page closes; without it the next step closes every one it framed
+            generation.record_answered(db, run_id, answered)
+        except (OSError, ValueError) as e:
+            print(f"[extract-apply] the answered units could not be recorded ({e}); the next "
+                  "step closes the units that are no longer unmapped", file=sys.stderr)
     report = {
         "declared_seat": seat,
         "author": author,

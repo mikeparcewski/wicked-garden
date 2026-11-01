@@ -1051,8 +1051,86 @@ def test_a_page_never_re_asks_a_unit_an_earlier_page_of_the_run_framed(tmp_path,
     assert retried == first and len(first) == 4
     rec = generation.load(db, "run-1")
     assert rec["pending"] == first
-    assert generation.close_page(rec) == 4
+    # extract-apply recorded the page's units it wrote: all four were answered.
+    generation.record_answered(db, "run-1", first)
+    rec = generation.load(db, "run-1")
+    assert generation.close_page(rec, core._doc()) == (4, 0)
     generation.save(db, "run-1", rec)
     second = [u["symbol_id"] for u in prepare_worklist.prepare(
         db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
     assert not set(second) & set(first) and len(second) == len(_STAR) - 4, second
+
+
+def test_units_the_seat_never_answered_go_back_to_the_pool(tmp_path, monkeypatch):
+    """codex on #1375: a seat whose turn ran out answered 2 of the page's 4 units. Only those 2
+    close with the page; the other 2 are framed again by the next page."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    for s in _STAR[:5]:
+        estate.writes[s] = {"req": (f"[RISK] {s}: empty statement", False, "extract-loop"),
+                            "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule(first[0]), _rule(first[1])])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"]["resolved"] == 2
+    rec = generation.load(db, "run-1")
+    assert rec["answered"] == sorted(first[:2])
+    assert generation.close_page(rec, core._doc()) == (4, 2), "yield on the page's own units"
+    generation.save(db, "run-1", rec)
+    second = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
+    assert set(first[2:]) <= set(second) and not set(first[:2]) & set(second), second
+
+
+def test_a_page_is_not_prepared_when_its_units_cannot_be_recorded(tmp_path, monkeypatch):
+    """codex on #1375: the record decides what the next page skips and the page's yield."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+
+    def refuse(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(generation, "frame_page", refuse)
+    with pytest.raises(RuntimeError, match="could not be recorded"):
+        prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate,
+                                 core=core)
+
+
+def test_an_empty_answer_never_replaces_a_placeholders_statement(tmp_path, monkeypatch):
+    """codex on #1375: with the direct store unreadable, the floor guard cannot see what a
+    placeholder holds; an empty answer for it is kept, never written."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.writes["s::core"] = {"req": ("[RISK] core: below confidence threshold — amount must be "
+                                        "positive", False, "extract-loop"), "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+
+    def broken(*a, **k):
+        raise RuntimeError("store unreadable")
+    monkeypatch.setattr(extract_loop, "_DirectStore", broken)
+    _write_rules(wt, "codex", [{"symbol_id": "s::core", "statement": "", "confidence": 0.0}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"] == {"resolved": 0, "risk": 0, "kept": 1}
+    assert "amount must be positive" in estate.writes["s::core"]["req"][0]
+
+
+def test_a_placeholder_another_writer_promoted_meanwhile_is_not_overwritten(tmp_path,
+                                                                             monkeypatch):
+    """codex on #1375: a promotion keeps the text and the annotation count; the validated flag
+    is part of what the host compares before it writes."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.writes["s::core"] = {"req": ("amount must be positive", False, "extract-loop"),
+                                "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    states = iter([{"s::core": ("amount must be positive", 0, 1)},
+                   {"s::core": ("amount must be positive", 1, 1)}])
+    monkeypatch.setattr(apply_rules, "_accounting", lambda db, ids: next(states))
+    _write_rules(wt, "codex", [_rule("s::core", confidence=0.2)])
+    report = _apply(wt, db, repo, estate, core)
+    assert any("another writer" in r["why"] for r in report["refused"]), report["refused"]
+    assert estate.writes["s::core"]["req"] == ("amount must be positive", False, "extract-loop")

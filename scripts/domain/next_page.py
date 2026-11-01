@@ -87,7 +87,7 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         page = points[-1]["page"] + (0 if choice else 1)
     page = max(page, 1)
     kept = next((p for p in points if p["page"] == page), None)
-    framed = generation.close_page(doc)
+    framed, page_real = generation.close_page(doc, cov)
     if choice and kept is not None:
         # An answer to an ask: no page ran, so the page keeps its own time (codex r1: an
         # operator's 24 h wait read as mapping time).
@@ -97,9 +97,9 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         start = max([p["at"] for p in earlier[-1:]] + [doc["grant"]["at"]])
         point = generation.point_of(cov, page, now, now - start)
         if framed or kept is None or "framed" not in kept:
-            point["framed"] = framed
+            point["framed"], point["page_real"] = framed, page_real
         else:  # a retried step after the page closed: the page keeps its own count
-            point["framed"] = kept["framed"]
+            point["framed"], point["page_real"] = kept["framed"], kept.get("page_real", 0)
     doc["points"] = sorted([p for p in points if p["page"] != page] + [point],
                            key=lambda p: p["page"])
 

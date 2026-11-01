@@ -106,7 +106,7 @@ def _valid(doc: Any) -> bool:
                 isinstance(p.get(k), int) and not isinstance(p.get(k), bool)
                 for k in ("page", "pct", "real", "behaviours", "at")):
             return False
-    for key in ("visited", "pending"):
+    for key in ("visited", "pending", "answered"):
         ids = doc.get(key, [])
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
             return False
@@ -166,22 +166,47 @@ def visited(doc: dict[str, Any] | None) -> set[str]:
 
 def frame_page(db: str, run_id: str, symbol_ids: list[str]) -> None:
     """Record the units the page being prepared framed (`pending`). Re-preparing the same page
-    (a retried step) replaces them, so a failed attempt never hides a unit from the next."""
+    (a retried step) replaces them, so a failed attempt never hides a unit from the next. Raises
+    when the record cannot be saved: it decides what the next page skips and what the page's
+    yield is, so a page is never prepared without it (codex on #1375)."""
     doc = load(db, run_id)
     if doc is None:
-        return
+        raise ValueError(f"no generation record for run {run_id}")
     doc["pending"] = list(symbol_ids)
+    doc["answered"] = []
     save(db, run_id, doc)
 
 
-def close_page(doc: dict[str, Any]) -> int:
-    """Move the page in flight into `visited`; returns how many units it framed (0 when an
-    answer to an ask re-runs the step with no page in flight)."""
+def record_answered(db: str, run_id: str, symbol_ids: list[str]) -> None:
+    """`extract-apply` (on the host) records which of the page's units the seat answered and the
+    host wrote: only those are closed with the page. A unit the seat never reached (its turn ran
+    out) goes back to the pool for the next page."""
+    doc = load(db, run_id)
+    if doc is None:
+        return
+    pending = set(doc.get("pending") or [])
+    doc["answered"] = sorted(pending & set(symbol_ids))
+    save(db, run_id, doc)
+
+
+def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int]:
+    """Close the page in flight; returns (units it framed, of those now REAL requirements), both
+    measured on the page's own units (another writer's progress elsewhere never counts as this
+    page's yield). The units `extract-apply` recorded as answered join `visited`; without that
+    record, every framed unit that is no longer unmapped does. (0, 0) when an answer to an ask
+    re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
-    if pending:
-        doc["visited"] = sorted(set(doc.get("visited") or []) | set(pending))
-    doc["pending"] = []
-    return len(pending)
+    if not pending:
+        doc["pending"], doc["answered"] = [], []
+        return 0, 0
+    unmapped = {n.get("symbol_id") for n in coverage.get("unaccounted_nodes") or []}
+    held = {n.get("symbol_id") for n in coverage.get("placeholder_nodes") or []}
+    answered = doc.get("answered")
+    closed = set(answered) if answered else {s for s in pending if s not in unmapped}
+    doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
+    doc["pending"], doc["answered"] = [], []
+    real = sum(1 for s in pending if s not in unmapped and s not in held)
+    return len(pending), real
 
 
 # --- the decision -------------------------------------------------------------------------
@@ -223,15 +248,16 @@ def eta_ms(points: list[dict[str, Any]], target: int) -> float | None:
 
 
 def page_yield(points: list[dict[str, Any]]) -> tuple[int, int] | None:
-    """(real requirements the last page added, units it framed), or None when the last point
-    is not a page that framed units (the start, or a record from before the count)."""
+    """(of the last page's units, how many are real requirements now; units it framed), or None
+    when the last point is not a page that framed units (the start, or an answer re-run)."""
     if len(points) < 2:
         return None
-    last, prev = points[-1], points[-2]
-    framed = last.get("framed")
-    if not isinstance(framed, int) or isinstance(framed, bool) or framed <= 0:
+    last = points[-1]
+    framed, real = last.get("framed"), last.get("page_real")
+    if not all(isinstance(v, int) and not isinstance(v, bool) for v in (framed, real)) \
+            or framed <= 0:
         return None
-    return max(0, last["real"] - prev["real"]), framed
+    return real, framed
 
 
 def _yield_text(points: list[dict[str, Any]]) -> str | None:
@@ -283,6 +309,17 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     lower = ({"id": "lower", "label": f"Lower the target to {last['pct']}% for {repo} and build "
                                       f"the graph"} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {max_pages} more pages"}
+    # Near-zero yield on a full page (domain-real): the page's review passed a page that stated
+    # almost nothing (wicked-crew run 4b49cbe1: 3 rules of 500 units). Never mapped on silently,
+    # and asked before "nothing left" too (codex on #1375), so the last page is not passed either.
+    y = page_yield(points)
+    if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
+            and last["page"] > doc["grant"]["page"]):
+        choices = [c for c in ((more if left_to_map > 0 else None), lower) if c is not None]
+        if choices:
+            return {"next": "ask", "choices": choices, "recommended": choices[0]["id"],
+                    "line": f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its "
+                            f"units: read its review before mapping more"}
     if left_to_map <= 0:
         rest = (f"{progress_line(repo, points, target, next_page=None)} · nothing left to map "
                 f"in the files the repository tracks")
@@ -291,15 +328,6 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             return {"next": "done", "line": rest}
         return {"next": "ask", "choices": [lower], "recommended": "lower", "line": rest}
     grant = doc["grant"]
-    # Near-zero yield on a full page (domain-real): the page's review passed a page that stated
-    # almost nothing (wicked-crew run 4b49cbe1: 3 rules of 500 units). Never mapped on silently.
-    y = page_yield(points)
-    if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
-            and last["page"] > grant["page"]):
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
-                "recommended": "continue",
-                "line": f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
-                        f"read its review before mapping more"}
     # Two pages since the latest grant that added no real requirement: a fresh grant lets the
     # operator try again (codex/agy r1 on #1369: "Map more" re-asked at once).
     since = [p for p in points if p["page"] >= grant["page"]]

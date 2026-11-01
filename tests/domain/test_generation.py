@@ -346,15 +346,24 @@ def test_placeholders_never_count_toward_the_target():
 def test_a_page_that_resolves_almost_nothing_asks_instead_of_mapping_on():
     """wicked-crew run 4b49cbe1: the page review passed a page that stated 3 rules of 500 units,
     and the run mapped on. Near-zero yield on a full page asks; the operator's grant goes on."""
-    low = _doc(_pt(0, 100, 0), {**_pt(1, 103, 10), "framed": 500})
+    low = _doc(_pt(0, 100, 0), {**_pt(1, 103, 10), "framed": 500, "page_real": 3})
     d = _decide(low)
     assert d["next"] == "ask" and d["recommended"] == "continue"
     assert "last page resolved 3 of 500 units" in d["line"]
     assert "under 1 in 20 of its units" in d["line"]
     assert _decide({**low, "grant": {"page": 1, "at": 11 * MIN}}, now_min=11)["next"] == "continue"
     # 25 of 500 is 1 in 20: maps on; a small page is never judged.
-    assert _decide(_doc(_pt(0, 100, 0), {**_pt(1, 125, 10), "framed": 500}))["next"] == "continue"
-    assert _decide(_doc(_pt(0, 100, 0), {**_pt(1, 100, 10), "framed": 19}))["next"] == "continue"
+    ok = _doc(_pt(0, 100, 0), {**_pt(1, 125, 10), "framed": 500, "page_real": 25})
+    assert _decide(ok)["next"] == "continue"
+    small = _doc(_pt(0, 100, 0), {**_pt(1, 100, 10), "framed": 19, "page_real": 0})
+    assert _decide(small)["next"] == "continue"
+    # codex on #1375: the last page is asked about too, before "nothing left to map" ends the run
+    last = _decide(_doc(_pt(0, 300, 0), {**_pt(1, 303, 10), "framed": 500, "page_real": 3}), left=0)
+    assert last["next"] == "ask" and [c["id"] for c in last["choices"]] == ["lower"]
+    assert "under 1 in 20" in last["line"]
+    # …and the yield is the page's own units: 25 resolved elsewhere do not hide 3 of 500 here.
+    hidden = _doc(_pt(0, 100, 0), {**_pt(1, 128, 10), "framed": 500, "page_real": 3})
+    assert _decide(hidden)["next"] == "ask"
 
 
 def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path, capsys):
@@ -362,10 +371,11 @@ def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path,
     db.parent.mkdir()
     generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 30}, "repo")
     generation.frame_page(str(db), "run-1", ["s::x"])
+    generation.record_answered(str(db), "run-1", ["s::x"])
     core = _Core(120, unmapped=[{"symbol_id": "s::x", "name": "x", "file": "f.py"}])
     d, out, _ = _run(tmp_path, core, _env(WICKED_REPEAT_PASS=1), 15, capsys)
     rec = generation.load(str(db), "run-1")
-    assert rec["visited"] == ["s::x"] and rec["pending"] == []
-    assert rec["points"][-1]["framed"] == 1
+    assert rec["visited"] == ["s::x"] and rec["pending"] == [] and rec["answered"] == []
+    assert (rec["points"][-1]["framed"], rec["points"][-1]["page_real"]) == (1, 0)
     # the only unit left was asked by this page: nothing left to ask
     assert "nothing left to map" in d["line"], d

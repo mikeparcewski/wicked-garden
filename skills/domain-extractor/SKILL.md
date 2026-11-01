@@ -77,7 +77,7 @@ and only this:
    counted.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
-   report unmapped or whose file the repository does not track; it re-judges the rest itself
+   report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself
    and writes it as `extract-loop` (the seat a file names is reported, never trusted).
 
 ## Outside a run: you DRIVE the deterministic harness — you don't loop yourself
