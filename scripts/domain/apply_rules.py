@@ -9,8 +9,9 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     seat name, too many entries, not JSON, a symlink) is refused whole and nothing is written;
     an entry outside it is refused and listed;
   * every entry must name a behaviour the store has and that `wicked-core coverage`, run here,
-    reports unmapped, in a file `git ls-files` tracks in the registered repository — anything
-    else is refused and listed;
+    reports unmapped or as a risk-flagged placeholder (not a real requirement yet), in a file
+    `git ls-files` tracks in the registered repository — anything else is refused and listed; an
+    empty statement never overwrites a placeholder's statement (the floor only fills blanks);
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence x community
     cohesion >= 0.75 to resolve, the RISK floor, a read-back per write), authored
@@ -150,7 +151,10 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         store = None
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
-    unmapped = {n["symbol_id"]: n for n in _clients.unaccounted_nodes(before)
+    # Not real requirements yet: the unmapped behaviours and the risk-flagged placeholders a page
+    # may revisit (wicked-core#1233). A resolved behaviour is never rewritten from a page.
+    unmapped = {n["symbol_id"]: n for n in [*_clients.unaccounted_nodes(before),
+                                            *_clients.placeholder_nodes(before)]
                 if isinstance(n, dict) and isinstance(n.get("symbol_id"), str)}
     tracked = rules_file.tracked_files(repo_root)
 
@@ -159,7 +163,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         sid = entry["symbol_id"]
         node = unmapped.get(sid)
         if node is None:
-            why = "is not an unmapped behaviour in the store"
+            why = "is not an unmapped behaviour or a placeholder in the store"
         elif node.get("file") not in tracked:
             why = f"its file {node.get('file')!r} is not tracked in the repository"
         else:
@@ -236,6 +240,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "author": author,
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
+        "eligible": len(eligible),
         "unsourced": unconfirmed[extract_loop.NO_SOURCE_REASON],
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],

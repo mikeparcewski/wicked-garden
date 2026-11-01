@@ -316,14 +316,20 @@ def _core_1_1_doc():
                              "tests": 1, "docs": 1, "extra_extractors": 0}}
     return {"metadata": {"schema_version": "1.1.0", "migration_mode": "functional",
                          "source": "estate-graph",
-                         "coverage": {"mapped_pct": 82, "min_pct": 80, "behavior_bearing": 100,
-                                      "mapped": 82, "resolved": 70, "unmapped": 18}},
+                         "coverage": {"real_pct": 70, "min_pct": 80, "behavior_bearing": 100,
+                                      "real": 70, "placeholders": 12, "unmapped": 18,
+                                      "not_product": 9}},
             "domains": {"src": {"description": "src", "requirements": {"REQ-001": req},
                                 "entities": {}}}}
 
 
 def test_a_1_1_0_document_with_coverage_and_corroboration_conforms():
     assert validate_document(_core_1_1_doc()) == []
+    # bundle 1.3.0 (wicked-core#1233): the old `mapped_pct` label no longer conforms
+    stale = _core_1_1_doc()
+    stale["metadata"]["coverage"] = {"mapped_pct": 82, "min_pct": 80, "behavior_bearing": 100,
+                                     "mapped": 82, "resolved": 70, "unmapped": 18}
+    assert validate_document(stale) != []
     old = _core_1_1_doc()
     old["metadata"]["schema_version"] = "1.0.0"  # 1.0.0 stays an accepted version
     assert validate_document(old) == []

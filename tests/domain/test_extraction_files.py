@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from domain import _clients, _rule_extractor, apply_rules, extract_loop, prepare_worklist, rules_file
+from domain import (_clients, _rule_extractor, apply_rules, extract_loop, generation,  # noqa: E402
+                    prepare_worklist, rules_file)
 
 
 def _rule(sid, statement="amount must be positive", confidence=0.9):
@@ -388,7 +389,7 @@ def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
     out = tmp_path / "rg.json"
     subprocess.run([_CORE, "domain-graph", "--db", db, "--out", str(out)], check=True,
                    capture_output=True)
-    assert json.loads(out.read_text())["metadata"]["coverage"]["mapped_pct"] == 100
+    assert json.loads(out.read_text())["metadata"]["coverage"]["real_pct"] == 100
 
 
 def test_the_host_uses_the_engines_core_cli(monkeypatch):
@@ -987,3 +988,71 @@ def test_the_published_worklist_fits_even_when_the_estimate_does_not(tmp_path, m
                                    core=_Core(estate, {s: "f.py" for s in _STAR}))
     assert len(rules_file.encoded(doc)) <= rules_file.MAX_WORKLIST_BYTES
     assert extract_loop.read_worklist(wt, rules_file.WORKLIST_REL)["units"] == doc["units"]
+
+
+# --- domain-real: the minimum counts REAL requirements; placeholders are asked again ------------
+
+class _RealCore(_Core):
+    """Coverage as wicked-core reports it since #1233: a validated requirement is real, a
+    requirement written unvalidated is a placeholder (listed), no requirement is unmapped."""
+    def _doc(self):
+        def row(s, f):
+            return {"symbol_id": s, "name": s.split("::")[-1], "file": f, "kind": "Function"}
+        req = {s: self.estate.writes.get(s, {}).get("req") for s in self.nodes}
+        left = [row(s, f) for s, f in self.nodes.items() if req[s] is None]
+        held = [row(s, f) for s, f in self.nodes.items() if req[s] is not None and not req[s][1]]
+        n = len(self.nodes)
+        real = n - len(left) - len(held)
+        return {"coverage": (n - len(left)) / n, "behavior_bearing": n, "resolved": real,
+                "risk_flagged": len(held), "unaccounted": len(left), "unaccounted_nodes": left,
+                "placeholder_nodes": held}
+
+
+def test_a_placeholder_is_framed_after_the_unmapped_and_a_real_rule_resolves_it(tmp_path):
+    """wicked-crew had 4,397 placeholders on product code and 27 unmapped: with only the unmapped
+    framed, the real share could never climb. Falsifier: frame `unaccounted_nodes` alone and
+    `s::a` never reaches the worklist; accept only unmapped entries in apply and it is refused."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.writes["s::a"] = {"req": ("[RISK] a: empty statement", False, "extract-loop"),
+                             "ann": {"key": "k"}}
+    estate.writes["s::b"] = {"req": ("amount must be positive", True, "extract-loop"),
+                             "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                   core=core)
+    order = [u["symbol_id"] for u in doc["units"]]
+    assert "s::a" in order and "s::b" not in order, order
+    assert order.index("s::a") == len(order) - 1, "the unmapped come first"
+    assert (doc["unmapped"], doc["placeholders"]) == (6, 1)
+    _write_rules(wt, "codex", [_rule("s::a"), _rule("s::b")])
+    report = _apply(wt, db, repo, estate, core)
+    why = {r["symbol_id"]: r["why"] for r in report["refused"]}
+    assert "s::a" not in why and "placeholder" in why["s::b"], why
+    assert estate.writes["s::a"]["req"] == ("amount must be positive", True, "extract-loop")
+    assert report["coverage"]["resolved"] == 2
+
+
+def test_a_page_never_re_asks_a_unit_an_earlier_page_of_the_run_framed(tmp_path, monkeypatch):
+    """A placeholder the seat leaves empty again stays a placeholder: without the record of what
+    a page framed, the next page would frame it again and the run would loop on it. A retried
+    `extract-prepare` (the same page) frames the same units again."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    for s in _STAR[:5]:
+        estate.writes[s] = {"req": (f"[RISK] {s}: empty statement", False, "extract-loop"),
+                            "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    retried = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    assert retried == first and len(first) == 4
+    rec = generation.load(db, "run-1")
+    assert rec["pending"] == first
+    assert generation.close_page(rec) == 4
+    generation.save(db, "run-1", rec)
+    second = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
+    assert not set(second) & set(first) and len(second) == len(_STAR) - 4, second

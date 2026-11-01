@@ -2,9 +2,11 @@
 """prepare_worklist.py — HOST step `extract-prepare` of domain-extraction (wicked-garden#1362).
 
 Runs on the daemon host, where `wicked-core`, `wicked-estate` and the repository's code-graph
-store are. It takes the unmapped behaviours from `wicked-core coverage` (the same authority the
-coverage gate recomputes against), keeps those in files the repository tracks, orders them
-hub-first (estate's PageRank hubs, then their neighbours by graph distance — the order
+store are. It takes the behaviours that are not real requirements yet from `wicked-core
+coverage` (the same authority the coverage gate recomputes against): the unmapped ones first,
+then the risk-flagged placeholders an earlier page left (an empty statement, a rule under the
+confidence threshold), skipping any unit an earlier page of this generation already framed. It
+keeps those in files the repository tracks, orders them hub-first (estate's PageRank hubs, then their neighbours by graph distance — the order
 `extract_loop.py` uses, so a later run continues from the frontier), frames each one (its
 source slice, callers and callees, community) and writes up to `--limit` of them to the
 WORKLIST file in the run's worktree. The seat container's extract step reads only that file.
@@ -46,26 +48,35 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     with tempfile.TemporaryDirectory(prefix="wicked-domain-prepare-") as tmp:
         cov = core.coverage(db, str(Path(tmp) / "coverage.json"))
     unmapped = _clients.unaccounted_nodes(cov)
+    placeholders = _clients.placeholder_nodes(cov)
     # The generation's record opens at the first page (its starting share and time); a later page
     # of the same run keeps it. Host-side, beside the store — never in the seat-writable worktree.
     run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    record = None
     if run_id:
         try:
-            generation.open_record(db, run_id, cov, Path(repo_root).name)
+            record = generation.open_record(db, run_id, cov, Path(repo_root).name)
         except (OSError, ValueError) as e:  # progress display only; the page is still prepared
             print(f"[extract-prepare] the generation record could not be opened ({e})",
                   file=sys.stderr)
+    # Units an earlier page of this generation framed are not asked again (a placeholder the
+    # seat left empty stays one; a later generation may try it again).
+    seen = generation.visited(record)
+    revisit = {n["symbol_id"] for n in placeholders}
+    candidates = [n for n in [*unmapped, *placeholders] if n["symbol_id"] not in seen]
     tracked = rules_file.tracked_files(repo_root)
-    in_repo = [n for n in unmapped if n.get("file") in tracked]
-    skipped = len(unmapped) - len(in_repo)
+    in_repo = [n for n in candidates if n.get("file") in tracked]
+    skipped = len(candidates) - len(in_repo)
 
     store = extract_loop._DirectStore(db)
     store.repo_root = repo_root  # source slices from the repository when the store's are unreadable
     hubs, how = extract_loop._centrality_hubs(estate, store)
     order, hops = extract_loop.hub_first_order(store, hubs)
     tail = len(order)
-    # The product's code first, hub-first; tests and fixtures after it, in the same order.
+    # The product's code first, the unmapped before the placeholders, each hub-first; tests and
+    # fixtures (an older wicked-core still counts them) after it, in the same order.
     in_repo.sort(key=lambda n: (extract_loop.is_test_path(n.get("file", "")),
+                                n["symbol_id"] in revisit,
                                 order.get(n["symbol_id"], tail), n["symbol_id"]))
     take = in_repo[:limit] if limit > 0 else in_repo
 
@@ -100,6 +111,8 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         "coverage": {k: cov.get(k) for k in ("coverage", "behavior_bearing", "resolved",
                                               "risk_flagged", "unaccounted")},
         "unmapped": len(unmapped),
+        "placeholders": len(placeholders),
+        "asked_before": len(seen),
         "not_in_repo": skipped,
         "units": units,
     }
@@ -116,11 +129,20 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         units = units[:lo]
         doc["units"] = units
     rules_file.write_json_file(base, out_rel, doc)
+    if run_id and record is not None:
+        try:
+            generation.frame_page(db, run_id, [u["symbol_id"] for u in units])
+        except (OSError, ValueError) as e:  # the next page may then re-ask these units
+            print(f"[extract-prepare] the page's units could not be recorded ({e})",
+                  file=sys.stderr)
     front = units[0]["symbol_id"] if units else "-"
     no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
-    print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s); {skipped} in files the "
-          f"repository does not track (left out); {len(units)} framed into {out_rel} "
-          f"({no_source} with no source), frontier {front}; {doc['order']}", file=sys.stderr)
+    again = sum(1 for u in units if u["symbol_id"] in revisit)
+    print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s) and {len(placeholders)} "
+          f"placeholder(s), {len(seen)} asked by an earlier page of this run; {skipped} in files "
+          f"the repository does not track (left out); {len(units)} framed into {out_rel} "
+          f"({again} placeholder(s) asked again, {no_source} with no source), frontier {front}; "
+          f"{doc['order']}", file=sys.stderr)
     return doc
 
 

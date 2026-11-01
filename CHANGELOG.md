@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Changed
+- **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
+  counts resolved behaviours only; risk-flagged placeholders are shown, never counted.
+  - `extract-prepare` frames the unmapped behaviours, then the placeholders an earlier page left (empty, or under
+    the confidence threshold), hub-first. It skips any unit an earlier page of the same run framed, kept in the
+    generation's record beside the store, so a unit left empty again cannot loop the run. `extract-apply` accepts
+    entries for placeholders; an empty answer never overwrites a statement.
+  - `extract-next` measures the real share: "Mapping wicked-crew · real requirements 23% → 25% · target 80% · page
+    2 · 4331 placeholders · last page resolved 93 of 100 units · about 3 h left". A page of 20 or more units that
+    resolved under 1 in 20 asks the operator instead of mapping on (wicked-crew run 4b49cbe1 passed a page with 3
+    rules for 500 units). The stall ask is now "two pages added no real requirement".
+  - The extractor's file-mode instructions and the rule prompt say most product code encodes a rule (a check, a
+    refusal, a limit, a default, an ordering, a permission, a state change, a required field) and to leave a
+    statement empty only for pure plumbing. On the same 100 wicked-crew units (27 unmapped, 73 placeholders, all
+    sourced), codex resolved 85 with the old instructions and 93 with the new.
+  - The vendored domain-model schema is bundle 1.3.0 (`metadata.coverage` is `real_pct`, `real`, `placeholders`,
+    `unmapped`, `not_product`).
+
 ### Added
 - **Every seat proposes a memory for what it witnessed (governed-worker A7).** On the rig, every memory in the review queue came from the pi seat. That was the seat seated first for a capture-learnings run's capture phase, or the seat that distils a finished run. The claude and codex seats that did the work in bug and feature runs proposed none, because the floor every seat follows had no rule asking them to. A7 gives every role a fixed moment to check (before its final message; in power mode, before each `CHECKPOINT:` or `HANDOFF:` line) and asks it to propose what bit for a reason the code does not show: a command that failed because of the toolchain, the environment or the setup and what made it pass, a tool trap, or an operator ruling. A reviewer's finding with such a cause counts too. At most three per unit go through the one-line `scripts/mem/estate_memory.py --readonly propose` path the shim already relays from a container seat. The run, the unit and the seat are stamped as provenance, so the proposal names the seat that saw it. A unit that proposes none says what it checked. Code facts stay knowledge. The `wicked-capture-report` line is now a capture-phase contract only (A4), so an evaluator's VERDICT line stays last.
 - **A domain-extraction run keeps mapping page after page until the target (pairs with wicked-core's bounded loop).** The new host step `extract-next` (`scripts/domain/next_page.py`) runs after each page's `extract-apply`: it measures the mapped share against the repository's target (`wicked-core requirements-target`: the repository's own, else the daemon minimum), prints one progress line ("Mapping wicked-crew · 3% → 12% → 19% · target 80% · page 4 · about 2 h left") and decides: another page, done, or an ask when the budget per grant is spent (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240), nothing is left to map, or two pages mapped nothing new. The ask's choices: map more (a fresh grant), or lower the target for this repository to the share mapped so far and build the graph; Stop ends the run and keeps what was mapped. The generation's record (`scripts/domain/generation.py`: its start, a point per page, the grant) lives beside the store, never in the seat-writable worktree. A page is 500 behaviours by default (`WICKED_DOMAIN_PAGE_SIZE`).

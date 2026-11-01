@@ -247,16 +247,17 @@
         },
         "coverage": {
           "type": "object",
-          "description": "v1.1.0, optional. The share of behavior-bearing nodes this model maps (resolved or risk-flagged) and the configured minimum it was built at — a graph is built once the minimum is reached, so a reader needs the share: '82% of behaviours mapped'.",
-          "required": ["mapped_pct", "min_pct", "behavior_bearing", "mapped", "resolved", "unmapped"],
+          "description": "v1.1.0, optional (this shape since schema bundle 1.3.0). The share of behaviour-bearing nodes in product code that are REAL requirements (resolved to a stated, sourced business rule) and the configured minimum the build was held to: '23% real requirements \u00b7 4397 placeholders \u00b7 minimum 80%'. Risk-flagged placeholders are shown in the graph as unconfirmed but never count toward the minimum (operator decision 2026-11-01, wicked-core#1233); tests, data, manifests and documents are not behaviour-bearing (not_product).",
+          "required": ["real_pct", "min_pct", "behavior_bearing", "real", "placeholders", "unmapped", "not_product"],
           "additionalProperties": false,
           "properties": {
-            "mapped_pct": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "real_pct": { "type": "integer", "minimum": 0, "maximum": 100, "description": "floor(real * 100 / behavior_bearing); 100 on an empty denominator. The one number the minimum is checked against." },
             "min_pct": { "type": "integer", "minimum": 1, "maximum": 100 },
-            "behavior_bearing": { "type": "integer", "minimum": 0 },
-            "mapped": { "type": "integer", "minimum": 0 },
-            "resolved": { "type": "integer", "minimum": 0 },
-            "unmapped": { "type": "integer", "minimum": 0 }
+            "behavior_bearing": { "type": "integer", "minimum": 0, "description": "Behaviour-bearing nodes in product code (the denominator)." },
+            "real": { "type": "integer", "minimum": 0, "description": "Behaviours resolved to a stated, sourced business rule." },
+            "placeholders": { "type": "integer", "minimum": 0, "description": "Behaviours carrying only a risk-flagged placeholder: shown, never counted." },
+            "unmapped": { "type": "integer", "minimum": 0 },
+            "not_product": { "type": "integer", "minimum": 0, "description": "Behaviour-kind nodes left out because their file is a test, data, manifest or document file." }
           }
         }
       }
