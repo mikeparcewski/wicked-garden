@@ -13,6 +13,11 @@
 
 ### Changed
 
+- **The domain skills and docs describe the loop as it now runs (#1380).** `domain`, `domain-extractor`,
+  `domain-coverage`, `domain-modeler` and their refs, `docs/domains.md`, `docs/getting-started.md` and the README say
+  real requirements and the configured minimum, the page loop, and the current worker names. They say the harness
+  checks a rule's shape and that its source is readable product code, while grounding is judged by the page review
+  and the coverage evaluator.
 - **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
   counts resolved behaviours only; risk-flagged placeholders are shown, never counted.
   - `extract-prepare` frames the unmapped behaviours, then the placeholders an earlier page left (empty, or under
