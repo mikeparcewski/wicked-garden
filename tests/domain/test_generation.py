@@ -361,6 +361,11 @@ def test_a_page_that_resolves_almost_nothing_asks_instead_of_mapping_on():
     last = _decide(_doc(_pt(0, 300, 0), {**_pt(1, 303, 10), "framed": 500, "page_real": 3}), left=0)
     assert last["next"] == "ask" and [c["id"] for c in last["choices"]] == ["lower"]
     assert "under 1 in 20" in last["line"]
+    # …and below 1%, with nothing to map or lower to, it still asks: going on is the operator's
+    # word (agy/codex r2 on #1375), never a silent "done".
+    floor = _decide(_doc(_pt(0, 3, 0), {**_pt(1, 3, 10), "framed": 500, "page_real": 0}), left=0)
+    assert floor["next"] == "ask" and [c["id"] for c in floor["choices"]] == ["finish"]
+    assert "nothing is left to map" in floor["line"] and "before mapping more" not in floor["line"]
     # …and the yield is the page's own units: 25 resolved elsewhere do not hide 3 of 500 here.
     hidden = _doc(_pt(0, 100, 0), {**_pt(1, 128, 10), "framed": 500, "page_real": 3})
     assert _decide(hidden)["next"] == "ask"
@@ -375,7 +380,16 @@ def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path,
     core = _Core(120, unmapped=[{"symbol_id": "s::x", "name": "x", "file": "f.py"}])
     d, out, _ = _run(tmp_path, core, _env(WICKED_REPEAT_PASS=1), 15, capsys)
     rec = generation.load(str(db), "run-1")
-    assert rec["visited"] == ["s::x"] and rec["pending"] == [] and rec["answered"] == []
+    assert rec["visited"] == ["s::x"] and rec["pending"] == [] and "answered" not in rec
     assert (rec["points"][-1]["framed"], rec["points"][-1]["page_real"]) == (1, 0)
     # the only unit left was asked by this page: nothing left to ask
     assert "nothing left to map" in d["line"], d
+
+
+def test_the_operators_finish_hands_the_share_to_the_coverage_step(tmp_path, capsys):
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 3}, "repo")
+    d, out, _ = _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1,
+                                                           WICKED_REPEAT_CHOICE="finish"), 15, capsys)
+    assert d["next"] == "done" and "going on as the operator chose" in d["line"]

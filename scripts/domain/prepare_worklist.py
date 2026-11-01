@@ -54,11 +54,11 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
     record = None
     if run_id:
+        # The record decides what this page skips (agy r2 on #1375): no page without it.
         try:
             record = generation.open_record(db, run_id, cov, Path(repo_root).name)
-        except (OSError, ValueError) as e:  # progress display only; the page is still prepared
-            print(f"[extract-prepare] the generation record could not be opened ({e})",
-                  file=sys.stderr)
+        except (OSError, ValueError) as e:
+            raise RuntimeError(f"the generation record could not be opened ({e})") from e
     # Units an earlier page of this generation framed are not asked again (a placeholder the
     # seat left empty stays one; a later generation may try it again).
     seen = generation.visited(record)
@@ -128,15 +128,16 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                 hi = mid - 1
         units = units[:lo]
         doc["units"] = units
-    rules_file.write_json_file(base, out_rel, doc)
     if run_id:
         # Not optional bookkeeping: the record decides what the next page skips and the page's
-        # yield (codex on #1375), so a page whose units cannot be recorded is not prepared.
+        # yield (codex on #1375), so a page whose units cannot be recorded is not prepared (and
+        # no worklist is published for it).
         try:
             generation.frame_page(db, run_id, [u["symbol_id"] for u in units])
         except (OSError, ValueError) as e:
             raise RuntimeError(f"the page's units could not be recorded in the generation "
                                f"record ({e})") from e
+    rules_file.write_json_file(base, out_rel, doc)
     front = units[0]["symbol_id"] if units else "-"
     no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
     again = sum(1 for u in units if u["symbol_id"] in revisit)

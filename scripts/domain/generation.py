@@ -47,6 +47,9 @@ def now_ms() -> int:
 # operator instead of mapping on: near-zero yield on product code is never passed silently.
 LOW_YIELD_MIN_UNITS = 20
 LOW_YIELD_PER = 20
+# The one choice an ask offers when nothing can be mapped or lowered: go on to the coverage step,
+# which states the share against the target (below it, its gate is the operator's).
+FINISH = {"id": "finish", "label": "Go on: the coverage step states the share"}
 
 
 def real_pct(real: int, behaviours: int) -> int:
@@ -107,7 +110,7 @@ def _valid(doc: Any) -> bool:
                 for k in ("page", "pct", "real", "behaviours", "at")):
             return False
     for key in ("visited", "pending", "answered"):
-        ids = doc.get(key, [])
+        ids = doc.get(key) or []
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
             return False
     return (isinstance(grant, dict) and isinstance(grant.get("page"), int)
@@ -173,7 +176,7 @@ def frame_page(db: str, run_id: str, symbol_ids: list[str]) -> None:
     if doc is None:
         raise ValueError(f"no generation record for run {run_id}")
     doc["pending"] = list(symbol_ids)
-    doc["answered"] = []
+    doc.pop("answered", None)  # not recorded yet (an empty list is "answered none")
     save(db, run_id, doc)
 
 
@@ -197,15 +200,20 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int]
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
     if not pending:
-        doc["pending"], doc["answered"] = [], []
+        doc["pending"] = []
+        doc.pop("answered", None)
         return 0, 0
     unmapped = {n.get("symbol_id") for n in coverage.get("unaccounted_nodes") or []}
     held = {n.get("symbol_id") for n in coverage.get("placeholder_nodes") or []}
     answered = doc.get("answered")
-    closed = set(answered) if answered else {s for s in pending if s not in unmapped}
+    if isinstance(answered, list):  # recorded by extract-apply, possibly empty
+        closed = set(answered) & set(pending)
+    else:  # never recorded: only what is a real requirement now is known to be answered
+        closed = {s for s in pending if s not in unmapped and s not in held}
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
-    doc["pending"], doc["answered"] = [], []
-    real = sum(1 for s in pending if s not in unmapped and s not in held)
+    doc["pending"] = []
+    doc.pop("answered", None)
+    real = sum(1 for s in closed if s not in unmapped and s not in held)
     return len(pending), real
 
 
@@ -315,11 +323,18 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     y = page_yield(points)
     if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
             and last["page"] > doc["grant"]["page"]):
-        choices = [c for c in ((more if left_to_map > 0 else None), lower) if c is not None]
-        if choices:
-            return {"next": "ask", "choices": choices, "recommended": choices[0]["id"],
-                    "line": f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its "
-                            f"units: read its review before mapping more"}
+        if left_to_map > 0:
+            choices = [c for c in (more, lower) if c is not None]
+            warn = (f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
+                    f"read its review before mapping more")
+        else:
+            # Nothing left to ask (agy/codex r2 on #1375): still the operator's word, never a
+            # silent "done"; going on hands the share to the coverage step.
+            choices = [lower] if lower is not None else [FINISH]
+            warn = (f"{progress_line(repo, points, target, next_page=None)} · the last page "
+                    f"resolved under 1 in {LOW_YIELD_PER} of its units and nothing is left to "
+                    f"map: read its review")
+        return {"next": "ask", "choices": choices, "recommended": choices[0]["id"], "line": warn}
     if left_to_map <= 0:
         rest = (f"{progress_line(repo, points, target, next_page=None)} · nothing left to map "
                 f"in the files the repository tracks")

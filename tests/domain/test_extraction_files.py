@@ -1134,3 +1134,65 @@ def test_a_placeholder_another_writer_promoted_meanwhile_is_not_overwritten(tmp_
     report = _apply(wt, db, repo, estate, core)
     assert any("another writer" in r["why"] for r in report["refused"]), report["refused"]
     assert estate.writes["s::core"]["req"] == ("amount must be positive", False, "extract-loop")
+
+
+def test_a_page_whose_answers_were_all_refused_closes_none_of_its_units(tmp_path, monkeypatch):
+    """agy/codex r2 on #1375: an empty answered list is "answered none", not "not recorded", so
+    no framed placeholder is closed; without any record only what is real now closes."""
+    db = str(tmp_path / "graphs" / "estate.db")
+    (tmp_path / "graphs").mkdir()
+    cov = {"behavior_bearing": 3, "resolved": 1, "risk_flagged": 2, "unaccounted": 0,
+           "unaccounted_nodes": [],
+           "placeholder_nodes": [{"symbol_id": "s::a"}, {"symbol_id": "s::b"}]}
+    generation.open_record(db, "run-1", cov, "repo")
+    generation.frame_page(db, "run-1", ["s::a", "s::b", "s::c"])
+    generation.record_answered(db, "run-1", [])
+    rec = generation.load(db, "run-1")
+    assert generation.close_page(rec, cov) == (3, 0) and rec["visited"] == []
+    generation.frame_page(db, "run-1", ["s::a", "s::b", "s::c"])
+    rec = generation.load(db, "run-1")  # never recorded: s::c is real now, so it closes
+    assert generation.close_page(rec, cov) == (3, 1) and rec["visited"] == ["s::c"]
+
+
+def test_an_annotation_replaced_at_a_higher_confidence_meanwhile_is_not_overwritten(tmp_path):
+    """codex r2 on #1375: a placeholder promoted in place (its business_rule replaced at a higher
+    confidence) keeps its text, its validated flag and its annotation count."""
+    import sqlite3
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    _star_with_annotations(db)
+    con = sqlite3.connect(db)
+    sid = con.execute("SELECT sid FROM symbols WHERE sym = 's::core'").fetchone()[0]
+    con.execute("INSERT INTO annotations VALUES (?, 'business_rule', 'RULE-1', 'x')", (sid,))
+    con.commit()
+    con.close()
+    estate = _Estate()
+    estate.writes["s::core"] = {"req": ("amount must be positive", False, "extract-loop"),
+                                "ann": {"key": "RULE-1"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    _write_rules(wt, "codex", [_rule("s::core", confidence=0.2)])
+
+    def another_writer_promotes_core():
+        c = sqlite3.connect(db)
+        c.execute("UPDATE annotations SET key = 'RULE-1b' WHERE node_sym = ?", (sid,))
+        c.commit()
+        c.close()
+        return []
+    estate.read_clusters = another_writer_promotes_core  # runs after the coverage snapshot
+    report = _apply(wt, db, repo, estate, core)
+    assert any(r["symbol_id"] == "s::core" and "another writer" in r["why"]
+               for r in report["refused"]), report["refused"]
+
+
+def test_an_extracted_rule_in_a_data_extension_file_may_be_validated():
+    """wicked-core#1234 counts an extracted Rule (a Flow, a cloud policy) whatever its extension;
+    garden must let it become real, while a JSON key or a fixture rule stays unconfirmed."""
+    assert extract_loop.unconfirmed_reason("flows/Approve.flow-meta.xml", True, "Rule") is None
+    assert extract_loop.unconfirmed_reason("policies/storage.json", True, "Rule") is None
+    assert extract_loop.unconfirmed_reason("package.json", True, "Struct") is not None
+    assert extract_loop.unconfirmed_reason("tests/fixtures/policy.json", True, "Rule") is not None
+
+
+def test_test_names_match_wicked_cores_denominator():
+    """The same test-file patterns as wicked-core's `is_product_file` (codex on #1234)."""
+    for f in ("src/payment_test.cpp", "src/payment_test.cc", "tests/PaymentTest.php"):
+        assert extract_loop.is_test_path(f), f

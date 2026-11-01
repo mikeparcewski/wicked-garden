@@ -63,14 +63,14 @@ class AppliedThenFailed(RuntimeError):
 _ACCOUNTING_TYPES = ("business_rule", "risk", "assumption", "question")
 
 
-def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int, int]]:
+def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int, int, str]]:
     """For each symbol, what accounts for it in the store right now: its requirement text, whether
     it is validated (a placeholder another writer promoted keeps its text, codex on #1375) and
-    how many accounting annotations (business_rule, risk, assumption, question — coverage counts
-    any) it carries. One fresh read-only connection; {} when the store cannot say (older schema)."""
+    the accounting annotations (business_rule, risk, assumption, question — coverage counts any)
+    it carries, by count and content. One fresh read-only connection; {} when the store cannot say (older schema)."""
     import sqlite3
     from urllib.parse import quote
-    out: dict[str, tuple[str, int, int]] = {}
+    out: dict[str, tuple[str, int, int, str]] = {}
     try:
         con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
@@ -86,9 +86,12 @@ def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int, int
                                       (sym,)).fetchone()
                 if row is None:
                     continue
-                count = con.execute(f"SELECT count(*) FROM annotations WHERE node_sym = ? AND "
-                                    f"type IN ({marks})", (row[0], *_ACCOUNTING_TYPES)).fetchone()
-                out[sym] = ((row[1] or ""), int(row[2] or 0), int(count[0]))
+                # The annotations' contents too, not only their count (codex r2 on #1375): a
+                # business_rule replaced at a higher confidence promotes a placeholder in place.
+                anns = sorted(con.execute(f"SELECT * FROM annotations WHERE node_sym = ? AND "
+                                          f"type IN ({marks})",
+                                          (row[0], *_ACCOUNTING_TYPES)).fetchall(), key=repr)
+                out[sym] = ((row[1] or ""), int(row[2] or 0), len(anns), repr(anns))
         finally:
             con.close()
     except sqlite3.Error:
@@ -225,7 +228,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             # read is unconfirmed whatever the seat (or its worklist file) says (#1370).
             # Tests and data files are never validated either: what they hold is evidence.
             sourced = store is not None and bool(store.source_slice(sid).strip())
-            why = extract_loop.unconfirmed_reason(unmapped[sid].get("file", ""), sourced)
+            why = extract_loop.unconfirmed_reason(unmapped[sid].get("file", ""), sourced,
+                                                  str(unmapped[sid].get("kind") or ""))
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author, read_back=read_back,

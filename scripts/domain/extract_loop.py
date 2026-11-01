@@ -418,7 +418,8 @@ def _bare_name(name: str) -> str:
 # (`*Tests.cs` is a test, `Contest.py` is not).
 _TEST_DIR = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/", re.IGNORECASE)
 _TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|(^|/)conftest\.py$|"
-                        r"_test\.(py|go|rs)$|_spec\.rb$|Tests?\.(cs|java|kt|swift|scala)$")
+                        r"_test\.(py|go|rs|c|cc|cpp|cxx|h|hpp)$|_spec\.rb$|"
+                        r"Tests?\.(cs|java|kt|swift|scala|php)$")
 
 
 def is_test_path(file: str) -> bool:
@@ -439,12 +440,14 @@ def is_data_path(file: str) -> bool:
     return (file or "").lower().endswith(_DATA_EXTS)
 
 
-def unconfirmed_reason(file: str, sourced: bool) -> str | None:
+def unconfirmed_reason(file: str, sourced: bool, kind: str = "") -> str | None:
     """Why a rule stated about a unit in `file` is written unconfirmed whatever its confidence
     (wicked-garden#1370), or None when it may be validated: it needs its source, read on the
     host, and it must be product code, not a test or a data file (those are evidence of what the
-    product does, recorded as accounted-for but never as a validated requirement)."""
-    if is_test_path(file) or is_data_path(file):
+    product does, recorded as accounted-for but never as a validated requirement). An extracted
+    `Rule` (a Salesforce Flow, a cloud policy) is executable behaviour whatever its extension, as
+    wicked-core counts it (#1233); in a test or fixture file it is still a test."""
+    if is_test_path(file) or (is_data_path(file) and kind != "Rule"):
         return NOT_PRODUCT_REASON
     if not sourced:
         return NO_SOURCE_REASON
