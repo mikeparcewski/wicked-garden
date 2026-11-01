@@ -15,6 +15,9 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     rules (`extract_loop.decide_and_write`: the rule validator, confidence x community
     cohesion >= 0.75 to resolve, the RISK floor, a read-back per write), authored
     `extract-loop` — the seat a file names is the seat's own claim, so it is only reported;
+  * a rule about a unit whose source the host cannot read (re-read here from the store, never
+    taken from the worklist), or about a test or data file, is written unconfirmed, never
+    validated;
   * binaries come from the operator and the engine (env, config, PATH), never the worktree, and
     every read and write in the worktree is descriptor-relative and refuses symlinks.
 
@@ -140,8 +143,10 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     before_state = _accounting(db, [e["symbol_id"] for e in accepted])
     try:
         store = extract_loop._DirectStore(db)
+        store.repo_root = repo_root  # sources as prepare read them (the checkout, blob-checked)
     except Exception as e:
-        print(f"[extract-apply] direct store unavailable ({e})", file=sys.stderr)
+        print(f"[extract-apply] direct store unavailable ({e}); every rule is written "
+              "unconfirmed (no source can be read)", file=sys.stderr)
         store = None
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
@@ -181,6 +186,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                  else None)
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
+    # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
+    unconfirmed = {extract_loop.NO_SOURCE_REASON: 0, extract_loop.NOT_PRODUCT_REASON: 0}
     in_progress = None  # the symbol whose writes have started and not finished
     try:
         for entry in eligible:
@@ -193,9 +200,18 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                                 "why": "was mapped by another writer while this step ran"})
                 continue
             in_progress = sid
+            # The source is re-read here, on the host: a rule about a unit whose code cannot be
+            # read is unconfirmed whatever the seat (or its worklist file) says (#1370).
+            # Tests and data files are never validated either: what they hold is evidence.
+            sourced = store is not None and bool(store.source_slice(sid).strip())
+            why = extract_loop.unconfirmed_reason(unmapped[sid].get("file", ""), sourced)
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
-                                                    sizes, seat=author, read_back=read_back)
+                                                    sizes, seat=author, read_back=read_back,
+                                                    unconfirmed=why)
+            if outcome == "unconfirmed":  # a RISK write, counted apart by its reason
+                unconfirmed[why] += 1
+                outcome = "risk"
             in_progress = None
             outcomes[outcome] += 1
 
@@ -220,6 +236,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "author": author,
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
+        "unsourced": unconfirmed[extract_loop.NO_SOURCE_REASON],
+        "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],
         "refused_count": len(refused),
         "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
@@ -237,7 +255,10 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         print(f"[extract-apply] refused {r['symbol_id'] or '#' + str(r['index'])}: {r['why']}",
               file=sys.stderr)
     print(f"[extract-apply] {rules_rel} (declared seat {seat or '-'}): {outcomes['resolved']} resolved, "
-          f"{outcomes['risk']} RISK-flagged, {outcomes['kept']} kept, {len(refused)} refused "
+          f"{outcomes['risk']} RISK-flagged (unconfirmed: "
+          f"{unconfirmed[extract_loop.NO_SOURCE_REASON]} with no source, "
+          f"{unconfirmed[extract_loop.NOT_PRODUCT_REASON]} not product code), "
+          f"{outcomes['kept']} kept, {len(refused)} refused "
           f"(written as {author}). {line or ''}".rstrip(), file=sys.stderr)
     return report
 

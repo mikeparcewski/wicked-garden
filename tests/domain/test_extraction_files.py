@@ -100,6 +100,7 @@ def _git_repo(tmp_path, tracked=("f.py",)):
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "core.fsmonitor", "false"], check=True)
     for name in tracked:
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
         (repo / name).write_text("x = 1\n")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
     (repo / "untracked.py").write_text("y = 2\n")
@@ -147,9 +148,31 @@ class _Core:
         return doc, pct >= 80, f"coverage: {pct}% mapped, minimum 80%"
 
 
-def _star(tmp_path):
+def _star(tmp_path, sourced=True):
+    """The star store; with `sourced`, every node's span slices real code out of the store's
+    content for f.py (the extracted rules are grounded, so apply may validate them)."""
     from tests.domain.test_extract_loop import _star_db
-    return _star_db(tmp_path)
+    db = _star_db(tmp_path)
+    if sourced:
+        _give_sources(db)
+    return db
+
+
+def _give_sources(db, file="f.py"):
+    import sqlite3
+    c = sqlite3.connect(db)
+    text, spans = b"", {}
+    for sid, name in c.execute("SELECT symbol, name FROM nodes").fetchall():
+        line = f"def {name}(amount):\n    return amount > 0\n".encode()
+        spans[sid] = (len(text), len(text) + len(line))
+        text += line
+    for sid, (a, b) in spans.items():
+        c.execute("UPDATE nodes SET data = ? WHERE symbol = ?",
+                  (json.dumps({"location": {"span": {"start_byte": a, "end_byte": b}}}), sid))
+    c.execute("INSERT INTO files VALUES (?, ?)", (file, "f" * 40))
+    c.execute("INSERT INTO content VALUES (?, ?)", ("f" * 40, text))
+    c.commit()
+    c.close()
 
 
 _STAR = ["s::core", "s::a", "s::b", "s::c", "s::a1", "s::i1", "s::i2", "s::route"]
@@ -825,6 +848,101 @@ def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadabl
     store = extract_loop._DirectStore(str(db))
     store.repo_root = str(repo)
     assert store.source_slice("s::ok") == ""
+
+
+# A zstd frame as estate writes it: streamed, its content size NOT recorded in the header (the
+# one-shot `zstandard` decode refuses such frames). Checked in, so the test needs no compressor:
+# zstandard.ZstdCompressor(write_content_size=False).compressobj() over the text below.
+_ESTATE_FRAME_TEXT = b"def total(amount):\n    return amount > 0\n"
+_ESTATE_FRAME = bytes.fromhex(
+    "28b52ffd005849010064656620746f74616c28616d6f756e74293a0a2020202072657475726e20616d6f756e74"
+    "203e20300a")
+
+
+def test_the_stores_zstd_content_is_read_on_a_python_without_the_stdlib_decoder(monkeypatch):
+    """#1370: the store keeps file content zstd-compressed. The rig's garden ran on Python 3.13,
+    which has no `compression.zstd`, and garden did not depend on `zstandard`, so every source
+    fell back to a checkout that had moved past the index (207 of 500 units had none). Before
+    3.14 garden now depends on `zstandard`, decoded streamed and bounded. CI's Python 3.13 job
+    sets WICKED_REQUIRE_ZSTANDARD=1, so there the test runs or fails, never skips."""
+    if os.environ.get("WICKED_REQUIRE_ZSTANDARD") == "1":
+        import zstandard  # noqa: F401
+    else:
+        pytest.importorskip("zstandard")
+    monkeypatch.setattr(extract_loop, "_stdlib_zstd", lambda: None)  # as on 3.13
+    assert extract_loop._maybe_decompress(_ESTATE_FRAME) == _ESTATE_FRAME_TEXT
+    assert extract_loop._maybe_decompress(_ESTATE_FRAME, limit=10) == b""
+
+
+def test_the_stdlib_decoder_reads_the_same_frame_bounded():
+    if extract_loop._stdlib_zstd() is None:
+        pytest.skip("compression.zstd is Python 3.14+")
+    assert extract_loop._maybe_decompress(_ESTATE_FRAME) == _ESTATE_FRAME_TEXT
+    assert extract_loop._maybe_decompress(_ESTATE_FRAME, limit=10) == b""
+
+
+def test_store_mode_never_validates_without_a_source():
+    assert extract_loop.unconfirmed_reason("src/a.py", False) == extract_loop.NO_SOURCE_REASON
+    assert extract_loop.unconfirmed_reason("src/a.py", True) is None
+    assert extract_loop.unconfirmed_reason("src/FooSpec.java", True) is None  # a product class
+
+
+def test_test_files_are_recognised_across_ecosystems():
+    for f in ("app/tests.py", "specs/foo.js", "src/FooTests.cs", "a/BarTest.java",
+              "pkg/x_test.go", "lib/y_spec.rb", "testdata/in.txt", "test/live/capture.mjs",
+              "Tests/PaymentValidation.cs", "src/Specs/Order.cs", "conftest.py", "a/conftest.py"):
+        assert extract_loop.is_test_path(f), f
+    for f in ("src/app.py", "lib/contest.py", "src/latest.js", "src/OrderSpec.kt"):
+        assert not extract_loop.is_test_path(f), f
+
+
+def test_a_rule_about_a_unit_with_no_source_is_written_unconfirmed(tmp_path):
+    """#1370: a page item with no source counts as unconfirmed, never as validated — re-derived
+    on the host, whatever confidence the seat gave."""
+    db, repo, wt = _star(tmp_path, sourced=False), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _Core(estate, {s: "f.py" for s in _STAR})
+    _write_rules(wt, "codex", [_rule("s::core", confidence=1.0)])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"] == {"resolved": 0, "risk": 1, "kept": 0}
+    assert report["unsourced"] == 1
+    req, validated, _ = estate.writes["s::core"]["req"]
+    assert validated is False and req.startswith("[RISK]") and "no source" in req
+    assert "amount must be positive" in req  # the statement is kept, unconfirmed
+    assert estate.writes["s::core"]["ann"]["type"] == "risk"
+    # The same rule about a sourced unit is validated.
+    (tmp_path / "b").mkdir()
+    db2, estate2 = _star(tmp_path / "b", sourced=True), _Estate()
+    wt2 = _wt(tmp_path / "b")
+    _write_rules(wt2, "codex", [_rule("s::core", confidence=1.0)])
+    report = _apply(wt2, db2, repo, estate2, _Core(estate2, {s: "f.py" for s in _STAR}))
+    assert report["applied"]["resolved"] == 1 and report["unsourced"] == 0
+    assert estate2.writes["s::core"]["req"][1] is True
+
+
+def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
+    """pi-governance on :7721: 109 of its 120 'behaviours' were keys of JSON evidence files and
+    package.json, and the seat stated a 'requirement' for each. What a test or data file holds is
+    evidence, never a validated requirement: recorded (accounted for), unconfirmed."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path, tracked=(
+        "f.py", "conftest.py", "Tests/PaymentValidation.cs", "package.json")), _wt(tmp_path)
+    estate = _Estate()
+    nodes = {s: "f.py" for s in _STAR}
+    nodes["s::a"] = "conftest.py"
+    nodes["s::b"] = "Tests/PaymentValidation.cs"
+    nodes["s::c"] = "package.json"
+    core = _Core(estate, nodes)
+    _write_rules(wt, "claude", [_rule("s::core", confidence=1.0), _rule("s::a", confidence=1.0),
+                                _rule("s::b", confidence=1.0), _rule("s::c", confidence=1.0)])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"] == {"resolved": 1, "risk": 3, "kept": 0}
+    assert (report["not_product"], report["unsourced"]) == (3, 0)
+    assert estate.writes["s::core"]["req"][1] is True
+    for sid in ("s::a", "s::b", "s::c"):  # conftest.py, Tests/, package.json
+        req, validated, _ = estate.writes[sid]["req"]
+        assert validated is False and "not product code" in req, req
+    assert extract_loop.is_data_path("evidence/run/summary.json")
+    assert extract_loop.is_data_path("docs/README.MD") and not extract_loop.is_data_path("a.js")
 
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------

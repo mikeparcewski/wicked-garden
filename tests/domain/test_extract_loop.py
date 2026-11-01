@@ -437,6 +437,12 @@ def test_persistent_timeout_floors_after_one_retry(monkeypatch):
         assert req.startswith("[RISK]") and validated is False
 
 
+def _sources_confirmed(monkeypatch):
+    """These tests are about retries and yields, not sourcing: with no direct store ("x.db"),
+    every unit would be unconfirmed for want of source (wicked-garden#1370)."""
+    monkeypatch.setattr(extract_loop, "unconfirmed_reason", lambda file, sourced: None)
+
+
 def test_transient_timeout_recovers_on_retry(monkeypatch):
     calls = {"n": 0}
     def flaky(batch, argv):
@@ -448,6 +454,7 @@ def test_transient_timeout_recovers_on_retry(monkeypatch):
     estate = _FakeEstate()
     core = _FakeCore(estate, ids)
     monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
+    _sources_confirmed(monkeypatch)
     monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
     monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
     monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
@@ -461,6 +468,7 @@ def test_transient_timeout_recovers_on_retry(monkeypatch):
 
 def _run_with_model_yield(monkeypatch, rules, ids=None, db="x.db"):
     monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
+    _sources_confirmed(monkeypatch)
     ids = ids or ["a::f1", "a::f2", "a::f3", "a::f4"]
     estate = _FakeEstate()
     core = _FakeCore(estate, ids)
@@ -573,3 +581,19 @@ def test_trailing_dot_symbol_ids_recanonize(monkeypatch):
     assert rc == 0
     assert estate.writes["m::helper()."]["req"][1] is True  # normalized match validated
     assert estate.writes["m::other()."]["req"][1] is True
+
+
+def test_store_mode_never_validates_on_the_estate_source_fallback(monkeypatch):
+    """#1370: with no direct store, `estate source` may frame a unit (it looks a NAME up), but a
+    rule about it is written unconfirmed: only the store's indexed bytes source a unit."""
+    ids = ["a::f1"]
+    estate = _FakeEstate()  # its `source` answers text for any name
+    core = _FakeCore(estate, ids)
+    monkeypatch.setattr(extract_loop, "_RETRY_PAUSE", 0.0)
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    monkeypatch.setattr(_clients, "core_client", lambda project_dir=None: core)
+    monkeypatch.setattr(_clients, "rule_model_argv", lambda project_dir=None: ["fake-model"])
+    monkeypatch.setattr(_rule_extractor, "extract_rules", lambda batch, argv: [_good("a::f1")])
+    assert extract_loop.run("x.db", time_budget=30, limit=0, batch=12, dry_run=False) == 0
+    req, validated = estate.writes["a::f1"]["req"][:2]
+    assert validated is False and "no source" in req

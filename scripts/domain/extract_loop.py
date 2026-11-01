@@ -175,25 +175,42 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
 
-def _maybe_decompress(blob) -> bytes:
+def _stdlib_zstd():
+    """`compression.zstd` (Python 3.14+), or None."""
+    try:
+        from compression import zstd
+    except ImportError:
+        return None
+    return zstd
+
+
+_CONTENT_LIMIT = 4 * 1024 * 1024  # decompressed bytes one file may take (as the checkout read)
+
+
+def _maybe_decompress(blob, limit: int = _CONTENT_LIMIT) -> bytes:
     """Estate stores content zstd-compressed; node spans are byte offsets into the
     DECOMPRESSED text. Slicing the raw blob feeds the model binary noise — observed
     live as whole batches of 'cannot state a rule'. Returns b'' when the blob is
-    compressed but no decompressor is available, which routes framing to the
-    subprocess fallback instead of producing garbage."""
+    compressed but no decompressor is available, or decompresses past `limit` (read bounded,
+    never fully inflated first), which routes framing to the fallback instead of producing
+    garbage."""
     b = blob if isinstance(blob, bytes) else bytes(blob)
     if not b.startswith(_ZSTD_MAGIC):
         return b
-    try:
-        from compression import zstd  # stdlib, Python 3.14+
-        return zstd.decompress(b)
-    except ImportError:
-        pass
-    try:
-        import zstandard
-        return zstandard.ZstdDecompressor().decompress(b)
-    except ImportError:
-        return b""
+    zstd = _stdlib_zstd()
+    if zstd is not None:
+        out = zstd.ZstdDecompressor().decompress(b, max_length=limit + 1)
+    else:
+        try:
+            import io
+            import zstandard  # a dependency before 3.14 (wicked-garden#1370)
+        except ImportError:
+            return b""
+        # Streamed: estate's frames do not carry their content size, and the one-shot
+        # `decompress` refuses those ("could not determine content size in frame header").
+        with zstandard.ZstdDecompressor().stream_reader(io.BytesIO(b)) as reader:
+            out = reader.read(limit + 1)
+    return b"" if len(out) > limit else out
 
 
 class _DirectStore:
@@ -397,13 +414,41 @@ def _bare_name(name: str) -> str:
     return tail.split("(", 1)[0].strip()
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|spec|e2e|fixtures?)/|\.(test|spec)\.[^/]+$|"
-                        r"(^|/)test_[^/]+\.py$|_test\.(py|go|rs)$")
+# Test directories in any case (`Tests/` in .NET, `Specs/`); file-name patterns keep their case
+# (`*Tests.cs` is a test, `Contest.py` is not).
+_TEST_DIR = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/", re.IGNORECASE)
+_TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|(^|/)conftest\.py$|"
+                        r"_test\.(py|go|rs)$|_spec\.rb$|Tests?\.(cs|java|kt|swift|scala)$")
 
 
 def is_test_path(file: str) -> bool:
     """A test, spec or fixture file: mapped in its turn, never where a page starts."""
-    return bool(_TEST_PATH.search(file or ""))
+    return bool(_TEST_DIR.search(file or "") or _TEST_PATH.search(file or ""))
+
+
+# Files whose "behaviours" are keys and headings, not code: a data fixture, a manifest, a
+# document. The indexer counts their keys as nodes, so coverage maps them, but what a seat states
+# about a JSON key is not a requirement the product's code implements.
+_DATA_EXTS = (".json", ".jsonc", ".json5", ".jsonl", ".yaml", ".yml", ".toml", ".lock", ".ini",
+              ".cfg", ".conf", ".properties", ".csv", ".tsv", ".txt", ".md", ".mdx", ".rst",
+              ".xml")
+
+
+def is_data_path(file: str) -> bool:
+    """A data, manifest or document file (by extension): its nodes are not product code."""
+    return (file or "").lower().endswith(_DATA_EXTS)
+
+
+def unconfirmed_reason(file: str, sourced: bool) -> str | None:
+    """Why a rule stated about a unit in `file` is written unconfirmed whatever its confidence
+    (wicked-garden#1370), or None when it may be validated: it needs its source, read on the
+    host, and it must be product code, not a test or a data file (those are evidence of what the
+    product does, recorded as accounted-for but never as a validated requirement)."""
+    if is_test_path(file) or is_data_path(file):
+        return NOT_PRODUCT_REASON
+    if not sourced:
+        return NO_SOURCE_REASON
+    return None
 
 
 def _not_a_hub(store, sid) -> bool:
@@ -769,7 +814,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
 
         # Frame each node: source slice + blast-radius neighbors (direct reads; the old
         # per-node subprocess path survives only as the fallback).
-        framed, ids = [], set()
+        framed, ids, sourced = [], set(), {}
         for n in take:
             sid, name = n["symbol_id"], n.get("name", "")
             slice_txt, neighbors = "", []
@@ -777,6 +822,10 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                 if store is not None:
                     slice_txt = store.source_slice(sid)
                     neighbors = store.blast_neighbors(sid)
+                # Sourced only by the store's indexed bytes: the `estate source` fallback below
+                # looks a NAME up (for a symbol id it can answer "no symbols found", or another
+                # symbol's code), so it may frame the unit but never makes a rule validatable.
+                sourced[sid] = bool(slice_txt.strip())
                 if slice_txt == "":
                     try:
                         slice_txt = estate.source(sid)[:4000]
@@ -796,19 +845,35 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         for n in take:
             sid = n["symbol_id"]
             decide_and_write(estate, store, sid, n.get("name", ""), by_id.get(sid), ids,
-                             node_community, community_sizes)
+                             node_community, community_sizes,
+                             unconfirmed=(None if dry_run else
+                                          unconfirmed_reason(n.get("file", ""),
+                                                             sourced.get(sid, False))))
             processed += 1
+
+
+NO_SOURCE_REASON = "no source: its indexed code could not be read, so the statement is unconfirmed"
+NOT_PRODUCT_REASON = ("not product code (a test, data or document file): recorded, unconfirmed, "
+                      "never a validated requirement")
 
 
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
-                     seat: str | None = None, read_back=None) -> str:
+                     seat: str | None = None, read_back=None,
+                     unconfirmed: str | None = None) -> str:
     """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
     RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
-    in a seat container is judged exactly like one the host's own model returned. Returns
-    "resolved", "risk" or "kept" (a statement-less floor skipped over existing content)."""
+    in a seat container is judged exactly like one the host's own model returned. `unconfirmed`
+    is why a rule about this node may not be validated ([`unconfirmed_reason`]: no source read
+    on the host, or not product code): it is then written unconfirmed (RISK, not validated)
+    whatever its confidence (wicked-garden#1370). Returns "resolved", "risk", "unconfirmed" (a
+    valid rule written unconfirmed for that reason; a RISK write) or "kept" (a statement-less
+    floor skipped over existing content)."""
     ok, reason = (_rule_extractor.validate_rule(rule, ids) if rule
                   else (False, "no rule returned for this node"))
+    if ok and unconfirmed:
+        _write_node(estate, sid, name, rule, False, unconfirmed, seat=seat, read_back=read_back)
+        return "unconfirmed"
     if ok:
         adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
         resolved = adjusted >= RESOLVE_THRESHOLD

@@ -189,7 +189,14 @@ def ingest(db: str, workdir: Path) -> int:
             valid, reason = (_rule_extractor.validate_rule(rule, batch_ids) if rule
                              else (False, "no rule returned for this node"))
             name = sid.rsplit("/", 1)[-1]
-            if valid and float(rule["confidence"]) >= extract_loop.RESOLVE_THRESHOLD:
+            # As the host apply step: no source, or a test or data file, is never validated.
+            row = store.node_row.get(store.sid_of.get(sid))
+            why = extract_loop.unconfirmed_reason(row[1] if row else "",
+                                                  bool(store.source_slice(sid).strip()))
+            if valid and why:
+                extract_loop._write_node(estate, sid, name, rule, False, why)
+                floored += 1
+            elif valid and float(rule["confidence"]) >= extract_loop.RESOLVE_THRESHOLD:
                 extract_loop._write_node(estate, sid, name, rule, True, "")
                 ok += 1
             elif rule and (rule.get("statement") or "").strip():

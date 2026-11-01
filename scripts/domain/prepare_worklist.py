@@ -117,9 +117,10 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         doc["units"] = units
     rules_file.write_json_file(base, out_rel, doc)
     front = units[0]["symbol_id"] if units else "-"
+    no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
     print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s); {skipped} in files the "
-          f"repository does not track (left out); {len(units)} framed into {out_rel}, "
-          f"frontier {front}; {doc['order']}", file=sys.stderr)
+          f"repository does not track (left out); {len(units)} framed into {out_rel} "
+          f"({no_source} with no source), frontier {front}; {doc['order']}", file=sys.stderr)
     return doc
 
 

@@ -7,6 +7,29 @@ on:
     branches: [main]
 
 jobs:
+  # The domain scripts on a Python without `compression.zstd` (3.13, as the rig's garden venv):
+  # the store's content is read through `zstandard` there (wicked-garden#1370), and these tests
+  # must run, not skip.
+  domain-py313:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7
+        with:
+          python-version: "3.13"
+
+      - name: Install pytest + PyYAML + zstandard
+        run: pip install pytest pyyaml "zstandard>=0.22"
+
+      - name: Domain tests (the zstandard decoder must run)
+        env:
+          WICKED_REQUIRE_ZSTANDARD: "1"
+        run: python -m pytest tests/domain -q -p no:cacheprovider
+
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
