@@ -33,7 +33,7 @@ def _doc(*points, grant=(0, 0)):
             "grant": {"page": grant[0], "at": grant[1] * MIN}}
 
 
-def _decide(doc, target=80, now_min=None, max_pages=20, max_minutes=240, left=500):
+def _decide(doc, target=80, now_min=None, max_pages=20, max_minutes=240, left=5000):
     now = (now_min if now_min is not None else doc["points"][-1]["at"] // MIN) * MIN
     return generation.decide(doc, repo="crew", target=target, now=now, max_pages=max_pages,
                              max_minutes=max_minutes, left_to_map=left)
@@ -217,8 +217,10 @@ def test_a_retried_or_answered_step_records_the_same_page_and_keeps_its_time(tmp
     assert rec["points"][1]["took"] == 16 * MIN and d["next"] == "continue"
     assert rec["grant"] == {"page": 1, "at": 24 * 60 * MIN}
     # page 2 ran 15 minutes after the grant: the ETA counts runs, never the wait
-    d, _, _ = _run(tmp_path, _Core(200), _env(WICKED_REPEAT_PASS=2, WICKED_DOMAIN_MAX_PAGES=5),
-                   24 * 60 + 15, capsys)
+    many = [{"symbol_id": f"s::{i}", "name": "x", "file": "f.py", "kind": "Function"}
+            for i in range(800)]  # enough left to ask that the target is in reach
+    d, _, _ = _run(tmp_path, _Core(200, unmapped=many),
+                   _env(WICKED_REPEAT_PASS=2, WICKED_DOMAIN_MAX_PAGES=5), 24 * 60 + 15, capsys)
     rec = generation.load(str(db), "run-1")
     assert rec["points"][2]["took"] == 15 * MIN
     assert "about 2 h 4 min left" in d["line"], d["line"]  # 15.5 min a page, 85 a page
@@ -394,3 +396,14 @@ def test_the_operators_finish_hands_the_share_to_the_coverage_step(tmp_path, cap
     d, out, _ = _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1,
                                                            WICKED_REPEAT_CHOICE="finish"), 15, capsys)
     assert d["next"] == "done" and "going on as the operator chose" in d["line"]
+
+
+def test_a_target_the_run_cannot_reach_gets_no_time_estimate():
+    """wicked-crew run 29bbbfb1 read "about 3 h 37 min left" while 2,000 more real requirements
+    were needed and only 1,900 units were left to ask: no amount of time reaches the target."""
+    doc = _doc(_pt(0, 100, 0), _pt(1, 300, 15), _pt(2, 450, 30))
+    short = _decide(doc, left=200)  # 800 - 450 = 350 needed, 200 left
+    assert short["next"] == "continue"
+    assert "target out of reach in this run: 350 more real requirements needed, 200 units left " \
+           "to ask" in short["line"] and " left" in short["line"] and "about" not in short["line"]
+    assert "about" in _decide(doc, left=500)["line"]  # 350 needed, 500 left: in reach
