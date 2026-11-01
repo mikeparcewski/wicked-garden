@@ -138,7 +138,7 @@ def _record_answered(db: str, answered: list[str]) -> None:
     record, so only those close with the page. Never fatal: without it the next step closes the
     units that are real requirements now."""
     run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
-    if not run_id or not answered:
+    if not run_id:  # an empty list is recorded too: "answered none" (Copilot on #1375)
         return
     try:
         generation.record_answered(db, run_id, answered)

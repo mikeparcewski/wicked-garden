@@ -1005,7 +1005,7 @@ class _RealCore(_Core):
         real = n - len(left) - len(held)
         return {"coverage": (n - len(left)) / n, "behavior_bearing": n, "resolved": real,
                 "risk_flagged": len(held), "unaccounted": len(left), "unaccounted_nodes": left,
-                "placeholder_nodes": held}
+                "placeholder_nodes": held, "not_product": 0}
 
 
 def test_a_placeholder_is_framed_after_the_unmapped_and_a_real_rule_resolves_it(tmp_path):
@@ -1142,7 +1142,7 @@ def test_a_page_whose_answers_were_all_refused_closes_none_of_its_units(tmp_path
     db = str(tmp_path / "graphs" / "estate.db")
     (tmp_path / "graphs").mkdir()
     cov = {"behavior_bearing": 3, "resolved": 1, "risk_flagged": 2, "unaccounted": 0,
-           "unaccounted_nodes": [],
+           "unaccounted_nodes": [], "not_product": 0,
            "placeholder_nodes": [{"symbol_id": "s::a"}, {"symbol_id": "s::b"}]}
     generation.open_record(db, "run-1", cov, "repo")
     generation.frame_page(db, "run-1", ["s::a", "s::b", "s::c"])
@@ -1216,7 +1216,8 @@ def test_an_apply_retry_keeps_what_the_first_attempt_answered(tmp_path):
     db = str(tmp_path / "graphs" / "estate.db")
     (tmp_path / "graphs").mkdir()
     cov = {"behavior_bearing": 8, "resolved": 2, "risk_flagged": 6, "unaccounted": 0,
-           "unaccounted_nodes": [], "placeholder_nodes": [{"symbol_id": f"s::{i}"} for i in range(2, 8)]}
+           "unaccounted_nodes": [], "not_product": 0,
+           "placeholder_nodes": [{"symbol_id": f"s::{i}"} for i in range(2, 8)]}
     generation.open_record(db, "run-1", cov, "repo")
     generation.frame_page(db, "run-1", [f"s::{i}" for i in range(8)])
     generation.record_answered(db, "run-1", ["s::0", "s::1"])  # first attempt, then it failed
@@ -1224,3 +1225,32 @@ def test_an_apply_retry_keeps_what_the_first_attempt_answered(tmp_path):
     rec = generation.load(db, "run-1")
     assert rec["answered"] == ["s::0", "s::1"]
     assert generation.close_page(rec, cov) == (8, 2)
+
+
+def test_an_older_core_without_placeholders_gives_no_yield_rather_than_a_false_one(tmp_path):
+    """Copilot on #1375: an older wicked-core lists no placeholders, so a framed unit that is now
+    merely accounted cannot be told from a real one; the page's yield is unknown, not "all real"."""
+    db = str(tmp_path / "graphs" / "estate.db")
+    (tmp_path / "graphs").mkdir()
+    old = {"behavior_bearing": 2, "resolved": 0, "risk_flagged": 2, "unaccounted": 0,
+           "unaccounted_nodes": []}
+    generation.open_record(db, "run-1", old, "repo")
+    generation.frame_page(db, "run-1", ["s::a", "s::b"])
+    generation.record_answered(db, "run-1", ["s::a", "s::b"])
+    rec = generation.load(db, "run-1")
+    assert generation.close_page(rec, old) == (2, None)
+
+
+def test_a_page_whose_entries_were_all_refused_records_answered_none(tmp_path, monkeypatch):
+    """Copilot on #1375: every entry refused (another writer resolved them) still records an empty
+    answered list, so those resolutions are not credited to this page."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 3, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule("s::nope")])
+    _apply(wt, db, repo, estate, core)
+    assert generation.load(db, "run-1")["answered"] == []
+    assert first

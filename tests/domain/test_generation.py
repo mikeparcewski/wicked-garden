@@ -381,7 +381,8 @@ def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path,
     d, out, _ = _run(tmp_path, core, _env(WICKED_REPEAT_PASS=1), 15, capsys)
     rec = generation.load(str(db), "run-1")
     assert rec["visited"] == ["s::x"] and rec["pending"] == [] and "answered" not in rec
-    assert (rec["points"][-1]["framed"], rec["points"][-1]["page_real"]) == (1, 0)
+    # this _Core is shaped like an older wicked-core (no `not_product`): no yield, not a false one
+    assert rec["points"][-1]["framed"] == 1 and "page_real" not in rec["points"][-1]
     # the only unit left was asked by this page: nothing left to ask
     assert "nothing left to map" in d["line"], d
 

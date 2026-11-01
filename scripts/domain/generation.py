@@ -194,7 +194,7 @@ def record_answered(db: str, run_id: str, symbol_ids: list[str]) -> None:
     save(db, run_id, doc)
 
 
-def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int]:
+def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int | None]:
     """Close the page in flight; returns (units it framed, of those now REAL requirements), both
     measured on the page's own units (another writer's progress elsewhere never counts as this
     page's yield). The units `extract-apply` recorded as answered join `visited`; without that
@@ -215,6 +215,10 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int]
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
     doc["pending"] = []
     doc.pop("answered", None)
+    if "not_product" not in coverage:
+        # An older wicked-core lists no placeholders, so "accounted" cannot be told from "real":
+        # the page's yield is unknown, never counted as real (Copilot on #1375).
+        return len(pending), None
     real = sum(1 for s in closed if s not in unmapped and s not in held)
     return len(pending), real
 

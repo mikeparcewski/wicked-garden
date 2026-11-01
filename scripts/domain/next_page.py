@@ -97,9 +97,13 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         start = max([p["at"] for p in earlier[-1:]] + [doc["grant"]["at"]])
         point = generation.point_of(cov, page, now, now - start)
         if framed or kept is None or "framed" not in kept:
-            point["framed"], point["page_real"] = framed, page_real
+            point["framed"] = framed
+            if page_real is not None:  # unknown from an older wicked-core: no yield shown
+                point["page_real"] = page_real
         else:  # a retried step after the page closed: the page keeps its own count
-            point["framed"], point["page_real"] = kept["framed"], kept.get("page_real", 0)
+            point["framed"] = kept["framed"]
+            if "page_real" in kept:
+                point["page_real"] = kept["page_real"]
     doc["points"] = sorted([p for p in points if p["page"] != page] + [point],
                            key=lambda p: p["page"])
 
