@@ -1017,7 +1017,7 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   background: color-mix(in oklab, var(--surface) 50%, transparent);
 }
 .qw-leg--block .qw-leg-items span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--hairline-strong); }
-.qw-leg-items code { color: var(--c-qe); font-size: inherit; }
+.qw-leg-items code { color: var(--c-qe); font-size: var(--text-code); }
 
 .qw-foot {
   margin-top: clamp(0.4rem, 1vh, 1.2rem);
