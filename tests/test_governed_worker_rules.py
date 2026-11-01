@@ -6,7 +6,14 @@ that silently drops out of it is a regression even when no code changes.
 
 from __future__ import annotations
 
+import json
+import os
 import re
+import shlex
+import subprocess
+import sys
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 FLOOR = Path(__file__).resolve().parents[1] / "skills" / "governed-worker" / "SKILL.md"
@@ -110,5 +117,109 @@ def test_e6_delivery_only_criteria_are_deferred_not_failed():  # operator-approv
 
 def test_new_rules_have_provenance_rows():
     body = FLOOR.read_text(encoding="utf-8")
-    for rule_id in ("C6", "C7", "C8", "E3", "E4", "E5", "E6"):
+    for rule_id in ("A7", "C6", "C7", "C8", "E3", "E4", "E5", "E6"):
         assert re.search(rf"^\| {rule_id} \|", body, re.M), rule_id
+
+
+def test_a7_every_role_proposes_what_it_witnessed():  # operator report 2026-10-31: only pi proposed memories
+    rule = _rule("A7")
+    assert "whatever your role" in rule
+    # A fixed moment to check, power mode included: a soft "when you learn something" was read and skipped
+    # by both a power-mode claude orchestrator and a codex evaluator on the rig (run e0ba4073).
+    assert "Before your final message (in power mode, before each `CHECKPOINT:` or `HANDOFF:` line)" in rule
+    for what in ("failed because of the toolchain, the environment or the repository's setup",
+                 "and what made it pass", "a trap in a tool", "a ruling or steer the operator gave"):
+        assert what in rule, what
+    # A reviewer's finding with an environmental cause is a memory too (the codex evaluator's miss).
+    assert "A finding you report is a memory as well" in rule and "so an evaluator proposes it too" in rule
+    assert "`wicked-garden run scripts/mem/estate_memory.py --readonly propose '" in rule
+    assert "never pass provenance" in rule
+    assert "Not a memory: what the code does" in rule and "the change you made" in rule
+    assert "At most three per unit in all, across every turn" in rule
+    # A power-mode unit checks at every checkpoint, and recall never returns a pending proposal, so the
+    # rule itself must stop a re-proposal (xreview r2 P2).
+    assert "Propose each learning once" in rule and "covers only what happened since the last one" in rule
+    assert "never re-proposes what this unit already proposed or recorded" in rule
+    assert "never a pending proposal" in rule
+    assert "an evaluator or a neutral unit proposes too" in rule
+    assert "when N is 0 say what you checked" in rule
+    assert "an evaluator's VERDICT line is still last" in rule
+    # The manual alternative covers a missing launcher too (Copilot on #1372), recorded once (A5).
+    assert "When the launcher or Python is missing, the shim answers" in rule
+    assert "`memory (not proposed: <reason>): <text>` in your output once and go on (A5)" in rule
+    # The capture-report line stays a capture-phase contract, so an evaluator's VERDICT stays last.
+    assert "A unit of a declared capture phase also ends with the machine-readable line" in _rule("A4")
+    body = " ".join(FLOOR.read_text(encoding="utf-8").split())
+    assert "memories proposed N (A7), with what you checked when N is 0" in body
+    assert "every role proposes a memory for what it witnessed" in body
+
+
+def _a7_propose_argv(text: str) -> list:
+    """A7's own propose command, as a seat would run it, with the launcher resolved to this checkout."""
+    m = re.search(r"`wicked-garden run (scripts/mem/estate_memory\.py --readonly propose) '[^`]*'`", _rule("A7"))
+    assert m, "A7 names no propose command"
+    script, *args = shlex.split(m.group(1))
+    return [sys.executable, str(FLOOR.parents[2] / script), *args, text]
+
+
+class _Broker:
+    """crew's broker (`POST /api/v1/mcp/call`), answering a proposal with an id."""
+
+    def __init__(self):
+        self.seen = []
+        seen = self.seen
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])) or b"{}")
+                seen.append((self.path, body))
+                out = {"outcome": "ok", "subject": body.get("subject"), "callId": "c1", "ruleIds": [],
+                       "result": {"content": [{"type": "text", "text": json.dumps({"id": "prop-7"})}],
+                                  "isError": False}}
+                raw = json.dumps(out).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(raw)))
+                self.end_headers()
+                self.wfile.write(raw)
+
+            def log_message(self, *a):
+                pass
+
+        self.server = HTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+
+def test_a7_command_lands_a_codex_seats_memory_in_the_queue(tmp_path):
+    """A non-pi seat (codex, an evaluator unit on the container floor) runs A7's command: one
+    `proposal.submit` of kind memory reaches crew's broker, scoped to the run's project, with no
+    caller provenance (crew stamps run_id / run_unit / run_agent from the unit the token is bound to)."""
+    broker = _Broker()
+    try:
+        env = {k: v for k, v in os.environ.items() if not k.startswith("WICKED_")}
+        env.update({
+            "WICKED_RUN_ID": "run-7", "WICKED_RUN_UNIT": "3", "WICKED_RUN_AGENT": "codex",
+            "WICKED_RUN_PROJECT": "tiny-math", "WICKED_ESTATE_BROKER": "1",
+            "WICKED_CREW_URL": broker.url, "WICKED_MCP_TOKEN": "wmt_unit3",
+            "WICKED_ESTATE_READONLY": "1", "WICKED_ESTATE_PERSISTENT": "0",
+        })
+        text = ("In tiny-math, `npm test` runs `node --test test/`, which newer Node treats as a module path "
+                "and fails with MODULE_NOT_FOUND; run `node --test test/*.test.js` to run the suite.")
+        res = subprocess.run(_a7_propose_argv(text), env=env, cwd=tmp_path, capture_output=True, text=True,
+                             timeout=60)
+        assert res.returncode == 0, res.stderr
+        out = json.loads(res.stdout)
+        assert out["ok"] is True and out["id"] == "prop-7", out
+        calls = [b for path, b in broker.seen if path == "/api/v1/mcp/call"]
+        assert len(calls) == 1, broker.seen
+        call = calls[0]
+        assert call["token"] == "wmt_unit3"
+        assert call["subject"] == "mcp:estate/proposal.submit"
+        assert call["args"]["kind_type"] == "memory"
+        assert call["args"]["payload"]["content"] == text
+        assert call["args"]["facets"]["project"] == "tiny-math"
+        assert "provenance" not in call["args"]
+    finally:
+        broker.server.shutdown()
+        broker.server.server_close()
