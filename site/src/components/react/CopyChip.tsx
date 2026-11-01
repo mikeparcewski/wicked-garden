@@ -30,7 +30,7 @@ export default function CopyChip({ text, label }: CopyChipProps) {
       <span aria-hidden className="select-none text-accent">›</span>
       <span className="min-w-0 flex-1 truncate text-ink">{text}</span>
       <span
-        className={`shrink-0 text-[0.64rem] uppercase tracking-[0.14em] transition-colors ${
+        className={`shrink-0 text-xs transition-colors ${
           copied ? "text-accent" : "text-muted group-hover/copy:text-accent"
         }`}
       >
