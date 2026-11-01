@@ -13,8 +13,8 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     `git ls-files` tracks in the registered repository — anything else is refused and listed; an
     empty statement never overwrites a placeholder's statement (the floor only fills blanks);
   * what passes is judged and written exactly as the extraction harness writes its own model's
-    rules (`extract_loop.decide_and_write`: the rule validator, confidence x community
-    cohesion >= 0.75 to resolve, the RISK floor, a read-back per write), authored
+    rules (`extract_loop.decide_and_write`: the rule validator, confidence >= 0.75 to
+    resolve, the RISK floor, a read-back per write), authored
     `extract-loop` — the seat a file names is the seat's own claim, so it is only reported;
   * a rule about a unit whose source the host cannot read (re-read here from the store, never
     taken from the worklist), or about a test or data file, is written unconfirmed, never
@@ -198,15 +198,10 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             continue
         refused.append({"index": None, "symbol_id": rules_file._shown(sid), "why": why})
 
-    try:
-        nc = _clients.total_node_community(estate.read_clusters(), estate.list_nodes())
-    except Exception as e:  # cohesion is a quality signal; without it every node is a singleton
-        print(f"[extract-apply] communities unavailable ({e}); cohesion as singletons",
-              file=sys.stderr)
-        nc = {}
+    # The seat's own confidence decides (extract_loop.decide_and_write): communities frame a unit
+    # on the worklist, never its verdict, so this step reads none.
+    nc: dict[str, str] = {}
     sizes: dict[str, int] = {}
-    for label in nc.values():
-        sizes[label] = sizes.get(label, 0) + 1
 
     # The host writes these, so the host is the author: the seat named in the file is the seat's
     # own claim (a seat-written file proves nothing about who wrote it) and is only reported.

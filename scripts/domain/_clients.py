@@ -451,7 +451,7 @@ def total_node_community(clusters: list[dict[str, Any]],
     """Port of anti-legacy `_cluster_from_native`: map EVERY node → a community
     label — Louvain members keep their community, and every node the engine omitted
     is SINGLETON-assigned its own symbol_id as label, so ``node_community`` is TOTAL.
-    Feeds the cohesion framing signal ONLY (resolved-vs-RISK quality), NOT the
+    Feeds the community label a worklist unit is framed with ONLY (never its verdict), NOT the
     coverage denominator (which `unaccounted_nodes` owns)."""
     node_community: dict[str, str] = {}
     for comm in clusters:

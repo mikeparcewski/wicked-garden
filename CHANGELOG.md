@@ -11,6 +11,11 @@
   restated shape is left empty. A constraint visible in the unit's definition, whether in its body or its type,
   is high confidence; a rule guessed from a name, a comment alone or a cut-off slice is low. Each confidence is
   judged on its own and never stamped across the page. The bounded rule model's prompt says the same.
+- **The seat's reviewed confidence decides whether a rule resolves, never its Louvain community.** On the same run,
+  page 3 restated 230 grounded rules at 0.80 to 0.84, and the page review passed them. Apply resolved only 42.
+  A unit with no community took a 0.85 penalty (0.84 x 0.85 < 0.75), while a community boost of up to 1.1 raised
+  rules the seat was unsure of. Communities still frame a unit on the worklist; `extract-apply` no longer reads
+  them.
 
 ### Changed
 - **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
