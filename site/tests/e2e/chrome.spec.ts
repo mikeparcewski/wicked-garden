@@ -11,7 +11,7 @@ test.beforeEach(async ({ page }) => {
 
 test('theme toggle flips data-theme on <html> and persists across reload', async ({ page }) => {
   const html = page.locator('html');
-  // The chrome normalizes to a concrete theme on load (default: light).
+  // The chrome normalizes to a concrete theme on load (default: dark, Wicked Dark).
   await expect(html).toHaveAttribute('data-theme', /^(light|dark)$/);
   const initial = await html.getAttribute('data-theme');
   const flipped = initial === 'dark' ? 'light' : 'dark';
@@ -19,10 +19,10 @@ test('theme toggle flips data-theme on <html> and persists across reload', async
   await page.locator('#themeBtn').click();
   await expect(html).toHaveAttribute('data-theme', flipped);
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('wa-theme')))
+    .poll(() => page.evaluate(() => localStorage.getItem('wa-theme-v3')))
     .toBe(flipped);
 
-  // Persistence: the no-flash init in Base.astro reads 'wa-theme' before paint.
+  // Persistence: the no-flash init in Base.astro reads 'wa-theme-v3' before paint.
   await page.reload();
   await expect(html).toHaveAttribute('data-theme', flipped);
 });
