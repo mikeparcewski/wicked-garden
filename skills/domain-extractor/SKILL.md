@@ -72,12 +72,16 @@ and only this:
    Leave a statement empty for pure plumbing too (a re-export, a trivial getter, a
    pass-through wrapper, formatting), never because the rule is small or obvious: the page's
    review lists an empty statement whose source shows a rule as a missed rule, and fails a
-   page that leaves most of them empty, or whose statements mostly describe code. Set each
-   confidence by how directly the source supports the rule: one you can see enforced in the
-   unit's body is high (0.85 or more); a restated shape, or one inferred from a name, a
-   comment or a cut-off slice, is low, and the host records it as a placeholder. Never give
-   every statement the same confidence. Only real requirements count toward the target; a
-   placeholder is shown, never counted.
+   page that leaves most of the units whose source shows a rule empty, or whose statements
+   mostly describe code (a page of mostly plain types and plumbing, left empty, is fine). A
+   restated shape is never a rule at any confidence: leave it empty. Set each confidence by
+   how directly the source supports the rule: a constraint visible in the unit's full
+   definition (enforced in its body, or encoded in its type: a closed set, a limit, a
+   documented required field) is high (0.85 or more); a rule only guessed from a name, a
+   comment alone or a cut-off slice is low, and the host records it as a placeholder. Judge
+   each statement's confidence on its own; never stamp one value on the whole page (equal
+   values are fine where the support is equal). Only real requirements count toward the
+   target; a placeholder is shown, never counted.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
    report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself

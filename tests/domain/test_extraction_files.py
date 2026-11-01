@@ -1261,7 +1261,14 @@ def test_the_extractor_never_asks_for_a_rule_from_a_plain_field_list():
     record must hold", codex restated 441 interface shapes at a flat 0.9 and the review failed
     the page. A type is a rule only when it encodes a constraint; confidence is never flat."""
     skill = Path(__file__).resolve().parents[2] / "skills" / "domain-extractor" / "SKILL.md"
-    text = skill.read_text(encoding="utf-8")
+    text = " ".join(skill.read_text(encoding="utf-8").split())  # wrap-independent (agy #1376)
     assert "an interface or type states what" not in text
+    assert "A restated shape is never a rule at any confidence" in text
+    assert "encoded in its type" in text
     assert "a plain list of fields describes code, so leave it empty" in text
-    assert "Never give\n   every statement the same confidence" in text
+    assert "never stamp one value on the whole page" in text
+    assert "leaves most of the units whose source shows a rule empty" in text
+    # …and the bounded rule model's prompt (step 1's path) says the same (codex on #1376).
+    prompt = _rule_extractor._PROMPT_HEADER
+    assert "or a required field is a rule" not in prompt
+    assert "a plain list of fields describes code" in prompt

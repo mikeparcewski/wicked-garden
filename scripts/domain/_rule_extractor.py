@@ -37,10 +37,13 @@ _PROMPT_HEADER = (
     '"provenance": {"source": "<repo/module>", "ref": "<the symbol_id>", '
     '"source_kinds": ["code-body"|"type-def"|"comment"|"doc", ...]}}\n'
     "Most product code encodes a rule: a check, a refusal, a limit, a default, an "
-    "ordering, a permission, a state change or a required field is a rule even when it is "
-    "small, so state it. Leave a statement \"\" only for pure plumbing (a re-export, a "
-    "trivial getter, a pass-through wrapper, formatting) or when the unit's behavior is "
-    "unclear, with confidence low — do NOT guess. Ground trusted rules in "
+    "ordering, a permission or a state change is a rule even when it is small, so state "
+    "it. A type or interface is a rule only when it encodes a constraint the business "
+    "relies on (a closed set of values, a limit, a required field whose comment says what "
+    "it means); a plain list of fields describes code, so its statement is \"\". Leave a "
+    "statement \"\" for pure plumbing too (a re-export, a trivial getter, a pass-through "
+    "wrapper, formatting) or when the unit's behavior is unclear, with confidence low — do "
+    "NOT guess. Judge each confidence on its own evidence. Ground trusted rules in "
     "code-body/type-def, not comment/doc alone.\n"
     "State each rule in PRODUCT-FUNCTIONAL terms: what the business requires, not the "
     "implementation. Name a specific tool, library, or technology ONLY when the source "
