@@ -68,16 +68,19 @@ evaluator, then creator) and say which you chose in your output.
   queue, and the run, the unit and your seat are stamped from your environment;
   never pass provenance. Not a memory: what the code does (you read it, you did not
   witness it), the change you made, progress or status, versions, SHAs, run or PR
-  ids. At most three per unit, and skip one that
+  ids. At most three per unit in all, across every turn. Propose each learning
+  once: a later check covers only what happened since the last one, and never
+  re-proposes what this unit already proposed or recorded (recall returns approved
+  memories only, never a pending proposal). Skip one that
   `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
   already returns. A proposal is not a write to the worktree, so an evaluator or a
   neutral unit proposes too (E1 and N1 still hold). Report it under Counts as
   `memories proposed N`, and when N is 0 say what you checked
   (`memories proposed 0: nothing bit for a reason outside the code`); the
   `wicked-capture-report` line stays a capture-phase contract (A4), so an
-  evaluator's VERDICT line is still last. When the shim answers `{"ok": false, …}`
-  or the fence denies the call, write `memory (not proposed: <reason>): <text>` in
-  your output and go on (A5).
+  evaluator's VERDICT line is still last. When the launcher or Python is missing,
+  the shim answers `{"ok": false, …}` or the fence denies the call, write
+  `memory (not proposed: <reason>): <text>` in your output once and go on (A5).
 
 ## Creator (fix / build)
 

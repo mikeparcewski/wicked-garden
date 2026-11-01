@@ -135,11 +135,18 @@ def test_a7_every_role_proposes_what_it_witnessed():  # operator report 2026-10-
     assert "`wicked-garden run scripts/mem/estate_memory.py --readonly propose '" in rule
     assert "never pass provenance" in rule
     assert "Not a memory: what the code does" in rule and "the change you made" in rule
-    assert "At most three per unit" in rule
+    assert "At most three per unit in all, across every turn" in rule
+    # A power-mode unit checks at every checkpoint, and recall never returns a pending proposal, so the
+    # rule itself must stop a re-proposal (xreview r2 P2).
+    assert "Propose each learning once" in rule and "covers only what happened since the last one" in rule
+    assert "never re-proposes what this unit already proposed or recorded" in rule
+    assert "never a pending proposal" in rule
     assert "an evaluator or a neutral unit proposes too" in rule
     assert "when N is 0 say what you checked" in rule
     assert "an evaluator's VERDICT line is still last" in rule
-    assert "`memory (not proposed: <reason>): <text>`" in rule
+    # The manual alternative covers a missing launcher too (Copilot on #1372), recorded once (A5).
+    assert "When the launcher or Python is missing, the shim answers" in rule
+    assert "`memory (not proposed: <reason>): <text>` in your output once and go on (A5)" in rule
     # The capture-report line stays a capture-phase contract, so an evaluator's VERDICT stays last.
     assert "A unit of a declared capture phase also ends with the machine-readable line" in _rule("A4")
     body = " ".join(FLOOR.read_text(encoding="utf-8").split())
