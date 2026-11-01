@@ -417,7 +417,7 @@ def _bare_name(name: str) -> str:
 # Test directories in any case (`Tests/` in .NET, `Specs/`); file-name patterns keep their case
 # (`*Tests.cs` is a test, `Contest.py` is not).
 _TEST_DIR = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/", re.IGNORECASE)
-_TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|"
+_TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|(^|/)conftest\.py$|"
                         r"_test\.(py|go|rs)$|_spec\.rb$|Tests?\.(cs|java|kt|swift|scala)$")
 
 

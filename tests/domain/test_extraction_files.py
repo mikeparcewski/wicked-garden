@@ -863,8 +863,12 @@ def test_the_stores_zstd_content_is_read_on_a_python_without_the_stdlib_decoder(
     """#1370: the store keeps file content zstd-compressed. The rig's garden ran on Python 3.13,
     which has no `compression.zstd`, and garden did not depend on `zstandard`, so every source
     fell back to a checkout that had moved past the index (207 of 500 units had none). Before
-    3.14 garden now depends on `zstandard`, decoded streamed and bounded."""
-    pytest.importorskip("zstandard")
+    3.14 garden now depends on `zstandard`, decoded streamed and bounded. CI's Python 3.13 job
+    sets WICKED_REQUIRE_ZSTANDARD=1, so there the test runs or fails, never skips."""
+    if os.environ.get("WICKED_REQUIRE_ZSTANDARD") == "1":
+        import zstandard  # noqa: F401
+    else:
+        pytest.importorskip("zstandard")
     monkeypatch.setattr(extract_loop, "_stdlib_zstd", lambda: None)  # as on 3.13
     assert extract_loop._maybe_decompress(_ESTATE_FRAME) == _ESTATE_FRAME_TEXT
     assert extract_loop._maybe_decompress(_ESTATE_FRAME, limit=10) == b""
@@ -886,7 +890,7 @@ def test_store_mode_never_validates_without_a_source():
 def test_test_files_are_recognised_across_ecosystems():
     for f in ("app/tests.py", "specs/foo.js", "src/FooTests.cs", "a/BarTest.java",
               "pkg/x_test.go", "lib/y_spec.rb", "testdata/in.txt", "test/live/capture.mjs",
-              "Tests/PaymentValidation.cs", "src/Specs/Order.cs"):
+              "Tests/PaymentValidation.cs", "src/Specs/Order.cs", "conftest.py", "a/conftest.py"):
         assert extract_loop.is_test_path(f), f
     for f in ("src/app.py", "lib/contest.py", "src/latest.js", "src/OrderSpec.kt"):
         assert not extract_loop.is_test_path(f), f
@@ -921,10 +925,10 @@ def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
     package.json, and the seat stated a 'requirement' for each. What a test or data file holds is
     evidence, never a validated requirement: recorded (accounted for), unconfirmed."""
     db, repo, wt = _star(tmp_path), _git_repo(tmp_path, tracked=(
-        "f.py", "package.json", "Tests/PaymentValidation.cs")), _wt(tmp_path)
+        "f.py", "conftest.py", "Tests/PaymentValidation.cs")), _wt(tmp_path)
     estate = _Estate()
     nodes = {s: "f.py" for s in _STAR}
-    nodes["s::a"] = "package.json"
+    nodes["s::a"] = "conftest.py"
     nodes["s::b"] = "Tests/PaymentValidation.cs"
     core = _Core(estate, nodes)
     _write_rules(wt, "claude", [_rule("s::core", confidence=1.0), _rule("s::a", confidence=1.0),
