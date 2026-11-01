@@ -65,16 +65,19 @@ and only this:
    code, and the page's review fails it. State what the business requires (who may do what,
    what must hold, what is refused and why, what a caller must supply, what a result must
    carry), not what the function does. **Most product code encodes a rule: state it.** A
-   check, a refusal, a limit, a default, an ordering, a permission, a state change or a
-   required field is a rule even when it is small, and an interface or type states what a
-   request or record must hold. Leave a statement empty only for pure plumbing (a re-export, a
-   trivial getter, a pass-through wrapper, formatting), never because the rule is small or
-   obvious: the page's review lists an empty statement whose source shows a rule as a missed
-   rule, and fails a page that leaves most of them empty. Give the confidence the source
-   supports: a rule you can check against the unit's whole body is high (0.85 or more); one
-   you inferred from a name, a comment or a cut-off slice is low, and the host records it as a
-   placeholder. Only real requirements count toward the target; a placeholder is shown, never
-   counted.
+   check, a refusal, a limit, a default, an ordering, a permission or a state change is a rule
+   even when it is small. An interface or type is a rule only when the type itself encodes a
+   constraint the business relies on (a closed set of values, a limit, a required field whose
+   comment says what it means); a plain list of fields describes code, so leave it empty.
+   Leave a statement empty for pure plumbing too (a re-export, a trivial getter, a
+   pass-through wrapper, formatting), never because the rule is small or obvious: the page's
+   review lists an empty statement whose source shows a rule as a missed rule, and fails a
+   page that leaves most of them empty, or whose statements mostly describe code. Set each
+   confidence by how directly the source supports the rule: one you can see enforced in the
+   unit's body is high (0.85 or more); a restated shape, or one inferred from a name, a
+   comment or a cut-off slice, is low, and the host records it as a placeholder. Never give
+   every statement the same confidence. Only real requirements count toward the target; a
+   placeholder is shown, never counted.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
    report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself

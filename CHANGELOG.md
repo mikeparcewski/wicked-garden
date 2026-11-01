@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+- **The extractor no longer states a rule for a plain interface (follow-up to #1375).** The file-mode instructions
+  said "an interface or type states what a request or record must hold". On wicked-crew run 29bbbfb1, page 3 (500
+  units), codex stated 441 rules, all at confidence 0.9, and most of them restated interface fields. The page review
+  failed it: they describe code. A type is now a rule only when it encodes a constraint the business relies on (a
+  closed set of values, a limit, a required field whose comment says what it means). A plain field list is left
+  empty. Each confidence follows how directly the source supports the rule, never one flat value.
+
 ### Changed
 - **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
   counts resolved behaviours only; risk-flagged placeholders are shown, never counted.

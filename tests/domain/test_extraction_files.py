@@ -1254,3 +1254,14 @@ def test_a_page_whose_entries_were_all_refused_records_answered_none(tmp_path, m
     _apply(wt, db, repo, estate, core)
     assert generation.load(db, "run-1")["answered"] == []
     assert first
+
+
+def test_the_extractor_never_asks_for_a_rule_from_a_plain_field_list():
+    """wicked-crew run 29bbbfb1, page 3: told "an interface or type states what a request or
+    record must hold", codex restated 441 interface shapes at a flat 0.9 and the review failed
+    the page. A type is a rule only when it encodes a constraint; confidence is never flat."""
+    skill = Path(__file__).resolve().parents[2] / "skills" / "domain-extractor" / "SKILL.md"
+    text = skill.read_text(encoding="utf-8")
+    assert "an interface or type states what" not in text
+    assert "a plain list of fields describes code, so leave it empty" in text
+    assert "Never give\n   every statement the same confidence" in text
