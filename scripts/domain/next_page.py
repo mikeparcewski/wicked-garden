@@ -121,7 +121,8 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
                                  left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)))
     if choice == "finish":
         decision = {"next": "done", "line": generation.progress_line(
-            repo, doc["points"], target, next_page=None) + " · going on as the operator chose"}
+            repo, doc["points"], target, next_page=None, left_to_map=0)
+            + " · going on as the operator chose"}
     if choice == "lower" and decision["next"] == "done":
         decision["line"] += f" · target lowered to {target}% for {repo}"
     print(f"[extract-next] {decision['line']} (target from the {source})")

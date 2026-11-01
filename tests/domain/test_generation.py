@@ -33,7 +33,7 @@ def _doc(*points, grant=(0, 0)):
             "grant": {"page": grant[0], "at": grant[1] * MIN}}
 
 
-def _decide(doc, target=80, now_min=None, max_pages=20, max_minutes=240, left=500):
+def _decide(doc, target=80, now_min=None, max_pages=20, max_minutes=240, left=5000):
     now = (now_min if now_min is not None else doc["points"][-1]["at"] // MIN) * MIN
     return generation.decide(doc, repo="crew", target=target, now=now, max_pages=max_pages,
                              max_minutes=max_minutes, left_to_map=left)
@@ -217,8 +217,10 @@ def test_a_retried_or_answered_step_records_the_same_page_and_keeps_its_time(tmp
     assert rec["points"][1]["took"] == 16 * MIN and d["next"] == "continue"
     assert rec["grant"] == {"page": 1, "at": 24 * 60 * MIN}
     # page 2 ran 15 minutes after the grant: the ETA counts runs, never the wait
-    d, _, _ = _run(tmp_path, _Core(200), _env(WICKED_REPEAT_PASS=2, WICKED_DOMAIN_MAX_PAGES=5),
-                   24 * 60 + 15, capsys)
+    many = [{"symbol_id": f"s::{i}", "name": "x", "file": "f.py", "kind": "Function"}
+            for i in range(800)]  # enough left to ask that the target is in reach
+    d, _, _ = _run(tmp_path, _Core(200, unmapped=many),
+                   _env(WICKED_REPEAT_PASS=2, WICKED_DOMAIN_MAX_PAGES=5), 24 * 60 + 15, capsys)
     rec = generation.load(str(db), "run-1")
     assert rec["points"][2]["took"] == 15 * MIN
     assert "about 2 h 4 min left" in d["line"], d["line"]  # 15.5 min a page, 85 a page
@@ -390,7 +392,28 @@ def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path,
 def test_the_operators_finish_hands_the_share_to_the_coverage_step(tmp_path, capsys):
     db = tmp_path / "graphs" / "estate.db"
     db.parent.mkdir()
-    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 3}, "repo")
+    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 2}, "repo",
+                           at=0)
+    # a page that gained one real requirement, then nothing left: the finish line claims no ETA
+    # (codex r2 on #1377: it read "about 199 h 15 min left")
+    _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1), 15, capsys)
     d, out, _ = _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1,
-                                                           WICKED_REPEAT_CHOICE="finish"), 15, capsys)
+                                                           WICKED_REPEAT_CHOICE="finish"), 16, capsys)
     assert d["next"] == "done" and "going on as the operator chose" in d["line"]
+    assert "about" not in d["line"], d["line"]
+
+
+def test_a_target_the_run_cannot_reach_gets_no_time_estimate():
+    """wicked-crew run 29bbbfb1 read "about 3 h 37 min left" while 2,000 more real requirements
+    were needed and only 1,900 units were left to ask: no amount of time reaches the target."""
+    doc = _doc(_pt(0, 100, 0), _pt(1, 300, 15), _pt(2, 450, 30))
+    for left in (200, 349):  # 800 - 450 = 350 needed
+        short = _decide(doc, left=left)
+        assert short["next"] == "continue"
+        assert (f"target out of reach in this run: 350 more real requirements needed, {left} "
+                f"units left to ask") in short["line"] and "about" not in short["line"]
+    for left in (350, 500):  # in reach if every unit left resolves
+        assert "about" in _decide(doc, left=left)["line"]
+    # nothing left (agy/codex r1 on #1377): the ask says why, and no ETA is claimed
+    empty = _decide(doc, left=0)
+    assert "nothing left to map" in empty["line"] and "about" not in empty["line"]

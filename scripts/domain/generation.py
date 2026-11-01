@@ -280,7 +280,8 @@ def _yield_text(points: list[dict[str, Any]]) -> str | None:
 
 
 def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
-                  next_page: int | None, done: bool = False) -> str:
+                  next_page: int | None, done: bool = False,
+                  left_to_map: int | None = None) -> str:
     """"Mapping wicked-crew · real requirements 23% → 27% · target 80% · page 2 · 4397
     placeholders · last page resolved 212 of 500 units · about 3 h left"."""
     last = points[-1]
@@ -299,6 +300,15 @@ def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
     yt = _yield_text(points)
     if yt:
         parts.append(yt)
+    need = math.ceil(target * last["behaviours"] / 100) - last["real"]
+    if left_to_map == 0 and need > 0:
+        return " · ".join(parts)  # nothing left to ask: no time estimate (the caller says why)
+    if left_to_map is not None and 0 < left_to_map < need:
+        # No time estimate for a target this run cannot reach (wicked-crew run 29bbbfb1 read
+        # "about 3 h 37 min left" with 1,900 units left to ask and 2,000 real requirements to go).
+        parts.append(f"target out of reach in this run: {need} more real requirements needed, "
+                     f"{left_to_map} units left to ask")
+        return " · ".join(parts)
     eta = eta_ms(points, target)
     if eta is not None and eta > 0:
         parts.append(f"about {_duration(eta)} left")
@@ -317,7 +327,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     if last["pct"] >= target:
         return {"next": "done",
                 "line": progress_line(repo, points, target, next_page=None, done=True)}
-    line = progress_line(repo, points, target, next_page=page + 1)
+    line = progress_line(repo, points, target, next_page=page + 1, left_to_map=left_to_map)
     # A target is a whole percentage 1..100 the real share so far must meet: below 1% nothing
     # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
     lower = ({"id": "lower", "label": f"Lower the target to {last['pct']}% for {repo} and build "
@@ -337,12 +347,14 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             # Nothing left to ask (agy/codex r2 on #1375): still the operator's word, never a
             # silent "done"; going on hands the share to the coverage step.
             choices = [lower] if lower is not None else [FINISH]
-            warn = (f"{progress_line(repo, points, target, next_page=None)} · the last page "
+            head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+            warn = (f"{head} · the last page "
                     f"resolved under 1 in {LOW_YIELD_PER} of its units and nothing is left to "
                     f"map: read its review")
         return {"next": "ask", "choices": choices, "recommended": choices[0]["id"], "line": warn}
     if left_to_map <= 0:
-        rest = (f"{progress_line(repo, points, target, next_page=None)} · nothing left to map "
+        head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+        rest = (f"{head} · nothing left to map "
                 f"in the files the repository tracks")
         if lower is None:
             # Nothing can change: the coverage step says the share against the target.

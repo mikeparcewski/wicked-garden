@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- **No time estimate for a target the run cannot reach.** On wicked-crew run 29bbbfb1 the line read "about 3 h 37 min
+  left" with about 2,000 more real requirements needed and about 1,900 units left to ask. When the units left to ask
+  are fewer than the real requirements still needed, the line now says "target out of reach in this run: N more real
+  requirements needed, M units left to ask" in place of an ETA; with none left, no ETA at all.
 - **The extractor no longer states a rule for a plain interface (follow-up to #1375).** The file-mode instructions
   said "an interface or type states what a request or record must hold". On wicked-crew run 29bbbfb1, page 3 (500
   units), codex stated 441 rules, all at confidence 0.9, and most of them restated interface fields. The page review
