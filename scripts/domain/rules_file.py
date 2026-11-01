@@ -389,22 +389,86 @@ def trusted_executable(name_or_path: str) -> str | None:
     return os.path.realpath(found)
 
 
-def tracked_files(repo_root: str | Path) -> set[str]:
-    """Every path git tracks in the repository at `repo_root`, repo-relative with `/` — the
-    authority for "a file in the repo". Fails loud: no answer is never "everything"."""
+_SHA_RE = re.compile(r"[0-9a-f]{40}([0-9a-f]{24})?")
+
+
+def _git(repo_root: str | Path, *args: str, timeout: float = 120):
+    """`git -C repo_root <args>` on the host's pinned git. Only read commands go through here (no
+    hook or filter runs on them), and core.fsmonitor, which would run a configured command, is
+    off: the repository's config is shared with its worktrees, which a seat can write. Returns
+    the CompletedProcess; raises RuntimeError when git is missing or cannot run."""
     import subprocess
     git = trusted_executable("git")
     if git is None:
-        raise RuntimeError("git is not on PATH; cannot tell which files the repository tracks")
+        raise RuntimeError("git is not on PATH; cannot read the repository")
     try:
-        # core.fsmonitor would run a configured command; the repository's config is shared with
-        # its worktrees, so it is not taken on trust here.
-        proc = subprocess.run([git, "-c", "core.fsmonitor=false", "-C", str(repo_root),
-                               "ls-files", "-z"], capture_output=True,
-                              stdin=subprocess.DEVNULL, timeout=120)
+        return subprocess.run([git, "-c", "core.fsmonitor=false", "-C", str(repo_root), *args],
+                              capture_output=True,
+                              stdin=subprocess.DEVNULL, timeout=timeout)
     except (OSError, subprocess.TimeoutExpired) as e:
-        raise RuntimeError(f"git ls-files in {repo_root} could not run: {e}") from e
+        raise RuntimeError(f"git {args[0]} in {repo_root} could not run: {e}") from e
+
+
+def run_commit(repo_root: str | Path, cwd: str | Path) -> str | None:
+    """The commit the run's tree is at, read from the REGISTERED repository (never from the
+    worktree's own `.git`): the HEAD of the linked worktree of `repo_root` that holds `cwd` (the
+    innermost one: run worktrees live under the repository's own root), else `repo_root`'s HEAD
+    when `cwd` is none of its worktrees (a standalone run). None when git cannot say (no git, no
+    commit yet)."""
+    try:
+        proc = _git(repo_root, "worktree", "list", "--porcelain", timeout=30)
+    except RuntimeError:
+        return None
     if proc.returncode != 0:
-        raise RuntimeError(f"git ls-files in {repo_root} exited {proc.returncode}: "
+        return None
+    here = os.path.realpath(str(cwd))
+    best: tuple[int, str] | None = None
+    path = head = None
+    for line in proc.stdout.decode("utf-8", "surrogateescape").splitlines() + [""]:
+        if line.startswith("worktree "):
+            path, head = line[len("worktree "):], None
+        elif line.startswith("HEAD "):
+            head = line[len("HEAD "):].strip()
+        elif not line and path is not None:
+            root = os.path.realpath(path)
+            if head and _SHA_RE.fullmatch(head) and (here == root or here.startswith(root + os.sep)):
+                if best is None or len(root) > best[0]:
+                    best = (len(root), head)
+            path = head = None
+    if best is not None:
+        return best[1]
+    try:
+        proc = _git(repo_root, "rev-parse", "--verify", "--quiet", "HEAD^{commit}", timeout=30)
+    except RuntimeError:
+        return None
+    sha = proc.stdout.decode("ascii", "replace").strip()
+    return sha if proc.returncode == 0 and _SHA_RE.fullmatch(sha) else None
+
+
+def git_blob(repo_root: str | Path, sha: str, limit: int) -> bytes:
+    """The exact bytes of blob `sha` from the repository's object database (the content-addressed
+    copy of what was indexed; no working tree, no filters), or b"" when it is not there, is not a
+    blob id, or is larger than `limit`."""
+    if not isinstance(sha, str) or not _SHA_RE.fullmatch(sha):
+        return b""
+    try:
+        proc = _git(repo_root, "cat-file", "blob", sha, timeout=30)
+    except RuntimeError:
+        return b""
+    if proc.returncode != 0 or len(proc.stdout) > limit:
+        return b""
+    return proc.stdout
+
+
+def tracked_files(repo_root: str | Path, commit: str | None = None) -> set[str]:
+    """Every path git tracks in the repository at `repo_root`, repo-relative with `/` — the
+    authority for "a file in the repo". With `commit` (the run's tree, `run_commit`), the files of
+    that commit, read from the object database: the registered checkout may be behind the run's
+    base. Without it, the checkout's index. Fails loud: no answer is never "everything"."""
+    args = (("ls-tree", "-r", "-z", "--name-only", "--full-tree", commit)
+            if commit and _SHA_RE.fullmatch(commit) else ("ls-files", "-z"))
+    proc = _git(repo_root, *args)
+    if proc.returncode != 0:
+        raise RuntimeError(f"git {args[0]} in {repo_root} exited {proc.returncode}: "
                            f"{proc.stderr.decode('utf-8', 'replace').strip()[:300]}")
     return {p for p in proc.stdout.decode("utf-8", "surrogateescape").split("\0") if p}

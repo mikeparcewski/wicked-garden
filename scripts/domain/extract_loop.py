@@ -248,40 +248,28 @@ class _DirectStore:
     _REPO_FILE_LIMIT = 4 * 1024 * 1024
 
     def _repo_file(self, rel: str, git_sha: str | None) -> bytes:
-        """`rel` read from the registered repository (`repo_root`) — only when its bytes are the
-        exact blob the store indexed (`git_sha`, git's blob id), since the node spans are offsets
-        into THAT content. A regular file inside the root, opened without following a link and
-        read bounded; b"" otherwise."""
+        """The bytes the store indexed for `rel`, from the registered repository's object
+        database (`repo_root`): the blob `git_sha` names (git's blob id, recorded at index time),
+        so the node spans, which are offsets into THAT content, always slice the code they were
+        taken from. Never a working tree: the registered checkout may be behind the run's base
+        (wicked-garden#1370: 207 of 500 units lost their source that way) and the run's own tree
+        is seat-writable. b"" when the blob is not in the repository."""
         if not self.repo_root or not rel or not git_sha:
             return b""
-        import stat as _stat
-        root = os.path.realpath(self.repo_root)
-        path = os.path.join(root, rel)
-        if not os.path.realpath(path).startswith(root + os.sep):
-            return b""
-        try:
-            fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0))
-        except OSError:
-            return b""
-        try:
-            if not _stat.S_ISREG(os.fstat(fd).st_mode):
-                return b""
-            with os.fdopen(fd, "rb") as f:
-                fd = -1
-                data = f.read(self._REPO_FILE_LIMIT + 1)
-        except OSError:
-            return b""
-        finally:
-            if fd >= 0:
-                os.close(fd)
-        if len(data) > self._REPO_FILE_LIMIT:
-            return b""
-        blob_id = hashlib.sha1(b"blob %d\0" % len(data) + data).hexdigest()
-        if blob_id != git_sha:
-            print(f"[extract-loop] {rel}: the checkout differs from the indexed content; its source "
-                  "is left out", file=sys.stderr)
-            return b""
+        data = rules_file.git_blob(self.repo_root, git_sha, self._REPO_FILE_LIMIT)
+        if not data:
+            print(f"[extract-loop] {rel}: its indexed content ({git_sha[:12]}) is not in the "
+                  "repository; its source is left out", file=sys.stderr)
         return data
+
+    def indexed_commit(self) -> str | None:
+        """The commit the store was indexed at (estate's `repo_commit`), or None when it records
+        none (an older store, or a tree that was not a git checkout)."""
+        try:
+            row = self._c.execute("SELECT v FROM meta WHERE k = 'repo_commit'").fetchone()
+        except Exception:
+            return None
+        return (row[0] or "").strip() or None if row else None
 
     def requirement_of(self, symbol_id: str) -> str:
         sid = self.sid_of.get(symbol_id)
@@ -769,7 +757,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
 
         # Frame each node: source slice + blast-radius neighbors (direct reads; the old
         # per-node subprocess path survives only as the fallback).
-        framed, ids = [], set()
+        framed, ids, sourced = [], set(), {}
         for n in take:
             sid, name = n["symbol_id"], n.get("name", "")
             slice_txt, neighbors = "", []
@@ -784,6 +772,7 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                         slice_txt = ""
             framed.append(_rule_extractor.frame_context(n, slice_txt,
                           cluster_label=node_community.get(sid), neighbor_names=neighbors))
+            sourced[sid] = bool(slice_txt.strip())
             ids.add(sid)
 
         # THE MODEL BOUNDARY (or the deterministic stub). A model failure over the
@@ -796,19 +785,30 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
         for n in take:
             sid = n["symbol_id"]
             decide_and_write(estate, store, sid, n.get("name", ""), by_id.get(sid), ids,
-                             node_community, community_sizes)
+                             node_community, community_sizes,
+                             sourced=None if dry_run else bool(sourced.get(sid)))
             processed += 1
+
+
+NO_SOURCE_REASON = "no source: its indexed code could not be read, so the statement is unconfirmed"
 
 
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
-                     seat: str | None = None, read_back=None) -> str:
+                     seat: str | None = None, read_back=None, sourced: bool | None = None) -> str:
     """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
     RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
-    in a seat container is judged exactly like one the host's own model returned. Returns
-    "resolved", "risk" or "kept" (a statement-less floor skipped over existing content)."""
+    in a seat container is judged exactly like one the host's own model returned. `sourced` is
+    False when the node's source could not be read on the host: whatever was stated about it is
+    then written unconfirmed (RISK, not validated), never as a validated requirement
+    (wicked-garden#1370); None when the caller does not know. Returns "resolved", "risk" or
+    "kept" (a statement-less floor skipped over existing content)."""
     ok, reason = (_rule_extractor.validate_rule(rule, ids) if rule
                   else (False, "no rule returned for this node"))
+    if ok and sourced is False:
+        _write_node(estate, sid, name, rule, False, NO_SOURCE_REASON, seat=seat,
+                    read_back=read_back)
+        return "risk"
     if ok:
         adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
         resolved = adjusted >= RESOLVE_THRESHOLD

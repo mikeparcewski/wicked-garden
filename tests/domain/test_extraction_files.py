@@ -147,9 +147,31 @@ class _Core:
         return doc, pct >= 80, f"coverage: {pct}% mapped, minimum 80%"
 
 
-def _star(tmp_path):
+def _star(tmp_path, sourced=True):
+    """The star store; with `sourced`, every node's span slices real code out of the store's
+    content for f.py (the extracted rules are grounded, so apply may validate them)."""
     from tests.domain.test_extract_loop import _star_db
-    return _star_db(tmp_path)
+    db = _star_db(tmp_path)
+    if sourced:
+        _give_sources(db)
+    return db
+
+
+def _give_sources(db, file="f.py"):
+    import sqlite3
+    c = sqlite3.connect(db)
+    text, spans = b"", {}
+    for sid, name in c.execute("SELECT symbol, name FROM nodes").fetchall():
+        line = f"def {name}(amount):\n    return amount > 0\n".encode()
+        spans[sid] = (len(text), len(text) + len(line))
+        text += line
+    for sid, (a, b) in spans.items():
+        c.execute("UPDATE nodes SET data = ? WHERE symbol = ?",
+                  (json.dumps({"location": {"span": {"start_byte": a, "end_byte": b}}}), sid))
+    c.execute("INSERT INTO files VALUES (?, ?)", (file, "f" * 40))
+    c.execute("INSERT INTO content VALUES (?, ?)", ("f" * 40, text))
+    c.commit()
+    c.close()
 
 
 _STAR = ["s::core", "s::a", "s::b", "s::c", "s::a1", "s::i1", "s::i2", "s::route"]
@@ -776,8 +798,36 @@ def test_a_model_that_is_not_signed_in_in_the_seat_hands_over_at_once(tmp_path, 
     assert not (tmp_path / rules_file.RULES_REL).exists()
 
 
-def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadable(tmp_path,
-                                                                                monkeypatch):
+def _commit_repo(tmp_path, files, name="repo"):
+    """A git repository with `files` ({path: text}) committed; returns (root, head sha)."""
+    repo = tmp_path / name
+    repo.mkdir()
+    def git(*a):
+        return subprocess.run(["git", "-C", str(repo), "-c", "user.name=t",
+                               "-c", "user.email=t@example.invalid", *a],
+                              check=True, capture_output=True, text=True).stdout.strip()
+    git("init", "-q")
+    git("config", "core.fsmonitor", "false")
+    for path, text in files.items():
+        (repo / path).parent.mkdir(parents=True, exist_ok=True)
+        (repo / path).write_text(text)
+    git("add", "-A")
+    git("commit", "-q", "-m", "c")
+    return repo, git("rev-parse", "HEAD"), git
+
+
+def _blob_id(text):
+    import hashlib
+    b = text.encode()
+    return hashlib.sha1(b"blob %d\0" % len(b) + b).hexdigest()
+
+
+def test_source_slices_come_from_the_indexed_blob_when_the_store_blob_is_unreadable(tmp_path,
+                                                                                    monkeypatch):
+    """wicked-garden#1370: the rig's garden Python (3.13, no zstandard) cannot read the store's
+    zstd content, and the registered checkout was behind the run's base, so 207 of 500 units lost
+    their source. The bytes now come from the repository's object database by the blob id the
+    store recorded: exact whatever the checkout holds."""
     import json as J, sqlite3
     db = tmp_path / "e.db"
     c = sqlite3.connect(db)
@@ -789,42 +839,119 @@ def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadabl
         CREATE TABLE content (git_sha TEXT, blob BLOB);
     """)
     span = {"location": {"span": {"start_byte": 4, "end_byte": 9}}}
-    for i, (sym, file) in enumerate([("s::ok", "m.js"), ("s::out", "../secret.js")], start=1):
+    shas = {"s::ok": _blob_id("let total = 0;"), "s::gone": _blob_id("let nowhere = 0;"),
+            "s::opt": "--output=/tmp/x"}
+    for i, (sym, file) in enumerate([("s::ok", "m.js"), ("s::gone", "g.js"),
+                                     ("s::opt", "o.js")], start=1):
         c.execute("INSERT INTO symbols VALUES (?, ?)", (i, sym))
         c.execute("INSERT INTO nodes VALUES (?, ?, ?, ?, NULL)", (i, sym, file, J.dumps(span)))
-        c.execute("INSERT INTO files VALUES (?, ?)", (file, f"sha{i}"))
-        c.execute("INSERT INTO content VALUES (?, ?)", (f"sha{i}", b"\x28\xb5\x2f\xfd" + b"zstd"))
+        c.execute("INSERT INTO files VALUES (?, ?)", (file, shas[sym]))
+        c.execute("INSERT INTO content VALUES (?, ?)", (shas[sym], b"\x28\xb5\x2f\xfd" + b"zstd"))
     c.commit(); c.close()
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    (repo / "m.js").write_text("let total = 0;")
-    (tmp_path / "secret.js").write_text("SECRET-VALUE")
-    import hashlib
-    blob = lambda b: hashlib.sha1(b"blob %d\0" % len(b) + b).hexdigest()
-    c = sqlite3.connect(db)
-    c.execute("UPDATE files SET git_sha = ? WHERE path = 'm.js'", (blob(b"let total = 0;"),))
-    c.execute("UPDATE files SET git_sha = ? WHERE path = '../secret.js'", (blob(b"SECRET-VALUE"),))
-    c.commit(); c.close()
-    # The rig's seat-snapshot Python (3.13, no zstandard) cannot read zstd blobs.
+    repo, _, git = _commit_repo(tmp_path, {"m.js": "let total = 0;"})
     monkeypatch.setattr(extract_loop, "_maybe_decompress", lambda blob: b"")
     store = extract_loop._DirectStore(str(db))
     assert store.source_slice("s::ok") == ""  # no decompressor and no repository: nothing
     store = extract_loop._DirectStore(str(db))
     store.repo_root = str(repo)
     assert store.source_slice("s::ok") == "total"
-    assert store.source_slice("s::out") == ""  # never outside the repository
-    # A checkout that differs from what was indexed (codex round 5): the spans would point into
-    # other code, so the source is left out rather than mis-sliced.
+    # The checkout moved on (and even lost the file): the indexed bytes are still exact.
     (repo / "m.js").write_text("let other = 1;")
-    store = extract_loop._DirectStore(str(db))
-    store.repo_root = str(repo)
-    assert store.source_slice("s::ok") == ""
-    # A link where the file was is not followed.
+    git("commit", "-q", "-am", "moved")
     (repo / "m.js").unlink()
-    (repo / "m.js").symlink_to(tmp_path / "secret.js")
     store = extract_loop._DirectStore(str(db))
     store.repo_root = str(repo)
-    assert store.source_slice("s::ok") == ""
+    assert store.source_slice("s::ok") == "total"
+    assert store.source_slice("s::gone") == ""  # a blob the repository never had: nothing
+    assert store.source_slice("s::opt") == ""   # not a blob id: never handed to git
+
+
+def test_a_rule_about_a_unit_with_no_source_is_written_unconfirmed(tmp_path):
+    """#1370: a page item with no source counts as unconfirmed, never as validated — re-derived
+    on the host, whatever confidence the seat gave."""
+    db, repo, wt = _star(tmp_path, sourced=False), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _Core(estate, {s: "f.py" for s in _STAR})
+    _write_rules(wt, "codex", [_rule("s::core", confidence=1.0)])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"] == {"resolved": 0, "risk": 1, "kept": 0}
+    assert report["unsourced"] == 1
+    req, validated, _ = estate.writes["s::core"]["req"]
+    assert validated is False and req.startswith("[RISK]") and "no source" in req
+    assert "amount must be positive" in req  # the statement is kept, unconfirmed
+    assert estate.writes["s::core"]["ann"]["type"] == "risk"
+    # The same rule about a sourced unit is validated.
+    (tmp_path / "b").mkdir()
+    db2, estate2 = _star(tmp_path / "b", sourced=True), _Estate()
+    wt2 = _wt(tmp_path / "b")
+    _write_rules(wt2, "codex", [_rule("s::core", confidence=1.0)])
+    report = _apply(wt2, db2, repo, estate2, _Core(estate2, {s: "f.py" for s in _STAR}))
+    assert report["applied"]["resolved"] == 1 and report["unsourced"] == 0
+    assert estate2.writes["s::core"]["req"][1] is True
+
+
+def _set_indexed(db, commit):
+    import sqlite3
+    c = sqlite3.connect(db)
+    c.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)")
+    c.execute("INSERT OR REPLACE INTO meta VALUES ('repo_commit', ?)", (commit,))
+    c.commit()
+    c.close()
+
+
+def test_the_first_page_refuses_a_graph_indexed_at_another_commit(tmp_path, monkeypatch, capsys):
+    """#1370: before any page, the graph must describe the run's tree (a launch re-indexes it at
+    the run's base); otherwise extract-prepare refuses and says why and what to do. A later page
+    maps on (the graph moved under it; its sources stay exact)."""
+    repo, head, git = _commit_repo(tmp_path, {"f.py": "x = 1\n"})
+    db = _star(tmp_path)
+    estate = _Estate()
+    core = _Core(estate, {s: "f.py" for s in _STAR})
+    _set_indexed(db, "0" * 40)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1370")
+    wt = _wt(tmp_path)
+    with pytest.raises(prepare_worklist.StaleIndex) as e:
+        prepare_worklist.prepare(db, str(repo), wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                 core=core)
+    why = str(e.value)
+    assert f"indexed at {'0' * 12}" in why and f"tree is at {head[:12]}" in why
+    assert "Launch the job again" in why
+    assert not (wt / rules_file.WORKLIST_REL).exists()
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: core)
+    monkeypatch.chdir(wt)
+    assert prepare_worklist.main(["--db", db, "--repo-root", str(repo)]) == 1
+    assert "[extract-prepare] REFUSED: the code graph of repo is indexed at" in capsys.readouterr().err
+    # Indexed at the run's tree: the page is prepared.
+    _set_indexed(db, head)
+    doc = prepare_worklist.prepare(db, str(repo), wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                   core=core)
+    assert doc["units"] and all(u["source"].startswith("def ") for u in doc["units"])
+    # The graph moves on after the first page (another launch re-indexed it): mapped on.
+    _set_indexed(db, "1" * 40)
+    prepare_worklist.prepare(db, str(repo), wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                             core=core)
+    assert "mapping on against the graph as indexed" in capsys.readouterr().err
+
+
+def test_the_run_tree_is_the_worktree_that_holds_the_step_not_the_checkout(tmp_path):
+    """#1370: run worktrees live under the registered repository's root, and that checkout can be
+    behind the run's base: the run's commit is its own worktree's HEAD, and the files a page may
+    map are that commit's, including files the checkout does not have yet."""
+    repo, first, git = _commit_repo(tmp_path, {"f.py": "x = 1\n"})
+    (repo / "new.py").write_text("y = 2\n")
+    git("add", "new.py")
+    git("commit", "-q", "-m", "new")
+    tip = git("rev-parse", "HEAD")
+    git("reset", "-q", "--hard", first)  # the registered checkout stays behind
+    wt = repo / "wicked-worktrees" / "run-1"
+    git("worktree", "add", "-q", "--detach", str(wt), tip)
+    assert rules_file.run_commit(str(repo), wt) == tip
+    assert rules_file.run_commit(str(repo), wt / ".wicked") == tip  # a step below the root
+    assert rules_file.run_commit(str(repo), tmp_path) == first  # not a worktree: the checkout
+    assert rules_file.tracked_files(str(repo), tip) == {"f.py", "new.py"}
+    assert rules_file.tracked_files(str(repo)) == {"f.py"}
+    assert rules_file.run_commit(str(tmp_path / "nowhere"), wt) is None
 
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------

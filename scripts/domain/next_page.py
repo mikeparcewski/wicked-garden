@@ -44,7 +44,7 @@ PASS_ENV = "WICKED_REPEAT_PASS"
 
 def _left_to_map(coverage: dict, repo_root: str) -> int:
     """Unmapped behaviours in files the repository tracks (what another page could still map)."""
-    tracked = rules_file.tracked_files(repo_root)
+    tracked = rules_file.tracked_files(repo_root, rules_file.run_commit(repo_root, Path.cwd()))
     return sum(1 for n in _clients.unaccounted_nodes(coverage) if n.get("file") in tracked)
 
 
