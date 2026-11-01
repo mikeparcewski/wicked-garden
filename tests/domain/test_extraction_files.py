@@ -850,22 +850,76 @@ def test_source_slices_come_from_the_repository_when_the_store_blob_is_unreadabl
     assert store.source_slice("s::ok") == ""
 
 
-def test_the_stores_zstd_content_is_read_on_a_python_without_the_stdlib_decoder(tmp_path):
+def _estate_frame(text):
+    """A zstd frame as estate writes it: streamed, its content size not recorded."""
+    zstandard = pytest.importorskip("zstandard")
+    cobj = zstandard.ZstdCompressor(write_content_size=False).compressobj()
+    return cobj.compress(text) + cobj.flush()
+
+
+def test_the_stores_zstd_content_is_read_on_a_python_without_the_stdlib_decoder(monkeypatch):
     """#1370: the store keeps file content zstd-compressed. The rig's garden ran on Python 3.13,
     which has no `compression.zstd`, and garden did not depend on `zstandard`, so every source
-    fell back to a checkout that had moved past the index (207 of 500 units had none). garden now
-    depends on `zstandard` before 3.14, so the store's own bytes are read."""
+    fell back to a checkout that had moved past the index (207 of 500 units had none). Before
+    3.14 garden now depends on `zstandard`, decoded streamed (estate's frames carry no content
+    size, which the one-shot decode refuses) and bounded."""
+    import sys
     text = b"def total(amount):\n    return amount > 0\n"
-    try:
-        from compression import zstd  # 3.14+
-        blob = zstd.compress(text)
-    except ImportError:
-        zstandard = pytest.importorskip("zstandard")
-        # As estate writes them: a streamed frame that does not record its content size.
-        cobj = zstandard.ZstdCompressor(write_content_size=False).compressobj()
-        blob = cobj.compress(text) + cobj.flush()
-    assert blob.startswith(b"\x28\xb5\x2f\xfd")
+    blob = _estate_frame(text)
+    monkeypatch.setitem(sys.modules, "compression.zstd", None)  # as on 3.13
     assert extract_loop._maybe_decompress(blob) == text
+    assert extract_loop._maybe_decompress(_estate_frame(b"x" * 5000), limit=4096) == b""
+
+
+def test_the_stdlib_decoder_reads_the_same_frame_bounded():
+    pytest.importorskip("compression.zstd")
+    text = b"const limit = 10;\n"
+    blob = _estate_frame(text)
+    assert extract_loop._maybe_decompress(blob) == text
+    assert extract_loop._maybe_decompress(_estate_frame(b"x" * 5000), limit=4096) == b""
+
+
+def test_store_mode_never_validates_on_estates_no_symbols_answer():
+    assert extract_loop._is_source_diagnostic("no symbols found for 's::a'\n")
+    assert extract_loop.unconfirmed_reason("src/a.py", False) == extract_loop.NO_SOURCE_REASON
+    assert extract_loop.unconfirmed_reason("src/a.py", True) is None
+
+
+def test_batch_ingest_never_validates_a_test_or_data_file(tmp_path, monkeypatch):
+    """The batch path writes through the same rule as the host apply step."""
+    import io
+    from domain import batch_extract
+    db = _star(tmp_path)
+    import sqlite3
+    c = sqlite3.connect(db)
+    c.execute("UPDATE nodes SET file = 'test/x.py' WHERE name = 'a'")
+    c.execute("UPDATE nodes SET file = 'package.json' WHERE name = 'b'")
+    c.commit(); c.close()
+    wd = tmp_path / "wd"
+    wd.mkdir()
+    ids = ["s::core", "s::a", "s::b"]
+    (wd / "batch.json").write_text(json.dumps({"processing_status": "ended", "results_url": "https://example.invalid/r"}))
+    (wd / "requests.jsonl").write_text(json.dumps({"custom_id": "r0", "_symbol_ids": ids}))
+    rules = [_rule(s, confidence=1.0) for s in ids]
+    result = {"custom_id": "r0", "result": {"type": "succeeded", "message": {"content": [
+        {"type": "text", "text": json.dumps(rules)}]}}}
+    monkeypatch.setattr(batch_extract, "_require_key", lambda: "k")
+    monkeypatch.setattr(batch_extract.urllib.request, "urlopen",
+                        lambda *a, **k: io.BytesIO(json.dumps(result).encode()))
+    estate = _Estate()
+    monkeypatch.setattr(_clients, "estate_client", lambda db=None, project_dir=None: estate)
+    assert batch_extract.ingest(db, wd) == 0
+    assert estate.writes["s::core"]["req"][1] is True
+    for sid in ("s::a", "s::b"):
+        assert estate.writes[sid]["req"][1] is False and "not product code" in estate.writes[sid]["req"][0]
+
+
+def test_test_files_are_recognised_across_ecosystems():
+    for f in ("app/tests.py", "specs/foo.js", "src/FooTests.cs", "a/BarTest.java",
+              "pkg/x_test.go", "lib/y_spec.rb", "testdata/in.txt", "test/live/capture.mjs"):
+        assert extract_loop.is_test_path(f), f
+    for f in ("src/app.py", "lib/contest.py", "src/latest.js"):
+        assert not extract_loop.is_test_path(f), f
 
 
 def test_a_rule_about_a_unit_with_no_source_is_written_unconfirmed(tmp_path):

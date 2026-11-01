@@ -175,27 +175,33 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
 
-def _maybe_decompress(blob) -> bytes:
+_CONTENT_LIMIT = 4 * 1024 * 1024  # decompressed bytes one file may take (as the checkout read)
+
+
+def _maybe_decompress(blob, limit: int = _CONTENT_LIMIT) -> bytes:
     """Estate stores content zstd-compressed; node spans are byte offsets into the
     DECOMPRESSED text. Slicing the raw blob feeds the model binary noise — observed
     live as whole batches of 'cannot state a rule'. Returns b'' when the blob is
-    compressed but no decompressor is available, which routes framing to the
-    subprocess fallback instead of producing garbage."""
+    compressed but no decompressor is available, or decompresses past `limit` (read bounded,
+    never fully inflated first), which routes framing to the fallback instead of producing
+    garbage."""
     b = blob if isinstance(blob, bytes) else bytes(blob)
     if not b.startswith(_ZSTD_MAGIC):
         return b
     try:
         from compression import zstd  # stdlib, Python 3.14+
-        return zstd.decompress(b)
+        out = zstd.ZstdDecompressor().decompress(b, max_length=limit + 1)
     except ImportError:
-        pass
-    try:
-        import zstandard
+        try:
+            import io
+            import zstandard  # a dependency before 3.14 (wicked-garden#1370)
+        except ImportError:
+            return b""
         # Streamed: estate's frames do not carry their content size, and the one-shot
         # `decompress` refuses those ("could not determine content size in frame header").
-        return zstandard.ZstdDecompressor().decompressobj().decompress(b)
-    except ImportError:
-        return b""
+        with zstandard.ZstdDecompressor().stream_reader(io.BytesIO(b)) as reader:
+            out = reader.read(limit + 1)
+    return b"" if len(out) > limit else out
 
 
 class _DirectStore:
@@ -399,8 +405,9 @@ def _bare_name(name: str) -> str:
     return tail.split("(", 1)[0].strip()
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|spec|e2e|fixtures?)/|\.(test|spec)\.[^/]+$|"
-                        r"(^|/)test_[^/]+\.py$|_test\.(py|go|rs)$")
+_TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/|"
+                        r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|"
+                        r"_test\.(py|go|rs)$|_spec\.rb$|(Tests?|Spec)\.(cs|java|kt|swift|scala)$")
 
 
 def is_test_path(file: str) -> bool:
@@ -421,15 +428,20 @@ def is_data_path(file: str) -> bool:
     return (file or "").lower().endswith(_DATA_EXTS)
 
 
+def _is_source_diagnostic(text: str) -> bool:
+    """`wicked-estate source`'s answer when it found nothing, rather than code."""
+    return text.strip().lower().startswith("no symbols found")
+
+
 def unconfirmed_reason(file: str, sourced: bool) -> str | None:
     """Why a rule stated about a unit in `file` is written unconfirmed whatever its confidence
     (wicked-garden#1370), or None when it may be validated: it needs its source, read on the
     host, and it must be product code, not a test or a data file (those are evidence of what the
     product does, recorded as accounted-for but never as a validated requirement)."""
-    if not sourced:
-        return NO_SOURCE_REASON
     if is_test_path(file) or is_data_path(file):
         return NOT_PRODUCT_REASON
+    if not sourced:
+        return NO_SOURCE_REASON
     return None
 
 
@@ -804,14 +816,14 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                 if store is not None:
                     slice_txt = store.source_slice(sid)
                     neighbors = store.blast_neighbors(sid)
-                # Sourced only from the store's indexed bytes: `estate source` below looks a NAME
-                # up, and for a symbol id it can answer "no symbols found" with exit 0.
-                sourced[sid] = bool(slice_txt.strip())
                 if slice_txt == "":
                     try:
                         slice_txt = estate.source(sid)[:4000]
                     except Exception:
                         slice_txt = ""
+                # `estate source` looks a NAME up: for a symbol id it can answer "no symbols
+                # found" with exit 0, which is no source at all.
+                sourced[sid] = bool(slice_txt.strip()) and not _is_source_diagnostic(slice_txt)
             framed.append(_rule_extractor.frame_context(n, slice_txt,
                           cluster_label=node_community.get(sid), neighbor_names=neighbors))
             ids.add(sid)
@@ -827,8 +839,9 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
             sid = n["symbol_id"]
             decide_and_write(estate, store, sid, n.get("name", ""), by_id.get(sid), ids,
                              node_community, community_sizes,
-                             unconfirmed=(unconfirmed_reason(n.get("file", ""), sourced[sid])
-                                          if store is not None and sid in sourced else None))
+                             unconfirmed=(None if dry_run else
+                                          unconfirmed_reason(n.get("file", ""),
+                                                             sourced.get(sid, False))))
             processed += 1
 
 

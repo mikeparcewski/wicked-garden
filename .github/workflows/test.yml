@@ -29,7 +29,7 @@ jobs:
       - name: Install pytest + PyYAML
         # Stdlib-only project; pytest for the suite, pyyaml for the frontmatter guard
         # (scripts/ci/validate.py mirrors the skills publish's yaml.safe_load).
-        run: pip install pytest pyyaml zstandard
+        run: pip install pytest pyyaml
 
       - name: Install wicked-vault for E2E (required for the trust spine)
         # The trust-spine tests (prove -> loom -> vault) MUST run in CI — a
