@@ -169,9 +169,9 @@ They do not overlap; pick by target:
 |--------|-------------|
 | `wicked-garden-domain-extractor` | States one business rule per behaviour (hub-first, the most central symbols first) and annotates the estate store |
 | `wicked-garden-domain-modeler` | Groups the rules into domains and invokes `wicked-core domain-graph`, which saves the graph into the estate store |
-| `wicked-garden-domain-coverage` | Checks the share against the minimum and threat-models the extracted model (ungrounded rules, reason-less drops, holes) |
+| `wicked-garden-domain-coverage` | Checks the share against the minimum and threat-models the extracted model before the build (ungrounded rules, reason-less drops, holes) |
 
-Only **real requirements** count toward the minimum (80% by default; a repository can keep its own with `wicked-core requirements-target`): behaviours resolved to a stated, sourced rule. A placeholder (an empty statement, or a rule under the confidence threshold) is shown and never counted, and tests, data and documents are not behaviours. In wicked-crew, a `domain-extraction` run maps a repository page by page until real requirements reach the minimum, printing one line per page ("Mapping wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders · about 2 h left"), and asks the operator when its budget is spent or a page stalls: map more, lower the minimum for this repository, or stop.
+Only **real requirements** count toward the minimum (80% by default; a repository can keep its own with `wicked-core requirements-target`): behaviours with a business rule at or above the confidence threshold, or a validated requirement. The extractor writes a rule that way only once it has validated the statement and its grounding. A placeholder (a risk flag, or a rule under the threshold) is shown and never counted. Test, fixture, data and document files are left out by path. In wicked-crew, a `domain-extraction` run maps a repository page by page until real requirements reach the minimum, printing one line per page ("Mapping wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders · about 2 h left"), and asks the operator when its budget is spent or the pages stall: map more, lower the minimum for this repository, or stop.
 
 ## How archetypes invoke domains
 

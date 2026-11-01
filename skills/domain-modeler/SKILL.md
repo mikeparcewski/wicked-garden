@@ -58,9 +58,11 @@ don't reimplement it.
    reads); `--out` also writes it as the `requirements_graph.json` export this
    step validates (a capability plan, not a code skeleton). It **fails
    closed below the configured minimum** (writes nothing, non-zero exit, and says
-   "N% real requirements, minimum M% (…)") — real requirements (behaviours resolved
-   to a stated, sourced rule; placeholders never count) must reach at least that
-   share of the behaviours in product code (the repository's own minimum, else crew's
+   "N% real requirements, minimum M% (…)") — real requirements (behaviours with a
+   business rule at or above the confidence threshold, or a validated requirement;
+   placeholders never count) must reach at least that share of the behaviours in
+   product code (the repository's own minimum, else
+   `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, which crew exports from its
    `requirementsGraph.minCoveragePct`, else 80). There is
    **no doc handed in and no `--overlay`**: the store is the input. When
    `core_client()` is `None` (no peer), fall back to the hermetic lane —

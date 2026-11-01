@@ -32,9 +32,11 @@ wicked-core coverage --db "${WICKED_ESTATE_DB:-$HOME/.wicked-estate/graph.db}" -
 `--min-coverage-pct` with no value checks the report against the CONFIGURED MINIMUM
 (the repository's own, set with `wicked-core requirements-target`; else
 `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, crew's `requirementsGraph.minCoveragePct`;
-else 80). Only real requirements count toward it: behaviours resolved to a stated,
-sourced rule. Placeholders (an empty statement, or a rule under the confidence
-threshold) never count, and tests, data and documents are not behaviours. It writes
+else 80). Only real requirements count toward it (the report's `resolved`): behaviours
+with a business rule at or above the confidence threshold or a validated requirement.
+Placeholders (`risk_flagged`: a risk flag, or a rule under the threshold) never count.
+Product code is decided by file path (test, fixture, data and document files are left
+out as `not_product`; a test module inside a product file still counts). It writes
 the report either way, prints `coverage: N% real requirements, minimum M% (R of B
 behaviours; P placeholders, U unmapped)` on stderr, and exits 3 below the minimum.
 
@@ -68,9 +70,10 @@ present) and attack it — find what is missing, weak, or ungrounded.
    cannot launder past the coverage gate. Flag every one.
 4. **Cross-cluster smear.** Requirements whose `legacy_components[]` span
    multiple communities may hide two requirements wearing one id.
-5. **Coverage holes.** Behavior-bearing SymbolIds with no statement are unmapped, and
-   those whose statement is empty or under the confidence threshold are placeholders;
-   neither is a real requirement. Below the configured minimum they are the gate's
+5. **Coverage holes.** The report's `unaccounted_nodes` (no rule, requirement, risk or
+   advisory annotation at all) are unmapped, and its `placeholder_nodes` (accounted but
+   not resolved: a risk flag, a rule under the threshold, an unvalidated requirement) are
+   placeholders; neither is a real requirement. Below the configured minimum they are the gate's
    failure — enumerate them. At or above it they are the next page's frontier —
    report their counts, and the most central ones, as a NOTE.
 6. **Low-confidence clusters.** Dense sub-threshold confidences signal guessing.

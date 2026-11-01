@@ -73,7 +73,8 @@ estate is the sole writer of graph structure.
 with the ask as the argument; on Claude Code this is the Skill tool, on any
 other seat open the named skill from your catalog and run it inline, keeping its output
 separate from yours, then continue here. Run order for a full extraction: **extractor →
-modeler → coverage**. Each is independently invocable.
+coverage → modeler** (coverage is the pre-build check; the modeler's build comes last, as
+in crew's `domain-extraction` preset). Each is independently invocable.
 
 ## The document this skill emits
 
@@ -141,12 +142,16 @@ needs an INDEXED store whose real requirements reach the configured minimum; a c
 
 ## Coverage minimum, extraction order, corroboration (operator ruling 2026-10-31)
 
-- **Minimum, not 100%, and only real requirements count.** The graph is built once real
-  requirements (behaviours resolved to a stated, sourced rule) reach the configured minimum
-  share of the behaviours in product code: crew's `requirementsGraph.minCoveragePct`
-  (Settings, default 80), which the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`.
-  A placeholder (an empty statement, or a rule under the confidence threshold) is shown,
-  never counted; tests, fixtures, data, manifests and documents are not behaviours.
+- **Minimum, not 100%, and only real requirements count.** The graph is built oncereal
+  requirements (behaviours with a business rule at or above the confidence threshold, 0.75
+  by default, or a validated requirement; the harness writes a rule that way only once it
+  has validated the statement and its grounding) reach the configured minimum share of the
+  behaviours in product code: crew's `requirementsGraph.minCoveragePct` (Settings, default
+  80), which the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`. A placeholder (a
+  risk flag, or a rule under the threshold) is shown, never counted. Product code is decided
+  by file path: test, spec and fixture files and data, manifest and document files are left
+  out, though a test module inside a product file still counts and an extracted
+  rules-engine rule counts whatever its file.
   `wicked-core coverage --min-coverage-pct` and `wicked-core domain-graph` both read it.
   Below it they say "23% real requirements, minimum 80% (1362 of 5786 behaviours; 4397
   placeholders, 27 unmapped)" and fail closed; the mapping done so far stays in the estate
@@ -161,13 +166,17 @@ needs an INDEXED store whose real requirements reach the configured minimum; a c
   wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders ·
   about 2 h left") and the run loops
   back to `extract-prepare` until the minimum is reached. Each page frames the unmapped
-  behaviours first, then the placeholders earlier pages left, and never frames a unit twice
-  in one run. The run asks the operator instead of mapping on when the budget per grant
-  (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240, crew Settings) is spent,
-  when nothing is left to map, when two pages added no real requirement, or when a page of
-  20 or more units resolved under 1 in 20. The choices: map more, lower the minimum for this
-  repository to the real share so far and build the graph, or stop (what was mapped is
-  kept). A minimum the units left to ask cannot reach gets no time estimate.
+  behaviours first, then the placeholders earlier pages left, and skips a unit the seat
+  already answered in this run: an answered placeholder waits for a later run, while a unit
+  the seat left unanswered can be framed again. The run asks the operator instead of mapping
+  on when the budget per grant (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES`
+  240, crew Settings) is spent, when two pages added no real requirement, when a page of 20
+  or more units resolved under 1 in 20, or when nothing is left to map. It offers map more
+  (while units are left), lower the minimum for this repository to the real share so far
+  and build the graph (once that share is at least 1%), or stop (what was mapped is kept).
+  With nothing left to map and a share under 1%, nothing can be lowered, so the run moves on
+  to the coverage step, which reports the share. A minimum the units left to ask cannot
+  reach gets no time estimate.
 - **Hub-first, fan-out order.** The extraction harness maps the most central symbols first
   (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
   distance, so the load-bearing behaviour is covered first. The order is deterministic: a
