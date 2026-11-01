@@ -274,29 +274,35 @@ def page_yield(points: list[dict[str, Any]]) -> tuple[int, int] | None:
     return real, framed
 
 
+def count(n: int) -> str:
+    """A count as people read it: "2,174", never "2174" (studio prints the same numbers so)."""
+    return f"{n:,}"
+
+
 def _yield_text(points: list[dict[str, Any]]) -> str | None:
     y = page_yield(points)
-    return f"last page resolved {y[0]} of {y[1]} units" if y else None
+    return f"last page resolved {count(y[0])} of {count(y[1])} units" if y else None
 
 
 def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
                   next_page: int | None, done: bool = False,
                   left_to_map: int | None = None) -> str:
-    """"Mapping wicked-crew · real requirements 23% → 27% · target 80% · page 2 · 4397
-    placeholders · last page resolved 212 of 500 units · about 3 h left"."""
+    """"Mapping wicked-crew · real requirements 23% → 27% · minimum 80% · page 2 · 4,397
+    placeholders · last page resolved 212 of 500 units · about 3 h left". The repository's target is
+    a MINIMUM share (studio's word for it), and every count carries thousands separators."""
     last = points[-1]
     curve = f"real requirements {curve_text(points)}"
     if done:
         pages = last["page"] - points[0]["page"]
         ran = sum(p.get("took", 0) for p in points[1:])
         took = _duration(ran) if pages > 0 and ran > 0 else None
-        return (f"Mapped {repo} · {curve} · target {target}% reached"
+        return (f"Mapped {repo} · {curve} · minimum {target}% reached"
                 + (f" · {pages} page{'s' if pages != 1 else ''} in {took}" if took else ""))
-    parts = [f"Mapping {repo}", curve, f"target {target}%"]
+    parts = [f"Mapping {repo}", curve, f"minimum {target}%"]
     if next_page is not None:
         parts.append(f"page {next_page}")
     if last.get("placeholders"):
-        parts.append(f"{last['placeholders']} placeholders")
+        parts.append(f"{count(last['placeholders'])} placeholders")
     yt = _yield_text(points)
     if yt:
         parts.append(yt)
@@ -306,8 +312,8 @@ def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
     if left_to_map is not None and 0 < left_to_map < need:
         # No time estimate for a target this run cannot reach (wicked-crew run 29bbbfb1 read
         # "about 3 h 37 min left" with 1,900 units left to ask and 2,000 real requirements to go).
-        parts.append(f"target out of reach in this run: {need} more real requirements needed, "
-                     f"{left_to_map} units left to ask")
+        parts.append(f"minimum out of reach in this run: {count(need)} more real requirements "
+                     f"needed, {count(left_to_map)} units left to ask")
         return " · ".join(parts)
     eta = eta_ms(points, target)
     if eta is not None and eta > 0:
@@ -330,7 +336,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     line = progress_line(repo, points, target, next_page=page + 1, left_to_map=left_to_map)
     # A target is a whole percentage 1..100 the real share so far must meet: below 1% nothing
     # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
-    lower = ({"id": "lower", "label": f"Lower the target to {last['pct']}% for {repo} and build "
+    lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
                                       f"the graph"} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {max_pages} more pages"}
     # Near-zero yield on a full page (domain-real): the page's review passed a page that stated

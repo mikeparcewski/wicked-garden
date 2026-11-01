@@ -44,14 +44,14 @@ def test_below_the_target_with_budget_left_the_run_maps_the_next_page_and_says_s
     assert d["next"] == "continue"
     # one line: the repo, the curve, the target, the next page, and an ETA from its own pace
     # (80 behaviours/page, 15 min/page: 800 - 190 = 610 → 8 pages → 2 h)
-    assert d["line"] == ("Mapping crew · real requirements 3% → 12% → 19% · target 80% · "
+    assert d["line"] == ("Mapping crew · real requirements 3% → 12% → 19% · minimum 80% · "
                          "page 3 · about 2 h left")
 
 
 def test_at_the_target_the_loop_is_done_and_the_line_says_how_long_it_took():
     d = _decide(_doc(_pt(0, 30, 0), _pt(1, 500, 20), _pt(2, 801, 50)))
     assert d == {"next": "done", "line": "Mapped crew · real requirements 3% → 50% → 80% · "
-                                         "target 80% reached · 2 pages in 50 min"}
+                                         "minimum 80% reached · 2 pages in 50 min"}
 
 
 @pytest.mark.parametrize("pages,minutes,spent", [(20, 100, "20 pages"), (5, 240, "240 minutes")])
@@ -62,7 +62,7 @@ def test_a_spent_budget_asks_map_more_or_lower_the_target(pages, minutes, spent)
     assert [c["id"] for c in d["choices"]] == ["continue", "lower"]
     assert f"budget reached ({spent};" in d["line"]
     low = generation.real_pct(30 + 10 * pages, 1000)
-    assert d["choices"][1]["label"] == f"Lower the target to {low}% for crew and build the graph"
+    assert d["choices"][1]["label"] == f"Lower the minimum to {low}% for crew and build the graph"
 
 
 def test_a_fresh_grant_restarts_the_budget():
@@ -177,7 +177,7 @@ def test_next_page_prints_the_line_then_the_engines_decision(tmp_path, capsys):
     generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 30}, "repo")
     d, out, _ = _run(tmp_path, _Core(120), _env(WICKED_REPEAT_PASS=1), 15, capsys)
     assert d["next"] == "continue"
-    assert out[0].startswith("[extract-next] Mapping repo · real requirements 3% → 12% · target 80%")
+    assert out[0].startswith("[extract-next] Mapping repo · real requirements 3% → 12% · minimum 80%")
     assert out[-1].startswith("wicked-repeat ")
     assert json.loads(out[-1][len("wicked-repeat "):]) == d
     rec = generation.load(str(db), "run-1")
@@ -232,8 +232,8 @@ def test_lowering_the_target_sets_the_repositorys_own_and_finishes(tmp_path, cap
                      60, capsys)
     assert core.set_calls == [23]
     assert d["next"] == "done"
-    assert "target lowered to 23% for repo" in d["line"]
-    assert "(target from the repository)" in out[0]
+    assert "minimum lowered to 23% for repo" in d["line"]
+    assert "(minimum from the repository)" in out[0]
 
 
 def test_untracked_unmapped_behaviours_do_not_count_as_left_to_map(tmp_path, capsys):
@@ -410,10 +410,35 @@ def test_a_target_the_run_cannot_reach_gets_no_time_estimate():
     for left in (200, 349):  # 800 - 450 = 350 needed
         short = _decide(doc, left=left)
         assert short["next"] == "continue"
-        assert (f"target out of reach in this run: 350 more real requirements needed, {left} "
+        assert (f"minimum out of reach in this run: 350 more real requirements needed, {left} "
                 f"units left to ask") in short["line"] and "about" not in short["line"]
     for left in (350, 500):  # in reach if every unit left resolves
         assert "about" in _decide(doc, left=left)["line"]
     # nothing left (agy/codex r1 on #1377): the ask says why, and no ETA is claimed
     empty = _decide(doc, left=0)
     assert "nothing left to map" in empty["line"] and "about" not in empty["line"]
+
+
+# --- req-list: the line says "minimum" as studio does, and counts read "2,174" -------------------
+
+def test_the_line_says_minimum_and_formats_counts_with_thousands_separators():
+    """studio reads "61% real requirements · minimum 80% · 2,174 placeholders"; the job title
+    (this line, verbatim) read "target 80% · 2174 placeholders" beside it."""
+    first = generation.point_of({"behavior_bearing": 5786, "resolved": 1362, "risk_flagged": 4397}, 0)
+    last = generation.point_of({"behavior_bearing": 5786, "resolved": 3585, "risk_flagged": 2174}, 7)
+    doc = {"points": [{**first, "at": 0}, {**last, "at": 7 * 15 * MIN, "took": 15 * MIN,
+                                            "framed": 1500, "page_real": 1234}],
+           "grant": {"page": 0, "at": 0}}
+    d = _decide(doc, now_min=7 * 15, left=1100)
+    line = d["line"]
+    assert "minimum 80%" in line and "target" not in line, line
+    assert "2,174 placeholders" in line and "2174" not in line, line
+    assert "last page resolved 1,234 of 1,500 units" in line, line
+    # 80% of 5,786 is 4,629 real; with 3,585 real, 1,044 are needed and 1,100 units are left: in reach
+    assert "minimum out of reach" not in line
+    far = _decide(doc, now_min=7 * 15, left=1043)
+    assert "minimum out of reach in this run: 1,044 more real requirements needed, 1,043 units " \
+           "left to ask" in far["line"], far["line"]
+    lower = [c for c in far.get("choices", []) if c["id"] == "lower"]
+    assert all("Lower the minimum to" in c["label"] for c in lower)
+    assert generation.count(2174) == "2,174" and generation.count(7) == "7"

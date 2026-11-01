@@ -11,8 +11,8 @@ step:
     target (`wicked-core requirements-target`: its own, else the daemon-wide minimum);
   * closes the page in the generation's record (`generation.py`, beside the store, never in the
     seat-writable worktree: its units are not asked again this run), adds the point and prints
-    ONE progress line — "Mapping wicked-crew · real requirements 23% → 27% · target 80% · page 2
-    · 4397 placeholders · last page resolved 212 of 500 units · about 3 h left";
+    ONE progress line — "Mapping wicked-crew · real requirements 23% → 27% · minimum 80% · page 2
+    · 4,397 placeholders · last page resolved 212 of 500 units · about 3 h left";
   * ends with the engine's decision line (`wicked-repeat {...}`, wicked-core's bounded loop):
     another page while the real share is below the target and the budget holds; the operator's
     ask when the budget (`WICKED_DOMAIN_MAX_PAGES`, default 20, or `WICKED_DOMAIN_MAX_MINUTES`,
@@ -124,8 +124,8 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
             repo, doc["points"], target, next_page=None, left_to_map=0)
             + " · going on as the operator chose"}
     if choice == "lower" and decision["next"] == "done":
-        decision["line"] += f" · target lowered to {target}% for {repo}"
-    print(f"[extract-next] {decision['line']} (target from the {source})")
+        decision["line"] += f" · minimum lowered to {target}% for {repo}"
+    print(f"[extract-next] {decision['line']} (minimum from the {source})")
     print(generation.marker(decision))
     return decision
 
