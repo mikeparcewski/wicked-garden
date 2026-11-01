@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, every role proposes a memory for what it witnessed, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -43,8 +43,8 @@ evaluator, then creator) and say which you chose in your output.
 - **A3 — Headless: never ask and wait.** No "Shall I proceed?". Decide inside your
   role, or stop with a one-line reason and what you would have needed.
 - **A4 — Honest counts.** Report "derived N / submitted M / failed K". A bare
-  "done" when N > 0 and M = 0 is a false report. A unit that submits proposals also
-  ends with the machine-readable line
+  "done" when N > 0 and M = 0 is a false report. A unit of a declared capture phase
+  also ends with the machine-readable line
   `wicked-capture-report {"derived": N, "submitted": M, "failed": K}` — always,
   including a degrade and a legitimate 0; the engine's capture-report floor
   (wicked-core#535) denies a declared capture phase that emits none.
@@ -52,6 +52,24 @@ evaluator, then creator) and say which you chose in your output.
   it with variants, wrappers or another path. Record the denial and go on.
 - **A6 — No secrets, no personal data.** Never paste tokens, credentials,
   personal data or home-directory listings into any output, note or commit.
+- **A7 — Propose what you witnessed, whatever your role.** When this unit hits
+  something a fresh session on a different task would need, propose it as a
+  memory: a gotcha and why it bites (a check that failed for a non-obvious reason,
+  and what fixed it), a trap in the tools, the environment or the repository's
+  setup, or a ruling or steer the operator gave in this run. Use the one-line path:
+  `wicked-garden run scripts/mem/estate_memory.py --readonly propose '<the rule, why it holds, when it applies>'`
+  (one to three self-contained sentences). It lands inert in the operator's review
+  queue, and the run, the unit and your seat are stamped from your environment;
+  never pass provenance. Not a memory: what the code does (you read it, you did not
+  witness it), progress or status, versions, SHAs, run or PR ids. At most three per
+  unit, and skip one that `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
+  already returns. A proposal is not a write to the worktree, so an evaluator or a
+  neutral unit proposes too (E1 and N1 still hold). Count them under Counts
+  ("memories proposed N"); the `wicked-capture-report` line stays a capture-phase
+  contract (A4), so an evaluator's VERDICT line is still last. When the shim answers
+  `{"ok": false, …}` or the fence denies the call, write
+  `memory (not proposed: <reason>): <text>` in your output and go on (A5).
+  Proposing nothing is right when nothing durable happened.
 
 ## Creator (fix / build)
 
@@ -186,7 +204,8 @@ Every unit's final message contains, in this order:
 
 1. **What you did** — role, scope, files touched (creator) or read (others).
 2. **Commands run** — each with its exit code, in the order run.
-3. **Counts** — derived N / submitted M / failed K (A4), with K explained.
+3. **Counts** — derived N / submitted M / failed K (A4), with K explained, and
+   memories proposed N (A7).
 4. **Findings or plan** — evaluator: findings by severity with `file:line`;
    neutral: the plan; creator: what changed against the design, and the
    built-in check (C8).
@@ -195,6 +214,11 @@ Every unit's final message contains, in this order:
 6. **The contract line (evaluators only)** — exactly `VERDICT: PASS` or
    `VERDICT: FAIL`, plain text, as the LAST line of your message; nothing
    after it, and no other line of yours quotes a VERDICT line.
+
+## Runtime
+Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
+If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
+Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
 ## Provenance
 
@@ -208,6 +232,7 @@ Rules cite the acceptance-program findings that motivated them.
 | A4 | F-RC1-048 |
 | A5 | F-RC1-046 |
 | A6 | F-RC2-031 |
+| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to |
 | C1 | F-RC1-019, F-RC1-070 |
 | C2 | F-RC1-070 |
 | C3 | F-RC1-019 |
