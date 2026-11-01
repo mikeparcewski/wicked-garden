@@ -175,6 +175,15 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 
 
+def _stdlib_zstd():
+    """`compression.zstd` (Python 3.14+), or None."""
+    try:
+        from compression import zstd
+    except ImportError:
+        return None
+    return zstd
+
+
 _CONTENT_LIMIT = 4 * 1024 * 1024  # decompressed bytes one file may take (as the checkout read)
 
 
@@ -188,10 +197,10 @@ def _maybe_decompress(blob, limit: int = _CONTENT_LIMIT) -> bytes:
     b = blob if isinstance(blob, bytes) else bytes(blob)
     if not b.startswith(_ZSTD_MAGIC):
         return b
-    try:
-        from compression import zstd  # stdlib, Python 3.14+
+    zstd = _stdlib_zstd()
+    if zstd is not None:
         out = zstd.ZstdDecompressor().decompress(b, max_length=limit + 1)
-    except ImportError:
+    else:
         try:
             import io
             import zstandard  # a dependency before 3.14 (wicked-garden#1370)
@@ -407,7 +416,7 @@ def _bare_name(name: str) -> str:
 
 _TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/|"
                         r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|"
-                        r"_test\.(py|go|rs)$|_spec\.rb$|(Tests?|Spec)\.(cs|java|kt|swift|scala)$")
+                        r"_test\.(py|go|rs)$|_spec\.rb$|Tests?\.(cs|java|kt|swift|scala)$")
 
 
 def is_test_path(file: str) -> bool:
@@ -426,11 +435,6 @@ _DATA_EXTS = (".json", ".jsonc", ".json5", ".jsonl", ".yaml", ".yml", ".toml", "
 def is_data_path(file: str) -> bool:
     """A data, manifest or document file (by extension): its nodes are not product code."""
     return (file or "").lower().endswith(_DATA_EXTS)
-
-
-def _is_source_diagnostic(text: str) -> bool:
-    """`wicked-estate source`'s answer when it found nothing, rather than code."""
-    return text.strip().lower().startswith("no symbols found")
 
 
 def unconfirmed_reason(file: str, sourced: bool) -> str | None:
@@ -816,14 +820,15 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                 if store is not None:
                     slice_txt = store.source_slice(sid)
                     neighbors = store.blast_neighbors(sid)
+                # Sourced only by the store's indexed bytes: the `estate source` fallback below
+                # looks a NAME up (for a symbol id it can answer "no symbols found", or another
+                # symbol's code), so it may frame the unit but never makes a rule validatable.
+                sourced[sid] = bool(slice_txt.strip())
                 if slice_txt == "":
                     try:
                         slice_txt = estate.source(sid)[:4000]
                     except Exception:
                         slice_txt = ""
-                # `estate source` looks a NAME up: for a symbol id it can answer "no symbols
-                # found" with exit 0, which is no source at all.
-                sourced[sid] = bool(slice_txt.strip()) and not _is_source_diagnostic(slice_txt)
             framed.append(_rule_extractor.frame_context(n, slice_txt,
                           cluster_label=node_community.get(sid), neighbor_names=neighbors))
             ids.add(sid)
