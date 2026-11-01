@@ -392,10 +392,15 @@ def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path,
 def test_the_operators_finish_hands_the_share_to_the_coverage_step(tmp_path, capsys):
     db = tmp_path / "graphs" / "estate.db"
     db.parent.mkdir()
-    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 3}, "repo")
+    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 2}, "repo",
+                           at=0)
+    # a page that gained one real requirement, then nothing left: the finish line claims no ETA
+    # (codex r2 on #1377: it read "about 199 h 15 min left")
+    _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1), 15, capsys)
     d, out, _ = _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1,
-                                                           WICKED_REPEAT_CHOICE="finish"), 15, capsys)
+                                                           WICKED_REPEAT_CHOICE="finish"), 16, capsys)
     assert d["next"] == "done" and "going on as the operator chose" in d["line"]
+    assert "about" not in d["line"], d["line"]
 
 
 def test_a_target_the_run_cannot_reach_gets_no_time_estimate():
