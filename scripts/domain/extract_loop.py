@@ -408,6 +408,31 @@ def is_test_path(file: str) -> bool:
     return bool(_TEST_PATH.search(file or ""))
 
 
+# Files whose "behaviours" are keys and headings, not code: a data fixture, a manifest, a
+# document. The indexer counts their keys as nodes, so coverage maps them, but what a seat states
+# about a JSON key is not a requirement the product's code implements.
+_DATA_EXTS = (".json", ".jsonc", ".json5", ".jsonl", ".yaml", ".yml", ".toml", ".lock", ".ini",
+              ".cfg", ".conf", ".properties", ".csv", ".tsv", ".txt", ".md", ".mdx", ".rst",
+              ".xml")
+
+
+def is_data_path(file: str) -> bool:
+    """A data, manifest or document file (by extension): its nodes are not product code."""
+    return (file or "").lower().endswith(_DATA_EXTS)
+
+
+def unconfirmed_reason(file: str, sourced: bool) -> str | None:
+    """Why a rule stated about a unit in `file` is written unconfirmed whatever its confidence
+    (wicked-garden#1370), or None when it may be validated: it needs its source, read on the
+    host, and it must be product code, not a test or a data file (those are evidence of what the
+    product does, recorded as accounted-for but never as a validated requirement)."""
+    if not sourced:
+        return NO_SOURCE_REASON
+    if is_test_path(file) or is_data_path(file):
+        return NOT_PRODUCT_REASON
+    return None
+
+
 def _not_a_hub(store, sid) -> bool:
     """A symbol that never seeds the fan-out: a JS/TS symbol named like a builtin method (its
     callers are any `x.get()` / `Math.round()` in the repo, wicked-garden#1366), or one in a test
@@ -802,30 +827,33 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
             sid = n["symbol_id"]
             decide_and_write(estate, store, sid, n.get("name", ""), by_id.get(sid), ids,
                              node_community, community_sizes,
-                             sourced=sourced.get(sid) if store is not None else None)
+                             unconfirmed=(unconfirmed_reason(n.get("file", ""), sourced[sid])
+                                          if store is not None and sid in sourced else None))
             processed += 1
 
 
 NO_SOURCE_REASON = "no source: its indexed code could not be read, so the statement is unconfirmed"
+NOT_PRODUCT_REASON = ("not product code (a test, data or document file): recorded, unconfirmed, "
+                      "never a validated requirement")
 
 
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
-                     seat: str | None = None, read_back=None, sourced: bool | None = None) -> str:
+                     seat: str | None = None, read_back=None,
+                     unconfirmed: str | None = None) -> str:
     """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
     RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
-    in a seat container is judged exactly like one the host's own model returned. `sourced` is
-    False when the node's source could not be read from the store: a rule stated about it is
-    then written unconfirmed (RISK, not validated), never as a validated requirement
-    (wicked-garden#1370); None when the caller does not know. Returns "resolved", "risk",
-    "unsourced" (a valid rule written unconfirmed for want of source; a RISK write) or "kept"
-    (a statement-less floor skipped over existing content)."""
+    in a seat container is judged exactly like one the host's own model returned. `unconfirmed`
+    is why a rule about this node may not be validated ([`unconfirmed_reason`]: no source read
+    on the host, or not product code): it is then written unconfirmed (RISK, not validated)
+    whatever its confidence (wicked-garden#1370). Returns "resolved", "risk", "unconfirmed" (a
+    valid rule written unconfirmed for that reason; a RISK write) or "kept" (a statement-less
+    floor skipped over existing content)."""
     ok, reason = (_rule_extractor.validate_rule(rule, ids) if rule
                   else (False, "no rule returned for this node"))
-    if ok and sourced is False:
-        _write_node(estate, sid, name, rule, False, NO_SOURCE_REASON, seat=seat,
-                    read_back=read_back)
-        return "unsourced"
+    if ok and unconfirmed:
+        _write_node(estate, sid, name, rule, False, unconfirmed, seat=seat, read_back=read_back)
+        return "unconfirmed"
     if ok:
         adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
         resolved = adjusted >= RESOLVE_THRESHOLD

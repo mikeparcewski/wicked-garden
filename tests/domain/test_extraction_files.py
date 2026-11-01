@@ -100,6 +100,7 @@ def _git_repo(tmp_path, tracked=("f.py",)):
     subprocess.run(["git", "init", "-q", str(repo)], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "core.fsmonitor", "false"], check=True)
     for name in tracked:
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
         (repo / name).write_text("x = 1\n")
     subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True)
     (repo / "untracked.py").write_text("y = 2\n")
@@ -889,6 +890,30 @@ def test_a_rule_about_a_unit_with_no_source_is_written_unconfirmed(tmp_path):
     report = _apply(wt2, db2, repo, estate2, _Core(estate2, {s: "f.py" for s in _STAR}))
     assert report["applied"]["resolved"] == 1 and report["unsourced"] == 0
     assert estate2.writes["s::core"]["req"][1] is True
+
+
+def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
+    """pi-governance on :7721: 109 of its 120 'behaviours' were keys of JSON evidence files and
+    package.json, and the seat stated a 'requirement' for each. What a test or data file holds is
+    evidence, never a validated requirement: recorded (accounted for), unconfirmed."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path, tracked=("f.py", "package.json",
+                                                                 "test/x.mjs")), _wt(tmp_path)
+    estate = _Estate()
+    nodes = {s: "f.py" for s in _STAR}
+    nodes["s::a"] = "package.json"
+    nodes["s::b"] = "test/x.mjs"
+    core = _Core(estate, nodes)
+    _write_rules(wt, "claude", [_rule("s::core", confidence=1.0), _rule("s::a", confidence=1.0),
+                                _rule("s::b", confidence=1.0)])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"] == {"resolved": 1, "risk": 2, "kept": 0}
+    assert (report["not_product"], report["unsourced"]) == (2, 0)
+    assert estate.writes["s::core"]["req"][1] is True
+    for sid in ("s::a", "s::b"):
+        req, validated, _ = estate.writes[sid]["req"]
+        assert validated is False and "not product code" in req, req
+    assert extract_loop.is_data_path("evidence/run/summary.json")
+    assert extract_loop.is_data_path("docs/README.MD") and not extract_loop.is_data_path("a.js")
 
 
 # --- review round 4 (codex on #1363) -------------------------------------------------------------
