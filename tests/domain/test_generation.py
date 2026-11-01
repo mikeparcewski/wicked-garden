@@ -439,6 +439,17 @@ def test_the_line_says_minimum_and_formats_counts_with_thousands_separators():
     far = _decide(doc, now_min=7 * 15, left=1043)
     assert "minimum out of reach in this run: 1,044 more real requirements needed, 1,043 units " \
            "left to ask" in far["line"], far["line"]
-    lower = [c for c in far.get("choices", []) if c["id"] == "lower"]
-    assert all("Lower the minimum to" in c["label"] for c in lower)
+    # nothing left to ask: the gate asks, and its choice says "minimum" too
+    ask = _decide(doc, now_min=7 * 15, left=0)
+    assert ask["next"] == "ask" and "target" not in ask["line"], ask
+    assert [c["label"] for c in ask["choices"]] == ["Lower the minimum to 61% for crew and build the graph"]
     assert generation.count(2174) == "2,174" and generation.count(7) == "7"
+
+
+def test_a_large_budget_prints_its_counts_with_separators_too():
+    """codex on #1378: WICKED_DOMAIN_MAX_PAGES=1000 / MAX_MINUTES=1440 printed "2000 minutes"."""
+    pts = [_pt(0, 30, 0), _pt(1, 40, 2000)]
+    d = _decide(_doc(*pts), now_min=2000, max_pages=1000, max_minutes=1440)
+    assert d["next"] == "ask"
+    assert "budget reached (2,000 minutes; the budget is 1,000 pages or 1,440 minutes)" in d["line"], d
+    assert d["choices"][0]["label"] == "Map up to 1,000 more pages"

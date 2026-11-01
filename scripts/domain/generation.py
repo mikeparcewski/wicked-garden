@@ -338,7 +338,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
     lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
                                       f"the graph"} if last["pct"] >= 1 else None)
-    more = {"id": "continue", "label": f"Map up to {max_pages} more pages"}
+    more = {"id": "continue", "label": f"Map up to {count(max_pages)} more pages"}
     # Near-zero yield on a full page (domain-real): the page's review passed a page that stated
     # almost nothing (wicked-crew run 4b49cbe1: 3 rules of 500 units). Never mapped on silently,
     # and asked before "nothing left" too (codex on #1375), so the last page is not passed either.
@@ -377,12 +377,12 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     pages_used = page - grant["page"]
     minutes_used = (now - grant["at"]) / 60000
     if pages_used >= max_pages or minutes_used >= max_minutes:
-        spent = (f"{pages_used} page{'s' if pages_used != 1 else ''}"
-                 if pages_used >= max_pages else f"{int(minutes_used)} minutes")
+        spent = (f"{count(pages_used)} page{'s' if pages_used != 1 else ''}"
+                 if pages_used >= max_pages else f"{count(int(minutes_used))} minutes")
         return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
                 "recommended": "continue",
-                "line": f"{line} · budget reached ({spent}; the budget is {max_pages} pages "
-                        f"or {max_minutes} minutes)"}
+                "line": f"{line} · budget reached ({spent}; the budget is {count(max_pages)} pages "
+                        f"or {count(max_minutes)} minutes)"}
     return {"next": "continue", "line": line}
 
 
