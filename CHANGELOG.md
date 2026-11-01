@@ -16,9 +16,10 @@
 - **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
   counts resolved behaviours only; risk-flagged placeholders are shown, never counted.
   - `extract-prepare` frames the unmapped behaviours, then the placeholders an earlier page left (empty, or under
-    the confidence threshold), hub-first. It skips any unit an earlier page of the same run framed, kept in the
-    generation's record beside the store, so a unit left empty again cannot loop the run. `extract-apply` accepts
-    entries for placeholders; an empty answer never overwrites a statement.
+    the confidence threshold), hub-first. It skips any unit an earlier page of the same run closed: one the seat
+    answered and the host wrote or kept, recorded in the generation's record beside the store, so a unit left empty
+    again cannot loop the run. A unit the seat never reached (its turn ran out) goes back to the pool for the next
+    page. `extract-apply` accepts entries for placeholders; an empty answer never overwrites a statement.
   - `extract-next` measures the real share: "Mapping wicked-crew · real requirements 23% → 25% · target 80% · page
     2 · 4331 placeholders · last page resolved 93 of 100 units · about 3 h left". A page of 20 or more units that
     resolved under 1 in 20 asks the operator instead of mapping on (wicked-crew run 4b49cbe1 passed a page with 3
