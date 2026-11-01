@@ -301,6 +301,8 @@ def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
     if yt:
         parts.append(yt)
     need = math.ceil(target * last["behaviours"] / 100) - last["real"]
+    if left_to_map == 0 and need > 0:
+        return " · ".join(parts)  # nothing left to ask: no time estimate (the caller says why)
     if left_to_map is not None and 0 < left_to_map < need:
         # No time estimate for a target this run cannot reach (wicked-crew run 29bbbfb1 read
         # "about 3 h 37 min left" with 1,900 units left to ask and 2,000 real requirements to go).
@@ -345,12 +347,14 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             # Nothing left to ask (agy/codex r2 on #1375): still the operator's word, never a
             # silent "done"; going on hands the share to the coverage step.
             choices = [lower] if lower is not None else [FINISH]
-            warn = (f"{progress_line(repo, points, target, next_page=None)} · the last page "
+            head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+            warn = (f"{head} · the last page "
                     f"resolved under 1 in {LOW_YIELD_PER} of its units and nothing is left to "
                     f"map: read its review")
         return {"next": "ask", "choices": choices, "recommended": choices[0]["id"], "line": warn}
     if left_to_map <= 0:
-        rest = (f"{progress_line(repo, points, target, next_page=None)} · nothing left to map "
+        head = progress_line(repo, points, target, next_page=None, left_to_map=0)
+        rest = (f"{head} · nothing left to map "
                 f"in the files the repository tracks")
         if lower is None:
             # Nothing can change: the coverage step says the share against the target.

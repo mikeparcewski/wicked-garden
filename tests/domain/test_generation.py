@@ -402,8 +402,13 @@ def test_a_target_the_run_cannot_reach_gets_no_time_estimate():
     """wicked-crew run 29bbbfb1 read "about 3 h 37 min left" while 2,000 more real requirements
     were needed and only 1,900 units were left to ask: no amount of time reaches the target."""
     doc = _doc(_pt(0, 100, 0), _pt(1, 300, 15), _pt(2, 450, 30))
-    short = _decide(doc, left=200)  # 800 - 450 = 350 needed, 200 left
-    assert short["next"] == "continue"
-    assert "target out of reach in this run: 350 more real requirements needed, 200 units left " \
-           "to ask" in short["line"] and " left" in short["line"] and "about" not in short["line"]
-    assert "about" in _decide(doc, left=500)["line"]  # 350 needed, 500 left: in reach
+    for left in (200, 349):  # 800 - 450 = 350 needed
+        short = _decide(doc, left=left)
+        assert short["next"] == "continue"
+        assert (f"target out of reach in this run: 350 more real requirements needed, {left} "
+                f"units left to ask") in short["line"] and "about" not in short["line"]
+    for left in (350, 500):  # in reach if every unit left resolves
+        assert "about" in _decide(doc, left=left)["line"]
+    # nothing left (agy/codex r1 on #1377): the ask says why, and no ETA is claimed
+    empty = _decide(doc, left=0)
+    assert "nothing left to map" in empty["line"] and "about" not in empty["line"]
