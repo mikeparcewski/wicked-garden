@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import sys
@@ -440,6 +441,16 @@ def is_data_path(file: str) -> bool:
     return (file or "").lower().endswith(_DATA_EXTS)
 
 
+def kind_of_row(row) -> str:
+    """The node kind a `_DirectStore.node_row` entry carries in its stored JSON (`"rule"`, …),
+    or "" when it says none."""
+    try:
+        kind = json.loads(row[2] or "{}").get("kind") if row else None
+    except (TypeError, ValueError, AttributeError):
+        return ""
+    return kind if isinstance(kind, str) else ""
+
+
 def unconfirmed_reason(file: str, sourced: bool, kind: str = "") -> str | None:
     """Why a rule stated about a unit in `file` is written unconfirmed whatever its confidence
     (wicked-garden#1370), or None when it may be validated: it needs its source, read on the
@@ -447,7 +458,7 @@ def unconfirmed_reason(file: str, sourced: bool, kind: str = "") -> str | None:
     product does, recorded as accounted-for but never as a validated requirement). An extracted
     `Rule` (a Salesforce Flow, a cloud policy) is executable behaviour whatever its extension, as
     wicked-core counts it (#1233); in a test or fixture file it is still a test."""
-    if is_test_path(file) or (is_data_path(file) and kind != "Rule"):
+    if is_test_path(file) or (is_data_path(file) and str(kind or "").lower() != "rule"):
         return NOT_PRODUCT_REASON
     if not sourced:
         return NO_SOURCE_REASON
@@ -851,7 +862,8 @@ def run(db: str, *, time_budget: float, limit: int, batch: int, dry_run: bool,
                              node_community, community_sizes,
                              unconfirmed=(None if dry_run else
                                           unconfirmed_reason(n.get("file", ""),
-                                                             sourced.get(sid, False))))
+                                                             sourced.get(sid, False),
+                                                             str(n.get("kind") or ""))))
             processed += 1
 
 

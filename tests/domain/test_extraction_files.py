@@ -1194,5 +1194,33 @@ def test_an_extracted_rule_in_a_data_extension_file_may_be_validated():
 
 def test_test_names_match_wicked_cores_denominator():
     """The same test-file patterns as wicked-core's `is_product_file` (codex on #1234)."""
-    for f in ("src/payment_test.cpp", "src/payment_test.cc", "tests/PaymentTest.php"):
+    for f in ("src/payment_test.cpp", "src/payment_test.cc", "src/PaymentTest.php"):
         assert extract_loop.is_test_path(f), f
+    for f in ("src/Payment.php", "src/payment.cpp", "src/latest.cc"):
+        assert not extract_loop.is_test_path(f), f
+
+
+def test_an_extracted_rule_is_validated_on_every_write_path():
+    """codex r3 on #1375: store mode and batch ingestion pass the node's kind too, so a sourced,
+    confident Flow rule is not written unconfirmed as "not product code"."""
+    assert extract_loop.kind_of_row(("Approve", "flows/A.flow-meta.xml", '{"kind": "rule"}')) == "rule"
+    assert extract_loop.unconfirmed_reason("flows/A.flow-meta.xml", True,
+                                           extract_loop.kind_of_row(("A", "f", '{"kind":"rule"}'))) is None
+    assert extract_loop.kind_of_row(("x", "f", "not json")) == ""
+    assert extract_loop.kind_of_row(None) == ""
+
+
+def test_an_apply_retry_keeps_what_the_first_attempt_answered(tmp_path):
+    """codex r3 on #1375: the retry refuses what the first attempt resolved; the page's record
+    keeps the first attempt's answers, so its yield is not read as zero."""
+    db = str(tmp_path / "graphs" / "estate.db")
+    (tmp_path / "graphs").mkdir()
+    cov = {"behavior_bearing": 8, "resolved": 2, "risk_flagged": 6, "unaccounted": 0,
+           "unaccounted_nodes": [], "placeholder_nodes": [{"symbol_id": f"s::{i}"} for i in range(2, 8)]}
+    generation.open_record(db, "run-1", cov, "repo")
+    generation.frame_page(db, "run-1", [f"s::{i}" for i in range(8)])
+    generation.record_answered(db, "run-1", ["s::0", "s::1"])  # first attempt, then it failed
+    generation.record_answered(db, "run-1", [])                # the retry wrote nothing new
+    rec = generation.load(db, "run-1")
+    assert rec["answered"] == ["s::0", "s::1"]
+    assert generation.close_page(rec, cov) == (8, 2)

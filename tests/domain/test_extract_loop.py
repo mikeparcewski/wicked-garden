@@ -440,7 +440,7 @@ def test_persistent_timeout_floors_after_one_retry(monkeypatch):
 def _sources_confirmed(monkeypatch):
     """These tests are about retries and yields, not sourcing: with no direct store ("x.db"),
     every unit would be unconfirmed for want of source (wicked-garden#1370)."""
-    monkeypatch.setattr(extract_loop, "unconfirmed_reason", lambda file, sourced: None)
+    monkeypatch.setattr(extract_loop, "unconfirmed_reason", lambda file, sourced, kind="": None)
 
 
 def test_transient_timeout_recovers_on_retry(monkeypatch):

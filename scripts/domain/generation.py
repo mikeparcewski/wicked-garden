@@ -188,7 +188,9 @@ def record_answered(db: str, run_id: str, symbol_ids: list[str]) -> None:
     if doc is None:
         return
     pending = set(doc.get("pending") or [])
-    doc["answered"] = sorted(pending & set(symbol_ids))
+    # Accumulated across retries of the same page (codex r3 on #1375): a retry refuses what the
+    # first attempt already resolved, and must not erase it.
+    doc["answered"] = sorted((set(doc.get("answered") or []) | set(symbol_ids)) & pending)
     save(db, run_id, doc)
 
 

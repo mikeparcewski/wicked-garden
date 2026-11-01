@@ -133,6 +133,20 @@ def _annotation_read_back(db: str):
     return check
 
 
+def _record_answered(db: str, answered: list[str]) -> None:
+    """Record which of the page's units this step wrote (or kept), in the run's generation
+    record, so only those close with the page. Never fatal: without it the next step closes the
+    units that are real requirements now."""
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if not run_id or not answered:
+        return
+    try:
+        generation.record_answered(db, run_id, answered)
+    except (OSError, ValueError) as e:
+        print(f"[extract-apply] the answered units could not be recorded ({e}); the next step "
+              "closes the units that are real requirements now", file=sys.stderr)
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -241,12 +255,14 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             outcomes[outcome] += 1
             answered.append(sid)
 
+        _record_answered(db, answered)  # before anything that can still fail (codex r3)
         # The report is computed in a host temp directory and published through the safe writer
         # (core writes its --out in place, which would follow a planted link or hard link).
         with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
         rules_file.write_json_file(base, coverage_rel, after)
     except (rules_file.RulesFileRefused, RuntimeError, OSError, ValueError) as e:
+        _record_answered(db, answered)  # what was written before the failure still counts
         written = outcomes["resolved"] + outcomes["risk"]
         partly = (f"; {rules_file._shown(in_progress)} may be partly written (its annotation "
                   "without its requirement)") if in_progress else ""
@@ -257,13 +273,6 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         raise AppliedThenFailed(f"{written} rule(s) were written to the store{partly} before this "
                                 f"failed: {e}") from e
 
-    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
-    if run_id:
-        try:  # which units the page closes; without it the next step closes every one it framed
-            generation.record_answered(db, run_id, answered)
-        except (OSError, ValueError) as e:
-            print(f"[extract-apply] the answered units could not be recorded ({e}); the next "
-                  "step closes the units that are no longer unmapped", file=sys.stderr)
     report = {
         "declared_seat": seat,
         "author": author,
