@@ -885,7 +885,8 @@ def test_store_mode_never_validates_without_a_source():
 
 def test_test_files_are_recognised_across_ecosystems():
     for f in ("app/tests.py", "specs/foo.js", "src/FooTests.cs", "a/BarTest.java",
-              "pkg/x_test.go", "lib/y_spec.rb", "testdata/in.txt", "test/live/capture.mjs"):
+              "pkg/x_test.go", "lib/y_spec.rb", "testdata/in.txt", "test/live/capture.mjs",
+              "Tests/PaymentValidation.cs", "src/Specs/Order.cs"):
         assert extract_loop.is_test_path(f), f
     for f in ("src/app.py", "lib/contest.py", "src/latest.js", "src/OrderSpec.kt"):
         assert not extract_loop.is_test_path(f), f
@@ -919,12 +920,12 @@ def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
     """pi-governance on :7721: 109 of its 120 'behaviours' were keys of JSON evidence files and
     package.json, and the seat stated a 'requirement' for each. What a test or data file holds is
     evidence, never a validated requirement: recorded (accounted for), unconfirmed."""
-    db, repo, wt = _star(tmp_path), _git_repo(tmp_path, tracked=("f.py", "package.json",
-                                                                 "test/x.mjs")), _wt(tmp_path)
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path, tracked=(
+        "f.py", "package.json", "Tests/PaymentValidation.cs")), _wt(tmp_path)
     estate = _Estate()
     nodes = {s: "f.py" for s in _STAR}
     nodes["s::a"] = "package.json"
-    nodes["s::b"] = "test/x.mjs"
+    nodes["s::b"] = "Tests/PaymentValidation.cs"
     core = _Core(estate, nodes)
     _write_rules(wt, "claude", [_rule("s::core", confidence=1.0), _rule("s::a", confidence=1.0),
                                 _rule("s::b", confidence=1.0)])

@@ -414,14 +414,16 @@ def _bare_name(name: str) -> str:
     return tail.split("(", 1)[0].strip()
 
 
-_TEST_PATH = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/|"
-                        r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|"
+# Test directories in any case (`Tests/` in .NET, `Specs/`); file-name patterns keep their case
+# (`*Tests.cs` is a test, `Contest.py` is not).
+_TEST_DIR = re.compile(r"(^|/)(tests?|__tests__|specs?|e2e|fixtures?|testdata)/", re.IGNORECASE)
+_TEST_PATH = re.compile(r"\.(test|spec)\.[^/]+$|(^|/)test_[^/]+\.py$|(^|/)tests?\.py$|"
                         r"_test\.(py|go|rs)$|_spec\.rb$|Tests?\.(cs|java|kt|swift|scala)$")
 
 
 def is_test_path(file: str) -> bool:
     """A test, spec or fixture file: mapped in its turn, never where a page starts."""
-    return bool(_TEST_PATH.search(file or ""))
+    return bool(_TEST_DIR.search(file or "") or _TEST_PATH.search(file or ""))
 
 
 # Files whose "behaviours" are keys and headings, not code: a data fixture, a manifest, a
