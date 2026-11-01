@@ -35,8 +35,9 @@ wicked-core coverage --db "${WICKED_ESTATE_DB:-$HOME/.wicked-estate/graph.db}" -
 else 80). Only real requirements count toward it (the report's `resolved`): behaviours
 with a business rule at or above the confidence threshold or a validated requirement.
 Placeholders (`risk_flagged`: a risk flag, or a rule under the threshold) never count.
-Product code is decided by file path (test, fixture, data and document files are left
-out as `not_product`; a test module inside a product file still counts). It writes
+Product code is decided by file path: test, spec and fixture files are left out, and so
+are data, manifest and document files except an extracted rules-engine rule (a policy
+JSON, a flow XML); a test module inside a product file still counts. It writes
 the report either way, prints `coverage: N% real requirements, minimum M% (R of B
 behaviours; P placeholders, U unmapped)` on stderr, and exits 3 below the minimum.
 

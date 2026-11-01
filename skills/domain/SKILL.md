@@ -142,16 +142,18 @@ needs an INDEXED store whose real requirements reach the configured minimum; a c
 
 ## Coverage minimum, extraction order, corroboration (operator ruling 2026-10-31)
 
-- **Minimum, not 100%, and only real requirements count.** The graph is built oncereal
+- **Minimum, not 100%, and only real requirements count.** The graph is built once real
   requirements (behaviours with a business rule at or above the confidence threshold, 0.75
-  by default, or a validated requirement; the harness writes a rule that way only once it
-  has validated the statement and its grounding) reach the configured minimum share of the
+  by default, or a validated requirement) reach the configured minimum share of the
   behaviours in product code: crew's `requirementsGraph.minCoveragePct` (Settings, default
   80), which the daemon exports as `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`. A placeholder (a
   risk flag, or a rule under the threshold) is shown, never counted. Product code is decided
   by file path: test, spec and fixture files and data, manifest and document files are left
-  out, though a test module inside a product file still counts and an extracted
-  rules-engine rule counts whatever its file.
+  out, though a test module inside a product file still counts, and an extracted
+  rules-engine rule outside test and fixture paths counts whatever its file extension. The
+  harness checks each rule's shape (a statement, a numeric confidence, a provenance) and
+  that its source is readable product code before writing it; whether a statement is
+  grounded in that source is for the page's review and the coverage evaluator to judge.
   `wicked-core coverage --min-coverage-pct` and `wicked-core domain-graph` both read it.
   Below it they say "23% real requirements, minimum 80% (1362 of 5786 behaviours; 4397
   placeholders, 27 unmapped)" and fail closed; the mapping done so far stays in the estate
@@ -175,7 +177,8 @@ needs an INDEXED store whose real requirements reach the configured minimum; a c
   (while units are left), lower the minimum for this repository to the real share so far
   and build the graph (once that share is at least 1%), or stop (what was mapped is kept).
   With nothing left to map and a share under 1%, nothing can be lowered, so the run moves on
-  to the coverage step, which reports the share. A minimum the units left to ask cannot
+  to the coverage step, which reports the share (after a low-yield last page it first asks,
+  with one choice: go on to the coverage step). A minimum the units left to ask cannot
   reach gets no time estimate.
 - **Hub-first, fan-out order.** The extraction harness maps the most central symbols first
   (estate's PageRank, `wicked-estate rank`), then their neighbours and onward by graph
