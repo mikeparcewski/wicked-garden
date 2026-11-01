@@ -925,19 +925,20 @@ def test_a_rule_about_a_test_or_data_file_is_written_unconfirmed(tmp_path):
     package.json, and the seat stated a 'requirement' for each. What a test or data file holds is
     evidence, never a validated requirement: recorded (accounted for), unconfirmed."""
     db, repo, wt = _star(tmp_path), _git_repo(tmp_path, tracked=(
-        "f.py", "conftest.py", "Tests/PaymentValidation.cs")), _wt(tmp_path)
+        "f.py", "conftest.py", "Tests/PaymentValidation.cs", "package.json")), _wt(tmp_path)
     estate = _Estate()
     nodes = {s: "f.py" for s in _STAR}
     nodes["s::a"] = "conftest.py"
     nodes["s::b"] = "Tests/PaymentValidation.cs"
+    nodes["s::c"] = "package.json"
     core = _Core(estate, nodes)
     _write_rules(wt, "claude", [_rule("s::core", confidence=1.0), _rule("s::a", confidence=1.0),
-                                _rule("s::b", confidence=1.0)])
+                                _rule("s::b", confidence=1.0), _rule("s::c", confidence=1.0)])
     report = _apply(wt, db, repo, estate, core)
-    assert report["applied"] == {"resolved": 1, "risk": 2, "kept": 0}
-    assert (report["not_product"], report["unsourced"]) == (2, 0)
+    assert report["applied"] == {"resolved": 1, "risk": 3, "kept": 0}
+    assert (report["not_product"], report["unsourced"]) == (3, 0)
     assert estate.writes["s::core"]["req"][1] is True
-    for sid in ("s::a", "s::b"):
+    for sid in ("s::a", "s::b", "s::c"):  # conftest.py, Tests/, package.json
         req, validated, _ = estate.writes[sid]["req"]
         assert validated is False and "not product code" in req, req
     assert extract_loop.is_data_path("evidence/run/summary.json")
