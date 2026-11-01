@@ -633,6 +633,17 @@ def test_a_planted_git_in_the_worktree_never_runs(tmp_path, monkeypatch):
     assert not list(tmp_path.rglob("*.ran"))
 
 
+def _after_snapshot(monkeypatch, mutate):
+    """Run `mutate` after apply's coverage snapshot and before its writes: apply lists the
+    repository's tracked files right after the snapshot."""
+    real = rules_file.tracked_files
+
+    def hooked(repo_root):
+        mutate()
+        return real(repo_root)
+    monkeypatch.setattr(rules_file, "tracked_files", hooked)
+
+
 def _star_with_annotations(db):
     import sqlite3
     con = sqlite3.connect(db)
@@ -642,7 +653,7 @@ def _star_with_annotations(db):
     con.close()
 
 
-def test_a_rule_mapped_by_another_writer_meanwhile_is_not_overwritten(tmp_path):
+def test_a_rule_mapped_by_another_writer_meanwhile_is_not_overwritten(tmp_path, monkeypatch):
     import sqlite3
     db, repo, wt, estate, core = _apply_env(tmp_path)
     _star_with_annotations(db)
@@ -655,7 +666,7 @@ def test_a_rule_mapped_by_another_writer_meanwhile_is_not_overwritten(tmp_path):
         con.commit()
         con.close()
         return []
-    estate.read_clusters = another_writer_maps_core  # runs after the coverage snapshot
+    _after_snapshot(monkeypatch, another_writer_maps_core)
     report = _apply(wt, db, repo, estate, core)
     assert set(estate.writes) == {"s::a"}
     assert any(r["symbol_id"] == "s::core" and "another writer" in r["why"]
@@ -712,7 +723,7 @@ def test_a_resume_never_rewrites_a_file_past_the_byte_limit(tmp_path, monkeypatc
 # --- review round 3 (codex + agy on #1363) -------------------------------------------------------
 
 @pytest.mark.parametrize("kind", ["business_rule", "risk", "assumption", "question"])
-def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path, kind):
+def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path, kind, monkeypatch):
     import sqlite3
     db, repo, wt, estate, core = _apply_env(tmp_path)
     _star_with_annotations(db)
@@ -725,7 +736,7 @@ def test_an_annotation_written_meanwhile_also_counts_as_mapped(tmp_path, kind):
         con.commit()
         con.close()
         return []
-    estate.read_clusters = another_writer_annotates_core
+    _after_snapshot(monkeypatch, another_writer_annotates_core)
     report = _apply(wt, db, repo, estate, core)
     assert estate.writes == {} and "another writer" in report["refused"][0]["why"]
 
@@ -1154,7 +1165,8 @@ def test_a_page_whose_answers_were_all_refused_closes_none_of_its_units(tmp_path
     assert generation.close_page(rec, cov) == (3, 1) and rec["visited"] == ["s::c"]
 
 
-def test_an_annotation_replaced_at_a_higher_confidence_meanwhile_is_not_overwritten(tmp_path):
+def test_an_annotation_replaced_at_a_higher_confidence_meanwhile_is_not_overwritten(tmp_path,
+                                                                                    monkeypatch):
     """codex r2 on #1375: a placeholder promoted in place (its business_rule replaced at a higher
     confidence) keeps its text, its validated flag and its annotation count."""
     import sqlite3
@@ -1177,7 +1189,7 @@ def test_an_annotation_replaced_at_a_higher_confidence_meanwhile_is_not_overwrit
         c.commit()
         c.close()
         return []
-    estate.read_clusters = another_writer_promotes_core  # runs after the coverage snapshot
+    _after_snapshot(monkeypatch, another_writer_promotes_core)
     report = _apply(wt, db, repo, estate, core)
     assert any(r["symbol_id"] == "s::core" and "another writer" in r["why"]
                for r in report["refused"]), report["refused"]
@@ -1254,3 +1266,40 @@ def test_a_page_whose_entries_were_all_refused_records_answered_none(tmp_path, m
     _apply(wt, db, repo, estate, core)
     assert generation.load(db, "run-1")["answered"] == []
     assert first
+
+
+def test_the_extractor_never_asks_for_a_rule_from_a_plain_field_list():
+    """wicked-crew run 29bbbfb1, page 3: told "an interface or type states what a request or
+    record must hold", codex restated 441 interface shapes at a flat 0.9 and the review failed
+    the page. A type is a rule only when it encodes a constraint; confidence is never flat."""
+    skill = Path(__file__).resolve().parents[2] / "skills" / "domain-extractor" / "SKILL.md"
+    text = " ".join(skill.read_text(encoding="utf-8").split())  # wrap-independent (agy #1376)
+    assert "an interface or type states what" not in text
+    assert "A restated shape is never a rule at any confidence" in text
+    assert "encoded in its type" in text
+    assert "a plain list of fields describes code, so leave it empty" in text
+    assert "never stamp one value on the whole page" in text
+    assert "leaves most of the units whose source shows a rule empty" in text
+    # …and the bounded rule model's prompt (step 1's path) says the same (codex on #1376).
+    prompt = _rule_extractor._PROMPT_HEADER
+    assert "or a required field is a rule" not in prompt
+    assert "a plain list of fields describes code" in prompt
+
+
+def test_the_seats_reviewed_confidence_decides_never_its_community():
+    """wicked-crew run 29bbbfb1, page 3: 230 grounded rules at 0.80-0.84 resolved only 42, because
+    a unit with no Louvain community took a 0.85 penalty (0.84 x 0.85 < 0.75). A community boost
+    likewise raised rules the seat was unsure of. The seat's own confidence decides."""
+    estate = _Estate()
+    ids = {"s::lone", "s::crowd"}
+    sure = {"symbol_id": "s::lone", "statement": "a refund needs an approved order",
+            "confidence": 0.8, "provenance": {"source": "m", "ref": "s::lone",
+                                               "source_kinds": ["code-body"]}}
+    unsure = {**sure, "symbol_id": "s::crowd", "confidence": 0.7,
+              "provenance": {**sure["provenance"], "ref": "s::crowd"}}
+    community = {"s::crowd": "c1", **{f"s::m{i}": "c1" for i in range(5)}}
+    sizes = {"c1": 6}
+    assert extract_loop.decide_and_write(estate, None, "s::lone", "lone", sure, ids, {}, {}) \
+        == "resolved"
+    assert extract_loop.decide_and_write(estate, None, "s::crowd", "crowd", unsure, ids,
+                                         community, sizes) == "risk"

@@ -48,15 +48,6 @@ from domain import _clients, _rule_extractor, rules_file  # noqa: E402
 RESOLVE_THRESHOLD = 0.75
 
 
-def _cohesion(sid: str, node_community: dict[str, str], community_sizes: dict[str, int]) -> float:
-    """A cheap structural cohesion signal: a node in a real (multi-member) Louvain
-    community frames a better-bounded rule than an edgeless singleton. Singleton
-    (label == own id) ⇒ mild penalty; larger community ⇒ mild boost. Bounded [0.85, 1.1]."""
-    label = node_community.get(sid, sid)
-    size = community_sizes.get(label, 1)
-    if label == sid or size <= 1:
-        return 0.85
-    return min(1.1, 0.95 + 0.03 * size)
 
 
 _INFRA_MARKERS = ("session limit", "rate limit", "rate_limit", "overloaded", "quota",
@@ -890,8 +881,11 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         _write_node(estate, sid, name, rule, False, unconfirmed, seat=seat, read_back=read_back)
         return "unconfirmed"
     if ok:
-        adjusted = float(rule["confidence"]) * _cohesion(sid, node_community, community_sizes)
-        resolved = adjusted >= RESOLVE_THRESHOLD
+        # The seat's own confidence decides, as the page's review checked it (wicked-crew run
+        # 29bbbfb1, page 3: 230 grounded rules at 0.80-0.84 were cut to 42 resolved by a 0.85
+        # penalty on units with no Louvain community; a community boost of up to 1.1 likewise
+        # raised rules the seat was unsure of). Communities still frame the unit, never its verdict.
+        resolved = float(rule["confidence"]) >= RESOLVE_THRESHOLD
         _write_node(estate, sid, name, rule, resolved,
                     "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back)
         return "resolved" if resolved else "risk"
