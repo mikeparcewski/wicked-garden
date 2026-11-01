@@ -150,7 +150,8 @@ INDEXED store annotated to at least the configured minimum to clear core's gate
 - **A generation keeps going.** A crew `domain-extraction` run maps one page (worklist, 500
   behaviours by default, `WICKED_DOMAIN_PAGE_SIZE`) at a time; after each page the host step
   `extract-next` (`scripts/domain/next_page.py`) prints one progress line ("Mapping
-  wicked-crew · 3% → 12% → 19% · target 80% · page 4 · about 2 h left") and the run loops
+  wicked-crew · real requirements 3% → 12% → 19% · minimum 80% · page 4 · 2,174 placeholders ·
+  about 2 h left") and the run loops
   back to `extract-prepare` until the target is reached. Its budget per grant
   (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240, crew Settings) ends in an
   ask: map more, lower the target for this repository to the share mapped so far, or stop

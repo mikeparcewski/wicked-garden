@@ -3,6 +3,10 @@
 ## [Unreleased]
 
 ### Fixed
+- **The domain loop's line says "minimum", as studio does, and prints counts as "2,174".** The progress line, the
+  repeat gate's ask and its choices read "target 80% · 2174 placeholders" while studio's requirements view beside them
+  read "minimum 80% · 2,174 placeholders". `extract-next` now says "minimum 80%", "minimum out of reach in this run",
+  "Lower the minimum to N%" and "minimum lowered to N%", and every count it prints carries thousands separators.
 - **No time estimate for a target the run cannot reach.** On wicked-crew run 29bbbfb1 the line read "about 3 h 37 min
   left" with about 2,000 more real requirements needed and about 1,900 units left to ask. When the units left to ask
   are fewer than the real requirements still needed, the line now says "target out of reach in this run: N more real
