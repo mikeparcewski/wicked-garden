@@ -19,6 +19,10 @@ dependencies = [
     "pathspec>=0.11.0",
     "pyyaml>=6.0",
     "flask>=3.0",
+    # The code-graph store keeps file content zstd-compressed; domain extraction slices each
+    # behaviour's source out of it (wicked-garden#1370). Python 3.14+ decodes it in the stdlib
+    # (`compression.zstd`); before that, without this, every source fell back to a checkout.
+    "zstandard>=0.22; python_version < '3.14'",
 ]
 
 [project.optional-dependencies]

@@ -15,8 +15,8 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     rules (`extract_loop.decide_and_write`: the rule validator, confidence x community
     cohesion >= 0.75 to resolve, the RISK floor, a read-back per write), authored
     `extract-loop` — the seat a file names is the seat's own claim, so it is only reported;
-  * a rule about a unit whose source the host cannot read (re-read here from the store or the
-    repository's objects, never taken from the worklist) is written unconfirmed, never validated;
+  * a rule about a unit whose source the host cannot read (re-read here from the store, never
+    taken from the worklist) is written unconfirmed, never validated;
   * binaries come from the operator and the engine (env, config, PATH), never the worktree, and
     every read and write in the worktree is descriptor-relative and refuses symlinks.
 
@@ -142,7 +142,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     before_state = _accounting(db, [e["symbol_id"] for e in accepted])
     try:
         store = extract_loop._DirectStore(db)
-        store.repo_root = repo_root  # the indexed bytes from the repository's objects
+        store.repo_root = repo_root  # sources as prepare read them (the checkout, blob-checked)
     except Exception as e:
         print(f"[extract-apply] direct store unavailable ({e}); every rule is written "
               "unconfirmed (no source can be read)", file=sys.stderr)
@@ -151,7 +151,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
     unmapped = {n["symbol_id"]: n for n in _clients.unaccounted_nodes(before)
                 if isinstance(n, dict) and isinstance(n.get("symbol_id"), str)}
-    tracked = rules_file.tracked_files(repo_root, rules_file.run_commit(repo_root, base))
+    tracked = rules_file.tracked_files(repo_root)
 
     eligible: list[dict] = []
     for entry in accepted:
@@ -205,8 +205,9 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author, read_back=read_back,
                                                     sourced=sourced)
-            if not sourced:
+            if outcome == "unsourced":  # a RISK write, counted apart: no source, unconfirmed
                 unsourced += 1
+                outcome = "risk"
             in_progress = None
             outcomes[outcome] += 1
 

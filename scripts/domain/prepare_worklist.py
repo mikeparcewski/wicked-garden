@@ -37,65 +37,30 @@ PAGE_SIZE_ENV = "WICKED_DOMAIN_PAGE_SIZE"
 _ENVELOPE = 64 * 1024  # bytes kept for the document around the units (a first cut; trimmed after)
 
 
-class StaleIndex(RuntimeError):
-    """The code graph does not describe the run's tree: no page is prepared."""
-
-
-def check_index_current(store, repo_root: str, commit: str | None, first_page: bool) -> None:
-    """Before the first page: the store must be indexed at the run's tree (`commit`), or the
-    worklist would frame code the run does not have (wicked-garden#1370). A launch re-indexes the
-    repository's graph at the run's base (the engine's own indexer, D8); this step does not index
-    (a checkout of a commit would run filters the seat-writable repository config can name), it
-    refuses with the reason. A later page only says the graph has moved (another launch on the
-    same repository re-indexed it): its sources still come from the indexed bytes, so its units
-    stay exact."""
-    if commit is None:
-        return  # not a git repository, or no commit yet: nothing to compare against
-    indexed = store.indexed_commit()
-    if indexed == commit:
-        return
-    repo = Path(repo_root).name or "the repository"
-    what = (f"is indexed at {indexed[:12]}" if indexed else "records no commit it was indexed at")
-    msg = (f"the code graph of {repo} {what}, but this run's tree is at {commit[:12]}")
-    if not first_page:
-        print(f"[extract-prepare] {msg}; mapping on against the graph as indexed", file=sys.stderr)
-        return
-    raise StaleIndex(f"{msg}. Its units would not be the code this run maps, so no page is "
-                     f"prepared. Launch the job again: a launch re-indexes {repo}'s graph at the "
-                     "run's base (if it refuses again, the re-index is failing: check the "
-                     "daemon log for 'repo graph not re-indexed at the run base')")
-
-
 def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
             estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
     core = core or _clients.host_core_client()
     estate = estate or _clients.host_estate_client(db)
     rules_file.check_writable(base, out_rel)
-    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
-    commit = rules_file.run_commit(repo_root, base)
-    store = extract_loop._DirectStore(db)
-    store.repo_root = repo_root  # the indexed bytes from the repository's objects
-    try:
-        first_page = not run_id or generation.load(db, run_id) is None
-    except ValueError:  # not a run id: no record, so this is the first page
-        first_page = True
-    check_index_current(store, repo_root, commit, first_page)
     with tempfile.TemporaryDirectory(prefix="wicked-domain-prepare-") as tmp:
         cov = core.coverage(db, str(Path(tmp) / "coverage.json"))
     unmapped = _clients.unaccounted_nodes(cov)
     # The generation's record opens at the first page (its starting share and time); a later page
     # of the same run keeps it. Host-side, beside the store — never in the seat-writable worktree.
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
     if run_id:
         try:
             generation.open_record(db, run_id, cov, Path(repo_root).name)
         except (OSError, ValueError) as e:  # progress display only; the page is still prepared
             print(f"[extract-prepare] the generation record could not be opened ({e})",
                   file=sys.stderr)
-    tracked = rules_file.tracked_files(repo_root, commit)
+    tracked = rules_file.tracked_files(repo_root)
     in_repo = [n for n in unmapped if n.get("file") in tracked]
     skipped = len(unmapped) - len(in_repo)
 
+    store = extract_loop._DirectStore(db)
+    store.repo_root = repo_root  # source slices from the repository when the store's are unreadable
     hubs, how = extract_loop._centrality_hubs(estate, store)
     order, hops = extract_loop.hub_first_order(store, hubs)
     tail = len(order)
@@ -178,9 +143,6 @@ def main(argv: list[str] | None = None) -> int:
             args.limit = DEFAULT_LIMIT
     try:
         prepare(args.db, args.repo_root, Path.cwd(), args.out, args.limit)
-    except StaleIndex as e:
-        print(f"[extract-prepare] REFUSED: {e}", file=sys.stderr)
-        return 1
     except (RuntimeError, OSError, rules_file.RulesFileRefused) as e:
         print(f"[extract-prepare] FAILED: {e}", file=sys.stderr)
         return 1
