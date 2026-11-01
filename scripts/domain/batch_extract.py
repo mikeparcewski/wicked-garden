@@ -192,7 +192,8 @@ def ingest(db: str, workdir: Path) -> int:
             # As the host apply step: no source, or a test or data file, is never validated.
             row = store.node_row.get(store.sid_of.get(sid))
             why = extract_loop.unconfirmed_reason(row[1] if row else "",
-                                                  bool(store.source_slice(sid).strip()))
+                                                  bool(store.source_slice(sid).strip()),
+                                                  extract_loop.kind_of_row(row))
             if valid and why:
                 extract_loop._write_node(estate, sid, name, rule, False, why)
                 floored += 1

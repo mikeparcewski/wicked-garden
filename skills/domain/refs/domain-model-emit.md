@@ -12,9 +12,10 @@ schema wins.
 {
   "metadata": {
     "schema_version": "1.1.0",          // "1.0.0" or "1.1.0"; 1.1.0 adds the optional fields below
-    "coverage": {                       // optional (1.1.0): the share mapped, set by core's build
-      "mapped_pct": 82, "min_pct": 80, "behavior_bearing": 500,
-      "mapped": 410, "resolved": 380, "unmapped": 90
+    "coverage": {                       // optional (1.1.0, bundle 1.3.0): set by core's build
+      "real_pct": 76, "min_pct": 80, "behavior_bearing": 500,   // real = resolved; the gate
+      "real": 380, "placeholders": 30, "unmapped": 90,          // placeholders never count
+      "not_product": 120                                        // tests/data/docs, left out
     },
     "migration_mode": "functional",     // functional (capability-grouped, default) | structural (1:1)
     "source": "acme-billing-legacy"     // optional: the repo/service mined

@@ -375,13 +375,15 @@ class CliCoreClient:
     def coverage_against_minimum(self, db: str, out: str) -> tuple[dict[str, Any], bool, str]:
         """Emit the coverage report to ``out`` checked against the CONFIGURED minimum
         (``--min-coverage-pct``: ``WICKED_REQUIREMENTS_MIN_COVERAGE_PCT``, else 80). Returns
-        (report, at_or_above_minimum, the CLI's "N% mapped, minimum M%" line). Below the minimum
-        is an answer (exit 3), not an error; any other non-zero exit fails loud."""
+        (report, at_or_above_minimum, the CLI's "N% real requirements, minimum M%" line; "N%
+        mapped" from an older wicked-core). Below the minimum is an answer (exit 3), not an
+        error; any other non-zero exit fails loud."""
         proc = _invoke([*self._bin, "coverage", "--db", db, "--out", out, "--min-coverage-pct"])
         if proc.returncode not in (0, 3):
             raise RuntimeError(f"{self._bin[0]} coverage exited {proc.returncode}: "
                                f"{(proc.stderr or proc.stdout).strip()[:300]}")
-        lines = [ln.strip() for ln in (proc.stderr or "").splitlines() if "mapped" in ln]
+        lines = [ln.strip() for ln in (proc.stderr or "").splitlines()
+                 if "real requirements" in ln or "mapped" in ln]
         return _read_output_json(out, "wicked-core coverage"), proc.returncode == 0, \
             (lines[-1] if lines else "")
 
@@ -429,6 +431,18 @@ def unaccounted_nodes(coverage_doc: dict[str, Any]) -> list[dict[str, Any]]:
         raise RuntimeError(
             f"`unaccounted_nodes` is {type(nodes).__name__}, expected a list"
         )
+    return nodes
+
+
+def placeholder_nodes(coverage_doc: dict[str, Any]) -> list[dict[str, Any]]:
+    """The coverage report's risk-flagged placeholders (accounted, not real requirements: an
+    empty statement, a rule under the confidence threshold, or one written unconfirmed), each
+    {symbol_id,name,kind,file,…}: what a page may revisit to raise the REAL share
+    (wicked-core#1233). Optional on the wire (an older wicked-core lists none), so absent is [];
+    present and not a list of objects fails loud."""
+    nodes = coverage_doc.get("placeholder_nodes", [])
+    if not isinstance(nodes, list) or not all(isinstance(n, dict) for n in nodes):
+        raise RuntimeError("`placeholder_nodes` is not a list of nodes")
     return nodes
 
 

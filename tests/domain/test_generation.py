@@ -21,7 +21,7 @@ MIN = 60_000
 
 
 def _pt(page, mapped, at_min, behaviours=1000):
-    return {"page": page, "pct": generation.mapped_pct(mapped, behaviours), "mapped": mapped,
+    return {"page": page, "pct": generation.real_pct(mapped, behaviours), "real": mapped,
             "behaviours": behaviours, "at": at_min * MIN}
 
 
@@ -44,13 +44,13 @@ def test_below_the_target_with_budget_left_the_run_maps_the_next_page_and_says_s
     assert d["next"] == "continue"
     # one line: the repo, the curve, the target, the next page, and an ETA from its own pace
     # (80 behaviours/page, 15 min/page: 800 - 190 = 610 → 8 pages → 2 h)
-    assert d["line"] == ("Mapping crew · 3% → 12% → 19% · target 80% · "
+    assert d["line"] == ("Mapping crew · real requirements 3% → 12% → 19% · target 80% · "
                          "page 3 · about 2 h left")
 
 
 def test_at_the_target_the_loop_is_done_and_the_line_says_how_long_it_took():
     d = _decide(_doc(_pt(0, 30, 0), _pt(1, 500, 20), _pt(2, 801, 50)))
-    assert d == {"next": "done", "line": "Mapped crew · 3% → 50% → 80% · "
+    assert d == {"next": "done", "line": "Mapped crew · real requirements 3% → 50% → 80% · "
                                          "target 80% reached · 2 pages in 50 min"}
 
 
@@ -61,7 +61,7 @@ def test_a_spent_budget_asks_map_more_or_lower_the_target(pages, minutes, spent)
     assert d["next"] == "ask" and d["recommended"] == "continue"
     assert [c["id"] for c in d["choices"]] == ["continue", "lower"]
     assert f"budget reached ({spent};" in d["line"]
-    low = generation.mapped_pct(30 + 10 * pages, 1000)
+    low = generation.real_pct(30 + 10 * pages, 1000)
     assert d["choices"][1]["label"] == f"Lower the target to {low}% for crew and build the graph"
 
 
@@ -74,7 +74,7 @@ def test_a_fresh_grant_restarts_the_budget():
 def test_two_pages_that_map_nothing_new_ask_instead_of_looping():
     d = _decide(_doc(_pt(0, 30, 0), _pt(1, 90, 10), _pt(2, 90, 20), _pt(3, 90, 30)))
     assert d["next"] == "ask" and d["recommended"] == "lower"
-    assert "the last two pages mapped nothing new" in d["line"]
+    assert "the last two pages added no real requirement" in d["line"]
 
 
 def test_map_more_after_a_stall_tries_again():
@@ -177,7 +177,7 @@ def test_next_page_prints_the_line_then_the_engines_decision(tmp_path, capsys):
     generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 30}, "repo")
     d, out, _ = _run(tmp_path, _Core(120), _env(WICKED_REPEAT_PASS=1), 15, capsys)
     assert d["next"] == "continue"
-    assert out[0].startswith("[extract-next] Mapping repo · 3% → 12% · target 80%")
+    assert out[0].startswith("[extract-next] Mapping repo · real requirements 3% → 12% · target 80%")
     assert out[-1].startswith("wicked-repeat ")
     assert json.loads(out[-1][len("wicked-repeat "):]) == d
     rec = generation.load(str(db), "run-1")
@@ -330,3 +330,67 @@ def test_a_json_document_after_an_estate_advisory_line_is_read(monkeypatch):
     monkeypatch.setattr(_clients, "_invoke", junk)
     with pytest.raises(RuntimeError, match="not JSON"):
         _clients._run_json(["wicked-estate", "clusters"])
+
+
+# --- domain-real: the target counts REAL requirements only (wicked-core#1233) --------------------
+
+def test_placeholders_never_count_toward_the_target():
+    """pi-governance read "100% mapped" with 3 real requirements and 117 placeholders."""
+    pt = generation.point_of({"behavior_bearing": 120, "resolved": 3, "risk_flagged": 117}, 1)
+    assert (pt["pct"], pt["real"], pt["placeholders"]) == (2, 3, 117)
+    d = _decide(_doc({**pt, "page": 0, "at": 0}, {**pt, "at": 10 * MIN}))
+    assert d["next"] != "done"
+    assert "117 placeholders" in d["line"] and "real requirements 2% → 2%" in d["line"]
+
+
+def test_a_page_that_resolves_almost_nothing_asks_instead_of_mapping_on():
+    """wicked-crew run 4b49cbe1: the page review passed a page that stated 3 rules of 500 units,
+    and the run mapped on. Near-zero yield on a full page asks; the operator's grant goes on."""
+    low = _doc(_pt(0, 100, 0), {**_pt(1, 103, 10), "framed": 500, "page_real": 3})
+    d = _decide(low)
+    assert d["next"] == "ask" and d["recommended"] == "continue"
+    assert "last page resolved 3 of 500 units" in d["line"]
+    assert "under 1 in 20 of its units" in d["line"]
+    assert _decide({**low, "grant": {"page": 1, "at": 11 * MIN}}, now_min=11)["next"] == "continue"
+    # 25 of 500 is 1 in 20: maps on; a small page is never judged.
+    ok = _doc(_pt(0, 100, 0), {**_pt(1, 125, 10), "framed": 500, "page_real": 25})
+    assert _decide(ok)["next"] == "continue"
+    small = _doc(_pt(0, 100, 0), {**_pt(1, 100, 10), "framed": 19, "page_real": 0})
+    assert _decide(small)["next"] == "continue"
+    # codex on #1375: the last page is asked about too, before "nothing left to map" ends the run
+    last = _decide(_doc(_pt(0, 300, 0), {**_pt(1, 303, 10), "framed": 500, "page_real": 3}), left=0)
+    assert last["next"] == "ask" and [c["id"] for c in last["choices"]] == ["lower"]
+    assert "under 1 in 20" in last["line"]
+    # …and below 1%, with nothing to map or lower to, it still asks: going on is the operator's
+    # word (agy/codex r2 on #1375), never a silent "done".
+    floor = _decide(_doc(_pt(0, 3, 0), {**_pt(1, 3, 10), "framed": 500, "page_real": 0}), left=0)
+    assert floor["next"] == "ask" and [c["id"] for c in floor["choices"]] == ["finish"]
+    assert "nothing is left to map" in floor["line"] and "before mapping more" not in floor["line"]
+    # …and the yield is the page's own units: 25 resolved elsewhere do not hide 3 of 500 here.
+    hidden = _doc(_pt(0, 100, 0), {**_pt(1, 128, 10), "framed": 500, "page_real": 3})
+    assert _decide(hidden)["next"] == "ask"
+
+
+def test_next_page_closes_the_page_and_counts_only_units_no_page_asked(tmp_path, capsys):
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 30}, "repo")
+    generation.frame_page(str(db), "run-1", ["s::x"])
+    generation.record_answered(str(db), "run-1", ["s::x"])
+    core = _Core(120, unmapped=[{"symbol_id": "s::x", "name": "x", "file": "f.py"}])
+    d, out, _ = _run(tmp_path, core, _env(WICKED_REPEAT_PASS=1), 15, capsys)
+    rec = generation.load(str(db), "run-1")
+    assert rec["visited"] == ["s::x"] and rec["pending"] == [] and "answered" not in rec
+    # this _Core is shaped like an older wicked-core (no `not_product`): no yield, not a false one
+    assert rec["points"][-1]["framed"] == 1 and "page_real" not in rec["points"][-1]
+    # the only unit left was asked by this page: nothing left to ask
+    assert "nothing left to map" in d["line"], d
+
+
+def test_the_operators_finish_hands_the_share_to_the_coverage_step(tmp_path, capsys):
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    generation.open_record(str(db), "run-1", {"behavior_bearing": 1000, "resolved": 3}, "repo")
+    d, out, _ = _run(tmp_path, _Core(3, unmapped=[]), _env(WICKED_REPEAT_PASS=1,
+                                                           WICKED_REPEAT_CHOICE="finish"), 15, capsys)
+    assert d["next"] == "done" and "going on as the operator chose" in d["line"]

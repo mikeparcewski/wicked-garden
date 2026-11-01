@@ -9,8 +9,9 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     seat name, too many entries, not JSON, a symlink) is refused whole and nothing is written;
     an entry outside it is refused and listed;
   * every entry must name a behaviour the store has and that `wicked-core coverage`, run here,
-    reports unmapped, in a file `git ls-files` tracks in the registered repository — anything
-    else is refused and listed;
+    reports unmapped or as a risk-flagged placeholder (not a real requirement yet), in a file
+    `git ls-files` tracks in the registered repository — anything else is refused and listed; an
+    empty statement never overwrites a placeholder's statement (the floor only fills blanks);
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence x community
     cohesion >= 0.75 to resolve, the RISK floor, a read-back per write), authored
@@ -37,13 +38,14 @@ missing or refused, or a write fails.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, extract_loop, rules_file  # noqa: E402
+from domain import _clients, extract_loop, generation, rules_file  # noqa: E402
 
 REPORT_REL = ".wicked/domain/apply-report.json"
 # Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
@@ -61,25 +63,35 @@ class AppliedThenFailed(RuntimeError):
 _ACCOUNTING_TYPES = ("business_rule", "risk", "assumption", "question")
 
 
-def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int]]:
-    """For each symbol, what accounts for it in the store right now: its requirement text and how
-    many accounting annotations (business_rule, risk, assumption, question — coverage counts any)
-    it carries. One fresh read-only connection; {} when the store cannot say (older schema)."""
+def _accounting(db: str, symbol_ids: list[str]) -> dict[str, tuple[str, int, int, str]]:
+    """For each symbol, what accounts for it in the store right now: its requirement text, whether
+    it is validated (a placeholder another writer promoted keeps its text, codex on #1375) and
+    the accounting annotations (business_rule, risk, assumption, question — coverage counts any)
+    it carries, by count and content. One fresh read-only connection; {} when the store cannot say (older schema)."""
     import sqlite3
     from urllib.parse import quote
-    out: dict[str, tuple[str, int]] = {}
+    out: dict[str, tuple[str, int, int, str]] = {}
     try:
         con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
         try:
             marks = ",".join("?" * len(_ACCOUNTING_TYPES))
             for sym in symbol_ids:
-                row = con.execute("SELECT s.sid, n.requirement FROM symbols s LEFT JOIN nodes n "
-                                  "ON n.symbol = s.sid WHERE s.sym = ?", (sym,)).fetchone()
+                try:
+                    row = con.execute("SELECT s.sid, n.requirement, n.requirement_validated FROM "
+                                      "symbols s LEFT JOIN nodes n ON n.symbol = s.sid "
+                                      "WHERE s.sym = ?", (sym,)).fetchone()
+                except sqlite3.OperationalError:  # a store before the validated column
+                    row = con.execute("SELECT s.sid, n.requirement, 0 FROM symbols s LEFT JOIN "
+                                      "nodes n ON n.symbol = s.sid WHERE s.sym = ?",
+                                      (sym,)).fetchone()
                 if row is None:
                     continue
-                count = con.execute(f"SELECT count(*) FROM annotations WHERE node_sym = ? AND "
-                                    f"type IN ({marks})", (row[0], *_ACCOUNTING_TYPES)).fetchone()
-                out[sym] = ((row[1] or ""), int(count[0]))
+                # The annotations' contents too, not only their count (codex r2 on #1375): a
+                # business_rule replaced at a higher confidence promotes a placeholder in place.
+                anns = sorted(con.execute(f"SELECT * FROM annotations WHERE node_sym = ? AND "
+                                          f"type IN ({marks})",
+                                          (row[0], *_ACCOUNTING_TYPES)).fetchall(), key=repr)
+                out[sym] = ((row[1] or ""), int(row[2] or 0), len(anns), repr(anns))
         finally:
             con.close()
     except sqlite3.Error:
@@ -121,6 +133,20 @@ def _annotation_read_back(db: str):
     return check
 
 
+def _record_answered(db: str, answered: list[str]) -> None:
+    """Record which of the page's units this step wrote (or kept), in the run's generation
+    record, so only those close with the page. Never fatal: without it the next step closes the
+    units that are real requirements now."""
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if not run_id:  # an empty list is recorded too: "answered none" (Copilot on #1375)
+        return
+    try:
+        generation.record_answered(db, run_id, answered)
+    except (OSError, ValueError) as e:
+        print(f"[extract-apply] the answered units could not be recorded ({e}); the next step "
+              "closes the units that are real requirements now", file=sys.stderr)
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -150,7 +176,12 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         store = None
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
-    unmapped = {n["symbol_id"]: n for n in _clients.unaccounted_nodes(before)
+    # Not real requirements yet: the unmapped behaviours and the risk-flagged placeholders a page
+    # may revisit (wicked-core#1233). A resolved behaviour is never rewritten from a page.
+    held = {n["symbol_id"] for n in _clients.placeholder_nodes(before)
+            if isinstance(n.get("symbol_id"), str)}
+    unmapped = {n["symbol_id"]: n for n in [*_clients.unaccounted_nodes(before),
+                                            *_clients.placeholder_nodes(before)]
                 if isinstance(n, dict) and isinstance(n.get("symbol_id"), str)}
     tracked = rules_file.tracked_files(repo_root)
 
@@ -159,7 +190,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         sid = entry["symbol_id"]
         node = unmapped.get(sid)
         if node is None:
-            why = "is not an unmapped behaviour in the store"
+            why = "is not an unmapped behaviour or a placeholder in the store"
         elif node.get("file") not in tracked:
             why = f"its file {node.get('file')!r} is not tracked in the repository"
         else:
@@ -189,6 +220,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
     unconfirmed = {extract_loop.NO_SOURCE_REASON: 0, extract_loop.NOT_PRODUCT_REASON: 0}
     in_progress = None  # the symbol whose writes have started and not finished
+    answered: list[str] = []  # the page's units written (or kept): closed with the page
     try:
         for entry in eligible:
             sid = entry["symbol_id"]
@@ -199,12 +231,19 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 refused.append({"index": None, "symbol_id": rules_file._shown(sid),
                                 "why": "was mapped by another writer while this step ran"})
                 continue
+            if sid in held and not (entry.get("statement") or "").strip():
+                # An empty answer adds nothing to a placeholder and must never replace what it
+                # holds (codex on #1375: without a readable store the floor guard cannot see it).
+                outcomes["kept"] += 1
+                answered.append(sid)
+                continue
             in_progress = sid
             # The source is re-read here, on the host: a rule about a unit whose code cannot be
             # read is unconfirmed whatever the seat (or its worklist file) says (#1370).
             # Tests and data files are never validated either: what they hold is evidence.
             sourced = store is not None and bool(store.source_slice(sid).strip())
-            why = extract_loop.unconfirmed_reason(unmapped[sid].get("file", ""), sourced)
+            why = extract_loop.unconfirmed_reason(unmapped[sid].get("file", ""), sourced,
+                                                  str(unmapped[sid].get("kind") or ""))
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author, read_back=read_back,
@@ -214,13 +253,16 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 outcome = "risk"
             in_progress = None
             outcomes[outcome] += 1
+            answered.append(sid)
 
+        _record_answered(db, answered)  # before anything that can still fail (codex r3)
         # The report is computed in a host temp directory and published through the safe writer
         # (core writes its --out in place, which would follow a planted link or hard link).
         with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
         rules_file.write_json_file(base, coverage_rel, after)
     except (rules_file.RulesFileRefused, RuntimeError, OSError, ValueError) as e:
+        _record_answered(db, answered)  # what was written before the failure still counts
         written = outcomes["resolved"] + outcomes["risk"]
         partly = (f"; {rules_file._shown(in_progress)} may be partly written (its annotation "
                   "without its requirement)") if in_progress else ""
@@ -236,6 +278,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "author": author,
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
+        "eligible": len(eligible),
         "unsourced": unconfirmed[extract_loop.NO_SOURCE_REASON],
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],

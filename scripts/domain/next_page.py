@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 """next_page.py — HOST step `extract-next` of domain-extraction: does the generation map another page?
 
-A run maps a repository one page (worklist) at a time and keeps going until the mapped share
-reaches the repository's target, or the operator stops it. After each page's `extract-apply`, this
+A run maps a repository one page (worklist) at a time and keeps going until the share of REAL
+requirements reaches the repository's target, or the operator stops it. Real means resolved to a
+stated, sourced business rule; risk-flagged placeholders are counted apart and never toward the
+target (operator decision 2026-11-01, wicked-core#1233). After each page's `extract-apply`, this
 step:
 
-  * measures the mapped share in the store (`wicked-core coverage`) against the repository's
+  * measures the real share in the store (`wicked-core coverage`) against the repository's
     target (`wicked-core requirements-target`: its own, else the daemon-wide minimum);
-  * adds the point to the generation's record (`generation.py`, beside the store, never in the
-    seat-writable worktree) and prints ONE progress line —
-    "Mapping wicked-crew · 3% → 12% → 19% · target 80% · page 4 · about 2 h 10 min left";
+  * closes the page in the generation's record (`generation.py`, beside the store, never in the
+    seat-writable worktree: its units are not asked again this run), adds the point and prints
+    ONE progress line — "Mapping wicked-crew · real requirements 23% → 27% · target 80% · page 2
+    · 4397 placeholders · last page resolved 212 of 500 units · about 3 h left";
   * ends with the engine's decision line (`wicked-repeat {...}`, wicked-core's bounded loop):
-    another page while the share is below the target and the budget holds; the operator's ask
-    when the budget (`WICKED_DOMAIN_MAX_PAGES`, default 20, or `WICKED_DOMAIN_MAX_MINUTES`,
-    default 240, per grant) is spent, nothing is left to map, or two pages mapped nothing new —
-    map more, lower the target for this repository, or stop; done at the target.
+    another page while the real share is below the target and the budget holds; the operator's
+    ask when the budget (`WICKED_DOMAIN_MAX_PAGES`, default 20, or `WICKED_DOMAIN_MAX_MINUTES`,
+    default 240, per grant) is spent, nothing is left to ask, the last page resolved under 1 in
+    20 of its units, or two pages added no real requirement — map more, lower the target for this
+    repository, or stop; done at the target.
 
 The engine re-runs this step with the operator's choice in `WICKED_REPEAT_CHOICE`: `continue`
 grants a fresh budget, `lower` sets the repository's own target to the share mapped so far (so
@@ -42,10 +46,13 @@ CHOICE_ENV = "WICKED_REPEAT_CHOICE"
 PASS_ENV = "WICKED_REPEAT_PASS"
 
 
-def _left_to_map(coverage: dict, repo_root: str) -> int:
-    """Unmapped behaviours in files the repository tracks (what another page could still map)."""
+def _left_to_map(coverage: dict, repo_root: str, seen: set[str]) -> int:
+    """Behaviours that are not real requirements yet (unmapped, or placeholders) in files the
+    repository tracks that no page of this generation has asked about: what another page could
+    still raise the real share with."""
     tracked = rules_file.tracked_files(repo_root)
-    return sum(1 for n in _clients.unaccounted_nodes(coverage) if n.get("file") in tracked)
+    nodes = [*_clients.unaccounted_nodes(coverage), *_clients.placeholder_nodes(coverage)]
+    return sum(1 for n in nodes if n.get("file") in tracked and n.get("symbol_id") not in seen)
 
 
 def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None,
@@ -80,6 +87,7 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         page = points[-1]["page"] + (0 if choice else 1)
     page = max(page, 1)
     kept = next((p for p in points if p["page"] == page), None)
+    framed, page_real = generation.close_page(doc, cov)
     if choice and kept is not None:
         # An answer to an ask: no page ran, so the page keeps its own time (codex r1: an
         # operator's 24 h wait read as mapping time).
@@ -88,6 +96,14 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         earlier = [p for p in points if p["page"] < page]
         start = max([p["at"] for p in earlier[-1:]] + [doc["grant"]["at"]])
         point = generation.point_of(cov, page, now, now - start)
+        if framed or kept is None or "framed" not in kept:
+            point["framed"] = framed
+            if page_real is not None:  # unknown from an older wicked-core: no yield shown
+                point["page_real"] = page_real
+        else:  # a retried step after the page closed: the page keeps its own count
+            point["framed"] = kept["framed"]
+            if "page_real" in kept:
+                point["page_real"] = kept["page_real"]
     doc["points"] = sorted([p for p in points if p["page"] != page] + [point],
                            key=lambda p: p["page"])
 
@@ -101,7 +117,11 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
 
     max_pages, max_minutes = generation.budget_from_env(env)
     decision = generation.decide(doc, repo=repo, target=target, now=now, max_pages=max_pages,
-                                 max_minutes=max_minutes, left_to_map=_left_to_map(cov, repo_root))
+                                 max_minutes=max_minutes,
+                                 left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)))
+    if choice == "finish":
+        decision = {"next": "done", "line": generation.progress_line(
+            repo, doc["points"], target, next_page=None) + " · going on as the operator chose"}
     if choice == "lower" and decision["next"] == "done":
         decision["line"] += f" · target lowered to {target}% for {repo}"
     print(f"[extract-next] {decision['line']} (target from the {source})")

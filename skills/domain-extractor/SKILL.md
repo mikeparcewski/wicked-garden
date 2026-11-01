@@ -36,8 +36,9 @@ Relative paths in this skill are relative to the directory that contains this SK
 ## Inside a crew run: the worklist is in your worktree (file mode)
 
 When `.wicked/domain/worklist.json` exists in your working directory, the run's host step
-`extract-prepare` wrote it: the next unmapped behaviours, hub-first, each framed with its
-source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
+`extract-prepare` wrote it: behaviours that are not real requirements yet (the unmapped ones,
+then placeholders an earlier page left empty or under the confidence threshold), hub-first,
+each framed with its source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
 `wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
 and only this:
 
@@ -62,12 +63,21 @@ and only this:
    **Read each unit's source and write each statement yourself.** A helper that writes the
    file is fine; a script that composes statements from names or slices is not — it describes
    code, and the page's review fails it. State what the business requires (who may do what,
-   what must hold, what is refused and why), not what the function does. Give the confidence
-   the source supports: a statement you could check against a whole body may be high; one you
-   inferred from a cut-off slice is low, and the host records it as a risk.
+   what must hold, what is refused and why, what a caller must supply, what a result must
+   carry), not what the function does. **Most product code encodes a rule: state it.** A
+   check, a refusal, a limit, a default, an ordering, a permission, a state change or a
+   required field is a rule even when it is small, and an interface or type states what a
+   request or record must hold. Leave a statement empty only for pure plumbing (a re-export, a
+   trivial getter, a pass-through wrapper, formatting), never because the rule is small or
+   obvious: the page's review lists an empty statement whose source shows a rule as a missed
+   rule, and fails a page that leaves most of them empty. Give the confidence the source
+   supports: a rule you can check against the unit's whole body is high (0.85 or more); one
+   you inferred from a name, a comment or a cut-off slice is low, and the host records it as a
+   placeholder. Only real requirements count toward the target; a placeholder is shown, never
+   counted.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
-   report unmapped or whose file the repository does not track; it re-judges the rest itself
+   report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself
    and writes it as `extract-loop` (the seat a file names is reported, never trusted).
 
 ## Outside a run: you DRIVE the deterministic harness — you don't loop yourself

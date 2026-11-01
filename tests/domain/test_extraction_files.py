@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from domain import _clients, _rule_extractor, apply_rules, extract_loop, prepare_worklist, rules_file
+from domain import (_clients, _rule_extractor, apply_rules, extract_loop, generation,  # noqa: E402
+                    prepare_worklist, rules_file)
 
 
 def _rule(sid, statement="amount must be positive", confidence=0.9):
@@ -388,7 +389,7 @@ def test_real_binaries_prepare_seat_apply_domain_graph(tmp_path, monkeypatch):
     out = tmp_path / "rg.json"
     subprocess.run([_CORE, "domain-graph", "--db", db, "--out", str(out)], check=True,
                    capture_output=True)
-    assert json.loads(out.read_text())["metadata"]["coverage"]["mapped_pct"] == 100
+    assert json.loads(out.read_text())["metadata"]["coverage"]["real_pct"] == 100
 
 
 def test_the_host_uses_the_engines_core_cli(monkeypatch):
@@ -987,3 +988,269 @@ def test_the_published_worklist_fits_even_when_the_estimate_does_not(tmp_path, m
                                    core=_Core(estate, {s: "f.py" for s in _STAR}))
     assert len(rules_file.encoded(doc)) <= rules_file.MAX_WORKLIST_BYTES
     assert extract_loop.read_worklist(wt, rules_file.WORKLIST_REL)["units"] == doc["units"]
+
+
+# --- domain-real: the minimum counts REAL requirements; placeholders are asked again ------------
+
+class _RealCore(_Core):
+    """Coverage as wicked-core reports it since #1233: a validated requirement is real, a
+    requirement written unvalidated is a placeholder (listed), no requirement is unmapped."""
+    def _doc(self):
+        def row(s, f):
+            return {"symbol_id": s, "name": s.split("::")[-1], "file": f, "kind": "Function"}
+        req = {s: self.estate.writes.get(s, {}).get("req") for s in self.nodes}
+        left = [row(s, f) for s, f in self.nodes.items() if req[s] is None]
+        held = [row(s, f) for s, f in self.nodes.items() if req[s] is not None and not req[s][1]]
+        n = len(self.nodes)
+        real = n - len(left) - len(held)
+        return {"coverage": (n - len(left)) / n, "behavior_bearing": n, "resolved": real,
+                "risk_flagged": len(held), "unaccounted": len(left), "unaccounted_nodes": left,
+                "placeholder_nodes": held, "not_product": 0}
+
+
+def test_a_placeholder_is_framed_after_the_unmapped_and_a_real_rule_resolves_it(tmp_path):
+    """wicked-crew had 4,397 placeholders on product code and 27 unmapped: with only the unmapped
+    framed, the real share could never climb. Falsifier: frame `unaccounted_nodes` alone and
+    `s::a` never reaches the worklist; accept only unmapped entries in apply and it is refused."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.writes["s::a"] = {"req": ("[RISK] a: empty statement", False, "extract-loop"),
+                             "ann": {"key": "k"}}
+    estate.writes["s::b"] = {"req": ("amount must be positive", True, "extract-loop"),
+                             "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                   core=core)
+    order = [u["symbol_id"] for u in doc["units"]]
+    assert "s::a" in order and "s::b" not in order, order
+    assert order.index("s::a") == len(order) - 1, "the unmapped come first"
+    assert (doc["unmapped"], doc["placeholders"]) == (6, 1)
+    _write_rules(wt, "codex", [_rule("s::a"), _rule("s::b")])
+    report = _apply(wt, db, repo, estate, core)
+    why = {r["symbol_id"]: r["why"] for r in report["refused"]}
+    assert "s::a" not in why and "placeholder" in why["s::b"], why
+    assert estate.writes["s::a"]["req"] == ("amount must be positive", True, "extract-loop")
+    assert report["coverage"]["resolved"] == 2
+
+
+def test_a_page_never_re_asks_a_unit_an_earlier_page_of_the_run_framed(tmp_path, monkeypatch):
+    """A placeholder the seat leaves empty again stays a placeholder: without the record of what
+    a page framed, the next page would frame it again and the run would loop on it. A retried
+    `extract-prepare` (the same page) frames the same units again."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    for s in _STAR[:5]:
+        estate.writes[s] = {"req": (f"[RISK] {s}: empty statement", False, "extract-loop"),
+                            "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    retried = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    assert retried == first and len(first) == 4
+    rec = generation.load(db, "run-1")
+    assert rec["pending"] == first
+    # extract-apply recorded the page's units it wrote: all four were answered.
+    generation.record_answered(db, "run-1", first)
+    rec = generation.load(db, "run-1")
+    assert generation.close_page(rec, core._doc()) == (4, 0)
+    generation.save(db, "run-1", rec)
+    second = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
+    assert not set(second) & set(first) and len(second) == len(_STAR) - 4, second
+
+
+def test_units_the_seat_never_answered_go_back_to_the_pool(tmp_path, monkeypatch):
+    """codex on #1375: a seat whose turn ran out answered 2 of the page's 4 units. Only those 2
+    close with the page; the other 2 are framed again by the next page."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    for s in _STAR[:5]:
+        estate.writes[s] = {"req": (f"[RISK] {s}: empty statement", False, "extract-loop"),
+                            "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule(first[0]), _rule(first[1])])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"]["resolved"] == 2
+    rec = generation.load(db, "run-1")
+    assert rec["answered"] == sorted(first[:2])
+    assert generation.close_page(rec, core._doc()) == (4, 2), "yield on the page's own units"
+    generation.save(db, "run-1", rec)
+    second = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
+    assert set(first[2:]) <= set(second) and not set(first[:2]) & set(second), second
+
+
+def test_a_page_is_not_prepared_when_its_units_cannot_be_recorded(tmp_path, monkeypatch):
+    """codex on #1375: the record decides what the next page skips and the page's yield."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+
+    def refuse(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr(generation, "frame_page", refuse)
+    with pytest.raises(RuntimeError, match="could not be recorded"):
+        prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate,
+                                 core=core)
+
+
+def test_an_empty_answer_never_replaces_a_placeholders_statement(tmp_path, monkeypatch):
+    """codex on #1375: with the direct store unreadable, the floor guard cannot see what a
+    placeholder holds; an empty answer for it is kept, never written."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.writes["s::core"] = {"req": ("[RISK] core: below confidence threshold — amount must be "
+                                        "positive", False, "extract-loop"), "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+
+    def broken(*a, **k):
+        raise RuntimeError("store unreadable")
+    monkeypatch.setattr(extract_loop, "_DirectStore", broken)
+    _write_rules(wt, "codex", [{"symbol_id": "s::core", "statement": "", "confidence": 0.0}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"] == {"resolved": 0, "risk": 0, "kept": 1}
+    assert "amount must be positive" in estate.writes["s::core"]["req"][0]
+
+
+def test_a_placeholder_another_writer_promoted_meanwhile_is_not_overwritten(tmp_path,
+                                                                             monkeypatch):
+    """codex on #1375: a promotion keeps the text and the annotation count; the validated flag
+    is part of what the host compares before it writes."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    estate.writes["s::core"] = {"req": ("amount must be positive", False, "extract-loop"),
+                                "ann": {"key": "k"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    states = iter([{"s::core": ("amount must be positive", 0, 1)},
+                   {"s::core": ("amount must be positive", 1, 1)}])
+    monkeypatch.setattr(apply_rules, "_accounting", lambda db, ids: next(states))
+    _write_rules(wt, "codex", [_rule("s::core", confidence=0.2)])
+    report = _apply(wt, db, repo, estate, core)
+    assert any("another writer" in r["why"] for r in report["refused"]), report["refused"]
+    assert estate.writes["s::core"]["req"] == ("amount must be positive", False, "extract-loop")
+
+
+def test_a_page_whose_answers_were_all_refused_closes_none_of_its_units(tmp_path, monkeypatch):
+    """agy/codex r2 on #1375: an empty answered list is "answered none", not "not recorded", so
+    no framed placeholder is closed; without any record only what is real now closes."""
+    db = str(tmp_path / "graphs" / "estate.db")
+    (tmp_path / "graphs").mkdir()
+    cov = {"behavior_bearing": 3, "resolved": 1, "risk_flagged": 2, "unaccounted": 0,
+           "unaccounted_nodes": [], "not_product": 0,
+           "placeholder_nodes": [{"symbol_id": "s::a"}, {"symbol_id": "s::b"}]}
+    generation.open_record(db, "run-1", cov, "repo")
+    generation.frame_page(db, "run-1", ["s::a", "s::b", "s::c"])
+    generation.record_answered(db, "run-1", [])
+    rec = generation.load(db, "run-1")
+    assert generation.close_page(rec, cov) == (3, 0) and rec["visited"] == []
+    generation.frame_page(db, "run-1", ["s::a", "s::b", "s::c"])
+    rec = generation.load(db, "run-1")  # never recorded: s::c is real now, so it closes
+    assert generation.close_page(rec, cov) == (3, 1) and rec["visited"] == ["s::c"]
+
+
+def test_an_annotation_replaced_at_a_higher_confidence_meanwhile_is_not_overwritten(tmp_path):
+    """codex r2 on #1375: a placeholder promoted in place (its business_rule replaced at a higher
+    confidence) keeps its text, its validated flag and its annotation count."""
+    import sqlite3
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    _star_with_annotations(db)
+    con = sqlite3.connect(db)
+    sid = con.execute("SELECT sid FROM symbols WHERE sym = 's::core'").fetchone()[0]
+    con.execute("INSERT INTO annotations VALUES (?, 'business_rule', 'RULE-1', 'x')", (sid,))
+    con.commit()
+    con.close()
+    estate = _Estate()
+    estate.writes["s::core"] = {"req": ("amount must be positive", False, "extract-loop"),
+                                "ann": {"key": "RULE-1"}}
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    _write_rules(wt, "codex", [_rule("s::core", confidence=0.2)])
+
+    def another_writer_promotes_core():
+        c = sqlite3.connect(db)
+        c.execute("UPDATE annotations SET key = 'RULE-1b' WHERE node_sym = ?", (sid,))
+        c.commit()
+        c.close()
+        return []
+    estate.read_clusters = another_writer_promotes_core  # runs after the coverage snapshot
+    report = _apply(wt, db, repo, estate, core)
+    assert any(r["symbol_id"] == "s::core" and "another writer" in r["why"]
+               for r in report["refused"]), report["refused"]
+
+
+def test_an_extracted_rule_in_a_data_extension_file_may_be_validated():
+    """wicked-core#1234 counts an extracted Rule (a Flow, a cloud policy) whatever its extension;
+    garden must let it become real, while a JSON key or a fixture rule stays unconfirmed."""
+    assert extract_loop.unconfirmed_reason("flows/Approve.flow-meta.xml", True, "Rule") is None
+    assert extract_loop.unconfirmed_reason("policies/storage.json", True, "Rule") is None
+    assert extract_loop.unconfirmed_reason("package.json", True, "Struct") is not None
+    assert extract_loop.unconfirmed_reason("tests/fixtures/policy.json", True, "Rule") is not None
+
+
+def test_test_names_match_wicked_cores_denominator():
+    """The same test-file patterns as wicked-core's `is_product_file` (codex on #1234)."""
+    for f in ("src/payment_test.cpp", "src/payment_test.cc", "src/PaymentTest.php"):
+        assert extract_loop.is_test_path(f), f
+    for f in ("src/Payment.php", "src/payment.cpp", "src/latest.cc"):
+        assert not extract_loop.is_test_path(f), f
+
+
+def test_an_extracted_rule_is_validated_on_every_write_path():
+    """codex r3 on #1375: store mode and batch ingestion pass the node's kind too, so a sourced,
+    confident Flow rule is not written unconfirmed as "not product code"."""
+    assert extract_loop.kind_of_row(("Approve", "flows/A.flow-meta.xml", '{"kind": "rule"}')) == "rule"
+    assert extract_loop.unconfirmed_reason("flows/A.flow-meta.xml", True,
+                                           extract_loop.kind_of_row(("A", "f", '{"kind":"rule"}'))) is None
+    assert extract_loop.kind_of_row(("x", "f", "not json")) == ""
+    assert extract_loop.kind_of_row(None) == ""
+
+
+def test_an_apply_retry_keeps_what_the_first_attempt_answered(tmp_path):
+    """codex r3 on #1375: the retry refuses what the first attempt resolved; the page's record
+    keeps the first attempt's answers, so its yield is not read as zero."""
+    db = str(tmp_path / "graphs" / "estate.db")
+    (tmp_path / "graphs").mkdir()
+    cov = {"behavior_bearing": 8, "resolved": 2, "risk_flagged": 6, "unaccounted": 0,
+           "unaccounted_nodes": [], "not_product": 0,
+           "placeholder_nodes": [{"symbol_id": f"s::{i}"} for i in range(2, 8)]}
+    generation.open_record(db, "run-1", cov, "repo")
+    generation.frame_page(db, "run-1", [f"s::{i}" for i in range(8)])
+    generation.record_answered(db, "run-1", ["s::0", "s::1"])  # first attempt, then it failed
+    generation.record_answered(db, "run-1", [])                # the retry wrote nothing new
+    rec = generation.load(db, "run-1")
+    assert rec["answered"] == ["s::0", "s::1"]
+    assert generation.close_page(rec, cov) == (8, 2)
+
+
+def test_an_older_core_without_placeholders_gives_no_yield_rather_than_a_false_one(tmp_path):
+    """Copilot on #1375: an older wicked-core lists no placeholders, so a framed unit that is now
+    merely accounted cannot be told from a real one; the page's yield is unknown, not "all real"."""
+    db = str(tmp_path / "graphs" / "estate.db")
+    (tmp_path / "graphs").mkdir()
+    old = {"behavior_bearing": 2, "resolved": 0, "risk_flagged": 2, "unaccounted": 0,
+           "unaccounted_nodes": []}
+    generation.open_record(db, "run-1", old, "repo")
+    generation.frame_page(db, "run-1", ["s::a", "s::b"])
+    generation.record_answered(db, "run-1", ["s::a", "s::b"])
+    rec = generation.load(db, "run-1")
+    assert generation.close_page(rec, old) == (2, None)
+
+
+def test_a_page_whose_entries_were_all_refused_records_answered_none(tmp_path, monkeypatch):
+    """Copilot on #1375: every entry refused (another writer resolved them) still records an empty
+    answered list, so those resolutions are not credited to this page."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 3, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule("s::nope")])
+    _apply(wt, db, repo, estate, core)
+    assert generation.load(db, "run-1")["answered"] == []
+    assert first
