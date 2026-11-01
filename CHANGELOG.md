@@ -2,7 +2,41 @@
 
 ## [Unreleased]
 
+## [12.62.0] — 2026-11-01
+
+### Added
+
+- **Every seat proposes a memory for what it witnessed (governed-worker A7).** On the rig, every memory in the review queue came from the pi seat. That was the seat seated first for a capture-learnings run's capture phase, or the seat that distils a finished run. The claude and codex seats that did the work in bug and feature runs proposed none, because the floor every seat follows had no rule asking them to. A7 gives every role a fixed moment to check (before its final message; in power mode, before each `CHECKPOINT:` or `HANDOFF:` line) and asks it to propose what bit for a reason the code does not show: a command that failed because of the toolchain, the environment or the setup and what made it pass, a tool trap, or an operator ruling. A reviewer's finding with such a cause counts too. At most three per unit go through the one-line `scripts/mem/estate_memory.py --readonly propose` path the shim already relays from a container seat. The run, the unit and the seat are stamped as provenance, so the proposal names the seat that saw it. A unit that proposes none says what it checked. Code facts stay knowledge. The `wicked-capture-report` line is now a capture-phase contract only (A4), so an evaluator's VERDICT line stays last.
+- **A domain-extraction run keeps mapping page after page until the target (pairs with wicked-core's bounded loop).** The new host step `extract-next` (`scripts/domain/next_page.py`) runs after each page's `extract-apply`: it measures the mapped share against the repository's target (`wicked-core requirements-target`: the repository's own, else the daemon minimum), prints one progress line ("Mapping wicked-crew · 3% → 12% → 19% · target 80% · page 4 · about 2 h left") and decides: another page, done, or an ask when the budget per grant is spent (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240), nothing is left to map, or two pages mapped nothing new. The ask's choices: map more (a fresh grant), or lower the target for this repository to the share mapped so far and build the graph; Stop ends the run and keeps what was mapped. The generation's record (`scripts/domain/generation.py`: its start, a point per page, the grant) lives beside the store, never in the seat-writable worktree. A page is 500 behaviours by default (`WICKED_DOMAIN_PAGE_SIZE`).
+
+- **`wicked-garden-repo-learn` has a style lens, and writing is a source.** Studio's Learn → Style (program DES-LEARN §3.1) runs `capture-learnings` on a showcase repository to learn how the person or team works, not only how the code works. When the run asks for style, phase 2 also reads naming, structure, test shape, change size, and commit and review tone, each with a stated cap (`git log -n 200 --shortstat`, `-n 100 --format=%s`, 3 to 5 reviews when `gh` is signed in). Phase 3 captures those as style memories (`reach: "operator"`, so the person decides at review whether they apply everywhere). An enforced convention stays a policy and what the code does stays knowledge. The same lens covers writing (a blog, a docs site, a document): a sample of at most 10 pages is read, the patterns are found, and they're captured as memories, because the person's own voice is told, not acquired. `refs/style-lens.md`.
+
+### Changed
+
+- **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
+  counts resolved behaviours only; risk-flagged placeholders are shown, never counted.
+  - `extract-prepare` frames the unmapped behaviours, then the placeholders an earlier page left (empty, or under
+    the confidence threshold), hub-first. It skips any unit an earlier page of the same run framed, kept in the
+    generation's record beside the store, so a unit left empty again cannot loop the run. `extract-apply` accepts
+    entries for placeholders; an empty answer never overwrites a statement.
+  - `extract-next` measures the real share: "Mapping wicked-crew · real requirements 23% → 25% · target 80% · page
+    2 · 4331 placeholders · last page resolved 93 of 100 units · about 3 h left". A page of 20 or more units that
+    resolved under 1 in 20 asks the operator instead of mapping on (wicked-crew run 4b49cbe1 passed a page with 3
+    rules for 500 units). The stall ask is now "two pages added no real requirement".
+  - The extractor's file-mode instructions and the rule prompt say most product code encodes a rule (a check, a
+    refusal, a limit, a default, an ordering, a permission, a state change, a required field) and to leave a
+    statement empty only for pure plumbing. On the same 100 wicked-crew units (27 unmapped, 73 placeholders, all
+    sourced), codex resolved 85 with the old instructions and 93 with the new.
+  - The vendored domain-model schema is bundle 1.3.0 (`metadata.coverage` is `real_pct`, `real`, `placeholders`,
+    `unmapped`, `not_product`).
+
+- **Domain extraction maps hub-first and stops gating on 100% (operator ruling 2026-10-31; pairs with wicked-core#1215).**
+  - *Hub-first, fan-out order.* `scripts/domain/extract_loop.py` takes the unmapped worklist in graph order: the most central symbols first (estate's PageRank via `wicked-estate rank`, `CliEstateClient.rank`; the store's own degree when the command is unavailable, said on stderr), then their neighbours and onward by hop distance over the use graph (calls, references, type relations, a route serving a handler; never contains/imports/data flow). The hub count scales with the graph (about √n/4, 1..25). The order is deterministic, so a re-invoked pass or a later run re-derives it and resumes at the frontier (each batch logs `frontier: <symbol> (hop H, position P of T)`); `--cluster-offset N` now takes the Nth batch window of that order.
+  - *Fail-closed below the configured minimum.* The domain skills (`domain`, `domain-extractor`, `domain-coverage`, `domain-modeler`, refs) say the graph is built once the mapped share reaches the configured minimum (crew's `requirementsGraph.minCoveragePct`, `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, default 80), not 1.0; below it the run says "N% mapped, minimum M%" and keeps the mapping. The coverage evaluator runs `wicked-core coverage … --min-coverage-pct` and its verdict follows that check; holes above the minimum are NOTEs, the next run's frontier.
+  - *Schema re-vendored at domain-model 1.1.0 (bundle 1.2.3).* The optional `metadata.coverage` and `requirement.corroboration` core now emits (validated by two or more independent sources, or unconfirmed with why). `validate_domain_model.py` accepts every version the schema's `schema_version` enum lists (1.0.0 and 1.1.0); garden's own emitter still writes 1.0.0.
+
 ### Fixed
+
 - **The domain loop's line says "minimum", as studio does, and prints counts as "2,174".** The progress line, the
   repeat gate's ask and its choices read "target 80% · 2174 placeholders" while studio's requirements view beside them
   read "minimum 80% · 2,174 placeholders". `extract-next` now says "minimum 80%", "minimum out of reach in this run",
@@ -25,42 +59,10 @@
   rules the seat was unsure of. Communities still frame a unit on the worklist; `extract-apply` no longer reads
   them.
 
-### Changed
-- **A domain-extraction run maps until REAL requirements reach the target (pairs with wicked-core#1233).** The target
-  counts resolved behaviours only; risk-flagged placeholders are shown, never counted.
-  - `extract-prepare` frames the unmapped behaviours, then the placeholders an earlier page left (empty, or under
-    the confidence threshold), hub-first. It skips any unit an earlier page of the same run framed, kept in the
-    generation's record beside the store, so a unit left empty again cannot loop the run. `extract-apply` accepts
-    entries for placeholders; an empty answer never overwrites a statement.
-  - `extract-next` measures the real share: "Mapping wicked-crew · real requirements 23% → 25% · target 80% · page
-    2 · 4331 placeholders · last page resolved 93 of 100 units · about 3 h left". A page of 20 or more units that
-    resolved under 1 in 20 asks the operator instead of mapping on (wicked-crew run 4b49cbe1 passed a page with 3
-    rules for 500 units). The stall ask is now "two pages added no real requirement".
-  - The extractor's file-mode instructions and the rule prompt say most product code encodes a rule (a check, a
-    refusal, a limit, a default, an ordering, a permission, a state change, a required field) and to leave a
-    statement empty only for pure plumbing. On the same 100 wicked-crew units (27 unmapped, 73 placeholders, all
-    sourced), codex resolved 85 with the old instructions and 93 with the new.
-  - The vendored domain-model schema is bundle 1.3.0 (`metadata.coverage` is `real_pct`, `real`, `placeholders`,
-    `unmapped`, `not_product`).
-
-### Added
-- **Every seat proposes a memory for what it witnessed (governed-worker A7).** On the rig, every memory in the review queue came from the pi seat. That was the seat seated first for a capture-learnings run's capture phase, or the seat that distils a finished run. The claude and codex seats that did the work in bug and feature runs proposed none, because the floor every seat follows had no rule asking them to. A7 gives every role a fixed moment to check (before its final message; in power mode, before each `CHECKPOINT:` or `HANDOFF:` line) and asks it to propose what bit for a reason the code does not show: a command that failed because of the toolchain, the environment or the setup and what made it pass, a tool trap, or an operator ruling. A reviewer's finding with such a cause counts too. At most three per unit go through the one-line `scripts/mem/estate_memory.py --readonly propose` path the shim already relays from a container seat. The run, the unit and the seat are stamped as provenance, so the proposal names the seat that saw it. A unit that proposes none says what it checked. Code facts stay knowledge. The `wicked-capture-report` line is now a capture-phase contract only (A4), so an evaluator's VERDICT line stays last.
-- **A domain-extraction run keeps mapping page after page until the target (pairs with wicked-core's bounded loop).** The new host step `extract-next` (`scripts/domain/next_page.py`) runs after each page's `extract-apply`: it measures the mapped share against the repository's target (`wicked-core requirements-target`: the repository's own, else the daemon minimum), prints one progress line ("Mapping wicked-crew · 3% → 12% → 19% · target 80% · page 4 · about 2 h left") and decides: another page, done, or an ask when the budget per grant is spent (`WICKED_DOMAIN_MAX_PAGES` 20, `WICKED_DOMAIN_MAX_MINUTES` 240), nothing is left to map, or two pages mapped nothing new. The ask's choices: map more (a fresh grant), or lower the target for this repository to the share mapped so far and build the graph; Stop ends the run and keeps what was mapped. The generation's record (`scripts/domain/generation.py`: its start, a point per page, the grant) lives beside the store, never in the seat-writable worktree. A page is 500 behaviours by default (`WICKED_DOMAIN_PAGE_SIZE`).
-
-### Fixed
 - **Hub-first extraction starts at the product's code, not builtin-name collisions (#1366).** On a TypeScript store, `s.startsWith(...)` or `map.get(k)` resolves to any local symbol of that name, so a one-line helper collected thousands of callers and became the first hub. A JS/TS symbol named like a builtin method, or a symbol in a test or fixture file, never seeds the fan-out; a collision with callers in 8 or more files is not fanned out from; tests and fixtures come after the product's code in the worklist.
 - **Communities are read when estate warns that the index is stale.** estate prints `STALENESS: …` before its JSON, so `clusters` failed to parse and every node framed as a singleton community; the cohesion penalty then pushed most stated rules under the resolve threshold (rig run 7588cff1: 99 resolved, 201 risk-flagged out of 300). The document now starts at the first line that opens one.
 - **`extract-apply` reads each write back with one query** instead of a third estate process per rule (30 rules: 35 s → 27.6 s on a copy of wicked-crew's store).
 - **The domain extraction harness can write against estate 0.30 (#1361).** estate >= 0.30 refuses `semantics --validated` without `--validated-by`, so `extract_loop.py`'s first write (a RESOLVED or a RISK node) exited with a usage error and the pass aborted before mapping anything; a `domain-extraction` run could never reach its coverage step. `CliEstateClient.set_requirement` now names its validator, and the harness's writes name the seat: `extract-loop:<WICKED_RUN_AGENT>` as the semantics validator and the business-rule annotation's `--author`, which is what wicked-core's corroboration counts as an extractor seat. Proven against the real estate 0.30.0 and wicked-core main on a copy of tiny-math's store: 8 of 8 mapped hub-first, `coverage --min-coverage-pct` passes, `domain-graph --repo-root` writes the graph (sum/mean/clamp validated by callers, tests and the README; the package.json keys unconfirmed, `config_only`).
-
-### Added
-- **`wicked-garden-repo-learn` has a style lens, and writing is a source.** Studio's Learn → Style (program DES-LEARN §3.1) runs `capture-learnings` on a showcase repository to learn how the person or team works, not only how the code works. When the run asks for style, phase 2 also reads naming, structure, test shape, change size, and commit and review tone, each with a stated cap (`git log -n 200 --shortstat`, `-n 100 --format=%s`, 3 to 5 reviews when `gh` is signed in). Phase 3 captures those as style memories (`reach: "operator"`, so the person decides at review whether they apply everywhere). An enforced convention stays a policy and what the code does stays knowledge. The same lens covers writing (a blog, a docs site, a document): a sample of at most 10 pages is read, the patterns are found, and they're captured as memories, because the person's own voice is told, not acquired. `refs/style-lens.md`.
-
-### Changed
-- **Domain extraction maps hub-first and stops gating on 100% (operator ruling 2026-10-31; pairs with wicked-core#1215).**
-  - *Hub-first, fan-out order.* `scripts/domain/extract_loop.py` takes the unmapped worklist in graph order: the most central symbols first (estate's PageRank via `wicked-estate rank`, `CliEstateClient.rank`; the store's own degree when the command is unavailable, said on stderr), then their neighbours and onward by hop distance over the use graph (calls, references, type relations, a route serving a handler; never contains/imports/data flow). The hub count scales with the graph (about √n/4, 1..25). The order is deterministic, so a re-invoked pass or a later run re-derives it and resumes at the frontier (each batch logs `frontier: <symbol> (hop H, position P of T)`); `--cluster-offset N` now takes the Nth batch window of that order.
-  - *Fail-closed below the configured minimum.* The domain skills (`domain`, `domain-extractor`, `domain-coverage`, `domain-modeler`, refs) say the graph is built once the mapped share reaches the configured minimum (crew's `requirementsGraph.minCoveragePct`, `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, default 80), not 1.0; below it the run says "N% mapped, minimum M%" and keeps the mapping. The coverage evaluator runs `wicked-core coverage … --min-coverage-pct` and its verdict follows that check; holes above the minimum are NOTEs, the next run's frontier.
-  - *Schema re-vendored at domain-model 1.1.0 (bundle 1.2.3).* The optional `metadata.coverage` and `requirement.corroboration` core now emits (validated by two or more independent sources, or unconfirmed with why). `validate_domain_model.py` accepts every version the schema's `schema_version` enum lists (1.0.0 and 1.1.0); garden's own emitter still writes 1.0.0.
 
 ## [12.61.0] — 2026-10-26
 
@@ -1279,7 +1281,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.61.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...HEAD
+[12.62.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.61.0...v12.62.0
 [12.61.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.60.0...v12.61.0
 [12.60.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.59.0...v12.60.0
 [12.59.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.58.0...v12.59.0
