@@ -34,6 +34,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
 | asks *itself* for a second opinion | convenes a **review panel** → the jam skill's `council` action: usable external CLIs (Antigravity / Codex / …) take the seats; with fewer than two it fills them with isolated same-family workers and **labels them as weaker diversity**, and below two isolated seats it reports *no quorum* instead of synthesizing |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
+| reads the code, but can't say what it *requires* | states the business rule behind each behaviour onto estate's graph, so wicked-core builds a **requirements graph** that counts only stated rules toward its minimum, never placeholders → the domain skill |
 | grades its own homework | author ≠ executor ≠ reviewer as separate workers → evidence-gated testing (the `qe` domain) |
 
 The throughline: **done is re-derived, not asserted** — wherever the gate actually runs. Which entry paths block and which only advise is spelled out in [What blocks, what advises](#what-blocks-what-advises).

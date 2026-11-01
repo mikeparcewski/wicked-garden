@@ -78,7 +78,7 @@ schema wins.
 
 **Trust rule:** a rule is *trusted* only when grounded in `code-body` and/or
 `type-def`. Resting on `comment`/`doc` alone makes it RISK-eligible — the
-antagonist flags it.
+coverage evaluator (`wicked-garden-domain-coverage`) flags it.
 
 ## Validation / ErrorPath — object-only
 
