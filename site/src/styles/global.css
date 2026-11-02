@@ -5,7 +5,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 /* ----------------------------------------------------------------------------
-   Design tokens — "Wicked Good" (wickedagile brand)
+   Design tokens — Wicked Dark / Wicked Light (the design package, 2026-11-01).
+   The notes below describe the retired "Wicked Good" palette, kept for history.
    Day    = harbor-blue ground, butter type, signal-yellow stamp
    Night  = charcoal ground, butter type, the same yellow spark
    Palette: harbor #356d8c (canvas deepened to #316685 for AA) · butter #eae5b6
@@ -18,60 +19,42 @@
    / link / --topbar-h, plus the day+night palettes) come from the shared
    wicked-web tokens.css, loaded by the shared Base. Garden only layers its
    own role/atmosphere tokens here, per theme — so it tracks the family. */
-[data-theme="light"] {
-  --accent-bright: #ffe45c;
-  --on-accent: #313132;
-  --shadow-rgb: 14, 38, 52;
-
-  --c-foundation: #c6a413;    /* mustard */
-  --c-workflow: #60acc6;      /* sky blue */
-  --c-creation: #d8868e;      /* wine, lifted for the blue ground */
-  --ct-foundation: #efdc8a;
-  --ct-workflow: #bfe4f4;
-  --ct-creation: #f2d4d7;
-
-  --c-gate: #ffda19;
-  --c-floor: #c6a413;
-  --c-layer: #60acc6;
-  --c-solo: #c97f87;
-  --c-qe: var(--plane-capability, #56d364);
-  --ct-gate: #ffe45c;
-  --ct-floor: #efdc8a;
-  --ct-layer: #bfe4f4;
-  --ct-solo: #f2d4d7;
-
-  --mesh-1: rgba(96, 172, 198, 0.35);
-  --mesh-2: rgba(255, 218, 25, 0.14);
-  --mesh-3: rgba(157, 79, 86, 0.25);
-  --grain-opacity: 0.06;
-}
-
-[data-theme="dark"] {
-  --accent-bright: #ffe45c;
-  --on-accent: #1e1e1f;
+/* Garden's role and atmosphere colours, mapped onto the design package's tokens (Wicked Dark /
+   Wicked Light, 2026-11-01). The package values are per theme, so one block serves both:
+   gate = the monochrome accent (what you press), floor = warn, layer = the foundation hue,
+   solo = fail, qe = the capability hue. Colour only where it means something. */
+:root {
+  --accent-bright: var(--accent-hover);
+  --on-accent: var(--accent-fg);
   --shadow-rgb: 0, 0, 0;
 
-  --c-foundation: #d8b82e;
-  --c-workflow: #60acc6;
-  --c-creation: #c67079;
-  --ct-foundation: #d8b82e;
-  --ct-workflow: #60acc6;
-  --ct-creation: #c67079;
+  --c-foundation: var(--status-warn);
+  --c-workflow: var(--plane-foundation);
+  --c-creation: var(--status-fail);
+  --ct-foundation: var(--status-warn);
+  --ct-workflow: var(--plane-foundation);
+  --ct-creation: var(--status-fail);
 
-  --c-gate: #ffda19;
-  --c-floor: #d8b82e;
-  --c-layer: #60acc6;
-  --c-solo: #c67079;
-  --c-qe: var(--plane-capability, #56d364);
-  --ct-gate: #ffda19;
-  --ct-floor: #d8b82e;
-  --ct-layer: #60acc6;
-  --ct-solo: #c67079;
+  --c-gate: var(--accent);
+  --c-floor: var(--status-warn);
+  --c-layer: var(--plane-foundation);
+  --c-solo: var(--status-fail);
+  --c-qe: var(--plane-capability);
+  --ct-gate: var(--accent);
+  --ct-floor: var(--status-warn);
+  --ct-layer: var(--plane-foundation);
+  --ct-solo: var(--status-fail);
 
-  --mesh-1: rgba(255, 218, 25, 0.13);
-  --mesh-2: rgba(96, 172, 198, 0.18);
-  --mesh-3: rgba(157, 79, 86, 0.18);
-  --grain-opacity: 0.07;
+  --mesh-1: color-mix(in oklab, var(--ink-high) 5%, transparent);
+  --mesh-2: color-mix(in oklab, var(--ink-high) 3%, transparent);
+  --mesh-3: color-mix(in oklab, var(--ink-high) 2%, transparent);
+  --grain-opacity: 0.05;
+}
+[data-theme="light"] {
+  --shadow-rgb: 24, 24, 26;
+  /* the QE green carries text on its own translucent tints and over the trellis: on Wicked Light the
+     package's #1e7227 measured 3.95 to 4.19:1 there, so the light value leans toward the ink */
+  --c-qe: color-mix(in oklab, var(--plane-capability) 78%, var(--ink-high));
 }
 
 /* Map tokens to Tailwind utilities. `inline` keeps them live so utilities
@@ -94,9 +77,40 @@
   --color-workflow: var(--c-workflow);
   --color-creation: var(--c-creation);
 
-  --font-display: "Archivo", ui-sans-serif, sans-serif;
-  --font-sans: "Hanken Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  /* the design package's stacks, restated so Tailwind's own defaults never win on layer order:
+     text Wicked Sans (Inter per character), code JetBrains Mono. Headings use the text face: the
+     `font-display` class is the heading voice here (the wordmark's serif is the chrome's --font-wordmark). */
+  --font-display: var(--font-sans);
+  --font-sans: 'Wicked Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  /* Tailwind's type scale onto the approved scale (12/14/16/20/28), weights onto 400/600, tracking off:
+     the markup's text, font-weight and tracking classes then land on the scale with no markup change. */
+  --text-xs: var(--text-caption);
+  --text-sm: var(--text-body);
+  --text-base: var(--text-lead);
+  --text-lg: var(--text-lead);
+  --text-xl: var(--text-section);
+  --text-2xl: var(--text-section);
+  --text-3xl: var(--text-title);
+  --text-4xl: var(--text-title);
+  --text-5xl: var(--text-title);
+  --text-6xl: var(--text-title);
+  --font-weight-thin: 400;
+  --font-weight-extralight: 400;
+  --font-weight-light: 400;
+  --font-weight-normal: 400;
+  --font-weight-medium: 600;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 600;
+  --font-weight-extrabold: 600;
+  --font-weight-black: 600;
+  --tracking-tighter: 0;
+  --tracking-tight: 0;
+  --tracking-normal: 0;
+  --tracking-wide: 0;
+  --tracking-wider: 0;
+  --tracking-widest: 0;
+
 
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -123,23 +137,18 @@
     background-color: transparent;
     color: var(--ink);
     font-family: var(--font-sans);
-    font-feature-settings: "ss01", "cv01";
     overflow-x: clip; /* clip (not hidden) — hidden makes body a scroll container and breaks sticky scroll sections */
     transition: background-color 0.4s var(--ease-out-expo), color 0.4s var(--ease-out-expo);
   }
 
   h1, h2, h3, h4 {
-    font-family: var(--font-display);
-    font-weight: 800;
-    letter-spacing: -0.01em;
-    line-height: 0.98;
+    font-family: var(--font-sans);
+    font-weight: var(--weight-strong);
+    letter-spacing: var(--tracking-title);
+    line-height: 1.1;
     text-wrap: balance;
   }
 
-  /* Archivo's width axis — the expanded cut is the display voice. */
-  h1, h2, h3, h4, .font-display {
-    font-stretch: 122%;
-  }
 
   ::selection {
     background: var(--accent-bright);
@@ -172,6 +181,10 @@
    Atmosphere — film grain + the eyebrow/kicker
 ---------------------------------------------------------------------------- */
 @layer components {
+  /* inline commands and tool names marked with Tailwind's font-mono are code: the code step, not the
+     surrounding prose size (an explicit text-* utility on the element still wins) */
+  .font-mono { font-size: var(--text-code); }
+
   /* Fixed grain overlay, applied to <body> via .has-grain */
   .has-grain::after {
     content: "";
@@ -187,10 +200,10 @@
 
   /* Mono kicker / eyebrow */
   .kicker {
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    letter-spacing: 0.28em;
-    text-transform: uppercase;
+    font-family: var(--font-sans);
+    font-size: var(--text-caption);
+    
+    
     color: var(--muted);
   }
 
@@ -280,6 +293,6 @@ body::before {
 body::after {
   content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
   background:
-    radial-gradient(ellipse 48% 55% at 6% 4%,   rgba(255, 218, 25, 0.16), transparent 60%),
-    radial-gradient(ellipse 52% 52% at 94% 98%, rgba(121, 192, 255, 0.14), transparent 62%);
+    radial-gradient(ellipse 48% 55% at 6% 4%,   var(--mesh-1), transparent 60%),
+    radial-gradient(ellipse 52% 52% at 94% 98%, var(--mesh-2), transparent 62%);
 }

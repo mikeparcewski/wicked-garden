@@ -1,5 +1,12 @@
 # wickedagile — brand palette & type
 
+> **Historical (retired 2026-11-01).** This page describes the v2 harbor-blue palette and the
+> Archivo / Hanken Grotesk type. The site now wears the family's v3 look from the shared chrome:
+> Wicked Sans text, Wicked Serif for the wordmark only, JetBrains Mono for code only, studio's type
+> scale, and the Wicked Dark / Wicked Light themes. The current guide is wicked-web's
+> `packages/design-system/GUIDE.md` (and its README); garden's own role colours are mapped onto
+> those tokens in `src/styles/global.css`.
+
 The brand system for **wickedagile** and everything built on it (wicked-garden,
 the wicked-\* tools, decks, docs, future properties). The garden is *content*
 that sits on this substrate — the brand is not the garden.

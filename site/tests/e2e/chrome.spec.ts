@@ -11,18 +11,18 @@ test.beforeEach(async ({ page }) => {
 
 test('theme toggle flips data-theme on <html> and persists across reload', async ({ page }) => {
   const html = page.locator('html');
-  // The chrome normalizes to a concrete theme on load (default: light).
-  await expect(html).toHaveAttribute('data-theme', /^(light|dark)$/);
-  const initial = await html.getAttribute('data-theme');
-  const flipped = initial === 'dark' ? 'light' : 'dark';
+  // A fresh load is Wicked Dark and persists nothing: only a click writes the choice.
+  await expect(html).toHaveAttribute('data-theme', 'dark');
+  expect(await page.evaluate(() => localStorage.getItem('wa-theme-v3'))).toBeNull();
+  const flipped = 'light';
 
   await page.locator('#themeBtn').click();
   await expect(html).toHaveAttribute('data-theme', flipped);
   await expect
-    .poll(() => page.evaluate(() => localStorage.getItem('wa-theme')))
+    .poll(() => page.evaluate(() => localStorage.getItem('wa-theme-v3')))
     .toBe(flipped);
 
-  // Persistence: the no-flash init in Base.astro reads 'wa-theme' before paint.
+  // Persistence: the no-flash init in Base.astro reads 'wa-theme-v3' before paint.
   await page.reload();
   await expect(html).toHaveAttribute('data-theme', flipped);
 });
@@ -44,4 +44,11 @@ test('ecosystem dropdown opens on click and closes on Escape', async ({ page }) 
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
   await expect(btn).toHaveAttribute('aria-expanded', 'false');
+});
+
+test('a stored v2 theme is ignored: the reset to Wicked Dark happens once, and the load writes nothing', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('wa-theme', 'light'));
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  expect(await page.evaluate(() => localStorage.getItem('wa-theme-v3'))).toBeNull();
 });

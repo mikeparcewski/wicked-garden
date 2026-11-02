@@ -25,12 +25,12 @@ export default function CopyChip({ text, label }: CopyChipProps) {
       onClick={copy}
       title={text}
       aria-label={`Copy command: ${text}`}
-      className="group/copy flex w-full items-center gap-2.5 rounded-lg border border-line bg-canvas-2/60 px-3 py-2.5 text-left font-mono text-[0.78rem] transition-colors hover:border-accent"
+      className="group/copy flex w-full items-center gap-2.5 rounded-lg border border-line bg-canvas-2/60 px-3 py-2.5 text-left font-mono text-[length:var(--text-code)] transition-colors hover:border-accent"
     >
       <span aria-hidden className="select-none text-accent">›</span>
       <span className="min-w-0 flex-1 truncate text-ink">{text}</span>
       <span
-        className={`shrink-0 text-[0.64rem] uppercase tracking-[0.14em] transition-colors ${
+        className={`shrink-0 font-sans text-xs transition-colors ${
           copied ? "text-accent" : "text-muted group-hover/copy:text-accent"
         }`}
       >
