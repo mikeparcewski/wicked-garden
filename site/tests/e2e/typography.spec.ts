@@ -43,3 +43,31 @@ test('the QE wall is fully opaque, so its "cold evidence only" tag keeps its con
   await page.goto('/');
   await expect(page.locator('.qw-wall').first()).toHaveCSS('opacity', '1');
 });
+
+/** WCAG contrast of a computed CSS colour (rgb() or oklab()) against an sRGB hex ground. */
+function contrast(css: string, ground: string): number {
+  const lin = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  let r: number, g: number, b: number;
+  const n = (css.match(/-?[\d.]+/g) ?? []).map(Number);
+  if (css.startsWith('oklab')) {
+    const [L, A, B] = n;
+    const l = (L + 0.3963377774 * A + 0.2158037573 * B) ** 3, m = (L - 0.1055613458 * A - 0.0638541728 * B) ** 3,
+      s = (L - 0.0894841775 * A - 1.291485548 * B) ** 3;
+    [r, g, b] = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+      -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
+  } else [r, g, b] = n.slice(0, 3).map((v) => lin(v / 255));
+  const y1 = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const h = ground.replace('#', ''); const [R, G, B2] = [0, 2, 4].map((i) => lin(parseInt(h.slice(i, i + 2), 16) / 255));
+  const y2 = 0.2126 * R + 0.7152 * G + 0.0722 * B2;
+  return (Math.max(y1, y2) + 0.05) / (Math.min(y1, y2) + 0.05);
+}
+
+test('QE green text clears 4.5:1 in Wicked Light on its tints and the trellis', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  // #cad4ca is the darkest ground measured under these glyphs (tint + trellis), review round 3
+  for (const sel of ['.qw-foot code', '.xp-cta-label']) {
+    const col = await page.locator(sel).first().evaluate((el) => getComputedStyle(el).color);
+    expect(contrast(col, '#cad4ca'), `${sel} ${col}`).toBeGreaterThanOrEqual(4.5);
+  }
+});
