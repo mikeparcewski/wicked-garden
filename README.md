@@ -11,6 +11,14 @@
 
 **Your coding agent already plans and swarms. wicked-garden is the curated toolkit for what it can't do alone.**
 
+It works inside Claude Code, Codex, Antigravity, OpenCode and Pi, in CI, or inside a wicked-crew job. Its proof gate
+re-checks "done" from evidence, rejecting unsupported claims and failing closed by default when it cannot run. With
+wicked-estate's code graph it sees the event and command links grep never will, and its patch skill renames across files
+as a graph operation. Its 40 QE specialist skills include an acceptance pipeline that keeps the writer, the executor and the
+reviewer apart, and a disputed decision goes to a review panel of your other agents, with a labelled same-family fallback
+and no verdict without a quorum. Which entry paths block and which only advise is spelled out in
+[What blocks, what advises](#what-blocks-what-advises).
+
 > 📖 Docs → [wg.wickedagile.com](https://wg.wickedagile.com). Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
 
 ---
