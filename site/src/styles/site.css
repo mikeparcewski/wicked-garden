@@ -377,7 +377,7 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   display: flex; align-items: center; gap: 10px;
   animation: dm-slide .45s var(--d) var(--ease-out-expo) both;
 }
-.dm-file-name { font-family: var(--font-mono); font-size: var(--text-code); color: var(--muted); flex-shrink: 0; width: 62px; }
+.dm-file-name { font-family: var(--font-mono); font-size: var(--text-code); color: var(--muted); flex-shrink: 0; min-width: 62px; }
 .dm-file-line { font-family: var(--font-mono); font-size: var(--text-code); color: var(--ink); }
 .dm-rename s { color: var(--c-solo); opacity: 0; animation: dm-strike .3s calc(var(--d) + .4s) forwards; }
 .dm-rename b {
@@ -624,6 +624,8 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
 .pg-mark-tag { margin-top: 6px; font-family: var(--font-sans); font-size: var(--text-caption); color: color-mix(in oklab, var(--ink) 68%, transparent); font-style: italic; }
 .pg-mark.is-proved { color: var(--accent); }
 .pg-mark.is-proved .pg-mark-word { text-shadow: 0 0 26px color-mix(in oklab, var(--accent) 55%, transparent); }
+/* the glow is a light halo on a dark ground; on Wicked Light the accent is ink, so it would be a smudge */
+[data-theme="light"] .pg-mark.is-proved .pg-mark-word, [data-theme="light"] .hs-proved .hs-word { text-shadow: none; }
 .pg-mark.is-rejected { color: var(--c-solo); }
 .pg-mark.is-unavail { color: var(--muted); }
 .pg-mark.is-unavail .pg-mark-word { border-style: dashed; }
@@ -936,8 +938,9 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   /* min-height must stay BELOW the natural role-card height, or the wall (not
      the content) becomes what sets the stage row's height. */
   position: relative; align-self: stretch; min-height: 110px; cursor: pointer;
-  background: repeating-linear-gradient(to bottom, var(--c-qe) 0 8px, transparent 8px 17px);
-  border-radius: 2px; opacity: 0.85;
+  /* the dashes are 85% strength; the tag on the wall stays fully opaque (its label must clear 4.5:1) */
+  background: repeating-linear-gradient(to bottom, color-mix(in oklab, var(--c-qe) 85%, transparent) 0 8px, transparent 8px 17px);
+  border-radius: 2px;
 }
 .qw-wall-tag {
   position: absolute; top: 50%; left: 50%;
@@ -968,6 +971,7 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   border: 1px solid var(--c-qe);
 }
 .qw-chip--block {
+  font-family: var(--font-sans); font-size: var(--text-caption); /* prose ("executor context"), not code */
   color: var(--c-solo); background: color-mix(in oklab, var(--c-solo) 14%, var(--surface-2));
   border: 1px solid color-mix(in oklab, var(--c-solo) 40%, transparent);
   text-decoration: line-through; text-decoration-color: color-mix(in oklab, var(--c-solo) 60%, transparent);
@@ -1028,7 +1032,7 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   font-family: var(--font-sans); font-size: var(--text-caption); line-height: 1.5; color: var(--muted);
 }
 .qw-foot code {
-  font-size: inherit; color: var(--c-qe);
+  font-family: var(--font-mono); font-size: var(--text-code); color: var(--c-qe);
   background: color-mix(in oklab, var(--c-qe) 12%, transparent);
   padding: 1px 6px; border-radius: 5px;
 }
@@ -1095,7 +1099,7 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   font-family: var(--font-sans); font-size: var(--text-caption);  color: var(--muted);
 }
 .qf-legend code {
-  color: var(--c-qe); font-size: inherit;
+  font-family: var(--font-mono); color: var(--c-qe); font-size: var(--text-code);
   background: color-mix(in oklab, var(--c-qe) 12%, transparent);
   padding: 1px 6px; border-radius: 5px;
 }
