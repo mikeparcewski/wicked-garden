@@ -47,7 +47,10 @@ function ReportCard() {
         <div className="qw-cell qw-cell--rev">
           <span className="qw-tag">independent reviewer</span>
           <div className="qw-mark qw-mark--rev">{revealed ? "FAIL" : "PASS"}</div>
-          <div className="qw-sub">{revealed ? "caught a race in retry" : "awaiting review…"}</div>
+          <div className="qw-sub qw-sub--rev">
+            <span className={`qw-sub-t${revealed ? "" : " is-on"}`} aria-hidden={revealed}>awaiting review…</span>
+            <span className={`qw-sub-t${revealed ? " is-on" : ""}`} aria-hidden={!revealed}>caught a race in retry</span>
+          </div>
           <span className="qw-stamp">contradicted</span>
         </div>
       </div>
@@ -119,7 +122,7 @@ export default function QeWall() {
   return (
     <div className="sx sx--qe">
       <Reveal className="sx-title">
-        <p className="kicker sx-kicker qw-kicker"><span className="sx-num">03</span>the qe domain</p>
+        <p className="kicker sx-kicker qw-kicker"><span className="sx-num">03</span>the qe domain · home of the retired wicked-testing plugin’s wall and fleet</p>{/* historical */}
         <h2 className="sx-h2">In acceptance, <span className="sx-key">no agent grades its own homework.</span></h2>
       </Reveal>
       <Reveal className="sx-lead" delay={0.12}>
@@ -192,7 +195,6 @@ export default function QeWall() {
           Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>. The reviewer runs as a separate
           worker whose brief carries only evidence paths. If no separate worker can run, the verdict is{" "}
           <code>FAIL inconclusive</code>, never an inline self-review.
-          <span className="qw-history"> The qe domain carries the wall and the fleet of the retired wicked-testing plugin.</span>{/* historical */}
         </p>
         <div className="qw-foot-cmd">
           <CopyChip text="/wicked-garden-qe accept" label="in your agent" kind="agent" />

@@ -25,14 +25,17 @@ test('QeWall: the reveal-reviewer flip contradicts a self-graded PASS', async ({
   // resting state: both cells read PASS, the reviewer verdict is pending
   await expect(fig).toHaveAttribute('data-revealed', 'false');
   await expect(fig.locator('.qw-mark--rev')).toHaveText('PASS');
-  await expect(fig).toContainText('awaiting review…');
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('awaiting review…');
+  const h = await fig.evaluate((el) => el.getBoundingClientRect().height);
 
   // send it across the wall — the independent read contradicts the self-grade
   const btn = fig.getByRole('button', { name: /Send it to an independent reviewer/ });
   await btn.click();
   await expect(fig).toHaveAttribute('data-revealed', 'true');
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
-  await expect(fig).toContainText('caught a race in retry');
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('caught a race in retry');
+  // both sub-lines share one cell: revealing never resizes the card
+  expect(await fig.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
   // no unmeasured rate rides along with the flip (N9)
   await expect(fig).not.toContainText('80%');
 

@@ -18,7 +18,8 @@
    over, its deltas are summed, and once a burst has moved 40px one section is
    stepped; the rest of that burst (a trackpad's or a smooth wheel's momentum
    tail) is ignored until the wheel has been quiet for 180ms (and at least
-   300ms since the step). A new burst while the page is still gliding steps on
+   300ms since the step), unless a single wheel notch (50px or more after a
+   90ms pause) arrives sooner. A new burst while the page is still gliding steps on
    from where the glide is going, so quick notches each move one more section.
    Native mandatory snapping pulled small high-resolution deltas back to the
    section top, so they could never leave the hero.
@@ -90,6 +91,9 @@ function canScrollInside(target: EventTarget | null, dy: number): boolean {
 const STEP_AT = 40;
 const ACC_RESET = 160;
 const TAIL_QUIET = 180;
+/** one event this big after this long a pause is a deliberate wheel notch, not a momentum tail */
+const NOTCH = 50;
+const NOTCH_GAP = 90;
 
 let acc = 0;
 let lastEvt = -Infinity;
@@ -123,8 +127,10 @@ function onWheel(e: WheelEvent) {
   const quiet = now - lastEvt;
   lastEvt = now;
   if (latched) {
-    // still the burst that stepped (its momentum tail), or the step has not cooled down
-    if (quiet < TAIL_QUIET || now - stepAt < COOLDOWN) return;
+    // a wheel notch (one big delta after a pause) is a new step even soon after the last one;
+    // anything else is still the burst that stepped (its momentum tail) until the wheel rests
+    const notch = Math.abs(px(e)) >= NOTCH && quiet >= NOTCH_GAP;
+    if (!notch && (quiet < TAIL_QUIET || now - stepAt < COOLDOWN)) return;
     latched = false;
     acc = 0;
   }

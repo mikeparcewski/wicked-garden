@@ -123,8 +123,8 @@ async function probe(page: Page, i: number, rest: number[] | null): Promise<{ bo
  *  watched for that long, so its tallest state is reached (the QE inbox fills at 10.4s, the panel's third mode
  *  at 9.2s), and must show more than one state. */
 const AUTOPLAY: Record<string, number> = {
-  hero: 19_000, gate: 30_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000,
-  toolkit: 11_000, extend: 15_000, install: 8_000,
+  hero: 19_000, gate: 28_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000,
+  toolkit: 8_000, extend: 9_500, install: 6_000,
 };
 
 /** The verdicts a full cycle must show: the hero cycles four claims, the gate four scripts. */

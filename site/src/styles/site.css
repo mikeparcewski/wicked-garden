@@ -112,7 +112,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 @media (min-width: 1024px) {
   :root {
     --h2: clamp(30px, min(1rem + 2vw, 5.4vh + 2px), 56px);
-    --h1: clamp(48px, min(1.5rem + 3.4vw, 9vh), 88px);
+    --h1: clamp(48px, min(1.5rem + 3.4vw, 8.6vh), 88px);
   }
   .sx-h2 { font-size: var(--h2); line-height: 1.06; }
 }
@@ -438,7 +438,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-where p { font-size: var(--text-caption); color: var(--muted); line-height: 1.5; }
 .pg-where-btn { font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 /* the machine's height: what the frame has left under the title, the lead and the one line */
-.sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 150px - var(--h2-extra)), 640px); }
+/* each computed stage leaves ~10px of slack, so a font that sets a little taller on another platform still fits */
+.sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 158px - var(--h2-extra)), 640px); }
 
 /* ============================================================================
    02 THE GRAPH
@@ -509,7 +510,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gx-cmd { flex: 0 0 auto; }
 .gx-afford { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--text-caption); color: var(--muted); }
 .gx-afford-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 122px - var(--h2-extra)), 640px); }
+.sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 130px - var(--h2-extra)), 640px); }
 
 /* ============================================================================
    03 THE QE WALL
@@ -537,6 +538,10 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-mark--rev { color: var(--muted); }
 .qw-fig[data-revealed="true"] .qw-mark--rev { color: var(--c-fail); animation: gd-pop .4s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 .qw-sub { margin-top: 4px; font-size: var(--text-caption); color: var(--muted); }
+/* the reviewer's sub-line holds both its copies in one cell: revealing never resizes the card */
+.qw-sub--rev { display: grid; grid-template-columns: minmax(0, 1fr); }
+.qw-sub-t { grid-area: 1 / 1; visibility: hidden; }
+.qw-sub-t.is-on { visibility: visible; }
 .qw-stamp { position: absolute; top: 6px; right: 6px; line-height: 1.3; font-size: var(--text-caption); padding: 0 6px; border-radius: 5px; border: 1px solid; opacity: 0; transform: rotate(-6deg); transition: opacity .3s; }
 .qw-cell--self .qw-stamp { color: var(--muted); }
 .qw-cell--rev .qw-stamp { color: var(--c-fail); }
@@ -621,7 +626,6 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-foot { display: flex; align-items: center; gap: 18px; }
 .qw-foot p { flex: 1 1 auto; min-width: 0; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); }
 .qw-foot code { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-qe); background: color-mix(in oklab, var(--c-qe) 12%, transparent); padding: 1px 5px; border-radius: 5px; }
-.qw-history { color: var(--faint, var(--muted)); }
 .qw-foot-cmd { flex: 0 0 300px; }
 
 /* ============================================================================
@@ -668,7 +672,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   height: 100%; border-radius: 16px; border: 1px solid var(--hairline-strong); padding: clamp(14px, 2vw, 24px);
   background: color-mix(in oklab, var(--canvas-2) 94%, transparent);
 }
-.sx--panel .sx-stage { height: clamp(300px, calc(var(--avail) - 130px - var(--h2-extra)), 560px); }
+.sx--panel .sx-stage { height: clamp(300px, calc(var(--avail) - 138px - var(--h2-extra)), 560px); }
 .pv-left, .pv-right { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .pv-q { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--c-warn) 50%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-warn) 9%, transparent); }
 .pv-q-k { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-warn); }
@@ -873,8 +877,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 /* very wide: a wider column and taller stages */
 @media (min-width: 1680px) {
   .sx, .sx-wrap { max-width: 1480px; }
-  .sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 176px - var(--h2-extra)), 760px); }
-  .sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 154px - var(--h2-extra)), 760px); }
+  .sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 186px - var(--h2-extra)), 760px); }
+  .sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 164px - var(--h2-extra)), 760px); }
   .st-token { left: max(12px, calc((100vw - 1480px) / 2 + 48px - 124px)); }
 }
 
