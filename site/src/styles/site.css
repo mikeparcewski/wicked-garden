@@ -92,6 +92,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 }
 
 /* ── shared controls ─────────────────────────────────────────────────────── */
+.vh { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 /* a ring inside a clipping box (the role cards, the detail panel, the scrollers) is drawn inset, so it is never cut */
 .qw-role-btn:focus-visible, .cx-detail :focus-visible, .cx-tab:focus-visible, .qf-btn:focus-visible, .qf-agent:focus-visible { outline-offset: -3px; }
 .px-play {
@@ -353,14 +354,13 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   font-size: var(--text-caption); color: var(--muted); transition: border-color .22s, background .22s, color .22s;
 }
 .pg-chip-n { font-family: var(--font-mono); opacity: .7; }
-.pg-chip-name { font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pg-chip-mark { margin-left: auto; flex: 0 0 auto; font-weight: var(--weight-strong); white-space: nowrap; }
+.pg-chip-name { min-width: 0; font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-chip-mark { margin-left: auto; flex: 0 0 12px; text-align: center; font-weight: var(--weight-strong); }
 .pg-chip.is-checking { color: var(--ink); border-color: var(--ink); }
 .pg-chip.is-checking .pg-chip-mark { animation: gd-pulse .5s ease-in-out infinite; }
 .pg-chip.is-ok { color: var(--c-pass); border-color: color-mix(in oklab, var(--c-pass) 60%, transparent); background: color-mix(in oklab, var(--c-pass) 12%, transparent); }
 .pg-chip.is-fail { color: var(--v); border-color: var(--v); background: color-mix(in oklab, var(--v) 18%, transparent); }
 .pg-chip.is-skip { opacity: 0.5; }
-.pg-chip.is-skip .pg-chip-mark { font-weight: var(--weight-regular); }
 .pg-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; height: 34px; }
 .pg-afford { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--text-caption); color: var(--muted); }
 .pg-afford[data-pinned="true"] { border-color: var(--ink); }
@@ -812,11 +812,16 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .gx-result { min-height: 60px; }
 
   .qw-layout { grid-template-columns: minmax(0, 1fr); }
+  .qf-bar { flex-direction: column; align-items: stretch; }
+  .qf-filter { overflow-x: auto; scrollbar-width: none; padding: 3px; margin: -3px; }
+  .qf-afford { justify-content: space-between; }
+  .qf-afford-text { text-align: left; }
   .qw-foot { flex-direction: column; align-items: stretch; }
   .qw-foot-cmd { flex: 0 0 auto; }
 
   .pv-stage { grid-template-columns: minmax(0, 1fr); height: auto; }
   .pv-votes { grid-template-rows: repeat(3, 48px); }
+  .pv-result { flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; height: 96px; padding: 8px 14px; }
   .pv-sel-h { margin-top: 4px; }
 
   .mq-stage { grid-template-columns: minmax(0, 1fr); height: auto; }
@@ -874,17 +879,15 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .qw-stage .qw-chip--block { animation-name: qw-block-v; }
   .qw-grades { grid-template-columns: 1fr 1fr; }
 
-  .qf-bar { flex-direction: column; align-items: stretch; }
-  .qf-filter { overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
   .qf-btn--all { display: none; }
-  .qf-afford { justify-content: space-between; }
-  .qf-afford-text { text-align: left; }
   .qf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
   .qf-agent { height: auto; padding: 6px 10px; }
   .qf-agent-name { white-space: normal; overflow-wrap: anywhere; }
   .qf-grid .qf-agent.is-off { display: none; }
   .qf-grid:not(.is-filtered) .qf-agent:not([data-surf="plan"]) { display: none; }
-  .qf-caption { height: 40px; white-space: normal; }
+  .qf-caption { display: block; height: 76px; white-space: normal; line-height: 1.5; }
+  .qf-caption > * { margin-right: 8px; }
+  .qf-cap-name { overflow-wrap: anywhere; }
 
   .cx-find { flex-wrap: wrap; }
   .cx-find-in { flex: 1 1 100%; }

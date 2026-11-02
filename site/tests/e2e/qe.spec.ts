@@ -82,7 +82,8 @@ test('QeWall: evidence crosses into the reviewer inbox, and a visible button pau
   await expect(stage).toHaveClass(/is-playing/);
   await expect(stage.locator('.qw-track .qw-chip--pass')).toHaveCount(1);
   await expect(stage.locator('.qw-track .qw-chip--block')).toHaveCount(1);
-  await expect.poll(() => stage.locator('.qw-inbox-item').count(), { timeout: 12_000 }).toBeGreaterThan(0);
+  // the inbox lays out its four slots from the start; what arrives is the .is-in ones, all four before it resets
+  await expect.poll(() => stage.locator('.qw-inbox-item.is-in').count(), { timeout: 15_000 }).toBe(4);
 
   // the keyboard pause
   const pause = stage.getByRole('button', { name: 'Pause the evidence handoff' });

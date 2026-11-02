@@ -230,8 +230,9 @@ export default function ProveGate() {
                       <span className="pg-chip-n" aria-hidden>{k + 1}</span>
                       <span className="pg-chip-name">{x.short}</span>
                       <span className="pg-chip-mark" aria-hidden>
-                        {st.startsWith("is-ok") ? "✓" : st.startsWith("is-fail") ? "✕" : st === "is-skip" ? "not reached" : st === "is-checking" ? "…" : ""}
+                        {st.startsWith("is-ok") ? "✓" : st.startsWith("is-fail") ? "✕" : st === "is-skip" ? "–" : st === "is-checking" ? "…" : ""}
                       </span>
+                      {st === "is-skip" ? <span className="vh">not reached</span> : null}
                     </li>
                   );
                 })}

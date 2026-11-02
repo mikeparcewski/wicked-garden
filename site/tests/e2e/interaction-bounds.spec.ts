@@ -122,7 +122,13 @@ async function probe(page: Page, i: number, rest: number[] | null): Promise<{ bo
 /** The sections whose demo plays by itself, and how long one full cycle of its states takes (ms): each is
  *  watched for that long, so its tallest state is reached (the QE inbox fills at 10.4s, the panel's third mode
  *  at 9.2s), and must show more than one state. */
-const AUTOPLAY: Record<string, number> = { hero: 5_000, gate: 12_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000 };
+const AUTOPLAY: Record<string, number> = { hero: 19_000, gate: 24_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000 };
+
+/** The verdicts a full cycle must show: the hero cycles four claims, the gate four scripts. */
+const VERDICTS: Record<string, { sel: string; words: string[] }> = {
+  hero: { sel: '#hero .hs-word', words: ['REJECTED', 'RE-DERIVED', 'FAILS CLOSED'] },
+  gate: { sel: '#gate .pg-mark-word', words: ['PROVED', 'REJECTED', 'FAILS CLOSED'] },
+};
 
 /** The motion passes also run at a narrow desktop, where the frames are tightest and snapping falls back. */
 const MOTION_VIEWPORTS = [...VIEWPORTS, { width: 1024, height: 700 }];
@@ -242,6 +248,7 @@ for (const vp of MOTION_VIEWPORTS) {
       }, [id, vp.width < 1024] as const);
       await page.mouse.move(vp.width - 2, vp.height - 2);
       const seen = new Set<string>();
+      const verdicts = new Set<string>();
       // watch a playing demo for one full cycle of its states
       const start = Date.now();
       const done = () => Date.now() - start > (playing ? cycle : 600);
@@ -254,9 +261,12 @@ for (const vp of MOTION_VIEWPORTS) {
         });
         for (const o of await textOverlaps(page, id)) problems.push(`#${id}: ${o}`);
         seen.add(await page.evaluate((id) => (document.getElementById(id)!.querySelector('.sx-stage, .gd-hero-demo') as HTMLElement | null)?.innerText ?? '', id));
+        if (VERDICTS[id]) { const w = await page.evaluate((sel) => document.querySelector(sel)?.textContent?.trim() ?? '', VERDICTS[id].sel); if (w) verdicts.add(w); }
       }
       // it really played: the demo showed more than one state while it was watched
       if (playing) expect(seen.size, `#${id} never changed state while on screen`).toBeGreaterThan(1);
+      // and it went through every verdict it can show, each of which was checked for movement and overlap
+      if (VERDICTS[id]) expect([...verdicts].sort(), `#${id} verdicts seen`).toEqual(expect.arrayContaining(VERDICTS[id].words));
     }
     expect([...new Set(problems)], [...new Set(problems)].slice(0, 10).join('\n')).toEqual([]);
   });
