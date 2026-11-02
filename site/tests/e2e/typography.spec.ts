@@ -11,10 +11,12 @@ test('the faces actually load (a computed stack alone passes even when every wof
     const face = (f: string, w: string) =>
       [...document.fonts].some((x) => x.family.replace(/"/g, '') === f && x.weight === w && x.status === 'loaded');
     // Wicked Sans is two files: Regular claims 100-499 (body), SemiBold 500-900 (headings); each must load
+    // the wordmark is drawn (wicked-web's Wordmark lockup, an inline SVG), so no Wicked Serif downloads
     return { sansRegular: face('Wicked Sans', '100 499'), sansSemiBold: face('Wicked Sans', '500 900'),
       serif: face('Wicked Serif', '100 900'), mono: [...document.fonts].some((x) => x.family.replace(/"/g, '') === 'JetBrains Mono' && x.status === 'loaded') };
   });
-  expect(loaded).toEqual({ sansRegular: true, sansSemiBold: true, serif: true, mono: true });
+  expect(loaded).toEqual({ sansRegular: true, sansSemiBold: true, serif: false, mono: true });
+  await expect(page.locator('.topbar .wordmark svg.wordmark-lockup')).toBeVisible();
 });
 
 test('the install chip: command in mono at 13px, its label in the text face', async ({ page }) => {

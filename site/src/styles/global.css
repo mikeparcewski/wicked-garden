@@ -79,7 +79,7 @@
 
   /* the design package's stacks, restated so Tailwind's own defaults never win on layer order:
      text Wicked Sans (Inter per character), code JetBrains Mono. Headings use the text face: the
-     `font-display` class is the heading voice here (the wordmark's serif is the chrome's --font-wordmark). */
+     `font-display` class is the heading voice here (the chrome draws the wordmark as an SVG lockup). */
   --font-display: var(--font-sans);
   --font-sans: 'Wicked Sans', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;

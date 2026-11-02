@@ -2,8 +2,9 @@
 
 > **Historical (retired 2026-11-01).** This page describes the v2 harbor-blue palette and the
 > Archivo / Hanken Grotesk type. The site now wears the family's v3 look from the shared chrome:
-> Wicked Sans text, Wicked Serif for the wordmark only, JetBrains Mono for code only, studio's type
-> scale, and the Wicked Dark / Wicked Light themes. The current guide is wicked-web's
+> Wicked Sans text (since 2026-11-02 the fonts-v3 cut of Inter), the drawn Wave W wordmark beside the
+> Shoreline mark (also the favicon), JetBrains Mono for code only, studio's type scale, and the Wicked
+> Dark / Wicked Light themes. The current guide is wicked-web's
 > `packages/design-system/GUIDE.md` (and its README); garden's own role colours are mapped onto
 > those tokens in `src/styles/global.css`.
 
