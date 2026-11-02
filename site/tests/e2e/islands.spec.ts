@@ -141,8 +141,14 @@ test('CatalogExplorer: 14 domains as tabs, qe selected first, arrow keys and the
   await expect(cat.locator('.cx-peer').first()).toContainText('wicked-estate');
 });
 
-test("What's new: the domain-mapping item selects the domain in the catalog", async ({ page }) => {
+test("What's new: the domain-mapping item selects the domain in the catalog, every time it is followed", async ({ page }) => {
   const link = page.locator('#memory .mq-new-list a');
+  await link.scrollIntoViewIfNeeded();
+  await link.click();
+  await expect(page.locator('#dom-domain')).toHaveAttribute('aria-selected', 'true');
+  // pick another domain, then follow the same link again: the URL already says #dom-domain (no hashchange)
+  await page.locator('#dom-qe').click();
+  await expect(page.locator('#dom-qe')).toHaveAttribute('aria-selected', 'true');
   await link.scrollIntoViewIfNeeded();
   await link.click();
   await expect(page.locator('#dom-domain')).toHaveAttribute('aria-selected', 'true');

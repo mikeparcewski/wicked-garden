@@ -51,9 +51,20 @@ export default function CatalogExplorer() {
       const m = location.hash.match(/^#dom-(.+)$/);
       if (m && DOMAINS.some((d) => d.id === m[1])) setSel(m[1]);
     };
+    // a link to a domain selects it every time it is followed, even when the hash already names it
+    // (navigating to the current hash fires no hashchange)
+    const onLink = (e: MouseEvent) => {
+      const a = (e.target as Element | null)?.closest?.('a[href^="#dom-"]');
+      const id = a?.getAttribute("href")?.slice(5);
+      if (id && DOMAINS.some((d) => d.id === id)) setSel(id);
+    };
     fromHash();
     window.addEventListener("hashchange", fromHash);
-    return () => window.removeEventListener("hashchange", fromHash);
+    document.addEventListener("click", onLink);
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      document.removeEventListener("click", onLink);
+    };
   }, []);
 
   const ws = useMemo(() => words(q), [q]);
