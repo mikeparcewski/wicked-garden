@@ -26,7 +26,7 @@ export default function InstallBench() {
   function onKey(e: React.KeyboardEvent) {
     if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const next = tab === "family" ? "plugin" : "family";
+    const next = e.key === "Home" ? "family" : e.key === "End" ? "plugin" : tab === "family" ? "plugin" : "family";
     setTab(next);
     list.current?.querySelector<HTMLButtonElement>(`#ib-tab-${next}`)?.focus();
   }

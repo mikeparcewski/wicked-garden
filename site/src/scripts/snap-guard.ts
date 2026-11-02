@@ -84,8 +84,8 @@ function canScrollInside(target: EventTarget | null, dy: number): boolean {
   return false;
 }
 
-let last = 0;
-let busyUntil = 0;
+let last = -Infinity;
+let busyUntil = -Infinity;
 function onWheel(e: WheelEvent) {
   if (!root.classList.contains("snap-lock") || e.ctrlKey || e.defaultPrevented) return;
   const discrete = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50;

@@ -7,8 +7,9 @@ import { QE_SPECIALISTS, QE_SURFACES, type Surface } from "../../data/garden";
 /* ============================================================================
    THE FLEET — the 40 qe-* specialist fork skills, by orchestrator surface.
    The surface filter auto-cycles until the visitor picks one; the chosen surface's
-   specialists regroup to the front with a FLIP animation (the grid keeps all 40, so
-   its height never changes). Hovering or focusing a tile writes its full name into
+   specialists regroup to the front and fade in where they land (a fade, not a
+   slide, so no tile ever passes over another; the grid keeps all 40, so its height
+   never changes). Hovering or focusing a tile writes its full name into
    a fixed caption line under the grid: no overlays. Arrow keys move between tiles.
    Phones: a segmented control and a two-column list of the chosen surface, in a
    box reserved for the largest surface.
@@ -26,8 +27,8 @@ export default function QeFleet() {
   const [manual, setManual] = useState(false);
   const [compact, setCompact] = useState(false);
   const [hot, setHot] = useState<string | null>(null);
-  const [cursor, setCursor] = useState(0);
-  const rects = useRef<Map<string, DOMRect>>(new Map());
+  const [cursor, setCursor] = useState<string | null>(null);
+  const first = useRef(true);
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -45,41 +46,26 @@ export default function QeFleet() {
     const id = window.setTimeout(() => {
       const i = eff === "all" ? -1 : ORDER.indexOf(eff);
       const n = i + 1 >= ORDER.length ? (compact ? ORDER[0] : "all") : ORDER[i + 1];
-      capture();
       setSurf(n);
     }, CYCLE_MS);
     return () => window.clearTimeout(id);
   }, [eff, manual, ap.active, compact]);
 
-  // FLIP: remember where every tile was, reorder, then play each tile from its old place
-  function capture() {
-    const m = new Map<string, DOMRect>();
-    grid.current?.querySelectorAll<HTMLElement>(".qf-agent").forEach((el) => m.set(el.dataset.name!, el.getBoundingClientRect()));
-    rects.current = m;
-  }
-  function choose(n: Surface | "all") {
-    capture();
-    setSurf(n);
-  }
+  // regroup: the tiles fade in where they land, the chosen surface first (no tile crosses another)
   useLayoutEffect(() => {
-    const before = rects.current;
-    if (!before.size || ap.reduced || compact) { rects.current = new Map(); return; }
-    grid.current?.querySelectorAll<HTMLElement>(".qf-agent").forEach((el) => {
-      const a = before.get(el.dataset.name!);
-      if (!a) return;
-      const b = el.getBoundingClientRect();
-      const dx = a.left - b.left, dy = a.top - b.top;
-      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
-      el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
-        duration: 520, easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+    if (first.current) { first.current = false; return; }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    grid.current?.querySelectorAll<HTMLElement>(".qf-agent").forEach((el, n) => {
+      el.getAnimations().forEach((x) => x.cancel());
+      el.animate([{ opacity: 0, transform: "scale(0.96)" }, { opacity: 1, transform: "none" }], {
+        duration: 300, delay: Math.min(n, 20) * 12, easing: "cubic-bezier(0.16, 1, 0.3, 1)", fill: "backwards",
       });
     });
-    rects.current = new Map();
   }, [eff]);
 
   function pick(s: Surface | "all") {
     setManual(true);
-    choose(s);
+    setSurf(s);
   }
   function resume() {
     setManual(false);
@@ -93,13 +79,18 @@ export default function QeFleet() {
   const surfLine = eff === "all" ? "All 40, grouped by the surface they report to." : QE_SURFACES.find((x) => x.key === eff)?.line;
   const hotAgent = hot ? QE_SPECIALISTS.find((a) => a.n === hot) : null;
 
+  // the tiles a visitor can see (phones show one surface); the roving tab stop is always one of them
+  const shownNames = (compact ? list.filter((a) => a.s === eff) : list).map((a) => a.n);
+  const stop = cursor && shownNames.includes(cursor) ? cursor : shownNames[0];
+
   function onGridKey(e: React.KeyboardEvent) {
     const keys = ["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"];
     if (!keys.includes(e.key)) return;
     e.preventDefault();
-    const tiles = [...(grid.current?.querySelectorAll<HTMLButtonElement>(".qf-agent:not([hidden])") ?? [])];
+    const tiles = [...(grid.current?.querySelectorAll<HTMLButtonElement>(".qf-agent") ?? [])].filter((t) => t.offsetParent !== null);
+    if (!tiles.length) return;
     const cur = tiles.findIndex((t) => t === document.activeElement);
-    const cols = Math.max(1, Math.round((grid.current?.clientWidth ?? 1) / (tiles[0]?.offsetWidth || 1)));
+    const cols = Math.max(1, Math.round((grid.current?.clientWidth ?? 1) / (tiles[0].offsetWidth || 1)));
     let n = cur < 0 ? 0 : cur;
     if (e.key === "ArrowRight") n += 1;
     if (e.key === "ArrowLeft") n -= 1;
@@ -108,8 +99,8 @@ export default function QeFleet() {
     if (e.key === "Home") n = 0;
     if (e.key === "End") n = tiles.length - 1;
     n = Math.max(0, Math.min(tiles.length - 1, n));
-    setCursor(n);
-    tiles[n]?.focus();
+    setCursor(tiles[n].dataset.name ?? null);
+    tiles[n].focus();
   }
 
   return (
@@ -172,7 +163,7 @@ export default function QeFleet() {
           onKeyDown={onGridKey}
           onMouseLeave={() => setHot(null)}
         >
-          {list.map((a, n) => {
+          {list.map((a) => {
             const match = eff !== "all" && a.s === eff;
             const off = eff !== "all" && a.s !== eff;
             return (
@@ -183,9 +174,9 @@ export default function QeFleet() {
                 aria-label={a.n}
                 data-surf={a.s}
                 className={`qf-agent${match ? " is-match" : ""}${off ? " is-off" : ""}${hot === a.n ? " is-hot" : ""}`}
-                tabIndex={n === cursor ? 0 : -1}
+                tabIndex={a.n === stop ? 0 : -1}
                 onMouseEnter={() => setHot(a.n)}
-                onFocus={() => { setHot(a.n); setCursor(n); }}
+                onFocus={() => { setHot(a.n); setCursor(a.n); }}
                 onBlur={() => setHot((h) => (h === a.n ? null : h))}
                 onClick={() => setHot(a.n)}
               >

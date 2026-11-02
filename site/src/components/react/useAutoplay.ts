@@ -45,10 +45,16 @@ export function useAutoplay(ref: RefObject<HTMLElement | null>, threshold = 0.33
         setPaused(true);
       }
     }
+    // the preference can change on an open page: honour it at once
+    const onChange = () => {
+      setReduced(mq.matches);
+      if (mq.matches) setPaused(true);
+    };
+    mq.addEventListener?.("change", onChange);
     const el = ref.current;
     if (!el || typeof IntersectionObserver === "undefined") {
       setVisible(true);
-      return;
+      return () => mq.removeEventListener?.("change", onChange);
     }
     const io = new IntersectionObserver(
       (entries) => {
@@ -57,7 +63,10 @@ export function useAutoplay(ref: RefObject<HTMLElement | null>, threshold = 0.33
       { threshold: [0, threshold, 0.66, 1] },
     );
     io.observe(el);
-    return () => io.disconnect();
+    return () => {
+      io.disconnect();
+      mq.removeEventListener?.("change", onChange);
+    };
   }, [ref, threshold]);
 
   const pause = useCallback(() => setPaused(true), []);

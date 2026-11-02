@@ -28,22 +28,24 @@
   --on-accent: var(--accent-fg);
   --shadow-rgb: 0, 0, 0;
 
+  /* domain tints are plane and status hues that never read as a verdict: red (fail) is kept for
+     failures only, so no domain or tool is tinted with it (v2) */
   --c-foundation: var(--status-warn);
-  --c-workflow: var(--plane-foundation);
-  --c-creation: var(--status-fail);
+  --c-workflow: var(--plane-control);
+  --c-creation: var(--plane-experience);
   --ct-foundation: var(--status-warn);
-  --ct-workflow: var(--plane-foundation);
-  --ct-creation: var(--status-fail);
+  --ct-workflow: var(--plane-control);
+  --ct-creation: var(--plane-experience);
 
   --c-gate: var(--accent);
   --c-floor: var(--status-warn);
   --c-layer: var(--plane-foundation);
-  --c-solo: var(--status-fail);
+  --c-solo: var(--status-gate);
   --c-qe: var(--plane-capability);
   --ct-gate: var(--accent);
   --ct-floor: var(--status-warn);
   --ct-layer: var(--plane-foundation);
-  --ct-solo: var(--status-fail);
+  --ct-solo: var(--status-gate);
 
   --mesh-1: color-mix(in oklab, var(--ink-high) 5%, transparent);
   --mesh-2: color-mix(in oklab, var(--ink-high) 3%, transparent);

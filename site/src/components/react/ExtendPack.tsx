@@ -54,6 +54,17 @@ export default function ExtendPack() {
 
   const p = PACKS[pack];
 
+  function onRadioKey(e: React.KeyboardEvent) {
+    const L = PACKS.length;
+    const n = e.key === "ArrowDown" || e.key === "ArrowRight" ? (pack + 1) % L
+      : e.key === "ArrowUp" || e.key === "ArrowLeft" ? (pack - 1 + L) % L
+      : e.key === "Home" ? 0 : e.key === "End" ? L - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault();
+    setPack(n);
+    (e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-pack="${n}"]`)?.focus();
+  }
+
   return (
     <div className="sx sx--extend">
       <Reveal className="sx-title">
@@ -72,9 +83,9 @@ export default function ExtendPack() {
         <div className="xp-scaffold">
           <div className="xp-scaffold-bar">
             <span className="xp-scaffold-path">skills/</span>
-            <span className="xp-picks" role="radiogroup" aria-label="example pack">
+            <span className="xp-picks" role="radiogroup" aria-label="example pack" onKeyDown={onRadioKey}>
               {PACKS.map((x, n) => (
-                <button key={x.id} type="button" role="radio" aria-checked={n === pack}
+                <button key={x.id} type="button" role="radio" aria-checked={n === pack} tabIndex={n === pack ? 0 : -1} data-pack={n}
                   className={`xp-pick${n === pack ? " is-on" : ""}`} onClick={() => setPack(n)}>
                   {x.label}
                 </button>

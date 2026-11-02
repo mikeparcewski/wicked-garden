@@ -69,6 +69,16 @@ export default function PanelVote() {
     setManual(false);
     ap.play();
   }
+  function onRadioKey(e: React.KeyboardEvent) {
+    const i = MODES.findIndex((x) => x.id === mode);
+    const n = e.key === "ArrowDown" || e.key === "ArrowRight" ? (i + 1) % MODES.length
+      : e.key === "ArrowUp" || e.key === "ArrowLeft" ? (i - 1 + MODES.length) % MODES.length
+      : e.key === "Home" ? 0 : e.key === "End" ? MODES.length - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault();
+    pick(MODES[n].id);
+    (e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-mode="${MODES[n].id}"]`)?.focus();
+  }
 
   const r = RESULT[mode];
 
@@ -93,12 +103,14 @@ export default function PanelVote() {
               <span className="pv-q-t">ship the retry change? the builder says yes, a reviewer says no</span>
             </div>
             <p className="pv-sel-h" id="pv-sel-h">agents you have installed</p>
-            <div className="pv-sel" role="radiogroup" aria-labelledby="pv-sel-h">
+            <div className="pv-sel" role="radiogroup" aria-labelledby="pv-sel-h" onKeyDown={onRadioKey}>
               {MODES.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   role="radio"
+                  data-mode={m.id}
+                  tabIndex={mode === m.id ? 0 : -1}
                   aria-checked={mode === m.id}
                   className={`pv-opt${mode === m.id ? " is-on" : ""}`}
                   onClick={() => pick(m.id)}

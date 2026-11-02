@@ -14,12 +14,7 @@
   --c-fail: var(--status-fail);
   --c-warn: var(--status-warn);
   --c-graph: var(--plane-foundation);
-  /* domain tints: plane and status hues, never yellow */
-  --c-floor: var(--status-warn);
-  --c-layer: var(--plane-foundation);
-  --c-solo: var(--status-gate);
-  --c-creation: var(--plane-experience);
-  --c-workflow: var(--plane-control);
+  /* the domain tints (--c-floor/layer/solo/creation/workflow/qe) live in global.css, which loads after this file */
   --glow: 1;
   --sec-pad: clamp(16px, 3vh, 40px);
   /* the content height a framed section has: the viewport, minus the bar, minus its padding */
@@ -378,9 +373,10 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-advise {
   position: absolute; inset: 0; z-index: 2; border-radius: 16px; padding: clamp(18px, 3vw, 36px);
   display: flex; flex-direction: column; justify-content: center; gap: 14px;
-  background: color-mix(in oklab, var(--canvas-2) 97%, transparent); border: 1px solid var(--ink);
+  background: var(--canvas-2); border: 1px solid var(--ink);
 }
 .pg-advise[hidden] { display: none; }
+.pg-inner { display: contents; }
 .pg-advise p { font-size: var(--text-lead); line-height: 1.55; color: var(--ink); max-width: 70ch; }
 .pg-advise a { text-decoration: underline; text-underline-offset: 3px; }
 .pg-advise-close { align-self: flex-start; height: 30px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: none; color: var(--ink); font-size: var(--text-caption); cursor: pointer; }
@@ -461,7 +457,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 ============================================================================ */
 .qw-kicker .sx-num { border-color: color-mix(in oklab, var(--c-qe) 50%, var(--hairline-strong)); color: var(--c-qe); }
 .qw-layout { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: clamp(14px, 2vw, 24px); align-items: stretch; }
-.sx--qe .sx-stage { height: clamp(320px, calc(var(--avail) - 184px), 600px); }
+/* natural height: at a narrow desktop the section outgrows its frame and the snap guard falls back */
+.sx--qe .sx-stage { height: auto; }
 .qw-fig {
   position: relative; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 10px;
   border: 1px solid var(--hairline-strong); border-radius: 16px; padding: 14px 16px;
@@ -489,14 +486,14 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-stage {
   position: relative; min-width: 0; min-height: 0;
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 30px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) 68px auto;
+  grid-template-rows: auto 68px auto;
   column-gap: 12px; row-gap: 8px;
 }
-.qw-role { grid-row: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: 14px; background: color-mix(in oklab, var(--surface) 70%, transparent); transition: border-color .3s, background .3s, box-shadow .3s; overflow: hidden; }
+.qw-role { grid-row: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: 14px; background: color-mix(in oklab, var(--surface) 70%, transparent); transition: border-color .3s, background .3s, box-shadow .3s; }
 .qw-role--writer { grid-column: 1; }
 .qw-role--executor { grid-column: 2; }
 .qw-role--reviewer { grid-column: 4; border-color: color-mix(in oklab, var(--c-qe) 42%, var(--hairline-strong)); }
-.qw-role-btn { flex: 1 1 auto; display: flex; flex-direction: column; gap: 5px; min-height: 0; text-align: left; cursor: pointer; padding: 10px 12px; background: none; border: 0; color: inherit; }
+.qw-role-btn { flex: 1 0 auto; display: flex; flex-direction: column; gap: 5px; text-align: left; border-radius: 14px; cursor: pointer; padding: 10px 12px; background: none; border: 0; color: inherit; }
 .qw-role-n { font-size: var(--text-caption); color: var(--muted); }
 .qw-role-name { font-size: var(--text-lead); font-weight: var(--weight-strong); color: var(--ink); }
 .qw-role--reviewer .qw-role-name { color: var(--c-qe); }
@@ -509,7 +506,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-role.is-lit .qw-role-line { visibility: hidden; }
 .qw-role.is-lit .qw-role-lit { visibility: visible; }
 .qw-role.is-lit { border-color: color-mix(in oklab, var(--c-qe) 65%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-qe) 8%, var(--surface)); box-shadow: 0 0 calc(var(--glow) * 40px) -14px color-mix(in oklab, var(--c-qe) 60%, transparent); }
-.qw-inbox { flex: 0 0 auto; padding: 8px 12px 10px; border-top: 1px dashed color-mix(in oklab, var(--c-qe) 45%, var(--hairline-strong)); }
+.qw-inbox { flex: 0 0 auto; margin-top: auto; padding: 8px 12px 10px; border-top: 1px dashed color-mix(in oklab, var(--c-qe) 45%, var(--hairline-strong)); }
 .qw-inbox-h { display: block; font-size: var(--text-caption); color: var(--muted); }
 .qw-inbox-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; min-height: 48px; align-content: flex-start; }
 .qw-inbox-item { font-family: var(--font-mono); font-size: var(--text-caption); padding: 1px 6px; border-radius: 5px; color: var(--accent-fg); background: var(--c-qe); animation: gd-pop .35s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
@@ -524,7 +521,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 }
 /* the channel: its own row from the executor to the reviewer, two lanes */
 .qw-track { grid-column: 2 / 5; grid-row: 2; display: grid; grid-template-rows: 1fr 1fr; gap: 6px; min-width: 0; }
-.qw-lane { position: relative; overflow: hidden; border-radius: 8px; background: color-mix(in oklab, var(--surface) 35%, transparent); }
+.qw-lane { position: relative; overflow: hidden; }
+/* the lane is a conveyor line, not a box */
+.qw-lane::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--hairline-strong); }
 .qw-lane--block { margin-right: calc((100% - 24px - 30px) / 2 + 12px + 13px); }
 .qw-chip {
   position: absolute; top: 50%; left: 0; transform: translate(0, -50%);
@@ -629,7 +628,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   height: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr) auto;
   gap: 12px clamp(12px, 2vw, 24px);
 }
-.sx--memory .sx-stage { height: clamp(250px, calc(var(--avail) - 290px), 520px); }
+.sx--memory .sx-stage { height: auto; }
+.sx--memory .mq-stage { min-height: clamp(230px, calc(var(--avail) - 330px), 440px); }
 .mq-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--canvas-2) 94%, transparent); }
 .mq-col-h { font-size: var(--text-caption); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mq-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--c-solo) 50%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-solo) 9%, var(--surface)); animation: gd-slide .45s var(--ease-out-expo) both; transition: opacity .4s, transform .4s var(--ease-out-expo); }
@@ -653,7 +653,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .mq-btn--drop[aria-pressed="true"] { background: var(--c-fail); border-color: var(--c-fail); color: var(--accent-fg); }
 .mq-ask { font-size: var(--text-body); color: var(--ink); opacity: .35; transition: opacity .4s; }
 .mq-ask.is-on { opacity: 1; }
-.mq-answer { flex: 1 1 auto; min-height: 0; overflow: hidden; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); border-top: 1px dashed var(--hairline-strong); padding-top: 8px; }
+.mq-answer { flex: 1 1 auto; min-height: 76px; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); border-top: 1px dashed var(--hairline-strong); padding-top: 8px; }
 .mq-answer.is-on { color: var(--ink); animation: gd-fade .45s var(--ease-out-expo) both; }
 .mq-answer-tag { display: inline-block; margin-right: 4px; padding: 0 7px; border-radius: 999px; font-weight: var(--weight-strong); color: var(--accent-fg); background: var(--c-pass); }
 .mq-answer.is-dropped .mq-answer-tag { background: var(--c-fail); }
@@ -782,7 +782,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 @media (min-width: 1024px) and (min-height: 900px) {
   .sx { row-gap: clamp(20px, 3vh, 36px); }
   .hs-card { padding: 20px 22px; }
-  .qw-stage { grid-template-rows: minmax(0, 1fr) 84px auto; }
+  .qw-stage { grid-template-rows: auto 84px auto; }
+  .qw-role-copy .qw-role-line, .qw-role-copy .qw-role-lit { font-size: var(--text-body); }
   .qw-chip { padding: 8px 10px; }
 }
 
@@ -865,6 +866,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .qw-role--reviewer { grid-column: 1; grid-row: 5; }
   .qw-stage-foot { grid-row: 6; flex-wrap: wrap; }
   .qw-lane--block { margin-right: 0; margin-bottom: 0; }
+  .qw-lane::before { left: 50%; right: auto; top: 0; bottom: 0; border-top: 0; border-left: 1px dashed var(--hairline-strong); }
   .qw-chip { left: 50%; top: 0; transform: translate(-50%, 0); }
   .qw-stage .qw-chip--pass { animation-name: qw-pass-v; }
   .qw-stage .qw-chip--block { animation-name: qw-block-v; }

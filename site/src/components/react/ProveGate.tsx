@@ -166,6 +166,8 @@ export default function ProveGate() {
           aria-label="Evidence gate — interactive demo: break a condition, pull PROVE, and watch the gate re-derive the verdict"
           {...ap.bind}
         >
+          {/* covered by the advise overlay: out of the tab order and the accessibility tree while it is open */}
+          <div className="pg-inner" inert={advise} aria-hidden={advise || undefined}>
           <div className="pg-head">
             <span className="pg-claimline">
               <span className="pg-claim-k">claim</span>{" "}
@@ -261,6 +263,7 @@ export default function ProveGate() {
               )}
               <button type="button" className="pg-reset" onClick={reset}>reset the bench</button>
             </div>
+          </div>
           </div>
 
           {/* the hooks-advise detail: an overlay inside the machine, so opening it never grows the frame */}

@@ -100,13 +100,15 @@ test('QeFleet: 40 specialists render and the tabs auto-cycle until clicked', asy
   await expect(fleet.locator('.qf-agent')).toHaveCount(40);
   await expect(fleet.getByRole('tab')).toHaveCount(6); // all + five surfaces
 
-  // auto-demo: within one cycle (2.2s) a surface tab lights on its own
+  // auto-demo: within a cycle (2.6s) a surface tab lights on its own; the pointer stays off the fleet,
+  // since hovering it holds the cycle
+  await page.mouse.move(2, 2);
   await expect(fleet.locator('.qf-afford')).toContainText('auto-cycling');
   await expect
     .poll(
       async () =>
         fleet.locator('.qf-btn.is-on:not([data-surf="all"])').count(),
-      { timeout: 10_000, message: 'auto-cycle should light a surface tab' },
+      { timeout: 15_000, message: 'auto-cycle should light a surface tab' },
     )
     .toBeGreaterThan(0);
 });
@@ -133,8 +135,11 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   await grid.locator('.qf-agent').nth(1).hover();
   await expect(fleet.locator('.qf-caption')).toContainText('qe-semantic-reviewer');
 
-  // the click killed the auto-cycle — the selection must hold past a cycle tick
-  await page.waitForTimeout(2600);
+  // the click killed the auto-cycle — the selection must hold past a cycle tick, with the pointer and focus
+  // OUT of the fleet (hover and focus hold the cycle too, so they would mask a broken pin)
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.waitForTimeout(3200);
   await expect(reviewTab).toHaveClass(/is-on/);
 
   // back to the full roster

@@ -10,8 +10,11 @@ import { test, expect, type Page } from '@playwright/test';
  *    box. Where it grows by more than 2px, the part beyond the resting box must not intersect text
  *    outside the element (the paint-order probe asks elementFromPoint with the hovered subtree made
  *    hit-testable, since trays are pointer-events:none) and must not cross its section.
- * 2. While each section's demo auto-plays, no section top and no section height may move.
- * Five sizes, both themes (the stability pass in the dark theme: auto-play is theme-independent).
+ * 2. While each section's demo auto-plays (and it must visibly change state), no section top or height may
+ *    move and no visible text may intersect other text in the section.
+ * 3. Every toggle (roles, flips, filters, switches, tabs, picks, the advise overlay) is clicked: again nothing
+ *    may move and no text may cover other text.
+ * Five sizes; the hover/focus pass in both themes, the motion passes in the dark theme (geometry is theme-independent).
  */
 
 const VIEWPORTS = [
@@ -116,6 +119,57 @@ async function probe(page: Page, i: number, rest: number[] | null): Promise<{ bo
   }, [i, rest] as const);
 }
 
+/** The sections whose demo plays by itself (each must show more than one state while watched). */
+const AUTOPLAY = ['hero', 'gate', 'graph', 'qe', 'fleet', 'panel', 'memory'];
+
+/** Every control that switches a state: lit roles, flips, filters, switches, tabs, picks, the advise overlay. */
+const TOGGLES = [
+  '#hero .hs-pip:nth-child(3)', '#gate .pg-switch:nth-child(2)', '#gate .pg-lever', '#gate .pg-where-btn', '#gate .pg-advise-close',
+  '#gate .pg-reset', '#graph .gx-seg-btn:nth-child(2)', '#graph .gx-rename-btn', '#qe .qw-role--writer .qw-role-btn',
+  '#qe .qw-role--executor .qw-role-btn', '#qe .qw-btn', '#fleet .qf-btn[data-surf="execution"]', '#fleet .qf-btn[data-surf="insight"]',
+  '#panel .pv-opt:nth-child(3)', '#panel .pv-opt:nth-child(2)', '#memory .mq-btn--ok', '#memory .mq-btn--drop', '#toolkit #dom-product',
+  '#toolkit #dom-work-shapes', '#toolkit #dom-qe', '#extend .xp-pick:nth-child(3)', '#install #ib-tab-plugin',
+];
+
+async function sectionBoxes(page: Page) {
+  return page.evaluate(() => Array.from(document.querySelectorAll('main > section')).map((s) => {
+    const r = s.getBoundingClientRect();
+    return [s.id, Math.round(r.top + scrollY), Math.round(r.height)] as [string, number, number];
+  }));
+}
+
+/** Visible text in a section that intersects other visible text (a moving chip over a label, a regrouping tile
+ *  over its neighbour, copy squeezed into the next box). Each line fragment of an inline element is its own box;
+ *  pairs that turn together under one transform are one piece; inert content (what an open overlay covers and
+ *  takes out of reach, an unselected panel) is not on the page for this purpose. */
+async function textOverlaps(page: Page, id: string): Promise<string[]> {
+  return page.evaluate((id) => {
+    const sec = document.getElementById(id)!;
+    const shown = (e: Element) => { if (e.closest('[inert]')) return false; for (let n: Element | null = e; n && n !== sec; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.3) return false; } return true; };
+    const turned = (e: Element) => { for (let n: Element | null = e; n && n !== sec; n = n.parentElement) { if (getComputedStyle(n).transform !== 'none') return n; } return null; };
+    const items: { e: Element; rs: DOMRect[]; t: Element | null }[] = [];
+    for (const e of Array.from(sec.querySelectorAll('*'))) {
+      if (!Array.from(e.childNodes).some((n) => n.nodeType === 3 && n.textContent!.trim())) continue;
+      if (!shown(e)) continue;
+      const rs = Array.from(e.getClientRects()).filter((r) => r.width >= 2 && r.height >= 2 && r.bottom > 0 && r.top < innerHeight);
+      if (rs.length) items.push({ e, rs, t: turned(e) });
+    }
+    const out: string[] = [];
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const a = items[i], b = items[j];
+      if (a.e.contains(b.e) || b.e.contains(a.e)) continue;
+      if (a.t && a.t === b.t) continue;
+      let worst: [number, number] | null = null;
+      for (const ra of a.rs) for (const rb of b.rs) {
+        const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left), h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+        if (w > 4 && h > 4) worst = [w, h];
+      }
+      if (worst) out.push(`"${(a.e.textContent || '').trim().slice(0, 24)}" over "${(b.e.textContent || '').trim().slice(0, 24)}" (${Math.round(worst[0])}x${Math.round(worst[1])})`);
+    }
+    return out.slice(0, 6);
+  }, id);
+}
+
 for (const vp of VIEWPORTS) {
   for (const theme of THEMES) {
     test(`hover and focus stay inside their element at ${vp.width}x${vp.height} (${theme})`, async ({ page }) => {
@@ -152,34 +206,61 @@ for (const vp of VIEWPORTS) {
     });
   }
 
-  test(`auto-play never moves a section at ${vp.width}x${vp.height}`, async ({ page }) => {
-    test.setTimeout(150_000);
+  test(`auto-play moves nothing and covers no text at ${vp.width}x${vp.height}`, async ({ page }) => {
+    test.setTimeout(240_000);
     await open(page, vp, 'dark');
-    const tops = () => page.evaluate(() => Array.from(document.querySelectorAll('main > section')).map((s) => {
-      const r = s.getBoundingClientRect();
-      return [s.id, Math.round(r.top + scrollY), Math.round(r.height)] as [string, number, number];
-    }));
-    const base = await tops();
-    const tb = await page.evaluate(() => document.querySelector('.topbar')!.getBoundingClientRect().height);
-    const moved: string[] = [];
-    const parks = vp.width >= 1024 ? [0] : [0, 0.5];
+    const base = await sectionBoxes(page);
+    const problems: string[] = [];
     for (const [id] of base.slice(0, -1)) {
-      for (const at of parks) {
-        await page.evaluate(([id, tb, at]) => {
-          const s = document.getElementById(id as string)!;
-          window.scrollTo({ top: s.getBoundingClientRect().top + scrollY - (tb as number) + s.offsetHeight * (at as number), behavior: 'instant' as ScrollBehavior });
-        }, [id, tb, at] as const);
-        await page.mouse.move(vp.width - 2, vp.height - 2);
-        for (let k = 0; k < 8; k++) {
-          await page.waitForTimeout(280);
-          const cur = await tops();
-          cur.forEach((c, j) => {
-            const b = base[j];
-            if (Math.abs(b[1] - c[1]) > 1 || Math.abs(b[2] - c[2]) > 1) moved.push(`parked on #${id}: #${c[0]} top ${b[1]}->${c[1]} height ${b[2]}->${c[2]}`);
-          });
-        }
+      const playing = AUTOPLAY.includes(id);
+      // park so the section's demo is in view (a phone parks on the demo itself)
+      await page.evaluate(([id, phone]) => {
+        const s = document.getElementById(id as string)!;
+        const target = (phone ? s.querySelector('.sx-stage, .gd-hero-demo') : null) ?? s;
+        const tb = document.querySelector('.topbar')!.getBoundingClientRect().height;
+        const r = target.getBoundingClientRect();
+        window.scrollTo({ top: r.top + scrollY - (phone ? Math.max(tb, (innerHeight - r.height) / 2) : tb), behavior: 'instant' as ScrollBehavior });
+      }, [id, vp.width < 1024] as const);
+      await page.mouse.move(vp.width - 2, vp.height - 2);
+      const seen = new Set<string>();
+      // watch a playing demo for 6s (longer if a loaded runner has not shown a second state yet, up to 10s)
+      const start = Date.now();
+      const done = () => Date.now() - start > (playing ? (seen.size > 1 ? 6_000 : 10_000) : 600);
+      while (!done()) {
+        await page.waitForTimeout(300);
+        const cur = await sectionBoxes(page);
+        cur.forEach((c, j) => {
+          const b = base[j];
+          if (Math.abs(b[1] - c[1]) > 1 || Math.abs(b[2] - c[2]) > 1) problems.push(`parked on #${id}: #${c[0]} top ${b[1]}->${c[1]} height ${b[2]}->${c[2]}`);
+        });
+        for (const o of await textOverlaps(page, id)) problems.push(`#${id}: ${o}`);
+        seen.add(await page.evaluate((id) => (document.getElementById(id)!.querySelector('.sx-stage, .gd-hero-demo') as HTMLElement | null)?.innerText ?? '', id));
       }
+      // it really played: the demo showed more than one state while it was watched
+      if (playing) expect(seen.size, `#${id} never changed state while on screen`).toBeGreaterThan(1);
     }
-    expect([...new Set(moved)], moved.slice(0, 8).join('\n')).toEqual([]);
+    expect([...new Set(problems)], [...new Set(problems)].slice(0, 10).join('\n')).toEqual([]);
+  });
+
+  test(`toggled states move nothing and cover no text at ${vp.width}x${vp.height}`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await open(page, vp, 'dark');
+    const base = await sectionBoxes(page);
+    const problems: string[] = [];
+    for (const sel of TOGGLES) {
+      const el = page.locator(sel).first();
+      if (!(await el.isVisible())) continue;
+      await el.evaluate((e) => e.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }));
+      await el.click();
+      await page.waitForTimeout(1_300);
+      const cur = await sectionBoxes(page);
+      cur.forEach((c, j) => {
+        const b = base[j];
+        if (Math.abs(b[1] - c[1]) > 1 || Math.abs(b[2] - c[2]) > 1) problems.push(`after ${sel}: #${c[0]} top ${b[1]}->${c[1]} height ${b[2]}->${c[2]}`);
+      });
+      const id = await el.evaluate((e) => e.closest('section')!.id);
+      for (const o of await textOverlaps(page, id)) problems.push(`after ${sel}: ${o}`);
+    }
+    expect([...new Set(problems)], [...new Set(problems)].slice(0, 10).join('\n')).toEqual([]);
   });
 }

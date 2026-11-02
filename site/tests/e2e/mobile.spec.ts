@@ -46,8 +46,9 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
     for (const el of Array.from(document.querySelectorAll('main *'))) {
       const r = el.getBoundingClientRect();
       if (!r.width || (r.right <= innerWidth + 1 && r.left >= -1)) continue;
+      // only a container the visitor can scroll excuses it; a hidden or clip box would just cut it off
       let p = el.parentElement, inScroller = false;
-      while (p && p !== document.body) { if (/(auto|scroll|hidden|clip)/.test(getComputedStyle(p).overflowX) && p.getBoundingClientRect().right <= innerWidth + 1) { inScroller = true; break; } p = p.parentElement; }
+      while (p && p !== document.body) { if (/(auto|scroll)/.test(getComputedStyle(p).overflowX) && p.scrollWidth > p.clientWidth && p.getBoundingClientRect().right <= innerWidth + 1) { inScroller = true; break; } p = p.parentElement; }
       if (!inScroller) out.push(`${el.tagName}.${String((el as HTMLElement).className).split(' ')[0]}`);
     }
     return out;
