@@ -626,7 +626,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-foot { display: flex; align-items: center; gap: 18px; }
 .qw-foot p { flex: 1 1 auto; min-width: 0; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); }
 .qw-foot code { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-qe); background: color-mix(in oklab, var(--c-qe) 12%, transparent); padding: 1px 5px; border-radius: 5px; }
-.qw-foot-cmd { flex: 0 0 300px; }
+.qw-foot-cmd { flex: 0 0 340px; }
 
 /* ============================================================================
    04 THE FLEET

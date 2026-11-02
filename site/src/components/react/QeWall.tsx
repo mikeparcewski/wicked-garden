@@ -122,7 +122,7 @@ export default function QeWall() {
   return (
     <div className="sx sx--qe">
       <Reveal className="sx-title">
-        <p className="kicker sx-kicker qw-kicker"><span className="sx-num">03</span>the qe domain · home of the retired wicked-testing plugin’s wall and fleet</p>{/* historical */}
+        <p className="kicker sx-kicker qw-kicker"><span className="sx-num">03</span>the qe domain · absorbed wicked-testing</p>{/* historical */}
         <h2 className="sx-h2">In acceptance, <span className="sx-key">no agent grades its own homework.</span></h2>
       </Reveal>
       <Reveal className="sx-lead" delay={0.12}>
@@ -192,8 +192,8 @@ export default function QeWall() {
 
       <div className="sx-foot qw-foot">
         <p>
-          Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>. The reviewer runs as a separate
-          worker whose brief carries only evidence paths. If no separate worker can run, the verdict is{" "}
+          Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>. The reviewer is a separate worker
+          whose brief carries only evidence paths; if none can run, the verdict is{" "}
           <code>FAIL inconclusive</code>, never an inline self-review.
         </p>
         <div className="qw-foot-cmd">

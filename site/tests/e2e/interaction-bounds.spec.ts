@@ -31,11 +31,15 @@ async function open(page: Page, vp: { width: number; height: number }, theme: st
   await page.addInitScript((t) => { try { localStorage.setItem('wa-theme-v3', t); } catch { /* storage off */ } }, theme);
   await page.goto('/');
   await page.evaluate(async () => { await document.fonts.ready; });
-  // walk the page so every Reveal plays its entrance, then wait for each to settle
+  // walk the page so every Reveal plays its entrance, then wait for each to settle. A block only reveals once
+  // it has been on screen (blocks far off-screen keep waiting for the visitor), so each step waits for two
+  // rendered frames: a fixed sleep on a busy machine can skip the frame the observer samples.
   await page.evaluate(async () => {
+    const frame = () => new Promise((r) => requestAnimationFrame(() => r(null)));
     const H = document.documentElement.scrollHeight;
     for (let y = 0; y < H; y += innerHeight / 2) {
       window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior });
+      await frame(); await frame();
       await new Promise((r) => setTimeout(r, 40));
     }
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
