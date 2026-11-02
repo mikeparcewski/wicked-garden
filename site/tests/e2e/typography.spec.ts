@@ -8,10 +8,13 @@ test('the faces actually load (a computed stack alone passes even when every wof
   await page.goto('/');
   const loaded = await page.evaluate(async () => {
     await document.fonts.ready;
-    const ok = (f: string) => [...document.fonts].some((x) => x.family.replace(/"/g, '') === f && x.status === 'loaded');
-    return { sans: ok('Wicked Sans'), serif: ok('Wicked Serif'), mono: ok('JetBrains Mono') };
+    const face = (f: string, w: string) =>
+      [...document.fonts].some((x) => x.family.replace(/"/g, '') === f && x.weight === w && x.status === 'loaded');
+    // Wicked Sans is two files: Regular claims 100-499 (body), SemiBold 500-900 (headings); each must load
+    return { sansRegular: face('Wicked Sans', '100 499'), sansSemiBold: face('Wicked Sans', '500 900'),
+      serif: face('Wicked Serif', '100 900'), mono: [...document.fonts].some((x) => x.family.replace(/"/g, '') === 'JetBrains Mono' && x.status === 'loaded') };
   });
-  expect(loaded).toEqual({ sans: true, serif: true, mono: true });
+  expect(loaded).toEqual({ sansRegular: true, sansSemiBold: true, serif: true, mono: true });
 });
 
 test('the install chip: command in mono at 13px, its label in the text face', async ({ page }) => {
