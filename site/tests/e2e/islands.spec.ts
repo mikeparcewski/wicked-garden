@@ -38,17 +38,18 @@ test('HeroStamp: renders and pinning a claim shows its verdict', async ({ page }
   await expect(card).toBeVisible();
   await expect(card.getByRole('tab')).toHaveCount(4);
 
-  // Interaction: pick claim 2 ("reviewed — safe to merge" → RE-DERIVED).
+  // Interaction: pick claim 2 ("reviewed — safe to merge" → PROVED, the word the gate below stamps).
   const pip = card.getByRole('tab', { name: /^claim 2/ });
   await pip.click();
   await expect(pip).toHaveAttribute('aria-selected', 'true');
   await expect(card.locator('.hs-afford')).toContainText('driving');
   await expect(card.locator('.hs-claim')).toContainText('reviewed');
   // asserting → stamped after ~1.1s; the pinned claim keeps its stamp.
-  await expect(card.locator('.hs-mark')).toContainText('RE-DERIVED');
+  await expect(card.locator('.hs-mark')).toContainText('PROVED');
+  await expect(card.locator('.hs-head-r')).toHaveText('checked');
 });
 
-test('GraphStage: grep finds three files, the estate graph adds the event consumer, the field rename lands in 3 files', async ({ page }) => {
+test('GraphStage: on the retry change, grep finds three files, the estate graph adds the event consumer, the rename lands in 3', async ({ page }) => {
   const graph = page.locator('#graph');
   await graph.scrollIntoViewIfNeeded();
   const stage = graph.getByRole('group', { name: /grep against the estate graph/ });
@@ -58,13 +59,17 @@ test('GraphStage: grep finds three files, the estate graph adds the event consum
   await stage.getByRole('button', { name: 'estate graph' }).click();
   await expect(graph.locator('.gx-tag')).toHaveClass(/is-on/);
   await expect(graph.locator('.gx-impact .gx-result')).toContainText('notify.ts');
-  await stage.getByRole('button', { name: /rename usrName → userName/ }).click();
+  await expect(graph.locator('.gx-impact .gx-result')).toContainText('4 files affected');
+  await stage.getByRole('button', { name: /rename maxRetry → maxRetries/ }).click();
   await expect(graph.locator('.gx-new').first()).toBeVisible();
   // the old and new names are separate words with an arrow between them, never fused
-  expect((await graph.locator('.gx-file').first().innerText()).replace(/\s+/g, ' ')).toContain('usrName → userName');
+  expect((await graph.locator('.gx-file').first().innerText()).replace(/\s+/g, ' ')).toContain('maxRetry → maxRetries');
+  // the rename's count and the blast radius agree: notify.ts reads the event, not the field
   await expect(graph.locator('.gx-patch .gx-result')).toContainText('3 files touched');
-  await expect(graph.getByRole('button', { name: 'Copy command: wicked-garden-search' })).toBeVisible();
-  await expect(graph.getByRole('button', { name: 'Copy command: wicked-garden-engineering' })).toBeVisible();
+  await expect(graph.locator('.gx-patch .gx-result')).toContainText('notify.ts reads the event, not the field');
+  // README-style skill calls, pasted into an agent (not shell commands)
+  await expect(graph.getByRole('button', { name: 'Copy skill call: /wicked-garden-search blast-radius maxRetry' })).toBeVisible();
+  await expect(graph.getByRole('button', { name: 'Copy skill call: /wicked-garden-engineering-patch rename maxRetry maxRetries' })).toBeVisible();
   await graph.getByRole('button', { name: /resume auto-play/ }).click();
   await expect(graph.locator('.gx-afford')).toContainText('auto-playing');
 });
@@ -114,18 +119,24 @@ test('ProveGate: the where-it-advises detail opens inside the machine and never 
   await expect(btn).toBeFocused();
 });
 
-test('CatalogExplorer: 14 domains as tabs, qe selected first, arrow keys and the task filter', async ({ page }) => {
+test('CatalogExplorer: the skill families as tabs, qe selected first, arrow keys and the task filter', async ({ page }) => {
   const cat = page.locator('#toolkit');
   await cat.scrollIntoViewIfNeeded();
-  await expect(cat.getByRole('heading', { name: /\d{2,} skills across 14 domains\./ })).toBeVisible();
+  // hold the tour (it pauses under the pointer) so the first state is the resting one
+  await cat.locator('.cx-stage').hover();
+  // no family count: the tab list is a grouping, not a measured number (N9)
+  await expect(cat.getByRole('heading', { name: /\d{2,} skills, by what they do\./ })).toBeVisible();
   const tabs = cat.getByRole('tab');
   await expect(tabs).toHaveCount(14);
+  // the retired context (smaht) domain is gone; grounding has its own family
+  await expect(cat.locator('#dom-smaht')).toHaveCount(0);
+  await expect(cat.getByRole('tab', { name: 'grounding' })).toBeVisible();
   const qe = cat.getByRole('tab', { name: 'quality engineering' });
   await expect(qe).toHaveAttribute('aria-selected', 'true');
   const qePanel = cat.locator('#cx-panel-qe');
   await expect(qePanel).toBeVisible();
   await expect(qePanel.getByRole('link', { name: /the wall/ })).toHaveAttribute('href', '#qe');
-  await expect(qePanel.getByRole('button', { name: 'Copy command: wicked-garden-qe' })).toBeVisible();
+  await expect(qePanel.getByRole('button', { name: 'Copy skill call: /wicked-garden-qe' })).toBeVisible();
   // no hover trays: the detail is a panel in the frame; the arrow key moves the selection
   await qe.focus();
   await page.keyboard.press('ArrowRight');
@@ -139,6 +150,23 @@ test('CatalogExplorer: 14 domains as tabs, qe selected first, arrow keys and the
   await expect(cat.locator('#dom-persona')).toHaveClass(/is-miss/);
   await expect(cat.locator('.cx-peer')).toHaveCount(4);
   await expect(cat.locator('.cx-peer').first()).toContainText('wicked-estate');
+  // the gate's one required peer is named as required, never as opt-in
+  await expect(cat.locator('.cx-peer.is-required')).toContainText('wicked-vault');
+  await expect(cat.locator('.cx-family-lead')).toContainText('without it the gate fails closed');
+});
+
+test('CatalogExplorer: the tour types a task, lights its matches and opens the first; a click takes over', async ({ page }) => {
+  const cat = page.locator('#toolkit');
+  await cat.scrollIntoViewIfNeeded();
+  await page.mouse.move(2, 2);
+  await expect.poll(() => cat.locator('.cx-tab.is-hit').count(), { timeout: 8_000 }).toBeGreaterThan(0);
+  await expect(cat.locator('.cx-find-in')).toHaveAttribute('placeholder', /▍$/);
+  await expect(cat.getByRole('button', { name: 'Pause the catalog tour' })).toBeVisible();
+  await cat.locator('#dom-data').click();
+  await expect(cat.getByRole('button', { name: /resume tour/ })).toBeVisible();
+  await page.mouse.move(2, 2);
+  await page.waitForTimeout(3_000);
+  await expect(cat.locator('#dom-data')).toHaveAttribute('aria-selected', 'true');
 });
 
 test("What's new: the domain-mapping item selects the domain in the catalog, every time it is followed", async ({ page }) => {
@@ -161,17 +189,18 @@ test('ExtendPack: the extension pitch renders scaffold, rules, and the compile c
   await xp.scrollIntoViewIfNeeded();
   await expect(xp.getByRole('heading', { name: /Your domain\. Your pack\./ })).toBeVisible();
   await expectRevealed(xp.getByRole('heading', { name: /Your domain\. Your pack\./ }));
-  // the {vendor}-{domain}-{role} scaffold rows
-  await expect(xp.locator('.xp-row')).toHaveCount(3);
-  await expect(xp.locator('.xp-dir').first()).toContainText('acme-fintech/');
+  // the pack layout: the manifest, then the {vendor}-{domain} router and {vendor}-{domain}-{role} workers
+  await expect(xp.locator('.xp-row')).toHaveCount(4);
+  await expect(xp.locator('.xp-dir').first()).toHaveText('wicked-pack.json');
   await expect(xp.locator('.xp-rule')).toHaveCount(3);
   // pick another pack: the scaffold retypes and each rule lights as its row lands
   await xp.getByRole('radio', { name: 'compliance' }).click();
-  await expect(xp.locator('.xp-dir').first()).toHaveText('acme-compliance/');
+  await expect(xp.locator('.xp-dir').nth(1)).toHaveText('skills/acme-compliance/');
   await expect(xp.locator('.xp-rule.is-lit')).toHaveCount(3);
-  // Interaction: copy the prove-compile command (the garden-free gate).
+  await expect(xp.getByRole('button', { name: /resume/ })).toBeVisible();
+  // Interaction: copy the shipped conformance gate.
   await clickCopyChip(
-    xp.getByRole('button', { name: /Copy command: wicked-garden-prove compile/ }),
+    xp.getByRole('button', { name: 'Copy command: npx wicked-garden pack check .' }),
   );
 });
 
@@ -204,6 +233,25 @@ test('InstallBench: renders both install paths; copy chip gives feedback', async
     name: 'Copy command: claude plugins install wicked-garden',
   });
   await clickCopyChip(chip);
+});
+
+test('CopyChip: copying never moves or cuts the command', async ({ page }) => {
+  for (const vp of [{ width: 1440, height: 700 }, { width: 360, height: 740 }]) {
+    await page.setViewportSize(vp);
+    for (const sel of ['#install .cc', '#hero .hs-foot .cc', '#graph .gx-patch .cc', '#extend .xp-cta .cc']) {
+      const chip = page.locator(sel).first();
+      await chip.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior }));
+      const box = () => chip.locator('.cc-cmd').evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height), cut: el.scrollWidth > el.clientWidth + 1 };
+      });
+      const before = await box();
+      expect(before.cut, `${sel} cut at rest at ${vp.width}`).toBe(false);
+      await chip.click();
+      await expect(chip).toContainText('copied');
+      expect(await box(), `${sel} moved when copied at ${vp.width}`).toEqual(before);
+    }
+  }
 });
 
 test('CopyChip: click copies the command to the clipboard', async ({ page }) => {

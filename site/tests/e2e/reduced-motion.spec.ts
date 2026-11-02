@@ -28,11 +28,11 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
   const sections: Array<[string, RegExp]> = [
     ['#gate', /Play the lying agent/],
     ['#graph', /Sees what grep can’t/],
-    ['#qe', /No agent grades its own homework/],
+    ['#qe', /no agent grades its own homework/],
     ['#fleet', /Forty specialists/],
     ['#panel', /A disputed decision/],
-    ['#memory', /Agents propose/],
-    ['#toolkit', /skills across 14 domains/],
+    ['#memory', /agents propose/],
+    ['#toolkit', /skills, by what they do/],
     ['#extend', /Your domain\. Your pack\./],
     ['#install', /One command/],
   ];
@@ -53,8 +53,12 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
   await expect(page.locator('.qw-stage')).not.toHaveClass(/is-playing/);
   await expect(page.locator('#fleet .qf-afford')).toContainText('paused');
   await expect(page.locator('#fleet .qf-agent')).toHaveCount(40);
-  for (const id of ['#graph', '#panel', '#memory']) {
+  for (const id of ['#graph', '#panel', '#memory', '#toolkit', '#extend', '#install']) {
     await expect(page.locator(id).getByRole('button', { name: /^Play / })).toBeVisible();
+  }
+  // the arrival entrances never hide a stage under reduced motion
+  for (const id of ['#gate', '#toolkit', '#install']) {
+    await expect(page.locator(`${id} .sx-stage`).first()).toHaveCSS('opacity', '1');
   }
   // five seconds of nothing: the hero claim stays put
   const claim = await page.locator('.hs-claim').innerText();

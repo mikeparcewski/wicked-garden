@@ -13,8 +13,8 @@ import {
 /* ============================================================================
    THE WALL — the qe domain's one idea: the agent that runs the tests is never the
    one that grades them.
-   1. the report card: a self-graded PASS sent to an independent reviewer comes
-      back contradicted (FAIL).
+   1. the report card: the retry change's self-graded PASS, sent to an independent
+      reviewer, comes back contradicted (FAIL: a race in retry).
    2. the acceptance wall: light Writer / Executor / Reviewer to read its isolation
       copy (both copies share one reserved cell, so lighting never resizes a card).
       Evidence crosses the wall in its own lane and lands in the reviewer's inbox;
@@ -22,8 +22,11 @@ import {
       row (a column on phones), so a moving chip never covers card text. A visible
       button pauses it; it also pauses on hover, focus and off-screen, and starts
       paused under reduced motion.
-   All claims grounded in skills/qe-acceptance-test-*: per-role `allowed-tools`
-   frontmatter, `context: fork`, evidence in .wicked-qe/evidence/<run-id>/.
+   Grounded in skills/qe/SKILL.md §accept: the writer plans, the executor captures,
+   the reviewer judges from evidence paths only, as a separate worker, and no
+   separate worker = FAIL inconclusive; evidence in .wicked-qe/evidence/<run-id>/.
+   (The skills' own read-only lines are advisory text, so no tool boundary is
+   claimed here.)
 ============================================================================ */
 
 function ReportCard() {
@@ -31,20 +34,20 @@ function ReportCard() {
   return (
     <div className="qw-fig" data-revealed={revealed}>
       <div className="qw-fig-h">
-        <span>report card · same feature</span>
+        <span>report card · same change</span>
         <span>self-grade vs the wall</span>
       </div>
       <div className="qw-grades">
         <div className="qw-cell qw-cell--self">
           <span className="qw-tag">author grades itself</span>
           <div className="qw-mark">PASS</div>
-          <div className="qw-sub">100% · every time</div>
+          <div className="qw-sub">always</div>
           <span className="qw-stamp">self-reported</span>
         </div>
         <div className="qw-cell qw-cell--rev">
           <span className="qw-tag">independent reviewer</span>
           <div className="qw-mark qw-mark--rev">{revealed ? "FAIL" : "PASS"}</div>
-          <div className="qw-sub">{revealed ? "caught a real bug" : "awaiting review…"}</div>
+          <div className="qw-sub">{revealed ? "caught a race in retry" : "awaiting review…"}</div>
           <span className="qw-stamp">contradicted</span>
         </div>
       </div>
@@ -56,7 +59,7 @@ function ReportCard() {
       >
         {revealed ? "↺ Reset" : "Send it to an independent reviewer →"}
       </button>
-      <p className="qw-note">illustrative: the same feature, graded twice</p>
+      <p className="qw-note">illustrative: the same change, graded twice</p>
     </div>
   );
 }
@@ -78,9 +81,7 @@ function Role({
         <span className="qw-role-n">{role.step}</span>
         <span className="qw-role-name">{role.name}</span>
         <span className="qw-role-tools">
-          {role.tools.map((t) => (
-            <span key={t} className="qw-role-tool">{t}</span>
-          ))}
+          <span className="qw-role-tool"><span className="qw-role-tool-k">gets:</span> {role.gets}</span>
         </span>
         <span className="qw-role-copy">
           <span className="qw-role-line" aria-hidden={lit}>{role.line}</span>
@@ -119,14 +120,14 @@ export default function QeWall() {
     <div className="sx sx--qe">
       <Reveal className="sx-title">
         <p className="kicker sx-kicker qw-kicker"><span className="sx-num">03</span>the qe domain</p>
-        <h2 className="sx-h2">No agent grades its own homework.</h2>
+        <h2 className="sx-h2">In acceptance, <span className="sx-key">no agent grades its own homework.</span></h2>
       </Reveal>
-      <Reveal className="sx-lead" delay={0.04}>
+      <Reveal className="sx-lead" delay={0.12}>
         <p>
           Its acceptance pipeline never runs the reviewer inline with the test writer or the executor;
           those two also run as separate workers where the host can start them. The reviewer reads{" "}
-          <span className="qw-em">cold evidence files only</span> — never the executor’s context,
-          reasoning, or stdout.
+          <span className="qw-em">cold evidence files only</span>: never the executor’s conversation or
+          reasoning; command output reaches it only as recorded evidence.
         </p>
       </Reveal>
 
@@ -188,13 +189,13 @@ export default function QeWall() {
 
       <div className="sx-foot qw-foot">
         <p>
-          Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>. Isolation is enforced by the
-          reviewer’s <code>context: fork</code> boundary and an <code>allowed-tools: Read</code> frontmatter —
-          the verdict is re-derived from the artifacts, never asserted by the agent that produced them.
+          Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>. The reviewer runs as a separate
+          worker whose brief carries only evidence paths. If no separate worker can run, the verdict is{" "}
+          <code>FAIL inconclusive</code>, never an inline self-review.
           <span className="qw-history"> The qe domain carries the wall and the fleet of the retired wicked-testing plugin.</span>{/* historical */}
         </p>
         <div className="qw-foot-cmd">
-          <CopyChip text="wicked-garden-qe" label="try qe" />
+          <CopyChip text="/wicked-garden-qe accept" label="in your agent" kind="agent" />
         </div>
       </div>
     </div>

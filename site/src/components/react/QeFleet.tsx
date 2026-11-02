@@ -5,18 +5,18 @@ import { useAutoplay } from "./useAutoplay";
 import { QE_SPECIALISTS, QE_SURFACES, type Surface } from "../../data/garden";
 
 /* ============================================================================
-   THE FLEET — the 40 qe-* specialist fork skills, by orchestrator surface.
-   The surface filter auto-cycles until the visitor picks one; the chosen surface's
-   specialists regroup to the front and fade in where they land (a fade, not a
-   slide, so no tile ever passes over another; the grid keeps all 40, so its height
-   never changes). Hovering or focusing a tile writes its full name into
+   THE FLEET — the 40 qe-* specialist skills, by the qe router action they are
+   grouped under (plan, author, execute, review, insight). Each action has its own
+   dot colour, on its tab and on its tiles. The filter auto-cycles until the
+   visitor picks one; the chosen action's specialists regroup to the front and
+   fade in where they land (a fade, not a slide: a tile passing over another is an
+   animated overlap), the rest dim. The grid always holds all 40, at every size, so
+   its height never changes. Hovering or focusing a tile writes its full name into
    a fixed caption line under the grid: no overlays. Arrow keys move between tiles.
-   Phones: a segmented control and a two-column list of the chosen surface, in a
-   box reserved for the largest surface.
-   Every name is a real skills/qe-* dir; every specialist ships context: fork.
+   Every name is a real skills/qe-* dir.
 ============================================================================ */
 
-const ORDER: Surface[] = ["plan", "authoring", "execution", "review", "insight"];
+const ORDER: Surface[] = ["plan", "author", "execute", "review", "insight"];
 const CYCLE_MS = 2600;
 
 export default function QeFleet() {
@@ -25,31 +25,21 @@ export default function QeFleet() {
   const ap = useAutoplay(root, 0.35);
   const [surf, setSurf] = useState<Surface | "all">("all");
   const [manual, setManual] = useState(false);
-  const [compact, setCompact] = useState(false);
   const [hot, setHot] = useState<string | null>(null);
   const [cursor, setCursor] = useState<string | null>(null);
   const first = useRef(true);
 
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 640px)");
-    const on = () => setCompact(mq.matches);
-    on();
-    mq.addEventListener("change", on);
-    return () => mq.removeEventListener("change", on);
-  }, []);
-
-  // phones have no "all": the list shows one surface at a time
-  const eff: Surface | "all" = compact && surf === "all" ? "plan" : surf;
+  const eff = surf;
 
   useEffect(() => {
     if (manual || !ap.active) return;
     const id = window.setTimeout(() => {
       const i = eff === "all" ? -1 : ORDER.indexOf(eff);
-      const n = i + 1 >= ORDER.length ? (compact ? ORDER[0] : "all") : ORDER[i + 1];
+      const n = i + 1 >= ORDER.length ? "all" : ORDER[i + 1];
       setSurf(n);
     }, CYCLE_MS);
     return () => window.clearTimeout(id);
-  }, [eff, manual, ap.active, compact]);
+  }, [eff, manual, ap.active]);
 
   // regroup: the tiles fade in where they land, the chosen surface first (no tile crosses another)
   useLayoutEffect(() => {
@@ -76,11 +66,11 @@ export default function QeFleet() {
     ? QE_SPECIALISTS
     : [...QE_SPECIALISTS.filter((a) => a.s === eff), ...QE_SPECIALISTS.filter((a) => a.s !== eff)];
   const count = (k: Surface) => QE_SPECIALISTS.filter((a) => a.s === k).length;
-  const surfLine = eff === "all" ? "All 40, grouped by the surface they report to." : QE_SURFACES.find((x) => x.key === eff)?.line;
+  const surfLine = eff === "all" ? "All 40, grouped by the router action they report to." : QE_SURFACES.find((x) => x.key === eff)?.line;
   const hotAgent = hot ? QE_SPECIALISTS.find((a) => a.n === hot) : null;
 
-  // the tiles a visitor can see (phones show one surface); the roving tab stop is always one of them
-  const shownNames = (compact ? list.filter((a) => a.s === eff) : list).map((a) => a.n);
+  // the roving tab stop is always one of the tiles
+  const shownNames = list.map((a) => a.n);
   const stop = cursor && shownNames.includes(cursor) ? cursor : shownNames[0];
 
   function onGridKey(e: React.KeyboardEvent) {
@@ -107,19 +97,18 @@ export default function QeFleet() {
     <div className="sx sx--fleet">
       <Reveal className="sx-title">
         <p className="kicker sx-kicker qw-kicker"><span className="sx-num">04</span>the fleet</p>
-        <h2 className="sx-h2">Forty specialists. Five surfaces. One contract.</h2>
+        <h2 className="sx-h2"><span className="sx-key">Forty specialists,</span> five actions, one router.</h2>
       </Reveal>
-      <Reveal className="sx-lead" delay={0.04}>
+      <Reveal className="sx-lead" delay={0.12}>
         <p>
-          <span className="qw-em">40 qe-* specialist skills</span> route beneath five orchestrator surfaces
-          of the <code>wicked-garden-qe</code> router. Every specialist runs in an{" "}
-          <span className="qw-em">isolated forked context</span>. Pick a surface — see who reports to it.
+          <span className="qw-em">40 qe-* specialist skills</span>, grouped under five actions of the{" "}
+          <code>wicked-garden-qe</code> router. Pick an action to see who reports to it.
         </p>
       </Reveal>
 
       <div className="sx-stage" ref={root} {...ap.bind}>
         <div className="qf-bar">
-          <div className="qf-filter" role="tablist" aria-label="Filter specialists by orchestrator surface">
+          <div className="qf-filter" role="tablist" aria-label="Filter specialists by router action">
             <button
               type="button"
               role="tab"
@@ -128,7 +117,7 @@ export default function QeFleet() {
               aria-selected={eff === "all"}
               onClick={() => pick("all")}
             >
-              all<span className="qf-n">{QE_SPECIALISTS.length}</span>
+              all{" "}<span className="qf-n">{QE_SPECIALISTS.length}</span>
             </button>
             {QE_SURFACES.map((x) => (
               <button
@@ -140,7 +129,7 @@ export default function QeFleet() {
                 aria-selected={eff === x.key}
                 onClick={() => pick(x.key)}
               >
-                /{x.key}<span className="qf-n">{count(x.key)}</span>
+                <span className="qf-btn-dot" aria-hidden />{x.key}{" "}<span className="qf-n">{count(x.key)}</span>
               </button>
             ))}
           </div>
@@ -149,7 +138,7 @@ export default function QeFleet() {
             {manual ? (
               <button type="button" className="pg-afford-btn" onClick={resume}>▶ resume</button>
             ) : (
-              <PlayToggle paused={ap.paused} onToggle={ap.toggle} label="the surface cycle" />
+              <PlayToggle paused={ap.paused} onToggle={ap.toggle} label="the action cycle" />
             )}
           </div>
         </div>
@@ -189,9 +178,9 @@ export default function QeFleet() {
 
         <p className="qf-caption" aria-live="polite">
           {hotAgent ? (
-            <><code className="qf-cap-name">{hotAgent.n}</code><span className="qf-cap-surf">/{hotAgent.s}</span><span className="qf-cap-fork">context: fork</span></>
+            <><code className="qf-cap-name">{hotAgent.n}</code><span className="qf-cap-surf">qe {hotAgent.s}</span></>
           ) : (
-            <><b className="qf-cap-k">{eff === "all" ? "all surfaces" : `/${eff}`}</b>{" "}{surfLine}</>
+            <><b className="qf-cap-k">{eff === "all" ? "all five actions" : `qe ${eff}`}</b>{" "}{surfLine}</>
           )}
         </p>
       </div>

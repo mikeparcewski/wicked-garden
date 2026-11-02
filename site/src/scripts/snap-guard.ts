@@ -1,44 +1,47 @@
 /* ============================================================================
-   Fit guard for section snapping (site-local; the chrome's html{scroll-snap-type:
-   y proximity} stays the base).
+   Fit guard for section snapping (site-local; site.css turns the chrome's
+   html{scroll-snap-type: y proximity} off, so the page scrolls freely unless
+   this guard locks it).
    html.snap-lock turns on `y mandatory` with `scroll-snap-stop: always` on every
    section ONLY when all of these hold:
    - the viewport is at least 1024x640,
    - prefers-reduced-motion is not set,
-   - every section's content fits its frame (the hero fits the viewport; every
-     other section fits the viewport minus the fixed topbar).
+   - every section's content fits its frame. At >= 1024px every section snaps at
+     y = 0 and is one viewport tall: the fixed bar sits over the section's own top
+     padding, so the strip behind the bar is never the previous section.
    Mandatory with an overflowing section would make its lower part unreachable, so
    if any section grows past its frame (a long font fallback, a zoom level) the
-   whole page drops back to proximity. It re-checks on resize, after the fonts
+   whole page drops back to free scrolling (proximity is no fallback: it pulls
+   every small wheel step back to the section top). It re-checks on resize, after the fonts
    load, and whenever a section changes size.
-   While locked, a discrete mouse-wheel notch steps exactly one section (trackpads
-   and momentum scrolling are left to native snapping): proximity alone pulled slow
-   notches back to the section top, so the wheel could never leave the hero.
+   While locked, the wheel is driven here: every vertical wheel event is taken
+   over, its deltas are summed, and once a burst has moved 40px one section is
+   stepped; the rest of that burst (a trackpad's or a smooth wheel's momentum
+   tail) is ignored until the wheel has been quiet for 180ms (and at least
+   300ms since the step). A new burst while the page is still gliding steps on
+   from where the glide is going, so quick notches each move one more section.
+   Native mandatory snapping pulled small high-resolution deltas back to the
+   section top, so they could never leave the hero.
 ============================================================================ */
 
 const MIN_W = 1024;
 const MIN_H = 640;
-const COOLDOWN = 560;
+/** the least time between two steps (ms); a burst's tail is held off by its quiet gap, not by this */
+const COOLDOWN = 300;
 
 const root = document.documentElement;
 const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-function topbarH(): number {
-  const tb = document.querySelector(".topbar");
-  return tb ? Math.ceil(tb.getBoundingClientRect().height) : 64;
-}
 
 function sections(): HTMLElement[] {
   return [...document.querySelectorAll<HTMLElement>("main > section")];
 }
 
-/** Every section fits its frame: the first (the hero) the viewport, the rest the viewport under the bar. */
+/** Every section fits its frame: one viewport (the bar sits over each section's own top padding). */
 export function allFit(): { ok: boolean; worst: string | null } {
   const vh = window.innerHeight;
-  const frame = vh - topbarH();
   for (const [i, s] of sections().entries()) {
     const h = s.getBoundingClientRect().height;
-    if (h > (i === 0 ? vh : frame) + 1) return { ok: false, worst: s.id || `section ${i}` };
+    if (h > vh + 1) return { ok: false, worst: s.id || `section ${i}` };
   }
   return { ok: true, worst: null };
 }
@@ -48,7 +51,7 @@ function evaluate() {
   const fit = big && !reduce.matches ? allFit() : { ok: false, worst: null };
   const lock = big && !reduce.matches && fit.ok;
   root.classList.toggle("snap-lock", lock);
-  root.dataset.snap = lock ? "locked" : big && !reduce.matches ? `proximity${fit.worst ? `:${fit.worst}` : ""}` : "none";
+  root.dataset.snap = lock ? "locked" : big && !reduce.matches ? `free${fit.worst ? `:${fit.worst}` : ""}` : "none";
 }
 
 let queued = false;
@@ -61,14 +64,13 @@ function schedule() {
   });
 }
 
-/* ── one wheel notch = one section, while locked ─────────────────────────── */
+/* ── one wheel burst = one section, while locked ─────────────────────────── */
 function snapTops(): number[] {
-  const pad = topbarH();
   const max = root.scrollHeight - window.innerHeight;
   const els = [...sections(), ...document.querySelectorAll<HTMLElement>("footer")];
   const tops = els
     .filter((el) => getComputedStyle(el).scrollSnapAlign.split(" ")[0] !== "none")
-    .map((el, i) => Math.round(Math.min(max, Math.max(0, el.getBoundingClientRect().top + window.scrollY - (i === 0 ? 0 : pad)))));
+    .map((el) => Math.round(Math.min(max, Math.max(0, el.getBoundingClientRect().top + window.scrollY))));
   return [...new Set(tops)].sort((a, b) => a - b);
 }
 
@@ -84,24 +86,56 @@ function canScrollInside(target: EventTarget | null, dy: number): boolean {
   return false;
 }
 
-let last = -Infinity;
-let busyUntil = -Infinity;
+/** How far a burst must travel before it steps (px), and how long the wheel must rest to end a burst (ms). */
+const STEP_AT = 40;
+const ACC_RESET = 160;
+const TAIL_QUIET = 180;
+
+let acc = 0;
+let lastEvt = -Infinity;
+let stepAt = -Infinity;
+let latched = false;
+let goal: number | null = null;
+
+function px(e: WheelEvent): number {
+  if (e.deltaMode === 1) return e.deltaY * 40; // lines
+  if (e.deltaMode === 2) return e.deltaY * window.innerHeight; // pages
+  return e.deltaY;
+}
+
+function step(dir: number) {
+  const tops = snapTops();
+  // still gliding to the last step's stop: step on from there, not from wherever the glide is now
+  const gliding = goal !== null && Math.abs(window.scrollY - goal) > 2 && performance.now() - stepAt < 1200;
+  const y = gliding && goal !== null ? goal : window.scrollY;
+  const target = dir > 0 ? tops.find((t) => t > y + 6) : [...tops].reverse().find((t) => t < y - 6);
+  if (target === undefined) return;
+  goal = target;
+  window.scrollTo({ top: target, behavior: "smooth" });
+}
+
 function onWheel(e: WheelEvent) {
   if (!root.classList.contains("snap-lock") || e.ctrlKey || e.defaultPrevented) return;
-  const discrete = e.deltaMode !== 0 || Math.abs(e.deltaY) >= 50;
-  if (!discrete || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
   if (canScrollInside(e.target, e.deltaY)) return;
   e.preventDefault();
   const now = performance.now();
-  if (now < busyUntil || now - last < COOLDOWN) return;
-  last = now;
-  const tops = snapTops();
-  const y = window.scrollY;
-  const dir = e.deltaY > 0 ? 1 : -1;
-  const target = dir > 0 ? tops.find((t) => t > y + 6) : [...tops].reverse().find((t) => t < y - 6);
-  if (target === undefined) return;
-  busyUntil = now + COOLDOWN;
-  window.scrollTo({ top: target, behavior: "smooth" });
+  const quiet = now - lastEvt;
+  lastEvt = now;
+  if (latched) {
+    // still the burst that stepped (its momentum tail), or the step has not cooled down
+    if (quiet < TAIL_QUIET || now - stepAt < COOLDOWN) return;
+    latched = false;
+    acc = 0;
+  }
+  if (quiet > ACC_RESET) acc = 0;
+  acc += px(e);
+  if (Math.abs(acc) < STEP_AT) return;
+  const dir = acc > 0 ? 1 : -1;
+  acc = 0;
+  latched = true;
+  step(dir);
+  stepAt = now;
 }
 
 evaluate();

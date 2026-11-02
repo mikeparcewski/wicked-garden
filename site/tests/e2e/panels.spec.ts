@@ -22,6 +22,9 @@ test('PanelVote: what you have installed decides the panel, a fallback is labell
   await expect(panel.locator('.pv-afford')).toContainText('driving');
   await expect(panel.locator('.pv-vote.is-dissent')).toHaveCount(1);
   await expect(panel.locator('.pv-result')).toContainText('panel 2 of 3');
+  // the majority holds the change over the race the reviewer found; the dissent is recorded
+  await expect(panel.locator('.pv-result')).toContainText('hold');
+  await expect(panel.locator('.pv-vote.is-dissent')).toContainText('ship');
 
   await panel.getByRole('radio', { name: 'one model family' }).click();
   await expect(panel.locator('.pv-result')).toContainText('same-family workers, labelled weaker diversity');
@@ -30,7 +33,7 @@ test('PanelVote: what you have installed decides the panel, a fallback is labell
   await expect(panel.locator('.pv-result')).toContainText('no quorum');
   await expect(panel.locator('.pv-vote')).toHaveCount(3); // the rows stay reserved
   expect(await panel.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
-  await expect(panel.getByRole('button', { name: 'Copy command: wicked-garden-jam' })).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Copy skill call: /wicked-garden-jam council "ship the retry change?"' })).toBeVisible();
 });
 
 test('MemoryQueue: approve recalls it with a citation, drop leaves nothing to cite', async ({ page }) => {

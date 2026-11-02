@@ -99,7 +99,8 @@ export default function ProveGate() {
   // Escape closes the advise panel; focus returns to its toggle
   useEffect(() => {
     if (!advise) return;
-    adviseClose.current?.focus();
+    // no scroll: on a phone the panel opens as a sheet right above the link that opened it
+    adviseClose.current?.focus({ preventScroll: true });
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeAdvise(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -107,7 +108,7 @@ export default function ProveGate() {
 
   function closeAdvise() {
     setAdvise(false);
-    window.requestAnimationFrame(() => adviseBtn.current?.focus());
+    window.requestAnimationFrame(() => adviseBtn.current?.focus({ preventScroll: true }));
   }
 
   function flip(id: string) {
@@ -140,16 +141,16 @@ export default function ProveGate() {
     return "is-pending";
   };
 
-  const gateState = stamped ? "gate: re-derived" : pulled ? "gate: re-deriving" : "gate: armed";
+  const gateState = stamped ? "gate: checked" : pulled ? "gate: checking" : "gate: armed";
   const failedShort = v.failed ? CHECK_ORDER.find((x) => x.id === v.failed)?.short : null;
 
   return (
     <div className="sx sx--gate">
       <Reveal className="sx-title">
         <p className="kicker sx-kicker"><span className="sx-num">01</span>the gate</p>
-        <h2 className="sx-h2">Play the lying agent. Watch the gate refuse.</h2>
+        <h2 className="sx-h2">Play the lying agent. Watch the gate <span className="sx-key">refuse.</span></h2>
       </Reveal>
-      <Reveal className="sx-lead" delay={0.04}>
+      <Reveal className="sx-lead" delay={0.12}>
         <p>
           <b>Proof, not claims.</b> Run the proof gate and “done” is re-checked from evidence: an
           unsupported claim is rejected, and by default the gate fails closed if its checks cannot run
@@ -171,7 +172,7 @@ export default function ProveGate() {
           <div className="pg-head">
             <span className="pg-claimline">
               <span className="pg-claim-k">claim</span>{" "}
-              <code className="pg-claim-v">build: all acceptance tests pass</code>
+              <code className="pg-claim-v">the retry change: all acceptance tests pass</code>
             </span>
             <span className="pg-state">{gateState}</span>
           </div>
@@ -186,7 +187,11 @@ export default function ProveGate() {
                     <span className="pg-toggle" aria-hidden />
                     <span className="pg-switch-body">
                       <span className="pg-switch-label">{c.label}</span>
-                      <span className="pg-switch-cond">{on ? c.on : c.off}</span>
+                      {/* both copies in one cell: the switch is as tall as its longer copy, on or off */}
+                      <span className="pg-switch-cond">
+                        <span className={`pg-cond${on ? " is-on" : ""}`} aria-hidden={!on}>{c.on}</span>
+                        <span className={`pg-cond${on ? "" : " is-on"}`} aria-hidden={on}>{c.off}</span>
+                      </span>
                     </span>
                   </button>
                 );
@@ -215,7 +220,7 @@ export default function ProveGate() {
                   ) : (
                     <span className="pg-stamp-idle">
                       {pulled
-                        ? "re-deriving…"
+                        ? "checking the evidence…"
                         : "pull the lever — the gate re-runs the verifier, re-hashes the recording and checks the vault is there"}
                     </span>
                   )}

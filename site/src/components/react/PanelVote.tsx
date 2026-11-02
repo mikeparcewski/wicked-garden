@@ -10,11 +10,13 @@ import { useAutoplay } from "./useAutoplay";
    isolated same-family workers, labelled weaker diversity; short of two workers,
    no quorum and no verdict). Pick what you have installed and watch the panel
    form. Three vote rows are always reserved, so switching never resizes it.
-   The agent names and votes are illustrative.
+   The agent names and votes are illustrative; the question is the retry change the
+   page follows, and the panel holds it over the race the reviewer found.
 ============================================================================ */
 
 type Mode = "several" | "family" | "none";
-interface Vote { who: string; v: string; dissent?: boolean }
+/** tone colours the vote by what it says (hold = warn, ship = pass); a dissent is marked, not recoloured */
+interface Vote { who: string; v: string; tone: "is-pass" | "is-warn"; dissent?: boolean }
 
 const MODES: { id: Mode; label: string }[] = [
   { id: "several", label: "several other agents" },
@@ -24,20 +26,20 @@ const MODES: { id: Mode; label: string }[] = [
 
 const VOTES: Record<Mode, (Vote | null)[]> = {
   several: [
-    { who: "codex", v: "ship" },
-    { who: "antigravity", v: "ship" },
-    { who: "opencode", v: "blocks: race in retry", dissent: true },
+    { who: "codex", v: "hold: race in retry", tone: "is-warn" },
+    { who: "antigravity", v: "hold: race in retry", tone: "is-warn" },
+    { who: "opencode", v: "ship", tone: "is-pass", dissent: true },
   ],
   family: [
-    { who: "same family · worker 1", v: "ship" },
-    { who: "same family · worker 2", v: "blocks: race in retry", dissent: true },
+    { who: "same family · worker 1", v: "hold: race in retry", tone: "is-warn" },
+    { who: "same family · worker 2", v: "ship", tone: "is-pass", dissent: true },
     null,
   ],
-  none: [{ who: "one worker available", v: "—" }, null, null],
+  none: [{ who: "one worker available", v: "—", tone: "is-pass" }, null, null],
 };
 
 const RESULT: Record<Mode, { k: string; t: string; cls: string }> = {
-  several: { k: "panel 2 of 3", t: "ship · 1 dissent surfaced: a race in retry", cls: "is-pass" },
+  several: { k: "panel 2 of 3", t: "hold · the race in retry; 1 dissent recorded (ship)", cls: "is-warn" },
   family: { k: "weaker diversity", t: "same-family workers, labelled weaker diversity", cls: "is-warn" },
   none: { k: "no quorum", t: "fewer than two workers: no verdict", cls: "is-fail" },
 };
@@ -86,9 +88,9 @@ export default function PanelVote() {
     <div className="sx sx--panel">
       <Reveal className="sx-title">
         <p className="kicker sx-kicker"><span className="sx-num">05</span>a second opinion</p>
-        <h2 className="sx-h2">A disputed decision gets a second opinion.</h2>
+        <h2 className="sx-h2">A disputed decision gets a <span className="sx-key">second opinion.</span></h2>
       </Reveal>
-      <Reveal className="sx-lead" delay={0.04}>
+      <Reveal className="sx-lead" delay={0.12}>
         <p>
           When a decision is disputed, a review panel weighs in using the other agents you have
           installed; a same-family fallback is labelled, and without a quorum it gives no verdict.
@@ -100,7 +102,7 @@ export default function PanelVote() {
           <div className="pv-left">
             <div className="pv-q">
               <span className="pv-q-k">disputed</span>
-              <span className="pv-q-t">ship the retry change? the builder says yes, a reviewer says no</span>
+              <span className="pv-q-t">ship the retry change? the builder says yes, the reviewer found a race</span>
             </div>
             <p className="pv-sel-h" id="pv-sel-h">agents you have installed</p>
             <div className="pv-sel" role="radiogroup" aria-labelledby="pv-sel-h" onKeyDown={onRadioKey}>
@@ -133,8 +135,8 @@ export default function PanelVote() {
             <ol className="pv-votes" key={`v-${mode}-${nonce}`} aria-live="polite">
               {VOTES[mode].map((x, n) =>
                 x ? (
-                  <li key={n} className={`pv-vote${x.dissent ? " is-dissent" : ""}`} style={{ ["--d" as string]: `${n * 0.32}s` }}>
-                    <span className="pv-who">{x.who}</span>
+                  <li key={n} className={`pv-vote ${x.tone}${x.dissent ? " is-dissent" : ""}`} style={{ ["--d" as string]: `${n * 0.32}s` }}>
+                    <span className="pv-who">{x.who}{x.dissent ? <span className="pv-dis"> · dissent</span> : null}</span>
                     <span className="pv-v">{x.v}</span>
                   </li>
                 ) : (
@@ -149,7 +151,7 @@ export default function PanelVote() {
               <span className="pv-result-k">{r.k}</span>
               <span className="pv-result-t">{r.t}</span>
             </div>
-            <div className="pv-cmd"><CopyChip text="wicked-garden-jam" label="try the panel" /></div>
+            <div className="pv-cmd"><CopyChip text={'/wicked-garden-jam council "ship the retry change?"'} label="in your agent" kind="agent" /></div>
           </div>
         </div>
       </div>

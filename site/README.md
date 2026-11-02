@@ -33,18 +33,11 @@ npm run preview    # serve the production build locally
 
 ## Editing content
 
-All copy lives in **one file**: [`src/data/projects.ts`](src/data/projects.ts).
-
-- `ROLES` — the four garden roles (The gate / The floor / The layers / Solo beds)
-- `PROJECTS` — each tool's `role`, `kicker`, `tagline`, **`outcome`** (the headline
-  result), `blurb`, `points`, `install`, `repo`, `badges`
-- `TOUR` — the seven Garden Tour stops (one per tool): kicker, marker-swiped
-  headline, narrative, unlock caption, and whether the stop is pre-planted
-  (`locked`) or `optin`
-
-Add, remove, or re-role a tool there and the tour and footer update
-automatically — counts included. Planted-kit state persists in `localStorage`
-under `wicked-kit`.
+The page's data lives in [`src/data/garden.ts`](src/data/garden.ts) (the hero claims, the gate's
+conditions, the QE fleet, the catalog's skill families, the peers, the example packs, What's new);
+each section's own words live in its island under `src/components/react/`. Counts are measured at
+build time (`astro.config.mjs`: the SKILL.md count, the version, the work-shapes), never typed.
+The messaging source of truth is the program's COPY and CAPABILITIES docs (rules N1-N10).
 
 ## Deploy (GitHub Pages)
 
@@ -77,14 +70,13 @@ SITE_URL=https://wicked.dev BASE_PATH=/ npm run build
 
 ```
 src/
-  data/projects.ts        ← single source of content
-  layouts/Base.astro      ← <head>, fonts, meta/OG, no-flash theme script
-  components/
-    Header.astro Footer.astro
-    react/                ← islands: ThemeToggle, Hero, Manifesto, GardenTour,
-                            GardenBench, Reveal, Marker (word-vines), CopyChip
-  styles/global.css       ← design tokens (light/dark), Tailwind theme, effects
-  pages/index.astro       ← composes the sections
+  data/garden.ts          ← the page's data
+  components/react/       ← one island per frame (HeroStamp, ProveGate, GraphStage, QeWall, QeFleet,
+                            PanelVote, MemoryQueue, CatalogExplorer, ExtendPack, InstallBench),
+                            plus CopyChip, PlayToggle, Reveal and useAutoplay
+  scripts/                ← snap-guard (section snapping and the wheel), story-token, section-enter
+  styles/site.css         ← the frames and stages; global.css ← tokens, trellis, Tailwind theme
+  pages/index.astro       ← composes the sections (chrome from wicked-web)
 ```
 
 ## Accessibility

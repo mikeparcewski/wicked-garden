@@ -32,7 +32,7 @@ test('QeWall: the reveal-reviewer flip contradicts a self-graded PASS', async ({
   await btn.click();
   await expect(fig).toHaveAttribute('data-revealed', 'true');
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
-  await expect(fig).toContainText('caught a real bug');
+  await expect(fig).toContainText('caught a race in retry');
   // no unmeasured rate rides along with the flip (N9)
   await expect(fig).not.toContainText('80%');
 
@@ -63,14 +63,10 @@ test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ 
   await expect(reviewer).not.toHaveClass(/is-lit/);
   expect(await writer.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
 
-  // per-role tool boundaries from the skills' allowed-tools frontmatter
-  await expect(writer.locator('.qw-role-tool')).toHaveText(['Read', 'Grep', 'Glob', 'Skill']);
-  await expect(reviewer.locator('.qw-role-tool')).toHaveText(['Read']);
-  await expect(stage.locator('[data-role="executor"] .qw-role-tool')).toHaveText([
-    'Read',
-    'Write',
-    'Bash',
-  ]);
+  // what each role is handed (skills/qe §accept), not a tool list no host enforces
+  await expect(writer.locator('.qw-role-tool')).toHaveText('gets: the scenario');
+  await expect(stage.locator('[data-role="executor"] .qw-role-tool')).toHaveText('gets: the plan');
+  await expect(reviewer.locator('.qw-role-tool')).toHaveText('gets: evidence paths only');
 });
 
 test('QeWall: evidence crosses into the reviewer inbox, and a visible button pauses it', async ({ page }) => {
@@ -118,8 +114,8 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   const fleet = page.locator('#fleet');
   await fleet.scrollIntoViewIfNeeded();
 
-  // /review carries the acceptance reviewer + 5 peers = 6 specialists
-  const reviewTab = fleet.getByRole('tab', { name: /\/review/ });
+  // review carries the acceptance reviewer + 5 peers = 6 specialists; the tab names the router action
+  const reviewTab = fleet.getByRole('tab', { name: 'review 6' });
   await expect(reviewTab).toContainText('6');
   await reviewTab.click();
   await expect(reviewTab).toHaveClass(/is-on/);
@@ -148,16 +144,24 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   await expect(grid).not.toHaveClass(/is-filtered/);
 });
 
-test('qe band: the wall copy grounds the contract (fork isolation, evidence dir)', async ({
+test('qe band: the wall copy names the real mechanism (a separate worker, evidence paths, FAIL inconclusive)', async ({
   page,
 }) => {
   const qe = page.locator('#qe');
   await qe.scrollIntoViewIfNeeded();
-  await expect(qe.getByRole('heading', { name: /No agent grades its own homework/ })).toBeVisible();
-  await expect(qe.locator('.qw-foot')).toContainText('.wicked-qe/evidence/');
-  await expect(qe.locator('.qw-foot')).toContainText('context: fork');
-  await expect(qe.locator('.qw-foot')).toContainText('allowed-tools: Read');
+  await expect(qe.getByRole('heading', { name: /In acceptance, no agent grades its own homework/ })).toBeVisible();
+  const foot = qe.locator('.qw-foot');
+  await expect(foot).toContainText('.wicked-qe/evidence/');
+  await expect(foot).toContainText('separate worker whose brief carries only evidence paths');
+  await expect(foot).toContainText('FAIL inconclusive');
+  // no qe skill carries fork or tool frontmatter any more (removed going cross-CLI): never claimed
+  for (const id of ['#qe', '#fleet', '#extend']) {
+    const text = await page.locator(id).innerText();
+    expect(text, id).not.toContain('context: fork');
+    expect(text, id).not.toContain('allowed-tools');
+    expect(text, id).not.toMatch(/forked context/);
+  }
   await expect(
-    qe.getByRole('button', { name: 'Copy command: wicked-garden-qe' }),
+    qe.getByRole('button', { name: 'Copy skill call: /wicked-garden-qe accept' }),
   ).toBeVisible();
 });

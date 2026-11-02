@@ -18,7 +18,8 @@ const VIEWPORTS = [
   { width: 390, height: 844 },
 ];
 
-const LABELS = ['.hs-tick-name', '.pg-chip-name', '.qw-fig-h > span'];
+/** plus every command (they wrap, never cut), the fleet's tile names, and the gate's shown condition lines */
+const LABELS = ['.hs-tick-name', '.pg-chip-name', '.qw-fig-h > span', '.cc-cmd', '.qf-agent-name', '.pg-cond.is-on'];
 
 for (const vp of VIEWPORTS) {
   test(`check names and report-card labels read in full at ${vp.width}x${vp.height}`, async ({ page }) => {

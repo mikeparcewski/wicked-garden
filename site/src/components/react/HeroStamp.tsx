@@ -7,14 +7,15 @@ import { CLAIMS, CHECK_ORDER } from "../../data/garden";
 /* ── The hero proof, made kinetic ────────────────────────────────────────────
    An agent asserts a claim. The gate runs its checks in its real order (vault,
    verifier, hash, attestation: ProveGate derive()), each tick filling in, and the
-   verdict slams in its status colour: RE-DERIVED = pass, REJECTED = fail,
-   FAILS CLOSED = warn. It cycles four claims (mixed verdicts, because the point is
+   verdict slams in its status colour: PROVED = pass, REJECTED = fail,
+   FAILS CLOSED = warn (the same words the gate below stamps). Its first claim is
+   the one the page follows: the retry change. It cycles four claims (mixed verdicts, because the point is
    that it CHECKS). Pauses on hover, on focus and off-screen; a pip pins a claim;
    reduced motion starts paused on a stamped claim. The card's height is fixed, so
    the cycle never moves the page. */
 
 const VERDICT_CLASS: Record<string, string> = {
-  "RE-DERIVED": "is-pass",
+  PROVED: "is-pass",
   REJECTED: "is-fail",
   "FAILS CLOSED": "is-warn",
 };
@@ -77,7 +78,7 @@ export default function HeroStamp() {
     return "is-pending";
   };
 
-  const state = stamped ? "re-derived" : step === 0 ? "asserted" : "checking";
+  const state = stamped ? "checked" : step === 0 ? "asserted" : "checking";
   const vcls = VERDICT_CLASS[c.verdict];
 
   return (
@@ -99,7 +100,7 @@ export default function HeroStamp() {
         {c.claim}
         <span className="hs-claim-q" aria-hidden>”</span>
       </div>
-      <div className="hs-asserted">the agent asserted this. the gate doesn’t trust the stamp.</div>
+      <div className="hs-asserted">the agent says so. the gate checks the evidence itself.</div>
 
       <ol className="hs-ticks" aria-label="the gate's checks, in order">
         {CHECK_ORDER.map((x, k) => {
@@ -122,7 +123,7 @@ export default function HeroStamp() {
             <span className="hs-reason">{c.reason}</span>
           </div>
         ) : (
-          <span className="hs-idle">re-deriving from evidence…</span>
+          <span className="hs-idle">checking the evidence…</span>
         )}
       </div>
 
@@ -147,7 +148,11 @@ export default function HeroStamp() {
       </div>
 
       <div className="hs-foot">
-        <CopyChip text="wicked-garden-prove" label="try prove" />
+        <CopyChip text="/wicked-garden-prove" label="in your agent" kind="agent" />
+        <p className="gd-hero-call">
+          Call a skill by name: in Claude Code, <code>/wicked-garden-prove</code>; in Codex, OpenCode, Pi or
+          Antigravity, ask your agent to use <code>wicked-garden-prove</code>.
+        </p>
       </div>
     </div>
   );

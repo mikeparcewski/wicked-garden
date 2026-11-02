@@ -122,11 +122,14 @@ async function probe(page: Page, i: number, rest: number[] | null): Promise<{ bo
 /** The sections whose demo plays by itself, and how long one full cycle of its states takes (ms): each is
  *  watched for that long, so its tallest state is reached (the QE inbox fills at 10.4s, the panel's third mode
  *  at 9.2s), and must show more than one state. */
-const AUTOPLAY: Record<string, number> = { hero: 19_000, gate: 24_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000 };
+const AUTOPLAY: Record<string, number> = {
+  hero: 19_000, gate: 30_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000,
+  toolkit: 11_000, extend: 15_000, install: 8_000,
+};
 
 /** The verdicts a full cycle must show: the hero cycles four claims, the gate four scripts. */
 const VERDICTS: Record<string, { sel: string; words: string[] }> = {
-  hero: { sel: '#hero .hs-word', words: ['REJECTED', 'RE-DERIVED', 'FAILS CLOSED'] },
+  hero: { sel: '#hero .hs-word', words: ['REJECTED', 'PROVED', 'FAILS CLOSED'] },
   gate: { sel: '#gate .pg-mark-word', words: ['PROVED', 'REJECTED', 'FAILS CLOSED'] },
 };
 
@@ -137,9 +140,10 @@ const MOTION_VIEWPORTS = [...VIEWPORTS, { width: 1024, height: 700 }];
 const TOGGLES = [
   '#hero .hs-pip:nth-child(3)', '#gate .pg-switch:nth-child(2)', '#gate .pg-lever', '#gate .pg-where-btn', '#gate .pg-advise-close',
   '#gate .pg-reset', '#graph .gx-seg-btn:nth-child(2)', '#graph .gx-rename-btn', '#qe .qw-role--writer .qw-role-btn',
-  '#qe .qw-role--executor .qw-role-btn', '#qe .qw-btn', '#fleet .qf-btn[data-surf="execution"]', '#fleet .qf-btn[data-surf="insight"]',
+  '#qe .qw-role--executor .qw-role-btn', '#qe .qw-btn', '#fleet .qf-btn[data-surf="execute"]', '#fleet .qf-btn[data-surf="insight"]',
   '#panel .pv-opt:nth-child(3)', '#panel .pv-opt:nth-child(2)', '#memory .mq-btn--ok', '#memory .mq-btn--drop', '#toolkit #dom-product',
   '#toolkit #dom-work-shapes', '#toolkit #dom-qe', '#extend .xp-pick:nth-child(3)', '#install #ib-tab-plugin',
+  '#gate .pg-switch:nth-child(3)', '#gate .pg-switch:nth-child(4)', '#install .cc', '#extend .xp-cta .cc',
 ];
 
 async function sectionBoxes(page: Page) {

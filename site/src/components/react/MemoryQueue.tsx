@@ -6,11 +6,14 @@ import { useAutoplay } from "./useAutoplay";
 import { TOOLS, NEW_IN, NEW_RELEASE } from "../../data/garden";
 
 /* ============================================================================
-   Memory you approve — the estate-backed memory and its propose surface.
-   An agent's proposal slides into your queue; Approve or Drop it. Approved, a
-   later session's question recalls it with a citation; dropped, there is nothing
-   to cite. Three fixed columns, so no state resizes the stage. The decision text
-   is illustrative. The section foot carries what's new in this release.
+   Memory with a source — the estate-backed memory and its propose surface. In a
+   wicked-crew job an agent can only propose (skills/mem: a seat is read-only, so
+   `store` is refused and `propose` lands pending); outside one, your agent stores
+   directly. The proposal is the retry change's decision; it slides into your
+   queue; Approve or Drop it. Approved, a later session's question recalls it with
+   a citation; dropped, there is nothing to cite. Three fixed columns, so no state
+   resizes the stage. The decision text is illustrative. The section foot carries
+   what's new in this release.
 ============================================================================ */
 
 type Fate = "pending" | "approved" | "dropped";
@@ -59,21 +62,21 @@ export default function MemoryQueue() {
   return (
     <div className="sx sx--memory">
       <Reveal className="sx-title">
-        <p className="kicker sx-kicker"><span className="sx-num">06</span>memory you approve</p>
-        <h2 className="sx-h2">Agents propose. You approve.</h2>
+        <p className="kicker sx-kicker"><span className="sx-num">06</span>memory with a source</p>
+        <h2 className="sx-h2">In a crew job, agents propose. <span className="sx-key">You approve.</span></h2>
       </Reveal>
-      <Reveal className="sx-lead" delay={0.04}>
+      <Reveal className="sx-lead" delay={0.12}>
         <p>{mem.fill}</p>
       </Reveal>
 
       <div className="sx-stage">
         <div ref={root} className={`mq-stage mq--${fate}`} {...ap.bind} role="group" aria-label="Live demo: an agent's memory proposal waits for your approval">
           <div className="mq-col mq-propose">
-            <span className="mq-col-h">1 · the agent proposes</span>
+            <span className="mq-col-h">1 · an agent in a crew job proposes</span>
             <div className={`mq-card${queued ? " is-sent" : ""}`} key={`p-${cyc}`}>
               <span className="mq-kind">decision · proposed</span>
-              <span className="mq-text">“WAL mode for the ledger — fsync JSON first”</span>
-              <span className="mq-src">source: <code>ledger.ts</code> · witnessed in this job</span>
+              <span className="mq-text">“cap retries at 1 until the race in retry is fixed”</span>
+              <span className="mq-src">source: <code>retry.ts</code> · witnessed in this job</span>
             </div>
           </div>
 
@@ -82,7 +85,7 @@ export default function MemoryQueue() {
             <div className={`mq-slot${queued ? " is-full" : ""} is-${fate}`}>
               {queued ? (
                 <>
-                  <span className="mq-slot-text">WAL mode for the ledger</span>
+                  <span className="mq-slot-text">cap retries at 1</span>
                   <span className="mq-slot-state">{fate === "pending" ? "waiting for you" : fate}</span>
                 </>
               ) : (
@@ -97,11 +100,11 @@ export default function MemoryQueue() {
 
           <div className="mq-col mq-later">
             <span className="mq-col-h">3 · three weeks later, a new session</span>
-            <div className={`mq-ask${later ? " is-on" : ""}`}>“why did we pick WAL again?”</div>
+            <div className={`mq-ask${later ? " is-on" : ""}`}>“why do we cap retries at 1?”</div>
             <div className={`mq-answer${later ? " is-on" : ""} is-${fate}`} aria-live="polite">
               {later && fate === "approved" ? (
                 <>
-                  <span className="mq-answer-tag">recalled</span> crash-safe writes without a server — decided 3 weeks ago{" "}
+                  <span className="mq-answer-tag">recalled</span> a race in retry: the panel held the change until it is fixed, decided 3 weeks ago{" "}
                   <span className="mq-cite">[cited · estate record]</span>
                 </>
               ) : later && fate === "dropped" ? (
@@ -110,7 +113,7 @@ export default function MemoryQueue() {
                 <span className="mq-answer-wait">the answer cites what you approved</span>
               )}
             </div>
-            <div className="mq-cmd"><CopyChip text={mem.cmd} label="copy" /></div>
+            <div className="mq-cmd"><CopyChip text={mem.cmd} label="in your agent" kind="agent" /></div>
           </div>
 
           <div className="mq-afford">

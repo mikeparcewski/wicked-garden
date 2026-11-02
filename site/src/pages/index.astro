@@ -2,11 +2,12 @@
 /**
  * index.astro — wicked-garden (wg.wickedagile.com), the CAPABILITY deep-dive.
  *
- * v2: one claim followed through ten frames. The hero's agent claims "build: all
- * acceptance tests pass"; each section shows another way garden checks it (the gate
- * re-derives it, the graph shows what it touches, the QE wall has someone else judge
- * it, the panel settles a dispute, memory records the decision for you to approve),
- * then the catalog, the extension contract and the install. Every section is one
+ * v2: one change followed through the frames. The hero's agent claims "the retry
+ * change: all acceptance tests pass"; each section checks that same change another
+ * way (the gate rejects the claim, the graph finds the 4 files it affects, the QE
+ * reviewer reads the evidence cold and finds a race, the panel holds the change, and
+ * memory records the decision for you to approve), then the catalog, the extension
+ * contract and the install. The demo data is illustrative. Every section is one
  * frame that snaps (src/scripts/snap-guard.ts locks it only while every frame fits)
  * and every demo reserves its tallest state. The qe bands (#qe / #fleet) carry the
  * retired wicked-testing site's story; wt.wickedagile.com redirects to #qe. // historical
@@ -31,28 +32,37 @@ import CatalogExplorer from "../components/react/CatalogExplorer.tsx";
 import ExtendPack from "../components/react/ExtendPack.tsx";
 import InstallBench from "../components/react/InstallBench.tsx";
 
-// The story spine: the token in the left gutter follows the hero's first claim down the page.
-// Each step names how that section checks it (illustrative labels, like the demos).
+// The story spine: the token in the left gutter follows the retry change down the page.
+// Each step names what that section found (illustrative, like the demos).
 const STORY = [
-  { s: "hero", t: "claimed by the agent" },
-  { s: "gate", t: "re-derived" },
-  { s: "graph", t: "3 files touched" },
-  { s: "qe", t: "reviewed cold" },
-  { s: "panel", t: "panel 2 of 3" },
-  { s: "memory", t: "memory proposed" },
+  { s: "hero", t: "claimed done by the agent" },
+  { s: "gate", t: "rejected: 2 never ran" },
+  { s: "graph", t: "4 files affected" },
+  { s: "qe", t: "reviewer: FAIL, a race" },
+  { s: "panel", t: "panel: hold, 2 of 3" },
+  { s: "memory", t: "decision proposed" },
+];
+
+// What's inside: the five things garden does, each a link to its frame (COPY rev 5 §5 phrases).
+const INSIDE = [
+  { href: "#gate", t: "Proof gate" },
+  { href: "#graph", t: "Graph search and renames (with wicked-estate)" },
+  { href: "#qe", t: "40 QE specialists" },
+  { href: "#panel", t: "A review panel for disputes" },
+  { href: "#memory", t: "Memory with a source" },
 ];
 ---
 
 <Base
   title="wicked-garden — the tools your coding agent can't build alone"
-  description={`wicked-garden is the skill catalog of the wicked platform: the tools your coding agent can't build alone. A proof gate re-checks "done" from evidence instead of taking the agent's word; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a review panel of your other agents, with a labelled same-family fallback, weighs in on disputed decisions; estate-backed memory where agents suggest and you approve. ${G.skills} skills across ${G.domains} domains, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
+  description={`wicked-garden is the skill catalog of the wicked family: the tools your coding agent can't build alone. A proof gate re-checks "done" from evidence instead of taking the agent's word; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a review panel of your other agents, with a labelled same-family fallback, weighs in on disputed decisions; estate-backed memory with cited answers, where in a crew job agents propose and you approve. ${G.skills} skills, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
   bodyClass="has-grain"
 >
   <Topbar pkg="wicked-garden" repo="https://github.com/mikeparcewski/wicked-garden" />
   <main>
     <div class="st-token" aria-hidden="true" data-step="hero">
-      <span class="st-k">one claim, followed</span>
-      <code class="st-claim">build: all acceptance tests pass</code>
+      <span class="st-k">one change, followed</span>
+      <code class="st-claim">the retry change</code>
       <span class="st-status">
         {STORY.map((x) => <span class="st-line" data-s={x.s}>{x.t}</span>)}
       </span>
@@ -85,13 +95,18 @@ const STORY = [
           <div class="gd-hero-install">
             <p class="gd-hero-install-label">load out garden and its peers — one command</p>
             <CopyChip client:load text="npx wicked-installer" label="copy" />
-            <p class="gd-hero-install-note">interactive · picks your products across CLIs · direct install below</p>
+            <p class="gd-hero-install-note">interactive · detects your CLIs · installs what you pick</p>
           </div>
+          <nav class="gd-hero-inside" aria-labelledby="inside-k">
+            <span class="gd-hero-inside-k" id="inside-k">what’s inside</span>
+            <ul>
+              {INSIDE.map((x) => <li><a href={x.href}>{x.t}</a></li>)}
+            </ul>
+          </nav>
           <ul class="gd-hero-stats">
             <li><b>{G.skills}</b> skills</li>
-            <li><b>{G.domains}</b> domains</li>
             <li><b>{G.qeSpecialists}</b> QE specialists</li>
-            <li><b>{G.workShapes}</b> work-shapes</li>
+            <li><a href="#dom-work-shapes"><b>{G.workShapes}</b> work-shapes</a></li>
             <li><b>MIT</b> · local-first</li>
           </ul>
         </div>
@@ -123,12 +138,12 @@ const STORY = [
       <PanelVote client:load />
     </section>
 
-    <!-- ── MEMORY YOU APPROVE (+ what's new) ─────────────────────────────── -->
+    <!-- ── MEMORY WITH A SOURCE (+ what's new) ───────────────────────────── -->
     <section id="memory" class="gd-section" data-token="memory">
       <MemoryQueue client:load />
     </section>
 
-    <!-- ── THE CATALOG EXPLORER (14 domains) ─────────────────────────────── -->
+    <!-- ── THE CATALOG EXPLORER (the skill families) ──────────────────────── -->
     <section id="toolkit" class="gd-section gd-band" data-token="off">
       <CatalogExplorer client:load />
     </section>
@@ -155,4 +170,5 @@ const STORY = [
 <script>
   import "../scripts/snap-guard.ts";
   import "../scripts/story-token.ts";
+  import "../scripts/section-enter.ts";
 </script>

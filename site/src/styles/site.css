@@ -19,6 +19,8 @@
   --sec-pad: clamp(16px, 3vh, 40px);
   /* the content height a framed section has: the viewport, minus the bar, minus its padding */
   --avail: calc(100svh - var(--topbar-h) - 2 * var(--sec-pad));
+  /* what the bigger desktop titles take from a stage (two lines of the extra size) */
+  --h2-extra: calc(2.2 * (var(--h2, 28px) - 28px));
 }
 [data-theme="light"] { --glow: 0; }
 .is-pass { --v: var(--c-pass); }
@@ -26,32 +28,41 @@
 .is-warn { --v: var(--c-warn); }
 
 /* ── Frames and snapping ────────────────────────────────────────────────────
-   Every section is one frame: the hero fills the viewport (the fixed bar sits
-   over its top padding), every other section fills the viewport under the bar,
-   so a section snapped under the bar shows exactly its frame. The base snap is
-   the chrome's `y proximity`; scripts/snap-guard.ts adds html.snap-lock
-   (mandatory, one stop per section) only while every section fits its frame at
-   >= 1024x640 without reduced motion. Below 1024px wide and under reduced motion
-   nothing snaps. This file owns scroll-snap-type for the site: the chrome
-   declares it earlier, so each off-switch is mirrored here. */
-html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
+   Every section is one frame of one viewport, and at >= 1024px it snaps at
+   y = 0: the fixed bar sits over the section's own top padding, so what shows
+   behind the bar at a stop is the section itself, never the bottom of the one
+   before. scripts/snap-guard.ts adds html.snap-lock (mandatory, one stop per
+   section, the wheel driven a burst at a time) only while every section fits
+   its frame at >= 1024x640 without reduced motion. Anywhere else nothing snaps:
+   the chrome's `y proximity` is overridden, because proximity pulls every small
+   wheel or trackpad step back to the section top, so the page could not be
+   scrolled at all with a high-resolution wheel. Below 1024px wide anchors land
+   under the bar. This file owns scroll-snap-type for the site. */
+html { scroll-snap-type: none; scroll-padding-top: 0; }
 html.snap-lock { scroll-snap-type: y mandatory; }
 html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: always; }
 .gd-section {
   position: relative;
-  min-height: calc(100svh - var(--topbar-h));
+  min-height: 100svh;
   scroll-snap-align: start;
   display: flex; flex-direction: column; justify-content: safe center;
-  padding-block: var(--sec-pad);
+  padding-top: calc(var(--topbar-h) + var(--sec-pad));
+  padding-bottom: var(--sec-pad);
 }
-.gd-hero { min-height: 100svh; padding-top: calc(var(--topbar-h) + var(--sec-pad)); }
+/* the platform map (chrome) gets the same bar-sized top padding; its band snaps with the section, not 64px under it */
+.gd-map-section { padding-top: var(--topbar-h); }
+.gd-map-section .same-garden { scroll-margin-top: var(--topbar-h); }
+/* an in-section anchor (a catalog domain) lands below the bar */
+[id^="dom-"] { scroll-margin-top: calc(var(--topbar-h) + 16px); }
 @media (prefers-reduced-motion: reduce) {
   html, html.snap-lock { scroll-snap-type: none; }
 }
 @media (max-width: 1023px) {
-  html, html.snap-lock { scroll-snap-type: none; }
+  html, html.snap-lock { scroll-snap-type: none; scroll-padding-top: var(--topbar-h); }
   .gd-section { min-height: 0; padding-block: clamp(36px, 9vw, 56px); }
   .gd-hero { padding-top: calc(var(--topbar-h) + 20px); }
+  .gd-map-section { padding-top: 0; }
+  .gd-map-section .same-garden { scroll-margin-top: 0; }
 }
 
 /* bands: a translucent shade, so the trellis still shows through */
@@ -82,6 +93,28 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .sx-h2 {
   margin-top: 8px; font-size: var(--text-title); font-weight: var(--weight-strong);
   line-height: 1.1; letter-spacing: var(--tracking-title); color: var(--ink); text-wrap: balance;
+}
+/* each frame's one strong colour moment: the title's key words and a faint stage glow in its domain hue
+   (never signal yellow). The glow is a section background, so it can never sit over content. */
+#gate { --key: var(--c-fail); }
+#graph { --key: var(--c-graph); }
+#qe, #fleet { --key: var(--c-qe); }
+#panel { --key: var(--c-warn); }
+#memory { --key: var(--c-solo); }
+#toolkit { --key: var(--c-creation); }
+#extend { --key: var(--c-qe); }
+#install { --key: var(--c-graph); }
+.sx-key { color: var(--key, var(--ink)); }
+.gd-section[id]:not(.gd-hero) {
+  background-image: radial-gradient(ellipse 70% 55% at 50% 72%, color-mix(in oklab, var(--key, transparent) calc(var(--glow) * 9%), transparent), transparent 72%);
+}
+/* desktop type: big titles, capped by the frame's height so a short window keeps its fit */
+@media (min-width: 1024px) {
+  :root {
+    --h2: clamp(30px, min(1rem + 2vw, 5.4vh + 2px), 56px);
+    --h1: clamp(48px, min(1.5rem + 3.4vw, 9vh), 88px);
+  }
+  .sx-h2 { font-size: var(--h2); line-height: 1.06; }
 }
 .sx-lead p { font-size: var(--text-body); line-height: 1.55; color: var(--muted); max-width: 64ch; }
 .sx-lead b, .qw-em, .cx-em { color: var(--ink); font-weight: var(--weight-strong); }
@@ -117,9 +150,14 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 @keyframes gd-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes gd-slide { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }
 @keyframes gd-pop { 0% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.08); } 100% { opacity: 1; transform: scale(1); } }
+/* a pop for items in a tight row: its overshoot stays inside the row gap */
+@keyframes gd-pop-sm { 0% { opacity: 0; transform: scale(0.7); } 60% { opacity: 1; transform: scale(1.04); } 100% { opacity: 1; transform: scale(1); } }
+/* the verdict stamp: only the word slams. It starts big and level and turns as it lands, so its box is never
+   taller than at rest (a wide word turned while big grew past its frame and was cut) and never wider than the
+   narrowest frame holds (1.25x "FAILS CLOSED" in the 360px gate) */
 @keyframes gd-slam {
-  0% { opacity: 0; transform: scale(2.3) rotate(-10deg); }
-  60% { opacity: 1; transform: scale(0.94) rotate(-5deg); }
+  0% { opacity: 0; transform: scale(1.25) rotate(0deg); }
+  60% { opacity: 1; transform: scale(0.97) rotate(-6deg); }
   100% { opacity: 1; transform: scale(1) rotate(-5deg); }
 }
 @keyframes gd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
@@ -192,7 +230,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gd-kicker { color: var(--muted); }
 .gd-hero-h1 {
   margin-top: clamp(10px, 2vh, 20px);
-  font-size: var(--text-display); font-weight: var(--weight-strong);
+  font-size: var(--h1, var(--text-display)); font-weight: var(--weight-strong);
   line-height: 1.02; letter-spacing: var(--tracking-title);
 }
 .gd-hero-h1-2 { color: var(--muted); }
@@ -202,7 +240,16 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gd-hero-install-label, .gd-hero-install-note { font-size: var(--text-caption); color: var(--muted); }
 .gd-hero-install-label { margin-bottom: 8px; }
 .gd-hero-install-note { margin-top: 8px; }
-.gd-hero-stats { margin-top: clamp(12px, 2.6vh, 26px); display: flex; flex-wrap: wrap; gap: 6px 22px; list-style: none; padding: 0; }
+.gd-hero-call { margin-top: 6px; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); max-width: 52ch; }
+.gd-hero-call code { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink); }
+.gd-hero-inside { margin-top: clamp(10px, 2vh, 20px); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; }
+.gd-hero-inside-k { font-size: var(--text-caption); color: var(--muted); }
+.gd-hero-inside ul { list-style: none; padding: 0; display: contents; }
+.gd-hero-inside li { display: inline-flex; }
+.gd-hero-inside a { font-size: var(--text-caption); color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline-strong); }
+@media (hover: hover) { .gd-hero-inside a:hover { text-decoration-color: currentColor; } }
+.gd-hero-stats a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline-strong); }
+.gd-hero-stats { margin-top: clamp(8px, 1.6vh, 18px); display: flex; flex-wrap: wrap; gap: 6px 22px; list-style: none; padding: 0; }
 .gd-hero-stats li { font-size: var(--text-caption); color: var(--muted); }
 .gd-hero-stats b { color: var(--ink); font-weight: var(--weight-strong); font-size: var(--text-body); font-variant-numeric: tabular-nums; }
 
@@ -242,21 +289,23 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .hs-tick.is-checking .hs-tick-mark { animation: gd-pulse .6s ease-in-out infinite; }
 .hs-tick.is-ok { color: var(--c-pass); border-color: color-mix(in oklab, var(--c-pass) 60%, transparent); background: color-mix(in oklab, var(--c-pass) 12%, transparent); }
 .hs-tick.is-fail { color: var(--v, var(--c-fail)); border-color: var(--v, var(--c-fail)); background: color-mix(in oklab, var(--v, var(--c-fail)) 16%, transparent); }
-.hs-tick.is-skip { opacity: 0.45; }
+.hs-tick.is-skip { opacity: 0.62; }
+[data-theme="light"] .hs-tick.is-fail, [data-theme="light"] .pg-chip.is-fail { color: color-mix(in oklab, var(--v, var(--c-fail)) 78%, #000); }
 .hs-stage {
   margin-top: 12px; height: clamp(112px, 17vh, 150px);
   border-top: 1px dashed var(--hairline-strong); padding-top: 12px;
   display: grid; place-items: center; text-align: center; overflow: hidden;
 }
 .hs-idle { font-size: var(--text-caption); color: var(--muted); }
-.hs-mark { display: grid; place-items: center; gap: 8px; color: var(--v); animation: gd-slam .44s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.hs-mark { display: grid; place-items: center; gap: 8px; color: var(--v); }
 .hs-word {
   font-size: var(--text-title); font-weight: var(--weight-strong); letter-spacing: var(--tracking-title); line-height: 1;
   padding: 6px 16px; border: 3px solid currentColor; border-radius: 9px;
   background: color-mix(in oklab, var(--v) 14%, transparent);
   text-shadow: 0 0 calc(var(--glow) * 22px) color-mix(in oklab, var(--v) 60%, transparent);
+  animation: gd-slam .44s cubic-bezier(0.3, 1.6, 0.5, 1) both;
 }
-.hs-reason { font-size: var(--text-caption); color: var(--ink); max-width: 34ch; line-height: 1.4; }
+.hs-reason { font-size: var(--text-caption); color: var(--ink); max-width: 34ch; line-height: 1.4; animation: gd-fade .35s .2s var(--ease-out-expo) both; }
 .hs-controls { margin-top: 6px; display: flex; align-items: center; gap: 8px; height: 44px; }
 .hs-dots { display: flex; }
 .hs-pip {
@@ -270,6 +319,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 @media (hover: hover) { .hs-pip:hover::before { background: var(--muted); } }
 .hs-afford { flex: 1 1 auto; min-width: 0; font-size: var(--text-caption); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hs-foot { margin-top: 8px; }
+.hs-foot .gd-hero-call { margin-top: 8px; max-width: none; }
 
 /* ============================================================================
    01 THE GATE
@@ -312,7 +362,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-switch[aria-checked="true"] .pg-toggle::after { transform: translateX(20px); }
 .pg-switch-body { min-width: 0; display: flex; flex-direction: column; }
 .pg-switch-label { font-size: var(--text-body); font-weight: var(--weight-strong); color: var(--ink); line-height: 1.25; }
-.pg-switch-cond { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-switch-cond { display: grid; grid-template-columns: minmax(0, 1fr); font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); margin-top: 2px; }
+.pg-cond { grid-area: 1 / 1; min-width: 0; visibility: hidden; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pg-cond.is-on { visibility: visible; }
 .pg-switch[aria-checked="false"] { border-color: color-mix(in oklab, var(--c-fail) 50%, var(--hairline)); }
 .pg-switch[aria-checked="false"] .pg-switch-label, .pg-switch[aria-checked="false"] .pg-switch-cond { color: var(--c-fail); }
 .pg-right { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -338,16 +390,17 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   border-radius: 12px; border: 1px dashed var(--hairline-strong); background: color-mix(in oklab, var(--surface) 40%, transparent);
 }
 .pg-stamp-idle { font-size: var(--text-caption); color: var(--muted); text-align: center; padding: 0 16px; max-width: 34ch; }
-.pg-mark { display: grid; place-items: center; text-align: center; padding: 10px 14px; color: var(--v); animation: gd-slam .44s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.pg-mark { display: grid; place-items: center; text-align: center; padding: 10px 14px; color: var(--v); }
 .pg-mark-word {
   font-size: var(--text-title); font-weight: var(--weight-strong); letter-spacing: var(--tracking-title); line-height: 1;
   padding: 6px 16px; border: 3px solid currentColor; border-radius: 9px;
   background: color-mix(in oklab, var(--v) 14%, transparent);
   text-shadow: 0 0 calc(var(--glow) * 22px) color-mix(in oklab, var(--v) 60%, transparent);
+  animation: gd-slam .44s cubic-bezier(0.3, 1.6, 0.5, 1) both;
 }
-.pg-mark-sub { margin-top: 10px; font-size: var(--text-caption); line-height: 1.4; max-width: 40ch; color: var(--ink); }
+.pg-mark-sub { margin-top: 10px; font-size: var(--text-caption); line-height: 1.4; max-width: 40ch; color: var(--ink); animation: gd-fade .35s .2s var(--ease-out-expo) both; }
 .pg-mark-at { color: var(--v); font-family: var(--font-mono); font-weight: var(--weight-strong); }
-.pg-mark-tag { margin-top: 4px; font-size: var(--text-caption); color: var(--muted); font-style: italic; }
+.pg-mark-tag { margin-top: 4px; font-size: var(--text-caption); color: var(--muted); font-style: italic; animation: gd-fade .35s .28s var(--ease-out-expo) both; }
 .pg-trail { list-style: none; display: flex; gap: 6px; flex: 0 0 auto; }
 .pg-chip {
   flex: 1 1 auto; display: flex; align-items: center; gap: 6px; min-width: 0; height: 34px; padding: 0 9px; border-radius: 8px;
@@ -361,7 +414,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-chip.is-checking .pg-chip-mark { animation: gd-pulse .5s ease-in-out infinite; }
 .pg-chip.is-ok { color: var(--c-pass); border-color: color-mix(in oklab, var(--c-pass) 60%, transparent); background: color-mix(in oklab, var(--c-pass) 12%, transparent); }
 .pg-chip.is-fail { color: var(--v); border-color: var(--v); background: color-mix(in oklab, var(--v) 18%, transparent); }
-.pg-chip.is-skip { opacity: 0.5; }
+.pg-chip.is-skip { opacity: 0.62; }
 .pg-foot { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; height: 34px; }
 .pg-afford { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--text-caption); color: var(--muted); }
 .pg-afford[data-pinned="true"] { border-color: var(--ink); }
@@ -385,7 +438,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-where p { font-size: var(--text-caption); color: var(--muted); line-height: 1.5; }
 .pg-where-btn { font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 /* the machine's height: what the frame has left under the title, the lead and the one line */
-.sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 150px), 640px); }
+.sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 150px - var(--h2-extra)), 640px); }
 
 /* ============================================================================
    02 THE GRAPH
@@ -402,7 +455,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
     color-mix(in oklab, var(--canvas-2) 94%, transparent);
 }
 .gx-pane-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; }
-.gx-pane-t { font-size: var(--text-caption); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gx-pane-t { min-width: 0; font-size: var(--text-caption); color: var(--muted); }
 .gx-pane-t code { font-family: var(--font-mono); font-size: var(--text-code); color: var(--ink); }
 .gx-seg { display: inline-flex; flex: 0 0 auto; border: 1px solid var(--hairline-strong); border-radius: 999px; padding: 2px; }
 .gx-seg-btn { height: 28px; padding: 0 12px; border-radius: 999px; border: 0; background: none; cursor: pointer; font-size: var(--text-caption); color: var(--muted); white-space: nowrap; }
@@ -435,14 +488,18 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gx-res-inj { color: var(--c-graph); }
 .gx-rename-btn { flex: 0 0 auto; height: 30px; padding: 0 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; border: 1px solid var(--hairline-strong); background: none; color: var(--ink); font-family: var(--font-mono); font-size: var(--text-caption); }
 .gx-rename-btn[aria-pressed="true"] { border-color: var(--c-pass); color: var(--c-pass); }
+.gx-rename-btn { display: inline-grid; place-items: center; }
+.gx-rename-l { grid-area: 1 / 1; visibility: hidden; }
+.gx-rename-l.is-on { visibility: visible; }
 .gx-files { flex: 1 1 auto; min-height: 120px; display: flex; flex-direction: column; justify-content: center; gap: 8px; }
 .gx-file {
   display: flex; align-items: center; gap: 10px; min-width: 0; padding: 0 12px; height: clamp(36px, 6vh, 56px);
   border: 1px solid var(--hairline-strong); border-radius: 10px; background: color-mix(in oklab, var(--surface) 55%, transparent);
   transition: border-color .3s;
 }
-.gx-file-name { flex: 0 0 64px; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); }
-.gx-file-line { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-family: var(--font-mono); font-size: var(--text-code); color: var(--muted); }
+.gx-file-name { flex: 0 0 76px; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); }
+/* the renamed line may wrap to a second line inside its fixed-height row: never cut */
+.gx-file-line { min-width: 0; overflow-wrap: anywhere; line-height: 1.3; font-family: var(--font-mono); font-size: var(--text-code); color: var(--muted); }
 .gx-old { color: var(--ink); }
 .gx-arrow, .gx-new { display: none; }
 .gx-file.is-renamed { border-color: color-mix(in oklab, var(--c-pass) 50%, var(--hairline-strong)); animation: gd-slide .45s var(--d) var(--ease-out-expo) both; }
@@ -452,7 +509,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gx-cmd { flex: 0 0 auto; }
 .gx-afford { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--text-caption); color: var(--muted); }
 .gx-afford-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 116px), 640px); }
+.sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 122px - var(--h2-extra)), 640px); }
 
 /* ============================================================================
    03 THE QE WALL
@@ -472,14 +529,15 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
    onto two lines rather than cutting the second one off */
 .qw-fig-h { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; margin-bottom: auto; font-size: var(--text-caption); color: var(--muted); border-bottom: 1px solid var(--hairline); padding-bottom: 6px; white-space: nowrap; }
 .qw-grades { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.qw-cell { position: relative; min-width: 0; text-align: center; border: 1px solid var(--hairline); border-radius: 12px; padding: 22px 6px 10px; background: color-mix(in oklab, var(--surface) 60%, transparent); }
+/* the stamp has its own row above the label (top 6px, its rotated box ends by ~28px, the label starts at 36px) */
+.qw-cell { position: relative; min-width: 0; text-align: center; border: 1px solid var(--hairline); border-radius: 12px; padding: 36px 6px 10px; background: color-mix(in oklab, var(--surface) 60%, var(--canvas-2)); }
 .qw-cell--rev { border-color: color-mix(in oklab, var(--c-qe) 38%, var(--hairline-strong)); }
-.qw-tag { font-size: var(--text-caption); color: var(--muted); }
+.qw-tag { display: block; font-size: var(--text-caption); line-height: 1.4; min-height: calc(2 * 1.4em); color: var(--muted); }
 .qw-mark { margin-top: 6px; font-size: var(--text-title); font-weight: var(--weight-strong); line-height: 1; color: var(--c-pass); transition: color .4s; }
 .qw-mark--rev { color: var(--muted); }
 .qw-fig[data-revealed="true"] .qw-mark--rev { color: var(--c-fail); animation: gd-pop .4s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 .qw-sub { margin-top: 4px; font-size: var(--text-caption); color: var(--muted); }
-.qw-stamp { position: absolute; top: 4px; right: 4px; font-size: var(--text-caption); padding: 0 6px; border-radius: 5px; border: 1px solid; opacity: 0; transform: rotate(-6deg); transition: opacity .3s; }
+.qw-stamp { position: absolute; top: 6px; right: 6px; line-height: 1.3; font-size: var(--text-caption); padding: 0 6px; border-radius: 5px; border: 1px solid; opacity: 0; transform: rotate(-6deg); transition: opacity .3s; }
 .qw-cell--self .qw-stamp { color: var(--muted); }
 .qw-cell--rev .qw-stamp { color: var(--c-fail); }
 .qw-fig[data-revealed="true"] .qw-stamp { opacity: 1; }
@@ -492,7 +550,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   grid-template-rows: auto 68px auto;
   column-gap: 12px; row-gap: 8px;
 }
-.qw-role { grid-row: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: 14px; background: color-mix(in oklab, var(--surface) 70%, transparent); transition: border-color .3s, background .3s, box-shadow .3s; }
+.qw-role { grid-row: 1; min-width: 0; display: flex; flex-direction: column; border: 1px solid var(--hairline-strong); border-radius: 14px; background: color-mix(in oklab, var(--surface) 70%, var(--canvas-2)); transition: border-color .3s, background .3s, box-shadow .3s; }
 .qw-role--writer { grid-column: 1; }
 .qw-role--executor { grid-column: 2; }
 .qw-role--reviewer { grid-column: 4; border-color: color-mix(in oklab, var(--c-qe) 42%, var(--hairline-strong)); }
@@ -502,6 +560,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-role--reviewer .qw-role-name { color: var(--c-qe); }
 .qw-role-tools { display: flex; flex-wrap: wrap; gap: 3px; }
 .qw-role-tool { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-qe); border: 1px solid color-mix(in oklab, var(--c-qe) 30%, var(--hairline-strong)); border-radius: 5px; padding: 1px 6px; }
+.qw-role-tool-k { font-family: var(--font-sans); color: var(--muted); }
 /* both copies in one cell: the card is as tall as the longer one, lit or not */
 .qw-role-copy { display: grid; grid-template-columns: minmax(0, 1fr); margin-top: 2px; }
 .qw-role-line, .qw-role-lit { grid-area: 1 / 1; font-size: var(--text-caption); line-height: 1.45; color: var(--muted); }
@@ -511,9 +570,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-role.is-lit { border-color: color-mix(in oklab, var(--c-qe) 65%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-qe) 8%, var(--surface)); box-shadow: 0 0 calc(var(--glow) * 40px) -14px color-mix(in oklab, var(--c-qe) 60%, transparent); }
 .qw-inbox { flex: 0 0 auto; margin-top: auto; padding: 8px 12px 10px; border-top: 1px dashed color-mix(in oklab, var(--c-qe) 45%, var(--hairline-strong)); }
 .qw-inbox-h { display: block; font-size: var(--text-caption); color: var(--muted); }
-.qw-inbox-items { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; align-content: flex-start; }
+.qw-inbox-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; align-content: flex-start; }
 .qw-inbox-item { font-family: var(--font-mono); font-size: var(--text-caption); padding: 1px 6px; border-radius: 5px; color: var(--accent-fg); background: var(--c-qe); visibility: hidden; }
-.qw-inbox-item.is-in { visibility: visible; animation: gd-pop .35s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+.qw-inbox-item.is-in { visibility: visible; animation: gd-pop-sm .35s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 .qw-wall {
   grid-column: 3; grid-row: 1 / 3; position: relative; justify-self: center; width: 4px;
   background: repeating-linear-gradient(to bottom, var(--c-qe) 0 8px, transparent 8px 16px); border-radius: 2px;
@@ -528,7 +587,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-lane { position: relative; overflow: hidden; }
 /* the lane is a conveyor line, not a box */
 .qw-lane::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed var(--hairline-strong); }
-.qw-lane--block { margin-right: calc((100% - 24px - 30px) / 2 + 12px + 13px); }
+/* the bounced lane stops 4px short of the wall, so a chip at the turn never touches it */
+.qw-lane--block { margin-right: calc((100% - 24px - 30px) / 2 + 12px + 17px); }
 .qw-chip {
   position: absolute; top: 50%; left: 0; transform: translate(0, -50%);
   font-family: var(--font-mono); font-size: var(--text-caption); line-height: 1; padding: 6px 8px; border-radius: 6px; white-space: nowrap;
@@ -562,7 +622,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-foot p { flex: 1 1 auto; min-width: 0; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); }
 .qw-foot code { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-qe); background: color-mix(in oklab, var(--c-qe) 12%, transparent); padding: 1px 5px; border-radius: 5px; }
 .qw-history { color: var(--faint, var(--muted)); }
-.qw-foot-cmd { flex: 0 0 260px; }
+.qw-foot-cmd { flex: 0 0 300px; }
 
 /* ============================================================================
    04 THE FLEET
@@ -572,17 +632,25 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qf-btn { flex: 0 0 auto; height: 34px; padding: 0 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); background: color-mix(in oklab, var(--surface) 60%, transparent); border: 1px solid var(--hairline-strong); transition: border-color .22s, color .22s, background .22s; }
 @media (hover: hover) { .qf-btn:hover { color: var(--ink); border-color: color-mix(in oklab, var(--c-qe) 50%, var(--hairline-strong)); } }
 .qf-btn.is-on { color: var(--accent-fg); background: var(--c-qe); border-color: var(--c-qe); font-weight: var(--weight-strong); }
-.qf-n { opacity: 0.7; margin-left: 5px; }
+.qf-n { font-variant-numeric: tabular-nums; }
 .qf-afford { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; font-size: var(--text-caption); color: var(--muted); }
 .qf-afford-text { width: 96px; text-align: right; white-space: nowrap; }
 .qf-grid { margin-top: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
 .qf-agent {
   display: flex; align-items: center; gap: 7px; min-width: 0; height: clamp(30px, 4.6vh, 48px); padding: 0 10px; cursor: default; text-align: left;
-  border: 1px solid var(--hairline); border-radius: 9px; background: color-mix(in oklab, var(--surface) 46%, transparent);
+  border: 1px solid var(--hairline); border-radius: 9px; background: color-mix(in oklab, var(--surface) 46%, var(--canvas-2));
   font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink);
   transition: opacity .3s, border-color .25s, background .25s;
 }
-.qf-agent-dot { width: 7px; height: 7px; border-radius: 999px; flex: 0 0 auto; background: var(--c-qe); }
+.qf-agent-dot, .qf-btn-dot { width: 7px; height: 7px; border-radius: 999px; flex: 0 0 auto; background: var(--act, var(--c-qe)); }
+.qf-btn-dot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+/* each router action has its own dot colour, on its tab and on its tiles */
+[data-surf="plan"] { --act: var(--c-graph); }
+[data-surf="author"] { --act: var(--c-creation); }
+[data-surf="execute"] { --act: var(--c-qe); }
+[data-surf="review"] { --act: var(--c-solo); }
+[data-surf="insight"] { --act: var(--ink); }
+.qf-btn.is-on .qf-btn-dot { background: currentColor; }
 .qf-agent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qf-agent.is-off { opacity: 0.3; }
 .qf-agent.is-match { border-color: color-mix(in oklab, var(--c-qe) 55%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-qe) 10%, var(--surface)); }
@@ -590,7 +658,6 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qf-caption { margin-top: 10px; height: 22px; display: flex; align-items: center; gap: 10px; overflow: hidden; white-space: nowrap; font-size: var(--text-caption); color: var(--muted); }
 .qf-cap-name { font-family: var(--font-mono); font-size: var(--text-code); color: var(--ink); }
 .qf-cap-surf { color: var(--c-qe); font-family: var(--font-mono); }
-.qf-cap-fork { color: var(--muted); }
 .qf-cap-k { color: var(--c-qe); font-family: var(--font-mono); font-weight: var(--weight-strong); }
 
 /* ============================================================================
@@ -601,7 +668,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   height: 100%; border-radius: 16px; border: 1px solid var(--hairline-strong); padding: clamp(14px, 2vw, 24px);
   background: color-mix(in oklab, var(--canvas-2) 94%, transparent);
 }
-.sx--panel .sx-stage { height: clamp(300px, calc(var(--avail) - 130px), 560px); }
+.sx--panel .sx-stage { height: clamp(300px, calc(var(--avail) - 130px - var(--h2-extra)), 560px); }
 .pv-left, .pv-right { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .pv-q { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--c-warn) 50%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-warn) 9%, transparent); }
 .pv-q-k { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-warn); }
@@ -616,9 +683,10 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pv-votes { list-style: none; flex: 1 1 auto; min-height: 0; display: grid; grid-template-rows: repeat(3, minmax(40px, 72px)); align-content: center; gap: 8px; }
 .pv-vote { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 0; padding: 0 14px; border-radius: 10px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); animation: gd-slide .45s var(--d) var(--ease-out-expo) both; }
 .pv-who { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink); }
-.pv-v { font-size: var(--text-caption); color: var(--c-pass); font-weight: var(--weight-strong); }
-.pv-vote.is-dissent { border-color: var(--c-fail); background: color-mix(in oklab, var(--c-fail) 12%, var(--surface)); }
-.pv-vote.is-dissent .pv-v { color: var(--c-fail); }
+.pv-v { font-size: var(--text-caption); color: var(--v, var(--c-pass)); font-weight: var(--weight-strong); }
+.pv-vote.is-warn { border-color: color-mix(in oklab, var(--c-warn) 45%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-warn) 9%, var(--surface)); }
+.pv-vote.is-dissent { border-style: dashed; }
+.pv-dis { color: var(--muted); }
 .pv-vote.is-empty { border-style: dashed; background: none; }
 .pv-vote.is-empty .pv-who, .pv-vote.is-empty .pv-v { color: var(--muted); font-weight: var(--weight-regular); }
 .pv-result { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 14px; border-radius: 12px; border: 2px solid var(--v); background: color-mix(in oklab, var(--v) 12%, transparent); animation: gd-fade .4s 1s var(--ease-out-expo) both; }
@@ -633,7 +701,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   gap: 12px clamp(12px, 2vw, 24px);
 }
 .sx--memory .sx-stage { height: auto; }
-.sx--memory .mq-stage { min-height: clamp(230px, calc(var(--avail) - 330px), 440px); }
+.sx--memory .mq-stage { min-height: clamp(230px, calc(var(--avail) - 330px - var(--h2-extra)), 440px); }
 .mq-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--canvas-2) 94%, transparent); }
 .mq-col-h { font-size: var(--text-caption); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mq-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--c-solo) 50%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-solo) 9%, var(--surface)); animation: gd-slide .45s var(--ease-out-expo) both; transition: opacity .4s, transform .4s var(--ease-out-expo); }
@@ -655,7 +723,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .mq-btn { height: 36px; border-radius: 999px; cursor: pointer; font-size: var(--text-caption); font-weight: var(--weight-strong); border: 1px solid var(--hairline-strong); background: none; color: var(--ink); }
 .mq-btn--ok[aria-pressed="true"] { background: var(--c-pass); border-color: var(--c-pass); color: var(--accent-fg); }
 .mq-btn--drop[aria-pressed="true"] { background: var(--c-fail); border-color: var(--c-fail); color: var(--accent-fg); }
-.mq-ask { font-size: var(--text-body); color: var(--ink); opacity: .35; transition: opacity .4s; }
+.mq-ask { font-size: var(--text-body); color: var(--ink); opacity: .6; transition: opacity .4s; }
 .mq-ask.is-on { opacity: 1; }
 .mq-answer { flex: 1 1 auto; min-height: 76px; font-size: var(--text-caption); line-height: 1.5; color: var(--muted); border-top: 1px dashed var(--hairline-strong); padding-top: 8px; }
 .mq-answer.is-on { color: var(--ink); animation: gd-fade .45s var(--ease-out-expo) both; }
@@ -681,7 +749,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .cx-find-l { flex: 0 0 auto; font-size: var(--text-caption); color: var(--muted); }
 .cx-find-in { flex: 0 1 420px; min-width: 0; height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border-input, var(--hairline-strong)); background: color-mix(in oklab, var(--surface) 70%, transparent); color: var(--ink); font-family: var(--font-sans); font-size: var(--text-body); }
 .cx-find-in::placeholder { color: var(--faint, var(--muted)); }
-.cx-find-n { font-size: var(--text-caption); color: var(--muted); min-width: 120px; }
+.cx-find-n { flex: 1 1 auto; font-size: var(--text-caption); color: var(--muted); min-width: 140px; }
+.cx-find-ctl { flex: 0 0 auto; margin-left: auto; }
+.cx-find-in.is-touring::placeholder { color: var(--ink); }
 .cx-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cx-tab {
   position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; height: clamp(44px, 7vh, 64px); padding: 0 10px; cursor: pointer; text-align: left;
@@ -736,6 +806,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .cx-peer { display: inline-flex; flex-direction: column; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); }
 .cx-peer-name { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink); }
 .cx-peer-tier { font-size: var(--text-caption); color: var(--muted); }
+.cx-peer.is-required { border-color: color-mix(in oklab, var(--hue) 60%, var(--hairline-strong)); }
+.cx-peer.is-required .cx-peer-tier { color: var(--ink); font-weight: var(--weight-strong); }
 
 /* ============================================================================
    08 BUILD ON IT
@@ -743,7 +815,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .xp-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(16px, 3vw, 40px); align-items: start; }
 .xp-scaffold { min-width: 0; border: 1px solid var(--hairline-strong); border-radius: 14px; overflow: hidden; background: color-mix(in oklab, var(--canvas-2) 94%, transparent); }
 .xp-scaffold-bar { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--hairline); background: color-mix(in oklab, var(--surface) 60%, transparent); }
-.xp-scaffold-path { font-family: var(--font-mono); font-size: var(--text-code); color: var(--muted); }
+/* as wide as the longest example pack's path, so the cycle never re-wraps the bar */
+.xp-scaffold-path { font-family: var(--font-mono); font-size: var(--text-code); color: var(--muted); min-width: 21ch; }
 .xp-picks { margin-left: auto; display: flex; gap: 4px; }
 .xp-pick { height: 30px; padding: 0 11px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); background: none; border: 1px solid var(--hairline-strong); }
 .xp-pick.is-on { color: var(--accent-fg); background: var(--c-qe); border-color: var(--c-qe); font-weight: var(--weight-strong); }
@@ -752,7 +825,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .xp-row.is-landed { opacity: 1; animation: gd-slide .35s var(--ease-out-expo) both; }
 .xp-dir { font-family: var(--font-mono); font-size: var(--text-code); font-weight: var(--weight-strong); color: var(--c-qe); min-width: 0; overflow-wrap: anywhere; }
 .xp-note { font-size: var(--text-caption); color: var(--muted); flex: 0 0 auto; }
-.xp-scaffold-foot { padding: 10px 16px 12px; border-top: 1px dashed var(--hairline); font-size: var(--text-caption); color: var(--muted); }
+.xp-scaffold-foot { display: flex; align-items: center; gap: 12px; padding: 8px 10px 8px 16px; border-top: 1px dashed var(--hairline); font-size: var(--text-caption); color: var(--muted); }
+.xp-foot-text { flex: 1 1 auto; min-width: 0; }
+.xp-foot-ctl { flex: 0 0 auto; }
 .xp-rules { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .xp-rule { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--hairline); background: color-mix(in oklab, var(--surface) 45%, transparent); transition: border-color .3s, background .3s; }
 .xp-rule.is-lit { border-color: color-mix(in oklab, var(--c-qe) 55%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-qe) 7%, var(--surface)); }
@@ -766,7 +841,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
    09 THE BENCH (install)
 ============================================================================ */
 .ib-stage { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
-.ib-tabs { display: flex; gap: 6px; }
+.ib-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ib-tabs { display: flex; gap: 6px; min-width: 0; }
 .ib-tab { height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-size: var(--text-caption); color: var(--muted); background: color-mix(in oklab, var(--surface) 55%, transparent); border: 1px solid var(--hairline-strong); }
 .ib-tab.is-on { color: var(--canvas); background: var(--ink); border-color: var(--ink); font-weight: var(--weight-strong); }
 /* both panels share one cell: the bench is as tall as the taller one */
@@ -777,8 +853,30 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .ib-step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 .ib-step-num { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); }
 .ib-step-label { font-size: var(--text-caption); color: var(--ink); }
-.ib-note { margin-top: 8px; font-size: var(--text-caption); color: var(--muted); }
+.ib-run { list-style: none; margin-top: 10px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.ib-run-step { display: flex; align-items: baseline; gap: 8px; min-width: 0; padding: 6px 10px; border-radius: 9px; border: 1px solid var(--hairline); font-size: var(--text-caption); line-height: 1.4; color: var(--muted); transition: color .25s, border-color .25s, background .25s; }
+.ib-run-mark { flex: 0 0 12px; text-align: center; font-family: var(--font-mono); font-weight: var(--weight-strong); }
+.ib-run-step.is-now { color: var(--ink); border-color: var(--ink); }
+.ib-run-step.is-now .ib-run-mark { animation: gd-pulse .6s ease-in-out infinite; }
+.ib-run-step.is-done { color: var(--ink); border-color: color-mix(in oklab, var(--c-pass) 55%, transparent); background: color-mix(in oklab, var(--c-pass) 10%, transparent); }
+.ib-run-step.is-done .ib-run-mark { color: var(--c-pass); }
 .ib-foot { font-size: var(--text-caption); color: var(--muted); }
+
+/* ============================================================================
+   Desktop fleet: six columns, names wrap to two lines (never cut), fixed tiles
+============================================================================ */
+@media (min-width: 1024px) {
+  .qf-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .qf-agent { height: clamp(36px, 5.4vh, 46px); }
+  .qf-agent-name { white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
+}
+/* very wide: a wider column and taller stages */
+@media (min-width: 1680px) {
+  .sx, .sx-wrap { max-width: 1480px; }
+  .sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 176px - var(--h2-extra)), 760px); }
+  .sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 154px - var(--h2-extra)), 760px); }
+  .st-token { left: max(12px, calc((100vw - 1480px) / 2 + 48px - 124px)); }
+}
 
 /* ============================================================================
    1920x1080 and up: taller stages, the same column
@@ -792,10 +890,14 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 }
 
 /* ============================================================================
-   Tablets and phones (<= 1023px): free scroll, demo first, copy after
+   Tablets and phones (<= 1023px): free scroll; the title, then the sentence that
+   explains the demo, then the demo
 ============================================================================ */
 @media (max-width: 1023px) {
-  .sx { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "stage" "lead" "foot"; align-items: start; row-gap: 16px; }
+  .sx { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "lead" "stage" "foot"; align-items: start; row-gap: 16px; }
+  /* where it only advises: a sheet sized to its text at the bottom of the machine, right above the link */
+  .pg-advise { inset: auto 0 0 0; justify-content: flex-start; padding: 18px; }
+  .pg-advise p { font-size: var(--text-body); }
   .sx-stage, .sx--gate .sx-stage, .sx--graph .sx-stage, .sx--qe .sx-stage, .sx--panel .sx-stage, .sx--memory .sx-stage { height: auto; }
   .gd-hero-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pitch" "demo" "get"; row-gap: 20px; }
   .gd-hero-demo { max-width: 480px; }
@@ -881,25 +983,29 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .qw-stage .qw-chip--block { animation-name: qw-block-v; }
   .qw-grades { grid-template-columns: 1fr 1fr; }
 
-  .qf-btn--all { display: none; }
+  /* all 40 in two columns, the rest dimmed as on a desktop: the grid's height never changes */
   .qf-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; }
-  .qf-agent { height: auto; padding: 6px 10px; }
+  .qf-agent { padding: 4px 8px; }
   .qf-agent-name { white-space: normal; overflow-wrap: anywhere; }
-  .qf-grid .qf-agent.is-off { display: none; }
-  .qf-grid:not(.is-filtered) .qf-agent:not([data-surf="plan"]) { display: none; }
   .qf-caption { display: block; height: 76px; white-space: normal; line-height: 1.5; }
   .qf-caption > * { margin-right: 8px; }
   .qf-cap-name { overflow-wrap: anywhere; }
 
-  .cx-find { flex-wrap: wrap; }
-  .cx-find-in { flex: 1 1 100%; }
+  .cx-find { flex-wrap: wrap; row-gap: 8px; }
+  .cx-find-in { flex: 1 1 100%; order: 1; height: 44px; }
+  .cx-find-l { flex: 1 1 auto; }
+  .cx-find-n { order: 2; flex: 1 1 auto; min-height: 1.5em; min-width: 0; }
+  .cx-find-ctl { order: 3; }
+  .cx-detail { align-content: start; }
+  .cx-detail-side { justify-content: flex-start; }
   .cx-tabs { display: flex; overflow-x: auto; scrollbar-width: none; padding-bottom: 4px; }
   .cx-tab { flex: 0 0 auto; height: 44px; white-space: nowrap; }
   .cx-family { flex-direction: column; align-items: stretch; }
 
   .xp-scaffold-bar { flex-wrap: wrap; }
   .xp-picks { margin-left: 0; flex-wrap: wrap; }
-  .xp-row { flex-direction: column; gap: 2px; }
+  /* a row holds two lines of the longest example path, so the pack cycle never re-wraps it */
+  .xp-row { flex-direction: column; gap: 2px; min-height: 60px; }
 
   .hs-afford { display: none; }
   .hs-controls { justify-content: space-between; }
@@ -911,15 +1017,26 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .gx-file-name { flex: 0 0 auto; }
   .gx-file-line { white-space: normal; overflow-wrap: anywhere; }
   .gx-files { height: 212px; }
-  /* the largest surface (/execution, 14) in two columns; names wrap to at most three lines */
-  .qf-grid { min-height: calc(7 * 60px + 6 * 6px); }
-  .qf-agent { height: 60px; }
-  .qf-agent-name { line-height: 1.3; }
+  /* fixed tiles that hold three lines, so regrouping never changes a row's height */
+  .qf-agent { height: 50px; }
+  .qf-agent-name { line-height: 1.2; }
   .qw-legend { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; row-gap: 4px; align-items: baseline; }
   .qw-leg-dot { margin-left: 0; }
+  .ib-bar { flex-direction: column; align-items: stretch; }
+  .ib-bar .px-play { align-self: flex-end; }
   .ib-tabs { flex-direction: column; }
   .ib-tab { height: 44px; }
+  .ib-run { grid-template-columns: minmax(0, 1fr); }
   .mq-btn, .px-play, .pg-afford-btn { min-height: 44px; }
+  /* touch targets: every demo control at least 44px tall, standalone text links with a taller hit area */
+  .gx-seg-btn, .gx-rename-btn, .xp-pick, .qf-btn, .qw-btn, .pg-reset, .pv-opt, .cc { min-height: 44px; }
+  .pg-reset { display: inline-flex; align-items: center; border-bottom: 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline-strong); }
+  .cx-jump, .gd-hero-stats a, .mq-new-list a { padding-block: 12px; }
+  /* what's inside: tappable pills on a phone */
+  .gd-hero-inside { gap: 8px; }
+  .gd-hero-inside-k { flex: 1 1 100%; }
+  .gd-hero-inside a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 999px; text-decoration: none; background: color-mix(in oklab, var(--canvas-2) 96%, transparent); }
+  .pg-cond { white-space: normal; overflow: visible; text-overflow: clip; }
   .px-play { height: 44px; }
   .pg-afford-btn { height: 44px; }
 }
@@ -936,4 +1053,27 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   55% { top: 100%; transform: translate(-50%, calc(-100% - 8px)); }
   90% { top: 0; transform: translate(-50%, 0); opacity: 1; }
   100% { top: 0; transform: translate(-50%, 0); opacity: 0; }
+}
+
+/* ============================================================================
+   CopyChip (components/react/CopyChip.tsx)
+   Near-opaque, so the trellis never runs through a command. The label cell is
+   as wide as the longer of its two strings (the ::after sizer holds the one not
+   shown), so "copied ✓" never moves the command. A command that does not fit
+   wraps at a break point (hyphen, slash, space) rather than being cut.
+============================================================================ */
+.cc { background: color-mix(in oklab, var(--canvas-2) 96%, transparent); }
+.cc-cmd { white-space: normal; overflow-wrap: anywhere; }
+.cc-label { display: inline-grid; justify-items: end; }
+.cc-label-t, .cc-label::after { grid-area: 1 / 1; white-space: nowrap; }
+.cc-label::after { content: attr(data-alt); visibility: hidden; }
+
+/* ── arrival entrances (scripts/section-enter.ts) ───────────────────────────
+   A stage waits lowered and at .98 until the visitor arrives, then settles after
+   the title and lead start. Hidden only while html.js-enter is set (never without
+   the script, never under reduced motion). */
+html.js-enter .sx-stage:not(.no-entrance) { transition: opacity .55s var(--ease-out-expo) .16s, transform .7s var(--ease-out-expo) .16s; }
+html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14px) scale(0.98); }
+@media (prefers-reduced-motion: reduce) {
+  html.js-enter .sx-stage:not(.is-entered) { opacity: 1; transform: none; }
 }

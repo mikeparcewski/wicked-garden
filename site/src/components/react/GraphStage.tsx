@@ -6,10 +6,11 @@ import { useAutoplay } from "./useAutoplay";
 
 /* ============================================================================
    The graph — the search and patch demos as one stage on wicked-estate's code graph.
-   1. grep vs the estate graph: grep finds the three files that spell usrName; the
-      graph also draws the event→consumer edge grep never sees (user.ts emits
-      "user.updated", notify.ts consumes it), in the foundation hue.
-   2. the rename: the field usrName → userName lands across three files as one graph
+   It runs on the change the page follows: the retry change.
+   1. grep vs the estate graph: grep finds the three files that spell maxRetry; the
+      graph also draws the event→consumer edge grep never sees (retry.ts emits
+      "job.retried", notify.ts consumes it), in the foundation hue.
+   2. the rename: the field maxRetry → maxRetries lands across three files as one graph
       operation, the old and new names side by side with a visible arrow between them.
       It is the rename the patch skill's TypeScript generator performs (a field
       declaration, a property access, a destructuring: scripts/engineering/patch/
@@ -20,9 +21,9 @@ import { useAutoplay } from "./useAutoplay";
 
 type Mode = "grep" | "graph";
 const FILES = [
-  { f: "user.ts", pre: "interface User { ", post: ": string }" },
-  { f: "route.ts", pre: "res.send(user.", post: ");" },
-  { f: "auth.ts", pre: "const { ", post: " } = session.user;" },
+  { f: "retry.ts", pre: "interface Policy { ", post: ": number }" },
+  { f: "queue.ts", pre: "if (n > policy.", post: ") fail(job);" },
+  { f: "worker.ts", pre: "const { ", post: " } = policy;" },
 ];
 const STEPS = [2600, 3000, 3400, 1400]; // grep, graph, rename, reset
 
@@ -71,9 +72,9 @@ export default function GraphStage() {
     <div className="sx sx--graph">
       <Reveal className="sx-title">
         <p className="kicker sx-kicker"><span className="sx-num">02</span>the graph</p>
-        <h2 className="sx-h2">Sees what grep can’t, with wicked-estate.</h2>
+        <h2 className="sx-h2">Sees what grep can’t, with <span className="sx-key">wicked-estate.</span></h2>
       </Reveal>
-      <Reveal className="sx-lead" delay={0.04}>
+      <Reveal className="sx-lead" delay={0.12}>
         <p>
           On estate’s code graph it finds the event and command links grep never sees, for blast
           radius, and its patch skill renames across files as a graph operation.
@@ -85,7 +86,7 @@ export default function GraphStage() {
           role="group" aria-label="Live demo: grep against the estate graph, then a rename across files">
           <div className="gx-pane gx-impact">
             <div className="gx-pane-h">
-              <span className="gx-pane-t">blast radius of <code>usrName</code></span>
+              <span className="gx-pane-t">blast radius of <code>maxRetry</code></span>
               <span className="gx-seg" role="group" aria-label="search with">
                 <button type="button" className="gx-seg-btn" aria-pressed={!graph} onClick={() => pickMode("grep")}>grep</button>
                 <button type="button" className="gx-seg-btn" aria-pressed={graph} onClick={() => pickMode("graph")}>estate graph</button>
@@ -96,28 +97,31 @@ export default function GraphStage() {
                 <path className="gx-edge gx-edge-a" d="M112 95 L218 40" />
                 <path className="gx-edge gx-edge-b" d="M112 95 L218 150" />
                 <path className={`gx-edge gx-edge-inj${graph ? " is-on" : ""}`} d="M112 95 C 190 95, 230 95, 292 95" key={`inj-${graph}`} />
-                <g className="gx-node is-hit"><rect x="22" y="78" width="90" height="34" rx="9" /><text x="67" y="100">user.ts</text></g>
-                <g className="gx-node is-hit"><rect x="218" y="23" width="92" height="34" rx="9" /><text x="264" y="45">route.ts</text></g>
-                <g className="gx-node is-hit"><rect x="218" y="133" width="92" height="34" rx="9" /><text x="264" y="155">auth.ts</text></g>
+                <g className="gx-node is-hit"><rect x="22" y="78" width="90" height="34" rx="9" /><text x="67" y="100">retry.ts</text></g>
+                <g className="gx-node is-hit"><rect x="218" y="23" width="92" height="34" rx="9" /><text x="264" y="45">queue.ts</text></g>
+                <g className="gx-node is-hit"><rect x="218" y="133" width="92" height="34" rx="9" /><text x="264" y="155">worker.ts</text></g>
                 <g className={`gx-node gx-node-inj${graph ? " is-on" : ""}`}><rect x="292" y="78" width="96" height="34" rx="9" /><text x="340" y="100">notify.ts</text></g>
               </svg>
               <span className={`gx-tag${graph ? " is-on" : ""}`} aria-hidden={!graph}>+ injected edge · event→consumer</span>
             </div>
             <p className="gx-result" aria-live="polite">
               {graph ? (
-                <><b className="gx-res-k">estate graph</b> the same 3 files + <b className="gx-res-inj">notify.ts</b>, which consumes the <code>user.updated</code> event</>
+                <><b className="gx-res-k">estate graph</b> the same 3 files + <b className="gx-res-inj">notify.ts</b>, which consumes the <code>job.retried</code> event retry.ts emits: 4 files affected</>
               ) : (
-                <><b className="gx-res-k">grep -rn usrName</b> 3 hits: user.ts, route.ts, auth.ts. notify.ts never shows up.</>
+                <><b className="gx-res-k">grep -rn maxRetry</b> 3 hits: retry.ts, queue.ts, worker.ts. notify.ts never shows up.</>
               )}
             </p>
-            <div className="gx-cmd"><CopyChip text="wicked-garden-search" label="copy" /></div>
+            <div className="gx-cmd"><CopyChip text="/wicked-garden-search blast-radius maxRetry" label="in your agent" kind="agent" /></div>
           </div>
 
           <div className="gx-pane gx-patch">
             <div className="gx-pane-h">
               <span className="gx-pane-t">patch · one graph operation</span>
-              <button type="button" className="gx-rename-btn" aria-pressed={renamed} onClick={rename}>
-                {renamed ? "undo the rename" : "rename usrName → userName"}
+              {/* both labels share one cell, so the swap never changes the button's width */}
+              <button type="button" className="gx-rename-btn" aria-pressed={renamed} onClick={rename}
+                aria-label={renamed ? "undo the rename" : "rename maxRetry → maxRetries"}>
+                <span className={`gx-rename-l${renamed ? "" : " is-on"}`} aria-hidden>rename maxRetry → maxRetries</span>
+                <span className={`gx-rename-l${renamed ? " is-on" : ""}`} aria-hidden>undo the rename</span>
               </button>
             </div>
             <div className="gx-files" key={`files-${nonce}`}>
@@ -126,18 +130,20 @@ export default function GraphStage() {
                   <span className="gx-file-name">{x.f}</span>
                   <code className="gx-file-line">
                     {x.pre}
-                    <span className="gx-old">usrName</span>
+                    <span className="gx-old">maxRetry</span>
                     <span className="gx-arrow">{" → "}</span>
-                    <span className="gx-new">userName</span>
+                    <span className="gx-new">maxRetries</span>
                     {x.post}
                   </code>
                 </div>
               ))}
             </div>
             <p className="gx-result">
-              {renamed ? <><b className="gx-res-k">3 files touched</b> in one graph operation, not a find-and-replace</> : <>one field, three files: the graph knows every reference</>}
+              {renamed
+                ? <><b className="gx-res-k">3 files touched</b> in one graph operation (notify.ts reads the event, not the field)</>
+                : <>the field appears in three files; the rename edits all three as one graph operation</>}
             </p>
-            <div className="gx-cmd"><CopyChip text="wicked-garden-engineering" label="copy" /></div>
+            <div className="gx-cmd"><CopyChip text="/wicked-garden-engineering-patch rename maxRetry maxRetries" label="in your agent" kind="agent" /></div>
           </div>
 
           <div className="gx-afford">

@@ -45,3 +45,23 @@ test('public words: no seat, floor, plane or unmeasured numbers outside the plat
   // the work-shape count is the archetype catalog's, counted at build time
   await expect(page.locator('.gd-hero-stats')).toContainText(/\d+ work-shapes/);
 });
+
+test('claims the source backs: no unmeasured family count, no false privacy line, no retired domain, memory scoped to crew', async ({ page }) => {
+  await page.goto('/');
+  const text = (await page.evaluate(() => (document.querySelector('main') as HTMLElement).innerText)).replace(/\s+/g, ' ');
+  // N9: only measured numbers (skills, QE specialists, work-shapes); the family tabs are a grouping
+  expect(text).not.toMatch(/\d+ domains/);
+  // garden's skills run inside hosted agents and the panel calls other vendors' CLIs: claim only local storage
+  expect(text).not.toContain('nothing leaves your machine');
+  expect(text).toContain('memory, evidence and the code graph stay in local files');
+  // the installer ships no shared `wicked` CLI, and the smaht domain and its sub-skills are retired
+  expect(text).not.toMatch(/shared wicked CLI|ships the wicked CLI/);
+  expect(text).not.toMatch(/propose-skills|\bsmaht\b/);
+  // approval is the crew-job path; outside a job the agent stores directly
+  await expect(page.locator('#memory .sx-h2')).toHaveText('In a crew job, agents propose. You approve.');
+  expect((await page.locator('#memory .sx-lead').innerText()).replace(/\s+/g, ' ')).toContain('In a wicked-crew job an agent can only propose');
+  // the hero says how to call a skill, and lists what is inside, each linked to its frame
+  expect((await page.locator('.gd-hero-call').innerText()).replace(/\s+/g, ' ')).toContain('in Claude Code, /wicked-garden-prove;');
+  await expect(page.locator('.gd-hero-inside a')).toHaveCount(5);
+  await expect(page.locator('.gd-hero-inside a').first()).toHaveAttribute('href', '#gate');
+});
