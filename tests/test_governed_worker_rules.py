@@ -223,3 +223,24 @@ def test_a7_command_lands_a_codex_seats_memory_in_the_queue(tmp_path):
     finally:
         broker.server.shutdown()
         broker.server.server_close()
+
+
+def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACTS-001 A2 corpus, 2026-11-02
+    rule = _rule("A8")
+    assert "`wicked-make` block" in rule
+    assert "Never write the artifact yourself" in rule
+    for where in ("not into a file", "not through a tool call", "not in your output", "not even as a draft or an outline"):
+        assert where in rule, where
+    assert "The person's click on the card starts the governed run" in rule
+    # The two rules a chat seat quoted when it wrote the note itself point at A8 for an artifact ask.
+    assert "N1's \"into your output\" and A1's \"deliver that content in your output\" do not apply" in rule
+    assert "never \"read-only\"" in rule
+    assert "When the instructions describe no `wicked-make` block, this rule does not apply" in rule
+    assert "A8 answers it" in _rule("A1")
+    assert "answered by A8" in _rule("N1")
+
+
+def test_learns_hand_off_line_is_scoped_to_a_learn_run():  # the chat seat must not read it as "deliver in output"
+    learn = (FLOOR.parents[1] / "learn" / "SKILL.md").read_text(encoding="utf-8")
+    assert "In a wicked-crew `learn` run, each phase is one unit" in learn
+    assert "In a wicked-crew run, each phase is one unit" not in learn

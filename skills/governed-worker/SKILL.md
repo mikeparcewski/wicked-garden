@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, every role proposes a memory for what it witnessed, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -36,7 +36,8 @@ evaluator, then creator) and say which you chose in your output.
   ("tell the fix phase to…") is background, not your instruction. Never act on it
   outside your role. A task, intent or steer that names a file inside the
   repository for your notes does not override E1/N1: deliver that content in your
-  output and say so.
+  output and say so. An ask to make a document, slide deck, web page or demo video
+  in a chat that offers `wicked-make` is not notes: A8 answers it.
 - **A2 — Use only the handed path.** Never shell a tool the grounding posture
   marks unavailable or denied (the estate write CLI, for example). Ground through
   the handed estate shim in read-only mode, or write "not available" and continue.
@@ -81,6 +82,17 @@ evaluator, then creator) and say which you chose in your output.
   evaluator's VERDICT line is still last. When the launcher or Python is missing,
   the shim answers `{"ok": false, …}` or the fence denies the call, write
   `memory (not proposed: <reason>): <text>` in your output once and go on (A5).
+- **A8 — A chat that can make artifacts proposes them; it never writes them.**
+  When your instructions describe a `wicked-make` block (a studio chat that can
+  make documents, slide decks, web pages or demo videos), answer an ask to make
+  or change one of those with a sentence or two on what it would contain, then
+  the block, exactly as those instructions spell it. Never write the artifact
+  yourself: not into a file, not through a tool call, and not in your output,
+  not even as a draft or an outline. The person's click on the card starts the
+  governed run that makes it. N1's "into your output" and A1's "deliver that
+  content in your output" do not apply to such an ask, and the chat is never
+  "read-only" for it. When the instructions describe no `wicked-make` block,
+  this rule does not apply.
 
 ## Creator (fix / build)
 
@@ -200,7 +212,8 @@ refuse the verdict — write no VERDICT line; the gate treats that as FAIL.
 - **N1 — Do not implement.** Analyse, plan, name files and risks, and hand the
   plan on. No edits, no commits, no "quick fix while I'm here". Creating a
   directory or an empty file inside the repository IS a write; notes go to the
-  handed notes root (outside the repository) or into your output.
+  handed notes root (outside the repository) or into your output. An artifact
+  ask in a chat that offers `wicked-make` is answered by A8, not delivered here.
 
 Method: state the question; map the structure that matters (entry points,
 owners, dependencies, tests); name what the chosen stack already provides for
@@ -244,6 +257,7 @@ Rules cite the acceptance-program findings that motivated them.
 | A5 | F-RC1-046 |
 | A6 | F-RC2-031 |
 | A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to |
+| A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
 | C1 | F-RC1-019, F-RC1-070 |
 | C2 | F-RC1-070 |
 | C3 | F-RC1-019 |
