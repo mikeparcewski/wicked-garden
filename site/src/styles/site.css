@@ -1099,7 +1099,8 @@ html { scroll-snap-type: y proximity; scroll-padding-top: var(--topbar-h); }
   font-family: var(--font-sans); font-size: var(--text-caption);  color: var(--muted);
 }
 .qf-legend code {
-  font-family: var(--font-mono); color: var(--c-qe); font-size: var(--text-code);
+  /* ink on the green tint: the green itself measured 4.03:1 in Wicked Light over the section's shade */
+  font-family: var(--font-mono); color: var(--ink); font-size: var(--text-code);
   background: color-mix(in oklab, var(--c-qe) 12%, transparent);
   padding: 1px 6px; border-radius: 5px;
 }
