@@ -284,6 +284,6 @@ body::before {
 body::after {
   content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
   background:
-    radial-gradient(ellipse 48% 55% at 6% 4%,   rgba(255, 218, 25, 0.16), transparent 60%),
-    radial-gradient(ellipse 52% 52% at 94% 98%, rgba(121, 192, 255, 0.14), transparent 62%);
+    radial-gradient(ellipse 48% 55% at 6% 4%,   var(--mesh-1), transparent 60%),
+    radial-gradient(ellipse 52% 52% at 94% 98%, var(--mesh-2), transparent 62%);
 }
