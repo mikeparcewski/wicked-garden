@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
+import PlayToggle from "./PlayToggle";
+import { useAutoplay } from "./useAutoplay";
 import {
   ACCEPTANCE_ROLES,
   WALL_CROSSES,
@@ -9,14 +11,17 @@ import {
 } from "../../data/garden";
 
 /* ============================================================================
-   THE WALL — the qe domain's one idea, absorbed from the retired wicked-testing // historical
-   site: the agent that runs the tests is never the one that grades them.
-   Two mechanics carried over:
-   1. the reveal-reviewer flip — a self-graded PASS sent to an independent
-      reviewer comes back contradicted (FAIL), and
-   2. the acceptance-wall role-lighting — click Writer / Executor / Reviewer to
-      light a role and read its isolation copy; evidence chips cross the dashed
-      wall while reasoning bounces off it. Click the stage to play/pause.
+   THE WALL — the qe domain's one idea: the agent that runs the tests is never the
+   one that grades them.
+   1. the report card: a self-graded PASS sent to an independent reviewer comes
+      back contradicted (FAIL).
+   2. the acceptance wall: light Writer / Executor / Reviewer to read its isolation
+      copy (both copies share one reserved cell, so lighting never resizes a card).
+      Evidence crosses the wall in its own lane and lands in the reviewer's inbox;
+      reasoning bounces off the wall in a second lane. The lanes are their own grid
+      row (a column on phones), so a moving chip never covers card text. A visible
+      button pauses it; it also pauses on hover, focus and off-screen, and starts
+      paused under reduced motion.
    All claims grounded in skills/qe-acceptance-test-*: per-role `allowed-tools`
    frontmatter, `context: fork`, evidence in .wicked-qe/evidence/<run-id>/.
 ============================================================================ */
@@ -43,9 +48,6 @@ function ReportCard() {
           <span className="qw-stamp">contradicted</span>
         </div>
       </div>
-      <div className="qw-delta">
-        <b>80%+</b> of self-graded PASSes don’t survive an independent read.
-      </div>
       <button
         type="button"
         className="qw-btn"
@@ -54,7 +56,7 @@ function ReportCard() {
       >
         {revealed ? "↺ Reset" : "Send it to an independent reviewer →"}
       </button>
-      <p className="qw-note">Illustrative of the measured self-grading gap.</p>
+      <p className="qw-note">illustrative: the same feature, graded twice</p>
     </div>
   );
 }
@@ -63,146 +65,137 @@ function Role({
   role,
   lit,
   onLight,
+  children,
 }: {
   role: AcceptanceRole;
   lit: boolean;
   onLight: () => void;
+  children?: React.ReactNode;
 }) {
   return (
-    <button
-      type="button"
-      className={`qw-role${role.id === "reviewer" ? " qw-role--reviewer" : ""}${lit ? " is-lit" : ""}`}
-      data-role={role.id}
-      aria-pressed={lit}
-      onClick={onLight}
-    >
-      <span className="qw-role-n">{role.step}</span>
-      <span className="qw-role-name">{role.name}</span>
-      <span className="qw-role-tools">
-        {role.tools.map((t) => (
-          <span key={t} className="qw-role-tool">{t}</span>
-        ))}
-      </span>
-      <p>{lit ? role.lit : role.line}</p>
-    </button>
+    <div className={`qw-role qw-role--${role.id}${lit ? " is-lit" : ""}`} data-role={role.id}>
+      <button type="button" className="qw-role-btn" aria-pressed={lit} onClick={onLight}>
+        <span className="qw-role-n">{role.step}</span>
+        <span className="qw-role-name">{role.name}</span>
+        <span className="qw-role-tools">
+          {role.tools.map((t) => (
+            <span key={t} className="qw-role-tool">{t}</span>
+          ))}
+        </span>
+        <span className="qw-role-copy">
+          <span className="qw-role-line" aria-hidden={lit}>{role.line}</span>
+          <span className="qw-role-lit" aria-hidden={!lit}>{role.lit}</span>
+        </span>
+      </button>
+      {children}
+    </div>
   );
 }
 
+const TICK_MS = 2600;
+const CYCLE = WALL_CROSSES.length + 1; // four chips in flight, then a full inbox
+
 export default function QeWall() {
+  const stage = useRef<HTMLDivElement>(null);
+  const ap = useAutoplay(stage, 0.35);
   const [litRole, setLitRole] = useState<string>("reviewer");
-  const [playing, setPlaying] = useState(true);
+  const [t, setT] = useState(0);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setPlaying(false);
-    }
-  }, []);
+    if (ap.reduced) setT(CYCLE - 1);
+  }, [ap.reduced]);
+
+  useEffect(() => {
+    if (!ap.active) return;
+    const id = window.setTimeout(() => setT((x) => (x + 1) % CYCLE), TICK_MS);
+    return () => window.clearTimeout(id);
+  }, [t, ap.active]);
+
+  const inFlight = t < WALL_CROSSES.length;
+  const received = WALL_CROSSES.slice(0, inFlight ? t : WALL_CROSSES.length);
+  const playing = ap.active;
 
   return (
-    <div className="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
-      <Reveal>
-        <p className="kicker qw-kicker">04 / the qe domain · absorbed fleet</p>
-        <h2 className="qw-h2">No agent grades its own homework.</h2>
-        <p className="qw-intro">
-          The retired wicked-testing plugin lives on here as the{" "}{/* historical */}
-          <span className="qw-em">qe domain</span> — and it brought its wall.
-          The 3-agent acceptance pipeline gives each role its own tool boundary;
-          the reviewer reads <span className="qw-em">cold evidence files only</span>{" "}
-          — never the executor’s context, reasoning, or stdout — so the
-          self-grading that inflates AI PASS rates has nowhere to hide.
+    <div className="sx sx--qe">
+      <Reveal className="sx-title">
+        <p className="kicker sx-kicker qw-kicker"><span className="sx-num">03</span>the qe domain</p>
+        <h2 className="sx-h2">No agent grades its own homework.</h2>
+      </Reveal>
+      <Reveal className="sx-lead" delay={0.04}>
+        <p>
+          Its acceptance pipeline never runs the reviewer inline with the test writer or the executor;
+          those two also run as separate workers where the host can start them. The reviewer reads{" "}
+          <span className="qw-em">cold evidence files only</span> — never the executor’s context,
+          reasoning, or stdout.
         </p>
       </Reveal>
 
-      <Reveal delay={0.06}>
-        <div className="qw-grid">
-          <ReportCard />
-          <div className="qw-gap-copy">
-            <h3 className="qw-h3">The agent that wrote the code runs the tests — and calls them green.</h3>
-            <p>
-              Scripted frameworks — Playwright, pytest, k6, axe-core — only run
-              what you already thought to test. They don’t tell you <em>what</em>{" "}
-              to test, whether the tests are any good, or whether the results
-              mean anything.
-            </p>
-            <p className="qw-kick">
-              The qe domain separates authorship from judgment — and enforces it.
-            </p>
-          </div>
-        </div>
-      </Reveal>
+      <div className="sx-stage qw-layout">
+        <ReportCard />
 
-      <Reveal delay={0.1}>
         <div
+          ref={stage}
           className={`qw-stage${playing ? " is-playing" : ""}`}
           role="group"
-          aria-label="Live evidence handoff across the reviewer wall — click a role to light it, click the channel to play or pause"
+          aria-label="Live evidence handoff across the reviewer wall — light a role to read its boundary"
+          {...ap.bind}
         >
           {ACCEPTANCE_ROLES.slice(0, 2).map((r) => (
             <Role key={r.id} role={r} lit={litRole === r.id} onLight={() => setLitRole(r.id)} />
           ))}
 
-          <div
-            className="qw-wall"
-            aria-hidden="true"
-            onClick={() => setPlaying((p) => !p)}
-          >
+          <div className="qw-wall" aria-hidden="true">
             <span className="qw-wall-tag">cold evidence only</span>
           </div>
 
-          <Role
-            role={ACCEPTANCE_ROLES[2]}
-            lit={litRole === "reviewer"}
-            onLight={() => setLitRole("reviewer")}
-          />
+          <Role role={ACCEPTANCE_ROLES[2]} lit={litRole === "reviewer"} onLight={() => setLitRole("reviewer")}>
+            <div className="qw-inbox" aria-label="the reviewer's inbox">
+              <span className="qw-inbox-h">inbox · reads only these</span>
+              <span className="qw-inbox-items">
+                {received.map((f) => (
+                  <code key={f} className="qw-inbox-item">{f}</code>
+                ))}
+              </span>
+            </div>
+          </Role>
 
-          {/* the live channel: evidence chips cross, reasoning bounces off */}
-          <div className="qw-channel" aria-hidden="true" onClick={() => setPlaying((p) => !p)}>
-            <span className="qw-chip qw-chip--pass" style={{ top: "26%", animationDelay: "0s" }}>manifest.json</span>
-            <span className="qw-chip qw-chip--pass" style={{ top: "70%", animationDelay: "1.3s" }}>evidence.json</span>
-            <span className="qw-chip qw-chip--pass" style={{ top: "44%", animationDelay: "2.6s" }}>step-N.json</span>
-            <span className="qw-chip qw-chip--pass" style={{ top: "84%", animationDelay: "3.9s" }}>context.md</span>
-            <span className="qw-chip qw-chip--block" style={{ top: "36%", animationDelay: ".6s" }}>executor context</span>
-            <span className="qw-chip qw-chip--block" style={{ top: "58%", animationDelay: "1.9s" }}>chain-of-thought</span>
-            <span className="qw-chip qw-chip--block" style={{ top: "16%", animationDelay: "3.2s" }}>raw stdout</span>
-            <span className="qw-chip qw-chip--block" style={{ top: "78%", animationDelay: "4.5s" }}>prior verdicts</span>
-          </div>
-        </div>
-      </Reveal>
-
-      <Reveal delay={0.12}>
-        <div className="qw-legend">
-          <div className="qw-leg qw-leg--pass">
-            <div className="qw-leg-h"><span className="qw-leg-dot" />Crosses the wall — the reviewer reads</div>
-            <div className="qw-leg-items">
-              {WALL_CROSSES.map((f) => (
-                <span key={f}><code>{f}</code></span>
-              ))}
+          {/* the live channel: its own row, so chips never cross card text */}
+          <div className="qw-track" aria-hidden="true">
+            <div className="qw-lane qw-lane--pass">
+              {inFlight && (
+                <span className="qw-chip qw-chip--pass" key={`p-${t}`}>{WALL_CROSSES[t]}</span>
+              )}
+            </div>
+            <div className="qw-lane qw-lane--block">
+              {inFlight && (
+                <span className="qw-chip qw-chip--block" key={`b-${t}`}>{WALL_BLOCKED[t]}</span>
+              )}
             </div>
           </div>
-          <div className="qw-leg qw-leg--block">
-            <div className="qw-leg-h"><span className="qw-leg-dot" />Bounced at the wall — never seen</div>
-            <div className="qw-leg-items">
-              {WALL_BLOCKED.map((f) => (
-                <span key={f}>{f}</span>
-              ))}
-            </div>
-          </div>
-        </div>
 
-        <div className="qw-foot">
-          <p>
-            Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>.
-            Isolation is enforced by the reviewer’s <code>context: fork</code>{" "}
-            boundary and an <code>allowed-tools: Read</code> frontmatter — the
-            verdict is re-derived from the artifacts, never asserted by the agent
-            that produced them.
-          </p>
-          <div className="qw-foot-cmd">
-            <span className="qw-foot-cmdlabel">garden skill · accept action</span>
-            <CopyChip text="wicked-garden-qe" label="try qe" />
+          <div className="qw-stage-foot">
+            <span className="qw-legend">
+              <span className="qw-leg-dot qw-leg-dot--pass" aria-hidden />
+              <span>crosses: evidence files</span>
+              <span className="qw-leg-dot qw-leg-dot--block" aria-hidden />
+              <span>bounced: {WALL_BLOCKED.join(" · ")}</span>
+            </span>
+            <PlayToggle paused={ap.paused} onToggle={ap.toggle} label="the evidence handoff" />
           </div>
         </div>
-      </Reveal>
+      </div>
+
+      <div className="sx-foot qw-foot">
+        <p>
+          Evidence lands in <code>.wicked-qe/evidence/&lt;run-id&gt;/</code>. Isolation is enforced by the
+          reviewer’s <code>context: fork</code> boundary and an <code>allowed-tools: Read</code> frontmatter —
+          the verdict is re-derived from the artifacts, never asserted by the agent that produced them.
+          <span className="qw-history"> The qe domain carries the wall and the fleet of the retired wicked-testing plugin.</span>{/* historical */}
+        </p>
+        <div className="qw-foot-cmd">
+          <CopyChip text="wicked-garden-qe" label="try qe" />
+        </div>
+      </div>
     </div>
   );
 }

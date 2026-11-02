@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { expectRevealed, clickCopyChip } from './utils';
+import { expectRevealed, clickCopyChip, hydrated } from './utils';
 
 /**
  * Smoke coverage for the React islands mounted on index.astro (all
- * client:load): HeroStamp, Toolbox, ProveGate, CapabilityGrid, ExtendPack,
- * InstallBench, CopyChip — plus the shared SameGarden platform map. The two
+ * client:load): HeroStamp, ProveGate, GraphStage, CatalogExplorer, ExtendPack,
+ * InstallBench, CopyChip — plus the shared SameGarden platform map. PanelVote and
+ * MemoryQueue are in panels.spec.ts. The two
  * qe-domain islands (QeWall, QeFleet) have their own spec (qe.spec.ts).
  * Each test asserts the island (a) renders and (b) responds to one
  * representative interaction.
@@ -17,10 +18,11 @@ test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
+  await hydrated(page);
 });
 
 test('hero renders headline, capability-plane stats, and install command', async ({ page }) => {
-  await expect(page).toHaveTitle(/wicked-garden/);
+  await expect(page).toHaveTitle(/wicked-garden — the tools your coding agent/);
   await expect(page.locator('h1')).toContainText('The tools your coding agent');
   await expect(page.locator('.gd-hero-stats')).toContainText(/\d{2,} skills/);
   await expect(page.locator('.gd-hero-stats')).toContainText('40');
@@ -46,23 +48,25 @@ test('HeroStamp: renders and pinning a claim shows its verdict', async ({ page }
   await expect(card.locator('.hs-mark')).toContainText('RE-DERIVED');
 });
 
-test('Toolbox: renders six tools and clicking one pins its demo + command', async ({ page }) => {
-  const box = page.locator('#toolbox');
-  await box.scrollIntoViewIfNeeded();
-  const rail = box.getByRole('tablist', { name: 'garden tools' });
-  await expect(rail.getByRole('tab')).toHaveCount(6);
-
-  // Interaction: pin the "patch" tool — stops auto-play, swaps the stage.
-  const patchTab = rail.getByRole('tab', { name: /patch/ });
-  await patchTab.click();
-  await expect(patchTab).toHaveAttribute('aria-selected', 'true');
-  await expect(box.locator('.tb-afford')).toContainText('driving');
-  await expect(box.locator('.tb-stage-name')).toHaveText('patch');
-  await expect(box.locator('.tb-stage')).toContainText('wicked-garden-engineering');
-
-  // Resume auto-play — affordance flips back.
-  await box.getByRole('button', { name: /resume auto-play/ }).click();
-  await expect(box.locator('.tb-afford')).toContainText('auto-playing');
+test('GraphStage: grep finds two refs, the estate graph adds the event consumer, the rename lands in 3 files', async ({ page }) => {
+  const graph = page.locator('#graph');
+  await graph.scrollIntoViewIfNeeded();
+  const stage = graph.getByRole('group', { name: /grep against the estate graph/ });
+  await stage.getByRole('button', { name: 'grep', exact: true }).click();
+  await expect(graph.locator('.gx-impact .gx-result')).toContainText('2 refs');
+  await expect(graph.locator('.gx-afford')).toContainText('driving');
+  await stage.getByRole('button', { name: 'estate graph' }).click();
+  await expect(graph.locator('.gx-tag')).toHaveClass(/is-on/);
+  await expect(graph.locator('.gx-impact .gx-result')).toContainText('notify.ts');
+  await stage.getByRole('button', { name: /rename getUsr → getUser/ }).click();
+  await expect(graph.locator('.gx-new').first()).toBeVisible();
+  // the old and new names are separate words with an arrow between them, never "getUsrgetUser"
+  expect((await graph.locator('.gx-file').first().innerText()).replace(/\s+/g, ' ')).toContain('getUsr → getUser');
+  await expect(graph.locator('.gx-patch .gx-result')).toContainText('3 files touched');
+  await expect(graph.getByRole('button', { name: 'Copy command: wicked-garden-search' })).toBeVisible();
+  await expect(graph.getByRole('button', { name: 'Copy command: wicked-garden-engineering' })).toBeVisible();
+  await graph.getByRole('button', { name: /resume auto-play/ }).click();
+  await expect(graph.locator('.gx-afford')).toContainText('auto-playing');
 });
 
 test('ProveGate: driving the gate re-derives PROVED, breaking the vault FAILS CLOSED', async ({
@@ -83,32 +87,65 @@ test('ProveGate: driving the gate re-derives PROVED, breaking the vault FAILS CL
   await lever.click();
   await expect(machine.locator('.pg-mark-word')).toHaveText('PROVED');
 
-  // Break the vault condition → the gate FAILS CLOSED (never a vacuous pass).
+  // Break the vault condition → the gate FAILS CLOSED (never a vacuous pass); the trail names the check.
   const vault = machine.getByRole('switch', { name: /vault backend present/ });
   await vault.click();
   await expect(vault).toHaveAttribute('aria-checked', 'false');
   await lever.click();
   await expect(machine.locator('.pg-mark-word')).toHaveText('FAILS CLOSED');
+  await expect(machine.locator('.pg-mark-at')).toHaveText('failed at: vault');
+  await expect(machine.locator('.pg-chip').first()).toHaveClass(/is-fail/);
+  await expect(machine.locator('.pg-chip').nth(1)).toHaveClass(/is-skip/);
 });
 
-test('CapabilityGrid: 14 domain cards + 4 peers render; qe card deep-links to the wall', async ({
-  page,
-}) => {
-  const grid = page.locator('#toolkit');
-  await grid.scrollIntoViewIfNeeded();
-  await expect(grid.getByRole('heading', { name: /Six tools were the sample/ })).toBeVisible();
-  await expect(grid.locator('.cg-card')).toHaveCount(14);
-  await expect(grid.locator('.cg-peer')).toHaveCount(4);
-  await expect(grid.locator('.cg-peer').first()).toContainText('wicked-estate');
-  // The island is presentational — its dynamic behavior is the scroll-triggered
-  // reveal. Assert the fade-in actually completed (opacity → 1).
-  await expectRevealed(grid.locator('.cg-grid'));
-  await expect(grid.locator('.cg-card').first()).toContainText('skills');
-  // The qe domain card is the doorway to the absorbed wall band.
-  const qeCard = grid.locator('.cg-card--qe');
-  await expect(qeCard).toHaveAttribute('href', '#qe');
-  await expect(qeCard).toContainText('quality engineering');
-  await expect(qeCard).toContainText('42 skills');
+test('ProveGate: the where-it-advises detail opens inside the machine and never grows the frame', async ({ page }) => {
+  const gate = page.locator('#gate');
+  await gate.scrollIntoViewIfNeeded();
+  const before = await gate.evaluate((el) => el.getBoundingClientRect().height);
+  const btn = gate.getByRole('button', { name: 'where it only advises' });
+  await btn.click();
+  await expect(btn).toHaveAttribute('aria-expanded', 'true');
+  const panel = gate.getByRole('region', { name: 'Where the gate only advises' });
+  await expect(panel).toBeVisible();
+  await expect(panel).toContainText('skills-only hosts (Codex, OpenCode, Pi, Antigravity) have no hooks');
+  expect(await gate.evaluate((el) => el.getBoundingClientRect().height)).toBe(before);
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(btn).toBeFocused();
+});
+
+test('CatalogExplorer: 14 domains as tabs, qe selected first, arrow keys and the task filter', async ({ page }) => {
+  const cat = page.locator('#toolkit');
+  await cat.scrollIntoViewIfNeeded();
+  await expect(cat.getByRole('heading', { name: /\d{2,} skills across 14 domains\./ })).toBeVisible();
+  const tabs = cat.getByRole('tab');
+  await expect(tabs).toHaveCount(14);
+  const qe = cat.getByRole('tab', { name: 'quality engineering' });
+  await expect(qe).toHaveAttribute('aria-selected', 'true');
+  const qePanel = cat.locator('#cx-panel-qe');
+  await expect(qePanel).toBeVisible();
+  await expect(qePanel.getByRole('link', { name: /the wall/ })).toHaveAttribute('href', '#qe');
+  await expect(qePanel.getByRole('button', { name: 'Copy command: wicked-garden-qe' })).toBeVisible();
+  // no hover trays: the detail is a panel in the frame; the arrow key moves the selection
+  await qe.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(cat.getByRole('tab', { name: 'product & UX' })).toBeFocused();
+  await expect(cat.getByRole('tab', { name: 'product & UX' })).toHaveAttribute('aria-selected', 'true');
+  await expect(cat.locator('#cx-panel-product')).toBeVisible();
+  await expect(qePanel).toBeHidden();
+  // type a task: the matching domains light, the rest dim
+  await cat.getByLabel('type a task').fill('rename across files');
+  await expect(cat.locator('#dom-engineering')).toHaveClass(/is-hit/);
+  await expect(cat.locator('#dom-persona')).toHaveClass(/is-miss/);
+  await expect(cat.locator('.cx-peer')).toHaveCount(4);
+  await expect(cat.locator('.cx-peer').first()).toContainText('wicked-estate');
+});
+
+test("What's new: the domain-mapping item selects the domain in the catalog", async ({ page }) => {
+  const link = page.locator('#memory .mq-new-list a');
+  await link.scrollIntoViewIfNeeded();
+  await link.click();
+  await expect(page.locator('#dom-domain')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('ExtendPack: the extension pitch renders scaffold, rules, and the compile chip', async ({
@@ -122,6 +159,10 @@ test('ExtendPack: the extension pitch renders scaffold, rules, and the compile c
   await expect(xp.locator('.xp-row')).toHaveCount(3);
   await expect(xp.locator('.xp-dir').first()).toContainText('acme-fintech/');
   await expect(xp.locator('.xp-rule')).toHaveCount(3);
+  // pick another pack: the scaffold retypes and each rule lights as its row lands
+  await xp.getByRole('radio', { name: 'compliance' }).click();
+  await expect(xp.locator('.xp-dir').first()).toHaveText('acme-compliance/');
+  await expect(xp.locator('.xp-rule.is-lit')).toHaveCount(3);
   // Interaction: copy the prove-compile command (the garden-free gate).
   await clickCopyChip(
     xp.getByRole('button', { name: /Copy command: wicked-garden-prove compile/ }),
@@ -149,7 +190,10 @@ test('InstallBench: renders both install paths; copy chip gives feedback', async
   await expect(bench.getByRole('heading', { name: /One command/ })).toBeVisible();
   await expectRevealed(bench.getByRole('heading', { name: /One command/ }));
 
-  // Interaction: copy the direct-install command.
+  // The direct path is the second tab; both panels share one reserved cell.
+  const before = await bench.evaluate((el) => el.getBoundingClientRect().height);
+  await bench.getByRole('tab', { name: 'just this plugin' }).click();
+  expect(await bench.evaluate((el) => el.getBoundingClientRect().height)).toBe(before);
   const chip = bench.getByRole('button', {
     name: 'Copy command: claude plugins install wicked-garden',
   });

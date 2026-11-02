@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectRevealed } from './utils';
+import { expectRevealed, hydrated } from './utils';
 
 /**
  * The qe-domain bands — the mechanics absorbed from the retired
@@ -14,6 +14,7 @@ import { expectRevealed } from './utils';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
+  await hydrated(page);
 });
 
 test('QeWall: the reveal-reviewer flip contradicts a self-graded PASS', async ({ page }) => {
@@ -32,7 +33,8 @@ test('QeWall: the reveal-reviewer flip contradicts a self-graded PASS', async ({
   await expect(fig).toHaveAttribute('data-revealed', 'true');
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
   await expect(fig).toContainText('caught a real bug');
-  await expect(fig.locator('.qw-delta')).toContainText('80%+');
+  // no unmeasured rate rides along with the flip (N9)
+  await expect(fig).not.toContainText('80%');
 
   // and back
   await fig.getByRole('button', { name: /Reset/ }).click();
@@ -47,14 +49,19 @@ test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ 
   // the reviewer is lit by default — the wall is its story
   const reviewer = stage.locator('[data-role="reviewer"]');
   await expect(reviewer).toHaveClass(/is-lit/);
-  await expect(reviewer).toContainText('never sees who did the work');
+  await expect(reviewer.locator('.qw-role-lit')).toBeVisible();
+  await expect(reviewer.locator('.qw-role-lit')).toContainText('never sees who did the work');
 
-  // light the writer — the lit copy swaps in, the reviewer dims
+  // light the writer — the lit copy swaps in (in the same reserved cell), the reviewer dims
   const writer = stage.locator('[data-role="writer"]');
-  await writer.click();
+  const h = await writer.evaluate((el) => el.getBoundingClientRect().height);
+  await expect(writer.locator('.qw-role-lit')).toBeHidden();
+  await writer.getByRole('button').click();
   await expect(writer).toHaveClass(/is-lit/);
-  await expect(writer).toContainText('designs the exam but never sits it');
+  await expect(writer.locator('.qw-role-lit')).toBeVisible();
+  await expect(writer.locator('.qw-role-lit')).toContainText('designs the exam but never sits it');
   await expect(reviewer).not.toHaveClass(/is-lit/);
+  expect(await writer.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
 
   // per-role tool boundaries from the skills' allowed-tools frontmatter
   await expect(writer.locator('.qw-role-tool')).toHaveText(['Read', 'Grep', 'Glob', 'Skill']);
@@ -66,19 +73,23 @@ test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ 
   ]);
 });
 
-test('QeWall: the evidence channel plays and the wall click pauses it', async ({ page }) => {
+test('QeWall: evidence crosses into the reviewer inbox, and a visible button pauses it', async ({ page }) => {
   const stage = page.locator('.qw-stage');
   await stage.scrollIntoViewIfNeeded();
+  await page.mouse.move(2, 2);
 
-  // playing by default (no reduced-motion in this project)
+  // playing by default (no reduced-motion in this project); the chips run in their own lanes
   await expect(stage).toHaveClass(/is-playing/);
-  await expect(stage.locator('.qw-chip--pass')).toHaveCount(4);
-  await expect(stage.locator('.qw-chip--block')).toHaveCount(4);
+  await expect(stage.locator('.qw-track .qw-chip--pass')).toHaveCount(1);
+  await expect(stage.locator('.qw-track .qw-chip--block')).toHaveCount(1);
+  await expect.poll(() => stage.locator('.qw-inbox-item').count(), { timeout: 12_000 }).toBeGreaterThan(0);
 
-  // the dashed wall is the play/pause control
-  await stage.locator('.qw-wall').click();
+  // the keyboard pause
+  const pause = stage.getByRole('button', { name: 'Pause the evidence handoff' });
+  await pause.focus();
+  await page.keyboard.press('Enter');
   await expect(stage).not.toHaveClass(/is-playing/);
-  await stage.locator('.qw-wall').click();
+  await page.keyboard.press('Enter');
   await expect(stage).toHaveClass(/is-playing/);
 });
 
@@ -115,9 +126,12 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   const grid = fleet.locator('.qf-grid');
   await expect(grid).toHaveClass(/is-filtered/);
   await expect(grid.locator('.qf-agent.is-match')).toHaveCount(6);
-  await expect(grid.locator('.qf-agent.is-match').first()).toContainText(
-    'qe-acceptance-test-reviewer',
-  );
+  // the chosen surface regroups to the front of the grid
+  await expect(grid.locator('.qf-agent').first()).toHaveAttribute('aria-label', 'qe-acceptance-test-reviewer');
+  await expect(grid.locator('.qf-agent').first()).toHaveClass(/is-match/);
+  // hovering a tile writes its full name into the fixed caption line
+  await grid.locator('.qf-agent').nth(1).hover();
+  await expect(fleet.locator('.qf-caption')).toContainText('qe-semantic-reviewer');
 
   // the click killed the auto-cycle — the selection must hold past a cycle tick
   await page.waitForTimeout(2600);

@@ -1,146 +1,180 @@
 import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
-import { CONDITIONS } from "../../data/garden";
+import PlayToggle from "./PlayToggle";
+import { useAutoplay } from "./useAutoplay";
+import { CONDITIONS, CHECK_ORDER, type CheckId } from "../../data/garden";
 
 /* ============================================================================
-   The Gate — the ONE differentiator, made drivable AND self-playing.
-   It animates itself: breaks a condition, pulls PROVE, and re-stamps the
-   verdict — cycling through every failure mode. Flip a switch or pull the
-   lever yourself and you take control. "Done is re-derived, not asserted."
-   Gate logic mirrors garden's real fail-closed ordering (vault first).
+   The Gate — the one differentiator, made drivable AND self-playing.
+   It plays itself: resets the bench, breaks one condition, pulls PROVE, lights
+   the evidence trail in the gate's real check order (vault first, the fail-closed
+   ordering), and stamps the verdict in its status colour, cycling every way it can
+   refuse. Flip a switch or pull the lever and you drive. Every state lives inside
+   a fixed-height machine, so nothing on the page moves while it plays.
 ============================================================================ */
 
 type Status = "proved" | "rejected" | "unavailable";
-interface Verdict { status: Status; word: string; sub: string; tag: string; cls: string; }
+interface Verdict { status: Status; word: string; sub: string; tag: string; cls: string; failed?: CheckId }
 
 function derive(s: Record<string, boolean>): Verdict {
   if (!s.vault)
-    return { status: "unavailable", word: "FAILS CLOSED",
+    return { status: "unavailable", word: "FAILS CLOSED", failed: "vault",
       sub: "gate: unavailable — the vault it re-derives against is gone.",
-      tag: "a missing backend is never a vacuous pass.", cls: "is-unavail" };
+      tag: "a missing backend is never a vacuous pass.", cls: "is-warn" };
   if (!s.verifier)
-    return { status: "rejected", word: "REJECTED",
+    return { status: "rejected", word: "REJECTED", failed: "verifier",
       sub: "the verifier never ran — there is nothing to re-derive.",
-      tag: "you claimed done; the evidence disagrees.", cls: "is-rejected" };
+      tag: "you claimed done; the evidence disagrees.", cls: "is-fail" };
   if (!s.hash)
-    return { status: "rejected", word: "REJECTED",
+    return { status: "rejected", word: "REJECTED", failed: "hash",
       sub: "evidence hash ≠ the recording — the claim was edited after the run.",
-      tag: "you claimed done; the evidence disagrees.", cls: "is-rejected" };
+      tag: "you claimed done; the evidence disagrees.", cls: "is-fail" };
   if (!s.attest)
-    return { status: "rejected", word: "REJECTED",
+    return { status: "rejected", word: "REJECTED", failed: "attest",
       sub: "no independent attestation — the evaluator is the author (self-grading).",
-      tag: "you claimed done; the evidence disagrees.", cls: "is-rejected" };
+      tag: "you claimed done; the evidence disagrees.", cls: "is-fail" };
   return { status: "proved", word: "PROVED",
     sub: "the gate re-ran the verifier and re-hashed the recording. Every condition holds.",
-    tag: "done is re-derived, not asserted.", cls: "is-proved" };
+    tag: "done is re-derived, not asserted.", cls: "is-pass" };
 }
 
 const ALL_ON: Record<string, boolean> = { verifier: true, hash: true, vault: true, attest: true };
 
-/* Auto-play script: each step breaks one condition (or none) to showcase a
-   verdict — proved, then every way it can refuse. */
+/* Auto-play script: each cycle breaks one condition (or none) to show a verdict. */
 const SCRIPT: (string | null)[] = [null, "verifier", "vault", "attest"];
 
+/* Step machine. s=0 armed, s=1 a condition broken, s=2 the lever is pulled and check 0 runs,
+   s=2+k check k runs, s=2+runs every check that runs has a result and the verdict lands. */
+const DUR = { armed: 1000, broken: 950, check: 260, hold: 2800 };
+
+const ADVISE_ID = "pg-advise";
+
 export default function ProveGate() {
+  const machine = useRef<HTMLDivElement>(null);
+  const ap = useAutoplay(machine, 0.4);
   const [state, setState] = useState<Record<string, boolean>>({ ...ALL_ON });
-  const [verdict, setVerdict] = useState<Verdict | null>(null);
-  const [pulled, setPulled] = useState(false);
-  const [auto, setAuto] = useState(true);
+  const [s, setS] = useState(0);
+  const [manual, setManual] = useState(false);
   const [cycle, setCycle] = useState(0);
-  const timers = useRef<number[]>([]);
+  const [advise, setAdvise] = useState(false);
+  const adviseBtn = useRef<HTMLButtonElement>(null);
+  const adviseClose = useRef<HTMLButtonElement>(null);
 
-  function clearTimers() {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
-  }
+  const v = derive(state);
+  const failIdx = v.failed ? CHECK_ORDER.findIndex((x) => x.id === v.failed) : -1;
+  const runs = failIdx >= 0 ? failIdx + 1 : CHECK_ORDER.length;
+  const pulled = s >= 2;
+  const stamped = s >= 2 + runs;
 
-  // Any hands-on interaction pins the gate — the visitor is now driving. Always
-  // cancel pending timers (auto-play AND a queued manual-pull re-stamp), so a
-  // flip/reset right after a pull can't fire a stale setVerdict over the reset.
-  function takeControl() {
-    clearTimers();
-    if (auto) setAuto(false);
-  }
-
-  // Self-playing timeline: reset → break a condition → pull → re-stamp → next.
+  // the timeline: auto-play advances while active; a manual pull plays its own trail to the verdict
   useEffect(() => {
-    if (!auto) return;
-    clearTimers();
+    if (manual) {
+      if (!pulled || stamped) return;
+      if (ap.reduced) { setS(2 + runs); return; }
+      const t = window.setTimeout(() => setS((x) => x + 1), DUR.check);
+      return () => window.clearTimeout(t);
+    }
+    if (!ap.active) return;
     const brk = SCRIPT[cycle % SCRIPT.length];
-    const target = brk ? { ...ALL_ON, [brk]: false } : { ...ALL_ON };
-    setState({ ...ALL_ON });
-    setVerdict(null);
-    setPulled(false);
-    const at = (fn: () => void, ms: number) => timers.current.push(window.setTimeout(fn, ms));
-    if (brk) at(() => setState(target), 850);
-    at(() => setPulled(true), 1750);
-    at(() => setVerdict(derive(target)), 2210);
-    at(() => setCycle((c) => c + 1), 4500);
-    return clearTimers;
-  }, [auto, cycle]);
+    let ms = DUR.check;
+    let next = () => setS((x) => x + 1);
+    if (s === 0) ms = DUR.armed;
+    else if (s === 1) ms = DUR.broken;
+    if (s === 0 && !brk) next = () => setS(2); // nothing to break: straight to the pull
+    if (stamped) {
+      ms = DUR.hold;
+      next = () => {
+        setState({ ...ALL_ON });
+        setS(0);
+        setCycle((c) => c + 1);
+      };
+    }
+    const t = window.setTimeout(() => {
+      if (s === 0 && brk) setState({ ...ALL_ON, [brk]: false });
+      next();
+    }, ms);
+    return () => window.clearTimeout(t);
+  }, [s, manual, ap.active, ap.reduced, cycle, pulled, stamped, runs]);
+
+  // Escape closes the advise panel; focus returns to its toggle
+  useEffect(() => {
+    if (!advise) return;
+    adviseClose.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeAdvise(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [advise]);
+
+  function closeAdvise() {
+    setAdvise(false);
+    window.requestAnimationFrame(() => adviseBtn.current?.focus());
+  }
 
   function flip(id: string) {
-    takeControl();
-    setState((s) => ({ ...s, [id]: !s[id] }));
-    setVerdict(null);
-    setPulled(false);
+    setManual(true);
+    setState((x) => ({ ...x, [id]: !x[id] }));
+    setS(0);
   }
   function pull() {
-    takeControl();
     if (pulled) return;
-    setPulled(true);
-    timers.current.push(window.setTimeout(() => setVerdict(derive(state)), 460));
+    setManual(true);
+    setS(2);
   }
   function reset() {
-    takeControl();
+    setManual(true);
     setState({ ...ALL_ON });
-    setVerdict(null);
-    setPulled(false);
+    setS(0);
   }
   function resume() {
     setState({ ...ALL_ON });
-    setVerdict(null);
-    setPulled(false);
+    setS(0);
     setCycle((c) => c + 1);
-    setAuto(true);
+    setManual(false);
+    ap.play();
   }
 
+  const trail = (k: number) => {
+    if (k >= runs) return stamped ? "is-skip" : "is-pending";
+    if (s >= k + 3 || (stamped && k < runs)) return k === failIdx ? `is-fail ${v.cls}` : "is-ok";
+    if (s === k + 2) return "is-checking";
+    return "is-pending";
+  };
+
+  const gateState = stamped ? "gate: re-derived" : pulled ? "gate: re-deriving" : "gate: armed";
+  const failedShort = v.failed ? CHECK_ORDER.find((x) => x.id === v.failed)?.short : null;
+
   return (
-    <div className="pg-outer mx-auto w-full max-w-[1240px] px-5 sm:px-8">
-      {/* ── title/intro — DOM-first so mobile reads it before the machine;
-             on desktop grid-areas float it back down beside the claim ── */}
-      <Reveal className="pg-a-intro">
-        <div className="pg-intro-col">
-          <p className="kicker" style={{ color: "var(--accent)" }}>02 / the gate</p>
-          <h2 className="pg-h2">Play the lying agent. Watch the gate refuse.</h2>
-          <p className="pg-intro">
-            Garden’s one non-negotiable, made drivable. It plays itself — breaking the
-            evidence and re-stamping the verdict. Flip a switch or pull the lever to take
-            control: the gate re-derives the claim instead of taking your word for it.
-          </p>
-          <p className="pg-intro">
-            It refuses where it runs: when a skill invokes it, in a compiled pre-push or CI
-            trigger, or inside a crew run. The Claude Code plugin’s hooks mostly advise — a few
-            specific tool denials and a setup gate, none of which rejects a false “done” — and
-            skills-only hosts (Codex, OpenCode, Pi, Antigravity) have no hooks —{" "}
-            <a href="https://github.com/mikeparcewski/wicked-garden#what-blocks-what-advises">what blocks, what advises</a>.
-          </p>
-        </div>
+    <div className="sx sx--gate">
+      <Reveal className="sx-title">
+        <p className="kicker sx-kicker"><span className="sx-num">01</span>the gate</p>
+        <h2 className="sx-h2">Play the lying agent. Watch the gate refuse.</h2>
+      </Reveal>
+      <Reveal className="sx-lead" delay={0.04}>
+        <p>
+          <b>Proof, not claims.</b> Run the proof gate and “done” is re-checked from evidence: an
+          unsupported claim is rejected, and by default the gate fails closed if its checks cannot run
+          (an explicit claim-only fallback is labelled). Which entry paths block and which only advise
+          is{" "}<a href="https://github.com/mikeparcewski/wicked-garden#what-blocks-what-advises">spelled out</a>.
+        </p>
       </Reveal>
 
-      {/* ── the auto-playing gate — full width, across the top on desktop ── */}
-      <Reveal className="pg-a-machine">
+      <div className="sx-stage">
         <div
-          className="pg-machine pg-machine--wide"
+          ref={machine}
+          className={`pg-machine${stamped ? ` is-stamped ${v.cls}` : ""}`}
           role="region"
           aria-label="Evidence gate — interactive demo: break a condition, pull PROVE, and watch the gate re-derive the verdict"
+          {...ap.bind}
         >
-          <div className="pg-machine-head">
-            <span>evidence conditions</span>
-            <span>{verdict ? "gate: re-derived" : pulled ? "gate: re-deriving" : "gate: armed"}</span>
+          <div className="pg-head">
+            <span className="pg-claimline">
+              <span className="pg-claim-k">claim</span>{" "}
+              <code className="pg-claim-v">build: all acceptance tests pass</code>
+            </span>
+            <span className="pg-state">{gateState}</span>
           </div>
 
-          <div className="pg-machine-body">
+          <div className="pg-body">
             <div className="pg-switches">
               {CONDITIONS.map((c) => {
                 const on = state[c.id];
@@ -157,67 +191,107 @@ export default function ProveGate() {
               })}
             </div>
 
-            <div className="pg-action">
-              <button type="button" className="pg-lever" data-pulled={pulled}
-                disabled={pulled} onClick={pull} aria-label="Pull the PROVE lever">
-                <span className="pg-lever-slot" aria-hidden><span className="pg-lever-knob" /></span>
-                <span className="pg-lever-word">prove</span>
-              </button>
+            <div className="pg-right">
+              <div className="pg-action">
+                <button type="button" className="pg-lever" data-pulled={pulled}
+                  disabled={pulled} onClick={pull} aria-label="Pull the PROVE lever">
+                  <span className="pg-lever-slot" aria-hidden><span className="pg-lever-knob" /></span>
+                  <span className="pg-lever-word">prove</span>
+                </button>
 
-              <div className="pg-stamp" aria-live="polite">
-                {verdict ? (
-                  <div className={`pg-mark ${verdict.cls}`} key={verdict.word + verdict.sub}>
-                    <span className="pg-mark-word">{verdict.word}</span>
-                    <span className="pg-mark-sub">{verdict.sub}</span>
-                    <span className="pg-mark-tag">{verdict.tag}</span>
-                  </div>
-                ) : (
-                  <span className="pg-stamp-idle">
-                    {pulled ? "re-deriving…" : "pull the lever — the gate stamps a verdict"}
-                  </span>
-                )}
+                <div className="pg-stamp" aria-live="polite">
+                  {stamped ? (
+                    <div className={`pg-mark ${v.cls}`} key={v.word + v.sub}>
+                      <span className="pg-mark-word">{v.word}</span>
+                      <span className="pg-mark-sub">
+                        {failedShort ? <b className="pg-mark-at">failed at: {failedShort}</b> : null}
+                        {failedShort ? " — " : null}
+                        {v.sub}
+                      </span>
+                      <span className="pg-mark-tag">{v.tag}</span>
+                    </div>
+                  ) : (
+                    <span className="pg-stamp-idle">
+                      {pulled
+                        ? "re-deriving…"
+                        : "pull the lever — the gate re-runs the verifier, re-hashes the recording and checks the vault is there"}
+                    </span>
+                  )}
+                </div>
               </div>
+
+              <ol className="pg-trail" aria-label="evidence trail, in the order the gate checks it">
+                {CHECK_ORDER.map((x, k) => {
+                  const st = trail(k);
+                  return (
+                    <li key={x.id} className={`pg-chip ${st}`}>
+                      <span className="pg-chip-n" aria-hidden>{k + 1}</span>
+                      <span className="pg-chip-name">{x.short}</span>
+                      <span className="pg-chip-mark" aria-hidden>
+                        {st.startsWith("is-ok") ? "✓" : st.startsWith("is-fail") ? "✕" : st === "is-skip" ? "not reached" : st === "is-checking" ? "…" : ""}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ol>
             </div>
           </div>
 
-          <button type="button" className="pg-reset" onClick={reset}>reset the bench</button>
-        </div>
-      </Reveal>
+          <div className="pg-foot">
+            <div className="pg-afford" data-pinned={manual}>
+              {manual ? (
+                <>
+                  <span className="pg-afford-state" aria-hidden>❚❚</span>
+                  <span className="pg-afford-text">you’re driving the gate</span>
+                </>
+              ) : (
+                <>
+                  <span className={`pg-afford-state${ap.paused ? "" : " pg-afford-live"}`} aria-hidden>{ap.paused ? "❚❚" : "▶"}</span>
+                  <span className="pg-afford-text">
+                    {ap.paused ? "paused — " : "auto-playing — "}<b>flip a switch or pull the lever</b> to take control
+                  </span>
+                </>
+              )}
+            </div>
+            <div className="pg-foot-btns">
+              {manual ? (
+                <button type="button" className="pg-afford-btn" onClick={resume}>▶ resume auto-play</button>
+              ) : (
+                <PlayToggle paused={ap.paused} onToggle={ap.toggle} label="the gate demo" />
+              )}
+              <button type="button" className="pg-reset" onClick={reset}>reset the bench</button>
+            </div>
+          </div>
 
-      {/* persistent affordance — live state + how to take control */}
-      <div className="pg-afford pg-a-afford" data-pinned={!auto}>
-        {auto ? (
-          <>
-            <span className="pg-afford-state pg-afford-live" aria-hidden>▶</span>
-            <span className="pg-afford-text">
-              auto-playing the gate — <b>flip a switch or pull the lever</b> to take control
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="pg-afford-state" aria-hidden>❚❚</span>
-            <span className="pg-afford-text">you’re driving the gate</span>
-            <button type="button" className="pg-afford-btn" onClick={resume}>
-              ▶ resume auto-play
-            </button>
-          </>
-        )}
+          {/* the hooks-advise detail: an overlay inside the machine, so opening it never grows the frame */}
+          <div className="pg-advise" id={ADVISE_ID} hidden={!advise} role="region" aria-label="Where the gate only advises">
+            <p>
+              The Claude Code plugin’s hooks mostly advise — a few specific tool denials and a setup gate,
+              none of which rejects a false “done” — and skills-only hosts (Codex, OpenCode, Pi, Antigravity)
+              have no hooks —{" "}
+              <a href="https://github.com/mikeparcewski/wicked-garden#what-blocks-what-advises">what blocks, what advises</a>.
+            </p>
+            <button type="button" ref={adviseClose} className="pg-advise-close" onClick={closeAdvise}>close</button>
+          </div>
+        </div>
       </div>
 
-      {/* the claim handed to the visitor — desktop: right of the intro;
-          mobile: last, the detail the gate re-derives against */}
-      <Reveal delay={0.06} className="pg-a-claim">
-        <div className="pg-claim">
-          <span className="pg-claim-tape" aria-hidden />
-          <div className="pg-claim-kind">claim card · archetype: build</div>
-          <div className="pg-claim-text"><b>build:</b> all acceptance tests pass</div>
-          <p className="pg-claim-note">
-            The agent stamped this “done.” The gate re-runs the verifier, re-hashes
-            the recording, and checks the vault is even there. Break a condition and
-            prove it can’t be fooled.
-          </p>
-        </div>
-      </Reveal>
+      <div className="sx-foot pg-where">
+        <p>
+          It refuses where it runs: when a skill invokes it, in a compiled pre-push or CI trigger, or
+          inside a wicked-crew job.{" "}
+          <button
+            type="button"
+            ref={adviseBtn}
+            className="pg-where-btn"
+            aria-expanded={advise}
+            aria-controls={ADVISE_ID}
+            onClick={() => (advise ? closeAdvise() : setAdvise(true))}
+          >
+            where it only advises
+          </button>
+        </p>
+      </div>
     </div>
   );
 }

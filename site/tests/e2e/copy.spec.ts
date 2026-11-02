@@ -13,18 +13,35 @@ test('the hero sub-line names the hosts and the proof gate, with no fused words'
   expect(sub).not.toContain('never asserted');
 });
 
-test('why: three benefits, the advise/block link, and what is new in 12.62', async ({ page }) => {
+test('the three benefits lead their sections, and what is new in 12.62 closes memory', async ({ page }) => {
   await page.goto('/');
-  const why = page.locator('#why');
-  await expect(why.locator('.wy-card')).toHaveCount(3);
-  await expect(why.getByRole('link', { name: 'spelled out' })).toHaveAttribute(
+  const lead = async (id: string) => (await page.locator(`#${id} .sx-lead`).innerText()).replace(/\s+/g, ' ');
+  expect(await lead('gate')).toContain('Proof, not claims. Run the proof gate and “done” is re-checked from evidence');
+  await expect(page.locator('#gate .sx-lead').getByRole('link', { name: 'spelled out' })).toHaveAttribute(
     'href',
     'https://github.com/mikeparcewski/wicked-garden#what-blocks-what-advises',
   );
+  expect(await lead('graph')).toContain('finds the event and command links grep never sees');
+  expect(await lead('qe')).toContain('never runs the reviewer inline with the test writer or the executor');
   // The panel is not always other models: a same-family fallback is labelled.
-  await expect(why).toContainText('a same-family fallback is labelled');
-  const items = why.locator('.wy-new li');
+  expect(await lead('panel')).toContain('a same-family fallback is labelled, and without a quorum it gives no verdict');
+  const items = page.locator('#memory .mq-new-list li');
   await expect(items).toHaveCount(3);
-  const text = (await why.locator('.wy-new').innerText()).replace(/\s+/g, ' ');
+  await expect(page.locator('#memory .mq-new-h')).toHaveText('What’s new in 12.62');
+  const text = (await page.locator('#memory .mq-new-list').innerText()).replace(/\s+/g, ' ');
   expect(text).toContain('Style learning: repo-learn learns');
+  expect(text).toContain('In a wicked-crew job, every agent is asked to propose what it witnessed, as a memory');
+});
+
+test('public words: no seat, floor, plane or unmeasured numbers outside the platform map', async ({ page }) => {
+  await page.goto('/');
+  const text = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('main > section:not(#platform-map)')).map((s) => (s as HTMLElement).innerText).join(' '),
+  );
+  expect(text).not.toMatch(/\bseats?\b/i);
+  expect(text).not.toMatch(/\bfloor\b/i);
+  expect(text).not.toMatch(/\bplanes?\b/i);
+  expect(text).not.toContain('80%');
+  // the work-shape count is the archetype catalog's, counted at build time
+  await expect(page.locator('.gd-hero-stats')).toContainText(/\d+ work-shapes/);
 });

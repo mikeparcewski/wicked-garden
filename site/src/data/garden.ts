@@ -13,9 +13,9 @@
 
 export type Hue = "gate" | "floor" | "layer" | "solo" | "creation" | "workflow" | "qe";
 
-/** The colour a hue resolves to (CSS var). Signal-yellow (gate) is reserved
-    for verdict stamps + the primary CTA — never a tool tint. The qe hue is
-    the family's CAPABILITY plane green (wicked-web tokens.css). */
+/** The colour a hue resolves to (CSS var; site.css maps each onto a plane or
+    status hue of the design package, never signal yellow). The qe hue is the
+    family's capability green (wicked-web tokens.css). */
 export const HUE_VAR: Record<Hue, string> = {
   gate: "--c-gate",
   floor: "--c-floor",
@@ -29,11 +29,24 @@ export const HUE_VAR: Record<Hue, string> = {
 /* ── The hero proof: agent CLAIMS that garden re-derives instead of trusting ─
    Each is stamped after the agent asserts it. Mixed verdicts on purpose —
    the point is it CHECKS, and a false claim is caught. */
+export type CheckId = "vault" | "verifier" | "hash" | "attest";
+
+/** The gate's checks in the order it runs them (ProveGate derive(): the vault first, so a missing
+    backend fails closed before anything else is read). */
+export const CHECK_ORDER: { id: CheckId; short: string }[] = [
+  { id: "vault", short: "vault" },
+  { id: "verifier", short: "verifier" },
+  { id: "hash", short: "hash" },
+  { id: "attest", short: "attestation" },
+];
+
 export interface Claim {
   archetype: string;
   claim: string;
   verdict: "REJECTED" | "RE-DERIVED" | "FAILS CLOSED";
   reason: string;
+  /** the check that fails (none for a re-derived claim) */
+  fails?: CheckId;
 }
 
 export const CLAIMS: Claim[] = [
@@ -42,6 +55,7 @@ export const CLAIMS: Claim[] = [
     claim: "all acceptance tests pass",
     verdict: "REJECTED",
     reason: "re-ran the verifier — two never executed",
+    fails: "verifier",
   },
   {
     archetype: "review",
@@ -54,12 +68,14 @@ export const CLAIMS: Claim[] = [
     claim: "backfill is complete",
     verdict: "REJECTED",
     reason: "recorded evidence hash ≠ the claim",
+    fails: "hash",
   },
   {
     archetype: "build",
     claim: "tests pass",
     verdict: "FAILS CLOSED",
     reason: "evidence backend unreachable — never a vacuous green",
+    fails: "vault",
   },
 ];
 
@@ -126,7 +142,7 @@ export const TOOLS: Tool[] = [
     kind: "work-shape rigor",
     hue: "creation",
     gap: "gives a typo and a migration the same ceremony",
-    fill: "Reads the shape of the prompt and applies exactly that much rigor — ten work-shapes, steering not a fixed pipeline.",
+    fill: `Reads the shape of the prompt and applies exactly that much rigor — ${__WICKED_GARDEN_WORK_SHAPES__} work-shapes, steering not a fixed pipeline.`,
     cmd: "wicked-garden-archetype",
     cmdLabel: "garden skill",
   },
@@ -142,22 +158,18 @@ export const TOOLS: Tool[] = [
   },
 ];
 
-/* ── The wider surface — the 14 domains the toolbox samples from ─────────────
+/* ── The wider surface — the 14 domains the catalog groups its skills into ───
    Every chip below is a real skill or routed action in the repo (skills/<dir>/).
-   The total (G.skills) is counted at build time from skills/**; the per-domain
-   counts below are editorial groupings (per-domain routers, routed actions, and
-   fork workers), 10 work-shapes — last hand-verified at v12.35.0 (40 qe-*
-   specialist dirs; the `draft`
-   document-deliverable floor is folded into product & UX). This is an
-   editorial verification claim — re-verify by hand on a version bump; the
-   RENDERED version stamp itself is build-time injected and never stales. */
+   The total (G.skills) is counted at build time from skills/**. Per-domain counts
+   are not shown: they were typed by hand and drifted (they summed to 142 against
+   139 SKILL.md files). Each domain names the skill you invoke to try it. */
 export interface Domain {
   id: string;
   name: string;
   hue: Hue;
   blurb: string;
-  count: number;      // real SKILL.md count under skills/** for this domain group
   cmds: string[];     // representative skills / routed actions (not exhaustive)
+  try: string;        // the skill you invoke to try the domain (a real skills/<dir>/SKILL.md name)
 }
 
 export const DOMAINS: Domain[] = [
@@ -165,113 +177,113 @@ export const DOMAINS: Domain[] = [
     id: "qe",
     name: "quality engineering",
     hue: "qe",
-    blurb: "The absorbed QE fleet — 40 specialists on five surfaces, the 3-agent acceptance pipeline, and the prove gate. See the wall below.",
-    count: 42,
+    blurb: "The QE fleet — 40 specialists on five surfaces, the 3-agent acceptance pipeline, and the prove gate. See the wall.",
     cmds: ["accept", "plan", "author", "execute", "review", "insight", "prove"],
+    try: "wicked-garden-qe",
   },
   {
     id: "product",
     name: "product & UX",
     hue: "creation",
-    blurb: "Vague ask → SMART criteria that land in estate’s requirements graph — the forward source of truth; plus UX & a11y review, mockups, visual direction, user-signal synthesis, and the draft floor for document deliverables (contrast, page budget, cited claims).",
-    count: 26,
+    blurb: "Vague ask → SMART criteria that land in estate’s requirements graph — the forward source of truth; plus UX & a11y review, mockups, visual direction, user-signal synthesis, and draft, for document deliverables (contrast, page budget, cited claims).",
     cmds: ["requirements-analysis", "acceptance-criteria", "ux-review", "accessibility", "mockup", "strategy", "draft"],
+    try: "wicked-garden-product",
   },
   {
     id: "platform",
     name: "platform & ops",
     hue: "floor",
     blurb: "The rubric on demand — security, compliance, incident, infra, distributed traces, CI.",
-    count: 16,
     cmds: ["audit", "compliance", "incident", "infra", "observability", "github-actions"],
+    try: "wicked-garden-platform",
   },
   {
     id: "engineering",
     name: "engineering",
     hue: "workflow",
     blurb: "Graph-driven change — rename & patch across files on estate's graph, debug from a trace, architecture, docs.",
-    count: 15,
     cmds: ["architecture", "debugging", "patch", "system-design", "integration", "large-scale-migration"],
+    try: "wicked-garden-engineering",
   },
   {
     id: "agentic",
     name: "agentic review",
     hue: "workflow",
     blurb: "Review the agentic codebase itself — topology, framework detection, trust & safety.",
-    count: 9,
     cmds: ["agentic-patterns", "context-engineering", "frameworks", "review-methodology", "trust-and-safety"],
+    try: "wicked-garden-agentic",
   },
   {
     id: "crew",
     name: "orchestration",
     hue: "layer",
-    blurb: "Orchestration — the governed-worker discipline every governed unit follows (creator / evaluator / neutral); swarm, worktrees, workflow runners.",
-    count: 9,
+    blurb: "Orchestration — the worker discipline every agent in a wicked-crew job follows (creator / evaluator / neutral); swarm, worktrees, workflow runners.",
     cmds: ["governed-worker", "swarm", "worktrees", "workflow"],
+    try: "wicked-garden-swarm",
   },
   {
     id: "smaht",
     name: "context",
     hue: "solo",
     blurb: "Pull-model context assembly on the estate-backed stack — briefing, intent, propose-skills, grounded in the repo.",
-    count: 7,
     cmds: ["discovery", "intent", "propose-skills", "classify", "ground"],
+    try: "wicked-garden-ground",
   },
   {
     id: "domain",
     name: "domain modeling",
     hue: "creation",
     blurb: "Mine the code's real requirements — testable business rules with confidence + provenance on estate's graph, mapped page by page to the minimum. A placeholder is shown, never counted.",
-    count: 4,
     cmds: ["domain", "domain-extractor", "domain-coverage", "domain-modeler"],
+    try: "wicked-garden-domain",
   },
   {
     id: "mem",
     name: "memory & knowledge",
     hue: "solo",
-    blurb: "Agents propose, humans promote — estate-backed memory: store / recall / cited answers, ingest and session capture. Every governed seat proposes what it witnessed; repo-learn derives memories, policies and your working style as inert proposals.",
-    count: 4,
+    blurb: "Agents propose, humans promote — estate-backed memory: store / recall / cited answers, ingest and session capture. In a wicked-crew job, every agent is asked to propose what it witnessed; repo-learn derives memories, policies and your working style as inert proposals.",
     cmds: ["store", "recall", "answer", "ingest", "capture", "repo-learn"],
+    try: "wicked-garden-mem",
   },
   {
     id: "jam",
     name: "multi-model",
     hue: "solo",
     blurb: "A panel of other models settles a disputed decision, so the answer isn’t self-graded; a same-family fallback is labelled as such. Brainstorms run multi-model too.",
-    count: 3,
     cmds: ["council", "brainstorm", "multi-model"],
+    try: "wicked-garden-jam",
   },
   {
     id: "data",
     name: "data & ML",
     hue: "layer",
     blurb: "ETL, data-quality, ontology, and ML workflows under the same evidence discipline.",
-    count: 2,
     cmds: ["data", "data-engineer"],
+    try: "wicked-garden-data",
   },
   {
     id: "persona",
     name: "personas",
     hue: "creation",
     blurb: "Run any task under a named behavioral profile — a reusable review cast on demand.",
-    count: 1,
     cmds: ["persona"],
+    try: "wicked-garden-persona",
   },
   {
     id: "search",
     name: "code intelligence",
     hue: "layer",
     blurb: "Impact & lineage over estate's real graph — the injected edges grep and a static call-graph can’t see.",
-    count: 2,
     cmds: ["blast-radius", "lineage", "codebase-narrator"],
+    try: "wicked-garden-search",
   },
   {
     id: "work-shapes",
     name: "work-shapes",
     hue: "creation",
-    blurb: "Ten shapes read off each prompt — a typo to a cutover; deliberate challenges the ask first.",
-    count: 2,
+    blurb: `${__WICKED_GARDEN_WORK_SHAPES__} shapes read off each prompt — a typo to a cutover; deliberate challenges the ask first.`,
     cmds: ["triage", "build", "migrate", "review", "deliberate"],
+    try: "wicked-garden-archetype",
   },
 ];
 
@@ -430,7 +442,7 @@ export const PEERS: Peer[] = [
     hue: "layer",
     gives: "The system of record — a 75-language code graph, memory, and knowledge in one MCP binary. mem, search, patch, and domain all run on it.",
     cmd: "github.com/mikeparcewski/wicked-estate",
-    cmdLabel: "the foundation plane",
+    cmdLabel: "the system of record",
   },
   {
     id: "vault",
@@ -473,6 +485,40 @@ export const PACK_SCAFFOLD = [
   { dir: "acme-fintech-auditor/", note: "fork worker · evaluator ≠ creator" },
 ];
 
+/** Example packs for the scaffold picker (names are examples; the shape is the contract). */
+export const PACKS: { id: string; label: string; rows: { dir: string; note: string }[] }[] = [
+  { id: "fintech", label: "fintech-risk", rows: PACK_SCAFFOLD },
+  {
+    id: "games",
+    label: "games-QA",
+    rows: [
+      { dir: "acme-gamesqa/", note: "your domain router · user-invocable" },
+      { dir: "acme-gamesqa-playtester/", note: "fork worker · context: fork" },
+      { dir: "acme-gamesqa-reviewer/", note: "fork worker · evaluator ≠ creator" },
+    ],
+  },
+  {
+    id: "compliance",
+    label: "compliance",
+    rows: [
+      { dir: "acme-compliance/", note: "your domain router · user-invocable" },
+      { dir: "acme-compliance-control-mapper/", note: "fork worker · context: fork" },
+      { dir: "acme-compliance-auditor/", note: "fork worker · evaluator ≠ creator" },
+    ],
+  },
+];
+
+/* ── What's new in the release the words describe (COPY rev 5 §5, garden 12.62.0) ──
+   Each: a bold lead, an optional command (code), then the rest; spaces live in the
+   strings, so no build step can fuse a word to the next inline tag. The domain
+   mapping item links to its domain in the catalog. */
+export const NEW_RELEASE = "12.62";
+export const NEW_IN: { b: string; code?: string; rest: string; href?: string }[] = [
+  { b: "In a wicked-crew job, every agent is asked to propose what it witnessed,", rest: " as a memory for you to approve, with its source recorded." },
+  { b: "Domain mapping keeps going page after page until real requirements reach the target,", rest: " and asks before it spends more.", href: "#dom-domain" },
+  { b: "Style learning:", code: "repo-learn", rest: " learns how you or your team works from a showcase repo or your writing (studio’s Learn shows the results as suggestions to accept or drop)." },
+];
+
 export const G = {
   // Injected at build time from .claude-plugin/plugin.json via
   // astro.config.mjs (vite define) — never hardcode a version here. (DT-7)
@@ -482,5 +528,5 @@ export const G = {
   domains: DOMAINS.length,   // 14
   skills: __WICKED_GARDEN_SKILLS__, // real SKILL.md count under skills/**, counted at build time
   qeSpecialists: QE_SPECIALISTS.length, // 40
-  workShapes: 10,
+  workShapes: __WICKED_GARDEN_WORK_SHAPES__, // the archetypes in .claude-plugin/archetypes.json, counted at build time
 };

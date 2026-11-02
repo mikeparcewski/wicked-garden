@@ -24,6 +24,13 @@ const skillCount = readdirSync(skillsDir, { recursive: true }).filter(
   (f) => String(f).split(/[\\/]/).pop() === 'SKILL.md',
 ).length;
 
+// The work-shape count, from the archetype catalog the classifier routes to (N9: measured, never typed).
+const archetypes = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../.claude-plugin/archetypes.json', import.meta.url)), 'utf8'),
+);
+const workShapeCount = Object.keys(archetypes.archetypes ?? {}).length;
+if (!workShapeCount) throw new Error('archetypes.json lists no work-shapes; the site counts them at build time');
+
 const localUI = fileURLToPath(new URL('../../wicked-web/src', import.meta.url));
 /** @type {Record<string, string>} */
 const wickedWebAlias = existsSync(localUI) ? { 'wicked-web': localUI } : {};
@@ -42,6 +49,9 @@ export default defineConfig({
   site: SITE,
   base: BASE,
   trailingSlash: 'ignore',
+  // compressHTML deletes the newline before an inline tag, which fuses the word before it to the tag's
+  // text ("Memory</b>and"). Keep the whitespace the source has.
+  compressHTML: false,
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
@@ -49,6 +59,7 @@ export default defineConfig({
     define: {
       __WICKED_GARDEN_VERSION__: JSON.stringify(plugin.version),
       __WICKED_GARDEN_SKILLS__: JSON.stringify(skillCount),
+      __WICKED_GARDEN_WORK_SHAPES__: JSON.stringify(workShapeCount),
     },
     optimizeDeps: {
       include: ['react-dom/client'],

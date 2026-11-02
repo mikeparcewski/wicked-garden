@@ -1,11 +1,13 @@
+import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
-import { PACK_SCAFFOLD } from "../../data/garden";
+import { PACKS } from "../../data/garden";
 
 /* ============================================================================
    BUILD ON IT — the extension pitch. Garden is a catalog with an open naming
-   contract, not a closed product: ship your own domain pack with your unique
-   take and it sits beside the built-ins, under the same evidence discipline.
+   contract: ship your own domain pack and it sits beside the built-ins, under the
+   same evidence discipline. Pick a pack (fintech-risk, games-QA, compliance) and
+   the skills/ scaffold retypes its three rows; each rule lights as its row lands.
    Grounded claims:
    - naming contract: kebab-case, one user-invocable router per domain,
      {vendor}-{domain}-{role} fork workers with `context: fork` — exactly how
@@ -13,6 +15,7 @@ import { PACK_SCAFFOLD } from "../../data/garden";
    - evidence via vault: `prove compile <repo>` stamps a self-contained,
      vault-backed evidence gate into ANY repo — it runs with no wicked-garden
      installed (README "Try it").
+   The pack names are examples.
 ============================================================================ */
 
 const RULES = [
@@ -33,55 +36,80 @@ const RULES = [
   },
 ];
 
+const ROW_MS = 420;
+
 export default function ExtendPack() {
+  const [pack, setPack] = useState(0);
+  const [landed, setLanded] = useState(3);
+  const first = useRef(true);
+
+  // retype the rows one by one after a pick (instant under reduced motion)
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setLanded(3); return; }
+    setLanded(0);
+    const ts = [1, 2, 3].map((k) => window.setTimeout(() => setLanded(k), k * ROW_MS));
+    return () => ts.forEach((t) => window.clearTimeout(t));
+  }, [pack]);
+
+  const p = PACKS[pack];
+
   return (
-    <div className="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
-      <Reveal>
-        <p className="kicker qw-kicker">06 / build on it</p>
-        <h2 className="xp-h2">Your domain. Your pack. Same gates.</h2>
-        <p className="xp-intro">
-          The catalog is open — the built-in domains follow a naming contract
-          anyone can follow. Ship a pack with{" "}
-          <span className="qw-em">your unique take</span> — a fintech-risk
-          domain, a games-QA fleet, a compliance cast — and it sits beside the
-          built-ins, under the same evidence discipline.
+    <div className="sx sx--extend">
+      <Reveal className="sx-title">
+        <p className="kicker sx-kicker"><span className="sx-num">08</span>build on it</p>
+        <h2 className="sx-h2">Your domain. Your pack. Same gates.</h2>
+      </Reveal>
+      <Reveal className="sx-lead" delay={0.04}>
+        <p>
+          The catalog is open — the built-in domains follow a naming contract anyone can follow. Ship a
+          pack with <span className="cx-em">your unique take</span> — a fintech-risk domain, a games-QA
+          fleet, a compliance cast — and it sits beside the built-ins, under the same evidence discipline.
         </p>
       </Reveal>
 
-      <Reveal delay={0.06}>
-        <div className="xp-grid">
-          <div className="xp-scaffold" aria-label="Example domain-pack scaffold">
-            <div className="xp-scaffold-bar"><i></i><i></i><i></i><span>skills/</span></div>
-            <div className="xp-scaffold-body">
-              {PACK_SCAFFOLD.map((row) => (
-                <div key={row.dir} className="xp-row">
-                  <span className="xp-dir">{row.dir}</span>
-                  <span className="xp-note">{row.note}</span>
-                </div>
+      <div className="sx-stage xp-grid">
+        <div className="xp-scaffold">
+          <div className="xp-scaffold-bar">
+            <span className="xp-scaffold-path">skills/</span>
+            <span className="xp-picks" role="radiogroup" aria-label="example pack">
+              {PACKS.map((x, n) => (
+                <button key={x.id} type="button" role="radio" aria-checked={n === pack}
+                  className={`xp-pick${n === pack ? " is-on" : ""}`} onClick={() => setPack(n)}>
+                  {x.label}
+                </button>
               ))}
-            </div>
-            <div className="xp-scaffold-foot">
-              kebab-case · ≤64 chars · SKILL.md frontmatter — that’s the whole contract
-            </div>
+            </span>
           </div>
-
-          <div className="xp-rules">
-            {RULES.map((r) => (
-              <div key={r.n} className="xp-rule">
-                <span className="xp-rule-num" aria-hidden>{r.n}</span>
-                <div className="xp-rule-body">
-                  <span className="xp-rule-t">{r.t}</span>
-                  <p className="xp-rule-d">{r.d}</p>
-                </div>
+          <div className="xp-scaffold-body" aria-label={`Example domain-pack scaffold: ${p.label}`}>
+            {p.rows.map((row, k) => (
+              <div key={`${p.id}-${row.dir}`} className={`xp-row${k < landed ? " is-landed" : ""}`}>
+                <span className="xp-dir">{row.dir}</span>
+                <span className="xp-note">{row.note}</span>
               </div>
             ))}
-            <div className="xp-cta">
-              <span className="xp-cta-label">stamp the evidence gate into any repo — no garden required</span>
-              <CopyChip text="wicked-garden-prove compile ~/path/to/repo --trigger ci" label="copy" />
-            </div>
+          </div>
+          <div className="xp-scaffold-foot">
+            kebab-case · ≤64 chars · SKILL.md frontmatter — that’s the whole contract
           </div>
         </div>
-      </Reveal>
+
+        <div className="xp-rules">
+          {RULES.map((r, k) => (
+            <div key={r.n} className={`xp-rule${k < landed ? " is-lit" : ""}`}>
+              <span className="xp-rule-num" aria-hidden>{r.n}</span>
+              <div className="xp-rule-body">
+                <span className="xp-rule-t">{r.t}</span>
+                <p className="xp-rule-d">{r.d}</p>
+              </div>
+            </div>
+          ))}
+          <div className="xp-cta">
+            <span className="xp-cta-label">stamp the evidence gate into any repo — no garden required</span>
+            <CopyChip text="wicked-garden-prove compile ~/path/to/repo --trigger ci" label="copy" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

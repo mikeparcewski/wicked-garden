@@ -26,11 +26,13 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
 
   // Walk every section; Reveal short-circuits to visible under reduced motion.
   const sections: Array<[string, RegExp]> = [
-    ['#toolbox', /Six gaps your agent/],
     ['#gate', /Play the lying agent/],
-    ['#toolkit', /Six tools were the sample/],
+    ['#graph', /Sees what grep can’t/],
     ['#qe', /No agent grades its own homework/],
     ['#fleet', /Forty specialists/],
+    ['#panel', /A disputed decision/],
+    ['#memory', /Agents propose/],
+    ['#toolkit', /skills across 14 domains/],
     ['#extend', /Your domain\. Your pack\./],
     ['#install', /One command/],
   ];
@@ -42,15 +44,23 @@ test('reduced motion: zero page errors and every key section visible', async ({ 
     await expectRevealed(h2);
   }
 
-  // The hero island still runs its (shortened) verdict loop without throwing.
+  // Nothing auto-plays: every demo starts paused with a Play button; the hero shows a stamped claim.
   await page.locator('.hs-card').scrollIntoViewIfNeeded();
-  await expect(page.locator('.hs-card .hs-stage')).toBeVisible();
-
-  // qe bands honor reduced motion: the evidence channel doesn't play and the
-  // fleet doesn't auto-cycle — the visitor drives from the start.
+  await expect(page.locator('.hs-card .hs-mark')).toBeVisible();
+  await expect(page.locator('.hs-card').getByRole('button', { name: 'Play the claim demo' })).toBeVisible();
+  await expect(page.locator('#gate .pg-afford')).toContainText('paused');
+  await expect(page.locator('#gate').getByRole('button', { name: 'Play the gate demo' })).toBeVisible();
   await expect(page.locator('.qw-stage')).not.toHaveClass(/is-playing/);
-  await expect(page.locator('#fleet .qf-afford')).toContainText('driving');
+  await expect(page.locator('#fleet .qf-afford')).toContainText('paused');
   await expect(page.locator('#fleet .qf-agent')).toHaveCount(40);
+  for (const id of ['#graph', '#panel', '#memory']) {
+    await expect(page.locator(id).getByRole('button', { name: /^Play / })).toBeVisible();
+  }
+  // five seconds of nothing: the hero claim stays put
+  const claim = await page.locator('.hs-claim').innerText();
+  await page.waitForTimeout(5_000);
+  expect(await page.locator('.hs-claim').innerText()).toBe(claim);
+  await expect(page.locator('html')).not.toHaveClass(/snap-lock/);
 
   expect(errors, `pageerror events: ${errors.map((e) => e.message).join('; ')}`).toEqual([]);
 });
