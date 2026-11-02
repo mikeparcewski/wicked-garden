@@ -25,7 +25,8 @@ metadata:
 You extract **testable business rules** from a codebase — *what the business
 requires*, not *how the code does it* — and annotate them into the estate store,
 so `wicked-core` builds the `domain-model` requirements graph (coverage-gated,
-fail-closed below the configured minimum: 80% of behaviours by default). You are the `Creator` role; a seat-distinct evaluator (domain-coverage)
+fail-closed below the configured minimum: by default, 80% of the behaviours in product code
+stated as real requirements). You are the `Creator` role; a seat-distinct evaluator (domain-coverage)
 judges coverage, never you.
 
 ## Runtime
@@ -105,19 +106,24 @@ driver, not the loop. With `wicked-core`, `wicked-estate` and a writable store a
    the load-bearing behaviour is mapped first. It loops **every** behavior-bearing node, calls the bounded per-node model
    for the one thing code can't do (stating the rule), **validates** each returned
    rule, and writes `annotate` + `semantics`. Every node terminates RESOLVED-or-RISK
-   (the RISK-floor invariant), so given enough passes coverage reaches 1.0
-   deterministically; the model only upgrades RISK→RESOLVED quality.
-2. **Watch stderr** (`coverage=… unaccounted=… processed=…`). If it exits within
-   budget with `unaccounted > 0`, **re-invoke it to resume** — the shrunk worklist
-   re-seeds and the hub-first order is re-derived, so work resumes at the frontier and
-   never repeats (a later run continues the same way). The graph is built once the
-   mapped share reaches the configured minimum (`WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`,
-   default 80) — check it with `wicked-core coverage --db "<estate-store>"
-   --min-coverage-pct` (exit 0 at or above it; below, it prints "N% mapped, minimum M%"
-   and exits 3). Keep re-invoking while you are below the minimum; once it passes, more
-   is better but enough, so stop when your budget is spent. Always stop when
-   `unaccounted` hits 0 or stops shrinking. What you mapped stays in the store for the
-   next run either way.
+   (the RISK-floor invariant), so given enough passes every behaviour is accounted
+   for. Only RESOLVED ones are real requirements; a RISK one is a placeholder, which
+   the minimum never counts.
+2. **Watch stderr** (`coverage=… unaccounted=… processed=…`; `coverage` there is the
+   accounted share, placeholders included). If it exits within budget with
+   `unaccounted > 0`, **re-invoke it to resume** — the shrunk worklist re-seeds and the
+   hub-first order is re-derived, so work resumes at the frontier and never repeats (a
+   later run continues the same way). The graph is built once real requirements reach
+   the configured minimum (the repository's own, else
+   `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT`, default 80) — check it with `wicked-core
+   coverage --db "<estate-store>" --min-coverage-pct` (exit 0 at or above it; below, it
+   prints "N% real requirements, minimum M% (R of B behaviours; P placeholders, U
+   unmapped)" and exits 3). Keep re-invoking while `unaccounted` shrinks; once the check
+   passes, more is better but enough, so stop when your budget is spent. Always stop when
+   `unaccounted` hits 0 or stops shrinking. This mode maps unmapped behaviours only: it
+   never revisits a placeholder, so a share held below the minimum by placeholders needs
+   a crew `domain-extraction` run, whose pages frame them again. What you mapped stays in
+   the store for the next run either way.
    A `WARNING: … annotation node_syms no longer exist` line is the estate
    id-scheme migration signature — prior annotations are orphaned; see the
    migration section in `wicked-garden-domain` for the

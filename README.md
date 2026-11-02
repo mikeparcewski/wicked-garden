@@ -11,6 +11,14 @@
 
 **Your coding agent already plans and swarms. wicked-garden is the curated toolkit for what it can't do alone.**
 
+It works inside Claude Code, Codex, Antigravity, OpenCode and Pi, in CI, or inside a wicked-crew job. Its proof gate
+re-checks "done" from evidence, rejecting unsupported claims and failing closed by default when it cannot run. With
+wicked-estate's code graph it sees the event and command links grep never will, and its patch skill renames across files
+as a graph operation. Its 40 QE specialist skills include an acceptance pipeline whose reviewer never runs inline with the
+test writer or the executor (those two also run as separate workers where the host can start them), and a disputed
+decision goes to a review panel of your other agents, with a labelled same-family fallback and no verdict without a quorum. Which entry paths block and which only advise is spelled out in
+[What blocks, what advises](#what-blocks-what-advises).
+
 > 📖 Docs → [wg.wickedagile.com](https://wg.wickedagile.com). Identity & beliefs → [`ETHOS.md`](ETHOS.md). How it works → [`CLAUDE.md`](.claude/CLAUDE.md).
 
 ---
@@ -34,6 +42,7 @@ Most plugins try to boss them around — re-implement planning, impose a workflo
 | re-derives *how to work in this repo* every task — which file owns the bug, the wiring step, the test command | loads the repo's own playbooks (`fix-bug`/`add-feature`/`verify`…), generated from HEAD → wicked-understanding |
 | asks *itself* for a second opinion | convenes a **review panel** → the jam skill's `council` action: usable external CLIs (Antigravity / Codex / …) take the seats; with fewer than two it fills them with isolated same-family workers and **labels them as weaker diversity**, and below two isolated seats it reports *no quorum* instead of synthesizing |
 | re-derives WCAG/CWE/SOC2 from memory every time | loads the rubric on demand, ships it to any repo |
+| reads the code, but can't say what it *requires* | states the business rule behind each behaviour onto estate's graph, so wicked-core builds a **requirements graph** that counts only stated rules toward its minimum, never placeholders → the domain skill |
 | grades its own homework | author ≠ executor ≠ reviewer as separate workers → evidence-gated testing (the `qe` domain) |
 
 The throughline: **done is re-derived, not asserted** — wherever the gate actually runs. Which entry paths block and which only advise is spelled out in [What blocks, what advises](#what-blocks-what-advises).

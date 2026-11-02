@@ -1,8 +1,8 @@
 {
   "name": "wicked-garden",
-  "version": "12.61.0",
+  "version": "12.62.0",
   "type": "module",
-  "description": "The skills your coding agent can't build alone: \"done\" re-checked from evidence, graph-aware search and multi-file refactor, 40 QE specialists, review panels from other models, and cross-session memory. Works in Claude Code, Codex, Antigravity, OpenCode and Pi, in CI, or in a wicked-crew job.",
+  "description": "The skills your coding agent can't build alone: a proof gate that re-checks \"done\" from evidence, graph-aware search and cross-file renames (with wicked-estate), 40 QE specialists, and review panels with labelled fallbacks. Works in Claude Code, Codex, Antigravity, OpenCode and Pi, in CI, or in a wicked-crew job.",
   "keywords": [
     "ai",
     "coding-agent",

@@ -50,8 +50,8 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `check` | any | nothing | `wicked-garden run scripts/learn/check.py --repo . [--slug <slug>]` |
 | `index` | human or daemon only | estate knowledge | `wicked-garden run scripts/learn/index.py --repo <default-branch checkout>` after the PR merged. It refuses inside a governed run. |
 
-In a wicked-crew run, each phase is one unit: do only that row, and hand the next unit what it
-needs in your output. Follow the `wicked-garden-governed-worker` skill for your role. The
+In a wicked-crew `learn` run, each phase is one unit: do only that row, and hand the next unit
+what it needs in your output. Follow the `wicked-garden-governed-worker` skill for your role. The
 neutral rows write nothing to the repository; their output is the record the next phase reads.
 
 ## What the author writes

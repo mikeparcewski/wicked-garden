@@ -21,7 +21,7 @@ CLI/engine contract) and the mock seam.
   `_mocks.BrainClient` + `emit_domain_model` doc-assembly lane. Set-but-empty
   `WICKED_*_BIN` is the kill-switch (force mock).
 
-## The estate surface (what the extractor + translator call)
+## The estate surface (what the extractor + modeler call)
 
 estate is the sole authority for graph structure. In production the workers shell
 its CLI (`CliEstateClient`); hermetically they call `_mocks.EstateClient`, which
@@ -49,7 +49,8 @@ is no pipe-packed string:
    or `"risk"` when it is below threshold.
 2. **The canonical requirement link**: `set_requirement(symbol_id,
    requirement=<statement>, validated=<resolved>)` (`semantics`). This is what the
-   later `wicked-core domain-graph` read counts toward front-half coverage.
+   later `wicked-core domain-graph` read counts: a resolved link is a real
+   requirement, a RISK one a placeholder that the minimum never counts.
 
 The traceability thread the workers must not break:
 `estate node (native file/line) → requirement/annotation → business_rules[].id →
@@ -58,7 +59,7 @@ not a warning.
 
 ## The core surface (owns doc assembly — the inversion)
 
-**core owns the domain-model build.** The translator does **not** hand core an
+**core owns the domain-model build.** The modeler does **not** hand core an
 assembled document; it annotates the estate store (via the estate surface above),
 then invokes core, which **reads the store and builds the requirements graph
 itself**, saving it back into the store (the source of truth; crew reads it from
@@ -66,7 +67,7 @@ there). `CliCoreClient`:
 
 | Method | Production | Purpose |
 |---|---|---|
-| `domain_graph(db, out, coverage?) -> doc` | `wicked-core domain-graph --db <db> --out requirements_graph.json [--coverage F]` | Reads the annotated store, **recomputes front-half coverage**, and builds the capability plan. **Fails closed below the configured minimum** (writes nothing, non-zero exit, "N% mapped, minimum M%") — `--min-coverage-pct`, else `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT` (crew's `requirementsGraph.minCoveragePct`), else 80. The graph is saved into the estate store either way (domain, requirement and business-rule nodes, `SatisfiedBy` edges to code); `--out` writes the same document as a JSON export, and without it no file is written (the `domain-extraction` preset passes `--repo-root <dir>`, whose tracked files the corroboration reads, and no `--out`). A supplied `--coverage` file is an optional cross-check that must agree. |
+| `domain_graph(db, out, coverage?) -> doc` | `wicked-core domain-graph --db <db> --out requirements_graph.json [--coverage F]` | Reads the annotated store, **recomputes front-half coverage**, and builds the capability plan. **Fails closed below the configured minimum** (writes nothing, non-zero exit, "N% real requirements, minimum M% (…)"; only resolved behaviours count, placeholders never) — `--min-coverage-pct`, else the repository's own minimum (`wicked-core requirements-target`), else `WICKED_REQUIREMENTS_MIN_COVERAGE_PCT` (crew's `requirementsGraph.minCoveragePct`), else 80. At or above it, the graph is saved into the estate store with or without `--out` (domain, requirement and business-rule nodes, `SatisfiedBy` edges to code); `--out` writes the same document as a JSON export, and without it no file is written (the `domain-extraction` preset passes `--repo-root <dir>`, whose tracked files the corroboration reads, and no `--out`). A supplied `--coverage` file is an optional cross-check that must agree. |
 | `coverage(db, out) -> report` | `wicked-core coverage --db <db> --out coverage.json` | Emit the store's front-half coverage report (optional — `domain_graph` recomputes internally). `--min-coverage-pct` makes it a check: exit 3 below the configured minimum. |
 
 There is **no `--overlay`** and **no doc-in/summary-out** shape: the store is the
