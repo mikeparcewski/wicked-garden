@@ -227,7 +227,9 @@ def test_a7_command_lands_a_codex_seats_memory_in_the_queue(tmp_path):
 
 def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACTS-001 A2 corpus, 2026-11-02
     rule = _rule("A8")
-    assert "`wicked-make` block" in rule
+    # Scope: only the seat answering a person in a studio chat whose instructions describe the block for that operation.
+    assert "only when you are the seat answering a person in a studio chat" in rule
+    assert "describe a `wicked-make` block for the operation asked" in rule
     assert "Never write the artifact yourself" in rule
     for where in ("not into a file", "not through a tool call", "not in your output", "not even as a draft or an outline"):
         assert where in rule, where
@@ -235,9 +237,17 @@ def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACT
     # The two rules a chat seat quoted when it wrote the note itself point at A8 for an artifact ask.
     assert "N1's \"into your output\" and A1's \"deliver that content in your output\" do not apply" in rule
     assert "never \"read-only\"" in rule
-    assert "When the instructions describe no `wicked-make` block, this rule does not apply" in rule
+    # The chat instructions' own ask-first / propose-nothing cases stand, and the one question is not a headless wait.
+    for case in ("a demo with no address", "a change when it is unclear which document", "do exactly that", "not a headless wait (A3)"):
+        assert case in rule, case
+    # The reply is the chat's answer, not a governed-unit report; other units keep their role's duties.
+    assert "not the Output contract" in rule
+    assert "A creator, evaluator or `learn` unit whose task merely mentions or quotes the block keeps its own role's duties" in rule
+    assert "a unit with no such chat instructions ignores this rule" in rule
     assert "A8 answers it" in _rule("A1")
     assert "answered by A8" in _rule("N1")
+    floor = FLOOR.read_text(encoding="utf-8")
+    assert "a chat answer under A8\nfollows the chat's own instructions instead" in floor
 
 
 def test_learns_hand_off_line_is_scoped_to_a_learn_run():  # the chat seat must not read it as "deliver in output"
