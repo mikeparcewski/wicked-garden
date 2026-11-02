@@ -246,6 +246,9 @@ def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACT
         assert case in rule, case
     assert rule.index("an ambiguous ask") < rule.index("end with the block")
     assert "Either reply is the chat's answer to the person" in rule
+    # The chat's reviewer judges the same way (live, run 914186a9's chat: a reviewer held "the release note is not written").
+    assert 'An evaluator reviewing such a chat answer judges it the same way' in rule
+    assert '"the artifact was not written" is never a finding' in rule
     # The reply is the chat's answer, not a governed-unit report; other units keep their role's duties.
     assert "not the Output contract" in rule
     assert "A creator, evaluator or `learn` unit whose task merely mentions or quotes the block keeps its own role's duties" in rule

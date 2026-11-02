@@ -12,7 +12,8 @@
   sentence or two and the block. The seat never writes the artifact (file, tool call or output), and A1 and N1 point
   at A8 for such an ask. A8 applies only to the seat answering a person in a studio chat whose instructions describe
   the block: their ask-first and propose-nothing cases come first (an ambiguous ask, a demo with no address, an unclear
-  document, something studio cannot make), the reply keeps the chat's shape rather than the governed-unit report, and creator, evaluator and
+  document, something studio cannot make), the reply keeps the chat's shape rather than the governed-unit report, the
+  chat's reviewer judges a proposal as the complete answer (it no longer holds "the note is not written"), and creator, evaluator and
   `learn` units keep their own duties even when their task quotes the block. `learn`'s hand-off line now says it
   applies in a `learn` run.
 

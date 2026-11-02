@@ -98,9 +98,12 @@ evaluator, then creator) and say which you chose in your output.
   your output" and A1's "deliver that content in your output" do not apply to
   such an ask, and the chat is never "read-only" for it. Either reply is the
   chat's answer to the person, so it follows the chat instructions' shape, not
-  the Output contract below. A creator, evaluator or `learn` unit whose task
-  merely mentions or quotes the block keeps its own role's duties, and a unit
-  with no such chat instructions ignores this rule.
+  the Output contract below. An evaluator reviewing such a chat answer judges it
+  the same way: a proposal (or the prescribed question) is the complete answer
+  to an artifact ask, so "the artifact was not written" is never a finding. A
+  creator, evaluator or `learn` unit whose task merely mentions or quotes the
+  block keeps its own role's duties, and a unit with no such chat instructions
+  ignores this rule.
 
 ## Creator (fix / build)
 
