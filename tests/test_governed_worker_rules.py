@@ -229,7 +229,7 @@ def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACT
     rule = _rule("A8")
     # Scope: only the seat answering a person in a studio chat whose instructions describe the block for that operation.
     assert "only when you are the seat answering a person in a studio chat" in rule
-    assert "describe a `wicked-make` block for the operation asked" in rule
+    assert "whose instructions describe a `wicked-make` block" in rule
     assert "Never write the artifact yourself" in rule
     for where in ("not into a file", "not through a tool call", "not in your output", "not even as a draft or an outline"):
         assert where in rule, where
@@ -238,8 +238,14 @@ def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACT
     assert "N1's \"into your output\" and A1's \"deliver that content in your output\" do not apply" in rule
     assert "never \"read-only\"" in rule
     # The chat instructions' own ask-first / propose-nothing cases stand, and the one question is not a headless wait.
-    for case in ("a demo with no address", "a change when it is unclear which document", "do exactly that", "not a headless wait (A3)"):
+    # Checked FIRST, before any block: an ambiguous ask (or an operation the chat does not describe) gets the chat's
+    # prescribed question or no proposal, never a block and never an assumption (codex r2).
+    for case in ("first, where those instructions say to ask or to propose nothing", "an ambiguous ask", "a demo with no address",
+                 "a change when it is unclear which document", "an operation they do not describe", "do exactly that",
+                 "not a headless wait (A3)", "Otherwise answer with a sentence or two"):
         assert case in rule, case
+    assert rule.index("an ambiguous ask") < rule.index("end with the block")
+    assert "Either reply is the chat's answer to the person" in rule
     # The reply is the chat's answer, not a governed-unit report; other units keep their role's duties.
     assert "not the Output contract" in rule
     assert "A creator, evaluator or `learn` unit whose task merely mentions or quotes the block keeps its own role's duties" in rule

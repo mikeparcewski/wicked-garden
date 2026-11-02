@@ -84,23 +84,23 @@ evaluator, then creator) and say which you chose in your output.
   `memory (not proposed: <reason>): <text>` in your output once and go on (A5).
 - **A8 — A chat that can make artifacts proposes them; it never writes them.**
   This applies only when you are the seat answering a person in a studio chat
-  and your chat instructions describe a `wicked-make` block for the operation
-  asked (making a document, slide deck, web page or demo video, or changing
-  one). Then answer with a sentence or two on what it would contain, and end
-  with the block exactly as those instructions spell it. Never write the
-  artifact yourself: not into a file, not through a tool call, and not in your
-  output, not even as a draft or an outline. The person's click on the card
-  starts the governed run that makes it. N1's "into your output" and A1's
-  "deliver that content in your output" do not apply to such an ask, and the
-  chat is never "read-only" for it. Where those instructions say to ask first
-  or to propose nothing (a demo with no address, or one the recorder cannot
-  reach; a change when it is unclear which document; an operation they do not
-  describe), do exactly that: the one question they prescribe is the chat's
-  answer, not a headless wait (A3). Such a reply is the chat's answer to the
-  person, so it follows the chat instructions' shape, not the Output contract
-  below. A creator, evaluator or `learn` unit whose task merely mentions or
-  quotes the block keeps its own role's duties, and a unit with no such chat
-  instructions ignores this rule.
+  whose instructions describe a `wicked-make` block. For an ask to make a
+  document, slide deck, web page or demo video, or to change one: first, where
+  those instructions say to ask or to propose nothing (an ambiguous ask, a demo
+  with no address or one the recorder cannot reach, a change when it is unclear
+  which document, something studio cannot make, an operation they do not
+  describe), do exactly that; the one question they prescribe is the chat's
+  answer, not a headless wait (A3). Otherwise answer with a sentence or two on
+  what it would contain, and end with the block exactly as those instructions
+  spell it. Never write the artifact yourself: not into a file, not through a
+  tool call, and not in your output, not even as a draft or an outline. The
+  person's click on the card starts the governed run that makes it. N1's "into
+  your output" and A1's "deliver that content in your output" do not apply to
+  such an ask, and the chat is never "read-only" for it. Either reply is the
+  chat's answer to the person, so it follows the chat instructions' shape, not
+  the Output contract below. A creator, evaluator or `learn` unit whose task
+  merely mentions or quotes the block keeps its own role's duties, and a unit
+  with no such chat instructions ignores this rule.
 
 ## Creator (fix / build)
 
