@@ -176,6 +176,10 @@
    Atmosphere — film grain + the eyebrow/kicker
 ---------------------------------------------------------------------------- */
 @layer components {
+  /* inline commands and tool names marked with Tailwind's font-mono are code: the code step, not the
+     surrounding prose size (an explicit text-* utility on the element still wins) */
+  .font-mono { font-size: var(--text-code); }
+
   /* Fixed grain overlay, applied to <body> via .has-grain */
   .has-grain::after {
     content: "";
