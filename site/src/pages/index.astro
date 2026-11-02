@@ -4,7 +4,7 @@
  *
  * Wave-2 rebuild. Garden is the capability plane of the wicked platform — THE
  * catalog agents act through: the toolkit for what a coding agent can't do
- * alone, where "done" is re-derived from evidence, never asserted. The retired
+ * alone, starting with a proof gate that re-derives "done" from evidence. The retired
  * wicked-testing site's story (the wall, the 40-specialist fleet) now lives // historical
  * here as the qe domain bands (#qe / #fleet) — wt.wickedagile.com redirects
  * to #qe. Chrome (Base/Topbar/Footer/SameGarden + plane tokens) comes from
@@ -28,11 +28,37 @@ import ExtendPack from "../components/react/ExtendPack.tsx";
 import InstallBench from "../components/react/InstallBench.tsx";
 
 const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
+
+// Three benefits, right under the hero (released).
+const BENEFITS = [
+  {
+    h: "Proof, not claims.",
+    p: "Run the proof gate and “done” is re-checked from evidence: an unsupported claim is rejected, and by default the gate fails closed if its checks cannot run (an explicit claim-only fallback is labelled).",
+    tail: { pre: " Which entry paths block and which only advise is ", link: "spelled out", href: "https://github.com/mikeparcewski/wicked-garden#what-blocks-what-advises", post: "." },
+  },
+  {
+    h: "Sees what grep can’t, with wicked-estate.",
+    p: "On estate’s code graph it finds the event and command links grep never sees, for blast radius, and its patch skill renames across files as a graph operation.",
+  },
+  {
+    h: "40 QE specialists and a second opinion.",
+    p: "Its acceptance pipeline keeps the writer, the executor and the reviewer apart. When a decision is disputed, a review panel weighs in using the other agents you have installed; a same-family fallback is labelled, and without a quorum it gives no verdict.",
+  },
+];
+
+// What's new in 12.62, one line each.
+// Each: a bold lead, an optional command (code), then the rest; spaces live in the strings, so
+// compressHTML can never fuse a word to the next inline tag.
+const NEW = [
+  { b: "In a wicked-crew job, every agent is asked to propose what it witnessed,", rest: " as a memory for you to approve, with its source recorded." },
+  { b: "Domain mapping keeps going page after page until real requirements reach the target,", rest: " and asks before it spends more." },
+  { b: "Style learning:", code: "repo-learn", rest: " learns how you or your team works from a showcase repo or your writing (studio’s Learn shows the results as suggestions to accept or drop)." },
+];
 ---
 
 <Base
   title="wicked-garden — the skills your coding agent can't build alone"
-  description={`wicked-garden is the skill catalog of the wicked platform: the skills your coding agent can't build alone. "Done" is re-checked from evidence, never asserted; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a panel of other models settles disputed decisions; estate-backed memory where agents suggest and you approve. ${G.skills} skills across ${G.domains} domains, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
+  description={`wicked-garden is the skill catalog of the wicked platform: the skills your coding agent can't build alone. A proof gate re-checks "done" from evidence instead of taking the agent's word; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a review panel of your other agents, with a labelled same-family fallback, weighs in on disputed decisions; estate-backed memory where agents suggest and you approve. ${G.skills} skills across ${G.domains} domains, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
   bodyClass="has-grain"
   favicon={favicon}
 >
@@ -52,10 +78,9 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
               <span class="rise block gd-hero-h1-2" style="animation-delay:.2s">can’t build alone.</span>
             </h1>
             <p class="rise gd-hero-sub" style="animation-delay:.3s">
-              Your agent already plans, swarms, and ships. wicked-garden is the
-              catalog of skills it acts through — filling only the gaps a
-              planner-executor can’t fill alone, starting with the one
-              that matters most: <span class="gd-hero-em">done is re-derived from evidence, never asserted.</span>
+              Skills for Claude Code, Codex, Antigravity, OpenCode and Pi; also in CI, or inside a
+              wicked-crew job. The first one matters most:{" "}
+              <span class="gd-hero-em">a proof gate that re-derives “done” from evidence instead of taking the agent’s word.</span>
             </p>
             <div class="rise gd-hero-install" style="animation-delay:.42s">
               <p class="gd-hero-install-label">load out garden and its peers — one command</p>
@@ -74,6 +99,25 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
             <HeroStamp client:load />
           </div>
         </div>
+      </div>
+    </section>
+
+    <!-- ── WHY (three benefits) + WHAT'S NEW IN 12.62 ───────────────────── -->
+    <section id="why" class="gd-section gd-band" aria-labelledby="why-h">
+      <div class="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
+        <h2 id="why-h" class="wy-sr">What garden does for you</h2>
+        <ul class="wy-cards" role="list">
+          {BENEFITS.map((b) => (
+            <li class="wy-card">
+              <h3 class="wy-h">{b.h}</h3>
+              <p class="wy-p">{b.p}{b.tail && <>{b.tail.pre}<a href={b.tail.href}>{b.tail.link}</a>{b.tail.post}</>}</p>
+            </li>
+          ))}
+        </ul>
+        <h2 class="wy-new-h" id="new-h">What’s new in 12.62</h2>
+        <ul class="wy-new" role="list" aria-labelledby="new-h">
+          {NEW.map((n) => <li><b>{n.b}</b>{n.code && <>{" "}<code>{n.code}</code></>}{n.rest}</li>)}
+        </ul>
       </div>
     </section>
 
@@ -120,3 +164,19 @@ const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/"
   </main>
   <Footer repo="https://github.com/mikeparcewski/wicked-garden" />
 </Base>
+
+<style>
+  /* #why: three benefits and what's new, in the page's card language (scoped to this page). */
+  .wy-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .wy-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
+  .wy-card { display: flex; flex-direction: column; gap: 0.5rem; padding: 1.1rem 1.15rem 1.2rem; border: 1px solid var(--hairline-strong); border-radius: 14px; background: color-mix(in oklab, var(--canvas-2) 88%, transparent); }
+  .wy-h { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; line-height: 1.2; color: var(--ink); }
+  .wy-p { margin: 0; font-size: 0.92rem; line-height: 1.55; color: var(--muted); }
+  .wy-p a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+  .wy-new-h { margin: clamp(1.2rem, 3vh, 2rem) 0 0.6rem; font-family: var(--font-display); font-weight: 800; font-size: 1.05rem; color: var(--ink); }
+  .wy-new { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.85rem; }
+  .wy-new li { font-size: 0.88rem; line-height: 1.5; color: var(--muted); padding-left: 0.9rem; border-left: 2px solid var(--hairline-strong); }
+  .wy-new b { color: var(--ink); font-weight: 600; }
+  .wy-new code { font-family: var(--font-mono); font-size: 0.82rem; color: var(--ink); }
+  @media (max-width: 1023px) { .wy-cards, .wy-new { grid-template-columns: 1fr; } }
+</style>
