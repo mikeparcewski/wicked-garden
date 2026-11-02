@@ -50,7 +50,12 @@
   --mesh-3: color-mix(in oklab, var(--ink-high) 2%, transparent);
   --grain-opacity: 0.05;
 }
-[data-theme="light"] { --shadow-rgb: 24, 24, 26; }
+[data-theme="light"] {
+  --shadow-rgb: 24, 24, 26;
+  /* the QE green carries text on its own translucent tints and over the trellis: on Wicked Light the
+     package's #1e7227 measured 3.95 to 4.19:1 there, so the light value leans toward the ink */
+  --c-qe: color-mix(in oklab, var(--plane-capability) 78%, var(--ink-high));
+}
 
 /* Map tokens to Tailwind utilities. `inline` keeps them live so utilities
    re-resolve when .dark flips the underlying custom properties. */
