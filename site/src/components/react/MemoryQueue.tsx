@@ -24,9 +24,10 @@ export default function MemoryQueue() {
   const [manual, setManual] = useState(false);
   const [cyc, setCyc] = useState(0);
 
+  // reduced motion settles the demo on its end state, unless the visitor already decided
   useEffect(() => {
-    if (ap.reduced) { setS(3); setFate("approved"); }
-  }, [ap.reduced]);
+    if (ap.reduced && !manual) { setS(3); setFate("approved"); }
+  }, [ap.reduced, manual]);
 
   useEffect(() => {
     if (manual || !ap.active) return;

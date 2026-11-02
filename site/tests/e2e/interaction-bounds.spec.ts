@@ -119,8 +119,13 @@ async function probe(page: Page, i: number, rest: number[] | null): Promise<{ bo
   }, [i, rest] as const);
 }
 
-/** The sections whose demo plays by itself (each must show more than one state while watched). */
-const AUTOPLAY = ['hero', 'gate', 'graph', 'qe', 'fleet', 'panel', 'memory'];
+/** The sections whose demo plays by itself, and how long one full cycle of its states takes (ms): each is
+ *  watched for that long, so its tallest state is reached (the QE inbox fills at 10.4s, the panel's third mode
+ *  at 9.2s), and must show more than one state. */
+const AUTOPLAY: Record<string, number> = { hero: 5_000, gate: 12_000, graph: 11_000, qe: 13_500, fleet: 16_000, panel: 14_000, memory: 9_000 };
+
+/** The motion passes also run at a narrow desktop, where the frames are tightest and snapping falls back. */
+const MOTION_VIEWPORTS = [...VIEWPORTS, { width: 1024, height: 700 }];
 
 /** Every control that switches a state: lit roles, flips, filters, switches, tabs, picks, the advise overlay. */
 const TOGGLES = [
@@ -145,13 +150,24 @@ async function sectionBoxes(page: Page) {
 async function textOverlaps(page: Page, id: string): Promise<string[]> {
   return page.evaluate((id) => {
     const sec = document.getElementById(id)!;
+    // what can paint: the box cut down by every clipping ancestor up to the section
+    const visible = (e: Element, r: DOMRect) => {
+      let l = r.left, t = r.top, rr = r.right, b = r.bottom;
+      for (let n = e.parentElement; n && n !== sec.parentElement; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
+        const c = n.getBoundingClientRect();
+        l = Math.max(l, c.left); t = Math.max(t, c.top); rr = Math.min(rr, c.right); b = Math.min(b, c.bottom);
+      }
+      return new DOMRect(l, t, Math.max(0, rr - l), Math.max(0, b - t));
+    };
     const shown = (e: Element) => { if (e.closest('[inert]')) return false; for (let n: Element | null = e; n && n !== sec; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) < 0.3) return false; } return true; };
     const turned = (e: Element) => { for (let n: Element | null = e; n && n !== sec; n = n.parentElement) { if (getComputedStyle(n).transform !== 'none') return n; } return null; };
     const items: { e: Element; rs: DOMRect[]; t: Element | null }[] = [];
     for (const e of Array.from(sec.querySelectorAll('*'))) {
       if (!Array.from(e.childNodes).some((n) => n.nodeType === 3 && n.textContent!.trim())) continue;
       if (!shown(e)) continue;
-      const rs = Array.from(e.getClientRects()).filter((r) => r.width >= 2 && r.height >= 2 && r.bottom > 0 && r.top < innerHeight);
+      const rs = Array.from(e.getClientRects()).map((r) => visible(e, r)).filter((r) => r.width >= 2 && r.height >= 2 && r.bottom > 0 && r.top < innerHeight);
       if (rs.length) items.push({ e, rs, t: turned(e) });
     }
     const out: string[] = [];
@@ -205,14 +221,17 @@ for (const vp of VIEWPORTS) {
       expect(problems, problems.join('\n')).toEqual([]);
     });
   }
+}
 
+for (const vp of MOTION_VIEWPORTS) {
   test(`auto-play moves nothing and covers no text at ${vp.width}x${vp.height}`, async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(300_000);
     await open(page, vp, 'dark');
     const base = await sectionBoxes(page);
     const problems: string[] = [];
     for (const [id] of base.slice(0, -1)) {
-      const playing = AUTOPLAY.includes(id);
+      const cycle = AUTOPLAY[id] ?? 0;
+      const playing = cycle > 0;
       // park so the section's demo is in view (a phone parks on the demo itself)
       await page.evaluate(([id, phone]) => {
         const s = document.getElementById(id as string)!;
@@ -223,9 +242,9 @@ for (const vp of VIEWPORTS) {
       }, [id, vp.width < 1024] as const);
       await page.mouse.move(vp.width - 2, vp.height - 2);
       const seen = new Set<string>();
-      // watch a playing demo for 6s (longer if a loaded runner has not shown a second state yet, up to 10s)
+      // watch a playing demo for one full cycle of its states
       const start = Date.now();
-      const done = () => Date.now() - start > (playing ? (seen.size > 1 ? 6_000 : 10_000) : 600);
+      const done = () => Date.now() - start > (playing ? cycle : 600);
       while (!done()) {
         await page.waitForTimeout(300);
         const cur = await sectionBoxes(page);

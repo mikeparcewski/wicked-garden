@@ -48,20 +48,20 @@ test('HeroStamp: renders and pinning a claim shows its verdict', async ({ page }
   await expect(card.locator('.hs-mark')).toContainText('RE-DERIVED');
 });
 
-test('GraphStage: grep finds two refs, the estate graph adds the event consumer, the rename lands in 3 files', async ({ page }) => {
+test('GraphStage: grep finds three files, the estate graph adds the event consumer, the field rename lands in 3 files', async ({ page }) => {
   const graph = page.locator('#graph');
   await graph.scrollIntoViewIfNeeded();
   const stage = graph.getByRole('group', { name: /grep against the estate graph/ });
   await stage.getByRole('button', { name: 'grep', exact: true }).click();
-  await expect(graph.locator('.gx-impact .gx-result')).toContainText('2 refs');
+  await expect(graph.locator('.gx-impact .gx-result')).toContainText('3 hits');
   await expect(graph.locator('.gx-afford')).toContainText('driving');
   await stage.getByRole('button', { name: 'estate graph' }).click();
   await expect(graph.locator('.gx-tag')).toHaveClass(/is-on/);
   await expect(graph.locator('.gx-impact .gx-result')).toContainText('notify.ts');
-  await stage.getByRole('button', { name: /rename getUsr → getUser/ }).click();
+  await stage.getByRole('button', { name: /rename usrName → userName/ }).click();
   await expect(graph.locator('.gx-new').first()).toBeVisible();
-  // the old and new names are separate words with an arrow between them, never "getUsrgetUser"
-  expect((await graph.locator('.gx-file').first().innerText()).replace(/\s+/g, ' ')).toContain('getUsr → getUser');
+  // the old and new names are separate words with an arrow between them, never fused
+  expect((await graph.locator('.gx-file').first().innerText()).replace(/\s+/g, ' ')).toContain('usrName → userName');
   await expect(graph.locator('.gx-patch .gx-result')).toContainText('3 files touched');
   await expect(graph.getByRole('button', { name: 'Copy command: wicked-garden-search' })).toBeVisible();
   await expect(graph.getByRole('button', { name: 'Copy command: wicked-garden-engineering' })).toBeVisible();

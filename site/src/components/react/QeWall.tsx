@@ -151,9 +151,10 @@ export default function QeWall() {
           <Role role={ACCEPTANCE_ROLES[2]} lit={litRole === "reviewer"} onLight={() => setLitRole("reviewer")}>
             <div className="qw-inbox" aria-label="the reviewer's inbox">
               <span className="qw-inbox-h">inbox · reads only these</span>
+              {/* all four slots are always laid out (unreceived ones invisible), so filling the inbox never resizes it */}
               <span className="qw-inbox-items">
-                {received.map((f) => (
-                  <code key={f} className="qw-inbox-item">{f}</code>
+                {WALL_CROSSES.map((f) => (
+                  <code key={f} className={`qw-inbox-item${received.includes(f) ? " is-in" : ""}`} aria-hidden={!received.includes(f)}>{f}</code>
                 ))}
               </span>
             </div>

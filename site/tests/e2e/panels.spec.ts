@@ -46,3 +46,14 @@ test('MemoryQueue: approve recalls it with a citation, drop leaves nothing to ci
   await mem.getByRole('button', { name: /resume/ }).click();
   await expect(mem.locator('.mq-afford')).toContainText('auto-playing');
 });
+
+test('MemoryQueue: turning on reduced motion never overrides a decision the visitor made', async ({ page }) => {
+  const mem = page.locator('#memory');
+  await mem.scrollIntoViewIfNeeded();
+  await mem.getByRole('button', { name: 'Drop' }).click();
+  await expect(mem.locator('.mq-answer')).toContainText('nothing to cite');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(500);
+  await expect(mem.locator('.mq-answer')).toContainText('nothing to cite');
+  await expect(mem.locator('.mq-answer')).not.toContainText('[cited');
+});

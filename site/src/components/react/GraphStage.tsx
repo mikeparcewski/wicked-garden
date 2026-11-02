@@ -6,20 +6,23 @@ import { useAutoplay } from "./useAutoplay";
 
 /* ============================================================================
    The graph — the search and patch demos as one stage on wicked-estate's code graph.
-   1. grep vs the estate graph: grep finds the two text references to getUsr; the
+   1. grep vs the estate graph: grep finds the three files that spell usrName; the
       graph also draws the event→consumer edge grep never sees (user.ts emits
       "user.updated", notify.ts consumes it), in the foundation hue.
-   2. the rename: getUsr → getUser lands across three files as one graph operation,
-      the old and new names side by side with a visible arrow between them.
+   2. the rename: the field usrName → userName lands across three files as one graph
+      operation, the old and new names side by side with a visible arrow between them.
+      It is the rename the patch skill's TypeScript generator performs (a field
+      declaration, a property access, a destructuring: scripts/engineering/patch/
+      generators/typescript_generator.py _rename_field).
    Auto-plays grep → graph → rename → reset; any control takes over. Fixed-size
    panes: nothing on the page moves while it plays.
 ============================================================================ */
 
 type Mode = "grep" | "graph";
 const FILES = [
-  { f: "user.ts", pre: "export function ", post: "(id) {" },
-  { f: "route.ts", pre: "const u = await ", post: "(req.id);" },
-  { f: "auth.ts", pre: "import { ", post: " } from './user';" },
+  { f: "user.ts", pre: "interface User { ", post: ": string }" },
+  { f: "route.ts", pre: "res.send(user.", post: ");" },
+  { f: "auth.ts", pre: "const { ", post: " } = session.user;" },
 ];
 const STEPS = [2600, 3000, 3400, 1400]; // grep, graph, rename, reset
 
@@ -82,7 +85,7 @@ export default function GraphStage() {
           role="group" aria-label="Live demo: grep against the estate graph, then a rename across files">
           <div className="gx-pane gx-impact">
             <div className="gx-pane-h">
-              <span className="gx-pane-t">blast radius of <code>getUsr</code></span>
+              <span className="gx-pane-t">blast radius of <code>usrName</code></span>
               <span className="gx-seg" role="group" aria-label="search with">
                 <button type="button" className="gx-seg-btn" aria-pressed={!graph} onClick={() => pickMode("grep")}>grep</button>
                 <button type="button" className="gx-seg-btn" aria-pressed={graph} onClick={() => pickMode("graph")}>estate graph</button>
@@ -102,9 +105,9 @@ export default function GraphStage() {
             </div>
             <p className="gx-result" aria-live="polite">
               {graph ? (
-                <><b className="gx-res-k">estate graph</b> 2 refs + <b className="gx-res-inj">notify.ts</b>, which consumes the <code>user.updated</code> event</>
+                <><b className="gx-res-k">estate graph</b> the same 3 files + <b className="gx-res-inj">notify.ts</b>, which consumes the <code>user.updated</code> event</>
               ) : (
-                <><b className="gx-res-k">grep -rn getUsr</b> 2 refs: route.ts, auth.ts. notify.ts never shows up.</>
+                <><b className="gx-res-k">grep -rn usrName</b> 3 hits: user.ts, route.ts, auth.ts. notify.ts never shows up.</>
               )}
             </p>
             <div className="gx-cmd"><CopyChip text="wicked-garden-search" label="copy" /></div>
@@ -114,7 +117,7 @@ export default function GraphStage() {
             <div className="gx-pane-h">
               <span className="gx-pane-t">patch · one graph operation</span>
               <button type="button" className="gx-rename-btn" aria-pressed={renamed} onClick={rename}>
-                {renamed ? "undo the rename" : "rename getUsr → getUser"}
+                {renamed ? "undo the rename" : "rename usrName → userName"}
               </button>
             </div>
             <div className="gx-files" key={`files-${nonce}`}>
@@ -123,16 +126,16 @@ export default function GraphStage() {
                   <span className="gx-file-name">{x.f}</span>
                   <code className="gx-file-line">
                     {x.pre}
-                    <span className="gx-old">getUsr</span>
+                    <span className="gx-old">usrName</span>
                     <span className="gx-arrow">{" → "}</span>
-                    <span className="gx-new">getUser</span>
+                    <span className="gx-new">userName</span>
                     {x.post}
                   </code>
                 </div>
               ))}
             </div>
             <p className="gx-result">
-              {renamed ? <><b className="gx-res-k">3 files touched</b> in one graph operation, not a find-and-replace</> : <>one symbol, three files: the graph knows every reference</>}
+              {renamed ? <><b className="gx-res-k">3 files touched</b> in one graph operation, not a find-and-replace</> : <>one field, three files: the graph knows every reference</>}
             </p>
             <div className="gx-cmd"><CopyChip text="wicked-garden-engineering" label="copy" /></div>
           </div>
