@@ -175,6 +175,22 @@ test('qe band: the wall copy names the real mechanism (a separate worker, eviden
   ).toBeVisible();
 });
 
+test('QeWall: the reviewer never changes the button under a focused visitor, and the pending state announces no verdict', async ({ page }) => {
+  const fig = page.locator('.qw-fig');
+  const btn = fig.getByRole('button', { name: /Send it to an independent reviewer/ });
+  // focus the button before the card is reached: the reveal waits while focus is inside the card
+  await btn.focus();
+  await fig.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(2_500);
+  await expect(fig).toHaveAttribute('data-revealed', 'false');
+  await expect(btn).toBeFocused();
+  // the hidden stamps are out of the accessibility tree until the verdict lands
+  await expect(fig.locator('.qw-cell--rev .qw-stamp')).toHaveAttribute('aria-hidden', 'true');
+  await page.keyboard.press('Enter');
+  await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
+  await expect(fig.locator('.qw-cell--rev .qw-stamp')).toHaveAttribute('aria-hidden', 'false');
+});
+
 test('QeFleet and the hero claims: one tab stop per tab list, arrow keys move the selection', async ({ page }) => {
   const fleet = page.locator('#fleet');
   await fleet.scrollIntoViewIfNeeded();

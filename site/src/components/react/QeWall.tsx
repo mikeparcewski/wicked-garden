@@ -35,28 +35,26 @@ const REVIEW_MS = 1300;
 
 function ReportCard() {
   const fig = useRef<HTMLDivElement>(null);
+  // the same policy as every self-playing block: only while on screen, never under the pointer or with focus inside
+  const ap = useAutoplay(fig, 0.55);
   const [revealed, setRevealed] = useState(false);
   const touched = useRef(false);
 
-  // The page's story: the reviewer's FAIL lands on its own the first time the card is on screen (the
-  // gutter token already says "reviewer: FAIL, a race"); under reduced motion it is shown from the start.
-  // Once the visitor presses the button they drive it.
+  // The page's story: the reviewer's FAIL lands on its own the first time the card is on screen (the gutter
+  // token already says "reviewer: FAIL, a race"). The wait restarts whenever the visitor points at the card,
+  // focuses its button or scrolls away, so the button never changes under a pending click or key press.
+  // Under reduced motion it is shown from the start. Once the visitor presses the button they drive it.
   useEffect(() => {
-    const el = fig.current;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setRevealed(true); return; }
-    if (!el || typeof IntersectionObserver === "undefined") { setRevealed(true); return; }
-    let timer = 0;
-    const io = new IntersectionObserver((entries) => {
-      if (!entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.55)) return;
-      io.disconnect();
-      timer = window.setTimeout(() => { if (!touched.current) setRevealed(true); }, REVIEW_MS);
-    }, { threshold: [0, 0.55, 1] });
-    io.observe(el);
-    return () => { io.disconnect(); window.clearTimeout(timer); };
-  }, []);
+    if (ap.reduced && !touched.current) setRevealed(true);
+  }, [ap.reduced]);
+  useEffect(() => {
+    if (revealed || touched.current || !ap.active) return;
+    const t = window.setTimeout(() => { if (!touched.current) setRevealed(true); }, REVIEW_MS);
+    return () => window.clearTimeout(t);
+  }, [ap.active, revealed]);
 
   return (
-    <div className="qw-fig" data-revealed={revealed} ref={fig}>
+    <div className="qw-fig" data-revealed={revealed} ref={fig} {...ap.bind}>
       <div className="qw-fig-h">
         <span>report card · same change</span>
         <span>self-grade vs the wall</span>
@@ -66,7 +64,7 @@ function ReportCard() {
           <span className="qw-tag">author grades itself</span>
           <div className="qw-mark">PASS</div>
           <div className="qw-sub">always</div>
-          <span className="qw-stamp">self-reported</span>
+          <span className="qw-stamp" aria-hidden={!revealed}>self-reported</span>
         </div>
         {/* a status region: the verdict that lands on its own is announced with its reason */}
         <div className="qw-cell qw-cell--rev" role="status" aria-atomic="true">
@@ -76,7 +74,7 @@ function ReportCard() {
             <span className={`qw-sub-t${revealed ? "" : " is-on"}`} aria-hidden={revealed}>awaiting review…</span>
             <span className={`qw-sub-t${revealed ? " is-on" : ""}`} aria-hidden={!revealed}>caught a race in retry</span>
           </div>
-          <span className="qw-stamp">contradicted</span>
+          <span className="qw-stamp" aria-hidden={!revealed}>contradicted</span>
         </div>
       </div>
       <button

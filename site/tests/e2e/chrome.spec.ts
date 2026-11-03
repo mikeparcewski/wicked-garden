@@ -70,7 +70,10 @@ test('the topbar tooltips sit inside the bar, clear of the icons and the page, a
     const bar = await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().bottom);
     const blocks = await page.locator('.topbar .icon-btn:visible, .topbar .topbar-pkg, .topbar .wordmark').evaluateAll((els) =>
       els.map((e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; }));
-    for (const sel of ['.topbar .dropdown-wrap', '.topbar a[data-tip="media"]', '.topbar a[data-tip="github"]', '#themeBtn']) {
+    // every tip the installed chrome has (whatever its icon row holds)
+    const tips = await page.locator('.topbar [data-tip]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-tip')!));
+    expect(tips.length).toBeGreaterThanOrEqual(3);
+    for (const sel of tips.map((t) => `.topbar [data-tip="${t}"]`)) {
       await page.locator(sel).hover();
       await expect.poll(() => tipBox(sel).then((t) => t.opacity)).toBe('1');
       const t = await tipBox(sel);
