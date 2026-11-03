@@ -16,6 +16,8 @@ description: |
   deploying an app (crew and studio do those, behind a person's click),
   and NOT for building studio editor plugins (that is
   wicked-garden-editor-scaffold).
+mandates:
+  - wicked-garden-qe
 metadata:
   role: router
   phases: "*"
@@ -48,8 +50,9 @@ These hold on every seat, in every step, whatever the task or the catalog says.
 3. **No value from a row goes anywhere.** Never put a value you might have seen (a name, an email, an id, a
    ticket subject) into a file, a query literal or your output. Filters and parameters take values at run time.
 4. **The builder writes `apps.json` and files under `queries/`, and nothing else.** Not `apps.lock.json`, not a
-   dotfile, not a script, not a symlink, not a file at any other path. Reviewers and QE seats write nothing at
-   all.
+   dotfile, not a script, not a symlink, not a file at any other path. A reviewer writes nothing. A QE seat
+   writes only its QE evidence and verdict, where wicked-garden-qe's acceptance flow puts them (the run's QE
+   ledger root, outside the app repository), and never a file in the app repository.
 5. **An action you add lands without a grant.** It cannot run until the person grants it in studio, and a
    database row write needs its source's Allow writes switch on first. Say so in your change lines.
 
@@ -127,7 +130,8 @@ You judge a turn another seat built. You change no file, and you have no source 
 ## QE (the `apps-publish` qe step)
 
 You accept or refuse a publish. You built none of this app's turns since its last publish (the engine seats
-you only where that holds), you change no file, and you need no browser and no source of your own.
+you only where that holds), you change no file in the app repository, and you need no browser and no source
+of your own.
 
 1. Read the publish check's evidence: its report, the before and after renders of every page with every
    filter changed, and the generated card of every action.
