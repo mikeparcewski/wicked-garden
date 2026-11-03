@@ -61,7 +61,7 @@ test('the topbar tooltips sit inside the bar, clear of the icons and the page, a
     const left = r.left + parseFloat(a.left) + m.m41, top = r.top + parseFloat(a.top) + m.m42;
     return { display: a.display, opacity: a.opacity, left, top, right: left + w, bottom: top + h };
   });
-  for (const width of [1440, 1024, 800]) {
+  for (const width of [1440, 1024, 800, 768]) {
     await page.setViewportSize({ width, height: 700 });
     const bar = await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().bottom);
     const blocks = await page.locator('.topbar .icon-btn:visible, .topbar .crumbs a, .topbar .crumb-sep').evaluateAll((els) =>

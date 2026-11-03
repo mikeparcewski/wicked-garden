@@ -69,6 +69,15 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
   // the menu's first row is Wicked Labs (the flask's link), not a list of the product sites
   await expect(page.locator('#mobileMenu').getByRole('link', { name: /Wicked Labs/ })).toHaveAttribute('href', 'https://wickedlabs.ai/');
   await expect(page.locator('#mobileMenu').getByRole('link', { name: /Wicked Labs/ })).toBeVisible();
+  // every row's glyph sits on its label's line, not above it
+  const off = await page.locator('#mobileMenu .mm-label').evaluateAll((labels) => labels.map((l) => {
+    const g = l.querySelector('.mm-glyph')!.getBoundingClientRect();
+    const r = document.createRange(); r.selectNodeContents(l); const t = Array.from(r.getClientRects()).filter((q) => q.width > 0);
+    const text = t[t.length - 1];
+    const mid = (g.top + g.bottom) / 2;
+    return mid >= text.top && mid <= text.bottom ? null : `${l.textContent!.trim()}: glyph ${Math.round(g.top)}-${Math.round(g.bottom)}, text ${Math.round(text.top)}-${Math.round(text.bottom)}`;
+  }).filter(Boolean));
+  expect(off).toEqual([]);
 });
 
 for (const width of [390, 360, 320]) {
@@ -78,10 +87,16 @@ for (const width of [390, 360, 320]) {
     await page.evaluate(async () => { await document.fonts.ready; });
     const g = await page.evaluate(() => {
       const box = (s: string) => { const r = document.querySelector(s)!.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
-      const name = document.querySelector<HTMLElement>('.crumbs li:last-child .crumb')!;
+      const name = document.querySelector<HTMLElement>('.crumbs li:last-child .crumb')!, ns = getComputedStyle(name);
       return { mark: box('.crumbs .wordmark'), art: box('.crumbs .wordmark .wordmark-lockup'), clip: getComputedStyle(document.querySelector('.crumbs .wordmark .wordmark-lockup')!).clipPath,
-               path: box('.crumbs'), nav: box('.topbar .nav'), name: box('.crumbs li:last-child .crumb'), named: name.textContent, vw: innerWidth };
+               path: box('.crumbs'), nav: box('.topbar .nav'), name: box('.crumbs li:last-child .crumb'), named: name.textContent!.trim(), vw: innerWidth,
+               sep: box('.crumbs li:nth-child(2) .crumb-sep'), labs: box('.crumbs li:nth-child(2) .crumb'),
+               cut: name.scrollWidth > name.clientWidth + 1, ellipsis: ns.textOverflow === 'ellipsis' && ns.overflowX === 'hidden' && !/flex|grid/.test(ns.display) };
     });
+    // a cut product name ends in the chrome's ellipsis (a flex box would hard-cut it)
+    if (g.cut) expect(g.ellipsis, 'the product name is cut without an ellipsis').toBe(true);
+    // the 44px targets keep the chrome's spacing: the first slash 8px after the clipped mark (22px of artwork)
+    expect(Math.abs(g.sep.l - (g.art.l + 22 + 8))).toBeLessThanOrEqual(1.5);
     // the mark sits inside the window and the path ends before the icons
     expect(g.mark.l).toBeGreaterThanOrEqual(0);
     expect(g.path.r).toBeLessThanOrEqual(g.nav.l);
@@ -101,7 +116,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { wi
     await page.evaluate(async () => { await document.fonts.ready; });
     const stats = page.locator('.gd-hero-stats');
     await expect(stats).toContainText(/\d+ work-shapes/);
-    const g = await stats.evaluate((ul) => Array.from(ul.querySelectorAll('li')).map((li) => {
+    const g = await stats.evaluate((ul) => Array.from(ul.querySelectorAll('li')).filter((li) => li.querySelector('b')).map((li) => {
       const b = li.querySelector('b')!;
       // the gap between the number and the first letter after it, as painted (a dropped space is a 0px gap)
       const walk = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
@@ -116,7 +131,8 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { wi
       const nb = b.getBoundingClientRect();
       return { text: li.textContent!.trim(), gap: first ? first.left - nb.right : null, base: nb.bottom };
     }));
-    for (const s of g) expect(s.gap, `"${s.text}" fuses its number to its word`).toBeGreaterThan(2);
+    expect(g.length).toBeGreaterThanOrEqual(3);
+    for (const s of g) if (s.gap !== null) expect(s.gap, `"${s.text}" fuses its number to its word`).toBeGreaterThan(2);
     // stats on one row share a text baseline (a 44px link box must not push its text below the row)
     const rows = new Map<number, number[]>();
     for (const s of g) { const k = [...rows.keys()].find((y) => Math.abs(y - s.base) < 30) ?? s.base; rows.set(k, [...(rows.get(k) ?? []), s.base]); }

@@ -1179,9 +1179,13 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
 /* phones: every chrome control is a 44px target */
 @media (max-width: 640px) {
   .topbar .wordmark { min-height: 44px; }
-  /* the product path's links: 44px tall, and "labs" 44px wide (the clipped mark's link: the <= 560px rule) */
-  .topbar .crumb { display: inline-flex; align-items: center; min-height: 44px; }
-  .topbar .crumbs li:not(:last-child) .crumb { min-width: 44px; justify-content: center; }
+  /* the product path's links are 44px tall (each is a flex item of its crumb, so a block: a 44px line keeps the
+     chrome's ellipsis on the product name), and "labs" is 44px wide, centred, taking its extra width back from
+     the gaps beside it so the path keeps the chrome's spacing (the clipped mark's link: the <= 560px rule) */
+  .topbar .crumb { min-height: 44px; line-height: 44px; }
+  .topbar .crumbs li:not(:last-child) .crumb { min-width: 44px; text-align: center; margin-inline: -7px; }
+  /* the menu rows' glyphs sit on their label's line (Tailwind's preflight makes every svg a block) */
+  .mobile-menu .mm-glyph { display: inline-block; }
   .topbar .nav .icon-btn { width: 44px; height: 44px; }
   .same-garden .sg-visit, .same-garden .sg-repo { min-height: 44px; }
   .same-garden .sg-repo { min-width: 44px; justify-content: center; }
@@ -1191,9 +1195,10 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
   .footer .footer-links { gap: 0; }
   .footer .footer-links a { min-height: 44px; min-width: 44px; align-items: center; }
 }
-/* at <= 560px the chrome clips the lockup to its mark (a 22px link); the link grows to 44px, reaching 11px
-   into the bar's side padding so the mark stays where the chrome draws it, and the artwork keeps the clip */
+/* at <= 560px the chrome clips the lockup to its mark (a 22px link); the link grows to 44px, reaching 11px into
+   the bar's side padding and 11px into the gap after it, so the mark and the path stay where the chrome draws
+   them, and the artwork keeps the clip */
 @media (max-width: 560px) {
-  .topbar .crumbs .wordmark { width: 44px; margin-left: -11px; padding-left: 11px; }
+  .topbar .crumbs .wordmark { width: 44px; margin-inline: -11px; padding-left: 11px; }
   .topbar .crumbs .wordmark .wordmark-lockup { clip-path: inset(0 calc(100% - 22px) 0 0); }
 }

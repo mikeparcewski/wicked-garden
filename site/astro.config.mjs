@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // The site's version stamp is injected at build time from the plugin's own
@@ -24,10 +25,10 @@ const skillCount = readdirSync(skillsDir, { recursive: true }).filter(
   (f) => String(f).split(/[\\/]/).pop() === 'SKILL.md',
 ).length;
 
-// The QE specialist skills (skills/qe-*/): garden.ts checks that its fleet list names exactly these dirs
+// The QE specialist skills (skills/qe-*/SKILL.md; a qe-* dir without one is not a skill): garden.ts checks that its fleet list names exactly these dirs
 // while the build renders the page, so the site's specialist count is measured from source too (N9).
 const qeDirs = readdirSync(skillsDir, { withFileTypes: true })
-  .filter((d) => d.isDirectory() && d.name.startsWith('qe-'))
+  .filter((d) => d.isDirectory() && d.name.startsWith('qe-') && existsSync(join(skillsDir, d.name, 'SKILL.md')))
   .map((d) => d.name)
   .sort();
 if (!qeDirs.length) throw new Error('skills/ has no qe-* specialist dirs; the site checks its QE fleet against them at build time');

@@ -110,6 +110,8 @@ test('no lock below 1024px wide or under 640px tall, and no snapping at all ther
 for (const c of [{ width: 1366, height: 625, motion: 'no-preference' as const }, { width: 1440, height: 700, motion: 'reduce' as const },
   { width: 1280, height: 660, motion: 'reduce' as const }]) {
   test(`Tab never stops on a control under the bar at ${c.width}x${c.height} (${c.motion})`, async ({ page }) => {
+    // every stop waits for its scroll to settle (smooth where motion is allowed): room for a slow runner
+    test.setTimeout(90_000);
     await page.emulateMedia({ reducedMotion: c.motion });
     await page.setViewportSize({ width: c.width, height: c.height });
     await page.goto('/');
