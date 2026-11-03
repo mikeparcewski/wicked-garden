@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import CopyChip from "./CopyChip";
 import PlayToggle from "./PlayToggle";
 import { useAutoplay } from "./useAutoplay";
+import { focusFromKey } from "./focusFromKey";
 import { CLAIMS, CHECK_ORDER } from "../../data/garden";
 
 /* ── The hero proof, made kinetic ────────────────────────────────────────────
@@ -71,7 +72,7 @@ export default function HeroStamp() {
     const n = e.key === "Home" ? 0 : e.key === "End" ? CLAIMS.length - 1
       : (i + (e.key === "ArrowRight" ? 1 : -1) + CLAIMS.length) % CLAIMS.length;
     pick(n);
-    dots.current?.querySelectorAll<HTMLButtonElement>(".hs-pip")[n]?.focus();
+    focusFromKey(dots.current?.querySelectorAll<HTMLButtonElement>(".hs-pip")[n]);
   }
 
   function togglePlay() {

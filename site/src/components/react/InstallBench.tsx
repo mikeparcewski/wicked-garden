@@ -3,6 +3,7 @@ import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
 import PlayToggle from "./PlayToggle";
 import { useAutoplay } from "./useAutoplay";
+import { focusFromKey } from "./focusFromKey";
 
 /* ============================================================================
    The Bench — install, as two tabs so it fits one frame: the family installer
@@ -68,7 +69,7 @@ export default function InstallBench() {
     e.preventDefault();
     const next = e.key === "Home" ? "family" : e.key === "End" ? "plugin" : tab === "family" ? "plugin" : "family";
     setTab(next);
-    list.current?.querySelector<HTMLButtonElement>(`#ib-tab-${next}`)?.focus();
+    focusFromKey(list.current?.querySelector<HTMLButtonElement>(`#ib-tab-${next}`));
   }
 
   return (

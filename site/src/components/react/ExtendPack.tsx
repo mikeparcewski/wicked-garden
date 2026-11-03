@@ -3,6 +3,7 @@ import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
 import PlayToggle from "./PlayToggle";
 import { useAutoplay } from "./useAutoplay";
+import { focusFromKey } from "./focusFromKey";
 import { PACKS } from "../../data/garden";
 
 /* ============================================================================
@@ -88,7 +89,7 @@ export default function ExtendPack() {
     if (n < 0) return;
     e.preventDefault();
     pick(n);
-    (e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-pack="${n}"]`)?.focus();
+    focusFromKey((e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-pack="${n}"]`));
   }
 
   return (
