@@ -52,3 +52,25 @@ test('a stored v2 theme is ignored: the reset to Wicked Dark happens once, and t
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   expect(await page.evaluate(() => localStorage.getItem('wa-theme-v3'))).toBeNull();
 });
+
+test('the topbar tooltips open below the bar, fully on screen, and hide while the menu is open', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 700 });
+  const bar = await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().bottom);
+  for (const sel of ['#themeBtn', '.topbar a[data-tip="github"]', '.topbar .dropdown-wrap']) {
+    const el = page.locator(sel);
+    await el.hover();
+    const tip = await el.evaluate((e) => {
+      const a = getComputedStyle(e, '::after');
+      const top = e.getBoundingClientRect().top + parseFloat(a.top);
+      return { top, bottom: top + parseFloat(a.height) };
+    });
+    expect(tip.top, `${sel} tip top`).toBeGreaterThanOrEqual(bar);
+    expect(tip.bottom, `${sel} tip bottom`).toBeLessThan(700);
+  }
+  await page.locator('#projectsBtn').click();
+  await page.locator('#projectsBtn').hover();
+  await expect.poll(() => page.locator('.topbar .dropdown-wrap').evaluate((e) => getComputedStyle(e, '::after').opacity)).toBe('0');
+  // the menu is wide enough that no row is cut short
+  const cut = await page.locator('#projectsMenu .di-label').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+  expect(cut).toBe(0);
+});

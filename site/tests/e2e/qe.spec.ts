@@ -17,31 +17,34 @@ test.beforeEach(async ({ page }) => {
   await hydrated(page);
 });
 
-test('QeWall: the reveal-reviewer flip contradicts a self-graded PASS', async ({ page }) => {
+test('QeWall: the reviewer contradicts the self-graded PASS on arrival, and the flip replays it', async ({ page }) => {
   const fig = page.locator('.qw-fig');
   await fig.scrollIntoViewIfNeeded();
   await expectRevealed(fig);
 
-  // resting state: both cells read PASS, the reviewer verdict is pending
-  await expect(fig).toHaveAttribute('data-revealed', 'false');
-  await expect(fig.locator('.qw-mark--rev')).toHaveText('PASS');
-  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('awaiting review…');
-  const h = await fig.evaluate((el) => el.getBoundingClientRect().height);
-
-  // send it across the wall — the independent read contradicts the self-grade
-  const btn = fig.getByRole('button', { name: /Send it to an independent reviewer/ });
-  await btn.click();
-  await expect(fig).toHaveAttribute('data-revealed', 'true');
+  // the page's story: the first time the card is on screen the reviewer's FAIL lands on its own, so the frame
+  // agrees with the gutter token ("reviewer: FAIL, a race")
+  await expect(fig).toHaveAttribute('data-revealed', 'true', { timeout: 5_000 });
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
   await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('caught a race in retry');
-  // both sub-lines share one cell: revealing never resizes the card
-  expect(await fig.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
+  const h = await fig.evaluate((el) => el.getBoundingClientRect().height);
   // no unmeasured rate rides along with the flip (N9)
   await expect(fig).not.toContainText('80%');
 
-  // and back
+  // reset: the self-grade still says PASS, the reviewer has not graded yet (no grade, never a PASS)
   await fig.getByRole('button', { name: /Reset/ }).click();
-  await expect(fig.locator('.qw-mark--rev')).toHaveText('PASS');
+  await expect(fig).toHaveAttribute('data-revealed', 'false');
+  await expect(fig.locator('.qw-mark--rev')).toHaveText('?');
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('awaiting review…');
+  // the visitor drives it now: it stays pending
+  await page.waitForTimeout(2_000);
+  await expect(fig).toHaveAttribute('data-revealed', 'false');
+
+  // send it across the wall again: the independent read contradicts the self-grade
+  await fig.getByRole('button', { name: /Send it to an independent reviewer/ }).click();
+  await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
+  // both sub-lines share one cell: revealing never resizes the card
+  expect(await fig.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
 });
 
 test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ page }) => {
@@ -167,4 +170,25 @@ test('qe band: the wall copy names the real mechanism (a separate worker, eviden
   await expect(
     qe.getByRole('button', { name: 'Copy skill call: /wicked-garden-qe accept' }),
   ).toBeVisible();
+});
+
+test('QeFleet and the hero claims: one tab stop per tab list, arrow keys move the selection', async ({ page }) => {
+  const fleet = page.locator('#fleet');
+  await fleet.scrollIntoViewIfNeeded();
+  const tabs = fleet.getByRole('tab');
+  await expect(tabs).toHaveCount(6);
+  await tabs.first().click();
+  await expect(fleet.locator('.qf-btn[tabindex="0"]')).toHaveCount(1);
+  await page.keyboard.press('ArrowRight');
+  await expect(fleet.getByRole('tab', { name: /plan/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(fleet.getByRole('tab', { name: /plan/ })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(fleet.getByRole('tab', { name: /insight/ })).toHaveAttribute('aria-selected', 'true');
+
+  const pips = page.locator('#hero .hs-pip');
+  await expect(page.locator('#hero .hs-pip[tabindex="0"]')).toHaveCount(1);
+  await pips.first().click();
+  await page.keyboard.press('ArrowRight');
+  await expect(pips.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(pips.nth(1)).toBeFocused();
 });

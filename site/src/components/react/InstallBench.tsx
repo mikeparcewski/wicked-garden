@@ -13,7 +13,8 @@ import { useAutoplay } from "./useAutoplay";
    have, you pick a bundle or single products, install resolves required
    dependencies — garden pulls in wicked-vault — then a readiness check). It
    pauses on hover, on focus and off-screen, and starts paused, fully shown,
-   under reduced motion.
+   under reduced motion. Beside it, the recap: the skill calls the frames above showed, each a link back
+   to its frame.
 ============================================================================ */
 
 const DIRECT = [
@@ -32,6 +33,16 @@ const RUN = [
   "installs them; garden pulls in wicked-vault",
   "a readiness check shows what is ready",
 ];
+/* After the install, the page's story in your own agent: the five skill calls the frames above showed, each a
+   link back to its frame (the full calls, with their arguments, are on those frames). */
+const RECAP = [
+  { href: "#gate", n: "01", t: "the gate", c: "/wicked-garden-prove" },
+  { href: "#graph", n: "02", t: "the graph", c: "/wicked-garden-search blast-radius" },
+  { href: "#qe", n: "03", t: "acceptance", c: "/wicked-garden-qe accept" },
+  { href: "#panel", n: "05", t: "a second opinion", c: "/wicked-garden-jam council" },
+  { href: "#memory", n: "06", t: "memory", c: "/wicked-garden-mem recall" },
+];
+
 const STEP_MS = 1100;
 const HOLD_MS = 2600;
 
@@ -129,6 +140,21 @@ export default function InstallBench() {
             via astro.config.mjs (vite define) — never hardcode it here. (DT-7) */}
         <p className="ib-foot">MIT · open-source · v{__WICKED_GARDEN_VERSION__} · local-first: memory, evidence and the code graph stay in local files, with no server to run.</p>
       </div>
+
+      <nav className="ib-recap" aria-labelledby="ib-recap-h">
+        <p className="ib-recap-h" id="ib-recap-h"><b>Then, in your agent:</b> the retry change, checked the ways above.</p>
+        <ol className="ib-recap-list">
+          {RECAP.map((r, k) => (
+            <li key={r.href} style={{ "--k": k } as React.CSSProperties}>
+              <a className="ib-rc" href={r.href}>
+                <span className="ib-rc-n" aria-hidden>{r.n}</span>
+                <span className="ib-rc-t">{r.t}</span>
+                <code className="ib-rc-c">{r.c}</code>
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
     </div>
   );
 }

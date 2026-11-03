@@ -45,6 +45,8 @@ export default function QeFleet() {
   useLayoutEffect(() => {
     if (first.current) { first.current = false; return; }
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // below a desktop the grid is taller than the screen: a staggered fade there blanks the rows being read
+    if (window.innerWidth < 1024) return;
     grid.current?.querySelectorAll<HTMLElement>(".qf-agent").forEach((el, n) => {
       el.getAnimations().forEach((x) => x.cancel());
       el.animate([{ opacity: 0, transform: "scale(0.96)" }, { opacity: 1, transform: "none" }], {
@@ -56,6 +58,19 @@ export default function QeFleet() {
   function pick(s: Surface | "all") {
     setManual(true);
     setSurf(s);
+  }
+  const filter = useRef<HTMLDivElement>(null);
+  const TABS: (Surface | "all")[] = ["all", ...QE_SURFACES.map((x) => x.key)];
+  // one tab stop for the filter (the selected tab); arrow keys, Home and End move the selection
+  function onFilterKey(e: React.KeyboardEvent) {
+    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const i = TABS.indexOf(eff);
+    const n = e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1
+      : (i + (e.key === "ArrowRight" ? 1 : -1) + TABS.length) % TABS.length;
+    pick(TABS[n]);
+    filter.current?.querySelector<HTMLButtonElement>(`[data-surf="${TABS[n]}"]`)?.focus();
   }
   function resume() {
     setManual(false);
@@ -108,13 +123,14 @@ export default function QeFleet() {
 
       <div className="sx-stage" ref={root} {...ap.bind}>
         <div className="qf-bar">
-          <div className="qf-filter" role="tablist" aria-label="Filter specialists by router action">
+          <div className="qf-filter" role="tablist" aria-label="Filter specialists by router action" ref={filter} onKeyDown={onFilterKey}>
             <button
               type="button"
               role="tab"
               className={`qf-btn qf-btn--all${eff === "all" ? " is-on" : ""}`}
               data-surf="all"
               aria-selected={eff === "all"}
+              tabIndex={eff === "all" ? 0 : -1}
               onClick={() => pick("all")}
             >
               all{" "}<span className="qf-n">{QE_SPECIALISTS.length}</span>
@@ -127,6 +143,7 @@ export default function QeFleet() {
                 className={`qf-btn${eff === x.key ? " is-on" : ""}`}
                 data-surf={x.key}
                 aria-selected={eff === x.key}
+                tabIndex={eff === x.key ? 0 : -1}
                 onClick={() => pick(x.key)}
               >
                 <span className="qf-btn-dot" aria-hidden />{x.key}{" "}<span className="qf-n">{count(x.key)}</span>

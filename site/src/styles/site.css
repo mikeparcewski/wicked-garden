@@ -51,7 +51,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 }
 /* the platform map (chrome) gets the same bar-sized top padding; its band snaps with the section, not 64px under it */
 .gd-map-section { padding-top: var(--topbar-h); }
-.gd-map-section .same-garden { scroll-margin-top: var(--topbar-h); }
+/* + 1px: the section's top border, so the band's snap position is the section's own (two stops 1px apart made
+   one arrow press move the page a single pixel) */
+.gd-map-section .same-garden { scroll-margin-top: calc(var(--topbar-h) + 1px); }
 /* an in-section anchor (a catalog domain) lands below the bar */
 [id^="dom-"] { scroll-margin-top: calc(var(--topbar-h) + 16px); }
 @media (prefers-reduced-motion: reduce) {
@@ -166,6 +168,11 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
    THE STORY TOKEN (decorative, aria-hidden): the hero's claim, followed
 ============================================================================ */
 .st-token { display: none; }
+/* each step in the colour of what it found: claimed (warn), rejected and FAIL (fail), the graph's reach (graph),
+   held (warn), proposed for approval (warn). A failing outcome is never drawn in the pass colour. */
+.st-token [data-s="hero"], .st-token [data-s="panel"], .st-token [data-s="memory"] { --st: var(--c-warn); }
+.st-token [data-s="gate"], .st-token [data-s="qe"] { --st: var(--c-fail); }
+.st-token [data-s="graph"] { --st: var(--c-graph); }
 @media (min-width: 1024px) {
   .st-token {
     position: fixed; z-index: 30; top: 50%; transform: translateY(-50%);
@@ -185,8 +192,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .st-token[data-step="graph"] .st-dots li[data-s="graph"],
   .st-token[data-step="qe"] .st-dots li[data-s="qe"],
   .st-token[data-step="panel"] .st-dots li[data-s="panel"],
-  .st-token[data-step="memory"] .st-dots li[data-s="memory"] { background: var(--c-pass); border-color: var(--c-pass); transform: scale(1.3); }
-  .st-token[data-step="hero"] .st-dots li[data-s="hero"] { background: var(--c-warn); border-color: var(--c-warn); }
+  .st-token[data-step="memory"] .st-dots li[data-s="memory"] { background: var(--st); border-color: var(--st); transform: scale(1.3); }
 }
 /* room for the card only where the gutter beside the 1240 column holds it */
 @media (min-width: 1400px) {
@@ -201,9 +207,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .st-status { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 34px; }
   .st-line {
     grid-area: 1 / 1; align-self: start; font-size: var(--text-caption); line-height: 1.35; font-weight: var(--weight-strong);
-    color: var(--c-pass); opacity: 0; transform: translateY(4px); transition: opacity .18s, transform .18s var(--ease-out-expo);
+    color: var(--st); opacity: 0; transform: translateY(4px); transition: opacity .18s, transform .18s var(--ease-out-expo);
   }
-  .st-line[data-s="hero"] { color: var(--c-warn); }
   .st-token[data-step="hero"] .st-line[data-s="hero"],
   .st-token[data-step="gate"] .st-line[data-s="gate"],
   .st-token[data-step="graph"] .st-line[data-s="graph"],
@@ -340,9 +345,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-state { flex: 0 0 auto; font-family: var(--font-mono); }
 .pg-machine.is-stamped .pg-state { color: var(--v); }
 .pg-body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(14px, 2.4vw, 32px); }
-.pg-switches { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.pg-switches { display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 0; }
 .pg-switch {
-  flex: 1 1 0; min-height: 44px; max-height: 128px;
+  flex: 1 1 0; min-height: 44px; max-height: 112px;
   display: flex; align-items: center; gap: 12px; padding: 6px 12px;
   border-radius: 10px; border: 1px solid var(--hairline);
   background: color-mix(in oklab, var(--surface) 60%, transparent);
@@ -425,21 +430,29 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .pg-foot-btns { flex: 0 0 auto; display: flex; align-items: center; gap: 12px; }
 .pg-reset { font-size: var(--text-caption); color: var(--muted); background: none; border: 0; border-bottom: 1px solid var(--hairline-strong); cursor: pointer; padding: 2px 0; white-space: nowrap; }
 @media (hover: hover) { .pg-reset:hover { color: var(--ink); } }
+/* where it only advises: the detail takes the bench's place. The bench stays laid out (the machine keeps its
+   size) but is hidden, so the detail covers nothing that still shows */
 .pg-advise {
   position: absolute; inset: 0; z-index: 2; border-radius: 16px; padding: clamp(18px, 3vw, 36px);
   display: flex; flex-direction: column; justify-content: center; gap: 14px;
   background: var(--canvas-2); border: 1px solid var(--ink);
+  animation: gd-fade .3s var(--ease-out-expo) both;
 }
 .pg-advise[hidden] { display: none; }
+.pg-advise-k { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); }
 .pg-inner { display: contents; }
+.pg-machine.is-advise .pg-inner > *, .pg-machine.is-advise .pg-inner .pg-cond { opacity: 0; visibility: hidden; }
+.pg-machine.is-advise { border-color: transparent; box-shadow: none; }
 .pg-advise p { font-size: var(--text-lead); line-height: 1.55; color: var(--ink); max-width: 70ch; }
 .pg-advise a { text-decoration: underline; text-underline-offset: 3px; }
-.pg-advise-close { align-self: flex-start; height: 30px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: none; color: var(--ink); font-size: var(--text-caption); cursor: pointer; }
+.pg-advise-close { align-self: flex-start; height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: none; color: var(--ink); font-size: var(--text-caption); cursor: pointer; }
 .pg-where p { font-size: var(--text-caption); color: var(--muted); line-height: 1.5; }
 .pg-where-btn { font: inherit; color: var(--ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 /* the machine's height: what the frame has left under the title, the lead and the one line */
 /* each computed stage leaves ~10px of slack, so a font that sets a little taller on another platform still fits */
-.sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 158px - var(--h2-extra)), 640px); }
+/* scripts/frame-fit.ts measures what the frame has left and sets --fit-h inside [--fit-min, --fit-max];
+   the clamp is the no-script fallback */
+.sx--gate .sx-stage { --fit-min: 300px; --fit-max: 620px; height: var(--fit-h, clamp(300px, calc(var(--avail) - 158px - var(--h2-extra)), 620px)); }
 
 /* ============================================================================
    02 THE GRAPH
@@ -510,7 +523,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gx-cmd { flex: 0 0 auto; }
 .gx-afford { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 6px 0 14px; border-radius: 999px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--text-caption); color: var(--muted); }
 .gx-afford-text { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 130px - var(--h2-extra)), 640px); }
+.sx--graph .sx-stage { --fit-min: 330px; --fit-max: 640px; height: var(--fit-h, clamp(330px, calc(var(--avail) - 130px - var(--h2-extra)), 640px)); }
 
 /* ============================================================================
    03 THE QE WALL
@@ -633,7 +646,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 ============================================================================ */
 .qf-bar { display: flex; align-items: center; gap: 12px; justify-content: space-between; }
 .qf-filter { display: flex; gap: 6px; flex-wrap: nowrap; min-width: 0; }
-.qf-btn { flex: 0 0 auto; height: 34px; padding: 0 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); background: color-mix(in oklab, var(--surface) 60%, transparent); border: 1px solid var(--hairline-strong); transition: border-color .22s, color .22s, background .22s; }
+.qf-btn { flex: 0 0 auto; height: 34px; padding: 0 13px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); background: color-mix(in oklab, var(--surface) 60%, var(--canvas-2)); border: 1px solid var(--hairline-strong); transition: border-color .22s, color .22s, background .22s; }
 @media (hover: hover) { .qf-btn:hover { color: var(--ink); border-color: color-mix(in oklab, var(--c-qe) 50%, var(--hairline-strong)); } }
 .qf-btn.is-on { color: var(--accent-fg); background: var(--c-qe); border-color: var(--c-qe); font-weight: var(--weight-strong); }
 .qf-n { font-variant-numeric: tabular-nums; }
@@ -672,7 +685,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   height: 100%; border-radius: 16px; border: 1px solid var(--hairline-strong); padding: clamp(14px, 2vw, 24px);
   background: color-mix(in oklab, var(--canvas-2) 94%, transparent);
 }
-.sx--panel .sx-stage { height: clamp(300px, calc(var(--avail) - 138px - var(--h2-extra)), 560px); }
+.sx--panel .sx-stage { --fit-min: 300px; --fit-max: 560px; height: var(--fit-h, clamp(300px, calc(var(--avail) - 138px - var(--h2-extra)), 560px)); }
 .pv-left, .pv-right { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .pv-q { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--c-warn) 50%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-warn) 9%, transparent); }
 .pv-q-k { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--c-warn); }
@@ -705,7 +718,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   gap: 12px clamp(12px, 2vw, 24px);
 }
 .sx--memory .sx-stage { height: auto; }
-.sx--memory .mq-stage { min-height: clamp(230px, calc(var(--avail) - 330px - var(--h2-extra)), 440px); }
+.sx--memory .mq-stage { --fit-min: 230px; --fit-max: 440px; min-height: var(--fit-h, clamp(230px, calc(var(--avail) - 330px - var(--h2-extra)), 440px)); }
 .mq-col { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--canvas-2) 94%, transparent); }
 .mq-col-h { font-size: var(--text-caption); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mq-card { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 12px; border: 1px solid color-mix(in oklab, var(--c-solo) 50%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-solo) 9%, var(--surface)); animation: gd-slide .45s var(--ease-out-expo) both; transition: opacity .4s, transform .4s var(--ease-out-expo); }
@@ -759,7 +772,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .cx-tabs { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cx-tab {
   position: relative; display: flex; align-items: center; gap: 8px; min-width: 0; height: clamp(44px, 7vh, 64px); padding: 0 10px; cursor: pointer; text-align: left;
-  border-radius: 10px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 50%, transparent);
+  border-radius: 10px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 50%, var(--canvas-2));
   font-size: var(--text-caption); color: var(--ink); line-height: 1.25; transition: border-color .2s, background .2s, opacity .2s;
 }
 .cx-tab-dot { width: 8px; height: 8px; border-radius: 999px; flex: 0 0 auto; background: var(--hue); }
@@ -803,11 +816,11 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .cx-detail.is-on .cx-arche-fill { animation: cx-meter .9s .9s var(--ease-out-expo) both; }
 @keyframes cx-meter { from { width: 0; } to { width: 92%; } }
 .cx-arche-note { font-size: var(--text-caption); color: var(--muted); }
-.cx-family { display: flex; align-items: center; gap: 16px; padding: 10px 14px; border-radius: 14px; border: 1px dashed var(--hairline-strong); }
+.cx-family { display: flex; align-items: center; gap: 16px; padding: 10px 14px; border-radius: 14px; border: 1px dashed var(--hairline-strong); background: color-mix(in oklab, var(--canvas-2) 94%, transparent); }
 .cx-family-lead { flex: 1 1 auto; min-width: 0; font-size: var(--text-caption); line-height: 1.45; color: var(--muted); }
 .cx-family-lead b { color: var(--ink); }
 .cx-family-strip { flex: 0 0 auto; display: flex; gap: 6px; flex-wrap: wrap; }
-.cx-peer { display: inline-flex; flex-direction: column; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, transparent); }
+.cx-peer { display: inline-flex; flex-direction: column; padding: 4px 10px; border-radius: 9px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 55%, var(--canvas-2)); }
 .cx-peer-name { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--ink); }
 .cx-peer-tier { font-size: var(--text-caption); color: var(--muted); }
 .cx-peer.is-required { border-color: color-mix(in oklab, var(--hue) 60%, var(--hairline-strong)); }
@@ -833,7 +846,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .xp-foot-text { flex: 1 1 auto; min-width: 0; }
 .xp-foot-ctl { flex: 0 0 auto; }
 .xp-rules { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.xp-rule { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--hairline); background: color-mix(in oklab, var(--surface) 45%, transparent); transition: border-color .3s, background .3s; }
+.xp-rule { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--hairline); background: color-mix(in oklab, var(--surface) 45%, var(--canvas-2)); transition: border-color .3s, background .3s; }
 .xp-rule.is-lit { border-color: color-mix(in oklab, var(--c-qe) 55%, var(--hairline-strong)); background: color-mix(in oklab, var(--c-qe) 7%, var(--surface)); }
 .xp-rule-num { font-family: var(--font-mono); font-size: var(--text-caption); font-weight: var(--weight-strong); color: var(--c-qe); }
 .xp-rule-t { font-family: var(--font-mono); font-size: var(--text-code); font-weight: var(--weight-strong); color: var(--ink); }
@@ -847,13 +860,13 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .ib-stage { display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
 .ib-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .ib-tabs { display: flex; gap: 6px; min-width: 0; }
-.ib-tab { height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-size: var(--text-caption); color: var(--muted); background: color-mix(in oklab, var(--surface) 55%, transparent); border: 1px solid var(--hairline-strong); }
+.ib-tab { height: 38px; padding: 0 16px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-size: var(--text-caption); color: var(--muted); background: color-mix(in oklab, var(--surface) 55%, var(--canvas-2)); border: 1px solid var(--hairline-strong); }
 .ib-tab.is-on { color: var(--canvas); background: var(--ink); border-color: var(--ink); font-weight: var(--weight-strong); }
 /* both panels share one cell: the bench is as tall as the taller one */
 .ib-panels { display: grid; grid-template-columns: minmax(0, 1fr); }
 .ib-panel { grid-area: 1 / 1; display: flex; flex-direction: column; gap: 10px; }
 .ib-panel.is-off { visibility: hidden; }
-.ib-step { border-radius: 14px; padding: 12px 14px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 45%, transparent); }
+.ib-step { border-radius: 14px; padding: 12px 14px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 45%, var(--canvas-2)); }
 .ib-step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
 .ib-step-num { font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); }
 .ib-step-label { font-size: var(--text-caption); color: var(--ink); }
@@ -865,6 +878,30 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .ib-run-step.is-done { color: var(--ink); border-color: color-mix(in oklab, var(--c-pass) 55%, transparent); background: color-mix(in oklab, var(--c-pass) 10%, transparent); }
 .ib-run-step.is-done .ib-run-mark { color: var(--c-pass); }
 .ib-foot { font-size: var(--text-caption); color: var(--muted); }
+/* the recap beside the bench: the stage takes the left column, the recap the right */
+.sx--install { grid-template-areas: "title lead" "stage recap"; align-items: start; }
+.sx--install .sx-title, .sx--install .sx-lead { align-self: end; }
+.ib-recap { grid-area: recap; min-width: 0; display: flex; flex-direction: column; gap: 8px; padding-top: 50px; }
+.ib-recap-h { font-size: var(--text-caption); line-height: 1.5; color: var(--muted); }
+.ib-recap-h b { color: var(--ink); font-weight: var(--weight-strong); }
+.ib-recap-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.ib-rc {
+  display: flex; align-items: center; gap: 12px; min-width: 0; height: 40px; padding: 0 14px;
+  border-radius: 10px; border: 1px solid var(--hairline-strong); background: color-mix(in oklab, var(--surface) 45%, var(--canvas-2));
+  color: var(--ink); text-decoration: none; transition: border-color .22s, background .22s;
+}
+.ib-rc-n { flex: 0 0 auto; font-family: var(--font-mono); font-size: var(--text-caption); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ib-rc-t { flex: 0 0 8.5em; font-size: var(--text-caption); color: var(--muted); }
+.ib-rc-c { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: var(--text-code); color: var(--ink); }
+@media (hover: hover) { .ib-rc:hover { border-color: var(--c-graph); background: color-mix(in oklab, var(--c-graph) 9%, var(--canvas-2)); } }
+.ib-rc:focus-visible { outline-offset: -3px; }
+/* on arrival the rows settle in one after another (inside their own boxes: a fade, no travel) */
+html.js-enter #install .sx-stage:not(.is-entered) ~ .ib-recap .ib-recap-list li { opacity: 0; }
+html.js-enter #install .sx-stage.is-entered ~ .ib-recap .ib-recap-list li { animation: gd-fadein .45s calc(.35s + var(--k) * .09s) var(--ease-out-expo) both; }
+@keyframes gd-fadein { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  html.js-enter #install .ib-recap .ib-recap-list li { opacity: 1; animation: none; }
+}
 
 /* ============================================================================
    Desktop fleet: six columns, names wrap to two lines (never cut), fixed tiles
@@ -874,11 +911,18 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .qf-agent { height: clamp(36px, 5.4vh, 46px); }
   .qf-agent-name { white-space: normal; overflow-wrap: anywhere; line-height: 1.2; }
 }
+/* narrow desktops (1024-1279): the report card gives the wall its width back, so the role copy and the legend
+   wrap less and the qe frame fits a 1024x768 or 1100x700 window (it was 14-21px over) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .qw-layout { grid-template-columns: minmax(200px, 236px) minmax(0, 1fr); }
+  .qw-stage { grid-template-rows: auto 56px auto; }
+  .qw-foot-cmd { flex-basis: 312px; }
+}
 /* very wide: a wider column and taller stages */
 @media (min-width: 1680px) {
   .sx, .sx-wrap { max-width: 1480px; }
-  .sx--gate .sx-stage { height: clamp(300px, calc(var(--avail) - 186px - var(--h2-extra)), 760px); }
-  .sx--graph .sx-stage { height: clamp(330px, calc(var(--avail) - 164px - var(--h2-extra)), 760px); }
+  .sx--gate .sx-stage { --fit-max: 660px; height: var(--fit-h, clamp(300px, calc(var(--avail) - 186px - var(--h2-extra)), 660px)); }
+  .sx--graph .sx-stage { --fit-max: 700px; height: var(--fit-h, clamp(330px, calc(var(--avail) - 164px - var(--h2-extra)), 700px)); }
   .st-token { left: max(12px, calc((100vw - 1480px) / 2 + 48px - 124px)); }
 }
 
@@ -899,8 +943,10 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 ============================================================================ */
 @media (max-width: 1023px) {
   .sx { grid-template-columns: minmax(0, 1fr); grid-template-areas: "title" "lead" "stage" "foot"; align-items: start; row-gap: 16px; }
-  /* where it only advises: a sheet sized to its text at the bottom of the machine, right above the link */
-  .pg-advise { inset: auto 0 0 0; justify-content: flex-start; padding: 18px; }
+  /* where it only advises: the detail fills the machine with its text at the bottom, right above the link
+     that opened it (the machine is taller than the screen here) */
+  .pg-advise { justify-content: flex-end; padding: 18px; }
+  .pg-advise-k { margin-bottom: auto; }
   .pg-advise p { font-size: var(--text-body); }
   .sx-stage, .sx--gate .sx-stage, .sx--graph .sx-stage, .sx--qe .sx-stage, .sx--panel .sx-stage, .sx--memory .sx-stage { height: auto; }
   .gd-hero-grid { grid-template-columns: minmax(0, 1fr); grid-template-areas: "pitch" "demo" "get"; row-gap: 20px; }
@@ -942,6 +988,8 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 
   .xp-grid { grid-template-columns: minmax(0, 1fr); }
   .ib-stage { max-width: none; }
+  .sx--install { grid-template-areas: "title" "lead" "stage" "recap"; }
+  .ib-recap { padding-top: 8px; }
 }
 @media (max-width: 1023px) and (min-width: 641px) {
   .qw-stage { grid-template-rows: auto 68px auto; }
@@ -1013,6 +1061,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 
   .hs-afford { display: none; }
   .hs-controls { justify-content: space-between; }
+  .hs-pip { width: 44px; }
   .pg-afford { height: 56px; border-radius: 14px; }
   .pg-afford-text { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .gx-afford, .mq-afford { height: 56px; border-radius: 14px; padding-right: 6px; }
@@ -1030,16 +1079,22 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .ib-bar .px-play { align-self: flex-end; }
   .ib-tabs { flex-direction: column; }
   .ib-tab { height: 44px; }
+  .ib-rc { height: auto; min-height: 48px; flex-wrap: wrap; row-gap: 0; padding: 4px 12px; }
+  .ib-rc-t { flex: 1 1 auto; }
+  .ib-rc-c { flex: 1 1 100%; white-space: normal; overflow-wrap: anywhere; }
   .ib-run { grid-template-columns: minmax(0, 1fr); }
   .mq-btn, .px-play, .pg-afford-btn { min-height: 44px; }
   /* touch targets: every demo control at least 44px tall, standalone text links with a taller hit area */
   .gx-seg-btn, .gx-rename-btn, .xp-pick, .qf-btn, .qw-btn, .pg-reset, .pv-opt, .cc { min-height: 44px; }
   .pg-reset { display: inline-flex; align-items: center; border-bottom: 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline-strong); }
-  .cx-jump, .gd-hero-stats a, .mq-new-list a { padding-block: 12px; }
+  .mq-new-list a { padding-block: 12px; }
+  .cx-jump { display: inline-flex; align-items: center; min-height: 44px; }
+  .gd-hero-stats a { display: inline-flex; align-items: center; min-height: 44px; }
+  .pg-where-btn { display: flex; width: fit-content; align-items: center; min-height: 44px; margin-top: 10px; padding: 0 14px; border: 1px solid var(--hairline-strong); border-radius: 999px; text-decoration: none; background: color-mix(in oklab, var(--canvas-2) 96%, transparent); }
   /* what's inside: tappable pills on a phone */
   .gd-hero-inside { gap: 8px; }
   .gd-hero-inside-k { flex: 1 1 100%; }
-  .gd-hero-inside a { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 999px; text-decoration: none; background: color-mix(in oklab, var(--canvas-2) 96%, transparent); }
+  .gd-hero-inside a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 12px; border: 1px solid var(--hairline-strong); border-radius: 999px; text-decoration: none; background: color-mix(in oklab, var(--canvas-2) 96%, transparent); }
   .pg-cond { white-space: normal; overflow: visible; text-overflow: clip; }
   .px-play { height: 44px; }
   .pg-afford-btn { height: 44px; }
@@ -1080,4 +1135,30 @@ html.js-enter .sx-stage:not(.no-entrance) { transition: opacity .55s var(--ease-
 html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14px) scale(0.98); }
 @media (prefers-reduced-motion: reduce) {
   html.js-enter .sx-stage:not(.is-entered) { opacity: 1; transform: none; }
+}
+
+/* ============================================================================
+   The shared chrome (wicked-web Topbar / SameGarden / Footer), adjusted for this
+   site only: nothing here changes wicked-web or the other sites.
+============================================================================ */
+/* the topbar's icon tooltips open BELOW the bar: drawn above it (the chrome's bottom:calc(100% + 8px)) they
+   fall off the top of the window and only a 6px sliver shows. They sit 8px under the bar's edge, and the
+   experiments tip stays hidden while its menu is open (the menu drops from the same button). Touch screens
+   never show them: a tap leaves :hover stuck on. */
+.topbar [data-tip]::after { bottom: auto; top: calc(100% + 22px); }
+.topbar .dropdown-wrap:has(> .dropdown-menu:not([hidden]))::after { opacity: 0; }
+@media (hover: none) { .topbar [data-tip]::after { display: none; } }
+/* the experiments menu is wide enough for its longest row ("studio where you direct agents  site ↗") */
+.topbar #projectsMenu.dropdown-menu { min-width: 340px; }
+/* phones: every chrome control is a 44px target */
+@media (max-width: 640px) {
+  .topbar .wordmark { min-height: 44px; }
+  .topbar .nav .icon-btn { width: 44px; height: 44px; }
+  .same-garden .sg-visit, .same-garden .sg-repo { min-height: 44px; }
+  .same-garden .sg-repo { min-width: 44px; justify-content: center; }
+  .same-garden .sg-card-foot { padding-block: 0; }
+  .footer .footer-wordmark { display: inline-flex; align-items: center; min-height: 44px; }
+  .footer .footer-cta a { display: inline-flex; align-items: center; min-height: 44px; }
+  .footer .footer-links { gap: 0; }
+  .footer .footer-links a { min-height: 44px; align-items: center; }
 }

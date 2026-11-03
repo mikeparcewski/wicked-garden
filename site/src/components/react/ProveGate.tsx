@@ -40,8 +40,11 @@ function derive(s: Record<string, boolean>): Verdict {
 
 const ALL_ON: Record<string, boolean> = { verifier: true, hash: true, vault: true, attest: true };
 
-/* Auto-play script: each cycle breaks one condition (or none) to show a verdict. */
-const SCRIPT: (string | null)[] = [null, "verifier", "vault", "attest"];
+/* Auto-play script: each cycle breaks one condition (or none) to show a verdict. The first cycle is the
+   page's story (the hero's retry-change claim, rejected because the verifier never ran); PROVED comes last. */
+const SCRIPT: (string | null)[] = ["verifier", "vault", "attest", null];
+/* the bench opens on the claim as the hero left it: the verifier never ran */
+const OPENING: Record<string, boolean> = { ...ALL_ON, verifier: false };
 
 /* Step machine. s=0 armed, s=1 a condition broken, s=2 the lever is pulled and check 0 runs,
    s=2+k check k runs, s=2+runs every check that runs has a result and the verdict lands. */
@@ -52,7 +55,7 @@ const ADVISE_ID = "pg-advise";
 export default function ProveGate() {
   const machine = useRef<HTMLDivElement>(null);
   const ap = useAutoplay(machine, 0.4);
-  const [state, setState] = useState<Record<string, boolean>>({ ...ALL_ON });
+  const [state, setState] = useState<Record<string, boolean>>({ ...OPENING });
   const [s, setS] = useState(0);
   const [manual, setManual] = useState(false);
   const [cycle, setCycle] = useState(0);
@@ -80,7 +83,8 @@ export default function ProveGate() {
     let next = () => setS((x) => x + 1);
     if (s === 0) ms = DUR.armed;
     else if (s === 1) ms = DUR.broken;
-    if (s === 0 && !brk) next = () => setS(2); // nothing to break: straight to the pull
+    // nothing to break, or it is already broken (the opening bench): straight to the pull
+    if (s === 0 && (!brk || !state[brk])) next = () => setS(2);
     if (stamped) {
       ms = DUR.hold;
       next = () => {
@@ -94,7 +98,14 @@ export default function ProveGate() {
       next();
     }, ms);
     return () => window.clearTimeout(t);
-  }, [s, manual, ap.active, ap.reduced, cycle, pulled, stamped, runs]);
+  }, [s, manual, ap.active, ap.reduced, cycle, pulled, stamped, runs, state]);
+
+  // reduced motion: no tick-by-tick trail; the opening claim shows stamped (REJECTED: the verifier never ran)
+  useEffect(() => {
+    if (ap.reduced) setS((x) => (x === 0 ? 2 + runs : x));
+    // only on the preference: a later flip or reset leaves the visitor driving
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ap.reduced]);
 
   // Escape closes the advise panel; focus returns to its toggle
   useEffect(() => {
@@ -162,12 +173,12 @@ export default function ProveGate() {
       <div className="sx-stage">
         <div
           ref={machine}
-          className={`pg-machine${stamped ? ` is-stamped ${v.cls}` : ""}`}
+          className={`pg-machine${stamped ? ` is-stamped ${v.cls}` : ""}${advise ? " is-advise" : ""}`}
           role="region"
           aria-label="Evidence gate — interactive demo: break a condition, pull PROVE, and watch the gate re-derive the verdict"
           {...ap.bind}
         >
-          {/* covered by the advise overlay: out of the tab order and the accessibility tree while it is open */}
+          {/* swapped out while the advise detail shows: hidden, out of the tab order and the accessibility tree */}
           <div className="pg-inner" inert={advise} aria-hidden={advise || undefined}>
           <div className="pg-head">
             <span className="pg-claimline">
@@ -272,8 +283,10 @@ export default function ProveGate() {
           </div>
           </div>
 
-          {/* the hooks-advise detail: an overlay inside the machine, so opening it never grows the frame */}
+          {/* the hooks-advise detail takes the bench's place inside the machine (the bench is hidden, not covered),
+              so opening it never grows the frame and nothing shows through or around it */}
           <div className="pg-advise" id={ADVISE_ID} hidden={!advise} role="region" aria-label="Where the gate only advises">
+            <span className="pg-advise-k" aria-hidden>where it only advises</span>
             <p>
               The Claude Code plugin’s hooks mostly advise — a few specific tool denials and a setup gate,
               none of which rejects a false “done” — and skills-only hosts (Codex, OpenCode, Pi, Antigravity)

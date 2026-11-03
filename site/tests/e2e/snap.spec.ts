@@ -13,7 +13,10 @@ async function sectionStops(page: import('@playwright/test').Page) {
   return page.evaluate(() => Array.from(document.querySelectorAll('main > section')).map((s) => Math.round(s.getBoundingClientRect().top + scrollY)));
 }
 
-for (const vp of [{ width: 1440, height: 700 }, { width: 1280, height: 660 }, { width: 1920, height: 1080 }]) {
+// the three desktop sizes, plus laptop windows where a fixed stage budget used to overflow (the gate and the
+// graph grew past 900-960px windows): those stages are now measured to fit (scripts/frame-fit.ts)
+for (const vp of [{ width: 1440, height: 700 }, { width: 1280, height: 660 }, { width: 1920, height: 1080 },
+  { width: 1440, height: 900 }, { width: 1536, height: 960 }]) {
   test(`every section fits its frame and the page locks in at ${vp.width}x${vp.height}`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto('/');

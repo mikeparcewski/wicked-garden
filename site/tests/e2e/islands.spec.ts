@@ -74,6 +74,16 @@ test('GraphStage: on the retry change, grep finds three files, the estate graph 
   await expect(graph.locator('.gx-afford')).toContainText('auto-playing');
 });
 
+test('ProveGate: the bench opens on the hero\'s claim and stamps it REJECTED first (the story never says PROVED first)', async ({ page }) => {
+  const gate = page.locator('#gate');
+  await gate.scrollIntoViewIfNeeded();
+  const machine = gate.getByRole('region', { name: /Evidence gate/ });
+  await expect(machine.locator('.pg-claim-v')).toHaveText('the retry change: all acceptance tests pass');
+  await expect(machine.getByRole('switch', { name: /verifier actually ran/ })).toHaveAttribute('aria-checked', 'false');
+  await expect(machine.locator('.pg-mark-word')).toHaveText('REJECTED', { timeout: 8_000 });
+  await expect(machine.locator('.pg-mark-at')).toHaveText('failed at: verifier');
+});
+
 test('ProveGate: driving the gate re-derives PROVED, breaking the vault FAILS CLOSED', async ({
   page,
 }) => {
@@ -114,6 +124,19 @@ test('ProveGate: the where-it-advises detail opens inside the machine and never 
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('skills-only hosts (Codex, OpenCode, Pi, Antigravity) have no hooks');
   expect(await gate.evaluate((el) => el.getBoundingClientRect().height)).toBe(before);
+  // it takes the bench's place: the bench is hidden, not covered, so no bench text shows under or around it
+  for (const sel of ['.pg-head', '.pg-switch', '.pg-chip', '.pg-foot']) await expect(gate.locator(sel).first()).toBeHidden();
+  const under = await gate.evaluate((sec) => {
+    const pr = sec.querySelector('.pg-advise')!.getBoundingClientRect();
+    return Array.from(sec.querySelectorAll('.pg-inner *')).filter((e) => {
+      const cs = getComputedStyle(e);
+      if (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05 || !Array.from(e.childNodes).some((n) => n.nodeType === 3 && n.textContent!.trim())) return false;
+      let p = e.parentElement; while (p && p !== sec) { if (Number(getComputedStyle(p).opacity) < 0.05) return false; p = p.parentElement; }
+      const r = e.getBoundingClientRect();
+      return r.width > 0 && r.right > pr.left && r.left < pr.right && r.bottom > pr.top && r.top < pr.bottom;
+    }).length;
+  });
+  expect(under).toBe(0);
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();
   await expect(btn).toBeFocused();

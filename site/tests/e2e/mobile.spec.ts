@@ -68,3 +68,27 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
   await expect(page.locator('#mobileMenu')).toBeVisible();
   await expect(page.locator('#mobileMenu').getByRole('link', { name: /garden/ })).toBeVisible();
 });
+
+for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
+  test(`mobile ${vp.width}x${vp.height}: every control, chrome included, is a 44px target`, async ({ page }) => {
+    await page.setViewportSize(vp);
+    await page.goto('/');
+    await page.evaluate(async () => { await document.fonts.ready; });
+    const small = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const el of Array.from(document.querySelectorAll<HTMLElement>('a[href], button, [role=tab], [role=switch], input'))) {
+        const cs = getComputedStyle(el);
+        // layout size (an entrance transform scales a stage to .98 until it is reached)
+        if (!el.offsetWidth || !el.offsetHeight || cs.visibility === 'hidden' || el.closest('[hidden], [inert], .mobile-menu')) continue;
+        // a link inside a sentence is exempt (WCAG 2.5.8): an inline element in a longer run of text
+        const p = el.parentElement;
+        const inline = cs.display === 'inline' && !!p && p.textContent!.trim().length > el.textContent!.trim().length + 12;
+        if (!inline && (el.offsetWidth < 44 || el.offsetHeight < 44)) {
+          out.push(`${el.tagName.toLowerCase()}.${String(el.className).split(' ')[0]} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30)}" ${el.offsetWidth}x${el.offsetHeight}`);
+        }
+      }
+      return out;
+    });
+    expect(small).toEqual([]);
+  });
+}

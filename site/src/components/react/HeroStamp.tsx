@@ -62,6 +62,18 @@ export default function HeroStamp() {
     setStep(ap.reduced ? CHECK_ORDER.length + 1 : 0);
   }
 
+  const dots = useRef<HTMLDivElement>(null);
+  // one tab stop for the claim pips (the shown claim); arrow keys, Home and End pick another
+  function onDotsKey(e: React.KeyboardEvent) {
+    const keys = ["ArrowRight", "ArrowLeft", "Home", "End"];
+    if (!keys.includes(e.key)) return;
+    e.preventDefault();
+    const n = e.key === "Home" ? 0 : e.key === "End" ? CLAIMS.length - 1
+      : (i + (e.key === "ArrowRight" ? 1 : -1) + CLAIMS.length) % CLAIMS.length;
+    pick(n);
+    dots.current?.querySelectorAll<HTMLButtonElement>(".hs-pip")[n]?.focus();
+  }
+
   function togglePlay() {
     if (ap.paused || pinned) {
       setPinned(false);
@@ -128,7 +140,7 @@ export default function HeroStamp() {
       </div>
 
       <div className="hs-controls">
-        <div className="hs-dots" role="tablist" aria-label="pick a claim">
+        <div className="hs-dots" role="tablist" aria-label="pick a claim" ref={dots} onKeyDown={onDotsKey}>
           {CLAIMS.map((claim, n) => (
             <button
               key={n}
@@ -136,6 +148,7 @@ export default function HeroStamp() {
               role="tab"
               aria-selected={n === i}
               aria-label={`claim ${n + 1}: ${claim.claim}`}
+              tabIndex={n === i ? 0 : -1}
               className={`hs-pip${n === i ? " is-on" : ""}`}
               onClick={() => pick(n)}
             />

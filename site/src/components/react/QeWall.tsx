@@ -14,7 +14,8 @@ import {
    THE WALL — the qe domain's one idea: the agent that runs the tests is never the
    one that grades them.
    1. the report card: the retry change's self-graded PASS, sent to an independent
-      reviewer, comes back contradicted (FAIL: a race in retry).
+      reviewer, comes back contradicted (FAIL: a race in retry). It sends itself the
+      first time it is on screen, so the frame agrees with the story token.
    2. the acceptance wall: light Writer / Executor / Reviewer to read its isolation
       copy (both copies share one reserved cell, so lighting never resizes a card).
       Evidence crosses the wall in its own lane and lands in the reviewer's inbox;
@@ -29,10 +30,33 @@ import {
    claimed here.)
 ============================================================================ */
 
+/** how long the card shows the pending review on arrival before the reviewer's verdict lands (ms) */
+const REVIEW_MS = 1300;
+
 function ReportCard() {
+  const fig = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState(false);
+  const touched = useRef(false);
+
+  // The page's story: the reviewer's FAIL lands on its own the first time the card is on screen (the
+  // gutter token already says "reviewer: FAIL, a race"); under reduced motion it is shown from the start.
+  // Once the visitor presses the button they drive it.
+  useEffect(() => {
+    const el = fig.current;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setRevealed(true); return; }
+    if (!el || typeof IntersectionObserver === "undefined") { setRevealed(true); return; }
+    let timer = 0;
+    const io = new IntersectionObserver((entries) => {
+      if (!entries.some((e) => e.isIntersecting && e.intersectionRatio >= 0.55)) return;
+      io.disconnect();
+      timer = window.setTimeout(() => { if (!touched.current) setRevealed(true); }, REVIEW_MS);
+    }, { threshold: [0, 0.55, 1] });
+    io.observe(el);
+    return () => { io.disconnect(); window.clearTimeout(timer); };
+  }, []);
+
   return (
-    <div className="qw-fig" data-revealed={revealed}>
+    <div className="qw-fig" data-revealed={revealed} ref={fig}>
       <div className="qw-fig-h">
         <span>report card · same change</span>
         <span>self-grade vs the wall</span>
@@ -46,7 +70,7 @@ function ReportCard() {
         </div>
         <div className="qw-cell qw-cell--rev">
           <span className="qw-tag">independent reviewer</span>
-          <div className="qw-mark qw-mark--rev">{revealed ? "FAIL" : "PASS"}</div>
+          <div className="qw-mark qw-mark--rev">{revealed ? "FAIL" : "?"}</div>
           <div className="qw-sub qw-sub--rev">
             <span className={`qw-sub-t${revealed ? "" : " is-on"}`} aria-hidden={revealed}>awaiting review…</span>
             <span className={`qw-sub-t${revealed ? " is-on" : ""}`} aria-hidden={!revealed}>caught a race in retry</span>
@@ -58,7 +82,7 @@ function ReportCard() {
         type="button"
         className="qw-btn"
         aria-pressed={revealed}
-        onClick={() => setRevealed((r) => !r)}
+        onClick={() => { touched.current = true; setRevealed((r) => !r); }}
       >
         {revealed ? "↺ Reset" : "Send it to an independent reviewer →"}
       </button>
