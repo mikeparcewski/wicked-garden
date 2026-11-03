@@ -16,6 +16,8 @@ import { test, expect } from '@playwright/test';
  * 1280x660 is the one that matters — a 13" laptop. Testing only at 1440x900 hides this entirely.
  */
 const VIEWPORTS = [
+  { width: 1440, height: 861 },   // just above the compact cut-off (wicked-web SameGarden, max-height 860px)
+  { width: 861, height: 861 },    // a narrow desktop, where more blurbs wrap (compact to 920px below 1024px wide)
   { width: 1440, height: 760 },
   { width: 1440, height: 700 },
   { width: 1280, height: 660 },

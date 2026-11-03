@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { expectRevealed } from './utils';
+import { expectRevealed, hydrated } from './utils';
 
 /**
  * The qe-domain bands — the mechanics absorbed from the retired
@@ -14,29 +14,40 @@ import { expectRevealed } from './utils';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
+  await hydrated(page);
 });
 
-test('QeWall: the reveal-reviewer flip contradicts a self-graded PASS', async ({ page }) => {
+test('QeWall: the reviewer contradicts the self-graded PASS on arrival, and the flip replays it', async ({ page }) => {
   const fig = page.locator('.qw-fig');
   await fig.scrollIntoViewIfNeeded();
   await expectRevealed(fig);
 
-  // resting state: both cells read PASS, the reviewer verdict is pending
-  await expect(fig).toHaveAttribute('data-revealed', 'false');
-  await expect(fig.locator('.qw-mark--rev')).toHaveText('PASS');
-  await expect(fig).toContainText('awaiting review…');
-
-  // send it across the wall — the independent read contradicts the self-grade
-  const btn = fig.getByRole('button', { name: /Send it to an independent reviewer/ });
-  await btn.click();
-  await expect(fig).toHaveAttribute('data-revealed', 'true');
+  // the page's story: the first time the card is on screen the reviewer's FAIL lands on its own, so the frame
+  // agrees with the gutter token ("reviewer: FAIL, a race")
+  await expect(fig).toHaveAttribute('data-revealed', 'true', { timeout: 5_000 });
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
-  await expect(fig).toContainText('caught a real bug');
-  await expect(fig.locator('.qw-delta')).toContainText('80%+');
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('caught a race in retry');
+  // the verdict that lands on its own is announced: the reviewer's cell is a status region
+  await expect(fig.locator('.qw-cell--rev')).toHaveAttribute('role', 'status');
+  // no unmeasured rate rides along with the flip (N9)
+  await expect(fig).not.toContainText('80%');
 
-  // and back
+  // reset: the self-grade still says PASS, the reviewer has not graded yet (no grade, never a PASS)
   await fig.getByRole('button', { name: /Reset/ }).click();
-  await expect(fig.locator('.qw-mark--rev')).toHaveText('PASS');
+  await expect(fig).toHaveAttribute('data-revealed', 'false');
+  await expect(fig.locator('.qw-mark--rev')).toHaveText('?');
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('awaiting review…');
+  const h = await fig.evaluate((el) => el.getBoundingClientRect().height);
+  // the visitor drives it now: it stays pending
+  await page.waitForTimeout(2_000);
+  await expect(fig).toHaveAttribute('data-revealed', 'false');
+
+  // send it across the wall again: the independent read contradicts the self-grade
+  await fig.getByRole('button', { name: /Send it to an independent reviewer/ }).click();
+  await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
+  // both sub-lines share one cell: revealing never resizes the card (pending height = revealed height)
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('caught a race in retry');
+  expect(await fig.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
 });
 
 test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ page }) => {
@@ -47,38 +58,44 @@ test('QeWall: acceptance-wall role-lighting swaps the isolation copy', async ({ 
   // the reviewer is lit by default — the wall is its story
   const reviewer = stage.locator('[data-role="reviewer"]');
   await expect(reviewer).toHaveClass(/is-lit/);
-  await expect(reviewer).toContainText('never sees who did the work');
+  await expect(reviewer.locator('.qw-role-lit')).toBeVisible();
+  await expect(reviewer.locator('.qw-role-lit')).toContainText('never sees who did the work');
 
-  // light the writer — the lit copy swaps in, the reviewer dims
+  // light the writer — the lit copy swaps in (in the same reserved cell), the reviewer dims
   const writer = stage.locator('[data-role="writer"]');
-  await writer.click();
+  const h = await writer.evaluate((el) => el.getBoundingClientRect().height);
+  await expect(writer.locator('.qw-role-lit')).toBeHidden();
+  await writer.getByRole('button').click();
   await expect(writer).toHaveClass(/is-lit/);
-  await expect(writer).toContainText('designs the exam but never sits it');
+  await expect(writer.locator('.qw-role-lit')).toBeVisible();
+  await expect(writer.locator('.qw-role-lit')).toContainText('designs the exam but never sits it');
   await expect(reviewer).not.toHaveClass(/is-lit/);
+  expect(await writer.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
 
-  // per-role tool boundaries from the skills' allowed-tools frontmatter
-  await expect(writer.locator('.qw-role-tool')).toHaveText(['Read', 'Grep', 'Glob', 'Skill']);
-  await expect(reviewer.locator('.qw-role-tool')).toHaveText(['Read']);
-  await expect(stage.locator('[data-role="executor"] .qw-role-tool')).toHaveText([
-    'Read',
-    'Write',
-    'Bash',
-  ]);
+  // what each role is handed (skills/qe §accept), not a tool list no host enforces
+  await expect(writer.locator('.qw-role-tool')).toHaveText('gets: the scenario');
+  await expect(stage.locator('[data-role="executor"] .qw-role-tool')).toHaveText('gets: the plan');
+  await expect(reviewer.locator('.qw-role-tool')).toHaveText('gets: evidence paths only');
 });
 
-test('QeWall: the evidence channel plays and the wall click pauses it', async ({ page }) => {
+test('QeWall: evidence crosses into the reviewer inbox, and a visible button pauses it', async ({ page }) => {
   const stage = page.locator('.qw-stage');
   await stage.scrollIntoViewIfNeeded();
+  await page.mouse.move(2, 2);
 
-  // playing by default (no reduced-motion in this project)
+  // playing by default (no reduced-motion in this project); the chips run in their own lanes
   await expect(stage).toHaveClass(/is-playing/);
-  await expect(stage.locator('.qw-chip--pass')).toHaveCount(4);
-  await expect(stage.locator('.qw-chip--block')).toHaveCount(4);
+  await expect(stage.locator('.qw-track .qw-chip--pass')).toHaveCount(1);
+  await expect(stage.locator('.qw-track .qw-chip--block')).toHaveCount(1);
+  // the inbox lays out its four slots from the start; what arrives is the .is-in ones, all four before it resets
+  await expect.poll(() => stage.locator('.qw-inbox-item.is-in').count(), { timeout: 15_000 }).toBe(4);
 
-  // the dashed wall is the play/pause control
-  await stage.locator('.qw-wall').click();
+  // the keyboard pause
+  const pause = stage.getByRole('button', { name: 'Pause the evidence handoff' });
+  await pause.focus();
+  await page.keyboard.press('Enter');
   await expect(stage).not.toHaveClass(/is-playing/);
-  await stage.locator('.qw-wall').click();
+  await page.keyboard.press('Enter');
   await expect(stage).toHaveClass(/is-playing/);
 });
 
@@ -89,13 +106,15 @@ test('QeFleet: 40 specialists render and the tabs auto-cycle until clicked', asy
   await expect(fleet.locator('.qf-agent')).toHaveCount(40);
   await expect(fleet.getByRole('tab')).toHaveCount(6); // all + five surfaces
 
-  // auto-demo: within one cycle (2.2s) a surface tab lights on its own
+  // auto-demo: within a cycle (2.6s) a surface tab lights on its own; the pointer stays off the fleet,
+  // since hovering it holds the cycle
+  await page.mouse.move(2, 2);
   await expect(fleet.locator('.qf-afford')).toContainText('auto-cycling');
   await expect
     .poll(
       async () =>
         fleet.locator('.qf-btn.is-on:not([data-surf="all"])').count(),
-      { timeout: 10_000, message: 'auto-cycle should light a surface tab' },
+      { timeout: 15_000, message: 'auto-cycle should light a surface tab' },
     )
     .toBeGreaterThan(0);
 });
@@ -104,8 +123,8 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   const fleet = page.locator('#fleet');
   await fleet.scrollIntoViewIfNeeded();
 
-  // /review carries the acceptance reviewer + 5 peers = 6 specialists
-  const reviewTab = fleet.getByRole('tab', { name: /\/review/ });
+  // review carries the acceptance reviewer + 5 peers = 6 specialists; the tab names the router action
+  const reviewTab = fleet.getByRole('tab', { name: 'review 6' });
   await expect(reviewTab).toContainText('6');
   await reviewTab.click();
   await expect(reviewTab).toHaveClass(/is-on/);
@@ -115,12 +134,18 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   const grid = fleet.locator('.qf-grid');
   await expect(grid).toHaveClass(/is-filtered/);
   await expect(grid.locator('.qf-agent.is-match')).toHaveCount(6);
-  await expect(grid.locator('.qf-agent.is-match').first()).toContainText(
-    'qe-acceptance-test-reviewer',
-  );
+  // the chosen surface regroups to the front of the grid
+  await expect(grid.locator('.qf-agent').first()).toHaveAttribute('aria-label', 'qe-acceptance-test-reviewer');
+  await expect(grid.locator('.qf-agent').first()).toHaveClass(/is-match/);
+  // hovering a tile writes its full name into the fixed caption line
+  await grid.locator('.qf-agent').nth(1).hover();
+  await expect(fleet.locator('.qf-caption')).toContainText('qe-semantic-reviewer');
 
-  // the click killed the auto-cycle — the selection must hold past a cycle tick
-  await page.waitForTimeout(2600);
+  // the click killed the auto-cycle — the selection must hold past a cycle tick, with the pointer and focus
+  // OUT of the fleet (hover and focus hold the cycle too, so they would mask a broken pin)
+  await page.mouse.move(2, 2);
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await page.waitForTimeout(3200);
   await expect(reviewTab).toHaveClass(/is-on/);
 
   // back to the full roster
@@ -128,16 +153,61 @@ test('QeFleet: clicking a surface takes control and filters the roster', async (
   await expect(grid).not.toHaveClass(/is-filtered/);
 });
 
-test('qe band: the wall copy grounds the contract (fork isolation, evidence dir)', async ({
+test('qe band: the wall copy names the real mechanism (a separate worker, evidence paths, FAIL inconclusive)', async ({
   page,
 }) => {
   const qe = page.locator('#qe');
   await qe.scrollIntoViewIfNeeded();
-  await expect(qe.getByRole('heading', { name: /No agent grades its own homework/ })).toBeVisible();
-  await expect(qe.locator('.qw-foot')).toContainText('.wicked-qe/evidence/');
-  await expect(qe.locator('.qw-foot')).toContainText('context: fork');
-  await expect(qe.locator('.qw-foot')).toContainText('allowed-tools: Read');
+  await expect(qe.getByRole('heading', { name: /In acceptance, no agent grades its own homework/ })).toBeVisible();
+  const foot = qe.locator('.qw-foot');
+  await expect(foot).toContainText('.wicked-qe/evidence/');
+  await expect(foot).toContainText('separate worker whose brief carries only evidence paths');
+  await expect(foot).toContainText('FAIL inconclusive');
+  // no qe skill carries fork or tool frontmatter any more (removed going cross-CLI): never claimed
+  for (const id of ['#qe', '#fleet', '#extend']) {
+    const text = await page.locator(id).innerText();
+    expect(text, id).not.toContain('context: fork');
+    expect(text, id).not.toContain('allowed-tools');
+    expect(text, id).not.toMatch(/forked context/);
+  }
   await expect(
-    qe.getByRole('button', { name: 'Copy command: wicked-garden-qe' }),
+    qe.getByRole('button', { name: 'Copy skill call: /wicked-garden-qe accept' }),
   ).toBeVisible();
+});
+
+test('QeWall: the reviewer never changes the button under a focused visitor, and the pending state announces no verdict', async ({ page }) => {
+  const fig = page.locator('.qw-fig');
+  const btn = fig.getByRole('button', { name: /Send it to an independent reviewer/ });
+  // focus the button before the card is reached: the reveal waits while focus is inside the card
+  await btn.focus();
+  await fig.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(2_500);
+  await expect(fig).toHaveAttribute('data-revealed', 'false');
+  await expect(btn).toBeFocused();
+  // the hidden stamps are out of the accessibility tree until the verdict lands
+  await expect(fig.locator('.qw-cell--rev .qw-stamp')).toHaveAttribute('aria-hidden', 'true');
+  await page.keyboard.press('Enter');
+  await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
+  await expect(fig.locator('.qw-cell--rev .qw-stamp')).toHaveAttribute('aria-hidden', 'false');
+});
+
+test('QeFleet and the hero claims: one tab stop per tab list, arrow keys move the selection', async ({ page }) => {
+  const fleet = page.locator('#fleet');
+  await fleet.scrollIntoViewIfNeeded();
+  const tabs = fleet.getByRole('tab');
+  await expect(tabs).toHaveCount(6);
+  await tabs.first().click();
+  await expect(fleet.locator('.qf-btn[tabindex="0"]')).toHaveCount(1);
+  await page.keyboard.press('ArrowRight');
+  await expect(fleet.getByRole('tab', { name: /plan/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(fleet.getByRole('tab', { name: /plan/ })).toBeFocused();
+  await page.keyboard.press('End');
+  await expect(fleet.getByRole('tab', { name: /insight/ })).toHaveAttribute('aria-selected', 'true');
+
+  const pips = page.locator('#hero .hs-pip');
+  await expect(page.locator('#hero .hs-pip[tabindex="0"]')).toHaveCount(1);
+  await pips.first().click();
+  await page.keyboard.press('ArrowRight');
+  await expect(pips.nth(1)).toHaveAttribute('aria-selected', 'true');
+  await expect(pips.nth(1)).toBeFocused();
 });

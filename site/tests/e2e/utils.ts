@@ -1,4 +1,10 @@
-import { expect, type Locator } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
+
+/** Wait until every Astro island has hydrated (Astro drops the `ssr` attribute once it has). A click
+ *  before that lands on server-rendered HTML with no handler, which reads as a broken control. */
+export async function hydrated(page: Page): Promise<void> {
+  await page.waitForFunction(() => document.querySelectorAll('astro-island[ssr]').length === 0, null, { timeout: 15_000 });
+}
 
 /**
  * Assert that the nearest <Reveal> wrapper around `target` has finished its

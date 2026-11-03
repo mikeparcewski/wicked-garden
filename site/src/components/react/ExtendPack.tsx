@@ -1,18 +1,24 @@
+import { useEffect, useRef, useState } from "react";
 import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
-import { PACK_SCAFFOLD } from "../../data/garden";
+import PlayToggle from "./PlayToggle";
+import { useAutoplay } from "./useAutoplay";
+import { PACKS } from "../../data/garden";
 
 /* ============================================================================
    BUILD ON IT — the extension pitch. Garden is a catalog with an open naming
-   contract, not a closed product: ship your own domain pack with your unique
-   take and it sits beside the built-ins, under the same evidence discipline.
-   Grounded claims:
-   - naming contract: kebab-case, one user-invocable router per domain,
-     {vendor}-{domain}-{role} fork workers with `context: fork` — exactly how
-     the in-repo domains (qe, mem, product, …) are built.
-   - evidence via vault: `prove compile <repo>` stamps a self-contained,
-     vault-backed evidence gate into ANY repo — it runs with no wicked-garden
-     installed (README "Try it").
+   contract: ship your own domain pack and it sits beside the built-ins, under the
+   same evidence discipline. The bench cycles three example packs (fintech-risk,
+   games-QA, compliance) by itself; each pick retypes the pack's four rows and each
+   rule lights as its row lands. Picking one takes over; it pauses on hover, on
+   focus and off-screen, and starts paused under reduced motion.
+   Grounded claims (README "Build on it", docs/extending.md, scripts/pack/check.py):
+   - a wicked-pack.json manifest; one user-invocable {vendor}-{domain} router;
+     {vendor}-{domain}-{role} workers that declare metadata.role: worker;
+     kebab-case SKILL.md names, ≤64 chars;
+   - `npx wicked-garden pack check <dir>` is the shipped conformance gate;
+   - a pack can call the same proof gate, which fails closed when it cannot run.
+   The pack names are examples.
 ============================================================================ */
 
 const RULES = [
@@ -24,64 +30,130 @@ const RULES = [
   {
     n: "02",
     t: "{vendor}-{domain}-{role} workers",
-    d: "Specialists are fork skills (context: fork) — isolated subagent contexts with their own tool boundaries.",
+    d: "Each specialist is its own skill that declares metadata.role: worker, routed by your domain’s router: the same shape as the 40 qe-* specialists.",
   },
   {
     n: "03",
     t: "evidence via vault",
-    d: "Your pack’s “done” goes through the same gate: claims are re-derived against wicked-vault, never asserted.",
+    d: "Your pack can call the same proof gate: its claims are re-derived against wicked-vault, and the gate fails closed when it cannot run.",
   },
 ];
 
+/** the row count at which each rule lights (the router row, the first worker, the last row) */
+const LIGHT_AT = [2, 3, 4];
+const ROW_MS = 380;
+const CYCLE_MS = 4200;
+
 export default function ExtendPack() {
+  const root = useRef<HTMLDivElement>(null);
+  const ap = useAutoplay(root, 0.4);
+  const [pack, setPack] = useState(0);
+  const [manual, setManual] = useState(false);
+  const ROWS = PACKS[pack].rows.length;
+  const [landed, setLanded] = useState(ROWS);
+  const first = useRef(true);
+
+  // retype the rows one by one after a pick (instant under reduced motion)
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setLanded(ROWS); return; }
+    setLanded(0);
+    const ts = Array.from({ length: ROWS }, (_, k) => window.setTimeout(() => setLanded(k + 1), (k + 1) * ROW_MS));
+    return () => ts.forEach((t) => window.clearTimeout(t));
+  }, [pack, ROWS]);
+
+  // the idle cycle: the next example pack every few seconds, until the visitor picks one
+  useEffect(() => {
+    if (manual || !ap.active) return;
+    const t = window.setTimeout(() => setPack((n) => (n + 1) % PACKS.length), CYCLE_MS);
+    return () => window.clearTimeout(t);
+  }, [pack, manual, ap.active]);
+
+  const p = PACKS[pack];
+
+  function pick(n: number) {
+    setManual(true);
+    setPack(n);
+  }
+  function resume() {
+    setManual(false);
+    ap.play();
+  }
+
+  function onRadioKey(e: React.KeyboardEvent) {
+    const L = PACKS.length;
+    const n = e.key === "ArrowDown" || e.key === "ArrowRight" ? (pack + 1) % L
+      : e.key === "ArrowUp" || e.key === "ArrowLeft" ? (pack - 1 + L) % L
+      : e.key === "Home" ? 0 : e.key === "End" ? L - 1 : -1;
+    if (n < 0) return;
+    e.preventDefault();
+    pick(n);
+    (e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-pack="${n}"]`)?.focus();
+  }
+
   return (
-    <div className="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
-      <Reveal>
-        <p className="kicker qw-kicker">06 / build on it</p>
-        <h2 className="xp-h2">Your domain. Your pack. Same gates.</h2>
-        <p className="xp-intro">
-          The catalog is open — the built-in domains follow a naming contract
-          anyone can follow. Ship a pack with{" "}
-          <span className="qw-em">your unique take</span> — a fintech-risk
-          domain, a games-QA fleet, a compliance cast — and it sits beside the
-          built-ins, under the same evidence discipline.
+    <div className="sx sx--extend">
+      <Reveal className="sx-title">
+        <p className="kicker sx-kicker"><span className="sx-num">08</span>build on it</p>
+        <h2 className="sx-h2">Your domain. Your pack. <span className="sx-key">Same gates.</span></h2>
+      </Reveal>
+      <Reveal className="sx-lead" delay={0.12}>
+        <p>
+          The catalog is open — the built-in domains follow a naming contract anyone can follow. Ship a
+          pack with <span className="cx-em">your unique take</span> — a fintech-risk domain, a games-QA
+          fleet, a compliance cast — and it sits beside the built-ins, under the same evidence discipline.
         </p>
       </Reveal>
 
-      <Reveal delay={0.06}>
-        <div className="xp-grid">
-          <div className="xp-scaffold" aria-label="Example domain-pack scaffold">
-            <div className="xp-scaffold-bar"><i></i><i></i><i></i><span>skills/</span></div>
-            <div className="xp-scaffold-body">
-              {PACK_SCAFFOLD.map((row) => (
-                <div key={row.dir} className="xp-row">
-                  <span className="xp-dir">{row.dir}</span>
-                  <span className="xp-note">{row.note}</span>
-                </div>
+      <div className="sx-stage xp-grid" ref={root} {...ap.bind}>
+        <div className="xp-scaffold">
+          <div className="xp-scaffold-bar">
+            <span className="xp-scaffold-path">{p.dir}/</span>
+            <span className="xp-picks" role="radiogroup" aria-label="example pack" onKeyDown={onRadioKey}>
+              {PACKS.map((x, n) => (
+                <button key={x.id} type="button" role="radio" aria-checked={n === pack} tabIndex={n === pack ? 0 : -1} data-pack={n}
+                  className={`xp-pick${n === pack ? " is-on" : ""}`} onClick={() => pick(n)}>
+                  {x.label}
+                </button>
               ))}
-            </div>
-            <div className="xp-scaffold-foot">
-              kebab-case · ≤64 chars · SKILL.md frontmatter — that’s the whole contract
-            </div>
+            </span>
           </div>
-
-          <div className="xp-rules">
-            {RULES.map((r) => (
-              <div key={r.n} className="xp-rule">
-                <span className="xp-rule-num" aria-hidden>{r.n}</span>
-                <div className="xp-rule-body">
-                  <span className="xp-rule-t">{r.t}</span>
-                  <p className="xp-rule-d">{r.d}</p>
-                </div>
+          <div className="xp-scaffold-body" aria-label={`Example domain-pack layout: ${p.label}`}>
+            {p.rows.map((row, k) => (
+              <div key={`${p.id}-${row.dir}`} className={`xp-row${k < landed ? " is-landed" : ""}`}>
+                <span className="xp-dir">{row.dir}</span>
+                <span className="xp-note">{row.note}</span>
               </div>
             ))}
-            <div className="xp-cta">
-              <span className="xp-cta-label">stamp the evidence gate into any repo — no garden required</span>
-              <CopyChip text="wicked-garden-prove compile ~/path/to/repo --trigger ci" label="copy" />
-            </div>
+          </div>
+          <div className="xp-scaffold-foot">
+            <span className="xp-foot-text">a wicked-pack.json manifest + kebab-case SKILL.md names (≤64 chars)</span>
+            <span className="xp-foot-ctl">
+              {manual ? (
+                <button type="button" className="pg-afford-btn" onClick={resume}>▶ resume</button>
+              ) : (
+                <PlayToggle paused={ap.paused} onToggle={ap.toggle} label="the pack cycle" />
+              )}
+            </span>
           </div>
         </div>
-      </Reveal>
+
+        <div className="xp-rules">
+          {RULES.map((r, k) => (
+            <div key={r.n} className={`xp-rule${landed >= LIGHT_AT[k] ? " is-lit" : ""}`}>
+              <span className="xp-rule-num" aria-hidden>{r.n}</span>
+              <div className="xp-rule-body">
+                <span className="xp-rule-t">{r.t}</span>
+                <p className="xp-rule-d">{r.d}</p>
+              </div>
+            </div>
+          ))}
+          <div className="xp-cta">
+            <span className="xp-cta-label">in your pack’s directory, check it against the contract</span>
+            <CopyChip text="npx wicked-garden pack check ." label="copy" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

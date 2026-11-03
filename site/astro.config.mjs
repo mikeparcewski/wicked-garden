@@ -3,6 +3,7 @@ import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // The site's version stamp is injected at build time from the plugin's own
@@ -24,6 +25,21 @@ const skillCount = readdirSync(skillsDir, { recursive: true }).filter(
   (f) => String(f).split(/[\\/]/).pop() === 'SKILL.md',
 ).length;
 
+// The QE specialist skills (skills/qe-*/SKILL.md; a qe-* dir without one is not a skill): garden.ts checks that its fleet list names exactly these dirs
+// while the build renders the page, so the site's specialist count is measured from source too (N9).
+const qeDirs = readdirSync(skillsDir, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name.startsWith('qe-') && existsSync(join(skillsDir, d.name, 'SKILL.md')))
+  .map((d) => d.name)
+  .sort();
+if (!qeDirs.length) throw new Error('skills/ has no qe-* specialist dirs; the site checks its QE fleet against them at build time');
+
+// The work-shape count, from the archetype catalog the classifier routes to (N9: measured, never typed).
+const archetypes = JSON.parse(
+  readFileSync(fileURLToPath(new URL('../.claude-plugin/archetypes.json', import.meta.url)), 'utf8'),
+);
+const workShapeCount = Object.keys(archetypes.archetypes ?? {}).length;
+if (!workShapeCount) throw new Error('archetypes.json lists no work-shapes; the site counts them at build time');
+
 const localUI = fileURLToPath(new URL('../../wicked-web/src', import.meta.url));
 /** @type {Record<string, string>} */
 const wickedWebAlias = existsSync(localUI) ? { 'wicked-web': localUI } : {};
@@ -42,6 +58,9 @@ export default defineConfig({
   site: SITE,
   base: BASE,
   trailingSlash: 'ignore',
+  // compressHTML deletes the newline before an inline tag, which fuses the word before it to the tag's
+  // text ("Memory</b>and"). Keep the whitespace the source has.
+  compressHTML: false,
   integrations: [react()],
   vite: {
     plugins: [tailwindcss()],
@@ -49,6 +68,8 @@ export default defineConfig({
     define: {
       __WICKED_GARDEN_VERSION__: JSON.stringify(plugin.version),
       __WICKED_GARDEN_SKILLS__: JSON.stringify(skillCount),
+      __WICKED_GARDEN_WORK_SHAPES__: JSON.stringify(workShapeCount),
+      __WICKED_GARDEN_QE_DIRS__: JSON.stringify(qeDirs),
     },
     optimizeDeps: {
       include: ['react-dom/client'],

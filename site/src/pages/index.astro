@@ -2,13 +2,16 @@
 /**
  * index.astro — wicked-garden (wg.wickedagile.com), the CAPABILITY deep-dive.
  *
- * Wave-2 rebuild. Garden is the capability plane of the wicked platform — THE
- * catalog agents act through: the toolkit for what a coding agent can't do
- * alone, where "done" is re-derived from evidence, never asserted. The retired
- * wicked-testing site's story (the wall, the 40-specialist fleet) now lives // historical
- * here as the qe domain bands (#qe / #fleet) — wt.wickedagile.com redirects
- * to #qe. Chrome (Base/Topbar/Footer/SameGarden + plane tokens) comes from
- * wicked-web pinned at 61396e4 (the four-plane platform story).
+ * v2: one change followed through the frames. The hero's agent claims "the retry
+ * change: all acceptance tests pass"; each section checks that same change another
+ * way (the gate rejects the claim, the graph finds the 4 files it affects, the QE
+ * reviewer reads the evidence cold and finds a race, the panel holds the change, and
+ * memory records the decision for you to approve), then the catalog, the extension
+ * contract and the install. The demo data is illustrative. Every section is one
+ * frame that snaps (src/scripts/snap-guard.ts locks it only while every frame fits)
+ * and every demo reserves its tallest state. The qe bands (#qe / #fleet) carry the
+ * retired wicked-testing site's story; wt.wickedagile.com redirects to #qe. // historical
+ * Chrome (Base/Topbar/Footer/SameGarden + tokens) comes from wicked-web.
  */
 import Base from "wicked-web/layouts/Base.astro";
 import Topbar from "wicked-web/components/Topbar.astro";
@@ -19,104 +22,154 @@ import "../styles/site.css";
 import { G } from "../data/garden";
 import CopyChip from "../components/react/CopyChip.tsx";
 import HeroStamp from "../components/react/HeroStamp.tsx";
-import Toolbox from "../components/react/Toolbox.tsx";
 import ProveGate from "../components/react/ProveGate.tsx";
-import CapabilityGrid from "../components/react/CapabilityGrid.tsx";
+import GraphStage from "../components/react/GraphStage.tsx";
 import QeWall from "../components/react/QeWall.tsx";
 import QeFleet from "../components/react/QeFleet.tsx";
+import PanelVote from "../components/react/PanelVote.tsx";
+import MemoryQueue from "../components/react/MemoryQueue.tsx";
+import CatalogExplorer from "../components/react/CatalogExplorer.tsx";
 import ExtendPack from "../components/react/ExtendPack.tsx";
 import InstallBench from "../components/react/InstallBench.tsx";
 
-const favicon = `${import.meta.env.BASE_URL}/favicon.svg`.replace(/\/{2,}/g, "/");
+// The story spine: the token in the left gutter follows the retry change down the page.
+// Each step names what that section found (illustrative, like the demos).
+const STORY = [
+  { s: "hero", t: "claimed done by the agent" },
+  { s: "gate", t: "rejected: 2 never ran" },
+  { s: "graph", t: "4 files affected" },
+  { s: "qe", t: "reviewer: FAIL, a race" },
+  { s: "panel", t: "panel: hold, 2 of 3" },
+  { s: "memory", t: "decision proposed" },
+];
+
+// What's inside: the five things garden does, each a link to its frame (COPY rev 5 §5 phrases).
+const INSIDE = [
+  { href: "#gate", t: "Proof gate" },
+  { href: "#graph", t: "Graph search and renames (with wicked-estate)" },
+  { href: "#qe", t: "40 QE specialists" },
+  { href: "#panel", t: "A review panel for disputes" },
+  { href: "#memory", t: "Memory with a source" },
+];
 ---
 
 <Base
-  title="wicked-garden — the skills your coding agent can't build alone"
-  description={`wicked-garden is the skill catalog of the wicked platform: the skills your coding agent can't build alone. "Done" is re-checked from evidence, never asserted; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a panel of other models settles disputed decisions; estate-backed memory where agents suggest and you approve. ${G.skills} skills across ${G.domains} domains, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
+  title="wicked-garden — the tools your coding agent can't build alone"
+  description={`wicked-garden is the skill catalog of the wicked family: the tools your coding agent can't build alone. A proof gate re-checks "done" from evidence instead of taking the agent's word; graph-aware search and refactors see links grep can't; 40 QE specialists test the work; a review panel of your other agents, with a labelled same-family fallback, weighs in on disputed decisions; estate-backed memory with cited answers, where in a crew job agents propose and you approve. ${G.skills} skills, and an open naming contract to ship your own skill pack. Local-first, MIT.`}
   bodyClass="has-grain"
-  favicon={favicon}
 >
   <Topbar pkg="wicked-garden" repo="https://github.com/mikeparcewski/wicked-garden" />
   <main>
+    <div class="st-token" aria-hidden="true" data-step="hero">
+      <span class="st-k">one change, followed</span>
+      <code class="st-claim">the retry change</code>
+      <span class="st-status">
+        {STORY.map((x) => <span class="st-line" data-s={x.s}>{x.t}</span>)}
+      </span>
+      <ol class="st-dots">
+        {STORY.map((x) => <li data-s={x.s} />)}
+      </ol>
+    </div>
 
     <!-- ── HERO ─────────────────────────────────────────────────────────── -->
-    <section id="hero" class="gd-section gd-hero">
-      <div class="mx-auto w-full max-w-[1240px] px-5 sm:px-8">
-        <div class="gd-hero-grid">
-          <div class="gd-hero-pitch">
-            <p class="rise kicker" style="animation-delay:.05s">
-              the skill catalog · works in your agent, CI or a crew job · MIT
-            </p>
-            <h1 class="gd-hero-h1">
-              <span class="rise block" style="animation-delay:.12s">The tools your coding agent</span>
-              <span class="rise block gd-hero-h1-2" style="animation-delay:.2s">can’t build alone.</span>
-            </h1>
-            <p class="rise gd-hero-sub" style="animation-delay:.3s">
-              Your agent already plans, swarms, and ships. wicked-garden is the
-              catalog of skills it acts through — filling only the gaps a
-              planner-executor can’t fill alone, starting with the one
-              that matters most: <span class="gd-hero-em">done is re-derived from evidence, never asserted.</span>
-            </p>
-            <div class="rise gd-hero-install" style="animation-delay:.42s">
-              <p class="gd-hero-install-label">load out garden and its peers — one command</p>
-              <CopyChip client:load text="npx wicked-installer" label="copy" />
-              <p class="gd-hero-install-note">interactive · picks your products across CLIs · direct install below</p>
-            </div>
-            <ul class="rise gd-hero-stats" style="animation-delay:.5s">
-              <li><b>{G.skills}</b> skills</li>
-              <li><b>{G.domains}</b> domains</li>
-              <li><b>40</b> QE specialists</li>
-              <li><b>10</b> work-shapes</li>
-              <li><b>MIT</b> · local-first</li>
+    <section id="hero" class="gd-section gd-hero" data-token="hero">
+      <div class="sx-wrap gd-hero-grid">
+        <div class="gd-hero-pitch">
+          <p class="rise kicker gd-kicker" style="animation-delay:.05s">
+            the skill catalog · works in your agent, CI or a crew job · MIT
+          </p>
+          <h1 class="gd-hero-h1">
+            <span class="rise block" style="animation-delay:.12s">The tools your coding agent</span>
+            <span class="rise block gd-hero-h1-2" style="animation-delay:.2s">can’t build alone.</span>
+          </h1>
+          <p class="rise gd-hero-sub" style="animation-delay:.3s">
+            Skills for Claude Code, Codex, Antigravity, OpenCode and Pi; also in CI, or inside a
+            wicked-crew job. The first one matters most:{" "}
+            <span class="gd-hero-em">a proof gate that re-derives “done” from evidence instead of taking the agent’s word.</span>
+          </p>
+        </div>
+        <div class="gd-hero-demo rise" style="animation-delay:.36s">
+          <HeroStamp client:load />
+        </div>
+        <div class="gd-hero-get rise" style="animation-delay:.42s">
+          <div class="gd-hero-install">
+            <p class="gd-hero-install-label">load out garden and its peers — one command</p>
+            <CopyChip client:load text="npx wicked-installer" label="copy" />
+            <p class="gd-hero-install-note">interactive · detects your CLIs · installs what you pick</p>
+          </div>
+          <nav class="gd-hero-inside" aria-labelledby="inside-k">
+            <span class="gd-hero-inside-k" id="inside-k">what’s inside</span>
+            <ul>
+              {INSIDE.map((x) => <li><a href={x.href}>{x.t}</a></li>)}
             </ul>
-          </div>
-          <div class="gd-hero-demo">
-            <HeroStamp client:load />
-          </div>
+          </nav>
+          <ul class="gd-hero-stats">
+            <li><b>{G.skills}</b> skills</li>
+            <li><b>{G.qeSpecialists}</b> QE specialists</li>
+            <li><a href="#dom-work-shapes"><b>{G.workShapes}</b> work-shapes</a></li>
+            <li><b>MIT</b> · local-first</li>
+          </ul>
         </div>
       </div>
     </section>
 
-    <!-- ── THE TOOLBOX (own tools) ──────────────────────────────────────── -->
-    <section id="toolbox" class="gd-section gd-band">
-      <Toolbox client:load />
-    </section>
-
-    <!-- ── THE GATE (the differentiator, drivable) ──────────────────────── -->
-    <section id="gate" class="gd-section">
+    <!-- ── THE GATE (the first one matters most: drivable) ──────────────── -->
+    <section id="gate" class="gd-section gd-band" data-token="gate">
       <ProveGate client:load />
     </section>
 
-    <!-- ── THE GRID (full capability surface + bundled family) ──────────── -->
-    <section id="toolkit" class="gd-section gd-band">
-      <CapabilityGrid client:load />
+    <!-- ── THE GRAPH (search + patch on wicked-estate) ──────────────────── -->
+    <section id="graph" class="gd-section" data-token="graph">
+      <GraphStage client:load />
     </section>
 
-    <!-- ── THE QE WALL (absorbed from the retired wicked-testing site) ──── --><!-- historical -->
-    <section id="qe" class="gd-section">
+    <!-- ── THE QE WALL ───────────────────────────────────────────────────── -->
+    <section id="qe" class="gd-section gd-band" data-token="qe">
       <QeWall client:load />
     </section>
 
-    <!-- ── THE QE FLEET (40 specialists, tabbed by surface) ─────────────── -->
-    <section id="fleet" class="gd-section gd-band">
+    <!-- ── THE QE FLEET (40 specialists by surface) ──────────────────────── -->
+    <section id="fleet" class="gd-section" data-token="qe">
       <QeFleet client:load />
     </section>
 
+    <!-- ── A SECOND OPINION (the review panel) ───────────────────────────── -->
+    <section id="panel" class="gd-section gd-band" data-token="panel">
+      <PanelVote client:load />
+    </section>
+
+    <!-- ── MEMORY WITH A SOURCE (+ what's new) ───────────────────────────── -->
+    <section id="memory" class="gd-section" data-token="memory">
+      <MemoryQueue client:load />
+    </section>
+
+    <!-- ── THE CATALOG EXPLORER (the skill families) ──────────────────────── -->
+    <section id="toolkit" class="gd-section gd-band" data-token="off">
+      <CatalogExplorer client:load />
+    </section>
+
     <!-- ── BUILD ON IT (the extension pitch) ────────────────────────────── -->
-    <section id="extend" class="gd-section">
+    <section id="extend" class="gd-section" data-token="off">
       <ExtendPack client:load />
     </section>
 
     <!-- ── THE BENCH (install) ──────────────────────────────────────────── -->
-    <section id="install" class="gd-section gd-band">
+    <section id="install" class="gd-section gd-band" data-token="off">
       <InstallBench client:load />
     </section>
 
     <!-- ── THE PLATFORM MAP (shared chrome — you are here: capability) ──── -->
-    <section id="platform-map" class="gd-map-section">
+    <section id="platform-map" class="gd-map-section" data-token="off">
       <SameGarden current="wicked-garden" />
     </section>
 
   </main>
   <Footer repo="https://github.com/mikeparcewski/wicked-garden" />
 </Base>
+
+<script>
+  import "../scripts/frame-fit.ts";
+  import "../scripts/snap-guard.ts";
+  import "../scripts/story-token.ts";
+  import "../scripts/section-enter.ts";
+</script>
