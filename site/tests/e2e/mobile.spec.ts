@@ -74,7 +74,7 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
     await page.setViewportSize(vp);
     await page.goto('/');
     await page.evaluate(async () => { await document.fonts.ready; });
-    const small = await page.evaluate(() => {
+    const measure = () => page.evaluate(() => {
       const out: string[] = [];
       for (const el of Array.from(document.querySelectorAll<HTMLElement>('a[href], button, [role=tab], [role=switch], input'))) {
         const cs = getComputedStyle(el);
@@ -89,6 +89,12 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
       }
       return out;
     });
-    expect(small).toEqual([]);
+    expect(await measure()).toEqual([]);
+    // and with the gate's "where it only advises" detail open (its close button is a target too)
+    const where = page.locator('#gate .pg-where-btn');
+    await where.scrollIntoViewIfNeeded();
+    await where.click();
+    await expect(page.locator('#gate .pg-advise')).toBeVisible();
+    expect(await measure()).toEqual([]);
   });
 }

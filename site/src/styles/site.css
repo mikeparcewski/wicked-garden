@@ -1098,6 +1098,7 @@ html.js-enter #install .sx-stage.is-entered ~ .ib-recap .ib-recap-list li { anim
   .pg-cond { white-space: normal; overflow: visible; text-overflow: clip; }
   .px-play { height: 44px; }
   .pg-afford-btn { height: 44px; }
+  .pg-advise-close { height: 44px; min-width: 64px; }
 }
 @keyframes qw-pass-v {
   0% { top: 0; transform: translate(-50%, 0); opacity: 0; }
@@ -1146,6 +1147,8 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
    experiments tip stays hidden while its menu is open (the menu drops from the same button). Touch screens
    never show them: a tap leaves :hover stuck on. */
 .topbar [data-tip]::after { bottom: auto; top: calc(100% + 22px); }
+/* the last icon's tip ends at the button's right edge, so it never runs off a narrow window */
+.topbar #themeBtn[data-tip]::after { left: auto; right: 0; transform: none; }
 .topbar .dropdown-wrap:has(> .dropdown-menu:not([hidden]))::after { opacity: 0; }
 @media (hover: none) { .topbar [data-tip]::after { display: none; } }
 /* the experiments menu is wide enough for its longest row ("studio where you direct agents  site ↗") */

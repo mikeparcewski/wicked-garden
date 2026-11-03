@@ -67,6 +67,19 @@ test('the topbar tooltips open below the bar, fully on screen, and hide while th
     expect(tip.top, `${sel} tip top`).toBeGreaterThanOrEqual(bar);
     expect(tip.bottom, `${sel} tip bottom`).toBeLessThan(700);
   }
+  // at the narrowest window that still shows the inline icons, the last tip stays inside the window
+  await page.setViewportSize({ width: 641, height: 700 });
+  await page.locator('#themeBtn').hover();
+  const right = await page.locator('#themeBtn').evaluate((e) => {
+    const a = getComputedStyle(e, '::after');
+    const r = e.getBoundingClientRect();
+    const box = parseFloat(a.width) + (a.boxSizing === 'content-box'
+      ? parseFloat(a.paddingLeft) + parseFloat(a.paddingRight) + parseFloat(a.borderLeftWidth) + parseFloat(a.borderRightWidth) : 0);
+    const shift = a.transform === 'none' ? 0 : new DOMMatrix(a.transform).m41;
+    return r.left + parseFloat(a.left) + shift + box;
+  });
+  expect(right).toBeLessThanOrEqual(641);
+  await page.setViewportSize({ width: 1440, height: 700 });
   await page.locator('#projectsBtn').click();
   await page.locator('#projectsBtn').hover();
   await expect.poll(() => page.locator('.topbar .dropdown-wrap').evaluate((e) => getComputedStyle(e, '::after').opacity)).toBe('0');

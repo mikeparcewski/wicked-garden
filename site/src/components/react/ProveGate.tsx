@@ -100,9 +100,12 @@ export default function ProveGate() {
     return () => window.clearTimeout(t);
   }, [s, manual, ap.active, ap.reduced, cycle, pulled, stamped, runs, state]);
 
-  // reduced motion: no tick-by-tick trail; the opening claim shows stamped (REJECTED: the verifier never ran)
+  // reduced motion: no tick-by-tick trail; the bench the visitor has not touched shows stamped (on load, the
+  // opening claim: REJECTED, the verifier never ran). A bench the visitor armed stays armed until they pull.
+  const manualRef = useRef(manual);
+  manualRef.current = manual;
   useEffect(() => {
-    if (ap.reduced) setS((x) => (x === 0 ? 2 + runs : x));
+    if (ap.reduced && !manualRef.current) setS((x) => (x === 0 ? 2 + runs : x));
     // only on the preference: a later flip or reset leaves the visitor driving
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ap.reduced]);

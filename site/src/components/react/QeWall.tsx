@@ -68,7 +68,8 @@ function ReportCard() {
           <div className="qw-sub">always</div>
           <span className="qw-stamp">self-reported</span>
         </div>
-        <div className="qw-cell qw-cell--rev">
+        {/* a status region: the verdict that lands on its own is announced with its reason */}
+        <div className="qw-cell qw-cell--rev" role="status" aria-atomic="true">
           <span className="qw-tag">independent reviewer</span>
           <div className="qw-mark qw-mark--rev">{revealed ? "FAIL" : "?"}</div>
           <div className="qw-sub qw-sub--rev">

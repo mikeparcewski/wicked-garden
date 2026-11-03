@@ -27,7 +27,8 @@ test('QeWall: the reviewer contradicts the self-graded PASS on arrival, and the 
   await expect(fig).toHaveAttribute('data-revealed', 'true', { timeout: 5_000 });
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
   await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('caught a race in retry');
-  const h = await fig.evaluate((el) => el.getBoundingClientRect().height);
+  // the verdict that lands on its own is announced: the reviewer's cell is a status region
+  await expect(fig.locator('.qw-cell--rev')).toHaveAttribute('role', 'status');
   // no unmeasured rate rides along with the flip (N9)
   await expect(fig).not.toContainText('80%');
 
@@ -36,6 +37,7 @@ test('QeWall: the reviewer contradicts the self-graded PASS on arrival, and the 
   await expect(fig).toHaveAttribute('data-revealed', 'false');
   await expect(fig.locator('.qw-mark--rev')).toHaveText('?');
   await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('awaiting review…');
+  const h = await fig.evaluate((el) => el.getBoundingClientRect().height);
   // the visitor drives it now: it stays pending
   await page.waitForTimeout(2_000);
   await expect(fig).toHaveAttribute('data-revealed', 'false');
@@ -43,7 +45,8 @@ test('QeWall: the reviewer contradicts the self-graded PASS on arrival, and the 
   // send it across the wall again: the independent read contradicts the self-grade
   await fig.getByRole('button', { name: /Send it to an independent reviewer/ }).click();
   await expect(fig.locator('.qw-mark--rev')).toHaveText('FAIL');
-  // both sub-lines share one cell: revealing never resizes the card
+  // both sub-lines share one cell: revealing never resizes the card (pending height = revealed height)
+  await expect(fig.locator('.qw-sub-t.is-on')).toHaveText('caught a race in retry');
   expect(await fig.evaluate((el) => el.getBoundingClientRect().height)).toBe(h);
 });
 

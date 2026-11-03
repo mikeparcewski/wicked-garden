@@ -84,6 +84,18 @@ test('ProveGate: the bench opens on the hero\'s claim and stamps it REJECTED fir
   await expect(machine.locator('.pg-mark-at')).toHaveText('failed at: verifier');
 });
 
+test('ProveGate: turning reduced motion on never runs a bench the visitor armed', async ({ page }) => {
+  const gate = page.locator('#gate');
+  await gate.scrollIntoViewIfNeeded();
+  const machine = gate.getByRole('region', { name: /Evidence gate/ });
+  await machine.getByRole('button', { name: 'reset the bench' }).click();
+  await expect(machine.locator('.pg-state')).toHaveText('gate: armed');
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.waitForTimeout(600);
+  await expect(machine.locator('.pg-state')).toHaveText('gate: armed');
+  await expect(machine.getByRole('button', { name: 'Pull the PROVE lever' })).toBeEnabled();
+});
+
 test('ProveGate: driving the gate re-derives PROVED, breaking the vault FAILS CLOSED', async ({
   page,
 }) => {
