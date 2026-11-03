@@ -7,12 +7,12 @@ import { test, expect, type Page } from '@playwright/test';
  * sections (#qe and #fleet).
  */
 const BEATS: [string, string][] = [
-  ['hero', 'The claim'],
+  ['hero', 'The tools'],
   ['gate', 'Gate'],
   ['graph', 'Graph'],
   ['qe', 'QE'],
   ['fleet', 'QE'],
-  ['panel', 'Panel'],
+  ['panel', 'Opinion'],
   ['memory', 'Memory'],
 ];
 const LINKS = 6;
@@ -102,12 +102,30 @@ test.describe('the thread and the beat track', () => {
     await expect(page.locator('[data-beats]')).toBeVisible();
   });
 
+  test('each beat is named from its own frame: the name is in that frame\'s kicker or heading', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const names = await page.locator('[data-beats] .beats-l').evaluateAll((ls) => ls.map((l) => l.textContent || ''));
+    const firsts = BEATS.filter(([id, n], i) => BEATS.findIndex(([, m]) => m === n) === i);
+    expect(names).toEqual(firsts.map(([, n]) => n));
+    for (const [id, name] of firsts) {
+      const head = await page.evaluate((id) => {
+        const s = document.getElementById(id)!;
+        const sh = s.querySelector('.scene-head');
+        if (sh) return sh.textContent || '';
+        const k = s.querySelector('.kicker, [class*="kicker"]'), h = s.querySelector('h1, h2');
+        return [k, h].filter(Boolean).map((e) => (e as HTMLElement).textContent).join(' ');
+      }, id);
+      expect(head.toLowerCase(), `#${id}'s own kicker or heading names "${name}"`).toContain(name.replace(/^the /i, '').toLowerCase());
+    }
+  });
+
   test('a beat on the track is a link to its frame; hover and keyboard focus show its name', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 700 });
     await page.goto('/');
     await goTo(page, 'hero');
     const track = page.getByRole('navigation', { name: 'The claim, beat by beat' });
-    const review = track.getByRole('link', { name: /^Panel\b.*beat 5 of 6/ });
+    const review = track.getByRole('link', { name: /^Opinion\b.*beat 5 of 6/ });
     await expect(review.locator('.beats-l')).toHaveCSS('opacity', '0');
     await review.hover();
     await expect(review.locator('.beats-l')).toHaveCSS('opacity', '1');
@@ -120,7 +138,7 @@ test.describe('the thread and the beat track', () => {
     await expect(review.locator('.beats-l')).toHaveCSS('opacity', '1');
     await page.keyboard.press('Enter');
     await expect(page).toHaveURL(/#panel$/);
-    await expect(track.locator('[aria-current="step"] .beats-l')).toHaveText('Panel');
+    await expect(track.locator('[aria-current="step"] .beats-l')).toHaveText('Opinion');
     // garden's frames start at the window's top (the bar sits over each frame's own top padding)
     await expect.poll(() => page.evaluate(() => Math.round(document.getElementById('panel')!.getBoundingClientRect().top))).toBe(0);
   });
