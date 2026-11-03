@@ -43,6 +43,18 @@ const STORY = [
   { s: "memory", t: "decision proposed" },
 ];
 
+// The page's spine (the same thread and beat track as wicked-crew's): the hero's claim, then the
+// frames that check it. The QE beat is two sections (#qe and #fleet carry data-beat="qe"); the
+// catalog, the extension pitch, the install and the platform map are not beats.
+const BEATS = [
+  { id: "hero", name: "The claim" },
+  { id: "gate", name: "Gate" },
+  { id: "graph", name: "Graph" },
+  { id: "qe", name: "QE" },
+  { id: "panel", name: "Panel" },
+  { id: "memory", name: "Memory" },
+];
+
 // What's inside: the five things garden does, each a link to its frame (COPY rev 5 §5 phrases).
 const INSIDE = [
   { href: "#gate", t: "Proof gate" },
@@ -59,6 +71,17 @@ const INSIDE = [
   bodyClass="has-grain"
 >
   <Topbar pkg="wicked-garden" repo="https://github.com/mikeparcewski/wicked-garden" />
+  <!-- The spine, at 1024px wide and up: the claim's beats as one thread under the topbar, filling as
+       each beat arrives (decoration; the beat track says it in words). -->
+  <div class="beat-thread" data-beat-thread aria-hidden="true">{BEATS.map((b) => <i data-beat-thread-seg={b.id}><b></b></i>)}</div>
+  <!-- The spine: the claim's beats, in the right gutter (1400px wide and up, where the gutter holds it). -->
+  <nav class="beats" data-beats data-beats-content=".sx, .sx-wrap" aria-label="The claim, beat by beat">
+    <ol>
+      {BEATS.map((b, i) => (
+        <li><a href={`#${b.id}`} data-beat-link={b.id}><span class="beats-l">{b.name}</span><span class="beats-dot" aria-hidden="true"></span><span class="sr-only">{`, beat ${i + 1} of ${BEATS.length}`}</span></a></li>
+      ))}
+    </ol>
+  </nav>
   <main>
     <div class="st-token" aria-hidden="true" data-step="hero">
       <span class="st-k">one change, followed</span>
@@ -124,12 +147,12 @@ const INSIDE = [
     </section>
 
     <!-- ── THE QE WALL ───────────────────────────────────────────────────── -->
-    <section id="qe" class="gd-section gd-band" data-token="qe">
+    <section id="qe" class="gd-section gd-band" data-token="qe" data-beat="qe">
       <QeWall client:load />
     </section>
 
     <!-- ── THE QE FLEET (40 specialists by surface) ──────────────────────── -->
-    <section id="fleet" class="gd-section" data-token="qe">
+    <section id="fleet" class="gd-section" data-token="qe" data-beat="qe">
       <QeFleet client:load />
     </section>
 
@@ -172,4 +195,5 @@ const INSIDE = [
   import "../scripts/snap-guard.ts";
   import "../scripts/story-token.ts";
   import "../scripts/section-enter.ts";
+  import "../scripts/beats.js";
 </script>

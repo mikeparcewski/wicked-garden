@@ -39,6 +39,12 @@
    scrolled at all with a high-resolution wheel. Below 1024px wide anchors land
    under the bar. This file owns scroll-snap-type for the site. */
 html { scroll-snap-type: none; scroll-padding-top: 0; }
+/* No scroll anchoring: the demos swap content inside fixed boxes on their own timers (the QE fleet
+   regroups its tiles every 2.6s), and Chromium's scroll anchoring followed the tile it had picked as
+   its anchor, so on a phone the page jumped back by a row or more while the visitor read. Every demo
+   reserves its tallest state, so there is nothing for anchoring to correct: an auto-playing block
+   never moves the page. */
+html { overflow-anchor: none; }
 html.snap-lock { scroll-snap-type: y mandatory; }
 html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: always; }
 .gd-section {
@@ -1202,3 +1208,44 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
   .topbar .crumbs .wordmark { width: 44px; margin-inline: -11px; padding-left: 11px; }
   .topbar .crumbs .wordmark .wordmark-lockup { clip-path: inset(0 calc(100% - 22px) 0 0); }
 }
+
+/* ── The thread and the beat track (garden's plane: capability), ported from wicked-crew (site/src/styles/crew.css) ─────────
+   The same sizes, place, labels, dots, hover, focus and fades as crew's; only the hue (--beat-c, this
+   site's plane) and the beat list differ. src/scripts/beats.js fills the thread and marks the track.
+
+   The thread (1024px and up): decoration (aria-hidden), segment k fills as beat k comes into view, so
+   the story visibly travels down the page. It sits under the bar's stacking (z 199), so the tooltips
+   always paint over it; 3px tall, over each frame's top padding. */
+.beat-thread { display: none; }
+@media (min-width: 1024px) and (min-height: 640px) {
+  .beat-thread {
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px;
+    position: fixed; z-index: 199; top: var(--topbar-h); left: 0; right: 0; height: 3px;
+    max-width: 1240px; margin-inline: auto; padding-inline: 28px; pointer-events: none;
+    opacity: 0; transition: opacity .3s var(--ease);
+  }
+  .beat-thread.is-on { opacity: 1; }
+}
+@media (min-width: 1700px) and (min-height: 640px) { .beat-thread { max-width: 1400px; } }
+.beat-thread i { display: block; height: 100%; border-radius: 0 0 2px 2px; background: color-mix(in oklab, var(--beat-c) 16%, transparent); overflow: hidden; }
+.beat-thread b { display: block; height: 100%; background: var(--beat-c); box-shadow: 0 0 10px color-mix(in oklab, var(--beat-c) 60%, transparent); transform-origin: 0 50%; transform: scaleX(var(--f, 0)); }
+
+/* The beat track (right gutter, 1400px and up only; beats.js also keeps it hidden where the gutter
+   beside the content cannot hold it). */
+.beats { display: none; }
+@media (min-width: 1400px) and (min-height: 640px) {
+  .beats { display: block; position: fixed; z-index: 40; right: 14px; top: 50%; transform: translateY(-50%); opacity: 0; visibility: hidden; transition: opacity .3s var(--ease), visibility 0s linear .3s; }
+  .beats.is-on { opacity: 1; visibility: visible; transition: opacity .3s var(--ease); }
+}
+.beats ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.beats a { position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 28px; text-decoration: none; color: var(--faint); }
+.beats-l { font: 600 11px/1 var(--font-mono); opacity: 0; transition: opacity .2s var(--ease); white-space: nowrap; }
+.beats-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--hairline-strong); background: var(--canvas); transition: background .2s var(--ease), border-color .2s var(--ease); }
+.beats li + li a::before { content: ''; position: absolute; right: 4px; top: -18px; width: 2px; height: 22px; background: var(--hairline); z-index: -1; }
+.beats a[aria-current] { color: var(--beat-c); }
+.beats a[aria-current] .beats-l,
+.beats a:hover .beats-l, .beats a:focus-visible .beats-l { opacity: 1; }
+.beats a[aria-current] .beats-dot { background: var(--beat-c); border-color: var(--beat-c); }
+.beats a:hover .beats-dot, .beats a:focus-visible .beats-dot, .beats a:active .beats-dot { border-color: var(--beat-c); }
+.beats a:focus-visible { outline: 2px solid var(--focus, var(--ink)); outline-offset: 2px; border-radius: 4px; }
+:root { --beat-c: var(--plane-capability); }

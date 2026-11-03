@@ -3,6 +3,7 @@ import Reveal from "./Reveal";
 import CopyChip from "./CopyChip";
 import PlayToggle from "./PlayToggle";
 import { useAutoplay } from "./useAutoplay";
+import { focusFromKey } from "./focusFromKey";
 
 /* ============================================================================
    A second opinion — the review panel for a disputed decision (garden
@@ -79,7 +80,7 @@ export default function PanelVote() {
     if (n < 0) return;
     e.preventDefault();
     pick(MODES[n].id);
-    (e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-mode="${MODES[n].id}"]`)?.focus();
+    focusFromKey((e.currentTarget as HTMLElement).querySelector<HTMLButtonElement>(`[data-mode="${MODES[n].id}"]`));
   }
 
   const r = RESULT[mode];
