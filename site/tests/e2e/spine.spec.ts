@@ -91,10 +91,14 @@ test.describe('the thread and the beat track', () => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto('/');
     await goTo(page, BEATS[2][0]);
-    // centred in the layout width (a classic scrollbar, as on Linux, takes its width off the window)
-    const [l, r, cw] = await page.evaluate(() => { const r = document.querySelector('[data-beat-thread]')!.getBoundingClientRect(); return [r.left, r.right, document.documentElement.clientWidth]; });
+    // centred like the topbar (both are fixed to the same box; a classic scrollbar, as on Linux CI, takes
+    // its width off the window)
+    const [l, r, bl, br] = await page.evaluate(() => {
+      const t = document.querySelector('[data-beat-thread]')!.getBoundingClientRect(), b = document.querySelector('.topbar')!.getBoundingClientRect();
+      return [t.left, t.right, b.left, b.right];
+    });
     expect(r - l).toBe(1400);
-    expect(Math.abs(l - (cw - 1400) / 2)).toBeLessThan(1);
+    expect(Math.abs((l + r) / 2 - (bl + br) / 2)).toBeLessThan(1);
     await expect(page.locator('[data-beats]')).toBeVisible();
   });
 
