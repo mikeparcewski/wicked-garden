@@ -60,18 +60,21 @@ head, the catalog, and the last turns' messages and change lines.
 
 1. Read `apps.json` and the `queries/` files it names. Find what the message asks to change and the components
    the chips point at.
-2. Make the smallest change that does what was asked. Keep every existing component `id`: studio, undo and the
-   person's selections key on them. Give a new component, query or action a short, stable, kebab-case `id`
-   that no other item uses.
-3. **A component** has an `id`, a grid box, props and bindings. The kinds are table, chart (line, bar, area,
-   pie), KPI, text, filter (select, date range, search), form, button, image and link. A binding connects a
-   component to a query's result, or a query or action parameter to `filter.<id>`, `form.<field>`,
-   `row.<column>` (a row button) or `url.<name>`. A link opens only hosts listed in `apps.json`.
-4. **A query** is a named read on one source, with entries in `queries[]` and its text in
-   `queries/<id>.<ext>`. Give it a JSON Schema for its parameters and its declared output columns (name and
-   type, copied from the catalog). A parameter filled from the signed-in viewer is declared `from:
-   viewer.email`, never bound from the page. For REST, GraphQL and MCP queries, also give the row path (a
-   JSONPath subset such as `$.items[*]`) and, when the API pages, the more path.
+2. Make the smallest change that does what was asked. Keep every existing `id`: studio, undo and the
+   person's selections key on them. A new page or component id is letters, digits, `-` and `_`, starting
+   with a letter. A new query or action id is lower-case letters, digits and `_`, starting with a letter
+   (a query id is also its file name). Every id is unique.
+3. **A component** has an `id`, a `type` (table, chart, kpi, text, filter, form, button, image or link),
+   a `box` on the page's 12-column grid (`x`, `y`, `w`, `h`), an optional `title`, and its props and
+   bindings. A binding connects a component to a query (`query` plus `params`), or a query or action
+   parameter to `filter.<id>`, `form.<field>`, `row.<column>` (a row button) or `url.<name>`. A link
+   opens only the hosts listed in `linkHosts`.
+4. **A query** is a named read on one source: an entry in `queries` (`id`, `source`, `kind`, `params`,
+   `output`) and its text in `queries/<id>.sql`, `.graphql` or `.json`. `params` is a JSON Schema object.
+   A parameter the signed-in viewer fills is declared `from: viewer.email` (or `viewer.name`, `viewer.id`,
+   `viewer.groups`) and is never bound from the page. `output` declares every column the query returns:
+   its name and type, copied from the catalog. For REST, GraphQL, MCP and crew queries, also give
+   `rowPath` (a JSONPath subset such as `$.items[*]`) and, when the API pages, `morePath`.
 5. **SQL is one read.** Write a single `SELECT` or a non-recursive `WITH … SELECT`. Schema-qualify every table
    (`support.tickets`). Use placeholders (`$1`, `$2`, …) for every value. Stick to column references, constants,
    arithmetic, comparisons, `IN`, `BETWEEN`, `LIKE`/`ILIKE`, `IS NULL`, boolean logic, `CASE`, `COALESCE`,
@@ -83,16 +86,20 @@ head, the catalog, and the last turns' messages and change lines.
    `SLEEP`, `GET_LOCK`), a cast to `regclass` or another `reg*` type, a qualified function or operator from
    any schema, or a view the person has not allowed. The check refuses all of these before anything reaches
    the source.
-6. **An action** is a declared write, of one of two kinds. An **API action** is one REST operation, one
-   GraphQL mutation with one root field, or one MCP write tool, with its arguments. A **row write** works on a
-   Postgres table only: `{table, op: insert|update|delete, set: {column: value}, key: {every primary-key column:
-   param}}`, where a value is a parameter, a literal, a viewer claim, or crew's `now` or `new uuid`, and an
-   insert sets every column. crew writes the statement, so you never write SQL for an action.
-7. Check your own work before you finish: `apps.json` parses as JSON; every id is unique; every binding names
-   a query, action, filter or form that exists; every query's text file exists under `queries/`; every SQL
-   query follows rule 5; nothing outside `apps.json` and `queries/` changed (`git status --short`).
+6. **An action** is a declared write, of one of two kinds. An **API action** (`kind: api`) is one REST
+   operation or MCP write tool by its tool name, or one GraphQL mutation with one root field, with its
+   arguments. A **row write** (`kind: row-write`) works on a Postgres table only: `table` (schema-
+   qualified), `op` (`insert`, `update` or `delete`), `set` (column to value) and `key` (every primary-key
+   column bound to a required parameter). A value is a parameter, a literal, a viewer claim, or crew's
+   `now` or a new uuid, and an insert sets every column. crew writes the statement, so you never write
+   SQL for an action.
+7. Check your own work before you finish: `apps.json` parses as JSON and keeps its `schema` value; every id
+   is unique; every binding names a query, action, filter or form that exists; every query's text file
+   exists under `queries/`; every SQL query follows rule 5; nothing outside `apps.json` and `queries/`
+   changed (`git status --short`). crew's check is the authority on the spec's exact shape: when it
+   refuses a key or a value, follow what it names.
 8. End with one change line per change, in plain words, naming the ids: "Added KPI `kpi-open` over query
-   `open-escalations`", "Changed chart `breaches-by-region` from bar to line". Then add a line for each action
+   `open_escalations`", "Changed chart `breaches-by-region` from bar to line". Then add a line for each action
    that still needs a grant.
 
 When the check refuses your turn, it names what failed: a component, a query or an action, with a reason
@@ -110,7 +117,9 @@ You judge a turn another seat built. You change no file, and you have no source 
    - every query is a read the person would expect, on the tables and columns the message is about, with
      every value a parameter;
    - every action is declared, does what its name says, and lands ungranted;
-   - nothing outside `apps.json` and `queries/` changed, and no value from a data source appears anywhere.
+   - nothing outside `apps.json` and `queries/` changed, except `apps.lock.json`, which crew's check
+     writes and commits on the tree you judge (it should pin exactly the queries and actions in the
+     spec); and no value from a data source appears anywhere.
 3. Name the tree you judged on its own line, `TREE: <id>`, using `git rev-parse HEAD^{tree}` or the tree id
    the task gives. Then end with the verdict line your task's contract asks for. A finding cites the file and
    the id.
