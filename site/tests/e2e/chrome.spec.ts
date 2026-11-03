@@ -53,32 +53,41 @@ test('a stored v2 theme is ignored: the reset to Wicked Dark happens once, and t
   expect(await page.evaluate(() => localStorage.getItem('wa-theme-v3'))).toBeNull();
 });
 
-test('the topbar tooltips open below the bar, fully on screen, and hide while the menu is open', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 700 });
-  const bar = await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().bottom);
-  for (const sel of ['#themeBtn', '.topbar a[data-tip="github"]', '.topbar .dropdown-wrap']) {
-    const el = page.locator(sel);
-    await el.hover();
-    const tip = await el.evaluate((e) => {
-      const a = getComputedStyle(e, '::after');
-      const top = e.getBoundingClientRect().top + parseFloat(a.top);
-      return { top, bottom: top + parseFloat(a.height) };
-    });
-    expect(tip.top, `${sel} tip top`).toBeGreaterThanOrEqual(bar);
-    expect(tip.bottom, `${sel} tip bottom`).toBeLessThan(700);
-  }
-  // at the narrowest window that still shows the inline icons, the last tip stays inside the window
-  await page.setViewportSize({ width: 641, height: 700 });
-  await page.locator('#themeBtn').hover();
-  const right = await page.locator('#themeBtn').evaluate((e) => {
+test('the topbar tooltips sit inside the bar, clear of the icons and the page, and hide while the menu is open', async ({ page }) => {
+  // the tip's painted box: its containing element's box plus the pseudo-element's resolved offsets
+  const tipBox = (sel: string) => page.locator(sel).evaluate((e) => {
     const a = getComputedStyle(e, '::after');
     const r = e.getBoundingClientRect();
-    const box = parseFloat(a.width) + (a.boxSizing === 'content-box'
-      ? parseFloat(a.paddingLeft) + parseFloat(a.paddingRight) + parseFloat(a.borderLeftWidth) + parseFloat(a.borderRightWidth) : 0);
-    const shift = a.transform === 'none' ? 0 : new DOMMatrix(a.transform).m41;
-    return r.left + parseFloat(a.left) + shift + box;
+    const pad = a.boxSizing === 'content-box';
+    const w = parseFloat(a.width) + (pad ? parseFloat(a.paddingLeft) + parseFloat(a.paddingRight) + parseFloat(a.borderLeftWidth) + parseFloat(a.borderRightWidth) : 0);
+    const h = parseFloat(a.height) + (pad ? parseFloat(a.paddingTop) + parseFloat(a.paddingBottom) + parseFloat(a.borderTopWidth) + parseFloat(a.borderBottomWidth) : 0);
+    const m = a.transform === 'none' ? new DOMMatrix() : new DOMMatrix(a.transform);
+    const left = r.left + parseFloat(a.left) + m.m41, top = r.top + parseFloat(a.top) + m.m42;
+    return { display: a.display, opacity: a.opacity, left, top, right: left + w, bottom: top + h };
   });
-  expect(right).toBeLessThanOrEqual(641);
+  for (const width of [1440, 1024, 800]) {
+    await page.setViewportSize({ width, height: 700 });
+    const bar = await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().bottom);
+    const blocks = await page.locator('.topbar .icon-btn:visible, .topbar .topbar-pkg, .topbar .wordmark').evaluateAll((els) =>
+      els.map((e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; }));
+    for (const sel of ['.topbar .dropdown-wrap', '.topbar a[data-tip="media"]', '.topbar a[data-tip="github"]', '#themeBtn']) {
+      await page.locator(sel).hover();
+      await expect.poll(() => tipBox(sel).then((t) => t.opacity)).toBe('1');
+      const t = await tipBox(sel);
+      // inside the bar: never over page content, never off the window
+      expect(t.top, `${sel} at ${width}`).toBeGreaterThanOrEqual(0);
+      expect(t.bottom, `${sel} at ${width}`).toBeLessThanOrEqual(bar);
+      expect(t.left, `${sel} at ${width}`).toBeGreaterThanOrEqual(0);
+      // clear of every icon, the package name and the wordmark
+      for (const b of blocks) {
+        const hit = t.left < b.r && t.right > b.l && t.top < b.b && t.bottom > b.t;
+        expect(hit, `${sel} tip at ${width} overlaps a bar control`).toBe(false);
+      }
+    }
+  }
+  // below 768px there is no room beside the package name: no tips (the icons keep their labels)
+  await page.setViewportSize({ width: 700, height: 700 });
+  expect((await tipBox('#themeBtn')).display).toBe('none');
   await page.setViewportSize({ width: 1440, height: 700 });
   await page.locator('#projectsBtn').click();
   await page.locator('#projectsBtn').hover();

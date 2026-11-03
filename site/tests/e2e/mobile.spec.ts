@@ -69,7 +69,7 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
   await expect(page.locator('#mobileMenu').getByRole('link', { name: /garden/ })).toBeVisible();
 });
 
-for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
+for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 320, height: 740 }]) {
   test(`mobile ${vp.width}x${vp.height}: every control, chrome included, is a 44px target`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto('/');
@@ -90,6 +90,15 @@ for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
       return out;
     });
     expect(await measure()).toEqual([]);
+    // the hero card's controls stay inside the card (four 44px pips and Play wrap on the narrowest phones)
+    const out = await page.locator('.hs-card').evaluate((card) => {
+      const c = card.getBoundingClientRect();
+      return Array.from(card.querySelectorAll('.hs-controls > *, .hs-pip')).filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width > 0 && (r.left < c.left - 0.5 || r.right > c.right + 0.5);
+      }).length;
+    });
+    expect(out).toBe(0);
     // and with the gate's "where it only advises" detail open (its close button is a target too)
     const where = page.locator('#gate .pg-where-btn');
     await where.scrollIntoViewIfNeeded();
