@@ -70,7 +70,9 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
   await expect(page.locator('#mobileMenu').getByRole('link', { name: /Wicked Labs/ })).toHaveAttribute('href', 'https://wickedlabs.ai/');
   await expect(page.locator('#mobileMenu').getByRole('link', { name: /Wicked Labs/ })).toBeVisible();
   // every row's glyph sits on its label's line, not above it
-  const off = await page.locator('#mobileMenu .mm-label').evaluateAll((labels) => labels.map((l) => {
+  const labels = page.locator('#mobileMenu .mm-label:has(.mm-glyph)');
+  expect(await labels.count()).toBeGreaterThanOrEqual(4);
+  const off = await labels.evaluateAll((ls) => ls.map((l) => {
     const g = l.querySelector('.mm-glyph')!.getBoundingClientRect();
     const r = document.createRange(); r.selectNodeContents(l); const t = Array.from(r.getClientRects()).filter((q) => q.width > 0);
     const text = t[t.length - 1];
