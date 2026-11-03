@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [12.63.0] — 2026-11-03
+
 ### Fixed
 
 - **A chat seat that can make documents proposes them instead of writing them (governed-worker A8).** Asked "write a
@@ -1303,7 +1305,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...HEAD
+[12.63.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...v12.63.0
 [12.62.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.61.0...v12.62.0
 [12.61.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.60.0...v12.61.0
 [12.60.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.59.0...v12.60.0
