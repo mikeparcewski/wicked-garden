@@ -66,8 +66,33 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
   await expect(menuBtn).toBeVisible();
   await menuBtn.click();
   await expect(page.locator('#mobileMenu')).toBeVisible();
-  await expect(page.locator('#mobileMenu').getByRole('link', { name: /garden/ })).toBeVisible();
+  // the menu's first row is Wicked Labs (the flask's link), not a list of the product sites
+  await expect(page.locator('#mobileMenu').getByRole('link', { name: /Wicked Labs/ })).toHaveAttribute('href', 'https://wickedlabs.ai/');
+  await expect(page.locator('#mobileMenu').getByRole('link', { name: /Wicked Labs/ })).toBeVisible();
 });
+
+for (const width of [390, 360, 320]) {
+  test(`mobile ${width}px: the product path keeps the mark, never pushes the icons, and the mark shows no lettering`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto('/');
+    await page.evaluate(async () => { await document.fonts.ready; });
+    const g = await page.evaluate(() => {
+      const box = (s: string) => { const r = document.querySelector(s)!.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+      const name = document.querySelector<HTMLElement>('.crumbs li:last-child .crumb')!;
+      return { mark: box('.crumbs .wordmark'), art: box('.crumbs .wordmark .wordmark-lockup'), clip: getComputedStyle(document.querySelector('.crumbs .wordmark .wordmark-lockup')!).clipPath,
+               path: box('.crumbs'), nav: box('.topbar .nav'), name: box('.crumbs li:last-child .crumb'), named: name.textContent, vw: innerWidth };
+    });
+    // the mark sits inside the window and the path ends before the icons
+    expect(g.mark.l).toBeGreaterThanOrEqual(0);
+    expect(g.path.r).toBeLessThanOrEqual(g.nav.l);
+    expect(g.name.r).toBeLessThanOrEqual(g.nav.l);
+    expect(g.named).toBe('wicked-garden');
+    // the artwork is clipped to its first 22px (the mark; the lettering starts past 25px)
+    expect(g.clip).toMatch(/^inset\(.*22px/);
+    expect(g.art.l).toBeGreaterThanOrEqual(g.mark.l);
+    expect(g.nav.r).toBeLessThanOrEqual(g.vw);
+  });
+}
 
 for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 320, height: 740 }]) {
   test(`mobile ${vp.width}x${vp.height}: the hero stats read as text, each number spaced from its word and on its row`, async ({ page }) => {

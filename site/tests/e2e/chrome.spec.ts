@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Shared wicked-web chrome (node_modules/wicked-web): theme toggle and the
- * ecosystem dropdown in the fixed topbar.
+ * Shared wicked-web chrome (node_modules/wicked-web): theme toggle, the product path
+ * ("Wicked Agile / labs / wicked-garden") and the flask that links Wicked Labs in the fixed topbar.
  */
 
 test.beforeEach(async ({ page }) => {
@@ -27,23 +27,19 @@ test('theme toggle flips data-theme on <html> and persists across reload', async
   await expect(html).toHaveAttribute('data-theme', flipped);
 });
 
-test('ecosystem dropdown opens on click and closes on Escape', async ({ page }) => {
-  const btn = page.locator('#projectsBtn');
-  const menu = page.locator('#projectsMenu');
-  await expect(menu).toBeHidden();
-
-  await btn.click();
-  await expect(menu).toBeVisible();
-  await expect(btn).toHaveAttribute('aria-expanded', 'true');
-  // The 61396e4 chrome groups the menu by the four planes; assert the plane
-  // groups and the unambiguous site links (several labels mention "crew").
-  await expect(menu.locator('.dropdown-plane')).toHaveCount(4);
-  await expect(menu.locator('a[href="https://wg.wickedagile.com"]')).toBeVisible();
-  await expect(menu.locator('a[href="https://wc.wickedagile.com"]')).toBeVisible();
-
-  await page.keyboard.press('Escape');
-  await expect(menu).toBeHidden();
-  await expect(btn).toHaveAttribute('aria-expanded', 'false');
+test('the product path reads Wicked Agile / labs / wicked-garden, and the flask links Wicked Labs', async ({ page }) => {
+  const path = page.getByRole('navigation', { name: 'Breadcrumb' });
+  await expect(path.getByRole('link')).toHaveCount(3);
+  await expect(path.getByRole('link', { name: 'Wicked Agile' })).toHaveAttribute('href', 'https://wickedagile.com/');
+  await expect(path.getByRole('link', { name: 'labs' })).toHaveAttribute('href', 'https://wickedlabs.ai/');
+  const here = path.getByRole('link', { name: 'wicked-garden' });
+  await expect(here).toHaveAttribute('href', 'https://wg.wickedagile.com');
+  await expect(here).toHaveAttribute('aria-current', 'page');
+  // the flask is a plain link now: no Experiments menu, no button that opens one
+  const lab = page.locator('.topbar .nav').getByRole('link', { name: 'Wicked Labs' });
+  await expect(lab).toHaveAttribute('href', 'https://wickedlabs.ai/');
+  await expect(lab).toBeVisible();
+  await expect(page.locator('#projectsBtn, #projectsMenu, .dropdown-menu')).toHaveCount(0);
 });
 
 test('a stored v2 theme is ignored: the reset to Wicked Dark happens once, and the load writes nothing', async ({ page }) => {
@@ -68,7 +64,7 @@ test('the topbar tooltips sit inside the bar, clear of the icons and the page, a
   for (const width of [1440, 1024, 800]) {
     await page.setViewportSize({ width, height: 700 });
     const bar = await page.locator('.topbar').evaluate((el) => el.getBoundingClientRect().bottom);
-    const blocks = await page.locator('.topbar .icon-btn:visible, .topbar .topbar-pkg, .topbar .wordmark').evaluateAll((els) =>
+    const blocks = await page.locator('.topbar .icon-btn:visible, .topbar .crumbs a, .topbar .crumb-sep').evaluateAll((els) =>
       els.map((e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; }));
     // every tip the installed chrome has (whatever its icon row holds)
     const tips = await page.locator('.topbar [data-tip]:visible').evaluateAll((els) => els.map((e) => e.getAttribute('data-tip')!));
@@ -81,21 +77,14 @@ test('the topbar tooltips sit inside the bar, clear of the icons and the page, a
       expect(t.top, `${sel} at ${width}`).toBeGreaterThanOrEqual(0);
       expect(t.bottom, `${sel} at ${width}`).toBeLessThanOrEqual(bar);
       expect(t.left, `${sel} at ${width}`).toBeGreaterThanOrEqual(0);
-      // clear of every icon, the package name and the wordmark
+      // clear of every icon and every part of the product path
       for (const b of blocks) {
         const hit = t.left < b.r && t.right > b.l && t.top < b.b && t.bottom > b.t;
         expect(hit, `${sel} tip at ${width} overlaps a bar control`).toBe(false);
       }
     }
   }
-  // below 768px there is no room beside the package name: no tips (the icons keep their labels)
+  // below 768px there is no room beside the product path: no tips (the icons keep their labels)
   await page.setViewportSize({ width: 700, height: 700 });
   expect((await tipBox('#themeBtn')).display).toBe('none');
-  await page.setViewportSize({ width: 1440, height: 700 });
-  await page.locator('#projectsBtn').click();
-  await page.locator('#projectsBtn').hover();
-  await expect.poll(() => page.locator('.topbar .dropdown-wrap').evaluate((e) => getComputedStyle(e, '::after').opacity)).toBe('0');
-  // the menu is wide enough that no row is cut short
-  const cut = await page.locator('#projectsMenu .di-label').evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth + 1).length);
-  expect(cut).toBe(0);
 });

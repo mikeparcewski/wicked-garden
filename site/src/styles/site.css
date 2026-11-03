@@ -1165,8 +1165,8 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
    the bar (the chrome's bottom:calc(100% + 8px)) they fell off the top of the window, and anywhere below the
    bar they would cover page text. Every tip ends 12px left of the first icon, so none covers an icon (the
    offsets follow the chrome's 36px icons and 12px gap). Below 768px the row of icons leaves no room beside
-   the package name, so there are no tips (the icons keep their aria-labels); touch screens never show them,
-   since a tap leaves :hover stuck on. The experiments tip also hides while its menu is open. */
+   the product path, so there are no tips (the icons keep their aria-labels); touch screens never show them,
+   since a tap leaves :hover stuck on. */
 @media (min-width: 768px) {
   .topbar [data-tip]::after { top: 50%; bottom: auto; left: auto; transform: translateY(-50%); }
   .topbar .nav > :nth-child(1)[data-tip]::after { right: calc(100% + 12px); }
@@ -1176,12 +1176,12 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
   .topbar .nav > :nth-child(5)[data-tip]::after { right: calc(100% + 12px + 4 * 48px); }
 }
 @media (max-width: 767px), (hover: none) { .topbar [data-tip]::after { display: none; } }
-.topbar .dropdown-wrap:has(> .dropdown-menu:not([hidden]))::after { opacity: 0; }
-/* the experiments menu is wide enough for its longest row ("studio where you direct agents  site ↗") */
-.topbar #projectsMenu.dropdown-menu { min-width: 340px; }
 /* phones: every chrome control is a 44px target */
 @media (max-width: 640px) {
   .topbar .wordmark { min-height: 44px; }
+  /* the product path's links: 44px tall, and "labs" 44px wide (the clipped mark's link: the <= 560px rule) */
+  .topbar .crumb { display: inline-flex; align-items: center; min-height: 44px; }
+  .topbar .crumbs li:not(:last-child) .crumb { min-width: 44px; justify-content: center; }
   .topbar .nav .icon-btn { width: 44px; height: 44px; }
   .same-garden .sg-visit, .same-garden .sg-repo { min-height: 44px; }
   .same-garden .sg-repo { min-width: 44px; justify-content: center; }
@@ -1190,4 +1190,10 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
   .footer .footer-cta a { display: inline-flex; align-items: center; min-height: 44px; }
   .footer .footer-links { gap: 0; }
   .footer .footer-links a { min-height: 44px; min-width: 44px; align-items: center; }
+}
+/* at <= 560px the chrome clips the lockup to its mark (a 22px link); the link grows to 44px, reaching 11px
+   into the bar's side padding so the mark stays where the chrome draws it, and the artwork keeps the clip */
+@media (max-width: 560px) {
+  .topbar .crumbs .wordmark { width: 44px; margin-left: -11px; padding-left: 11px; }
+  .topbar .crumbs .wordmark .wordmark-lockup { clip-path: inset(0 calc(100% - 22px) 0 0); }
 }
