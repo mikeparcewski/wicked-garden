@@ -555,7 +555,7 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .qw-sub--rev { display: grid; grid-template-columns: minmax(0, 1fr); }
 .qw-sub-t { grid-area: 1 / 1; visibility: hidden; }
 .qw-sub-t.is-on { visibility: visible; }
-.qw-stamp { position: absolute; top: 6px; right: 6px; line-height: 1.3; font-size: var(--text-caption); padding: 0 6px; border-radius: 5px; border: 1px solid; opacity: 0; transform: rotate(-6deg); transition: opacity .3s; }
+.qw-stamp { position: absolute; top: 6px; right: 6px; white-space: nowrap; line-height: 1.3; font-size: var(--text-caption); padding: 0 6px; border-radius: 5px; border: 1px solid; opacity: 0; transform: rotate(-6deg); transition: opacity .3s; }
 .qw-cell--self .qw-stamp { color: var(--muted); }
 .qw-cell--rev .qw-stamp { color: var(--c-fail); }
 .qw-fig[data-revealed="true"] .qw-stamp { opacity: 1; }
@@ -914,7 +914,8 @@ html.js-enter #install .sx-stage.is-entered ~ .ib-recap .ib-recap-list li { anim
 /* narrow desktops (1024-1279): the report card gives the wall its width back, so the role copy and the legend
    wrap less and the qe frame fits a 1024x768 or 1100x700 window (it was 14-21px over) */
 @media (min-width: 1024px) and (max-width: 1279px) {
-  .qw-layout { grid-template-columns: minmax(200px, 236px) minmax(0, 1fr); }
+  /* 256px: each grade cell (108px) still holds its one-line stamp with room for wider Linux text */
+  .qw-layout { grid-template-columns: minmax(200px, 256px) minmax(0, 1fr); }
   .qw-stage { grid-template-rows: auto 56px auto; }
   .qw-foot-cmd { flex-basis: 312px; }
 }
@@ -1175,5 +1176,5 @@ html.js-enter .sx-stage:not(.is-entered) { opacity: 0; transform: translateY(14p
   .footer .footer-wordmark { display: inline-flex; align-items: center; min-height: 44px; }
   .footer .footer-cta a { display: inline-flex; align-items: center; min-height: 44px; }
   .footer .footer-links { gap: 0; }
-  .footer .footer-links a { min-height: 44px; align-items: center; }
+  .footer .footer-links a { min-height: 44px; min-width: 44px; align-items: center; }
 }
