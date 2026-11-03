@@ -190,6 +190,27 @@ test('CatalogExplorer: the skill families as tabs, qe selected first, arrow keys
   await expect(cat.locator('.cx-family-lead')).toContainText('without it the gate fails closed');
 });
 
+test('CatalogExplorer: a task the visitor types opens its best match, so the open family is always a highlighted one', async ({ page }) => {
+  const cat = page.locator('#toolkit');
+  await cat.scrollIntoViewIfNeeded();
+  await cat.locator('.cx-stage').hover();
+  await expect(cat.getByRole('tab', { name: 'quality engineering' })).toHaveAttribute('aria-selected', 'true');
+  for (const task of ['rename a function', 'audit a deploy', 'test a11y']) {
+    await cat.getByLabel('type a task').fill(task);
+    const open = cat.locator('.cx-tab[aria-selected="true"]');
+    await expect(open).toHaveClass(/is-hit/);
+    // and its panel is the one showing
+    const id = (await open.getAttribute('id'))!.slice(4);
+    await expect(cat.locator(`#cx-panel-${id}`)).toBeVisible();
+  }
+  // a family picked after typing stays open while the best match is unchanged
+  await cat.locator('#dom-data').click();
+  await expect(cat.locator('#dom-data')).toHaveAttribute('aria-selected', 'true');
+  // clearing the task keeps the visitor's pick
+  await cat.getByLabel('type a task').fill('');
+  await expect(cat.locator('#dom-data')).toHaveAttribute('aria-selected', 'true');
+});
+
 test('CatalogExplorer: the tour types a task, lights its matches and opens the first; a click takes over', async ({ page }) => {
   const cat = page.locator('#toolkit');
   await cat.scrollIntoViewIfNeeded();

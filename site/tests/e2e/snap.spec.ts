@@ -104,3 +104,42 @@ test('no lock below 1024px wide or under 640px tall, and no snapping at all ther
   await page.waitForTimeout(1200);
   expect(await page.evaluate(() => Math.round(scrollY))).toBeGreaterThan(100);
 });
+
+// Where nothing locks at >= 1024px (a short laptop under 640px tall; reduced motion) the page scrolls freely,
+// and a Tab stop scrolled into view must land below the fixed bar, not under it.
+for (const c of [{ width: 1366, height: 625, motion: 'no-preference' as const }, { width: 1440, height: 700, motion: 'reduce' as const },
+  { width: 1280, height: 660, motion: 'reduce' as const }]) {
+  test(`Tab never stops on a control under the bar at ${c.width}x${c.height} (${c.motion})`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: c.motion });
+    await page.setViewportSize({ width: c.width, height: c.height });
+    await page.goto('/');
+    await page.evaluate(async () => { await document.fonts.ready; });
+    await expect(page.locator('html')).not.toHaveClass(/snap-lock/);
+    const under: string[] = [];
+    let stops = 0;
+    for (let i = 0; i < 120; i++) {
+      await page.keyboard.press('Tab');
+      // wait for the scroll the focus started (smooth where motion is allowed) to settle
+      await page.evaluate(() => new Promise<void>((done) => {
+        let last = scrollY, still = 0;
+        const tick = () => { if (scrollY === last) still++; else { still = 0; last = scrollY; } if (still >= 4) done(); else requestAnimationFrame(tick); };
+        requestAnimationFrame(tick);
+      }));
+      const r = await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement | null;
+        if (!el || el === document.body) return { end: true };
+        if (el.closest('.topbar')) return null;
+        const bar = document.querySelector('.topbar')!.getBoundingClientRect().bottom;
+        const b = el.getBoundingClientRect();
+        if (!b.width || !b.height) return null;
+        return { top: b.top, bar, name: `${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 32)}"` };
+      });
+      if (r && 'end' in r) break;
+      if (!r) continue;
+      stops++;
+      if (r.top < r.bar - 0.5) under.push(`${r.name} top ${Math.round(r.top)} < bar ${Math.round(r.bar)}`);
+    }
+    expect(stops).toBeGreaterThan(40);
+    expect(under).toEqual([]);
+  });
+}

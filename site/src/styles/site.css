@@ -56,6 +56,14 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
 .gd-map-section .same-garden { scroll-margin-top: calc(var(--topbar-h) + 1px); }
 /* an in-section anchor (a catalog domain) lands below the bar */
 [id^="dom-"] { scroll-margin-top: calc(var(--topbar-h) + 16px); }
+/* keyboard focus lands below the bar wherever the page is not snap-locked at >= 1024px (reduced motion, a
+   short laptop, a section that outgrows its frame): the page then scrolls freely, and a Tab stop scrolled
+   into view would stop under the fixed bar. Below 1024px html's scroll-padding-top does this; while locked
+   the stops are the section tops. The margin is on the focusable controls only, at zero specificity (a
+   catalog anchor keeps its own), never on a section, so a link to a section still lands it at y = 0. */
+@media (min-width: 1024px) {
+  :where(html:not(.snap-lock)) :where(a[href], button, input, select, textarea, summary, [tabindex]) { scroll-margin-top: calc(var(--topbar-h) + 12px); }
+}
 @media (prefers-reduced-motion: reduce) {
   html, html.snap-lock { scroll-snap-type: none; }
 }
@@ -302,7 +310,9 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   display: grid; place-items: center; text-align: center; overflow: hidden;
 }
 .hs-idle { font-size: var(--text-caption); color: var(--muted); }
-.hs-mark { display: grid; place-items: center; gap: 8px; color: var(--v); }
+/* 12px: the stamp turns -5deg (-6 mid-slam), so the widest word ("FAILS CLOSED") reaches about 10px below its own
+   box; at 8px its corner ran 2px into the reason line */
+.hs-mark { display: grid; place-items: center; gap: 12px; color: var(--v); }
 .hs-word {
   font-size: var(--text-title); font-weight: var(--weight-strong); letter-spacing: var(--tracking-title); line-height: 1;
   padding: 6px 16px; border: 3px solid currentColor; border-radius: 9px;
@@ -1090,7 +1100,10 @@ html.js-enter #install .sx-stage.is-entered ~ .ib-recap .ib-recap-list li { anim
   .pg-reset { display: inline-flex; align-items: center; border-bottom: 0; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--hairline-strong); }
   .mq-new-list a { padding-block: 12px; }
   .cx-jump { display: inline-flex; align-items: center; min-height: 44px; }
-  .gd-hero-stats a { display: inline-flex; align-items: center; min-height: 44px; }
+  /* the work-shapes stat is a 44px target that stays a run of text: inline-block keeps the space in
+     "10 work-shapes" (a flex box dropped it), and the row lines up on the text baseline, not the box top */
+  .gd-hero-stats { align-items: baseline; }
+  .gd-hero-stats a { display: inline-block; min-height: 44px; padding-block: 12px; }
   .pg-where-btn { display: flex; width: fit-content; align-items: center; min-height: 44px; margin-top: 10px; padding: 0 14px; border: 1px solid var(--hairline-strong); border-radius: 999px; text-decoration: none; background: color-mix(in oklab, var(--canvas-2) 96%, transparent); }
   /* what's inside: tappable pills on a phone */
   .gd-hero-inside { gap: 8px; }

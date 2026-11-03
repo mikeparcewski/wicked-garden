@@ -315,6 +315,22 @@ export const QE_SPECIALISTS: { n: string; s: Surface }[] = [
   { n: "qe-compliance-test-engineer", s: "insight" },
 ];
 
+/* N9, measured from source: the fleet above names exactly the skills/qe-* dirs (astro.config.mjs lists them).
+   The build's server render runs this, so adding or removing a qe-* skill without this list fails the build;
+   the browser bundle never carries the dir list (Vite drops the branch). */
+if (import.meta.env.SSR) {
+  const dirs = __WICKED_GARDEN_QE_DIRS__;
+  const listed = QE_SPECIALISTS.map((x) => x.n).sort();
+  const missing = dirs.filter((d) => !listed.includes(d));
+  const extra = listed.filter((n) => !dirs.includes(n));
+  if (missing.length || extra.length || listed.length !== dirs.length) {
+    throw new Error(
+      `QE_SPECIALISTS (${listed.length}) must name exactly the ${dirs.length} skills/qe-* dirs. ` +
+        `Not listed: ${missing.join(", ") || "none"}. Listed without a dir: ${extra.join(", ") || "none"}.`,
+    );
+  }
+}
+
 /** The 3-agent acceptance pipeline — what each role is handed (skills/qe §accept: the writer plans, the
     executor captures, the reviewer judges from evidence paths only, as a separate worker). */
 export interface AcceptanceRole {
@@ -443,6 +459,6 @@ export const G = {
   version: `v${__WICKED_GARDEN_VERSION__}`,
   // no family count is published: the tab list is a hand-picked grouping, not a measured number (N9)
   skills: __WICKED_GARDEN_SKILLS__, // real SKILL.md count under skills/**, counted at build time
-  qeSpecialists: QE_SPECIALISTS.length, // 40
+  qeSpecialists: QE_SPECIALISTS.length, // the skills/qe-* dirs: the check after QE_SPECIALISTS fails the build on drift
   workShapes: __WICKED_GARDEN_WORK_SHAPES__, // the archetypes in .claude-plugin/archetypes.json, counted at build time
 };

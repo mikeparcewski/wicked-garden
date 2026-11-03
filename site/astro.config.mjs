@@ -24,6 +24,14 @@ const skillCount = readdirSync(skillsDir, { recursive: true }).filter(
   (f) => String(f).split(/[\\/]/).pop() === 'SKILL.md',
 ).length;
 
+// The QE specialist skills (skills/qe-*/): garden.ts checks that its fleet list names exactly these dirs
+// while the build renders the page, so the site's specialist count is measured from source too (N9).
+const qeDirs = readdirSync(skillsDir, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && d.name.startsWith('qe-'))
+  .map((d) => d.name)
+  .sort();
+if (!qeDirs.length) throw new Error('skills/ has no qe-* specialist dirs; the site checks its QE fleet against them at build time');
+
 // The work-shape count, from the archetype catalog the classifier routes to (N9: measured, never typed).
 const archetypes = JSON.parse(
   readFileSync(fileURLToPath(new URL('../.claude-plugin/archetypes.json', import.meta.url)), 'utf8'),
@@ -60,6 +68,7 @@ export default defineConfig({
       __WICKED_GARDEN_VERSION__: JSON.stringify(plugin.version),
       __WICKED_GARDEN_SKILLS__: JSON.stringify(skillCount),
       __WICKED_GARDEN_WORK_SHAPES__: JSON.stringify(workShapeCount),
+      __WICKED_GARDEN_QE_DIRS__: JSON.stringify(qeDirs),
     },
     optimizeDeps: {
       include: ['react-dom/client'],

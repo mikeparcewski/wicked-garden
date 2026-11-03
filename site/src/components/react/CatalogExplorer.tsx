@@ -10,7 +10,8 @@ import { DOMAINS, PEERS, HUE_VAR, G, type Domain } from "../../data/garden";
    selected family fills a fixed-height detail panel inside the frame (its blurb,
    its skills and the skill call to try it). The families are a tab list (roving
    tabindex, arrow keys); "type a task" highlights the families whose blurb or
-   skills match. It tours itself: it types each example task into the filter and
+   skills match and opens the best match, so the open family is always one of the
+   highlighted ones. It tours itself: it types each example task into the filter and
    opens the first family that matches, until the visitor types, picks a family or
    presses pause (it also pauses on hover, on focus and off-screen, and never
    starts under reduced motion). qe is selected first and links to the wall;
@@ -107,12 +108,14 @@ export default function CatalogExplorer() {
     return best;
   }, [scores]);
 
-  // the tour opens the first match once its task is typed; on a phone, so does a task the visitor types
+  // the tour opens the first match once its task is typed; a task the visitor types opens its best match as
+  // it changes (at every width), so the open family never disagrees with the highlighted matches. A family
+  // picked after typing stays open until the typing finds a different best match.
   useEffect(() => {
     if (!manual && typed && firstHit && !ap.reduced) setSel(firstHit);
   }, [manual, typed, firstHit, tour.t, ap.reduced]);
   useEffect(() => {
-    if (manual && firstHit && window.matchMedia("(max-width: 640px)").matches) setSel(firstHit);
+    if (manual && firstHit) setSel(firstHit);
   }, [manual, firstHit]);
 
   // on a phone the row scrolls sideways (only the row, never the page) so the first match shows

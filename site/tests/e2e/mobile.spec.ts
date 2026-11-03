@@ -70,6 +70,34 @@ test('mobile: page renders, hero island visible, hamburger menu opens', async ({
 });
 
 for (const vp of [{ width: 390, height: 844 }, { width: 360, height: 740 }, { width: 320, height: 740 }]) {
+  test(`mobile ${vp.width}x${vp.height}: the hero stats read as text, each number spaced from its word and on its row`, async ({ page }) => {
+    await page.setViewportSize(vp);
+    await page.goto('/');
+    await page.evaluate(async () => { await document.fonts.ready; });
+    const stats = page.locator('.gd-hero-stats');
+    await expect(stats).toContainText(/\d+ work-shapes/);
+    const g = await stats.evaluate((ul) => Array.from(ul.querySelectorAll('li')).map((li) => {
+      const b = li.querySelector('b')!;
+      // the gap between the number and the first letter after it, as painted (a dropped space is a 0px gap)
+      const walk = document.createTreeWalker(li, NodeFilter.SHOW_TEXT);
+      let n: Node | null, first: DOMRect | null = null;
+      while ((n = walk.nextNode())) {
+        if (b.contains(n)) continue;
+        const i = n.textContent!.search(/\S/);
+        if (i < 0) continue;
+        const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+        first = r.getBoundingClientRect(); break;
+      }
+      const nb = b.getBoundingClientRect();
+      return { text: li.textContent!.trim(), gap: first ? first.left - nb.right : null, base: nb.bottom };
+    }));
+    for (const s of g) expect(s.gap, `"${s.text}" fuses its number to its word`).toBeGreaterThan(2);
+    // stats on one row share a text baseline (a 44px link box must not push its text below the row)
+    const rows = new Map<number, number[]>();
+    for (const s of g) { const k = [...rows.keys()].find((y) => Math.abs(y - s.base) < 30) ?? s.base; rows.set(k, [...(rows.get(k) ?? []), s.base]); }
+    for (const bases of rows.values()) expect(Math.max(...bases) - Math.min(...bases)).toBeLessThanOrEqual(1);
+  });
+
   test(`mobile ${vp.width}x${vp.height}: every control, chrome included, is a 44px target`, async ({ page }) => {
     await page.setViewportSize(vp);
     await page.goto('/');
