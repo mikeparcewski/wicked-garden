@@ -3,20 +3,21 @@ name: wicked-garden-mem
 description: |
   Cross-session memory + knowledge over wicked-estate.
   One skill, routed actions: store (a durable decision/pattern/gotcha),
-  recall (the current project's memories; all scopes on opt-in), answer (cited
-  synthesis from the knowledge + memory stores), review (browse coverage by
+  recall (this project's memories; all scopes on opt-in), answer (cited
+  synthesis from the knowledge + memory stores, plus live data-source rows
+  when a crew step may query them), review (browse coverage by
   kind/tier), forget (kind-guarded erase of a scope subtree), maintain
   (reflect + coverage pulse; estate consolidates in-store), ingest (file or
-  directory → knowledge chunks, binary docs via LLM vision), and capture
+  directory → knowledge chunks, binary docs via vision), and capture
   (session-teardown sweep of decisions/patterns/gotchas).
 
   Use when: "remember this" / "store this decision" / "note this gotcha";
   "recall what we decided" / "what do I know about X"; "answer from the
-  knowledge base" / "ask the record"; "review my memories" / "what have I
-  stored"; "forget this" / "erase that scope"; "consolidate memories";
+  knowledge base" / "ask the record" / "ask our data"; "review my
+  memories" / "what have I stored"; "forget this" / "erase that scope";
+  "consolidate memories";
   "ingest this file/pdf/directory" / "add this document to the knowledge
-  base"; "capture what we learned" / session teardown. wicked-estate is the
-  engine; this skill is the agent surface.
+  base"; "capture what we learned" / session teardown.
 metadata:
   role: router
   phases: "*"
