@@ -227,6 +227,7 @@ def test_outside_a_run_the_visible_reads_stay_local(monkeypatch, broker):
     monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
     monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
     assert _estate_client.is_governed() is False
+    assert _estate_client.use_broker() is False
     for tool in ("knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors"):
         assert _estate_client.use_broker_for(tool) is False
 

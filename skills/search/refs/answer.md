@@ -74,7 +74,7 @@ every project, on explicit request); `--budget <tokens>`
      with `rows`, `sql`, `at` and `cite` (`src:<source>@<at>#<id>`). Quote its
      values as data. An envelope with `refused` (the read policy refused the
      SQL, and nothing ran) allows at most ONE corrected query; then report the
-     refusal.
+     refusal. A `list_tables` answer read the same way is structure evidence.
    - **Query off** (only `list_tables` is listed, or a call answers
      `query_off`): answer from the structure only ("support.tickets has a
      `status` enum: open, pending, closed"), say a person can turn on agent
@@ -94,9 +94,15 @@ every project, on explicit request); `--budget <tokens>`
      `[knowledge · src docs/adr/0005.md]` or
      `[memory · fact · 2026-10-10 · project:wicked-garden]`, so the reader
      sees which side it came from and how old it is
-   - cite every claim drawn from a read's rows as
-     `[<cite> · <first line of the SQL>]`, from that read's envelope, and
-     name the source and the exact SQL in `Sources:`
+   - cite every claim drawn from a read's rows with that read's envelope
+     `cite` token alone, e.g. `[src:support-pg@2026-11-04T03:00:12Z#5f2a1c9e]`
+     (it names the source and the read, never a table or a value), and every
+     claim drawn from a `list_tables` answer as
+     `[structure · <source> · callId <callId>]`
+   - in `Sources:`, list each broker call you relied on (`subject`,
+     `outcome`, `callId`), and give each read's exact SQL inside a fenced
+     ```` ```sql ```` block: it holds the source's own names, so it is data,
+     never citation text
    - on conflict, an approved steering rule (estate `rules.recall`) governs
      what *should* hold and the source (knowledge) governs what *does*; a
      memory says what was decided or told and why, not what is enforced.
@@ -119,7 +125,9 @@ every project, on explicit request); `--budget <tokens>`
 
 5. **Degrade visibly.** `{"ok": false}` means estate is unreachable — report
    that instead of answering, so a missing engine never masquerades as an
-   empty record.
+   empty record. A feed with `gaps` answered from one store only (the
+   knowledge side may relay through crew while memory reads locally): say
+   which store is missing and why, next to the answer.
 
 ## Falsifiers (what makes this NOT a cited answer)
 
@@ -128,6 +136,8 @@ every project, on explicit request); `--budget <tokens>`
 - Mixing record content and model background without labeling which is which.
 - A `src:` citation for a query that did not run, or a number from a source
   whose `execute_sql` was not listed.
+- A call to any `mcp:<source>/…` subject the step's `list` did not offer.
+- An answer that hides a store that failed (`gaps` in the feed).
 - A row value in a proposal, memory or capture.
 
 ## Examples

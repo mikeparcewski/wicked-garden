@@ -282,6 +282,24 @@ def test_sources_without_a_live_source_reads_as_before(monkeypatch, capsys):
     assert out["knowledge"][0]["label"] == "knowledge · src doc.md"
 
 
+def test_sources_names_a_failed_knowledge_side_instead_of_an_empty_one(monkeypatch, capsys):
+    # garden r2: knowledge relays through crew while memory reads locally; a broker refusal must not read as
+    # "the record knows nothing".
+    monkeypatch.setattr(estate_memory._estate_client, "_last_broker_refusal", "the broker answered 401", raising=False)
+    rec = _Recorder({"memory.recall": {"items": []}})
+    code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "open tickets"}, rec)
+    assert code == 0 and out["ok"] is True
+    assert out["gaps"] == ["knowledge recall failed: the broker answered 401; this answer has no knowledge items"]
+
+
+def test_a_structure_label_rejects_a_trailing_newline(monkeypatch, capsys):
+    rec = _Recorder({"knowledge.recall": {"items": [
+        {"untrusted": True, "label": "support-pg · tickets\n", "body_snippet": "x"},
+        {"untrusted": True, "label": "support-pg\n", "body_snippet": "x"}]}, "memory.recall": {"items": []}})
+    _, out, _ = _run(monkeypatch, capsys, "sources", {"query": "q"}, rec)
+    assert [i["label"] for i in out["knowledge"]] == ["source structure · support-pg", "source structure · a live source"]
+
+
 def test_sources_fails_open_when_both_stores_unreachable(monkeypatch, capsys):
     code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "q"})
     assert code == 0 and out["ok"] is False
