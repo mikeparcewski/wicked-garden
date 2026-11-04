@@ -149,8 +149,9 @@ are PROPOSALS into the one review queue (a person approves each in Understand â†
 print or knowledge you write. NOT for a file on disk (use `ontology` or `profile`).
 
 1. Read `refs/shapes.md` â€” what to read (the source's catalog through `knowledge.source_catalog`, approved
-   profiles, code and rules), the rules (structure only, never a value; never declare deps; your own repo's code)
+   shapes, code and rules; never a row), the rules (never a value; never declare deps; your own repo's code)
    and how to propose.
-2. Build each shape with `wicked-garden run scripts/data/shape_proposal.py <spec.json>` and submit what it prints
-   as `proposal.submit` through the estate shim. Without the launcher, build the JSON by hand as the ref shows.
+2. Build each shape with `wicked-garden run scripts/data/shape_proposal.py <spec.json> --catalog <catalog.json>`
+   and send what it prints to the estate shim on stdin (`wicked-garden run scripts/_estate_client.py call -`).
+   Without the launcher, build the request by hand as the ref shows.
 3. Report how many shapes wait for review, and where.

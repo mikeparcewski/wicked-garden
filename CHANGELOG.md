@@ -8,10 +8,12 @@
   B4).** A data shape says what a table is: what it joins, which code describes it, which rule governs it. The pass
   reads structure only (`knowledge.source_catalog`, approved profiles, code and rules through the estate shim) and
   PROPOSES each shape as an inert `knowledge` proposal (`relate[]` to the tables' catalog documents, `relate_code[]` to
-  code and rule nodes) for a person to approve in Understand's Knowledge map; it never prints a shape as fact or writes
-  one. `scripts/data/shape_proposal.py` builds the exact `proposal.submit` arguments and refuses what estate would
-  refuse later or what would leak a value: declared deps (estate derives them), an unknown link type or basis, evidence
-  over estate's bound, and a summary holding a quoted literal or a long number.
+  code and rule nodes) for a person to approve in Understand's Knowledge map; it never reads a row, never prints a shape
+  as fact and never writes one. `scripts/data/shape_proposal.py <spec> --catalog <catalog>` prints the exact estate call
+  for the shim's stdin and refuses what estate would accept at submit and refuse at approve: a table not in the
+  catalog, an unknown field, a link from a table to itself, code in more than one repo, declared deps, evidence over
+  estate's bound; and, as a backstop, content that looks like a value (a quoted literal, an email, a URL, a date, a long
+  number).
 - **`wicked-garden-apps`: the skill an Apps turn and an Apps publish run (DES-APPS-001 K0, pairs with wicked-core's
   `apps-turn` and `apps-publish` presets).** An app is data: `apps.json` (pages, components, layout, theme, queries,
   actions) plus query texts under `queries/`; crew's check writes `apps.lock.json`. The build action edits those two
