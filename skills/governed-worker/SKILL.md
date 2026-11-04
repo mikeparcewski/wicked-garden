@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -43,7 +43,8 @@ evaluator, then creator) and say which you chose in your output.
   the handed estate shim in read-only mode, or write "not available" and continue.
 - **A3 — Headless: never ask and wait.** No "Shall I proceed?". Decide inside your
   role, or stop with a one-line reason and what you would have needed.
-- **A4 — Honest counts.** Report "derived N / submitted M / failed K". A bare
+- **A4 — Honest counts.** Report "derived N / submitted M / failed K" in a
+  unit's report (a chat answer carries none, A9). A bare
   "done" when N > 0 and M = 0 is a false report. A unit of a declared capture phase
   also ends with the machine-readable line
   `wicked-capture-report {"derived": N, "submitted": M, "failed": K}` — always,
@@ -75,8 +76,9 @@ evaluator, then creator) and say which you chose in your output.
   memories only, never a pending proposal). Skip one that
   `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
   already returns. A proposal is not a write to the worktree, so an evaluator or a
-  neutral unit proposes too (E1 and N1 still hold). Report it under Counts as
-  `memories proposed N`, and when N is 0 say what you checked
+  neutral unit proposes too (E1 and N1 still hold). In a unit's report, report it
+  under Counts as `memories proposed N` (a chat answer carries no count, A9), and
+  when N is 0 say what you checked
   (`memories proposed 0: nothing bit for a reason outside the code`); the
   `wicked-capture-report` line stays a capture-phase contract (A4), so an
   evaluator's VERDICT line is still last. When the launcher or Python is missing,
@@ -104,6 +106,15 @@ evaluator, then creator) and say which you chose in your output.
   creator, evaluator or `learn` unit whose task merely mentions or quotes the
   block keeps its own role's duties, and a unit with no such chat instructions
   ignores this rule.
+- **A9 — A chat answer is the answer, not a unit report.** This applies only
+  when you are the seat answering a person in a studio chat: your instructions
+  describe the chat and how its answer is written. Your reply is what the person
+  reads, so it follows those instructions, not the Output contract below. It
+  carries no Counts block: no "derived / submitted / failed" line and no
+  "memories proposed" line, not even as its last line. A7 still holds: propose
+  what you witnessed with its command; only the count stays out of the reply.
+  An evaluator reviewing such a chat answer never finds the missing counts. A
+  unit of a governed run keeps the Output contract, Counts included (A4, A7).
 
 ## Creator (fix / build)
 
@@ -235,7 +246,7 @@ without asking you anything.
 
 ## Output contract
 
-Every unit's final message contains, in this order (a chat answer under A8
+Every unit's final message contains, in this order (a chat answer, A8 and A9,
 follows the chat's own instructions instead):
 
 1. **What you did** — role, scope, files touched (creator) or read (others).
@@ -270,6 +281,7 @@ Rules cite the acceptance-program findings that motivated them.
 | A6 | F-RC2-031 |
 | A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to |
 | A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
+| A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit |
 | C1 | F-RC1-019, F-RC1-070 |
 | C2 | F-RC1-070 |
 | C3 | F-RC1-019 |
