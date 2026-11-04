@@ -317,9 +317,10 @@ def use_broker_for(tool: Optional[str]) -> bool:
     return use_broker()
 
 
-def transport_name() -> Optional[str]:
-    """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused)."""
-    if use_broker():
+def transport_name(tool: Optional[str] = None) -> Optional[str]:
+    """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused), for
+    `tool` (default: any tool outside `VISIBLE_TOOLS`)."""
+    if use_broker_for(tool):
         return "broker"
     return None if governed_refusal() else "local"
 

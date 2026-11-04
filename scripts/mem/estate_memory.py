@@ -177,6 +177,22 @@ def memory_label(item):
     return f"memory · {kind} · {_date(item.get('created_at'))} · {item.get('scope') or 'root'}"
 
 
+# A label is citation chrome, so a source's structure is labelled only from names in the registry's own
+# spelling (the source) and plain SQL identifiers (the relation); anything else (a name a database owner chose
+# to look like an instruction) stays in the item's fenced body, never in the label.
+_SOURCE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
+_RELATION_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]{0,62}(\.[A-Za-z_][A-Za-z0-9_$]{0,62})?$")
+
+
+def _structure_title(label):
+    parts = label.split(" · ") if isinstance(label, str) else []
+    if parts and _SOURCE_NAME_RE.match(parts[0]):
+        if len(parts) == 2 and _RELATION_RE.match(parts[1]):
+            return f"{parts[0]} · {parts[1]}"
+        return parts[0]
+    return "a live source"
+
+
 def knowledge_label(item):
     """`[knowledge · src <source>]` for an answer citation (observed date once estate has it).
 
@@ -185,8 +201,7 @@ def knowledge_label(item):
     support.tickets`: names from a person's database, cited as structure and never as a row.
     """
     if item.get("untrusted") is True:
-        title = item.get("label") or item.get("source") or "unknown"
-        return f"source structure · {title}"
+        return f"source structure · {_structure_title(item.get('label'))}"
     observed = item.get("observed_at")
     tail = f" · observed {_date(observed)}" if observed else ""
     return f"knowledge · src {item.get('source') or 'unknown'}{tail}"
