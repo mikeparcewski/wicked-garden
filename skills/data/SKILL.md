@@ -5,16 +5,16 @@ description: |
   analyze (interactive EDA on a CSV/Excel/data file), profile / validate /
   quality (schema-level data engineering ops), ml review / ml pipeline
   (model review + training-pipeline design), pipeline design / pipeline
-  review (ETL architecture), and ontology (recommend Schema.org, Dublin
-  Core, DCAT, FOAF, GoodRelations, SKOS, or a custom shape for a dataset).
+  review (ETL architecture), ontology (recommend Schema.org, Dublin
+  Core, DCAT, FOAF, GoodRelations, SKOS, or a custom shape for a dataset),
+  shapes (a live source's data shapes, proposed for review).
 
   Use when: "analyze this CSV/Excel/data file" / "explore this dataset" /
   one-off data exploration; "profile this dataset" / "validate data against
-  a schema" / "generate a data quality report" (completeness, uniqueness,
-  validity); "review this ML model" / "design an ML training pipeline";
-  "design a data pipeline" / "review this ETL" / "optimize data
-  processing"; "recommend an ontology for this data" / "map columns to a
-  public ontology", or any former /wicked-garden:data:* invocation.
+  a schema" / "generate a data quality report"; "review this ML model" / "design an ML training pipeline";
+  "design a data pipeline" / "review this ETL"; "recommend an ontology for this data" / "map columns to a
+  public ontology"; "propose data shapes for <source>"; or any former
+  /wicked-garden:data:* invocation.
 
   Delegated deep passes: the `wicked-garden-data-engineer` worker skill.
 metadata:
@@ -50,6 +50,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `pipeline design --source <src> --target <tgt> [--frequency <freq>]` | ETL pipeline design | [refs/pipeline.md](refs/pipeline.md) |
 | `pipeline review <path>` | ETL pipeline review | [refs/pipeline.md](refs/pipeline.md) |
 | `ontology <file-path>` | ontology recommendation for a dataset | inline (§ Ontology) |
+| `shapes <source>` | propose a live source's data shapes (joins, describes, governed by) for review | [refs/shapes.md](refs/shapes.md) |
 
 Detailed templates and examples: [refs/analysis-templates.md](refs/analysis-templates.md),
 [refs/ml-templates.md](refs/ml-templates.md),
@@ -140,3 +141,17 @@ custom shape. Use this for ontology mapping. NOT for interactive analysis
 
 3. Present the script's match table, column-mapping suggestions, and any
    custom-ontology fallback inline.
+
+## Shapes — propose a live source's data shapes for review
+
+What a registered source's tables ARE: what each joins, which code describes it, which rule governs it. Shapes
+are PROPOSALS into the one review queue (a person approves each in Understand → Knowledge map), never facts you
+print or knowledge you write. NOT for a file on disk (use `ontology` or `profile`).
+
+1. Read `refs/shapes.md` — what to read (the source's catalog through `knowledge.source_catalog`, approved
+   shapes, code and rules; never a row), the rules (never a value; never declare deps; your own repo's code)
+   and how to propose.
+2. Build each shape with `wicked-garden run scripts/data/shape_proposal.py <spec.json> --catalog <catalog.json>`
+   and send what it prints to the estate shim on stdin (`wicked-garden run scripts/_estate_client.py call -`).
+   Without the launcher, build the request by hand as the ref shows.
+3. Report how many shapes wait for review, and where.
