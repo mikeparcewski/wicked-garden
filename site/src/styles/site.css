@@ -162,6 +162,13 @@ html.snap-lock .gd-section, html.snap-lock .gd-map-section { scroll-snap-stop: a
   .pg-afford-btn:hover { background: var(--accent-hover); }
 }
 .live-dot { animation: gd-blink 1.6s steps(1) infinite; }
+/* Nothing animates while nobody can see it: an auto-playing block's root carries data-offscreen while it is off
+   screen or the tab is hidden (useAutoplay.ts). While its timeline is held on screen (the visitor's Pause, the
+   pointer or focus on it, reduced motion), useAutoplay pauses its looping animations itself and leaves one-shot
+   entrances to play, so newly picked content is never left invisible. */
+:is([data-offscreen], [data-offscreen] *),
+:is([data-offscreen], [data-offscreen] *)::before,
+:is([data-offscreen], [data-offscreen] *)::after { animation-play-state: paused !important; }
 @keyframes gd-blink { 0%, 60% { opacity: 1; } 61%, 100% { opacity: 0.3; } }
 @keyframes gd-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes gd-slide { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: none; } }

@@ -52,16 +52,18 @@ export default function ExtendPack() {
   const [manual, setManual] = useState(false);
   const ROWS = PACKS[pack].rows.length;
   const [landed, setLanded] = useState(ROWS);
-  const first = useRef(true);
+  const shown = useRef(pack);
 
-  // retype the rows one by one after a pick (instant under reduced motion)
+  // retype the rows one by one after a pick. Off screen, under the visitor's Pause or under reduced motion (even
+  // switched on mid-way) the rows land at once: nothing types on, and coming back does not type them again.
   useEffect(() => {
-    if (first.current) { first.current = false; return; }
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setLanded(ROWS); return; }
+    if (!ap.live || ap.reduced || ap.paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) { shown.current = pack; setLanded(ROWS); return; }
+    if (shown.current === pack) return;
+    shown.current = pack;
     setLanded(0);
     const ts = Array.from({ length: ROWS }, (_, k) => window.setTimeout(() => setLanded(k + 1), (k + 1) * ROW_MS));
     return () => ts.forEach((t) => window.clearTimeout(t));
-  }, [pack, ROWS]);
+  }, [pack, ROWS, ap.live, ap.reduced, ap.paused]);
 
   // the idle cycle: the next example pack every few seconds, until the visitor picks one
   useEffect(() => {

@@ -74,6 +74,8 @@ export default function ProveGate() {
     if (manual) {
       if (!pulled || stamped) return;
       if (ap.reduced) { setS(2 + runs); return; }
+      // a pull by the visitor plays its trail through a hover, but not off screen
+      if (!ap.live) return;
       const t = window.setTimeout(() => setS((x) => x + 1), DUR.check);
       return () => window.clearTimeout(t);
     }
@@ -98,14 +100,15 @@ export default function ProveGate() {
       next();
     }, ms);
     return () => window.clearTimeout(t);
-  }, [s, manual, ap.active, ap.reduced, cycle, pulled, stamped, runs, state]);
+  }, [s, manual, ap.active, ap.live, ap.reduced, cycle, pulled, stamped, runs, state]);
 
   // reduced motion: no tick-by-tick trail; the bench the visitor has not touched shows stamped (on load, the
-  // opening claim: REJECTED, the verifier never ran). A bench the visitor armed stays armed until they pull.
+  // opening claim: REJECTED, the verifier never ran; switched on mid-run, the run's verdict at once, never a
+  // chip left checking). A bench the visitor armed stays armed until they pull.
   const manualRef = useRef(manual);
   manualRef.current = manual;
   useEffect(() => {
-    if (ap.reduced && !manualRef.current) setS((x) => (x === 0 ? 2 + runs : x));
+    if (ap.reduced && !manualRef.current) setS((x) => (x < 2 + runs ? 2 + runs : x));
     // only on the preference: a later flip or reset leaves the visitor driving
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ap.reduced]);

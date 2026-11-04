@@ -52,10 +52,11 @@ export default function HeroStamp() {
       }, HOLD_MS);
       return () => window.clearTimeout(t);
     }
-    if (!(ap.active || pinned)) return;
+    // a claim the visitor picked plays through a hover, but not off screen
+    if (!(ap.active || (pinned && ap.live))) return;
     const t = window.setTimeout(() => setStep((s) => s + 1), step === 0 ? ASSERT_MS : CHECK_MS);
     return () => window.clearTimeout(t);
-  }, [step, stamped, ap.active, pinned]);
+  }, [step, stamped, ap.active, ap.live, pinned]);
 
   function pick(n: number) {
     setPinned(true);
