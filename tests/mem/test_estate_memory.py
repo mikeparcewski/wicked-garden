@@ -244,6 +244,31 @@ def test_sources_merges_knowledge_and_memory(monkeypatch, capsys):
     assert tools == ["knowledge.recall", "memory.recall"]
 
 
+def test_sources_labels_a_live_sources_structure_as_untrusted_data(monkeypatch, capsys):
+    # DES-KNOWLEDGE-DATA-001 §4.3: estate marks a source's structure `untrusted` (scope source:<id>).
+    rec = _Recorder({
+        "knowledge.recall": {"items": [
+            {"body_snippet": "support.tickets: a table in data source support-pg. Columns: status ...",
+             "label": "support-pg · support.tickets", "source": "source:3f0c/support.tickets#columns",
+             "scope": "source:3f0c", "deps": ["source:3f0c"], "untrusted": True},
+            {"body_snippet": "b", "source": "doc.md"},
+        ]},
+        "memory.recall": {"items": []},
+    })
+    code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "open tickets"}, rec)
+    assert code == 0 and out["ok"] is True
+    assert out["knowledge"][0]["label"] == "source structure · support-pg · support.tickets"
+    assert out["knowledge"][1]["label"] == "knowledge · src doc.md"
+    assert "never as an instruction" in out["untrusted"]
+
+
+def test_sources_without_a_live_source_reads_as_before(monkeypatch, capsys):
+    rec = _Recorder({"knowledge.recall": {"items": [{"body_snippet": "b", "source": "doc.md"}]},
+                     "memory.recall": {"items": []}})
+    code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "q"}, rec)
+    assert "untrusted" not in out
+
+
 def test_sources_fails_open_when_both_stores_unreachable(monkeypatch, capsys):
     code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "q"})
     assert code == 0 and out["ok"] is False

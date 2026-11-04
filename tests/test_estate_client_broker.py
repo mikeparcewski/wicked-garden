@@ -195,6 +195,26 @@ def test_a_pinned_host_seat_with_a_local_estate_keeps_the_local_spawn(monkeypatc
     assert _estate_client.transport_name() == "local"
 
 
+def test_a_pinned_host_seat_relays_the_visible_filtered_knowledge_reads(monkeypatch, broker):
+    """DES-KNOWLEDGE-DATA-001 §4.3: only crew knows what the unit may see, so knowledge.recall,
+    source_catalog and neighbors relay whenever the channel is there; everything else stays local."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    _no_local_spawn(monkeypatch)
+    assert _estate_client.use_broker() is False
+    broker.answer = lambda subject, args: (200, {"outcome": "ok", "subject": subject, "callId": "c", "ruleIds": [],
+                                                 "result": {"content": [{"type": "text", "text": json.dumps({"items": [{"node_id": "k"}]})}]}})
+    for tool in _estate_client.VISIBLE_TOOLS:
+        assert _estate_client.use_broker_for(tool) is True
+        assert _estate_client.call(tool, {"query": "open tickets"}) == {"items": [{"node_id": "k"}]}
+        assert broker.seen[-1][1]["subject"] == f"mcp:estate/{tool}"
+    assert _estate_client.use_broker_for("SearchEntity") is False
+    assert set(_estate_client.VISIBLE_TOOLS) <= set(_estate_client.BROKER_TOOLS)
+
+
 def test_outside_a_run_the_channel_alone_never_relays(monkeypatch, broker):
     monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
     monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
