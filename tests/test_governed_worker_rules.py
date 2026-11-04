@@ -117,7 +117,7 @@ def test_e6_delivery_only_criteria_are_deferred_not_failed():  # operator-approv
 
 def test_new_rules_have_provenance_rows():
     body = FLOOR.read_text(encoding="utf-8")
-    for rule_id in ("A7", "C6", "C7", "C8", "E3", "E4", "E5", "E6"):
+    for rule_id in ("A7", "A9", "C6", "C7", "C8", "E3", "E4", "E5", "E6"):
         assert re.search(rf"^\| {rule_id} \|", body, re.M), rule_id
 
 
@@ -256,10 +256,29 @@ def test_a8_a_chat_that_can_make_artifacts_proposes_them():  # DES-CHAT-ARTIFACT
     assert "A8 answers it" in _rule("A1")
     assert "answered by A8" in _rule("N1")
     floor = FLOOR.read_text(encoding="utf-8")
-    assert "a chat answer under A8\nfollows the chat's own instructions instead" in floor
+    assert "a chat answer, A8 and A9,\nfollows the chat's own instructions instead" in floor
 
 
 def test_learns_hand_off_line_is_scoped_to_a_learn_run():  # the chat seat must not read it as "deliver in output"
     learn = (FLOOR.parents[1] / "learn" / "SKILL.md").read_text(encoding="utf-8")
     assert "In a wicked-crew `learn` run, each phase is one unit" in learn
     assert "In a wicked-crew run, each phase is one unit" not in learn
+
+
+def test_a9_a_chat_answer_carries_no_run_counts():  # knowledge journey 2026-11-04: the chat's answer ended with Counts
+    rule = _rule("A9")
+    # Scope: the seat answering a person in a studio chat; every run unit keeps the contract.
+    assert "only when you are the seat answering a person in a studio chat" in rule
+    assert "it follows those instructions, not the Output contract below" in rule
+    for line in ('no "derived / submitted / failed" line', 'no "memories proposed" line', "not even as its last line"):
+        assert line in rule, line
+    # The memory still gets proposed; only the count leaves the reply. The chat's reviewer does not hold it.
+    assert "A7 still holds: propose what you witnessed with its command" in rule
+    assert "An evaluator reviewing such a chat answer never finds the missing counts" in rule
+    assert "A unit of a governed run keeps the Output contract, Counts included (A4, A7)" in rule
+    # The two rules that asked a chat seat for the counts now say where they apply.
+    assert "in a unit's report (a chat answer carries none, A9)" in _rule("A4")
+    assert "In a unit's report, report it under Counts as `memories proposed N` (a chat answer carries no count, A9)" in _rule("A7")
+    floor = FLOOR.read_text(encoding="utf-8")
+    assert "a chat answer carries no run counts" in floor.split("---", 2)[1]  # the description a host loads
+

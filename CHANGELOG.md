@@ -26,6 +26,15 @@
   decides what it returns. The review action judges a turn another seat built and names the tree it judged; the qe
   action accepts a publish from the publish check's evidence alone. Neither needs a source tool.
 
+### Fixed
+
+- **A chat answer no longer ends with the run's bookkeeping (governed-worker A9).** Asked "how many open tickets per
+  region?" in a studio chat, a seat ended its answer with "Counts: derived 0 / submitted 1 / failed 1 … Memories
+  proposed 0: …": the Output contract's Counts (A4) and A7's `memories proposed N` were written for a run unit's
+  report, and only an artifact ask (A8) was carved out. A9 says the seat answering a person in a studio chat replies
+  in the chat's own shape, with no Counts block and no `memories proposed` line; it still proposes what it witnessed
+  (A7), and its reviewer never finds the missing counts. Run units keep the Output contract, counts included.
+
 ## [12.63.0] — 2026-11-03
 
 ### Fixed
