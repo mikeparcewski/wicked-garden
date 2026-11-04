@@ -30,16 +30,20 @@ afterAll(async () => {
 
 describe("telemetry export", () => {
   it("a log written through the server's LogLayer logger reaches the OTLP collector", async () => {
-    const env = { ...process.env, OTEL_EXPORTER_OTLP_ENDPOINT: endpoint };
-    const saved = process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = endpoint; // the OTLP exporters read it themselves
+    // Hermetic: the SDK and the OTLP exporters read OTEL_* from process.env themselves, so an
+    // inherited signal endpoint, compression or OTEL_SDK_DISABLED would send the log elsewhere or
+    // encode it. Clear every OTEL_* for the run, set only the local collector, then restore.
+    const otel = (): string[] => Object.keys(process.env).filter((k) => k.startsWith("OTEL_"));
+    const saved = Object.fromEntries(otel().map((k) => [k, process.env[k]]));
+    for (const k of otel()) delete process.env[k];
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = endpoint;
     try {
-      await startTelemetry("__SERVER_NAME__", env);
+      await startTelemetry("__SERVER_NAME__", { OTEL_EXPORTER_OTLP_ENDPOINT: endpoint });
       initLogging([]).info("loglayer-export-marker");
       await stopTelemetry(); // shutdown flushes the batch processor
     } finally {
-      if (saved === undefined) delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
-      else process.env.OTEL_EXPORTER_OTLP_ENDPOINT = saved;
+      for (const k of otel()) delete process.env[k];
+      Object.assign(process.env, saved);
     }
     const logs = received.filter((r) => r.path === "/v1/logs");
     expect(logs.some((r) => r.body.includes("loglayer-export-marker"))).toBe(true);
