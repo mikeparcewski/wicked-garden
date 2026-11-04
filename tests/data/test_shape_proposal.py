@@ -94,10 +94,20 @@ def test_one_joins_edge_per_related_table_and_no_loop_edge():
     ({"summary": "The status is 'escalated' for most rows."}, "looks like it holds a value"),
     ({"summary": "Ticket 1234 is the oldest."}, "looks like it holds a value"),
     ({"summary": "Opened on 2026-11-01 by alice@example.com."}, "looks like it holds a value"),
+    ({"joins": {}}, "must be a list"),
+    ({"joins": 1}, "must be a list"),
+    ({"describes": False}, "must be a list"),
+    ({"describes": [{"code_id": "sym\u0085bol", "repo": "escalations", "name": "T"}]}, "one-line string"),
 ])
 def test_refuses_what_estate_would_refuse_at_approve_or_what_looks_like_a_value(over, why):
     with pytest.raises(sp.SpecError, match=why):
         sp.build(spec(**over), CATALOG)
+
+
+def test_with_the_runs_repo_a_link_to_another_repo_is_refused_here():
+    with pytest.raises(sp.SpecError, match="not this run's repo"):
+        sp.build(spec(), CATALOG, "other-repo")
+    assert sp.build(spec(), CATALOG, "escalations")["arguments"]["payload"]["relate_code"][0]["repo"] == "escalations"
 
 
 def test_possessives_are_prose_not_quoted_values():
@@ -132,6 +142,10 @@ def test_the_cli_prints_the_call_and_exits_2_on_a_bad_spec(tmp_path):
     assert r.returncode == 2 and "unknown field" in r.stderr
     r = subprocess.run([sys.executable, str(SCRIPT), str(good)], capture_output=True, text=True, check=False)
     assert r.returncode == 2
+    r = subprocess.run([sys.executable, str(SCRIPT), "-", "--catalog", str(cat)], input=json.dumps(spec(joins=1)), capture_output=True, text=True, check=False)
+    assert r.returncode == 2 and "must be a list" in r.stderr
+    r = subprocess.run([sys.executable, str(SCRIPT), str(good), "--catalog", str(cat), "--repo", "escalations"], capture_output=True, text=True, check=False)
+    assert r.returncode == 0, r.stderr
 
 
 # --- the live lane: what the script builds, a real estate approves -------------------------------------------

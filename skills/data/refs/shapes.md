@@ -38,22 +38,23 @@ In a governed run or a chat, crew decides what you may see and sets `visible` it
 One shape per table you can say something new about. Write `spec.json`, then build and send it:
 
 ```bash
-wicked-garden run scripts/data/shape_proposal.py spec.json --catalog catalog.json > request.json
+wicked-garden run scripts/data/shape_proposal.py spec.json --catalog catalog.json --repo <your repo id> > request.json
 wicked-garden run scripts/_estate_client.py call - < request.json
 ```
 
 Spec: `sourceId`, `source`, `relation` (`schema.table`, a key of the catalog), `summary` (what the table is, in
 words), and any of `joins` (`to`, `columns`, `references`, `basis`: `fk` | `name_type` | `judgment`), `describes`
 (`code_id`, `repo`, `name`), `governed_by` and `measures` (`code_id`, `repo`, `label`). The script refuses a table
-that is not in the catalog, unknown fields, a link to another repo's code, evidence over estate's bound, and a
-summary that looks like a value (a quoted literal, an email, a URL, a date, a long number).
+that is not in the catalog, unknown fields, code in more than one repo (or, with `--repo`, in any repo but yours;
+in a governed run crew stamps the run's repo and estate refuses another), evidence over estate's bound, and content
+that looks like a value (a quoted literal, an email, a URL, a date, a long number).
 
 Without the launcher, build `request.json` by hand:
 
 ```json
 {"tool": "proposal.submit", "arguments": {"kind_type": "knowledge", "payload": {
-  "content": "support.sla_events in data source support-pg: one row per SLA event of a ticket. It joins support.tickets on ticket_id = support.tickets.id.",
-  "source": "garden:data-shapes/support-pg/support.sla_events", "class": "concept", "scope": "source:<id>",
+  "content": "support.sla_events in data source support-pg: one row per SLA event of a ticket. It joins support.tickets on ticket_id = support.tickets.id. Governed by tickets are answered within their region's SLA hours in <your repo>.",
+  "source": "garden:data-shapes/support-pg/support.sla_events", "class": "concept", "scope": "source:<id>", "capture": "shapes",
   "relate": [
     {"rel": "derived_from", "to": "kdoc synthetic source:<id>/support.sla_events:", "confidence": 1},
     {"rel": "joins", "from": "kdoc synthetic source:<id>/support.sla_events:", "to": "kdoc synthetic source:<id>/support.tickets:",
@@ -64,9 +65,10 @@ Without the launcher, build `request.json` by hand:
 ```
 
 A catalog document's id is `kdoc synthetic source:<id>/<key>:`, where every UTF-8 byte of the key outside
-`A-Z a-z 0-9 . _ -` is written `%XX` (uppercase hex): `sales.order items` is `sales.order%20items`. Every link
-names its `from` (the table's own document), one `joins` per related table with every condition in `on`, no link
-from a table to itself, every code link in one repo, evidence at most 1,024 bytes.
+`A-Z a-z 0-9 . _ -` is written `%XX` (uppercase hex): `sales.order items` is `sales.order%20items`. The first link,
+`derived_from`, has NO `from` (it starts at the shape itself); every `joins` and code link names its `from`, the
+table's own document. One `joins` per related table with every condition in `on`, no link from a table to itself,
+every code link in your repo, evidence at most 1,024 bytes.
 
 ## Rules
 

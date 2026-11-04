@@ -13,8 +13,9 @@ at approve (an Approve the person clicks and that fails), and what looks like a 
    "governed_by": [{"code_id": "<rule node id>", "repo": "<repo id>", "label": "the rule in a few words"}],
    "measures":    [{"code_id": "<metric node id>", "repo": "<repo id>", "label": "what it measures"}]}
 
-usage: shape_proposal.py <spec.json | -> --catalog <catalog.json>
+usage: shape_proposal.py <spec.json | -> --catalog <catalog.json> [--repo <your repo id>]
   catalog.json: what `knowledge.source_catalog` answered for the source (one page object, or a list of every page).
+  --repo: in a governed run, the run's repo; a code link to any other repo is refused here rather than by estate.
   Prints the estate call `{"tool": "proposal.submit", "arguments": {...}}`, ready for
   `wicked-garden run scripts/_estate_client.py call -` on stdin. Exit 2 with the reason on a bad spec.
 
@@ -24,6 +25,7 @@ document, the repo of every code endpoint) and refuses a declared set that diffe
 import json
 import re
 import sys
+import unicodedata
 
 TOP_FIELDS = {"sourceId", "source", "relation", "summary", "joins", "describes", "governed_by", "measures"}
 JOIN_FIELDS = {"to", "columns", "references", "basis"}
@@ -81,7 +83,7 @@ def _text(obj, field, at, max_bytes, required=True):
     v = obj.get(field)
     if v is None and not required:
         return None
-    if not isinstance(v, str) or not v.strip() or len(v.encode("utf-8")) > max_bytes or any(ord(ch) < 32 or ord(ch) == 127 for ch in v):
+    if not isinstance(v, str) or not v.strip() or len(v.encode("utf-8")) > max_bytes or any(unicodedata.category(ch) == "Cc" for ch in v):
         raise SpecError("%s.%s must be a non-empty one-line string of at most %d bytes" % (at, field, max_bytes))
     return v
 
@@ -95,6 +97,15 @@ def _names(obj, field, at):
 
 def _size(v):
     return len(json.dumps(v, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+
+
+def _list(obj, field, at):
+    v = obj.get(field)
+    if v is None:
+        return []
+    if not isinstance(v, list):
+        raise SpecError("%s.%s must be a list" % (at, field))
+    return v
 
 
 def catalog_keys(catalog, source_id):
@@ -113,7 +124,7 @@ def catalog_keys(catalog, source_id):
     return keys
 
 
-def build(spec, catalog):
+def build(spec, catalog, repo=None):
     _closed(spec, TOP_FIELDS, "spec")
     sid = _text(spec, "sourceId", "spec", 128)
     if not SOURCE_ID.match(sid):
@@ -131,7 +142,7 @@ def build(spec, catalog):
     # Joins: one edge per related table (estate keeps one typed edge per rel and endpoints), every condition in its
     # evidence; a self-join is said in words only (estate refuses an edge that loops).
     by_target = {}
-    for i, j in enumerate(spec.get("joins") or []):
+    for i, j in enumerate(_list(spec, "joins", "spec")):
         at = "spec.joins[%d]" % i
         _closed(j, JOIN_FIELDS, at)
         to = _text(j, "to", at, MAX_KEY_BYTES)
@@ -158,20 +169,22 @@ def build(spec, catalog):
                        "confidence": {"fk": 0.95, "name_type": 0.75}.get(best, 0.6), "evidence": evidence})
     repos = set()
     for rel in REL_CODE:
-        for i, c in enumerate(spec.get(rel) or []):
+        for i, c in enumerate(_list(spec, rel, "spec")):
             at = "spec.%s[%d]" % (rel, i)
             _closed(c, CODE_FIELDS, at)
             code_id = _text(c, "code_id", at, MAX_ID_BYTES)
-            repo = _text(c, "repo", at, MAX_REPO_BYTES)
-            if not all(33 <= b <= 126 and b != ord(",") for b in repo.encode("utf-8")):
+            code_repo = _text(c, "repo", at, MAX_REPO_BYTES)
+            if not all(33 <= b <= 126 and b != ord(",") for b in code_repo.encode("utf-8")):
                 raise SpecError("%s.repo is the repo's id (printable ASCII, no comma or space)" % at)
-            repos.add(repo)
+            if repo is not None and code_repo != repo:
+                raise SpecError("%s links code in %r, not this run's repo %r" % (at, code_repo, repo))
+            repos.add(code_repo)
             label = _text(c, "label", at, 200, required=False) or _text(c, "name", at, 200, required=False) or code_id.rstrip(":#.").split("/")[-1]
             evidence = {"basis": "judgment", "label": label}
             if _size(evidence) > MAX_EVIDENCE_BYTES:
                 raise SpecError("%s does not fit estate's evidence bound" % at)
-            relate_code.append({"rel": rel, "from": self_doc, "code_id": code_id, "repo": repo, "confidence": 0.7, "evidence": evidence})
-            words.append("%s %s in %s." % ({"describes": "Code that describes it:", "governed_by": "Governed by", "measures": "Measured by"}[rel], label, repo))
+            relate_code.append({"rel": rel, "from": self_doc, "code_id": code_id, "repo": code_repo, "confidence": 0.7, "evidence": evidence})
+            words.append("%s %s in %s." % ({"describes": "Code that describes it:", "governed_by": "Governed by", "measures": "Measured by"}[rel], label, code_repo))
     # A shape filed from a governed run may link only that run's repo (crew binds the proposal to it).
     if len(repos) > 1:
         raise SpecError("a shape links code in ONE repo (yours); propose a shape per repo: %s" % ", ".join(sorted(repos)))
@@ -200,6 +213,10 @@ def build(spec, catalog):
 
 def main(argv):
     args = argv[1:]
+    repo = None
+    if len(args) == 5 and args[3] == "--repo":
+        repo = args[4]
+        args = args[:3]
     if len(args) != 3 or args[1] != "--catalog":
         sys.stderr.write(__doc__)
         return 2
@@ -207,7 +224,7 @@ def main(argv):
         raw = sys.stdin.read() if args[0] == "-" else open(args[0], encoding="utf-8").read()
         with open(args[2], encoding="utf-8") as f:
             catalog = json.load(f)
-        sys.stdout.write(json.dumps(build(json.loads(raw), catalog), ensure_ascii=False) + "\n")
+        sys.stdout.write(json.dumps(build(json.loads(raw), catalog, repo), ensure_ascii=False) + "\n")
         return 0
     except (SpecError, json.JSONDecodeError, OSError) as e:
         sys.stderr.write("shape_proposal: %s\n" % e)
