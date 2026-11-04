@@ -5,7 +5,8 @@ import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
-import { NodeSDK, metrics as sdkMetrics } from "@opentelemetry/sdk-node";
+import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
+import { NodeSDK } from "@opentelemetry/sdk-node";
 
 export interface ToolInstruments {
   calls: Counter;
@@ -47,7 +48,7 @@ export async function startTelemetry(serviceName: string, env: NodeJS.ProcessEnv
     spanProcessors: exporting ? undefined : [],
     traceExporter: exporting ? new OTLPTraceExporter() : undefined,
     metricReaders: exporting
-      ? [new sdkMetrics.PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter() })]
+      ? [new PeriodicExportingMetricReader({ exporter: new OTLPMetricExporter() })]
       : [],
     logRecordProcessors: exporting ? [new BatchLogRecordProcessor({ exporter: new OTLPLogExporter() })] : [],
     instrumentations: [],
