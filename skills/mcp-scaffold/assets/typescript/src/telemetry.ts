@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // SPDX-FileCopyrightText: __YEAR__ the __SERVER_NAME__ authors
-import { metrics, trace, type Counter, type Histogram, type Meter, type Tracer } from "@opentelemetry/api";
+import { logs, metrics, trace, type Counter, type Histogram, type Meter, type Tracer } from "@opentelemetry/api";
+import { logs as legacyLogs, type LoggerProvider as LegacyLoggerProvider } from "@opentelemetry/api-logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-http";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
@@ -54,6 +55,10 @@ export async function startTelemetry(serviceName: string, env: NodeJS.ProcessEnv
     instrumentations: [],
   });
   sdk.start();
+  // OpenTelemetry JS 3 registers its LoggerProvider with @opentelemetry/api's logs registry, but
+  // @loglayer/transport-opentelemetry still reads the legacy @opentelemetry/api-logs global. Hand it
+  // the same provider before initLogging() builds the transport, or LogLayer records never export.
+  legacyLogs.setGlobalLoggerProvider(logs.getLoggerProvider() as unknown as LegacyLoggerProvider);
   tracer = trace.getTracer(serviceName);
   meter = metrics.getMeter(serviceName);
   instruments = makeInstruments(meter);
@@ -63,4 +68,5 @@ export async function stopTelemetry(): Promise<void> {
   const running = sdk;
   sdk = undefined;
   await running?.shutdown().catch(() => undefined);
+  if (running) legacyLogs.disable();
 }
