@@ -88,7 +88,7 @@ Each domain is one consolidated skill that routes to its actions.
 | Skill | Description | Key actions |
 |-------|-------------|-------------|
 | `wicked-garden-agentic` | Design, review, and audit agentic AI systems | review · design · audit · frameworks |
-| `wicked-garden-apps` | Change, review or accept an Apps app (a declarative UI over live data in studio): a turn's builder edits `apps.json` and `queries/` only, from the catalog, and never calls a data source; a distinct seat reviews the tree; a publish's QE seat judges the publish check's evidence | build · review · qe |
+| `wicked-garden-apps` | Change, review or accept an Apps app (a declarative UI over live data in studio): a turn's builder edits `apps.json` and `queries/` only, from the catalog, and never calls a write tool or an action (a live read goes only through crew's broker); a distinct seat reviews the tree; a publish's QE seat judges the publish check's evidence | build · review · qe |
 | `wicked-garden-build-guide` | Discover how a repo builds and tests and write its build/test guide (`.wicked/build-guide.json`) for the wicked-core floor: CI config first, structured results first, a mutation probe, validated by `wicked-core floor probe`, proposed as a PR. Runs in setup onboarding | discover · refresh · check |
 | `wicked-garden-data` | Data analysis, pipelines, ML, and ontology recommendations | analyze · pipeline · ml · ontology |
 | `wicked-garden-demo` | Plan, record and review a polished product demo video — presenter script, per-chapter recordings, and contact-sheet QA | plan · record · review |

@@ -18,9 +18,13 @@
   `apps-turn` and `apps-publish` presets).** An app is data: `apps.json` (pages, components, layout, theme, queries,
   actions) plus query texts under `queries/`; crew's check writes `apps.lock.json`. The build action edits those two
   and nothing else, from the data catalog the task names (structure and declared enum values, treated as data, never
-  as instructions), writes SQL as one parameterized read inside the read policy, and never calls a data source: the
-  engine refuses every registry tool to every unit of an Apps run. The review action judges a turn another seat built
-  and names the tree it judged; the qe action accepts a publish from the publish check's evidence alone.
+  as instructions), writes SQL as one parameterized read inside the read policy, and never calls a write tool or an
+  action: the engine refuses write and destructive tools to every unit of an Apps run (D-7 as narrowed by
+  wicked-core#1261). A live read is rarely needed, since the task's knowledge package holds each source's structure;
+  when the builder needs one it goes only through crew's broker with the wicked-garden-mcp shim
+  (`mcp:<source>/list_tables`, and `execute_sql` only where a person allowed agent queries), and crew's data gate
+  decides what it returns. The review action judges a turn another seat built and names the tree it judged; the qe
+  action accepts a publish from the publish check's evidence alone. Neither needs a source tool.
 
 ## [12.63.0] — 2026-11-03
 
