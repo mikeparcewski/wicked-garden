@@ -226,8 +226,14 @@ BROKER_MIN_TIMEOUT_S = 35.0
 BROKER_TOOLS = (
     "SearchEntity", "RetrieveEntity", "TraverseGraph", "Path", "BlastRadius", "Lineage",
     "RankHotspots", "Communities", "RulesInventory", "rules.recall", "memory.recall",
-    "knowledge.recall", "proposal.submit",
+    "knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors", "proposal.submit",
 )
+# The knowledge reads estate filters by what the caller may see (DES-KNOWLEDGE-DATA-001 §4.3): a live
+# source's structure and the shapes built on it come back only for a `visible` set, and only crew knows a
+# unit's (the person's per-source switches for its project). So a governed unit that holds the broker
+# channel always relays these, even with a local estate pinned: crew sets `visible` and re-checks the
+# answer. Locally they answer dep-free knowledge only (estate's empty default set).
+VISIBLE_TOOLS = ("knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors")
 
 _readonly_flag: bool = False                  # set by --readonly / set_readonly()
 _governed_flag: bool = False                  # set by --governed / set_governed()
@@ -303,9 +309,18 @@ def use_broker() -> bool:
     return _env_truthy(BROKER_ENV) or not store_pinned() or resolve_mcp_bin() is None
 
 
-def transport_name() -> Optional[str]:
-    """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused)."""
-    if use_broker():
+def use_broker_for(tool: Optional[str]) -> bool:
+    """`use_broker`, plus: a knowledge read in `VISIBLE_TOOLS` relays whenever this governed unit holds
+    the broker channel, so crew decides what it may see."""
+    if tool in VISIBLE_TOOLS and is_governed() and broker_channel() is not None:
+        return True
+    return use_broker()
+
+
+def transport_name(tool: Optional[str] = None) -> Optional[str]:
+    """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused), for
+    `tool` (default: any tool outside `VISIBLE_TOOLS`)."""
+    if use_broker_for(tool):
         return "broker"
     return None if governed_refusal() else "local"
 
@@ -857,9 +872,9 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
     return responses
 
 
-def _transport() -> Callable[..., dict]:
-    """The transport this call uses: the broker relay when `use_broker`, else the local seam."""
-    return _broker_dispatch if use_broker() else _active_dispatch
+def _transport(tool: Optional[str] = None) -> Callable[..., dict]:
+    """The transport this call uses: the broker relay when `use_broker_for(tool)`, else the local seam."""
+    return _broker_dispatch if use_broker_for(tool) else _active_dispatch
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -899,7 +914,8 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
         {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}},
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
-    responses = _transport()(requests, db=resolve_db(), timeout=timeout)
+    tool = params.get("name") if method == "tools/call" else None
+    responses = _transport(tool if isinstance(tool, str) else None)(requests, db=resolve_db(), timeout=timeout)
     if 1 not in responses:  # handshake never landed → estate unreachable
         return None
     return responses.get(2)

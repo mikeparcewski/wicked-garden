@@ -195,6 +195,43 @@ def test_a_pinned_host_seat_with_a_local_estate_keeps_the_local_spawn(monkeypatc
     assert _estate_client.transport_name() == "local"
 
 
+def test_a_pinned_host_seat_relays_the_visible_filtered_knowledge_reads(monkeypatch, broker):
+    """DES-KNOWLEDGE-DATA-001 §4.3: only crew knows what the unit may see, so knowledge.recall,
+    source_catalog and neighbors relay whenever the channel is there; everything else stays local."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/x.db")
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    _no_local_spawn(monkeypatch)
+    assert _estate_client.use_broker() is False
+    broker.answer = lambda subject, args: (200, {"outcome": "ok", "subject": subject, "callId": "c", "ruleIds": [],
+                                                 "result": {"content": [{"type": "text", "text": json.dumps({"items": [{"node_id": "k"}]})}]}})
+    assert _estate_client.is_governed() is True
+    required = {"knowledge.recall": {"query": "open tickets"},
+                "knowledge.source_catalog": {"sourceId": "3f0c"},
+                "knowledge.neighbors": {"id": "kdoc synthetic source:3f0c/support.tickets:"}}
+    assert set(_estate_client.VISIBLE_TOOLS) == set(required)
+    for tool, args in required.items():
+        assert _estate_client.use_broker_for(tool) is True
+        assert _estate_client.transport_name(tool) == "broker"
+        assert _estate_client.call(tool, args) == {"items": [{"node_id": "k"}]}
+        assert broker.seen[-1][1]["subject"] == f"mcp:estate/{tool}"
+        assert broker.seen[-1][1]["args"] == args
+        assert tool in _estate_client.BROKER_TOOLS
+    assert _estate_client.use_broker_for("SearchEntity") is False
+    assert _estate_client.transport_name() == "local"
+
+
+def test_outside_a_run_the_visible_reads_stay_local(monkeypatch, broker):
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    assert _estate_client.is_governed() is False
+    assert _estate_client.use_broker() is False
+    for tool in ("knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors"):
+        assert _estate_client.use_broker_for(tool) is False
+
+
 def test_outside_a_run_the_channel_alone_never_relays(monkeypatch, broker):
     monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
     monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
