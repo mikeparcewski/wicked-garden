@@ -157,7 +157,7 @@ Audit (coverage metrics) and sync (stale-docs detection) modes live in the
 ## scaffold — start a new CLI, service or library
 
 1. Read `refs/scaffold.md` — stack and target checks, built-ins first, the per-kind table (CLI,
-   service, library) and the scaffold record. The kind is the brief's `Kind:` line.
+   HTTP or worker service, library) and the scaffold record. The kind is the brief's `Kind:` line.
 2. The stack is the design step's (or the repository's); never pick one. Never overwrite a file.
    A new MCP server goes to `wicked-garden-mcp-scaffold` instead.
 3. Run the build and tests, then emit the scaffold record with their exit codes.

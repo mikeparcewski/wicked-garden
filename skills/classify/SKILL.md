@@ -83,10 +83,10 @@ host validates, cross-checks and bands every answer before it is shown.
 3. **Option:** when the card lists options, exactly one of them. When the words do not choose,
    take the default the digest marks (else your best read, scored at most 0.7). A card with no
    options takes `null`.
-4. **Depth:** only for a card that takes one: a card the digest marks as taking a depth, or, in a
-   digest that marks none, an Investigate card (today `incident` and `reconstruct`). Then `quick`,
-   `standard` or `deep` from the words, `standard` when they do not say. Otherwise `null`. Depth
-   never changes the card.
+4. **Depth:** only for an Investigate card: one the digest places in Investigate, and in any
+   digest `incident`, `reconstruct`, `competitive`, `due-diligence` and `research`. Then `quick`,
+   `standard` or `deep` from the words, `standard` when they do not say. Every other card takes
+   `null`. Depth never changes the card.
 5. **Confidence**, on the session anchors, for the card AND option together: 0.9+ words and
    shape both clear; 0.7-0.9 clear with a minor doubt; 0.5-0.7 the shape matches but the request
    is partial; below 0.5 too weak. A sure card with an option guessed between plans is at most 0.7.
@@ -110,8 +110,11 @@ host validates, cross-checks and bands every answer before it is shown.
 - When the host lists several requests with ids, answer one line per request, in order, with
   `"id"` first.
 - When the host asks for its own block (a wicked-crew chat's `wicked-make` routing block), put the
-  same fields in the host's shape, with the card in its `entry` field. One block per reply at most.
-  The host's statement decides the wrapper only; rules 1-5 still hold.
+  reading in the host's shape: the card in its `entry` field, with `option`, `depth`, `confidence`
+  and `reason`. When you would set `ask`, do what the host's statement says for an unsure reading
+  (a wicked-crew chat asks the person one question, the 2-3 shapes as its choices). One block per
+  reply at most. The host's statement decides the wrapper only; rules 1-5
+  still hold.
 - A typed correction to an open proposal follows the host's revision instructions, under rules 1,
   2, 4 and 5.
 

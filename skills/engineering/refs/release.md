@@ -37,17 +37,23 @@ prepare it and copy each condition into the record and the pull request body.
      into HEAD (`git tag --list 'v*' --merged HEAD --sort=-v:refname`, with the convention's
      pattern). Never take a tag of another package, a milestone or a pre-release you are not
      releasing from. The tag's commit is the boundary.
-   - **No matching tag:** the version is the changelog's latest released heading, else the
-     manifest's. Its boundary is the commit that last set that version in the manifest
-     (`git log -1 --format=%H -S'<version>' -- <manifest>`).
-   - **No version anywhere:** this is a first release, and the range is the whole history.
+   - **No matching tag, but a released changelog heading** (`## [1.4.2]`): that is the previous
+     version. Its boundary is the commit that added the heading
+     (`git log -1 --format=%H -S'## [1.4.2]' -- CHANGELOG.md`; a heading is added once and never
+     removed, so the newest match is the one that added it). Check it with `git show <sha>`.
+   - **Neither: a first release.** No previous release is recorded. The manifest's version (or the
+     person's) is the version to release, not a previous one; there is no boundary, and the range is
+     the whole history.
    - Say which source you used. If the sources disagree, use the tag and record the disagreement as
-     a finding. If no boundary can be found, stop and report it rather than guess a range.
-2. **The range.** `git log --first-parent --format='%H %s' <boundary>..HEAD` lists what merged.
-   Take each change's pull request number from its subject (`(#123)`) where the repository squashes
-   or merges through pull requests.
-3. **The bump.** An explicit version in the person's words wins. Otherwise derive it from the
-   range and name the evidence:
+     a finding. If a previous release is recorded but its boundary cannot be found, stop and report
+     it rather than guess a range.
+2. **The range.** `git log --first-parent --format='%H %s' <boundary>..HEAD` lists what merged
+   (for a first release, `git log --first-parent --format='%H %s' HEAD`). Take each change's pull
+   request number from its subject (`(#123)`) where the repository squashes or merges through pull
+   requests.
+3. **The bump.** An explicit version in the person's words wins, and a first release keeps the
+   manifest's version unless the person names one. Otherwise derive it from the range and name the
+   evidence:
    - a breaking change (a `BREAKING CHANGE` footer, a `!` subject, a removed or renamed public
      API, a raised minimum runtime) → major, or minor while the version is `0.x`;
    - any new feature → minor;
@@ -61,13 +67,15 @@ prepare it and copy each condition into the record and the pull request body.
 5. **Lockfiles.** Re-stamp them with the package manager in its lockfile-only mode where it has
    one (`npm install --package-lock-only --ignore-scripts`, `cargo update --workspace --offline`),
    so the tool writes the version line, not you. Never let a lockfile step run the repository's
-   lifecycle scripts: a `prepare` or `postinstall` hook may tag, publish or write. If the tool is not on this seat, say so in the record; do not
-   hand-edit a lockfile beyond the version entries.
+   lifecycle scripts: a `prepare` or `postinstall` hook may tag, publish or write. If the tool is not on this seat, say so in the
+   record; do not hand-edit a lockfile beyond the version entries.
 6. **The changelog.** Follow the file's own format; add no style of your own.
    - In the Keep a Changelog shape: move the `[Unreleased]` entries under
-     `## [X.Y.Z] — YYYY-MM-DD`, leave an empty `[Unreleased]` above it, and, when the file uses
-     link references, add `[X.Y.Z]: <compare URL>/vPREV...vX.Y.Z` and retarget `[Unreleased]` to
-     compare from `vX.Y.Z`.
+     `## [X.Y.Z] — YYYY-MM-DD` and leave an empty `[Unreleased]` above it.
+   - Link references, when the file uses them: build each ref with the tag convention from step 1
+     (`v1.5.0`, or `<package>-v1.5.0`). The new version compares from the previous release's tag,
+     or from the boundary commit when that release has no tag; a first release links to its own
+     tag instead of a comparison. Retarget `[Unreleased]` to compare from the new version's tag.
    - A merged change in the range with no entry: add one under the right subsection, citing its
      pull request or commit. If the repository's convention leaves out chores or CI-only changes,
      list those as "omitted by convention" in the record instead.
@@ -87,6 +95,7 @@ reason for leaving it out. Write it exactly in this shape:
 
 ```
 RELEASE vPREV -> vX.Y.Z (bump: minor — 3 features, 0 breaking; source of vPREV: tag)
+                         (a first release: RELEASE (first) -> vX.Y.Z, RANGE: whole history)
 RANGE <boundary sha>..<head sha>: 14 merged changes (boundary: tag v1.4.2)
 VERSION FILES: package.json:3 (1.4.2 -> 1.5.0); package-lock.json:3,9 (re-stamped by npm)
 CHANGELOG: 12 entries, each with its PR or commit; added: #412, #415; flagged: "faster search" (no change in range)

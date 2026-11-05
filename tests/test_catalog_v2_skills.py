@@ -70,22 +70,33 @@ def test_catalog_mode_never_persists_or_touches_session_state(catalog_mode):
     assert "wicked-garden run" not in catalog_mode
 
 
-# Words that name an action catalog mode must never take. Every sentence of the section that names one must
-# also carry a negation, so an added "then persist it" or "convene a council" fails the test.
+# Words that name an action catalog mode must never take. The sentences of the section that name one are pinned
+# exactly: each is a prohibition (or the one worked example). Any other sentence naming such an action fails,
+# whatever negation it carries elsewhere ("If no doubt remains, persist it"), so a change to these rules is a
+# deliberate edit of this list, never a side effect.
 _ACTION_WORDS = re.compile(
-    r"persist|SessionState|council|escalat|wicked-garden run|tool call|script|write|recall|search|hand off|launch",
+    r"\b(?:persist|SessionState|council|escalat|wicked-garden run|tool call|script|write|recall|search|hand off"
+    r"|launch|record|store|save|file)",
     re.IGNORECASE,
 )
-_NEGATION = re.compile(r"\b(never|no|not|nothing|nor|without)\b|n't\b", re.IGNORECASE)
+_PINNED_ACTION_SENTENCES = {
+    "**No tools, no state, no council.** Make no tool call and run no script.",
+    "Never run `scripts/classify/persist.py`, never read or write SessionState or any file, and never read the "
+    "repository, search or recall.",
+    "Never convene, suggest or escalate to a council, and never hand off to another skill.",
+    '"Write a demo script for the app at localhost" is a script to read, not a recording.',
+}
 
 
-def _unnegated_actions(text: str) -> list[str]:
+def _unpinned_actions(text: str) -> list[str]:
     sentences = re.split(r"(?<=[.;!?])\s+|\s+(?=\d\. \*\*)|\s+(?=- )", text)
-    return [s for s in sentences if _ACTION_WORDS.search(s) and not _NEGATION.search(s)]
+    return [s for s in sentences if _ACTION_WORDS.search(s) and s not in _PINNED_ACTION_SENTENCES]
 
 
-def test_catalog_mode_names_no_state_or_tool_action_without_a_negation(catalog_mode):
-    assert _unnegated_actions(catalog_mode) == []
+def test_catalog_mode_names_state_or_tool_actions_only_in_its_prohibitions(catalog_mode):
+    assert _unpinned_actions(catalog_mode) == []
+    for sentence in _PINNED_ACTION_SENTENCES:
+        assert sentence in catalog_mode, f"pinned prohibition missing: {sentence}"
 
 
 @pytest.mark.parametrize(
@@ -96,12 +107,17 @@ def test_catalog_mode_names_no_state_or_tool_action_without_a_negation(catalog_m
         "Record the result in SessionState.",
         "Run wicked-garden run scripts/classify/persist.py afterwards.",
         "Escalate hard calls to the jam skill.",
+        # A negation elsewhere in the sentence does not make it a prohibition.
+        "If no ambiguity remains, persist the answer in SessionState.",
+        "Write the result to result.json without asking.",
+        "Never ask the person before you convene a council.",
+        "Save your answer to a file, not to the chat.",
     ],
 )
 def test_the_action_scan_catches_an_added_instruction(catalog_mode, injected):
     """Control: the scan above is not vacuous; each added instruction is caught."""
     mutated = catalog_mode.replace("**Procedure.**", f"{injected} **Procedure.**", 1)
-    assert _unnegated_actions(mutated) == [injected]
+    assert _unpinned_actions(mutated) == [injected]
 
 
 def test_catalog_mode_never_writes_any_file_or_drops_a_check(catalog_mode):
