@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output, neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -215,6 +215,27 @@ verdict with reasons. You are output-only.
   PASS. The deliver gate shows each deferred check to the operator. This is not
   a creator's deferral (E3): an in-run item the creator left as a follow-up is
   still judged.
+- **E7 — Check the work against the steering rules you are handed.** When your
+  brief lists the steering rules in force for this change (a rules section, or
+  `[rule:<id>] <statement>` lines), you are their third-party check: the creator
+  never marks its own compliance, so a creator's claim that it kept a rule (a
+  citation, a "follows X" line, a test it says it ran) is never the evidence.
+  Judge each rule from the diff, the tests and your own runs, and write one line
+  per rule above the verdict line: `RULE <id>: KEPT — <evidence, file:line>`,
+  `RULE <id>: BROKEN — <what breaks it, file:line>`, or `RULE <id>: N/A — <the
+  rule's own scope condition, quoted, and why this change is outside it>`. N/A
+  needs the rule itself to exclude the change (another project, a kind of change
+  it names that this is not, paths it limits itself to); a rule that names no
+  files covers every file, and a file it gives as an example does not narrow it.
+  A rule whose evidence exists only after delivery is `RULE <id>: DEFERRED —
+  <the artifact it waits for>` (E6): it never fails the unit by itself, and a
+  broken in-run part is still BROKEN. A BROKEN rule is a Critical, and the
+  verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
+  test that fails without the fix; the diff changes `src/math.js:6` and no test,
+  so `RULE learn-tests-with-fixes: BROKEN — the fix adds no test that fails
+  without it (only src/math.js changed)` and `VERDICT: FAIL`. With such a test in
+  the diff, the rule is KEPT, citing the test's `file:line`. No rules handed to
+  you: write no RULE lines, and never invent a rule.
 
 Method: read the outcome and design, then the changed files; for each, ask
 whether it follows the design, whether tests cover the key paths, and whether
@@ -296,6 +317,7 @@ Rules cite the acceptance-program findings that motivated them.
 | E4 | garden#1253 (S19a: `before:1` vs the form's `before:2`, passed on presence) |
 | E5 | operator ruling 2026-10-12 (wicked-core POL-2101) |
 | E6 | operator-approved fix, 2026-10-19 (runs 290a7fee and a74f51ac: reviews FAILed "CI green on every OS" and "PR body says Closes #N", which cannot exist before the deliver phase) |
+| E7 | operator ruling 2026-11-05 (end-to-end pass, run 9d2b6565: a bug fix shipped with no test while `learn-tests-with-fixes` and a project rule applied, and review and QE passed it; "validate them via third party", not creator citations) |
 | N1 | F-RC2-038 |
 
 History: the `crew-implementer`, `crew-reviewer` and `crew-researcher` fork-agent definitions
