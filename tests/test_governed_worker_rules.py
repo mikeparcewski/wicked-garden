@@ -282,3 +282,21 @@ def test_a9_a_chat_answer_carries_no_run_counts():  # knowledge journey 2026-11-
     floor = FLOOR.read_text(encoding="utf-8")
     assert "a chat answer carries no run counts" in floor.split("---", 2)[1]  # the description a host loads
 
+
+
+def test_e7_evaluators_judge_the_rules_they_are_handed():  # operator ruling 2026-11-05, run 9d2b6565
+    rule = _rule("E7")
+    # A third-party check: the creator's own claim is never the evidence.
+    assert "the creator never marks its own compliance" in rule
+    assert "is never the evidence" in rule
+    # One verdict per rule, each with its evidence; BROKEN fails the gate.
+    for verdict in ("`RULE <id>: KEPT", "`RULE <id>: BROKEN", "`RULE <id>: N/A"):
+        assert verdict in rule, verdict
+    assert "A BROKEN rule is a Critical, and the verdict is FAIL, naming the rule" in rule
+    # The corpus case: a bug fix with no test that fails without it breaks learn-tests-with-fixes.
+    assert "RULE learn-tests-with-fixes: BROKEN" in rule and "`VERDICT: FAIL`" in rule
+    assert "the rule is KEPT, citing the test" in rule
+    # A rule outside the change is not applicable, and nothing is invented.
+    assert "outside it" in rule and "never invent a rule" in rule
+    desc = FLOOR.read_text(encoding="utf-8").split("\n", 3)[2]
+    assert "judge the steering rules they are handed" in desc
