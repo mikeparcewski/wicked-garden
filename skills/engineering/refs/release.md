@@ -37,13 +37,16 @@ prepare it and copy each condition into the record and the pull request body.
      into HEAD (`git tag --list 'v*' --merged HEAD --sort=-v:refname`, with the convention's
      pattern). Never take a tag of another package, a milestone or a pre-release you are not
      releasing from. The tag's commit is the boundary.
-   - **No matching tag, but a released changelog heading** (`## [1.4.2]`): that is the previous
-     version. Its boundary is the commit that added the heading
-     (`git log -1 --format=%H -S'## [1.4.2]' -- CHANGELOG.md`; a heading is added once and never
-     removed, so the newest match is the one that added it). Check it with `git show <sha>`.
-   - **Neither: a first release.** No previous release is recorded. The manifest's version (or the
-     person's) is the version to release, not a previous one; there is no boundary, and the range is
-     the whole history.
+   - **No matching tag, but a released changelog heading** in the file's own format (`## [1.4.2]`,
+     `## 1.4.2`, `## v1.4.2 (2026-10-01)`): that is the previous version. Its boundary is the commit
+     that added the heading (`git log -1 --format=%H -S'<the heading as written>' -- CHANGELOG.md`;
+     a heading is added once and never removed, so the newest match is the one that added it).
+     Check it with `git show <sha>`.
+   - **Neither: a first release,** unless something else shows a release of the manifest's version
+     (a hosted release, a published package): then stop and report that the boundary is unknown.
+     In a first release no previous release is recorded. The manifest's version (or the person's)
+     is the version to release, not a previous one; there is no boundary, and the range is the
+     whole history.
    - Say which source you used. If the sources disagree, use the tag and record the disagreement as
      a finding. If a previous release is recorded but its boundary cannot be found, stop and report
      it rather than guess a range.
