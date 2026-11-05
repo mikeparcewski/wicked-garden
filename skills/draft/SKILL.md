@@ -4,18 +4,18 @@ description: |
   The quality floor for DOCUMENT deliverables drafted from a repo — brochures, one-pagers,
   flyers, pages, decks, memos — design guidance plus one self-check run before
   "done". Three floors: (1) READABLE — every text/background pair ≥ 4.5:1
-  (WCAG AA; 3:1 for large text) on COMPOSITED colours, print text ≥ 7pt; (2) SIZED TO
-  THE BRIEF — the RENDERED page count honours the brief's page budget (wrappers are not
-  pages); (3) GROUNDED — every number, URL and claim cites a repo path, mocks visibly
-  labelled, no placeholder ships.
+  (WCAG AA) on COMPOSITED colours, print text ≥ 7pt; (2) SIZED TO THE BRIEF — the
+  RENDERED page count honours the brief's page budget; (3) GROUNDED — every number, URL
+  and claim cites a repo path, mocks visibly labelled, no placeholder ships.
 
   Use when: "draft a brochure / one-pager / flyer / product page / deck / memo about
   <repo>", "print-ready A4 / Letter", "make it two pages", "is this brochure readable /
   grounded", before declaring a wicked-interactive draft/edit/revision done, or as the skill
-  a governed drafting run (wicked-crew `interactive-*`) follows.
+  a governed drafting run (wicked-crew `interactive-*`) follows. A brief's `Kind:` line
+  (narrative, status update, message, …) adds that kind's ref.
 
   NOT for code documentation (the engineering documentarian) or a running app's
-  accessibility audit (the product a11y action / the qe a11y engineer).
+  accessibility audit (the product or qe a11y skills).
 metadata:
   role: router
   phases: "build,review"
@@ -49,6 +49,24 @@ Relative paths in this skill are relative to the directory that contains this SK
 One command runs all three (§ Self-check). Details and worked examples: `refs/design-floor.md`
 (colour and print typography), `refs/claims.md` (the citation convention), `refs/self-check.md`
 (flags, JSON shape, exit codes, the manual alternative).
+
+## Kinds — the brief's `Kind:` line
+
+When the brief carries a `Kind: <kind>.` line (wicked-crew's Communicate and Roles and operating
+model cards prepend one), read that kind's ref before the outline. It adds the kind's shape, its
+default budget and what it must never do; the three floors above still decide "done".
+
+| Brief line | Ref |
+|---|---|
+| `Kind: narrative.` | `refs/narrative.md` |
+| `Kind: meeting prep.` | `refs/meeting-prep.md` |
+| `Kind: demo script.` | `refs/demo-script.md` |
+| `Kind: status update.` | `refs/status-update.md` |
+| `Kind: message.` | `refs/message.md` |
+| `Kind: operating model.` | `refs/operating-model.md` |
+
+A `Kind:` line with no row here: follow the floors alone and say so in the notes. A page budget the
+brief names beats the kind's default.
 
 ## 1. Readable — the contrast floor
 
