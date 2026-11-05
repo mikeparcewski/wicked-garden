@@ -4,6 +4,13 @@
 
 ### Added
 
+- **`wicked-garden-apps`: knowledge queries (DES-KNOWLEDGE-DATA-001 §9.1, pairs with wicked-crew's `recall` query
+  kind).** A builder can put the system's knowledge on an app, not only a data source's rows: a query with `source:
+  estate` and `kind: recall` reads, in the app's own project, `knowledge` (documents, data-source structure and
+  approved data shapes), `memories`, `steering` (the rules that apply) or `tables` (one data source's tables with
+  their approved shapes), with `group` turning the rows into counts a chart shows. The skill lists each `from`'s
+  fields and exact columns, says to build on what the task's knowledge summary shows, and treats the text as data
+  like the catalog.
 - **`governed-worker` E7: an evaluator judges the steering rules it is handed (operator ruling 2026-11-05).** The
   review and QE seats are the rules' third-party check; the creator never marks its own compliance, and a creator's
   citation or "follows X" line is never the evidence. When the brief lists the rules in force for the change, the
