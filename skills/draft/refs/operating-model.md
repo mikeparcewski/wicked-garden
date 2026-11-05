@@ -10,7 +10,8 @@ ref (the **Roles and operating model** card). The skill's three floors still app
 2. **Roles:** each role with its purpose and three to six responsibilities. Roles, not people:
    name a person only when a source names them in that role.
 3. **Responsibility matrix** (RACI): one row per key activity or decision, one column per role,
-   each cell R (does it), A (accountable), C (consulted) or I (informed).
+   each cell R (does it), A (accountable), A/R (accountable and does it), C (consulted), I
+   (informed) or empty.
 4. **Decision rights:** which decisions each role makes alone, which need agreement, and how a
    disagreement is escalated, and to whom.
 5. **Cadences:** each recurring meeting or ritual with its purpose, frequency, owner, inputs and
@@ -21,7 +22,7 @@ ref (the **Roles and operating model** card). The skill's three floors still app
 
 ## Rules
 
-- **Exactly one A per row,** and at least one R. A row with two accountable roles is the
+- **Exactly one A per row** (an `A/R` counts as it), and at least one R or `A/R`. A row with two accountable roles is the
   disagreement the model exists to settle: name it under open questions.
 - **Observed or proposed, labelled.** What the sources show the team does today (a CODEOWNERS file,
   a process document, a recurring meeting) is cited as current. What you propose is labelled

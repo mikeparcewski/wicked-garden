@@ -70,6 +70,45 @@ def test_catalog_mode_never_persists_or_touches_session_state(catalog_mode):
     assert "wicked-garden run" not in catalog_mode
 
 
+# Words that name an action catalog mode must never take. Every sentence of the section that names one must
+# also carry a negation, so an added "then persist it" or "convene a council" fails the test.
+_ACTION_WORDS = re.compile(
+    r"persist|SessionState|council|escalat|wicked-garden run|tool call|script|write|recall|search|hand off|launch",
+    re.IGNORECASE,
+)
+_NEGATION = re.compile(r"\b(never|no|not|nothing|nor|without)\b|n't\b", re.IGNORECASE)
+
+
+def _unnegated_actions(text: str) -> list[str]:
+    sentences = re.split(r"(?<=[.;!?])\s+|\s+(?=\d\. \*\*)|\s+(?=- )", text)
+    return [s for s in sentences if _ACTION_WORDS.search(s) and not _NEGATION.search(s)]
+
+
+def test_catalog_mode_names_no_state_or_tool_action_without_a_negation(catalog_mode):
+    assert _unnegated_actions(catalog_mode) == []
+
+
+@pytest.mark.parametrize(
+    "injected",
+    [
+        "Then persist the answer with the persist script.",
+        "When unsure, convene a council.",
+        "Record the result in SessionState.",
+        "Run wicked-garden run scripts/classify/persist.py afterwards.",
+        "Escalate hard calls to the jam skill.",
+    ],
+)
+def test_the_action_scan_catches_an_added_instruction(catalog_mode, injected):
+    """Control: the scan above is not vacuous; each added instruction is caught."""
+    mutated = catalog_mode.replace("**Procedure.**", f"{injected} **Procedure.**", 1)
+    assert _unnegated_actions(mutated) == [injected]
+
+
+def test_catalog_mode_never_writes_any_file_or_drops_a_check(catalog_mode):
+    assert "never read or write SessionState or any file" in catalog_mode
+    assert "Never start the work, promise a start, or drop a check, a reviewer or a gate" in catalog_mode
+
+
 def test_catalog_mode_never_escalates_to_a_council(catalog_mode):
     assert "Never convene, suggest or escalate to a council" in catalog_mode
     assert "wicked-garden-jam" not in catalog_mode

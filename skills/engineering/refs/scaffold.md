@@ -4,7 +4,8 @@ The `scaffold` action of `wicked-garden-engineering`, and the build step of wick
 workflow (the **Start something new** card, kinds CLI, service and library). An MCP server is not
 this ref: use `wicked-garden-mcp-scaffold`, which has its own templates, probe and install.
 
-The kind comes from the brief's `Kind: CLI.`, `Kind: service.` or `Kind: library.` line. The stack,
+The kind comes from the brief's `Kind: CLI.`, `Kind: service.` or `Kind: library.` line; for a
+service, the design says whether it serves HTTP or is a worker. The stack,
 the layout and the interfaces come from the design step's blueprint
 (`wicked-garden-engineering-solution-architect`). The stack is the person's and the design's choice,
 never yours.
@@ -47,7 +48,8 @@ never yours.
 | Kind | Must have | Smoke test |
 |---|---|---|
 | CLI | the stack's standard argument parser; `--help` and `--version`; exit 0 on success, 1 on failure, 2 on a usage error; results on stdout, diagnostics on stderr; no prompt when stdin is not a terminal; `--json` output when the intent names scripting | `--help` exits 0 and names every subcommand |
-| Service | configuration from the environment with safe defaults (bind to localhost unless the design says otherwise; port from the environment); a health endpoint that touches no dependency; graceful shutdown on SIGTERM; input validated before the handler; a timeout on every outbound call; logs on stderr | the service starts, the health endpoint answers 200, and it stops on SIGTERM |
+| Service: HTTP | configuration from the environment with safe defaults (bind to localhost unless the design says otherwise; port from the environment); a health endpoint that touches no dependency; graceful shutdown on SIGTERM; input validated before the handler; a timeout on every outbound call; logs on stderr | the service starts, the health endpoint answers 200, and it stops on SIGTERM |
+| Service: worker | configuration from the environment; the input the design names (a queue, a schedule, a stream) behind one interface a test can replace; idempotent handling of a message seen twice; graceful shutdown on SIGTERM that finishes or returns the message in hand; a timeout on every outbound call; logs on stderr. No HTTP interface unless the design names one | the worker starts, handles one message from a test double, and stops on SIGTERM |
 | Library | a small public API at the package root; nothing runs at import; no global state; silent unless the caller configures logging; package metadata (name, version `0.1.0`, description, repository) and exported types; a README usage example that a test runs (a doctest where the ecosystem has one) | import the package and make one public call |
 
 A container file, a deployment manifest or a release workflow is added only when the design names

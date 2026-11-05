@@ -8,8 +8,7 @@ description: |
   --focus, --persona, --scenarios);
   "review the architecture of X" / "evaluate component boundaries, coupling, or
   layer violations" (--scope module|service|system); "debug this error / bug /
-  unexpected behavior" (hypothesis-driven root cause, reproduction, fix,
-  prevention); "plan this change" / "implementation plan with file changes, risks
+  unexpected behavior" (root cause, reproduction, fix, prevention); "plan this change" / "implementation plan with file changes, risks
   and tests before writing code";
   "generate API docs / README / guide / inline comments" (--type
   api|readme|guide|inline) or "docs drifted from code"; "prepare a release
@@ -17,7 +16,8 @@ description: |
 
   NOT for reviewing an AI agent system (agentic review), a UI (product
   ux-review), a go/no-go verdict (archetype review), greenfield design (the
-  solution-architect worker) or an MCP server (wicked-garden-mcp-scaffold).
+  solution-architect worker) or scaffolding a new MCP server
+  (wicked-garden-mcp-scaffold).
 metadata:
   role: router
   phases: "design,build,review"
@@ -159,7 +159,7 @@ Audit (coverage metrics) and sync (stale-docs detection) modes live in the
 1. Read `refs/scaffold.md` — stack and target checks, built-ins first, the per-kind table (CLI,
    service, library) and the scaffold record. The kind is the brief's `Kind:` line.
 2. The stack is the design step's (or the repository's); never pick one. Never overwrite a file.
-   An MCP server goes to `wicked-garden-mcp-scaffold` instead.
+   A new MCP server goes to `wicked-garden-mcp-scaffold` instead.
 3. Run the build and tests, then emit the scaffold record with their exit codes.
 
 ## Knowledge modules

@@ -30,13 +30,22 @@ prepare it and copy each condition into the record and the pull request body.
 
 ## Steps
 
-1. **The last release.** Take the latest version tag reachable from HEAD
-   (`git describe --tags --abbrev=0`); with no tag, the changelog's latest released heading; with
-   neither, the manifest's version. Say which source you used. If the sources disagree, use the
-   tag and record the disagreement as a finding.
-2. **The range.** `git log --first-parent --format='%H %s' <last>..HEAD` lists what merged. Take
-   each change's pull request number from its subject (`(#123)`) where the repository squashes or
-   merges through pull requests.
+1. **The last release: its version and its boundary commit,** recorded apart.
+   - **Tag first.** Find the repository's release-tag convention for the package being released
+     (`v1.4.2`, or `<package>-v1.4.2` in a repository that releases several packages) from its
+     existing tags and changelog link references. Take the highest tag of that convention merged
+     into HEAD (`git tag --list 'v*' --merged HEAD --sort=-v:refname`, with the convention's
+     pattern). Never take a tag of another package, a milestone or a pre-release you are not
+     releasing from. The tag's commit is the boundary.
+   - **No matching tag:** the version is the changelog's latest released heading, else the
+     manifest's. Its boundary is the commit that last set that version in the manifest
+     (`git log -1 --format=%H -S'<version>' -- <manifest>`).
+   - **No version anywhere:** this is a first release, and the range is the whole history.
+   - Say which source you used. If the sources disagree, use the tag and record the disagreement as
+     a finding. If no boundary can be found, stop and report it rather than guess a range.
+2. **The range.** `git log --first-parent --format='%H %s' <boundary>..HEAD` lists what merged.
+   Take each change's pull request number from its subject (`(#123)`) where the repository squashes
+   or merges through pull requests.
 3. **The bump.** An explicit version in the person's words wins. Otherwise derive it from the
    range and name the evidence:
    - a breaking change (a `BREAKING CHANGE` footer, a `!` subject, a removed or renamed public
@@ -50,8 +59,9 @@ prepare it and copy each condition into the record and the pull request body.
    sections, migration notes, pinned examples of past versions. In a workspace, bump only the
    packages being released, plus the internal pins that name them.
 5. **Lockfiles.** Re-stamp them with the package manager in its lockfile-only mode where it has
-   one (`npm install --package-lock-only`, `cargo update --workspace --offline`), so the tool writes
-   the version line, not you. If the tool is not on this seat, say so in the record; do not
+   one (`npm install --package-lock-only --ignore-scripts`, `cargo update --workspace --offline`),
+   so the tool writes the version line, not you. Never let a lockfile step run the repository's
+   lifecycle scripts: a `prepare` or `postinstall` hook may tag, publish or write. If the tool is not on this seat, say so in the record; do not
    hand-edit a lockfile beyond the version entries.
 6. **The changelog.** Follow the file's own format; add no style of your own.
    - In the Keep a Changelog shape: move the `[Unreleased]` entries under
@@ -77,7 +87,7 @@ reason for leaving it out. Write it exactly in this shape:
 
 ```
 RELEASE vPREV -> vX.Y.Z (bump: minor — 3 features, 0 breaking; source of vPREV: tag)
-RANGE <last ref>..<head sha>: 14 merged changes
+RANGE <boundary sha>..<head sha>: 14 merged changes (boundary: tag v1.4.2)
 VERSION FILES: package.json:3 (1.4.2 -> 1.5.0); package-lock.json:3,9 (re-stamped by npm)
 CHANGELOG: 12 entries, each with its PR or commit; added: #412, #415; flagged: "faster search" (no change in range)
 OMITTED BY CONVENTION: #409 (ci), #411 (chore)

@@ -26,7 +26,7 @@ This skill has two modes. **Choose the mode before you do anything else:**
 
 | The task hands you | Mode | What you return | Sections |
 |---|---|---|---|
-| a job-catalog digest (a `<catalog>` block, or the host names "catalog mode") | **catalog** | one JSON line naming a card | § Catalog mode only |
+| a job-catalog digest, or the host names "catalog mode" | **catalog** | one JSON line naming a card | § Catalog mode only |
 | no digest: a session prompt to classify | **session** | archetypes persisted to SessionState | every section except § Catalog mode |
 
 A request that asks for catalog mode but carries no digest is answered in catalog mode with the
@@ -83,8 +83,10 @@ host validates, cross-checks and bands every answer before it is shown.
 3. **Option:** when the card lists options, exactly one of them. When the words do not choose,
    take the default the digest marks (else your best read, scored at most 0.7). A card with no
    options takes `null`.
-4. **Depth:** only for a card the digest marks `[depth]`: `quick`, `standard` or `deep` from the
-   words, `standard` when they do not say. Otherwise `null`. Depth never changes the card.
+4. **Depth:** only for a card that takes one: a card the digest marks as taking a depth, or, in a
+   digest that marks none, an Investigate card (today `incident` and `reconstruct`). Then `quick`,
+   `standard` or `deep` from the words, `standard` when they do not say. Otherwise `null`. Depth
+   never changes the card.
 5. **Confidence**, on the session anchors, for the card AND option together: 0.9+ words and
    shape both clear; 0.7-0.9 clear with a minor doubt; 0.5-0.7 the shape matches but the request
    is partial; below 0.5 too weak. A sure card with an option guessed between plans is at most 0.7.
