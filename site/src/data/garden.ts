@@ -450,7 +450,7 @@ export const NEW_RELEASE = "12.64";
 export const NEW_IN: { b: string; code?: string; rest: string; href?: string }[] = [
   { b: "Answers from your data:", rest: " in a wicked-crew chat or job that may query a connected source, an answer runs one read-only query and cites it. It never stores a row." },
   { b: "Data shapes:", code: "shapes", rest: " proposes what a connected source’s tables join, which code describes them and which rule governs them, for you to approve. It reads structure, never a row.", href: "#dom-data" },
-  { b: "Apps:", code: "wicked-garden-apps", rest: " builds each change you ask for in a studio app’s chat, and another agent reviews it. The builder never writes to your data." },
+  { b: "Apps:", code: "wicked-garden-apps", rest: " builds each change you ask for in a studio app’s chat, and another agent reviews it. An app can show your knowledge, memories and rules, not only a data source’s rows, and the builder never writes to your data." },
 ];
 
 export const G = {

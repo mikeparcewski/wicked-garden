@@ -32,6 +32,7 @@ test('the three benefits lead their sections, and what is new in 12.64 closes me
   expect(text).toContain('Answers from your data: in a wicked-crew chat or job');
   expect(text).toContain('Data shapes: shapes proposes');
   expect(text).toContain('Apps: wicked-garden-apps builds');
+  expect(text).toContain('An app can show your knowledge, memories and rules');
   expect(text).toContain('never stores a row');
 });
 

@@ -115,7 +115,7 @@ They do not overlap; pick by target:
 
 | Action | What It Does |
 |--------|-------------|
-| `build` (`apps-turn`) | Edits `apps.json` and `queries/` only, from the data catalog the task names (structure, never rows); SQL is one parameterized read. Never calls a write tool or an action: the engine refuses write and destructive tools to every unit of an Apps run, and a live read goes only through crew's broker and data gate |
+| `build` (`apps-turn`) | Edits `apps.json` and `queries/` only, from the data catalog the task names (structure, never rows); SQL is one parameterized read, and a knowledge query (`source: estate`, `kind: recall`) puts the project's knowledge, memories, steering rules or tables with their approved shapes on the app. Never calls a write tool or an action: the engine refuses write and destructive tools to every unit of an Apps run, and a live read goes only through crew's broker and data gate |
 | `review` (`apps-turn`) | A distinct reviewer judges the tree another agent built in that turn |
 | `qe` (`apps-publish`) | Accepts a publish from the publish check's evidence alone |
 
