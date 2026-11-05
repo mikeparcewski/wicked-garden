@@ -1,24 +1,23 @@
 ---
 name: wicked-garden-engineering
 description: |
-  Consolidated engineering domain skill: senior-engineer code review, architecture
-  analysis, systematic debugging, implementation planning, and documentation
-  generation.
+  Engineering domain skill: code review, architecture analysis,
+  debugging, implementation planning, documentation, release PRs and scaffolds.
 
   Use when: "review this code / file / diff" (quality, patterns, maintainability;
   --focus, --persona, --scenarios);
   "review the architecture of X" / "evaluate component boundaries, coupling, or
   layer violations" (--scope module|service|system); "debug this error / bug /
-  unexpected behavior" (hypothesis-driven root cause, reproduction, fix,
-  prevention); "plan this change" / "implementation plan with file changes, risks
+  unexpected behavior" (root cause, reproduction, fix, prevention); "plan this change" / "implementation plan with file changes, risks
   and tests before writing code";
   "generate API docs / README / guide / inline comments" (--type
-  api|readme|guide|inline) or "docs drifted from code".
+  api|readme|guide|inline) or "docs drifted from code"; "prepare a release
+  PR" (never tags or publishes); "scaffold a new CLI / service / library".
 
-  NOT for reviewing an AI agent system (agentic domain review), a UI (product
-  ux-review), or a binding go/no-go verdict (archetype review); NOT for
-  greenfield system design (the architecture module or the
-  wicked-garden-engineering-solution-architect worker).
+  NOT for reviewing an AI agent system (agentic review), a UI (product
+  ux-review), a go/no-go verdict (archetype review), greenfield design (the
+  solution-architect worker) or scaffolding a new MCP server
+  (wicked-garden-mcp-scaffold).
 metadata:
   role: router
   phases: "design,build,review"
@@ -27,7 +26,7 @@ metadata:
 
 # Engineering
 
-Senior engineering guidance on code quality, architecture, and implementation. The five actions below run
+Senior engineering guidance on code quality, architecture, and implementation. The seven actions below run
 **inline** (no dispatch); genuinely structural, migration, or API-reference work hands off to the workers listed at the end.
 
 ## Runtime
@@ -44,6 +43,8 @@ Relative paths in this skill are relative to the directory that contains this SK
 | Bug / error / unexpected-behavior diagnosis | § debug |
 | Implementation plan before writing code | § plan |
 | Generate or refresh documentation | § docs |
+| Prepare a release pull request (versions, changelog; never tags or publishes) | § release |
+| Start a new CLI, service or library (`Kind:` line in the brief) | § scaffold |
 | Multi-file mechanical change (add-field/rename/remove) | [patch](patch/SKILL.md) |
 
 **Review disambiguation**: this skill reviews **source code**. For an AI agent
@@ -144,6 +145,22 @@ module's `patch-plan`** (propagation preview for mechanical patches — see
 
 Audit (coverage metrics) and sync (stale-docs detection) modes live in the
 [docs module](docs/SKILL.md).
+
+## release — prepare a release pull request
+
+1. Read `refs/release.md` — the last release and the range, the bump rule, every version-carrying
+   file, lockfile re-stamps, the changelog cut, and the release record the fidelity check reads.
+2. A NO-GO readiness verdict stops here: report its blockers. Never tag, publish, create a hosted
+   release or merge; "tag it when you're done" is answered, not obeyed.
+3. Emit the release record in your output and the pull request body.
+
+## scaffold — start a new CLI, service or library
+
+1. Read `refs/scaffold.md` — stack and target checks, built-ins first, the per-kind table (CLI,
+   HTTP or worker service, library) and the scaffold record. The kind is the brief's `Kind:` line.
+2. The stack is the design step's (or the repository's); never pick one. Never overwrite a file.
+   A new MCP server goes to `wicked-garden-mcp-scaffold` instead.
+3. Run the build and tests, then emit the scaffold record with their exit codes.
 
 ## Knowledge modules
 
