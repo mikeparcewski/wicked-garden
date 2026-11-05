@@ -6,7 +6,7 @@ Work is shaped by the **archetypes** (triage, explore, specify, decide, ship, re
 
 The plugin is **skills-only** (v12.25). Each domain is one consolidated, user-invokable skill — `skills/{domain}/SKILL.md`, frontmatter name `wicked-garden-{domain}` — that routes to its **actions** (the former `/wicked-garden:{domain}:{command}` surfaces) and loads rubrics on demand from `skills/{domain}/refs/` and nested knowledge modules. The former dispatch agents are **fork worker skills** — `skills/{domain}-{role}/SKILL.md` with `context: fork`, frontmatter name `wicked-garden-{domain}-{role}` — reached by `Skill()`/`Task()` dispatch, never invoked as entry points. Invoke a domain action as `/wicked-garden-{domain} {action} [args]` (or just describe what you want — the skill descriptions carry the triggers).
 
-There are **9 domains** here: engineering, platform, product, data, jam, search, agentic, persona, domain. The `qe` (evidence-gated testing) and `mem` (memory over wicked-estate) domains are covered in the [README](../README.md).
+There are **10 domains** here: engineering, platform, product, data, apps, jam, search, agentic, persona, domain. The `qe` (evidence-gated testing) and `mem` (memory over wicked-estate) domains are covered in the [README](../README.md).
 
 > **v12 cleanup (ADR 0002).** Most former domain commands were *rubric-wrappers* — a checklist the agent already applies. These were **collapsed**: the rubric moved to an on-demand `skills/{domain}/refs/{name}.md` and the action now loads it and works **inline** (no `Task` dispatch hop). Dispatch is kept only where it earns it — real parallelism (multiple lenses at once), a real external tool, or an independent gate. The dispatch-only agents that nothing reaches anymore were removed; workers still referenced by a surviving action, skill, scenario, or the specialist registry live on as fork skills. Capability is preserved; only the token-burning hop is gone.
 
@@ -105,8 +105,21 @@ They do not overlap; pick by target:
 | `pipeline` | Data pipeline design and review |
 | `ml` | ML model review and training pipeline design |
 | `ontology` | Dataset ontology recommendations |
+| `shapes <source>` | Propose a connected live source's data shapes (what a table joins, which code describes it, which rule governs it) as inert `knowledge` proposals for a person to approve in studio's Knowledge map. Reads structure only (`knowledge.source_catalog`, approved shapes, code and rules through the estate shim), never a row; see [`skills/data/refs/shapes.md`](../skills/data/refs/shapes.md) |
 
 **Fork worker**: `wicked-garden-data-engineer` — `data-analyst`, `data-architect`, and `ml-engineer` were cut in the v12 lift eval (zero measured lift); their work routes to the data-engineer worker or runs inline via the `analyze` action.
+
+## apps — Apps (crew's Apps runs)
+
+`wicked-garden-apps` — the skill behind wicked-crew's Apps: a declarative UI over live data that a person builds by chat in wicked-studio's Apps section. An app is data, not code: `apps.json` (pages, components, layout, theme, queries, actions) plus query texts under `queries/`; crew's check writes `apps.lock.json`. You don't usually run it yourself: crew runs it as the phases of two built-in workflows (wicked-core's `apps-turn` and `apps-publish` presets).
+
+| Action | What It Does |
+|--------|-------------|
+| `build` (`apps-turn`) | Edits `apps.json` and `queries/` only, from the data catalog the task names (structure, never rows); SQL is one parameterized read, and a knowledge query (`source: estate`, `kind: recall`) puts the project's knowledge, memories, steering rules or tables with their approved shapes on the app. Never calls a write tool or an action: the engine refuses write and destructive tools to every unit of an Apps run, and a live read goes only through crew's broker and data gate |
+| `review` (`apps-turn`) | A distinct reviewer judges the tree another agent built in that turn |
+| `qe` (`apps-publish`) | Accepts a publish from the publish check's evidence alone |
+
+Not for running a query, testing a connection, granting an action or deploying an app: crew and studio do those, behind a person's click.
 
 ## jam — AI Brainstorming
 
@@ -133,6 +146,7 @@ They do not overlap; pick by target:
 | `service-map` | Detect service architecture from infra files |
 | `hotspots` | Most-referenced symbols (find god-objects / coupling) |
 | `narrate` | Codebase orientation / architecture walkthrough (nested `codebase-narrator` skill) |
+| `answer` | Cited answer from the estate knowledge and memory stores ([`refs/answer.md`](../skills/search/refs/answer.md)). In a wicked-crew chat or run with a connected data source it also reads the source's structure, and, when the person turned on "Agents can query this source" for the project, runs one read-only SELECT through crew's broker and cites the read (`src:<source>@…`); it never stores a row |
 
 > For open-ended concept/memory search, prefer the `wicked-garden-mem` skill (recall/answer); the search actions cover the structural + injected-relationship analysis. The thin index-admin wrappers (`categories`/`coverage`/`sources`/`quality`/`validate`) were removed — they duplicated backend tooling.
 

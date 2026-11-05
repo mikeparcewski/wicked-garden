@@ -46,7 +46,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | `hotspots` | most-central symbols, god-objects | [refs/hotspots.md](refs/hotspots.md) |
 | `service-map` | service architecture from infra + code | [refs/service-map.md](refs/service-map.md) |
 | `narrate` | codebase orientation / architecture walkthrough | [codebase-narrator/SKILL.md](codebase-narrator/SKILL.md) |
-| `answer` | cited answer from the estate knowledge/memory stores | [refs/answer.md](refs/answer.md) |
+| `answer` | cited answer from the estate knowledge/memory stores, and from a live data source's rows when crew lets the step query it | [refs/answer.md](refs/answer.md) |
 
 Doctrine / which-rules-apply: **Steering** (the governance rules, 7 steering types) is in the same stores — the estate `knowledge.recall` tool through the shim — `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"knowledge.recall","arguments":{"scope_prefix":"wiki:",…}}'` (`wiki:` is a historical prefix) — + the estate `rules.recall` tool the same way (§ Resolving symbols) (cited, read-only); management: wicked-core `crates/wicked-governance/STEERING.md`.
 
