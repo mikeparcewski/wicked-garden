@@ -298,5 +298,12 @@ def test_e7_evaluators_judge_the_rules_they_are_handed():  # operator ruling 202
     assert "the rule is KEPT, citing the test" in rule
     # A rule outside the change is not applicable, and nothing is invented.
     assert "outside it" in rule and "never invent a rule" in rule
+    # (xreview r1) N/A needs the rule's own scope to exclude the change: no file names means every file.
+    assert "N/A needs the rule itself to exclude the change" in rule
+    assert "a rule that names no files covers every file" in rule
+    assert "files it does not name" not in rule
+    # (xreview r1) A delivery-only rule is DEFERRED per E6, never a FAIL by itself; one VERDICT line stays last.
+    assert "`RULE <id>: DEFERRED" in rule and "(E6)" in rule and "never fails the unit by itself" in rule
+    assert "the last line stays one `VERDICT:` line" in rule
     desc = FLOOR.read_text(encoding="utf-8").split("\n", 3)[2]
     assert "judge the steering rules they are handed" in desc

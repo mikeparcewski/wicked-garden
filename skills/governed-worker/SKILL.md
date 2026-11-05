@@ -222,10 +222,15 @@ verdict with reasons. You are output-only.
   citation, a "follows X" line, a test it says it ran) is never the evidence.
   Judge each rule from the diff, the tests and your own runs, and write one line
   per rule above the verdict line: `RULE <id>: KEPT — <evidence, file:line>`,
-  `RULE <id>: BROKEN — <what breaks it, file:line>`, or `RULE <id>: N/A — <why
-  the change is outside it>` (another project, another kind of change, files it
-  does not name). A BROKEN rule is a Critical, and the verdict is FAIL, naming
-  the rule. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
+  `RULE <id>: BROKEN — <what breaks it, file:line>`, or `RULE <id>: N/A — <the
+  rule's own scope condition, quoted, and why this change is outside it>`. N/A
+  needs the rule itself to exclude the change (another project, a kind of change
+  it names that this is not, paths it limits itself to); a rule that names no
+  files covers every file, and a file it gives as an example does not narrow it.
+  A rule whose evidence exists only after delivery is `RULE <id>: DEFERRED —
+  <the artifact it waits for>` (E6): it never fails the unit by itself, and a
+  broken in-run part is still BROKEN. A BROKEN rule is a Critical, and the
+  verdict is FAIL, naming the rule; the last line stays one `VERDICT:` line. Example (FAIL): `learn-tests-with-fixes` says a bug fix includes a
   test that fails without the fix; the diff changes `src/math.js:6` and no test,
   so `RULE learn-tests-with-fixes: BROKEN — the fix adds no test that fails
   without it (only src/math.js changed)` and `VERDICT: FAIL`. With such a test in

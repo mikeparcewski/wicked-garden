@@ -7,7 +7,7 @@
 - **`governed-worker` E7: an evaluator judges the steering rules it is handed (operator ruling 2026-11-05).** The
   review and QE seats are the rules' third-party check; the creator never marks its own compliance, and a creator's
   citation or "follows X" line is never the evidence. When the brief lists the rules in force for the change, the
-  evaluator writes one `RULE <id>: KEPT | BROKEN | N/A — <evidence>` line per rule above the verdict line, and a BROKEN
+  evaluator writes one `RULE <id>: KEPT | BROKEN | N/A | DEFERRED — <evidence>` line per rule above the verdict line (N/A only when the rule's own scope excludes the change; DEFERRED for delivery-only evidence, per E6), and a BROKEN
   rule is a Critical that makes the verdict FAIL, naming the rule (for example `learn-tests-with-fixes` on a bug fix
   that adds no test that fails without it). With no rules handed, it writes no RULE lines and invents none. Handing the
   review unit the run's in-force rules is crew's side (not in this change).
