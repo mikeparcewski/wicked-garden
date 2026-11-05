@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [12.64.0] — 2026-11-05
+
+Minor: the `wicked-garden-apps` skill for crew's Apps runs, with knowledge queries (#1386, #1396, #1407), the answer
+path's live data-source read through crew (#1393), the data skill's shapes pass (#1395), an evaluator that judges the
+steering rules it is handed (E7, #1408), and a seat answering a person in a chat leaves out the run's bookkeeping
+lines (A9, #1398). Pairs with wicked-core-ts 0.15.26, wicked-crew 0.17.0 and wicked-estate 0.32.0.
+
 ### Added
 
 - **`wicked-garden-apps`: knowledge queries (DES-KNOWLEDGE-DATA-001 §9.1, pairs with wicked-crew's `recall` query
@@ -29,6 +36,15 @@
   catalog, an unknown field, a link from a table to itself, code in more than one repo, declared deps, evidence over
   estate's bound; and, as a backstop, content that looks like a value (a quoted literal, an email, a URL, a date, a long
   number).
+- **The answer path reads a project's live data sources through crew (DES-KNOWLEDGE-DATA-001 §8.1, #1393).** After
+  recall, the `answer` action (`wicked-garden-search`'s `refs/answer.md`) treats a connected source's structure
+  (estate marks it `untrusted`) as data, never instructions. Inside a crew chat or run whose step lists
+  `mcp:<source>/execute_sql` (the person turned query on for this project), it runs ONE read-only SELECT through the
+  shim and cites the read from crew's envelope (`src:<source>@<at>#<id>`); with query off it answers from the
+  structure and names the switch. It never stores a row. `scripts/mem/estate_memory.py sources` labels structure
+  items `source structure · <title>`, and `scripts/_estate_client.py` relays the visible-filtered knowledge reads
+  (`knowledge.recall`, `knowledge.source_catalog`, `knowledge.neighbors`) through crew's broker whenever a governed
+  unit holds the channel, because only crew knows what the unit may see.
 - **`wicked-garden-apps`: the skill an Apps turn and an Apps publish run (DES-APPS-001 K0, pairs with wicked-core's
   `apps-turn` and `apps-publish` presets).** An app is data: `apps.json` (pages, components, layout, theme, queries,
   actions) plus query texts under `queries/`; crew's check writes `apps.lock.json`. The build action edits those two
@@ -1353,7 +1369,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...HEAD
+[12.64.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...v12.64.0
 [12.63.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...v12.63.0
 [12.62.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.61.0...v12.62.0
 [12.61.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.60.0...v12.61.0
