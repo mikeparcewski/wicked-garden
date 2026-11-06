@@ -548,13 +548,47 @@ def test_a_pack_the_checker_cannot_decode_fails_case_0_and_a_stop_is_classified(
     (pack / "skills" / "x" / "SKILL.md").write_bytes(b"---\nname: x\n---\n\xff\xfe bad utf-8")
     m0 = mod.manifest_case(pack)
     assert m0["ok"] is False and "host_failure" not in m0, m0  # a verdict on the pack, not the host
-    er = {"cases": {"0-manifest": {"ok": True}, "1-handshake": {"ok": True}}}
-    mod.record_stop(er, TimeoutError("Timeout 5000ms exceeded waiting for body"), mod.CASES_V1)
-    assert er["cases"]["2-sizes"]["ok"] is False and "host_failure" not in er
-    closed = type("TargetClosedError", (Exception,), {})
-    er2 = {"cases": {}}
-    mod.record_stop(er2, closed("Target page, context or browser has been closed"), mod.CASES_V1)
-    assert "host_failure" in er2 and er2["cases"] == {}
+    # By the exception's TYPE, never its words: a Playwright timeout is the editor's ("stopped", charged to no
+    # case that did not run); the browser going away, or anything else, is the harness's.
+    pw_timeout = type("TimeoutError", (Exception,), {"__module__": "playwright._impl._errors"})
+    er = {"cases": {"0-manifest": {"ok": True}, "1-handshake": {"ok": True}, "2-sizes": {"ok": True}}}
+    mod.record_stop(er, pw_timeout("Timeout 5000ms exceeded waiting for body"), mod.CASES_V1)
+    assert er["cases"]["stopped"]["ok"] is False and er["cases"]["stopped"]["after"] == "2-sizes"
+    assert "3-no-network" not in er["cases"] and "host_failure" not in er
+    closed = type("TargetClosedError", (Exception,), {"__module__": "playwright._impl._errors"})
+    for exc in (closed("Target page, context or browser has been closed"),
+                AttributeError("window.__wickedEditor.setSize is not a function"),
+                Exception("has been closed")):  # an editor's error text never decides
+        er2 = {"cases": {}}
+        mod.record_stop(er2, exc, mod.CASES_V1)
+        assert "host_failure" in er2 and er2["cases"] == {}, exc
+    # A field of the wrong type the checker trips on is the pack's (case 0), not the harness's.
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["domains"] = [{"name": 7}]
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    m0 = mod.manifest_case(pack)
+    assert m0["ok"] is False and "host_failure" not in m0, m0
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
+def test_engine_mode_calls_an_unreadable_entry_or_a_non_finite_number_an_invalid_pack(tmp_path):
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1")
+    (pack / FIXTURE_ENTRY).chmod(0o000)
+    try:
+        done = run("conformance.py", "--engine", "--json", env=env)
+    finally:
+        (pack / FIXTURE_ENTRY).chmod(0o644)
+    report = json.loads(done.stdout)
+    assert done.returncode == 2 and report["cause"] == "pack_invalid", report
+    m = (pack / "wicked-pack.json").read_text()
+    (pack / "wicked-pack.json").write_text(m.replace('"protocol": [', '"protocol": [1e999, ', 1))
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads(done.stdout, parse_constant=lambda c: pytest.fail(f"{c} in the report"))
+    out = json.loads((tmp_path / "out" / "report.json").read_text(), parse_constant=lambda c: pytest.fail(c))
+    assert report["cause"] == out["cause"] == "pack_invalid", report
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="a shell-script interpreter")
@@ -604,7 +638,10 @@ def test_engine_mode_runs_every_case_and_writes_the_report_the_engine_reads(tmp_
     assert done.returncode == 0 and report["ok"] is True and "cause" not in report, done.stdout[-2000:]
     editor = report["editors"][0]
     assert editor["protocol"] == [1, 2] and editor["negotiated"] == 2
-    assert {"0-manifest", "12-hash-pinned", "13-surfaces", "16-full"} <= set(editor["cases"])
+    required = ["0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
+                "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned",
+                "13-surfaces", "14-card", "15-options", "16-full"]  # crew's requiredCases for a protocol-2 editor
+    assert {c: editor["cases"].get(c, {}).get("ok") for c in required} == {c: True for c in required}
     # A silent editor: a verdict on the pack, never a host refusal.
     entry = tree / "acme-json" / FIXTURE_ENTRY
     entry.write_text(entry.read_text().replace("parent.postMessage(env('plugin.ready'", "void (env('plugin.ready'"))

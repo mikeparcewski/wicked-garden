@@ -55,6 +55,17 @@ class PackError(Exception):
     """A pack that cannot be read as an editor pack, with the reason."""
 
 
+def _no_constant(name: str):
+    raise ValueError(f"{name} is not a JSON number")
+
+
+def _finite(text: str) -> float:
+    value = float(text)
+    if value != value or value in (float("inf"), float("-inf")):
+        raise ValueError(f"{text} is not a finite number")
+    return value
+
+
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -67,7 +78,7 @@ def read_manifest(pack: Path, cap: int | None = None) -> dict:
     if cap is not None and path.stat().st_size > cap:
         raise PackError(f"{path} is over {cap} bytes")
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest = json.loads(path.read_text(encoding="utf-8"), parse_constant=_no_constant, parse_float=_finite)
     except (OSError, ValueError, RecursionError) as exc:
         raise PackError(f"{path} is not JSON: {exc}") from exc
     if not isinstance(manifest, dict):

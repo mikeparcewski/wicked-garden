@@ -471,16 +471,20 @@ CASES_V2 = ("13-surfaces", "14-card", "15-options", "16-full")
 
 
 def record_stop(report: dict, exc: Exception, cases: tuple) -> None:
-    """A case run that stopped on an exception no case caught: the browser or its page going away is the host's
-    failure (a refusal); anything else (a wait on the editor's own frame or controls that never came) is the
-    editor's, recorded as the first of ``cases`` not yet recorded, failed, naming the exception."""
+    """A case run that stopped on an exception no case caught, classified by the exception's TYPE, never its text
+    (an editor can put any words in an error): a Playwright timeout is a wait on the editor's own frame or controls
+    that never came (the host page had rendered: its own failures are caught where it loads), so it is the editor's
+    failure, recorded as ``stopped`` with the last case that finished (never charged to a case that did not run);
+    the browser or page going away (``TargetClosedError``) and anything else are the harness's, a refusal."""
     msg = f"{type(exc).__name__}: {str(exc).splitlines()[0] if str(exc) else ''}"
-    if type(exc).__name__ == "TargetClosedError" or "has been closed" in str(exc):
-        report.setdefault("host_failure", f"the browser went away mid-run ({msg})")
+    if type(exc).__name__ == "TimeoutError" and type(exc).__module__.startswith("playwright"):
+        done = [c for c in cases if c in report["cases"]]
+        report["cases"]["stopped"] = {"ok": False, "error": f"the run stopped waiting on the editor: {msg}",
+                                      "after": list(report["cases"])[-1] if report["cases"] else None,
+                                      "not_run": [c for c in cases if c not in done]}
         return
-    missing = next((c for c in cases if c not in report["cases"]), None)
-    if missing is not None:
-        report["cases"][missing] = {"ok": False, "error": f"the run stopped on the editor: {msg}"}
+    what = "the browser went away mid-run" if type(exc).__name__ == "TargetClosedError" else "the harness stopped"
+    report.setdefault("host_failure", f"{what} ({msg})")
 
 
 def speaks(editor: dict, version: int) -> bool:
@@ -789,7 +793,9 @@ def python_with_playwright(engine: bool = False) -> str | None:
         candidates += [x for x in (shutil.which(n) for n in ("python3", "python")) if x is not None]
     for exe in candidates:
         try:
-            if subprocess.run([exe, "-I", "-c", "import playwright.sync_api"], capture_output=True, timeout=30).returncode == 0:
+            # -I for the engine's interpreter (no PYTHON* variable, no user site); a hand run keeps a user-site playwright.
+            probe = [exe, "-I", "-c", "import playwright.sync_api"] if engine else [exe, "-c", "import playwright.sync_api"]
+            if subprocess.run(probe, capture_output=True, timeout=30).returncode == 0:
                 return exe
         except (OSError, subprocess.TimeoutExpired):
             continue
@@ -805,10 +811,12 @@ def manifest_case(pack: Path) -> dict:
         return {"ok": False, "error": f"pack check unavailable: {exc}", "host_failure": f"pack check unavailable: {exc}"}
     try:
         findings = check_pack(pack, garden_root=HERE.parents[1])
-    except (ValueError, RecursionError) as exc:  # the pack's own bytes (bad UTF-8, JSON nested past the limit)
+    except Exception as exc:  # noqa: BLE001
+        # The checker is garden's own, exercised on every pack it ships; what makes it throw is the pack's shape
+        # (bad UTF-8, JSON nested past the limit, a field of the wrong type): case 0 fails, a verdict the pack's
+        # author fixes. The same pack fails crew's install gate the same way. Only a checker that will not import
+        # is the harness's (above).
         return {"ok": False, "error": f"pack check could not read the pack: {type(exc).__name__}: {exc}"}
-    except Exception as exc:  # noqa: BLE001 — the checker itself broke: the harness's failure, never the pack's
-        return {"ok": False, "error": f"pack check crashed: {exc}", "host_failure": f"pack check crashed: {exc}"}
     errs = [f.render() for f in findings if f.level == "error"]
     return {"ok": not errs, "errors": errs[:10]}
 
@@ -892,7 +900,13 @@ def main(argv: list[str] | None = None) -> int:
         if engine is not None and not report.get("ok"):
             # A pack problem always names its cause where it is found; an un-named failure is never blamed on the pack.
             report.setdefault("cause", {1: "case_failed", 3: "no_browser"}.get(code, "bad_arguments"))
-        text = json.dumps(report, indent=2)
+        try:
+            text = json.dumps(report, indent=2, allow_nan=False)
+        except ValueError:  # a pack-controlled non-finite number reached the report: say so in valid JSON
+            report = {"ok": False, "pack": str(args.pack), "cause": "pack_invalid" if engine is not None else None,
+                      "error": "the pack carries a number JSON cannot hold (NaN or Infinity)"}
+            text = json.dumps(report, indent=2)
+            code = 2
         print(text)
         if engine is not None:
             try:
@@ -916,8 +930,10 @@ def main(argv: list[str] | None = None) -> int:
             # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
             body = entry_path(args.pack, e).read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
-    except (PackError, ValueError, RecursionError) as exc:  # a path with an embedded NUL, bad UTF-8, deep JSON
-        return out({"ok": False, "pack": str(args.pack), "error": str(exc), "cause": "pack_invalid"}, 2)
+    except (PackError, ValueError, RecursionError, OSError) as exc:  # NUL in a path, bad UTF-8, deep JSON, an
+        # entry the seat made unreadable: the run's tree is the creator's, so a file in it that cannot be read is too
+        return out({"ok": False, "pack": str(args.pack), "error": f"{type(exc).__name__}: {exc}",
+                    "cause": "pack_invalid"}, 2)
     if engine is not None and not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC"):
         # The engine's interpreter (crew's pinned venv), never whichever playwright this interpreter happens to
         # import: re-execute under it before anything imports a browser driver (the pack is refused first, if it is).
@@ -955,9 +971,8 @@ def main(argv: list[str] | None = None) -> int:
         if other is not None:
             import subprocess  # noqa: PLC0415
             env = {**os.environ, "WG_EDITOR_CONFORMANCE_REEXEC": "1"}
-            # -I: the interpreter reads no PYTHON* variable and no user site, and puts no script dir or cwd first
-            # (this file puts its own directory on the path itself).
-            return subprocess.call([other, "-I", os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])],
+            # A hand run (engine mode re-executed above, before this import): keep the interpreter's user site.
+            return subprocess.call([other, os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])],
                                    env=env)
         return out({"ok": False, "pack": str(args.pack), "error": "no headless browser: the Python playwright package is "
                     "not installed (pip install playwright && playwright install chromium); refusing to report conformance "
@@ -984,7 +999,9 @@ def main(argv: list[str] | None = None) -> int:
             with contextlib.suppress(Exception):
                 os.chdir(tmp)  # nothing the browser writes lands in the pack
             for e in editors:
-                er = {"id": e.get("id"), "version": e.get("version"), "protocol": e.get("protocol"),
+                er = {"id": e.get("id"), "version": e.get("version"),
+                      "protocol": [p for p in e.get("protocol") or [] if isinstance(p, int) and not isinstance(p, bool)]
+                      if isinstance(e.get("protocol"), list) else [],
                       "sha256": entries[(str(e.get("id")), str(e.get("version")))][1],
                       "cases": {"0-manifest": m0}, "gaps": [
                           "case 7 (a scripted edit) is the editor's own UI: not run here",
@@ -1034,8 +1051,8 @@ def main(argv: list[str] | None = None) -> int:
         report["ok"] = False
         report["error"] = host_failure
         if engine is not None:
-            report["cause"] = ("harness_broken" if host_failure.startswith(("pack check unavailable", "pack check crashed"))
-                               else "host_page_failed")
+            report["cause"] = ("host_page_failed" if host_failure.startswith("the conformance host page")
+                               else "harness_broken")
     return out(report, 0 if report["ok"] else 1)
 
 
