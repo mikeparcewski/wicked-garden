@@ -26,6 +26,17 @@ Docs and skill wording for 12.64 (#1400) and a site re-pin (#1411).
 
 ### Added
 
+- **Editor conformance on the host: `conformance.py --engine` (e2e F18, DES-EDITOR-CONFORMANCE-HOST).** The garden
+  half of moving an editor-plugin run's conformance cases out of the review seat, which has no headless browser, so
+  the review could never pass. wicked-core runs this mode as the workflow's `conformance` step, in an OS jail whose only
+  network is the script's own loopback port. Every input comes from the environment the engine sets: the run's
+  worktree (the ONE editor pack under it, with no link on the way to its manifest or entries), the port, crew's studio
+  dist (never the daemon), and the out file. It refuses to run without the jail. A non-ok report carries a `cause`:
+  `case_failed` or `pack_invalid` is a verdict on the pack; any other cause kept the cases from running. Engine mode always
+  re-executes under `$WG_EDITOR_CONFORMANCE_PYTHON` (wicked-crew's private Playwright venv) with `-I` and never
+  probes PATH; a hand run considers that interpreter first when its own cannot import Playwright. Each editor's report carries its `protocol`. The editor-scaffold skill's build and
+  test steps cite the engine's record instead of running the harness in the seat. The run's pack search moved to
+  `_pack.find_editor_packs`, which `install.py --from-run` shares.
 - **The engine-run demo recorder (`scripts/demo/demo-record.mjs`, wicked-core#1249).** The garden half of moving a
   crew Demo video's recording out of its seat (whose container cannot reach the app, and has no ffmpeg or browser):
   `demo-record.mjs probe` and `record`, for the engine to run on the host, in its jail, with network to the app's one

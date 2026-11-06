@@ -393,6 +393,413 @@ def test_conformance_refuses_a_pack_with_no_editors(tmp_path):
     assert done.returncode == 2 and "declares no editors" in json.loads(done.stdout)["error"]
 
 
+# ── conformance: ENGINE MODE (the engine's host step, DES-EDITOR-CONFORMANCE-HOST / F18) ─────────
+
+def _conformance_module():
+    import importlib.util  # noqa: PLC0415
+    spec = importlib.util.spec_from_file_location("wg_editor_conformance", SCRIPTS / "conformance.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _engine_env(tree: Path, tmp_path: Path, **over: str) -> dict:
+    dist = tmp_path / "dist"
+    dist.mkdir(exist_ok=True)
+    (dist / "index.html").write_text("<!doctype html><title>studio</title>")
+    env = {"WICKED_EDITOR_CONFORMANCE_JAIL": "sandbox-exec", "WICKED_EDITOR_PACK_ROOT": str(tree),
+           "WG_EDITOR_CONFORMANCE_PORT": "18799", "WG_EDITOR_CONFORMANCE_STUDIO_DIST": str(dist),
+           "WG_EDITOR_CONFORMANCE_OUT": str(tmp_path / "out" / "report.json")}
+    (tmp_path / "out").mkdir(exist_ok=True)
+    env.update(over)
+    return env
+
+
+def test_engine_mode_refuses_to_run_unjailed_and_writes_nothing(tmp_path):
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "acme-json").returncode == 0
+    env = _engine_env(tree, tmp_path, WICKED_EDITOR_CONFORMANCE_JAIL="")
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads(done.stdout)
+    assert done.returncode == 2 and report["cause"] == "no_jail" and report["ok"] is False
+    assert not (tmp_path / "out" / "report.json").exists()
+
+
+def test_engine_mode_takes_no_pack_or_host_from_its_arguments(tmp_path):
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "acme-json").returncode == 0
+    done = run("conformance.py", "--engine", "--pack", str(tree / "acme-json"), env=_engine_env(tree, tmp_path))
+    assert done.returncode == 2 and "every input from the environment" in done.stderr
+
+
+def test_engine_mode_finds_the_one_pack_and_refuses_two(tmp_path):
+    mod = _conformance_module()
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "plugins" / "acme-json").returncode == 0
+    (tree / "node_modules" / "x").mkdir(parents=True)
+    shutil.copytree(tree / "plugins" / "acme-json", tree / "node_modules" / "x" / "acme-json")  # never searched
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    assert refusal == {} and got["pack"] == tree / "plugins" / "acme-json" and got["port"] == 18799
+    shutil.copytree(tree / "plugins" / "acme-json", tree / "second")
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    assert got is None and refusal["cause"] == "pack_invalid" and "found 2" in refusal["error"]
+
+
+@pytest.mark.parametrize("over, cause", [
+    ({"WG_EDITOR_CONFORMANCE_PORT": "80"}, "bad_arguments"),
+    ({"WG_EDITOR_CONFORMANCE_PORT": "７７２１"}, "bad_arguments"),
+    ({"WG_EDITOR_CONFORMANCE_OUT": "report.json"}, "bad_arguments"),
+    ({"WG_EDITOR_CONFORMANCE_STUDIO_DIST": "/nonexistent-studio-dist"}, "no_studio"),
+    ({"WICKED_EDITOR_PACK_ROOT": "relative/tree"}, "bad_arguments"),
+])
+def test_engine_mode_refuses_inputs_it_cannot_vouch_for(tmp_path, over, cause):
+    mod = _conformance_module()
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "acme-json").returncode == 0
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path, **over))
+    assert got is None and refusal["cause"] == cause, refusal
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks")
+@pytest.mark.parametrize("what", ["entry", "manifest", "dir"])
+def test_engine_mode_refuses_a_linked_pack_before_any_browser(tmp_path, what):
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    secret = tmp_path / "secret.html"
+    if what == "entry":
+        secret.write_text((pack / FIXTURE_ENTRY).read_text())
+        (pack / FIXTURE_ENTRY).unlink()
+        (pack / FIXTURE_ENTRY).symlink_to(secret)
+    elif what == "manifest":
+        real = tmp_path / "manifest.json"
+        real.write_text((pack / "wicked-pack.json").read_text())
+        (pack / "wicked-pack.json").unlink()
+        (pack / "wicked-pack.json").symlink_to(real)
+    else:
+        real = tmp_path / "editors-real"
+        shutil.move(str(pack / "editors"), real)
+        (pack / "editors").symlink_to(real, target_is_directory=True)
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path))
+    report = json.loads(done.stdout)
+    assert done.returncode == 2 and report["cause"] == "pack_invalid" and "link" in report["error"], report
+    assert json.loads((tmp_path / "out" / "report.json").read_text())["cause"] == "pack_invalid"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="symlinks")
+def test_engine_mode_refuses_a_link_anywhere_in_the_pack_and_a_linked_manifest_before_reading_it(tmp_path):
+    mod = _conformance_module()
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    (pack / "skills").mkdir()
+    (pack / "skills" / "SKILL.md").symlink_to(tmp_path / "host-secret.md")  # case 0 would read it
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path))
+    report = json.loads(done.stdout)
+    assert report["cause"] == "pack_invalid" and "skills/SKILL.md is a link" in report["error"], report
+    # A linked manifest is refused at discovery, before it is opened (its target here cannot be read at all).
+    tree2 = tmp_path / "tree2"
+    (tree2 / "p").mkdir(parents=True)
+    (tree2 / "p" / "wicked-pack.json").symlink_to(tmp_path / "missing-target.json")
+    got, refusal = mod.engine_inputs(_engine_env(tree2, tmp_path))
+    assert got is None and refusal["cause"] == "pack_invalid" and "is a link" in refusal["error"], refusal
+
+
+def test_engine_mode_calls_an_entry_no_filesystem_accepts_an_invalid_pack(tmp_path):
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["editors"][0]["entry"] = "editors/acme-json/in\u0000dex.html"
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1")
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads(done.stdout)
+    assert done.returncode == 2 and report["cause"] == "pack_invalid", report
+
+
+def test_engine_discovery_never_lets_an_unreadable_manifest_drop_out_and_install_keeps_its_rule(tmp_path):
+    mod = _conformance_module()
+    sys.path.insert(0, str(SCRIPTS))
+    import _pack  # noqa: PLC0415
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "good").returncode == 0
+    assert scaffold(tree / "big").returncode == 0
+    big = json.loads((tree / "big" / "wicked-pack.json").read_text())
+    big["padding"] = "x" * (_pack.MANIFEST_CAP + 1)
+    (tree / "big" / "wicked-pack.json").write_text(json.dumps(big))
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    assert got is None and refusal["cause"] == "pack_invalid" and "over" in refusal["error"], refusal
+    # install.py --from-run's discovery is unchanged: no cap, both packs found (so it refuses two).
+    assert len(_pack.find_editor_packs(tree)) == 2
+    (tree / "deep").mkdir()
+    (tree / "deep" / "wicked-pack.json").write_text("[" * 100000 + "]" * 100000)
+    (tree / "big" / "wicked-pack.json").unlink()
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    assert got is None and refusal["cause"] == "pack_invalid", refusal
+    assert _pack.find_editor_packs(tree) == [tree / "good"]  # install skips it, as before
+
+
+def test_a_pack_the_checker_cannot_decode_fails_case_0_and_a_stop_is_classified(tmp_path):
+    mod = _conformance_module()
+    pack = tmp_path / "acme-json"
+    assert scaffold(pack).returncode == 0
+    (pack / "skills" / "x").mkdir(parents=True)
+    (pack / "skills" / "x" / "SKILL.md").write_bytes(b"---\nname: x\n---\n\xff\xfe bad utf-8")
+    m0 = mod.manifest_case(pack)
+    assert m0["ok"] is False and "host_failure" not in m0, m0  # a verdict on the pack, not the host
+    # By the exception's TYPE, never its words: a Playwright timeout is the editor's ("stopped", charged to no
+    # case that did not run); the browser going away, or anything else, is the harness's.
+    pw_timeout = type("TimeoutError", (Exception,), {"__module__": "playwright._impl._errors"})
+    er = {"cases": {"0-manifest": {"ok": True}, "1-handshake": {"ok": True}, "2-sizes": {"ok": True}}}
+    mod.record_stop(er, pw_timeout("Timeout 5000ms exceeded waiting for body"), mod.CASES_V1)
+    assert er["cases"]["stopped"]["ok"] is False and er["cases"]["stopped"]["after"] == "2-sizes"
+    assert "3-no-network" not in er["cases"] and "host_failure" not in er
+    closed = type("TargetClosedError", (Exception,), {"__module__": "playwright._impl._errors"})
+    for exc in (closed("Target page, context or browser has been closed"),
+                AttributeError("window.__wickedEditor.setSize is not a function"),
+                Exception("has been closed")):  # an editor's error text never decides
+        er2 = {"cases": {}}
+        mod.record_stop(er2, exc, mod.CASES_V1)
+        assert "host_failure" in er2 and er2["cases"] == {}, exc
+    # A field of the wrong type the checker trips on is the pack's (case 0), not the harness's.
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["domains"] = [{"name": 7}]
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    m0 = mod.manifest_case(pack)
+    assert m0["ok"] is False and "host_failure" not in m0, m0
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
+def test_engine_discovery_refuses_a_subtree_it_cannot_read_and_install_reads_as_before(tmp_path):
+    mod = _conformance_module()
+    sys.path.insert(0, str(SCRIPTS))
+    import _pack  # noqa: PLC0415
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "good").returncode == 0
+    assert scaffold(tree / "hidden" / "second").returncode == 0
+    (tree / "hidden").chmod(0o000)
+    try:
+        got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+        assert got is None and refusal["cause"] == "pack_invalid" and "cannot be read" in refusal["error"], refusal
+        assert _pack.find_editor_packs(tree) == [tree / "good"]  # install's walk is unchanged
+    finally:
+        (tree / "hidden").chmod(0o755)
+    # A non-finite number is refused only by the engine's reader; install reads the manifest as before.
+    m = (tree / "good" / "wicked-pack.json").read_text()
+    (tree / "good" / "wicked-pack.json").write_text(m.replace("{", '{"x-provenance": 1e999, ', 1))
+    assert _pack.read_manifest(tree / "good")["x-provenance"] == float("inf")
+    with pytest.raises(_pack.PackError):
+        _pack.read_manifest(tree / "good", finite=True)
+
+
+def test_an_engine_report_is_bounded_whatever_the_pack_puts_in_it(tmp_path):
+    mod = _conformance_module()
+    nested: object = "x"
+    for _ in range(200):
+        nested = {"n": nested}
+    big = {"ok": False, "error": "x" * 1_000_000, "pack": "/p", "editors": [
+        {"id": nested, "version": ["v"] * 10_000, "sha256": "ab", "protocol": [1] * 60 + [2], "ok": False,
+         "cases": {"14-card": {"ok": False, "error": "e" * 50_000, "reply": {f"k{i}": "v" * 1000 for i in range(5000)}},
+                   "0-manifest": {"ok": True}}}]}
+    small = mod.engine_report(big)
+    text = json.dumps(small)
+    assert len(text) < 20_000, len(text)
+    # Every verdict-bearing field kept whole: the protocol-2 requirement past item 50 survives, each case's ok too.
+    e = small["editors"][0]
+    assert e["protocol"] == [1, 2] and e["cases"]["14-card"]["ok"] is False and e["cases"]["0-manifest"]["ok"] is True
+    assert "reply" not in e["cases"]["14-card"] and isinstance(e["id"], str)
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["editors"][0]["entry"] = "editors/" + "a" * 600_000 + ".html"
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1"))
+    out = (tmp_path / "out" / "report.json").read_text()
+    assert len(out) < 20_000 and json.loads(out)["cause"] == "pack_invalid", out[:300]
+    # Discovery refusals go through the same writer: many candidate packs name a few, bounded.
+    many = tmp_path / "many"
+    for i in range(8):
+        assert scaffold(many / (f"p{i}-" + "d" * 200)).returncode == 0
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(many, tmp_path))
+    out = (tmp_path / "out" / "report.json").read_text()
+    assert done.returncode == 2 and json.loads(out)["cause"] == "pack_invalid" and "found 8" in out and len(out) < 5_000
+
+
+@pytest.mark.parametrize("field, value", [("title", "t" * 70_000), ("protocol", [1, 2, 10 ** 400]),
+                                          ("permissions", [{"id": "artifact.read", "why": "to read it"}] * 40),
+                                          ("permissions", 1), ("permissions", True)])
+def test_a_pack_value_no_host_page_or_reader_can_carry_is_the_pack_s(tmp_path, field, value):
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["editors"][0][field] = value
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1"))
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert done.returncode == 2 and report["cause"] == "pack_invalid", report
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
+def test_a_readable_but_unsearchable_directory_is_the_pack_s(tmp_path):
+    mod = _conformance_module()
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "good").returncode == 0
+    assert scaffold(tree / "odd" / "second").returncode == 0
+    (tree / "odd" / "second").chmod(0o400)
+    try:
+        got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    finally:
+        (tree / "odd" / "second").chmod(0o755)
+    assert got is None and refusal["cause"] == "pack_invalid", refusal
+
+
+def test_the_host_running_out_of_resources_in_pack_check_is_the_harness_s(tmp_path, monkeypatch):
+    import errno  # noqa: PLC0415
+    mod = _conformance_module()
+    import pack.check  # noqa: PLC0415
+
+    def emfile(*_a, **_k):
+        raise OSError(errno.EMFILE, "Too many open files")
+    monkeypatch.setattr(pack.check, "check_pack", emfile)
+    m0 = mod.manifest_case(tmp_path)
+    assert m0["ok"] is False and "host_failure" in m0, m0
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
+def test_engine_mode_calls_an_unreadable_entry_or_a_non_finite_number_an_invalid_pack(tmp_path):
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1")
+    (pack / FIXTURE_ENTRY).chmod(0o000)
+    try:
+        done = run("conformance.py", "--engine", "--json", env=env)
+    finally:
+        (pack / FIXTURE_ENTRY).chmod(0o644)
+    report = json.loads(done.stdout)
+    assert done.returncode == 2 and report["cause"] == "pack_invalid", report
+    m = (pack / "wicked-pack.json").read_text()
+    (pack / "wicked-pack.json").write_text(m.replace('"protocol": [', '"protocol": [1e999, ', 1))
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads(done.stdout, parse_constant=lambda c: pytest.fail(f"{c} in the report"))
+    out = json.loads((tmp_path / "out" / "report.json").read_text(), parse_constant=lambda c: pytest.fail(c))
+    assert report["cause"] == out["cause"] == "pack_invalid", report
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a shell-script interpreter")
+def test_engine_mode_reexecutes_under_the_engines_interpreter_first(tmp_path):
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "acme-json").returncode == 0
+    seen = tmp_path / "seen.txt"
+    fake = tmp_path / "venv-python"
+    # Answers the probe ("-I -c import playwright…") yes; any other call records its argv and env, writes a report.
+    fake.write_text("#!/bin/sh\n"
+                    'if [ "$2" = "-c" ]; then exit 0; fi\n'
+                    f'printf "%s\\n" "$@" > {seen}\n'
+                    f'printf "REEXEC=%s\\n" "$WG_EDITOR_CONFORMANCE_REEXEC" >> {seen}\n'
+                    'echo \'{"ok": true, "editors": []}\'\n'
+                    "exit 7\n")
+    fake.chmod(0o755)
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PYTHON=str(fake))
+    done = run("conformance.py", "--engine", "--json", env=env)
+    assert done.returncode == 7, done.stdout + done.stderr  # the child's status is the run's
+    lines = seen.read_text().splitlines()
+    assert lines[0] == "-I" and lines[1].endswith("scripts/editor/conformance.py"), lines
+    assert lines[2:4] == ["--engine", "--json"] and "REEXEC=1" in lines, lines
+    # No interpreter named: a no_browser refusal, never PATH's playwright.
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PYTHON="")  # unset even when the parent has one
+    done = run("conformance.py", "--engine", "--json", env=env)
+    assert done.returncode == 3 and json.loads(done.stdout)["cause"] == "no_browser"
+
+
+def _engine_browser_ready() -> bool:
+    py, dist = os.environ.get("WG_EDITOR_CONFORMANCE_PYTHON", ""), os.environ.get("WICKED_STUDIO_DIST", "")
+    return bool(py) and os.path.isfile(py) and bool(dist) and (Path(dist) / "index.html").is_file()
+
+
+@pytest.mark.skipif(not _engine_browser_ready(), reason="needs WG_EDITOR_CONFORMANCE_PYTHON (playwright + chromium) "
+                    "and WICKED_STUDIO_DIST (a protocol-2 studio dist)")
+def test_engine_mode_runs_every_case_and_writes_the_report_the_engine_reads(tmp_path):
+    import socket  # noqa: PLC0415
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "acme-json").returncode == 0
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PORT=str(port),
+                      WG_EDITOR_CONFORMANCE_STUDIO_DIST=os.environ["WICKED_STUDIO_DIST"])
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert done.returncode == 0 and report["ok"] is True and "cause" not in report, done.stdout[-2000:]
+    editor = report["editors"][0]
+    assert editor["protocol"] == [1, 2] and editor["negotiated"] == 2
+    required = ["0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
+                "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned",
+                "13-surfaces", "14-card", "15-options", "16-full"]  # crew's requiredCases for a protocol-2 editor
+    assert {c: editor["cases"].get(c, {}).get("ok") for c in required} == {c: True for c in required}
+    # A silent editor: a verdict on the pack, never a host refusal.
+    entry = tree / "acme-json" / FIXTURE_ENTRY
+    entry.write_text(entry.read_text().replace("parent.postMessage(env('plugin.ready'", "void (env('plugin.ready'"))
+    assert run("pin.py", str(tree / "acme-json")).returncode == 0
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert done.returncode == 1 and report["cause"] == "case_failed", report.get("error")
+    # A studio dist that never renders the host page: the host's failure, a refusal, never a send-back.
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PORT=str(port), WG_EDITOR_CONFORMANCE_TIMEOUT="5")
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert report["ok"] is False and report["cause"] == "host_page_failed", report.get("error")
+    # An editor that handshakes but keeps its body hidden: the editor's failure, never a crashed run.
+    entry.write_text(entry.read_text()
+                     .replace("void (env('plugin.ready'", "parent.postMessage(env('plugin.ready'")
+                     .replace("<head>", "<head><style>body{display:none!important}</style>", 1))
+    assert run("pin.py", str(tree / "acme-json")).returncode == 0
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PORT=str(port),
+                      WG_EDITOR_CONFORMANCE_STUDIO_DIST=os.environ["WICKED_STUDIO_DIST"])
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert report["cause"] == "case_failed", report.get("error") or report["editors"][0]["cases"]
+
+
+def test_engine_mode_never_probes_path_for_an_interpreter(tmp_path, monkeypatch):
+    mod = _conformance_module()
+    fake = tmp_path / "bin"
+    fake.mkdir()
+    py = fake / "python3"
+    py.write_text("#!/bin/sh\nexit 0\n")  # "imports playwright" for anyone who asks
+    py.chmod(0o755)
+    monkeypatch.setenv("PATH", str(fake))
+    monkeypatch.delenv("WG_EDITOR_CONFORMANCE_PYTHON", raising=False)
+    assert mod.python_with_playwright(engine=True) is None
+    if sys.platform != "win32":
+        assert mod.python_with_playwright(engine=False) == str(py)
+        monkeypatch.setenv("WG_EDITOR_CONFORMANCE_PYTHON", str(py))
+        assert mod.python_with_playwright(engine=True) == str(py)
+
+
+def test_the_conformance_origin_listens_on_the_port_it_is_handed(tmp_path):
+    import socket  # noqa: PLC0415
+    import urllib.request  # noqa: PLC0415
+    mod = _conformance_module()
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    (tmp_path / "index.html").write_text("<!doctype html><title>studio</title>")
+    server = mod.make_server({}, None, tmp_path, 5.0, port)
+    try:
+        assert server.server_address[1] == port
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/editors/conformance", timeout=5) as r:  # noqa: S310
+            assert r.status == 200
+        with pytest.raises(OSError):
+            mod.make_server({}, None, tmp_path, 5.0, port)  # taken: the engine's cause is port_unavailable
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def _browser_ready() -> bool:
     try:
         from playwright.sync_api import sync_playwright  # noqa: PLC0415

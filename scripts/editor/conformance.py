@@ -3,6 +3,7 @@
 
     wicked-garden run scripts/editor/conformance.py --pack <pack dir> [--host-url <crew URL> | --studio-dist <dir>]
         [--timeout <seconds>] [--json]
+    wicked-garden run scripts/editor/conformance.py --engine --json      (the engine's host step; see ENGINE MODE)
 
 The cases run in headless Chromium against studio's own **conformance host page**
 (``/editors/conformance``: the real plugin host, its sandboxed frame, its MessagePort handshake, its
@@ -59,9 +60,30 @@ Protocol 1 only:
 Case 7 (a scripted edit) needs the editor's own UI and is not run here: an editor asking for
 ``artifact.write`` gets it reported as a gap for its author's tests.
 
-Prints one JSON report ``{ok, pack, host, editors: [{id, version, sha256, ok, cases, gaps}]}``.
+Prints one JSON report ``{ok, pack, host, editors: [{id, version, protocol, sha256, ok, cases, gaps}]}``.
 Exit 0 every editor passed, 1 a case failed, 2 bad arguments or an unreadable pack, 3 no headless
 browser (fail closed: an editor is never reported conformant without the run).
+
+ENGINE MODE (``--engine``; DES-EDITOR-CONFORMANCE-HOST, F18). wicked-core runs this script as the editor-plugin
+workflow's ``conformance`` step, on the host, in an OS jail whose only network is ONE loopback port: this script's
+own origin. So the host page always comes from a studio dist, never from the daemon, and every input is the
+engine's, from the environment:
+
+  WICKED_EDITOR_CONFORMANCE_JAIL         the jail's launcher kind; refused without it (never run unjailed)
+  WICKED_EDITOR_PACK_ROOT                the run's worktree: the ONE editor pack under it is the candidate
+                                         (no link anywhere on the way to its manifest or entries)
+  WG_EDITOR_CONFORMANCE_PORT             the loopback port to serve the origin on (the one the jail opens)
+  WG_EDITOR_CONFORMANCE_STUDIO_DIST      the studio dist to serve the host page from
+  WG_EDITOR_CONFORMANCE_OUT              where to write the report as well (a file in the engine's temp dir)
+  WG_EDITOR_CONFORMANCE_PYTHON           the interpreter with Playwright (wicked-crew's private venv), in any mode
+
+The report then also carries ``cause`` when it is not ok: ``case_failed`` or ``pack_invalid`` (a verdict on the
+pack: its author fixes it), else what kept the cases from running (``no_jail``, ``bad_arguments``, ``no_studio``,
+``port_unavailable``, ``no_browser``, ``host_page_failed``, ``harness_broken``): the host's problem, never a verdict
+on the editor. In engine mode the ``cause`` decides, not the exit code: exit 2 also covers the host refusals
+before the cases start (a port that is taken, inputs it cannot vouch for), and exit 1 a host page that did not
+render or a pack checker that is missing or crashed. Engine mode refuses any link anywhere in the pack directory (and on the way to it from the tree), and
+re-executes under ``$WG_EDITOR_CONFORMANCE_PYTHON`` before it imports a browser driver.
 """
 
 from __future__ import annotations
@@ -87,7 +109,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
-from _pack import PackError, editors_of, entry_path, read_manifest  # noqa: E402
+from _pack import (  # noqa: E402
+    MANIFEST_CAP, PackError, editors_of, entry_path, find_editor_packs, read_manifest, refuse_links, refuse_links_under,
+)
 from _surfaces import SurfacesError, canonical_surfaces, parse_surfaces  # noqa: E402
 
 # The third-party bundle policy, as wicked-crew serves it (crew `editors/csp.ts`, no `https:` media).
@@ -100,6 +124,14 @@ SAFE_CTYPE = re.compile(r"[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+(?:; ?chars
 PING_PERIOD_MS = 11_500
 DEFAULT_TIMEOUT_S = 120.0
 TIMEOUT_ENV = "WG_EDITOR_CONFORMANCE_TIMEOUT"
+PYTHON_ENV = "WG_EDITOR_CONFORMANCE_PYTHON"
+JAIL_ENV = "WICKED_EDITOR_CONFORMANCE_JAIL"
+PACK_ROOT_ENV = "WICKED_EDITOR_PACK_ROOT"
+PORT_ENV = "WG_EDITOR_CONFORMANCE_PORT"
+STUDIO_DIST_ENV = "WG_EDITOR_CONFORMANCE_STUDIO_DIST"
+OUT_ENV = "WG_EDITOR_CONFORMANCE_OUT"
+# The causes that are a verdict on the pack (its author fixes it); every other cause kept the cases from running.
+VERDICT_CAUSES = ("case_failed", "pack_invalid")
 # In the editor's frame, before its own script: the host.hello it took (the first trusted one from the parent carrying
 # a port), as the frame received it. The surface and tab a host page says it mounted are only claims; this is what the
 # editor was told. Every native it needs is captured before the editor runs, only own primitive fields are read, and
@@ -144,7 +176,7 @@ class PageFailed(Exception):
 # ── the local origin ───────────────────────────────────────────────────────────────────────
 
 def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: str | None, dist: Path | None,
-                timeout_s: float = DEFAULT_TIMEOUT_S):
+                timeout_s: float = DEFAULT_TIMEOUT_S, port: int = 0):
     """A local origin: the candidate entries on the bundle route, everything else from the host.
 
     The host page's own files (anything outside ``/api/``) are fetched from the daemon once and then served from
@@ -223,7 +255,7 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
                 ctype = "text/html; charset=utf-8"
             return self._send(200, target.read_bytes(), ctype)
 
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
 
@@ -299,8 +331,11 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
             page.goto(url(sha, grants), wait_until="domcontentloaded", timeout=load_ms)
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001
-            check("1-handshake", False, error=f"the conformance host page did not render within {timeout_s:g} s "
-                  f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            msg = (f"the conformance host page did not render within {timeout_s:g} s "
+                   f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            # The host page renders before the editor's frame loads: this is the host's failure, not the editor's.
+            report.setdefault("host_failure", msg)
+            check("1-handshake", False, error=msg)
         try:
             page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
         except Exception:  # noqa: BLE001
@@ -416,8 +451,10 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
             page.goto(url("0" * 64, grants), wait_until="domcontentloaded", timeout=load_ms)
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001
-            check("12-hash-pinned", False, error=f"the conformance host page did not render within {timeout_s:g} s "
-                  f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            msg = (f"the conformance host page did not render within {timeout_s:g} s "
+                   f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            report.setdefault("host_failure", msg)  # the host page, not the editor (it renders first)
+            check("12-hash-pinned", False, error=msg)
         torn = _torn(page, wait=True)
         check("12-hash-pinned", torn is not None and count("handshake") == 0, torn=torn)
     except CaseFailed:
@@ -426,6 +463,28 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         if errors:
             report["page_errors"] = errors[:5]
         page.close()
+
+
+CASES_V1 = ("0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
+            "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned")
+CASES_V2 = ("13-surfaces", "14-card", "15-options", "16-full")
+
+
+def record_stop(report: dict, exc: Exception, cases: tuple) -> None:
+    """A case run that stopped on an exception no case caught, classified by the exception's TYPE, never its text
+    (an editor can put any words in an error): a Playwright timeout is a wait on the editor's own frame or controls
+    that never came (the host page had rendered: its own failures are caught where it loads), so it is the editor's
+    failure, recorded as ``stopped`` with the last case that finished (never charged to a case that did not run);
+    the browser or page going away (``TargetClosedError``) and anything else are the harness's, a refusal."""
+    msg = f"{type(exc).__name__}: {str(exc).splitlines()[0] if str(exc) else ''}"
+    if type(exc).__name__ == "TimeoutError" and type(exc).__module__.startswith("playwright"):
+        done = [c for c in cases if c in report["cases"]]
+        report["cases"]["stopped"] = {"ok": False, "error": f"the run stopped waiting on the editor: {msg}",
+                                      "after": list(report["cases"])[-1] if report["cases"] else None,
+                                      "not_run": [c for c in cases if c not in done]}
+        return
+    what = "the browser went away mid-run" if type(exc).__name__ == "TargetClosedError" else "the harness stopped"
+    report.setdefault("host_failure", f"{what} ({msg})")
 
 
 def speaks(editor: dict, version: int) -> bool:
@@ -502,12 +561,17 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict, ti
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001 — the case that opened it fails, naming why
             page.close()
-            raise PageFailed(f"the conformance host page did not render within {timeout_s:g} s (--timeout / "
-                             f"${TIMEOUT_ENV}): {str(exc).splitlines()[0]}") from exc
+            msg = (f"the conformance host page did not render within {timeout_s:g} s (--timeout / "
+                   f"${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            report.setdefault("host_failure", msg)  # the host's failure, not the editor's (it renders first)
+            raise PageFailed(msg) from exc
         try:
             page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
         except Exception as exc:  # noqa: BLE001
-            page.close()
+            if type(exc).__name__ == "TargetClosedError":  # the browser went away: the host's, never the editor's
+                report.setdefault("host_failure", f"the browser went away mid-run ({str(exc).splitlines()[0]})")
+            with contextlib.suppress(Exception):
+                page.close()
             raise PageFailed("no plugin.ready the host accepted within its 3 s") from exc
         page.wait_for_timeout(300)
         return page, errors
@@ -721,16 +785,20 @@ def _torn(page, wait: bool = False):
         return None
 
 
-def python_with_playwright() -> str | None:
-    """The first python3 / python on PATH that can import playwright. Each is probed, never compared by
-    path: a venv's python links to the same base binary yet sees other site-packages (codex)."""
+def python_with_playwright(engine: bool = False) -> str | None:
+    """``$WG_EDITOR_CONFORMANCE_PYTHON`` (an absolute path: wicked-crew's private Playwright venv), else the first
+    python3 / python on PATH, that can import playwright. Each is probed, never compared by path: a venv's python
+    links to the same base binary yet sees other site-packages (codex)."""
     import shutil, subprocess  # noqa: E401, PLC0415
-    for name in ("python3", "python"):
-        exe = shutil.which(name)
-        if exe is None:
-            continue
+    named = os.environ.get(PYTHON_ENV, "")
+    candidates = [named] if named and os.path.isabs(named) and os.path.isfile(named) else []
+    if not engine:  # the engine hands the one interpreter it vouches for; PATH is never probed there
+        candidates += [x for x in (shutil.which(n) for n in ("python3", "python")) if x is not None]
+    for exe in candidates:
         try:
-            if subprocess.run([exe, "-c", "import playwright.sync_api"], capture_output=True, timeout=30).returncode == 0:
+            # -I for the engine's interpreter (no PYTHON* variable, no user site); a hand run keeps a user-site playwright.
+            probe = [exe, "-I", "-c", "import playwright.sync_api"] if engine else [exe, "-c", "import playwright.sync_api"]
+            if subprocess.run(probe, capture_output=True, timeout=30).returncode == 0:
                 return exe
         except (OSError, subprocess.TimeoutExpired):
             continue
@@ -742,8 +810,20 @@ def manifest_case(pack: Path) -> dict:
     try:
         from pack.check import check_pack  # noqa: PLC0415 (scripts/ on the path above)
     except ImportError as exc:
-        return {"ok": False, "error": f"pack check unavailable: {exc}"}
-    findings = check_pack(pack, garden_root=HERE.parents[1])
+        # The harness's own install is broken: never a verdict on the pack.
+        return {"ok": False, "error": f"pack check unavailable: {exc}", "host_failure": f"pack check unavailable: {exc}"}
+    try:
+        findings = check_pack(pack, garden_root=HERE.parents[1])
+    except Exception as exc:  # noqa: BLE001
+        # The checker is garden's own, exercised on every pack it ships; what makes it throw is the pack's shape
+        # (bad UTF-8, JSON nested past the limit, a field of the wrong type): case 0 fails, a verdict the pack's
+        # author fixes. The same pack fails crew's install gate the same way. Only a checker that will not import,
+        # or the host running out of what it needs (descriptors, memory, an I/O error), is the harness's.
+        import errno  # noqa: PLC0415
+        if isinstance(exc, MemoryError) or (isinstance(exc, OSError) and exc.errno in (
+                errno.EMFILE, errno.ENFILE, errno.EIO, errno.ENOMEM, errno.ENOSPC)):
+            return {"ok": False, "error": f"pack check unavailable: {exc}", "host_failure": f"pack check unavailable: {exc}"}
+        return {"ok": False, "error": f"pack check could not read the pack: {type(exc).__name__}: {exc}"}
     errs = [f.render() for f in findings if f.level == "error"]
     return {"ok": not errs, "errors": errs[:10]}
 
@@ -760,9 +840,85 @@ def load_timeout(arg: float | None, env: str | None) -> float:
     return value
 
 
+REPORT_STRING_MAX = 1000
+# More editors than this in one pack is refused outright in engine mode (a real pack holds one or a few).
+ENGINE_EDITORS_MAX = 20
+
+
+def _cut(value, limit: int = REPORT_STRING_MAX) -> str:
+    text = value if isinstance(value, str) else json.dumps(value, default=str)[:limit] if value is not None else ""
+    return text if len(text) <= limit else text[:limit] + "… (cut)"
+
+
+def engine_report(report: dict) -> dict:
+    """The report the engine reads: a FIXED shape built from the harness's own result, never pack-controlled
+    structure. Every verdict-bearing field is kept whole (each editor, its full set of protocols, every case's
+    ok); diagnostics are cut to one bounded string each. Depth and size are bounded whatever the pack holds."""
+    def case(c) -> dict:
+        c = c if isinstance(c, dict) else {}
+        row: dict = {"ok": c.get("ok") is True}
+        if not row["ok"] and c.get("error") is not None:
+            row["error"] = _cut(c.get("error"))
+        return row
+    editors = []
+    for e in report.get("editors") or []:
+        protocol = e.get("protocol")
+        editors.append({
+            "id": _cut(e.get("id"), 200), "version": _cut(e.get("version"), 200),
+            "sha256": _cut(e.get("sha256"), 64),
+            # The whole set: a pack-controlled list is never truncated into a different requirement.
+            "protocol": sorted({p for p in protocol if isinstance(p, int) and not isinstance(p, bool)})
+            if isinstance(protocol, list) else [],
+            "negotiated": e.get("negotiated") if isinstance(e.get("negotiated"), int) else None,
+            "ok": e.get("ok") is True,
+            "cases": {_cut(k, 64): case(v) for k, v in (e.get("cases") or {}).items()},
+        })
+    out = {"ok": report.get("ok") is True, "pack": _cut(report.get("pack"), 500), "editors": editors}
+    for k in ("cause", "error"):
+        if report.get(k) is not None:
+            out[k] = _cut(report.get(k)) if k == "error" else _cut(report.get(k), 64)
+    return out
+
+
+def engine_inputs(env) -> tuple[dict | None, dict]:
+    """ENGINE MODE's inputs from the environment: ``({pack, root, port, dist, out}, {})`` or ``(None, refusal)``
+    where the refusal is ``{cause, error}``. The pack is the ONE editor pack under the run's tree, with no link on
+    the way to its manifest or entries."""
+    def refuse(cause: str, error: str) -> tuple[None, dict]:
+        return None, {"cause": cause, "error": error}
+    if not env.get(JAIL_ENV, "").strip():
+        return refuse("no_jail", f"engine mode runs only inside the engine's jail (${JAIL_ENV} unset): the cases run a "
+                                 "seat-written editor in a browser on the host, never unjailed")
+    raw_port = env.get(PORT_ENV, "")
+    if not raw_port.isascii() or not raw_port.isdigit() or not 1024 <= int(raw_port) <= 65535:
+        return refuse("bad_arguments", f"${PORT_ENV} must be the loopback port the jail opens (1024-65535), not {raw_port!r}")
+    out = env.get(OUT_ENV, "")
+    if not os.path.isabs(out):
+        return refuse("bad_arguments", f"${OUT_ENV} must be an absolute file path, not {out!r}")
+    dist = env.get(STUDIO_DIST_ENV, "")
+    if not dist or not os.path.isabs(dist) or not (Path(dist) / "index.html").is_file():
+        return refuse("no_studio", f"${STUDIO_DIST_ENV} must name a studio dist holding index.html (got {dist!r}); "
+                                   "wicked-crew exports its own at boot")
+    tree = env.get(PACK_ROOT_ENV, "")
+    if not tree or not os.path.isabs(tree) or not Path(tree).is_dir():
+        return refuse("bad_arguments", f"${PACK_ROOT_ENV} must name the run's worktree (got {tree!r})")
+    try:
+        found = find_editor_packs(Path(tree), strict=True)
+    except (PackError, ValueError, RecursionError) as exc:
+        return refuse("pack_invalid", str(exc))
+    if len(found) != 1:
+        names = ", ".join(str(p.relative_to(tree)) or "." for p in found[:5]) or "none"
+        return refuse("pack_invalid", f"the run's tree must hold exactly one editor pack (wicked-pack.json spec 2 with "
+                                      f"editors); found {len(found)} ({names})")
+    return {"pack": found[0], "root": Path(tree), "port": int(raw_port), "dist": Path(dist).resolve(),
+            "out": Path(out)}, {}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--pack", required=True, type=Path)
+    parser.add_argument("--pack", type=Path, default=None)
+    parser.add_argument("--engine", action="store_true",
+                        help="the engine's host step: every input from the environment (see ENGINE MODE)")
     parser.add_argument("--host-url", default=None, help="a wicked-crew daemon serving studio (default $WICKED_CREW_URL)")
     parser.add_argument("--studio-dist", type=Path, default=None, help="serve studio's built dist instead of a daemon")
     parser.add_argument("--timeout", type=float, default=None, metavar="SECONDS",
@@ -770,25 +926,97 @@ def main(argv: list[str] | None = None) -> int:
                              f"{DEFAULT_TIMEOUT_S:g}); the editor's own 3 s / 2 s deadlines never stretch")
     parser.add_argument("--json", action="store_true", help="print the report as JSON (the default output)")
     args = parser.parse_args(argv)
+    engine = None
+    if args.engine:
+        engine, refusal = engine_inputs(os.environ)
+        if engine is None:
+            text = json.dumps(engine_report({"ok": False, "pack": None, **refusal}), indent=2)
+            print(text)
+            # The out file is only trusted once the inputs are: a refusal before them goes to stdout alone.
+            out = os.environ.get(OUT_ENV, "")
+            if os.path.isabs(out) and refusal["cause"] != "no_jail":
+                with contextlib.suppress(OSError):
+                    Path(out).write_text(text)
+            return 2
+        if args.pack is not None or args.host_url is not None or args.studio_dist is not None:
+            parser.error("--engine takes every input from the environment: no --pack, --host-url or --studio-dist")
+        args.pack, args.studio_dist = engine["pack"], engine["dist"]
+    elif args.pack is None:
+        parser.error("--pack is required (or --engine)")
 
     def out(report: dict, code: int) -> int:
-        print(json.dumps(report, indent=2))
+        if engine is not None and not report.get("ok"):
+            # A pack problem always names its cause where it is found; an un-named failure is never blamed on the pack.
+            report.setdefault("cause", {1: "case_failed", 3: "no_browser"}.get(code, "bad_arguments"))
+        if engine is not None:
+            # The engine reads a fixed, bounded shape (an editor's error text, a pack's paths and identities can
+            # never grow it into a report the engine refuses, or cut a requirement out of it).
+            report = engine_report(report)
+        try:
+            text = json.dumps(report, indent=2, allow_nan=False)
+        except ValueError:  # a pack-controlled non-finite number reached the report: say so in valid JSON
+            report = {"ok": False, "pack": str(args.pack), "cause": "pack_invalid" if engine is not None else None,
+                      "error": "the pack carries a number JSON cannot hold (NaN or Infinity)"}
+            text = json.dumps(report, indent=2)
+            code = 2
+        print(text)
+        if engine is not None:
+            try:
+                engine["out"].write_text(text)
+            except OSError as exc:
+                print(f"conformance: could not write {engine['out']}: {exc}", file=sys.stderr)
+                return 2
         return code
 
     try:
-        manifest = read_manifest(args.pack)
+        if engine is not None:
+            # Before a byte of the pack is read past its manifest: no link anywhere in it (codex: case 0 also reads
+            # the pack's skills), and none on the way to it from the run's tree.
+            refuse_links_under(engine["root"], args.pack)
+        manifest = read_manifest(args.pack, cap=MANIFEST_CAP if engine is not None else None,
+                                 finite=engine is not None)
         editors = editors_of(manifest)
+        if engine is not None:
+            if len(editors) > ENGINE_EDITORS_MAX:
+                raise PackError(f"the pack declares {len(editors)} editors; engine mode runs at most {ENGINE_EDITORS_MAX}")
+            for e in editors:
+                # What rides the host page's address (id, version, title) and the protocols the engine reads back:
+                # a value no host page or report reader can carry is the pack's to fix, never a host refusal.
+                for field, cap in (("id", 200), ("version", 200), ("title", 500)):
+                    if len(str(e.get(field) or "")) > cap:
+                        raise PackError(f"editor {str(e.get('id'))[:60]!r}: its {field} is over {cap} characters")
+                perms = e.get("permissions")
+                if perms is not None and (not isinstance(perms, list) or len(perms) > 32):
+                    raise PackError(f"editor {str(e.get('id'))[:60]!r}: permissions must be a list of at most 32")
+                protocol = e.get("protocol")
+                if isinstance(protocol, list) and any(isinstance(v, int) and not 0 <= v <= 1000 for v in protocol):
+                    raise PackError(f"editor {str(e.get('id'))[:60]!r}: a protocol number outside 0-1000")
+            refuse_links(engine["root"], args.pack, editors)
         entries = {}
         for e in editors:
             # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
             body = entry_path(args.pack, e).read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
-    except PackError as exc:
-        return out({"ok": False, "pack": str(args.pack), "error": str(exc)}, 2)
+    except (PackError, ValueError, TypeError, RecursionError, OSError) as exc:  # NUL in a path, bad UTF-8, deep JSON, an
+        # entry the seat made unreadable: the run's tree is the creator's, so a file in it that cannot be read is too
+        return out({"ok": False, "pack": str(args.pack), "error": f"{type(exc).__name__}: {exc}",
+                    "cause": "pack_invalid"}, 2)
+    if engine is not None and not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC"):
+        # The engine's interpreter (crew's pinned venv), never whichever playwright this interpreter happens to
+        # import: re-execute under it before anything imports a browser driver (the pack is refused first, if it is).
+        other = python_with_playwright(engine=True)
+        if other is None:
+            return out({"ok": False, "pack": str(args.pack), "error": "no headless browser: the interpreter the engine "
+                        f"names (${PYTHON_ENV}) is missing or cannot import playwright; refusing to report conformance "
+                        "without the run"}, 3)
+        import subprocess  # noqa: PLC0415
+        env = {**os.environ, "WG_EDITOR_CONFORMANCE_REEXEC": "1"}
+        return subprocess.call([other, "-I", os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])],
+                               env=env)
     try:
         timeout_s = load_timeout(args.timeout, os.environ.get(TIMEOUT_ENV))
     except ValueError as exc:
-        return out({"ok": False, "pack": str(args.pack), "error": str(exc)}, 2)
+        return out({"ok": False, "pack": str(args.pack), "error": str(exc), "cause": "bad_arguments"}, 2)
     host_url = None
     if args.studio_dist is None:
         host_url = (args.host_url or os.environ.get("WICKED_CREW_URL") or "").rstrip("/") or None
@@ -798,30 +1026,39 @@ def main(argv: list[str] | None = None) -> int:
     else:
         args.studio_dist = args.studio_dist.resolve()
     if args.studio_dist is not None and not (args.studio_dist / "index.html").is_file():
-        return out({"ok": False, "pack": str(args.pack), "error": f"{args.studio_dist} holds no index.html"}, 2)
+        return out({"ok": False, "pack": str(args.pack), "error": f"{args.studio_dist} holds no index.html",
+                    "cause": "no_studio"}, 2)
 
     try:
         from playwright.sync_api import sync_playwright  # noqa: PLC0415
     except ImportError:
         # The launcher's snapshot venv carries no browser driver (E2E finding F-EDIT-2): run once more
         # under a python on PATH that has one, with the same arguments.
-        other = python_with_playwright() if not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC") else None
+        other = python_with_playwright(engine is not None) if not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC") else None
         if other is not None:
             import subprocess  # noqa: PLC0415
             env = {**os.environ, "WG_EDITOR_CONFORMANCE_REEXEC": "1"}
-            return subprocess.call([other, os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])], env=env)
+            # A hand run (engine mode re-executed above, before this import): keep the interpreter's user site.
+            return subprocess.call([other, os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])],
+                                   env=env)
         return out({"ok": False, "pack": str(args.pack), "error": "no headless browser: the Python playwright package is "
                     "not installed (pip install playwright && playwright install chromium); refusing to report conformance "
                     "without the run"}, 3)
 
     report: dict = {"ok": False, "pack": str(args.pack), "host": host_url or str(args.studio_dist), "timeout_s": timeout_s,
                     "editors": []}
-    server = make_server(entries, host_url, args.studio_dist, timeout_s)
+    try:
+        server = make_server(entries, host_url, args.studio_dist, timeout_s, engine["port"] if engine else 0)
+    except OSError as exc:
+        report["error"] = f"the conformance origin could not listen on 127.0.0.1:{engine['port'] if engine else 0}: {exc}"
+        report["cause"] = "port_unavailable"
+        return out(report, 2)
     origin = f"http://127.0.0.1:{server.server_address[1]}"
     m0 = manifest_case(args.pack)
     try:
-        with tempfile.TemporaryDirectory(prefix="wg-editor-conformance-") as tmp, sync_playwright() as p:
+        with tempfile.TemporaryDirectory(prefix="wg-editor-conformance-") as tmp, contextlib.ExitStack() as stack:
             try:
+                p = stack.enter_context(sync_playwright())  # the driver itself may not start
                 browser = p.chromium.launch()
             except Exception as exc:  # noqa: BLE001
                 report["error"] = f"no headless browser: chromium did not start ({str(exc).splitlines()[0]})"
@@ -830,6 +1067,8 @@ def main(argv: list[str] | None = None) -> int:
                 os.chdir(tmp)  # nothing the browser writes lands in the pack
             for e in editors:
                 er = {"id": e.get("id"), "version": e.get("version"),
+                      "protocol": [p for p in e.get("protocol") or [] if isinstance(p, int) and not isinstance(p, bool)]
+                      if isinstance(e.get("protocol"), list) else [],
                       "sha256": entries[(str(e.get("id")), str(e.get("version")))][1],
                       "cases": {"0-manifest": m0}, "gaps": [
                           "case 7 (a scripted edit) is the editor's own UI: not run here",
@@ -845,7 +1084,10 @@ def main(argv: list[str] | None = None) -> int:
                           "16b (host.action grants no activation for a tools/call) is the host's rule: studio CI runs "
                           "it with a test plugin"]}
                 if m0["ok"]:
-                    run_editor(browser, origin, e, er["sha256"], er, timeout_s)
+                    try:
+                        run_editor(browser, origin, e, er["sha256"], er, timeout_s)
+                    except Exception as exc:  # noqa: BLE001 (codex: an editor-owned wait escaped the cases)
+                        record_stop(er, exc, CASES_V1)
                     base_ok = len(er["cases"]) == 12 and all(c.get("ok") for c in er["cases"].values())
                     if speaks(e, 2) and base_ok and er.get("negotiated") is None:
                         # A host before protocol 2 runs this editor the protocol-1 way: its surfaces cannot be
@@ -854,7 +1096,10 @@ def main(argv: list[str] | None = None) -> int:
                         er["gaps"].append("cases 13-16 not run: this conformance host speaks protocol 1 only")
                         er["expected"] = 12
                     elif speaks(e, 2) and base_ok:
-                        run_editor_v2(browser, origin, e, er["sha256"], er, timeout_s)
+                        try:
+                            run_editor_v2(browser, origin, e, er["sha256"], er, timeout_s)
+                        except Exception as exc:  # noqa: BLE001
+                            record_stop(er, exc, CASES_V2)
                     elif not speaks(e, 2):
                         er["cases"]["17-v1-compat"] = {
                             "ok": base_ok and er.get("negotiated") == 1, "negotiated": er.get("negotiated"),
@@ -865,6 +1110,16 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         server.shutdown()
     report["ok"] = bool(report["editors"]) and all(e["ok"] for e in report["editors"])
+    host_failure = next((e.get("host_failure") or e["cases"].get("0-manifest", {}).get("host_failure")
+                         for e in report["editors"]
+                         if e.get("host_failure") or e["cases"].get("0-manifest", {}).get("host_failure")), None)
+    if host_failure is not None:
+        # The host page or the harness failed, not the editor: a refusal the operator retries, never a send-back.
+        report["ok"] = False
+        report["error"] = host_failure
+        if engine is not None:
+            report["cause"] = ("host_page_failed" if host_failure.startswith("the conformance host page")
+                               else "harness_broken")
     return out(report, 0 if report["ok"] else 1)
 
 

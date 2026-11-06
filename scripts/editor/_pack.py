@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -44,23 +45,44 @@ PERMISSIONS = {
 # each with the line the consent gate shows.
 INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
+# A manifest is a few KB; the engine's host run refuses a bigger one before it is read.
+MANIFEST_CAP = 1024 * 1024
+# Directories a run's worktree search never enters.
+SKIP_DIRS = {"node_modules", "dist", ".git"}
 
 
 class PackError(Exception):
     """A pack that cannot be read as an editor pack, with the reason."""
 
 
+def _no_constant(name: str):
+    raise ValueError(f"{name} is not a JSON number")
+
+
+def _finite(text: str) -> float:
+    value = float(text)
+    if value != value or value in (float("inf"), float("-inf")):
+        raise ValueError(f"{text} is not a finite number")
+    return value
+
+
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def read_manifest(pack: Path) -> dict:
+def read_manifest(pack: Path, cap: int | None = None, finite: bool = False) -> dict:
+    """The pack's manifest. The engine's host run passes ``cap`` (a manifest bigger than it is refused unread) and
+    ``finite`` (NaN, Infinity or an overflowing number is refused: its report must stay valid JSON); other callers
+    read as before."""
     path = pack / MANIFEST_NAME
     if not path.is_file():
         raise PackError(f"{pack} holds no {MANIFEST_NAME}")
+    if cap is not None and path.stat().st_size > cap:
+        raise PackError(f"{path} is over {cap} bytes")
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+        text = path.read_text(encoding="utf-8")
+        manifest = json.loads(text, parse_constant=_no_constant, parse_float=_finite) if finite else json.loads(text)
+    except (OSError, ValueError, RecursionError) as exc:
         raise PackError(f"{path} is not JSON: {exc}") from exc
     if not isinstance(manifest, dict):
         raise PackError(f"{path} is not a JSON object")
@@ -77,7 +99,7 @@ def editors_of(manifest: dict) -> list[dict]:
 def entry_path(pack: Path, editor: dict) -> Path:
     """The editor's entry file, resolved inside the pack (a path that escapes it is refused)."""
     entry = editor.get("entry")
-    if not isinstance(entry, str) or not entry.endswith(".html"):
+    if not isinstance(entry, str) or not entry.endswith(".html") or "\x00" in entry:
         raise PackError(f"editor {editor.get('id')!r}: entry must name one .html file")
     # A plain relative POSIX path: no absolute or drive-qualified form, no backslash, no `..` or `.`
     # part — the same string is joined under a staging directory, so it must not climb out of one.
@@ -100,3 +122,110 @@ def write_manifest(pack: Path, manifest: dict) -> None:
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     tmp.replace(path)
+
+
+def _is_editor_pack(pack: Path, strict: bool = False) -> bool:
+    """Whether ``pack`` is an editor pack. ``strict``: a manifest that cannot be read at all (too big, not JSON)
+    raises instead of being skipped, so it can never hide a candidate from the exactly-one rule."""
+    try:
+        manifest = read_manifest(pack, cap=MANIFEST_CAP if strict else None, finite=strict)
+    except PackError:
+        if strict:
+            raise
+        return False
+    try:
+        editors_of(manifest)
+        return True
+    except PackError:
+        return False
+
+
+def _strict_walk(top: Path):
+    """``os.walk`` (top-down, sorted, SKIP_DIRS pruned, links not followed) that RAISES on any directory or entry
+    it cannot read or classify, instead of skipping it: an unreadable corner could hide a second pack."""
+    def unreadable(path, exc: OSError) -> PackError:
+        return PackError(f"{path} cannot be read ({exc.strerror or exc}), so the tree cannot be shown to hold "
+                         "exactly one editor pack")
+    stack = [str(top)]
+    while stack:
+        here = stack.pop()
+        dirs, files = [], []
+        try:
+            with os.scandir(here) as it:
+                for entry in it:
+                    try:
+                        is_dir = entry.is_dir(follow_symlinks=False)
+                    except OSError as exc:
+                        raise unreadable(entry.path, exc) from exc
+                    (dirs if is_dir else files).append(entry.name)
+        except OSError as exc:
+            raise unreadable(here, exc) from exc
+        dirs = sorted(d for d in dirs if d not in SKIP_DIRS)
+        yield here, dirs, files
+        stack.extend(os.path.join(here, d) for d in reversed(dirs))
+
+
+def find_editor_packs(tree: Path, strict: bool = False) -> list[Path]:
+    """Every directory under ``tree`` holding a spec-2 ``wicked-pack.json`` with editors, in walk order,
+    outside node_modules/.git/dist. Linked directories are not followed.
+
+    ``strict`` (the engine's host run): any directory or entry that cannot be read raises ``PackError`` (it could
+    hide a second pack); a manifest that is a link raises before it is opened (a seat-written link never makes the
+    host read its target), and so does one that cannot be read (over the cap, not JSON): nothing can drop out of
+    the exactly-one rule. Other callers keep the old skipping walk."""
+    found = []
+    walk = _strict_walk(tree) if strict else os.walk(tree)
+    for dirpath, dirnames, filenames in walk:
+        if not strict:
+            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        if MANIFEST_NAME not in filenames:
+            continue
+        try:
+            if strict and (Path(dirpath) / MANIFEST_NAME).is_symlink():
+                raise PackError(f"{Path(dirpath, MANIFEST_NAME).relative_to(tree)} is a link; an editor pack is plain files")
+            candidate = _is_editor_pack(Path(dirpath), strict)
+        except OSError as exc:
+            if not strict:
+                continue
+            raise PackError(f"{dirpath} cannot be read ({exc.strerror}), so the tree cannot be shown to hold exactly one "
+                            "editor pack") from exc
+        if candidate:
+            found.append(Path(dirpath))
+    return found
+
+
+def refuse_links_under(tree: Path, pack: Path) -> None:
+    """Refuse a link anywhere in ``pack`` (every file and directory, not only the manifest and the entries:
+    ``pack check`` also reads the pack's skills) and on the way to it from ``tree``."""
+    root = Path(os.path.abspath(tree))
+    top = Path(os.path.abspath(pack))
+    if top != root and root not in top.parents:
+        raise PackError(f"{pack} is outside the run's tree")
+    cur = top
+    while cur != root:
+        if cur.is_symlink():
+            raise PackError(f"{cur.relative_to(root)} is a link; an editor pack is plain files")
+        cur = cur.parent
+    for dirpath, dirnames, filenames in os.walk(top):
+        for name in dirnames + filenames:
+            if (Path(dirpath) / name).is_symlink():
+                raise PackError(f"{(Path(dirpath) / name).relative_to(root)} is a link; an editor pack is plain files")
+
+
+def refuse_links(tree: Path, pack: Path, editors: list[dict]) -> None:
+    """Refuse a pack whose manifest or entry is a link, or reaches one, between ``tree`` and the file.
+
+    The engine runs the conformance cases on the host over a tree a seat wrote: a link there could hand
+    the browser (and the report's hash) a host file the seat cannot read itself. ``entry_path`` already
+    refuses an entry that resolves outside the pack; this refuses any link at all on the way."""
+    root = Path(os.path.abspath(tree))
+    files = [pack / MANIFEST_NAME] + [pack / str(e.get("entry")) for e in editors]
+    for f in files:
+        path = Path(os.path.abspath(f))
+        if path != root and root not in path.parents:
+            raise PackError(f"{f} is outside the run's tree")
+        cur = path
+        while cur != root:
+            if cur.is_symlink():
+                raise PackError(f"{cur.relative_to(root)} is a link; an editor pack is plain files")
+            cur = cur.parent

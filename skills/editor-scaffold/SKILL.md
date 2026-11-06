@@ -128,6 +128,12 @@ passed, 1 a case failed (named in the report), 3 no headless browser — **fail 
 call an editor conformant without the run. **Manual alternative:** none; report the editor as
 not verified.
 
+**In a governed run the engine runs it on the host** (the editor-plugin workflow's `conformance` step,
+`--engine`): jailed to the script's own loopback port, the host page from crew's studio dist, the
+interpreter from crew's private Playwright venv. Its record (`[editor conformance record — unit N]`)
+is what the review cites. A seat has no headless browser, so an in-seat run exits 3: that is not a
+finding, and you never need to reproduce the engine's run.
+
 ## 4. Install (`install`)
 
 ```
@@ -187,10 +193,12 @@ skill was handed to you (`WICKED_RUN_ID` is set). Follow `wicked-garden-governed
   request it makes with the permission it needs, its surfaces declaration (card actions, options
   tabs, full-screen modes), its sizes, keys, theme and focus behaviour —
   checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`). Name every deviation.
-- **build**: scaffold (section 1), write the editor, re-pin, `pack check`, and run the
-  conformance (section 3); put its JSON in your output. A failed case is a finding to fix.
-- **test**: run the conformance against the delivered tree yourself; a failed case, or no
-  browser, is a FAIL with the case named.
+- **build**: scaffold (section 1), write the editor, re-pin and pass `pack check`. The engine runs
+  the conformance cases on the host right after this step (section 3); a failed case comes back to
+  you as a send-back naming the case. Fix it, re-pin, and pass `pack check` again.
+- **test**: judge the engine's `[editor conformance record]` for the tree under review (every
+  required case passed for every editor; the tree is the one you review) and the editor's own
+  behaviour. Do not run the harness in your seat; its absence there is not a finding.
 - **security-review**: grants requested vs used (every permission the manifest asks for has a
   request in the code that needs it; nothing unused), no network or outside reference, content
   rendered as text, no message beyond the protocol, keys and typing per section 2.
