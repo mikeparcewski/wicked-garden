@@ -79,7 +79,11 @@ engine's, from the environment:
 
 The report then also carries ``cause`` when it is not ok: ``case_failed`` or ``pack_invalid`` (a verdict on the
 pack: its author fixes it), else what kept the cases from running (``no_jail``, ``bad_arguments``, ``no_studio``,
-``port_unavailable``, ``no_browser``): the host's problem, never a verdict on the editor.
+``port_unavailable``, ``no_browser``, ``host_page_failed``, ``harness_broken``): the host's problem, never a verdict
+on the editor. In engine mode the ``cause`` decides, not the exit code: exit 2 also covers the host refusals
+before the cases start (a port that is taken, inputs it cannot vouch for), and exit 1 a host page that did not
+render. Engine mode refuses any link anywhere in the pack directory (and on the way to it from the tree), and
+re-executes under ``$WG_EDITOR_CONFORMANCE_PYTHON`` before it imports a browser driver.
 """
 
 from __future__ import annotations
@@ -105,7 +109,9 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
-from _pack import PackError, editors_of, entry_path, find_editor_packs, read_manifest, refuse_links  # noqa: E402
+from _pack import (  # noqa: E402
+    PackError, editors_of, entry_path, find_editor_packs, read_manifest, refuse_links, refuse_links_under,
+)
 from _surfaces import SurfacesError, canonical_surfaces, parse_surfaces  # noqa: E402
 
 # The third-party bundle policy, as wicked-crew serves it (crew `editors/csp.ts`, no `https:` media).
@@ -325,8 +331,11 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
             page.goto(url(sha, grants), wait_until="domcontentloaded", timeout=load_ms)
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001
-            check("1-handshake", False, error=f"the conformance host page did not render within {timeout_s:g} s "
-                  f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            msg = (f"the conformance host page did not render within {timeout_s:g} s "
+                   f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            # The host page renders before the editor's frame loads: this is the host's failure, not the editor's.
+            report.setdefault("host_failure", msg)
+            check("1-handshake", False, error=msg)
         try:
             page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
         except Exception:  # noqa: BLE001
@@ -528,8 +537,10 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict, ti
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001 — the case that opened it fails, naming why
             page.close()
-            raise PageFailed(f"the conformance host page did not render within {timeout_s:g} s (--timeout / "
-                             f"${TIMEOUT_ENV}): {str(exc).splitlines()[0]}") from exc
+            msg = (f"the conformance host page did not render within {timeout_s:g} s (--timeout / "
+                   f"${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            report.setdefault("host_failure", msg)  # the host's failure, not the editor's (it renders first)
+            raise PageFailed(msg) from exc
         try:
             page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
         except Exception as exc:  # noqa: BLE001
@@ -770,7 +781,8 @@ def manifest_case(pack: Path) -> dict:
     try:
         from pack.check import check_pack  # noqa: PLC0415 (scripts/ on the path above)
     except ImportError as exc:
-        return {"ok": False, "error": f"pack check unavailable: {exc}"}
+        # The harness's own install is broken: never a verdict on the pack.
+        return {"ok": False, "error": f"pack check unavailable: {exc}", "host_failure": f"pack check unavailable: {exc}"}
     findings = check_pack(pack, garden_root=HERE.parents[1])
     errs = [f.render() for f in findings if f.level == "error"]
     return {"ok": not errs, "errors": errs[:10]}
@@ -810,7 +822,10 @@ def engine_inputs(env) -> tuple[dict | None, dict]:
     tree = env.get(PACK_ROOT_ENV, "")
     if not tree or not os.path.isabs(tree) or not Path(tree).is_dir():
         return refuse("bad_arguments", f"${PACK_ROOT_ENV} must name the run's worktree (got {tree!r})")
-    found = find_editor_packs(Path(tree))
+    try:
+        found = find_editor_packs(Path(tree), refuse_linked=True)
+    except (PackError, ValueError) as exc:
+        return refuse("pack_invalid", str(exc))
     if len(found) != 1:
         names = ", ".join(str(p.relative_to(tree)) or "." for p in found) or "none"
         return refuse("pack_invalid", f"the run's tree must hold exactly one editor pack (wicked-pack.json spec 2 with "
@@ -850,7 +865,8 @@ def main(argv: list[str] | None = None) -> int:
 
     def out(report: dict, code: int) -> int:
         if engine is not None and not report.get("ok"):
-            report.setdefault("cause", {1: "case_failed", 2: "pack_invalid", 3: "no_browser"}.get(code, "bad_arguments"))
+            # A pack problem always names its cause where it is found; an un-named failure is never blamed on the pack.
+            report.setdefault("cause", {1: "case_failed", 3: "no_browser"}.get(code, "bad_arguments"))
         text = json.dumps(report, indent=2)
         print(text)
         if engine is not None:
@@ -862,6 +878,10 @@ def main(argv: list[str] | None = None) -> int:
         return code
 
     try:
+        if engine is not None:
+            # Before a byte of the pack is read past its manifest: no link anywhere in it (codex: case 0 also reads
+            # the pack's skills), and none on the way to it from the run's tree.
+            refuse_links_under(engine["root"], args.pack)
         manifest = read_manifest(args.pack)
         editors = editors_of(manifest)
         if engine is not None:
@@ -871,8 +891,20 @@ def main(argv: list[str] | None = None) -> int:
             # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
             body = entry_path(args.pack, e).read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
-    except PackError as exc:
-        return out({"ok": False, "pack": str(args.pack), "error": str(exc)}, 2)
+    except (PackError, ValueError) as exc:  # ValueError: a path no filesystem call accepts (an embedded NUL)
+        return out({"ok": False, "pack": str(args.pack), "error": str(exc), "cause": "pack_invalid"}, 2)
+    if engine is not None and not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC"):
+        # The engine's interpreter (crew's pinned venv), never whichever playwright this interpreter happens to
+        # import: re-execute under it before anything imports a browser driver (the pack is refused first, if it is).
+        other = python_with_playwright(engine=True)
+        if other is None:
+            return out({"ok": False, "pack": str(args.pack), "error": "no headless browser: the interpreter the engine "
+                        f"names (${PYTHON_ENV}) is missing or cannot import playwright; refusing to report conformance "
+                        "without the run"}, 3)
+        import subprocess  # noqa: PLC0415
+        env = {**os.environ, "WG_EDITOR_CONFORMANCE_REEXEC": "1"}
+        return subprocess.call([other, "-I", os.path.abspath(__file__), *(argv if argv is not None else sys.argv[1:])],
+                               env=env)
     try:
         timeout_s = load_timeout(args.timeout, os.environ.get(TIMEOUT_ENV))
     except ValueError as exc:
@@ -886,7 +918,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         args.studio_dist = args.studio_dist.resolve()
     if args.studio_dist is not None and not (args.studio_dist / "index.html").is_file():
-        return out({"ok": False, "pack": str(args.pack), "error": f"{args.studio_dist} holds no index.html"}, 2)
+        return out({"ok": False, "pack": str(args.pack), "error": f"{args.studio_dist} holds no index.html",
+                    "cause": "no_studio"}, 2)
 
     try:
         from playwright.sync_api import sync_playwright  # noqa: PLC0415
@@ -916,8 +949,9 @@ def main(argv: list[str] | None = None) -> int:
     origin = f"http://127.0.0.1:{server.server_address[1]}"
     m0 = manifest_case(args.pack)
     try:
-        with tempfile.TemporaryDirectory(prefix="wg-editor-conformance-") as tmp, sync_playwright() as p:
+        with tempfile.TemporaryDirectory(prefix="wg-editor-conformance-") as tmp, contextlib.ExitStack() as stack:
             try:
+                p = stack.enter_context(sync_playwright())  # the driver itself may not start
                 browser = p.chromium.launch()
             except Exception as exc:  # noqa: BLE001
                 report["error"] = f"no headless browser: chromium did not start ({str(exc).splitlines()[0]})"
@@ -961,6 +995,15 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         server.shutdown()
     report["ok"] = bool(report["editors"]) and all(e["ok"] for e in report["editors"])
+    host_failure = next((e.get("host_failure") or e["cases"].get("0-manifest", {}).get("host_failure")
+                         for e in report["editors"]
+                         if e.get("host_failure") or e["cases"].get("0-manifest", {}).get("host_failure")), None)
+    if host_failure is not None:
+        # The host page or the harness failed, not the editor: a refusal the operator retries, never a send-back.
+        report["ok"] = False
+        report["error"] = host_failure
+        if engine is not None:
+            report["cause"] = "harness_broken" if "pack check unavailable" in host_failure else "host_page_failed"
     return out(report, 0 if report["ok"] else 1)
 
 

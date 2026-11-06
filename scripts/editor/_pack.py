@@ -45,6 +45,8 @@ PERMISSIONS = {
 # each with the line the consent gate shows.
 INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
+# A manifest is a few KB; a bigger one is refused before it is read.
+MANIFEST_CAP = 1024 * 1024
 # Directories a run's worktree search never enters.
 SKIP_DIRS = {"node_modules", "dist", ".git"}
 
@@ -61,6 +63,8 @@ def read_manifest(pack: Path) -> dict:
     path = pack / MANIFEST_NAME
     if not path.is_file():
         raise PackError(f"{pack} holds no {MANIFEST_NAME}")
+    if path.stat().st_size > MANIFEST_CAP:
+        raise PackError(f"{path} is over {MANIFEST_CAP} bytes")
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -80,7 +84,7 @@ def editors_of(manifest: dict) -> list[dict]:
 def entry_path(pack: Path, editor: dict) -> Path:
     """The editor's entry file, resolved inside the pack (a path that escapes it is refused)."""
     entry = editor.get("entry")
-    if not isinstance(entry, str) or not entry.endswith(".html"):
+    if not isinstance(entry, str) or not entry.endswith(".html") or "\x00" in entry:
         raise PackError(f"editor {editor.get('id')!r}: entry must name one .html file")
     # A plain relative POSIX path: no absolute or drive-qualified form, no backslash, no `..` or `.`
     # part — the same string is joined under a staging directory, so it must not climb out of one.
@@ -113,15 +117,40 @@ def _is_editor_pack(pack: Path) -> bool:
         return False
 
 
-def find_editor_packs(tree: Path) -> list[Path]:
+def find_editor_packs(tree: Path, refuse_linked: bool = False) -> list[Path]:
     """Every directory under ``tree`` holding a spec-2 ``wicked-pack.json`` with editors, in walk order,
-    outside node_modules/.git/dist. Linked directories are not followed (``os.walk``'s default)."""
+    outside node_modules/.git/dist. Linked directories are not followed (``os.walk``'s default).
+
+    ``refuse_linked`` (the engine's host run): a manifest that is a link raises ``PackError`` before it is
+    opened, so a seat-written link never makes the host read its target."""
     found = []
     for dirpath, dirnames, filenames in os.walk(tree):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-        if MANIFEST_NAME in filenames and _is_editor_pack(Path(dirpath)):
+        if MANIFEST_NAME not in filenames:
+            continue
+        if refuse_linked and (Path(dirpath) / MANIFEST_NAME).is_symlink():
+            raise PackError(f"{Path(dirpath, MANIFEST_NAME).relative_to(tree)} is a link; an editor pack is plain files")
+        if _is_editor_pack(Path(dirpath)):
             found.append(Path(dirpath))
     return found
+
+
+def refuse_links_under(tree: Path, pack: Path) -> None:
+    """Refuse a link anywhere in ``pack`` (every file and directory, not only the manifest and the entries:
+    ``pack check`` also reads the pack's skills) and on the way to it from ``tree``."""
+    root = Path(os.path.abspath(tree))
+    top = Path(os.path.abspath(pack))
+    if top != root and root not in top.parents:
+        raise PackError(f"{pack} is outside the run's tree")
+    cur = top
+    while cur != root:
+        if cur.is_symlink():
+            raise PackError(f"{cur.relative_to(root)} is a link; an editor pack is plain files")
+        cur = cur.parent
+    for dirpath, dirnames, filenames in os.walk(top):
+        for name in dirnames + filenames:
+            if (Path(dirpath) / name).is_symlink():
+                raise PackError(f"{(Path(dirpath) / name).relative_to(root)} is a link; an editor pack is plain files")
 
 
 def refuse_links(tree: Path, pack: Path, editors: list[dict]) -> None:
