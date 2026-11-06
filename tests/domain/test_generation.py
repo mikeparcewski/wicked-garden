@@ -513,3 +513,57 @@ def test_lowering_with_no_apply_report_writes_none(tmp_path, capsys):
                   env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
                   worktree=wt)
     assert not (wt / ".wicked").exists()
+
+
+@pytest.mark.parametrize("plant", ["symlink", "not-an-object", "read-recursion", "write-recursion"])
+def test_a_planted_apply_report_never_fails_the_lowering(tmp_path, capsys, monkeypatch, plant):
+    """codex/pi r1: the report sits in the seat-writable worktree. A link, a non-object, or JSON
+    nested past the stack (RecursionError on the read, or only on the write back; how deep that
+    is depends on the Python, so it is raised here directly) is left alone and said so; the
+    target is lowered and the step decides as usual."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"minimum_met": false}')
+    if plant == "symlink":
+        path.symlink_to(outside)
+    elif plant == "not-an-object":
+        path.write_text("[1, 2]")
+    else:
+        path.write_text('{"minimum_met": false}')
+        name = "read_json_file" if plant == "read-recursion" else "write_json_file"
+
+        def deep(*_a, **_k):
+            raise RecursionError("maximum recursion depth exceeded")
+        monkeypatch.setattr(next_page.rules_file, name, deep)
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    d = next_page.run(str(db), _repo(tmp_path), core=core,
+                      env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                      worktree=wt)
+    assert core.set_calls == [66] and d["next"] == "done"
+    assert outside.read_text() == '{"minimum_met": false}', "a link is never followed"
+    if plant == "symlink":
+        assert path.is_symlink()
+    else:
+        assert path.read_text() in ("[1, 2]", '{"minimum_met": false}')
+    assert "not restated" in capsys.readouterr().err
+
+
+def test_nothing_lowered_leaves_the_apply_report_alone(tmp_path, capsys):
+    """pi r1: at a 0% share there is nothing to lower to; the daemon's minimum stands and the
+    report is not restated as if it had been lowered."""
+    core = _LoweringCore(0)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    path.write_text('{"minimum_met": false}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert core.set_calls == []
+    assert path.read_text() == '{"minimum_met": false}'

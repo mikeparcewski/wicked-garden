@@ -61,14 +61,19 @@ def _left_to_map(coverage: dict, repo_root: str, seen: set[str]) -> int:
 def _restate_apply_report(core, db: str, worktree: Path, target: int) -> None:
     """After "lower": rewrite the worktree's apply report (written by `extract-apply` against the
     old minimum) with the share and verdict `wicked-core coverage` gives NOW, against the
-    repository's own target. Only an existing report is restated; one that cannot be read safely
-    (a link, not a file, not JSON) is left alone and said so, never followed."""
+    repository's own target. Only an existing report is restated; one that cannot be read or
+    written safely (a link, not a file, not JSON, nested too deep to parse or write back) is left
+    alone and said so, never followed. The report sits in the seat-writable worktree, so nothing
+    about it may fail the step: the lowered target already stands in the store."""
+    # RecursionError: valid JSON nested thousands deep parses (or re-serialises) past the stack
+    # (codex r1). A planted report must not turn the answer into a failed step.
+    unsafe = (rules_file.RulesFileRefused, OSError, ValueError, RecursionError)
     try:
         report = rules_file.read_json_file(worktree, REPORT_REL)
     except FileNotFoundError:
         return
-    except rules_file.RulesFileRefused as e:
-        print(f"[extract-next] {REPORT_REL} not restated: {e}", file=sys.stderr)
+    except unsafe as e:
+        print(f"[extract-next] {REPORT_REL} not restated: {e!s:.200}", file=sys.stderr)
         return
     if not isinstance(report, dict):
         print(f"[extract-next] {REPORT_REL} not restated: not a JSON object", file=sys.stderr)
@@ -87,8 +92,8 @@ def _restate_apply_report(core, db: str, worktree: Path, target: int) -> None:
     report["lowered_to"] = target
     try:
         rules_file.write_json_file(worktree, REPORT_REL, report)
-    except (rules_file.RulesFileRefused, OSError) as e:
-        print(f"[extract-next] {REPORT_REL} not restated: {e}", file=sys.stderr)
+    except unsafe as e:
+        print(f"[extract-next] {REPORT_REL} not restated: {e!s:.200}", file=sys.stderr)
 
 
 def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None,
@@ -148,9 +153,10 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
     if choice == "lower" and 1 <= point["pct"] < target:
         target, source = core.requirements_target(db, set_pct=point["pct"])
         doc["lowered_to"] = target
-    if choice == "lower" and worktree is not None:
+    if choice == "lower" and worktree is not None and source == "repository":
         # A retried answer (the target already lowered) restates it too: the report says what
-        # the store holds now, whichever attempt wrote the target.
+        # the store holds now, whichever attempt wrote the target. Nothing lowered (no share to
+        # lower to, so the daemon's minimum still applies): the report is not touched (pi r1).
         _restate_apply_report(core, db, worktree, target)
     if run_id != "standalone":
         generation.save(db, run_id, doc)
