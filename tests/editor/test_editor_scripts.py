@@ -593,6 +593,23 @@ def test_engine_discovery_refuses_a_subtree_it_cannot_read_and_install_reads_as_
         _pack.read_manifest(tree / "good", finite=True)
 
 
+def test_an_engine_report_is_bounded_whatever_the_pack_puts_in_it(tmp_path):
+    mod = _conformance_module()
+    big = {"ok": False, "error": "x" * 1_000_000, "editors": [{"gaps": ["y" * 5000] * 500}]}
+    small = mod._bounded(big)
+    assert len(json.dumps(small)) < 400_000
+    assert small["error"].endswith("(cut)") and len(small["editors"][0]["gaps"]) == 50
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["editors"][0]["entry"] = "editors/" + "a" * 600_000 + ".html"
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1"))
+    out = (tmp_path / "out" / "report.json").read_text()
+    assert len(out) < 100_000 and json.loads(out)["cause"] == "pack_invalid", out[:300]
+
+
 def test_the_host_running_out_of_resources_in_pack_check_is_the_harness_s(tmp_path, monkeypatch):
     import errno  # noqa: PLC0415
     mod = _conformance_module()

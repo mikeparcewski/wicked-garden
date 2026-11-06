@@ -840,6 +840,20 @@ def load_timeout(arg: float | None, env: str | None) -> float:
     return value
 
 
+REPORT_STRING_MAX = 2000
+
+
+def _bounded(value, limit: int = REPORT_STRING_MAX):
+    """``value`` with every string cut to ``limit`` characters (marked), lists to 50 items, recursively."""
+    if isinstance(value, str):
+        return value if len(value) <= limit else value[:limit] + "… (cut)"
+    if isinstance(value, list):
+        return [_bounded(v, limit) for v in value[:50]]
+    if isinstance(value, dict):
+        return {str(k)[:limit]: _bounded(v, limit) for k, v in value.items()}
+    return value
+
+
 def engine_inputs(env) -> tuple[dict | None, dict]:
     """ENGINE MODE's inputs from the environment: ``({pack, root, port, dist, out}, {})`` or ``(None, refusal)``
     where the refusal is ``{cause, error}``. The pack is the ONE editor pack under the run's tree, with no link on
@@ -904,6 +918,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--pack is required (or --engine)")
 
     def out(report: dict, code: int) -> int:
+        if engine is not None:
+            # Every string bounded (an editor's error text, a path from the pack): the engine reads a report of
+            # bounded size, and a pack's verdict must never grow into a report it refuses.
+            report = _bounded(report)
         if engine is not None and not report.get("ok"):
             # A pack problem always names its cause where it is found; an un-named failure is never blamed on the pack.
             report.setdefault("cause", {1: "case_failed", 3: "no_browser"}.get(code, "bad_arguments"))
