@@ -7,9 +7,11 @@
 - **"Lower the minimum" restates the page's apply report** (wicked-core e2e F29). After the person lowers a
   repository's coverage minimum, `next_page.py` rewrites the worktree's `.wicked/domain/apply-report.json`
   (`minimum_met`, `coverage_line`, `coverage`, plus `lowered_to`) from a fresh `wicked-core coverage` against the
-  lowered minimum. The report `extract-apply` wrote before the answer said "minimum 80%, not met", and the coverage
-  step's judge read it as evidence against the run. A report that cannot be read or written safely is left alone and
-  the step says so; the lowered target stands either way.
+  lowered minimum, keeping only the page's own short counts (the report is seat-writable). The report
+  `extract-apply` wrote before the answer said "minimum 80%, not met", and the coverage step's judge read it as
+  evidence against the run. It is restated only when the repository's own target is in force. A report that cannot
+  be read or written safely (a link, not a file, not JSON, over 1 MiB, nested too deep) is left alone and the step
+  says so; the lowered target stands either way.
 - **A Demo video of a normal app now records cleanly on the first take** (DES-DEMO-RECORD-001 §13 A1, e2e F10).
   - **Ready before it is filmed.** Each chapter gets ready behind its chapter card: the page goes network-quiet,
     then the storyline's `ready` target and the chapter's first target are visible (up to 60 s each). Only then
