@@ -157,9 +157,17 @@ def find_editor_packs(tree: Path, strict: bool = False) -> list[Path]:
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         if MANIFEST_NAME not in filenames:
             continue
-        if strict and (Path(dirpath) / MANIFEST_NAME).is_symlink():
-            raise PackError(f"{Path(dirpath, MANIFEST_NAME).relative_to(tree)} is a link; an editor pack is plain files")
-        if _is_editor_pack(Path(dirpath), strict):
+        try:
+            if strict and (Path(dirpath) / MANIFEST_NAME).is_symlink():
+                raise PackError(f"{Path(dirpath, MANIFEST_NAME).relative_to(tree)} is a link; an editor pack is plain files")
+            candidate = _is_editor_pack(Path(dirpath), strict)
+        except OSError as exc:
+            if not strict:
+                continue
+            # A directory the seat made unsearchable: the tree cannot be shown to hold exactly one pack.
+            raise PackError(f"{dirpath} cannot be read ({exc.strerror}), so the tree cannot be shown to hold exactly one "
+                            "editor pack") from exc
+        if candidate:
             found.append(Path(dirpath))
     return found
 

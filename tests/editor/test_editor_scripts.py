@@ -627,6 +627,33 @@ def test_an_engine_report_is_bounded_whatever_the_pack_puts_in_it(tmp_path):
     assert done.returncode == 2 and json.loads(out)["cause"] == "pack_invalid" and "found 8" in out and len(out) < 5_000
 
 
+@pytest.mark.parametrize("field, value", [("title", "t" * 70_000), ("protocol", [1, 2, 10 ** 400])])
+def test_a_pack_value_no_host_page_or_reader_can_carry_is_the_pack_s(tmp_path, field, value):
+    tree = tmp_path / "tree"
+    pack = tree / "acme-json"
+    assert scaffold(pack).returncode == 0
+    m = json.loads((pack / "wicked-pack.json").read_text())
+    m["editors"][0][field] = value
+    (pack / "wicked-pack.json").write_text(json.dumps(m))
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1"))
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert done.returncode == 2 and report["cause"] == "pack_invalid", report
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
+def test_a_readable_but_unsearchable_directory_is_the_pack_s(tmp_path):
+    mod = _conformance_module()
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "good").returncode == 0
+    assert scaffold(tree / "odd" / "second").returncode == 0
+    (tree / "odd" / "second").chmod(0o400)
+    try:
+        got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    finally:
+        (tree / "odd" / "second").chmod(0o755)
+    assert got is None and refusal["cause"] == "pack_invalid", refusal
+
+
 def test_the_host_running_out_of_resources_in_pack_check_is_the_harness_s(tmp_path, monkeypatch):
     import errno  # noqa: PLC0415
     mod = _conformance_module()

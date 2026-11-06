@@ -979,6 +979,15 @@ def main(argv: list[str] | None = None) -> int:
         if engine is not None:
             if len(editors) > ENGINE_EDITORS_MAX:
                 raise PackError(f"the pack declares {len(editors)} editors; engine mode runs at most {ENGINE_EDITORS_MAX}")
+            for e in editors:
+                # What rides the host page's address (id, version, title) and the protocols the engine reads back:
+                # a value no host page or report reader can carry is the pack's to fix, never a host refusal.
+                for field, cap in (("id", 200), ("version", 200), ("title", 500)):
+                    if len(str(e.get(field) or "")) > cap:
+                        raise PackError(f"editor {str(e.get('id'))[:60]!r}: its {field} is over {cap} characters")
+                protocol = e.get("protocol")
+                if isinstance(protocol, list) and any(isinstance(v, int) and not 0 <= v <= 1000 for v in protocol):
+                    raise PackError(f"editor {str(e.get('id'))[:60]!r}: a protocol number outside 0-1000")
             refuse_links(engine["root"], args.pack, editors)
         entries = {}
         for e in editors:
