@@ -518,6 +518,45 @@ def test_engine_mode_calls_an_entry_no_filesystem_accepts_an_invalid_pack(tmp_pa
     assert done.returncode == 2 and report["cause"] == "pack_invalid", report
 
 
+def test_engine_discovery_never_lets_an_unreadable_manifest_drop_out_and_install_keeps_its_rule(tmp_path):
+    mod = _conformance_module()
+    sys.path.insert(0, str(SCRIPTS))
+    import _pack  # noqa: PLC0415
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "good").returncode == 0
+    assert scaffold(tree / "big").returncode == 0
+    big = json.loads((tree / "big" / "wicked-pack.json").read_text())
+    big["padding"] = "x" * (_pack.MANIFEST_CAP + 1)
+    (tree / "big" / "wicked-pack.json").write_text(json.dumps(big))
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    assert got is None and refusal["cause"] == "pack_invalid" and "over" in refusal["error"], refusal
+    # install.py --from-run's discovery is unchanged: no cap, both packs found (so it refuses two).
+    assert len(_pack.find_editor_packs(tree)) == 2
+    (tree / "deep").mkdir()
+    (tree / "deep" / "wicked-pack.json").write_text("[" * 100000 + "]" * 100000)
+    (tree / "big" / "wicked-pack.json").unlink()
+    got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+    assert got is None and refusal["cause"] == "pack_invalid", refusal
+    assert _pack.find_editor_packs(tree) == [tree / "good"]  # install skips it, as before
+
+
+def test_a_pack_the_checker_cannot_decode_fails_case_0_and_a_stop_is_classified(tmp_path):
+    mod = _conformance_module()
+    pack = tmp_path / "acme-json"
+    assert scaffold(pack).returncode == 0
+    (pack / "skills" / "x").mkdir(parents=True)
+    (pack / "skills" / "x" / "SKILL.md").write_bytes(b"---\nname: x\n---\n\xff\xfe bad utf-8")
+    m0 = mod.manifest_case(pack)
+    assert m0["ok"] is False and "host_failure" not in m0, m0  # a verdict on the pack, not the host
+    er = {"cases": {"0-manifest": {"ok": True}, "1-handshake": {"ok": True}}}
+    mod.record_stop(er, TimeoutError("Timeout 5000ms exceeded waiting for body"), mod.CASES_V1)
+    assert er["cases"]["2-sizes"]["ok"] is False and "host_failure" not in er
+    closed = type("TargetClosedError", (Exception,), {})
+    er2 = {"cases": {}}
+    mod.record_stop(er2, closed("Target page, context or browser has been closed"), mod.CASES_V1)
+    assert "host_failure" in er2 and er2["cases"] == {}
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="a shell-script interpreter")
 def test_engine_mode_reexecutes_under_the_engines_interpreter_first(tmp_path):
     tree = tmp_path / "tree"
@@ -539,8 +578,7 @@ def test_engine_mode_reexecutes_under_the_engines_interpreter_first(tmp_path):
     assert lines[0] == "-I" and lines[1].endswith("scripts/editor/conformance.py"), lines
     assert lines[2:4] == ["--engine", "--json"] and "REEXEC=1" in lines, lines
     # No interpreter named: a no_browser refusal, never PATH's playwright.
-    env = _engine_env(tree, tmp_path)
-    env.pop("WG_EDITOR_CONFORMANCE_PYTHON", None)
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PYTHON="")  # unset even when the parent has one
     done = run("conformance.py", "--engine", "--json", env=env)
     assert done.returncode == 3 and json.loads(done.stdout)["cause"] == "no_browser"
 
@@ -579,6 +617,16 @@ def test_engine_mode_runs_every_case_and_writes_the_report_the_engine_reads(tmp_
     done = run("conformance.py", "--engine", "--json", env=env)
     report = json.loads((tmp_path / "out" / "report.json").read_text())
     assert report["ok"] is False and report["cause"] == "host_page_failed", report.get("error")
+    # An editor that handshakes but keeps its body hidden: the editor's failure, never a crashed run.
+    entry.write_text(entry.read_text()
+                     .replace("void (env('plugin.ready'", "parent.postMessage(env('plugin.ready'")
+                     .replace("<head>", "<head><style>body{display:none!important}</style>", 1))
+    assert run("pin.py", str(tree / "acme-json")).returncode == 0
+    env = _engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_PORT=str(port),
+                      WG_EDITOR_CONFORMANCE_STUDIO_DIST=os.environ["WICKED_STUDIO_DIST"])
+    done = run("conformance.py", "--engine", "--json", env=env)
+    report = json.loads((tmp_path / "out" / "report.json").read_text())
+    assert report["cause"] == "case_failed", report.get("error") or report["editors"][0]["cases"]
 
 
 def test_engine_mode_never_probes_path_for_an_interpreter(tmp_path, monkeypatch):

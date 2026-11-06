@@ -82,7 +82,7 @@ pack: its author fixes it), else what kept the cases from running (``no_jail``, 
 ``port_unavailable``, ``no_browser``, ``host_page_failed``, ``harness_broken``): the host's problem, never a verdict
 on the editor. In engine mode the ``cause`` decides, not the exit code: exit 2 also covers the host refusals
 before the cases start (a port that is taken, inputs it cannot vouch for), and exit 1 a host page that did not
-render. Engine mode refuses any link anywhere in the pack directory (and on the way to it from the tree), and
+render or a pack checker that is missing or crashed. Engine mode refuses any link anywhere in the pack directory (and on the way to it from the tree), and
 re-executes under ``$WG_EDITOR_CONFORMANCE_PYTHON`` before it imports a browser driver.
 """
 
@@ -110,7 +110,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
 from _pack import (  # noqa: E402
-    PackError, editors_of, entry_path, find_editor_packs, read_manifest, refuse_links, refuse_links_under,
+    MANIFEST_CAP, PackError, editors_of, entry_path, find_editor_packs, read_manifest, refuse_links, refuse_links_under,
 )
 from _surfaces import SurfacesError, canonical_surfaces, parse_surfaces  # noqa: E402
 
@@ -451,8 +451,10 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
             page.goto(url("0" * 64, grants), wait_until="domcontentloaded", timeout=load_ms)
             page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
         except Exception as exc:  # noqa: BLE001
-            check("12-hash-pinned", False, error=f"the conformance host page did not render within {timeout_s:g} s "
-                  f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            msg = (f"the conformance host page did not render within {timeout_s:g} s "
+                   f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            report.setdefault("host_failure", msg)  # the host page, not the editor (it renders first)
+            check("12-hash-pinned", False, error=msg)
         torn = _torn(page, wait=True)
         check("12-hash-pinned", torn is not None and count("handshake") == 0, torn=torn)
     except CaseFailed:
@@ -461,6 +463,24 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         if errors:
             report["page_errors"] = errors[:5]
         page.close()
+
+
+CASES_V1 = ("0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
+            "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned")
+CASES_V2 = ("13-surfaces", "14-card", "15-options", "16-full")
+
+
+def record_stop(report: dict, exc: Exception, cases: tuple) -> None:
+    """A case run that stopped on an exception no case caught: the browser or its page going away is the host's
+    failure (a refusal); anything else (a wait on the editor's own frame or controls that never came) is the
+    editor's, recorded as the first of ``cases`` not yet recorded, failed, naming the exception."""
+    msg = f"{type(exc).__name__}: {str(exc).splitlines()[0] if str(exc) else ''}"
+    if type(exc).__name__ == "TargetClosedError" or "has been closed" in str(exc):
+        report.setdefault("host_failure", f"the browser went away mid-run ({msg})")
+        return
+    missing = next((c for c in cases if c not in report["cases"]), None)
+    if missing is not None:
+        report["cases"][missing] = {"ok": False, "error": f"the run stopped on the editor: {msg}"}
 
 
 def speaks(editor: dict, version: int) -> bool:
@@ -783,7 +803,12 @@ def manifest_case(pack: Path) -> dict:
     except ImportError as exc:
         # The harness's own install is broken: never a verdict on the pack.
         return {"ok": False, "error": f"pack check unavailable: {exc}", "host_failure": f"pack check unavailable: {exc}"}
-    findings = check_pack(pack, garden_root=HERE.parents[1])
+    try:
+        findings = check_pack(pack, garden_root=HERE.parents[1])
+    except (ValueError, RecursionError) as exc:  # the pack's own bytes (bad UTF-8, JSON nested past the limit)
+        return {"ok": False, "error": f"pack check could not read the pack: {type(exc).__name__}: {exc}"}
+    except Exception as exc:  # noqa: BLE001 — the checker itself broke: the harness's failure, never the pack's
+        return {"ok": False, "error": f"pack check crashed: {exc}", "host_failure": f"pack check crashed: {exc}"}
     errs = [f.render() for f in findings if f.level == "error"]
     return {"ok": not errs, "errors": errs[:10]}
 
@@ -823,8 +848,8 @@ def engine_inputs(env) -> tuple[dict | None, dict]:
     if not tree or not os.path.isabs(tree) or not Path(tree).is_dir():
         return refuse("bad_arguments", f"${PACK_ROOT_ENV} must name the run's worktree (got {tree!r})")
     try:
-        found = find_editor_packs(Path(tree), refuse_linked=True)
-    except (PackError, ValueError) as exc:
+        found = find_editor_packs(Path(tree), strict=True)
+    except (PackError, ValueError, RecursionError) as exc:
         return refuse("pack_invalid", str(exc))
     if len(found) != 1:
         names = ", ".join(str(p.relative_to(tree)) or "." for p in found) or "none"
@@ -882,7 +907,7 @@ def main(argv: list[str] | None = None) -> int:
             # Before a byte of the pack is read past its manifest: no link anywhere in it (codex: case 0 also reads
             # the pack's skills), and none on the way to it from the run's tree.
             refuse_links_under(engine["root"], args.pack)
-        manifest = read_manifest(args.pack)
+        manifest = read_manifest(args.pack, cap=MANIFEST_CAP if engine is not None else None)
         editors = editors_of(manifest)
         if engine is not None:
             refuse_links(engine["root"], args.pack, editors)
@@ -891,7 +916,7 @@ def main(argv: list[str] | None = None) -> int:
             # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
             body = entry_path(args.pack, e).read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
-    except (PackError, ValueError) as exc:  # ValueError: a path no filesystem call accepts (an embedded NUL)
+    except (PackError, ValueError, RecursionError) as exc:  # a path with an embedded NUL, bad UTF-8, deep JSON
         return out({"ok": False, "pack": str(args.pack), "error": str(exc), "cause": "pack_invalid"}, 2)
     if engine is not None and not os.environ.get("WG_EDITOR_CONFORMANCE_REEXEC"):
         # The engine's interpreter (crew's pinned venv), never whichever playwright this interpreter happens to
@@ -975,7 +1000,10 @@ def main(argv: list[str] | None = None) -> int:
                           "16b (host.action grants no activation for a tools/call) is the host's rule: studio CI runs "
                           "it with a test plugin"]}
                 if m0["ok"]:
-                    run_editor(browser, origin, e, er["sha256"], er, timeout_s)
+                    try:
+                        run_editor(browser, origin, e, er["sha256"], er, timeout_s)
+                    except Exception as exc:  # noqa: BLE001 (codex: an editor-owned wait escaped the cases)
+                        record_stop(er, exc, CASES_V1)
                     base_ok = len(er["cases"]) == 12 and all(c.get("ok") for c in er["cases"].values())
                     if speaks(e, 2) and base_ok and er.get("negotiated") is None:
                         # A host before protocol 2 runs this editor the protocol-1 way: its surfaces cannot be
@@ -984,7 +1012,10 @@ def main(argv: list[str] | None = None) -> int:
                         er["gaps"].append("cases 13-16 not run: this conformance host speaks protocol 1 only")
                         er["expected"] = 12
                     elif speaks(e, 2) and base_ok:
-                        run_editor_v2(browser, origin, e, er["sha256"], er, timeout_s)
+                        try:
+                            run_editor_v2(browser, origin, e, er["sha256"], er, timeout_s)
+                        except Exception as exc:  # noqa: BLE001
+                            record_stop(er, exc, CASES_V2)
                     elif not speaks(e, 2):
                         er["cases"]["17-v1-compat"] = {
                             "ok": base_ok and er.get("negotiated") == 1, "negotiated": er.get("negotiated"),
@@ -1003,7 +1034,8 @@ def main(argv: list[str] | None = None) -> int:
         report["ok"] = False
         report["error"] = host_failure
         if engine is not None:
-            report["cause"] = "harness_broken" if "pack check unavailable" in host_failure else "host_page_failed"
+            report["cause"] = ("harness_broken" if host_failure.startswith(("pack check unavailable", "pack check crashed"))
+                               else "host_page_failed")
     return out(report, 0 if report["ok"] else 1)
 
 

@@ -45,7 +45,7 @@ PERMISSIONS = {
 # each with the line the consent gate shows.
 INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
-# A manifest is a few KB; a bigger one is refused before it is read.
+# A manifest is a few KB; the engine's host run refuses a bigger one before it is read.
 MANIFEST_CAP = 1024 * 1024
 # Directories a run's worktree search never enters.
 SKIP_DIRS = {"node_modules", "dist", ".git"}
@@ -59,15 +59,16 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def read_manifest(pack: Path) -> dict:
+def read_manifest(pack: Path, cap: int | None = None) -> dict:
+    """The pack's manifest. ``cap`` (the engine's host run): a manifest bigger than it is refused unread."""
     path = pack / MANIFEST_NAME
     if not path.is_file():
         raise PackError(f"{pack} holds no {MANIFEST_NAME}")
-    if path.stat().st_size > MANIFEST_CAP:
-        raise PackError(f"{path} is over {MANIFEST_CAP} bytes")
+    if cap is not None and path.stat().st_size > cap:
+        raise PackError(f"{path} is over {cap} bytes")
     try:
         manifest = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise PackError(f"{path} is not JSON: {exc}") from exc
     if not isinstance(manifest, dict):
         raise PackError(f"{path} is not a JSON object")
@@ -109,28 +110,37 @@ def write_manifest(pack: Path, manifest: dict) -> None:
     tmp.replace(path)
 
 
-def _is_editor_pack(pack: Path) -> bool:
+def _is_editor_pack(pack: Path, strict: bool = False) -> bool:
+    """Whether ``pack`` is an editor pack. ``strict``: a manifest that cannot be read at all (too big, not JSON)
+    raises instead of being skipped, so it can never hide a candidate from the exactly-one rule."""
     try:
-        editors_of(read_manifest(pack))
+        manifest = read_manifest(pack, cap=MANIFEST_CAP if strict else None)
+    except PackError:
+        if strict:
+            raise
+        return False
+    try:
+        editors_of(manifest)
         return True
     except PackError:
         return False
 
 
-def find_editor_packs(tree: Path, refuse_linked: bool = False) -> list[Path]:
+def find_editor_packs(tree: Path, strict: bool = False) -> list[Path]:
     """Every directory under ``tree`` holding a spec-2 ``wicked-pack.json`` with editors, in walk order,
     outside node_modules/.git/dist. Linked directories are not followed (``os.walk``'s default).
 
-    ``refuse_linked`` (the engine's host run): a manifest that is a link raises ``PackError`` before it is
-    opened, so a seat-written link never makes the host read its target."""
+    ``strict`` (the engine's host run): a manifest that is a link raises ``PackError`` before it is opened (a
+    seat-written link never makes the host read its target), and so does one that cannot be read (over the
+    cap, not JSON): it can never drop out of the exactly-one rule. Other callers keep the old skipping."""
     found = []
     for dirpath, dirnames, filenames in os.walk(tree):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         if MANIFEST_NAME not in filenames:
             continue
-        if refuse_linked and (Path(dirpath) / MANIFEST_NAME).is_symlink():
+        if strict and (Path(dirpath) / MANIFEST_NAME).is_symlink():
             raise PackError(f"{Path(dirpath, MANIFEST_NAME).relative_to(tree)} is a link; an editor pack is plain files")
-        if _is_editor_pack(Path(dirpath)):
+        if _is_editor_pack(Path(dirpath), strict):
             found.append(Path(dirpath))
     return found
 
