@@ -138,6 +138,13 @@ For each chapter write:
 
 That list becomes the `segments` array in the storyline file for the `record` action.
 
+### In a crew Demo video run (the `plan` step)
+
+Your container cannot reach the app, so steps 5 and the checklist's live items change: read the `probe/` page summary
+(the engine loaded the app's launch page for you) instead of rehearsing live, write `storyline.json` (not a module)
+beside `script.md` and `chapters.json`, and reset nothing (the recorder is read-only). The person approves the plan
+at the gate; the engine records it. Format: `refs/storyline-json.md`.
+
 ### Checklist (acceptance gate)
 
 `plan` is done only when every item is checked:
@@ -175,6 +182,14 @@ own data in `beforeSegment`, and never relies on another segment's state.
 
 Full module shape and the `ctx` API: `refs/storyline-api.md`.
 Visual system (stage layout, captions, callouts, chapter slides, time-lapse): `refs/stage-design.md`.
+
+### Demo author (a crew Demo video run's `plan` step)
+
+Inside a crew Demo video run you never record: the engine's `demo_record` step does, on the host, from data.
+Write `storyline.json` (not `storyline.mjs`) and `chapters.json` in the plan directory your step prompt names; the
+keys match, in order. Read the `probe/` page summary first: your container cannot reach the app. Every `go` path
+stays under the app's launch path; text is plain (no HTML). The format, every step and its limits:
+`refs/storyline-json.md`. A take that fails comes back to you with the chapter, the cause and the time.
 
 ### Walkthrough author (a crew run's `walkthrough_plan` step)
 

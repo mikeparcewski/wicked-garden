@@ -4,6 +4,23 @@
 
 ### Added
 
+- **The engine-run demo recorder (`scripts/demo/demo-record.mjs`, wicked-core#1249).** The garden half of moving a
+  crew Demo video's recording out of its seat (whose container cannot reach the app, and has no ffmpeg or browser):
+  `demo-record.mjs probe` and `record`, for the engine to run on the host, in its jail, with network to the app's one
+  port (the engine and crew halves land separately). The storyline is
+  data, `storyline.json` (`scripts/demo/storyline-data.mjs`: a closed set of steps over the recorder's ctx verbs,
+  plain text, navigation confined to the launch path, keys of at most 48 characters, bounds), so no seat code runs on
+  the host. The browser follows a request policy (`readonly.mjs` `demoPolicy`/`armPolicy`): reads on the app's origin,
+  the app frame kept under the launch path (history-API transitions too), every redirect hop decided before the
+  browser follows it, on a crew app only the launched app's query POST and `/ws`, other sockets refused before they
+  connect; no popup, no web worker. Each chapter waits for the storyline's `ready` target, and the screen capture is
+  proved live at every checkpoint and every second between them (`capture_stalled`). A take writes `demo-video/demo.mp4` (fixed name), `chapters.md`, `timings.json`,
+  `review/{chapters,joins,end}.png` (the chapters sheet at the moments after `ready` and the last action),
+  `review/ffprobe.json` and `demo-video/record.json` with a cause the engine maps to retry or send-back. The probe
+  writes a page summary for the plan seat, structure only (no screenshot, no table or list text) when the app's rows
+  may not reach a model. Missing ffmpeg, ffprobe, Python or Playwright is reported, never installed. The hand
+  recorder's stage loads its web fonts only by hand and sets the app frame's address through the DOM; `probe.mjs` now
+  arms the write guard. Skill: `refs/storyline-json.md`.
 - **`wicked-garden-classify` catalog mode (DES-CATALOG-002 §2.3, pairs with wicked-crew's catalog v2 detection).** When
   a host hands a job-catalog digest (a wicked-crew chat seat's turn or its one-shot `detect-shape` turn), classify names
   the ONE card, option and depth the person's words ask for, with a confidence on the skill's anchors and an `ask` list
