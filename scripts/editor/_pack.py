@@ -140,21 +140,44 @@ def _is_editor_pack(pack: Path, strict: bool = False) -> bool:
         return False
 
 
+def _strict_walk(top: Path):
+    """``os.walk`` (top-down, sorted, SKIP_DIRS pruned, links not followed) that RAISES on any directory or entry
+    it cannot read or classify, instead of skipping it: an unreadable corner could hide a second pack."""
+    def unreadable(path, exc: OSError) -> PackError:
+        return PackError(f"{path} cannot be read ({exc.strerror or exc}), so the tree cannot be shown to hold "
+                         "exactly one editor pack")
+    stack = [str(top)]
+    while stack:
+        here = stack.pop()
+        dirs, files = [], []
+        try:
+            with os.scandir(here) as it:
+                for entry in it:
+                    try:
+                        is_dir = entry.is_dir(follow_symlinks=False)
+                    except OSError as exc:
+                        raise unreadable(entry.path, exc) from exc
+                    (dirs if is_dir else files).append(entry.name)
+        except OSError as exc:
+            raise unreadable(here, exc) from exc
+        dirs = sorted(d for d in dirs if d not in SKIP_DIRS)
+        yield here, dirs, files
+        stack.extend(os.path.join(here, d) for d in reversed(dirs))
+
+
 def find_editor_packs(tree: Path, strict: bool = False) -> list[Path]:
     """Every directory under ``tree`` holding a spec-2 ``wicked-pack.json`` with editors, in walk order,
-    outside node_modules/.git/dist. Linked directories are not followed (``os.walk``'s default).
+    outside node_modules/.git/dist. Linked directories are not followed.
 
-    ``strict`` (the engine's host run): a manifest that is a link raises ``PackError`` before it is opened (a
-    seat-written link never makes the host read its target), and so does one that cannot be read (over the
-    cap, not JSON): it can never drop out of the exactly-one rule. Other callers keep the old skipping."""
+    ``strict`` (the engine's host run): any directory or entry that cannot be read raises ``PackError`` (it could
+    hide a second pack); a manifest that is a link raises before it is opened (a seat-written link never makes the
+    host read its target), and so does one that cannot be read (over the cap, not JSON): nothing can drop out of
+    the exactly-one rule. Other callers keep the old skipping walk."""
     found = []
-
-    def unreadable(err: OSError) -> None:
-        # A directory the walk cannot read could hide a second pack: strict discovery refuses rather than skips it.
-        raise PackError(f"{err.filename} cannot be read, so the tree cannot be shown to hold exactly one editor pack")
-
-    for dirpath, dirnames, filenames in os.walk(tree, onerror=unreadable if strict else None):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+    walk = _strict_walk(tree) if strict else os.walk(tree)
+    for dirpath, dirnames, filenames in walk:
+        if not strict:
+            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         if MANIFEST_NAME not in filenames:
             continue
         try:
@@ -164,7 +187,6 @@ def find_editor_packs(tree: Path, strict: bool = False) -> list[Path]:
         except OSError as exc:
             if not strict:
                 continue
-            # A directory the seat made unsearchable: the tree cannot be shown to hold exactly one pack.
             raise PackError(f"{dirpath} cannot be read ({exc.strerror}), so the tree cannot be shown to hold exactly one "
                             "editor pack") from exc
         if candidate:

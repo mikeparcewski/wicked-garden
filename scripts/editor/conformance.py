@@ -985,6 +985,8 @@ def main(argv: list[str] | None = None) -> int:
                 for field, cap in (("id", 200), ("version", 200), ("title", 500)):
                     if len(str(e.get(field) or "")) > cap:
                         raise PackError(f"editor {str(e.get('id'))[:60]!r}: its {field} is over {cap} characters")
+                if len(e.get("permissions") or []) > 32:
+                    raise PackError(f"editor {str(e.get('id'))[:60]!r}: over 32 permission declarations")
                 protocol = e.get("protocol")
                 if isinstance(protocol, list) and any(isinstance(v, int) and not 0 <= v <= 1000 for v in protocol):
                     raise PackError(f"editor {str(e.get('id'))[:60]!r}: a protocol number outside 0-1000")
