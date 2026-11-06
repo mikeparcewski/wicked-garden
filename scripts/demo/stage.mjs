@@ -217,6 +217,7 @@ export class Stage {
     this.policy = policy;
     this.diagnostics = { wsRefused: [], wsFramesDropped: 0 };
     this.leftApp = null; // the first app-frame URL outside the launch path (policy only)
+    this.nestedFirst = new WeakMap(); // a nested app frame → the directory of its first document (policy only)
     this.appErrors = []; // app documents (the app frame or a frame inside it) that failed to load
     this.firstFailureAt = null; // wall clock (s) when the first of those was seen
     this.lastPictureAt = 0; // wall clock (s) of the newest screencast picture
@@ -291,6 +292,18 @@ export class Stage {
           this.firstFailureAt ??= this.now();
         }
         if (/^https?:/.test(f.url())) this.appLoaded = true;
+      } else if (this.policy && inApp(f)) {
+        // A frame the app itself nests (a crew app renders in one) keeps to where it first loaded: the same origin,
+        // http(s), and the directory of its first document. A link inside it never carries the demo elsewhere.
+        const first = this.nestedFirst.get(f);
+        let u = null;
+        try { u = new URL(f.url()); } catch { /* unparseable */ }
+        if (first === undefined) {
+          if (u && /^https?:$/.test(u.protocol)) this.nestedFirst.set(f, u.pathname.replace(/[^/]*$/, ""));
+        } else if (!u || !/^https?:$/.test(u.protocol) || u.origin !== this.policy.appOrigin || !u.pathname.startsWith(first)) {
+          this.leftApp ??= f.url();
+          this.firstFailureAt ??= this.now();
+        }
       }
       if (f !== this.page.mainFrame() && f.url().startsWith(this.baseUrl)) {
         const u = new URL(f.url());

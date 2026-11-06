@@ -18,9 +18,10 @@ export const KEY_RE = new RegExp(`^[a-z0-9][a-z0-9-]{0,${KEY_MAX - 1}}$`);
 export const LIMITS = Object.freeze({
   chapters: 12, steps: 60, ms: 30_000, text: 500, fileBytes: 64 * 1024, factorMin: 2, factorMax: 16, nth: 50,
   introMinMs: 1500,
-  // The longest a take may run if every wait runs to its timeout: well under the engine's 20-minute deadline, so a
-  // storyline that could never finish is refused here (a verdict on the storyline), never retried as a timeout.
-  worstCaseSeconds: 15 * 60,
+  // The most a take may spend on its own fixed timing (holds, captions, cards and each step's own motion), well
+  // under the engine's 20-minute deadline: a storyline that could never finish is refused here (a verdict on the
+  // storyline). Waits on the app are bounded by their timeouts and by that deadline (a slow app is the host's).
+  fixedSeconds: 12 * 60,
 });
 /** How long one wait may take (seconds): `waitVisible`, `waitForPath`, `ready`, a `go`'s load; `fast` waits longer. */
 export const WAIT_S = 30;
@@ -178,19 +179,20 @@ function countSteps(steps) {
   return steps.reduce((n, s) => n + 1 + (s.verb === "time" ? countSteps(s.steps) : 0), 0);
 }
 
-/** The longest the steps can take (seconds) if every wait runs to its timeout (a captions' own estimate included). */
-export function worstCaseSeconds(steps) {
+/** The steps' own fixed timing (seconds): holds, captions, cards, and each step's motion (a wait counts its
+ *  minimum, never its timeout: a wait that times out ends the take). */
+export function fixedSeconds(steps) {
   return steps.reduce((t, s) => {
     switch (s.verb) {
-      case "go": return t + 2 * WAIT_S + 2; // the load, then the network settling
+      case "go": return t + 3;
       case "caption": return t + (s.readMs ?? 9000) / 1000 + 0.5;
-      case "point": case "click": return t + 2 * WAIT_S + 4; // the element's box (up to 60 s), then the act
-      case "type": return t + 2 * WAIT_S + 4 + (s.text.length * 0.03);
+      case "point": case "click": return t + 3;
+      case "type": return t + 3 + (s.text.length * 0.03);
       case "hold": return t + s.ms / 1000;
       case "card": return t + s.ms / 1000 + 1;
-      case "waitVisible": case "waitForPath": return t + WAIT_S;
-      case "fast": return t + FAST_WAIT_S + 2;
-      case "time": return t + worstCaseSeconds(s.steps);
+      case "waitVisible": case "waitForPath": return t + 1;
+      case "fast": return t + 2;
+      case "time": return t + fixedSeconds(s.steps);
       default: return t + 1;
     }
   }, 0);
@@ -263,10 +265,11 @@ function checkStorylineInner(raw, chapters, nav) {
       tags: (g.tags ?? []).map((t, j) => str(t, `${w}.tags[${j}]`, { max: 40 })), steps,
     };
   });
-  // A storyline that could outlast the engine's deadline is refused here, naming its worst case.
-  const worst = out.segments.reduce((t, g) => t + 12 + WAIT_S + worstCaseSeconds(g.steps), (out.intro?.ms ?? 0) / 1000 + (out.closing?.ms ?? 0) / 1000);
-  if (worst > LIMITS.worstCaseSeconds) {
-    refuse("storyline.segments", `could take ${Math.round(worst / 60)} min if every wait ran to its timeout; the most is ${LIMITS.worstCaseSeconds / 60} min (fewer waits, shorter holds or fewer chapters)`);
+  // A storyline whose own fixed timing could outlast the engine's deadline is refused here, naming it. (Each chapter
+  // also opens on its card and the launch page, and proves its app ready: about 12 s.)
+  const fixed = out.segments.reduce((t, g) => t + 12 + fixedSeconds(g.steps), (out.intro?.ms ?? 0) / 1000 + (out.closing?.ms ?? 0) / 1000);
+  if (fixed > LIMITS.fixedSeconds) {
+    refuse("storyline.segments", `spends ${Math.round(fixed / 60)} min on holds, captions, cards and motion; the most is ${LIMITS.fixedSeconds / 60} min (shorter holds or fewer chapters)`);
   }
   // The approved chapter plan and the storyline name the same chapters, in the same order.
   if (!Array.isArray(chapters)) refuse("chapters.json", "must be a list of chapters");

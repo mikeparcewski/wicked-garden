@@ -180,7 +180,8 @@ export function sheetMoments(clock) {
   for (const c of clock) {
     const cps = c.checkpoints.filter((x) => x.kind !== "end");
     const ready = cps.find((x) => x.kind === "ready") ?? cps.find((x) => x.kind === "chapter");
-    const last = cps.length ? cps[cps.length - 1] : null;
+    // The state the chapter ends on (its `done` checkpoint), else its last action.
+    const last = cps.find((x) => x.kind === "done") ?? (cps.length ? cps[cps.length - 1] : null);
     for (const x of [ready, last !== ready ? last : null]) if (x) m.push(round1(x.picture_at + 0.05));
   }
   return [...new Set(m)].sort((a, b) => a - b);
@@ -199,15 +200,17 @@ function contactSheet(python, ffmpeg, video, args, out) {
 export async function runProbe(env = process.env) {
   let cfg;
   const fallbackRoot = env.WICKED_DEMO_ROOT && path.isAbsolute(env.WICKED_DEMO_ROOT) ? env.WICKED_DEMO_ROOT : null;
+  // This probe's directory holds this probe only, from the very first return: an earlier probe's screenshot or
+  // summary never survives a refusal below (the plan seat would read it as current).
+  if (fallbackRoot !== null) {
+    const probeDir = path.join(fallbackRoot, "probe");
+    if (fs.existsSync(probeDir)) for (const e of fs.readdirSync(probeDir)) fs.rmSync(path.join(probeDir, e), { recursive: true, force: true });
+  }
   const result = (root, v) => { if (root) writeJson(path.join(root, "probe", "result.json"), v); return v; };
   try { cfg = readEnv(env); } catch (e) {
     return result(fallbackRoot, { overall: "INCONCLUSIVE", cause: "engine_refused", reason: said(e) });
   }
   const redact = !cfg.liveDataToModels;
-  // This probe's directory holds this probe only: an earlier one's screenshot or summary never survives an early
-  // refusal below (it would be read by the plan seat as current).
-  const probeDir = path.join(cfg.root, "probe");
-  if (fs.existsSync(probeDir)) for (const e of fs.readdirSync(probeDir)) fs.rmSync(path.join(probeDir, e), { recursive: true, force: true });
   if (!cfg.jail) return result(cfg.root, { overall: "INCONCLUSIVE", cause: "unjailed_host", reason: "the probe runs only inside the engine's jail (WICKED_DEMO_JAIL is unset)" });
   const missing = await missingDeps({ env, needVideo: false });
   if (missing.length) return result(cfg.root, { overall: "INCONCLUSIVE", cause: "recorder_deps_missing", reason: missing.map((m) => `${m.tool}: ${m.install}`).join("; "), missing });
@@ -227,7 +230,9 @@ export async function runProbe(env = process.env) {
   let finalPath = null;
   try { finalPath = new URL(r.finalUrl).pathname; } catch { /* about: or worse */ }
   const problems = [];
-  if (r.status === null || r.status >= 400) problems.push(`the page answered ${r.status ?? "nothing"}`);
+  if (r.status === null || r.status < 200 || r.status >= 300) problems.push(`the page answered ${r.status ?? "nothing"}`);
+  if (r.frameErrors.length) problems.push(`a frame inside the page did not load (${redact ? "redacted" : r.frameErrors.slice(0, 3).join("; ")})`);
+  if (r.otherPages) problems.push("the page opened another page");
   if (finalPath === null || !(finalPath === cfg.policy.launchPath || finalPath.startsWith(cfg.policy.launchPath === "/" ? "/" : cfg.policy.launchPath + "/"))) {
     problems.push("the page left the launch path");
   }
@@ -299,6 +304,7 @@ export async function runRecord(env = process.env) {
     brand: { name: story.brand?.name ?? story.title ?? "Demo", accent: story.brand?.accent ?? null, logoSvg: "" },
     // A test seam, honoured only under the tests' own jail marker (the engine sets the launcher kind).
     dropPicturesAfterFirst: cfg.jail === "test" && env.WICKED_DEMO_TEST_DROP_PICTURES === "1",
+    redactFailures: redact,
   });
   const chapters = [];
   for (const seg of story.segments) {

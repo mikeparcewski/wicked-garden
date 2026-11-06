@@ -86,6 +86,19 @@ export async function probePages({ base, paths, out, viewport = { width: 1600, h
       blocked = await armGuard(context, {});
     }
     const page = await context.newPage();
+    // What the recorder would refuse, the probe refuses too: a frame inside the page that fails to load, a popup.
+    const frameErrors = [];
+    let otherPages = false;
+    context.on("page", (p2) => { if (p2 !== page) { otherPages = true; p2.close().catch(() => {}); } });
+    page.on("response", (r) => {
+      const req = r.request();
+      try { if (req.isNavigationRequest() && req.frame() !== page.mainFrame() && r.status() >= 400) frameErrors.push(`${r.status()} ${r.url()}`); } catch { /* no frame */ }
+    });
+    page.on("requestfailed", (req) => {
+      try {
+        if (req.isNavigationRequest() && req.frame() !== page.mainFrame() && !/blockedbyclient/i.test(req.failure()?.errorText ?? "")) frameErrors.push(`${req.failure()?.errorText ?? "failed"} ${req.url()}`);
+      } catch { /* no frame */ }
+    });
     for (const p of paths) {
       const url = base.replace(/\/$/, "") + p;
       const response = await page.goto(url, { waitUntil: "domcontentloaded" });
@@ -105,7 +118,7 @@ export async function probePages({ base, paths, out, viewport = { width: 1600, h
       }
       if (frames.length) info.frames = frames.slice(0, 5);
       fs.writeFileSync(path.join(out, `${slug}.json`), JSON.stringify(info, null, 2));
-      results.push({ path: p, slug, info, blocked: [...blocked], status: response?.status() ?? null, finalUrl: page.url() });
+      results.push({ path: p, slug, info, blocked: [...blocked], status: response?.status() ?? null, finalUrl: page.url(), frameErrors: [...frameErrors], otherPages });
     }
   } finally {
     await browser.close().catch(() => {});

@@ -80,11 +80,16 @@ def test_the_step_language_is_closed_and_bounded():
     assert _check(*_story([{"waitForPath": {"pattern": "(a+)+$"}}])).get("code") == "storyline_refused"
     assert _check(*_story([{"constructor": {}}])).get("code") == "storyline_refused"
     assert _check(*_story([{"time": {"label": "__proto__", "steps": [{"hold": {"ms": 1}}]}}])).get("code") == "storyline_refused"
-    many_waits = [{"waitVisible": {"target": {"text": "x"}}}] * 40
+    long_holds = [{"hold": {"ms": 30_000}}] * 30
     worst = _check({"title": "t", "ready": {"text": "x"}, "segments": [
-        {"key": f"0{i}", "title": "A", "steps": many_waits} for i in range(1, 4)]},
+        {"key": f"0{i}", "title": "A", "steps": long_holds} for i in range(1, 4)]},
         [{"key": f"0{i}", "title": "A"} for i in range(1, 4)])
     assert worst.get("code") == "storyline_refused" and "min" in worst["msg"], worst
+    # A realistic plan with many waits on the app is never refused for its waits' timeouts.
+    many_waits = [{"click": {"target": {"text": "x"}}}, {"waitVisible": {"target": {"text": "y"}}}] * 15
+    assert _check({"title": "t", "ready": {"text": "x"}, "segments": [
+        {"key": f"0{i}", "title": "A", "steps": many_waits} for i in range(1, 6)]},
+        [{"key": f"0{i}", "title": "A"} for i in range(1, 6)])["ok"]
     assert _check(*_story([nested])).get("code") == "storyline_refused"
     assert _check(*_story([{"hold": {"ms": 1}}] * 61)).get("code") == "storyline_refused"
 
@@ -142,7 +147,14 @@ def _demo_deps_ready() -> bool:
          "import { createRequire } from 'node:module'; import path from 'node:path'; import { DEPS_DIR } from './_playwright.mjs';"
          "createRequire(path.join(DEPS_DIR, 'package.json')).resolve('playwright');"],
         cwd=DEMO, capture_output=True, text=True, timeout=60)
-    return probe.returncode == 0
+    if probe.returncode != 0:
+        return False
+    # The browser too, not only the package: a host without Chromium skips instead of failing.
+    launch = subprocess.run(
+        ["node", "--input-type=module", "-e",
+         "import { loadChromium } from './_playwright.mjs'; const b = await (await loadChromium()).launch(); await b.close();"],
+        cwd=DEMO, capture_output=True, text=True, timeout=120)
+    return launch.returncode == 0
 
 
 needs_deps = pytest.mark.skipif(not _demo_deps_ready(), reason="needs node, ffmpeg/ffprobe and the demo deps (scripts/demo/setup.mjs)")
@@ -336,9 +348,16 @@ def test_a_multichapter_take_keeps_every_chapter_in_order(app, tmp_path):
 @needs_deps
 def test_a_failure_message_carries_no_page_text_when_rows_stay_out_of_models(app, tmp_path):
     origin, _ = app
-    v = _run("record", tmp_path, origin, [{"click": {"target": {"text": "SECRET-ROW-ACME"}}}, {"click": {"target": {"button": "Leave"}}}], live=False)
+    # The target resolves to a hidden element: Playwright's timeout error quotes it, page text included ("ACME").
+    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "HIDDEN-NOTE"}}}], live=False)
     assert v["overall"] == "FAIL", v
-    assert "SECRET" not in json.dumps(v), v
+    assert "ACME" not in json.dumps(v), v
+    notes = "".join(f.read_text() for f in (tmp_path / "root" / "demo-video").rglob("*.json"))
+    assert "ACME" not in notes, "a failure note quotes the page"
+    # The same take with rows allowed to reach a model keeps the quote (the sentinel is really in the error).
+    _run("record", tmp_path / "full", origin, [{"waitVisible": {"target": {"text": "HIDDEN-NOTE"}}}], live=True)
+    full_notes = "".join(f.read_text() for f in (tmp_path / "full" / "root" / "demo-video").rglob("failure.json"))
+    assert "ACME" in full_notes, "the error really quotes the page (else this test proves nothing)"
 
 
 @needs_deps

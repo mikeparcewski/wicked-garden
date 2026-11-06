@@ -156,6 +156,7 @@ export function makeSegmentRecorder({
   extendCtx = null,
   policy = null,
   dropPicturesAfterFirst = false,
+  redactFailures = false,
 }) {
   const CHAPTERS_LIST = story.segments.filter((s) => !s.intro).map((s) => s.title);
   const LAST_KEY = story.segments[story.segments.length - 1].key;
@@ -193,13 +194,15 @@ export function makeSegmentRecorder({
     } else {
       videoError = "the take failed before recording began";
     }
+    // With `redactFailures` (the app's rows may not reach a model), no message, cause or URL is kept: a browser
+    // error can quote the page.
     const failure = {
       segment: key,
       take,
       code: err.code ?? null,
-      message: err.message,
-      cause: err.cause?.message ?? null,
-      blocked: stage.blocked,
+      message: redactFailures ? (err.code ?? "failed") : err.message,
+      cause: redactFailures ? null : err.cause?.message ?? null,
+      blocked: redactFailures ? stage.blocked.map(() => "(redacted)") : stage.blocked,
       failed_at_sec: failedAtInVideo(dir, failedAt, trimStart),
       video,
       ...(videoError ? { video_error: videoError } : {}),
@@ -247,6 +250,8 @@ export function makeSegmentRecorder({
         // The engine-run recorder proves the app is on screen, live, once the chapter card is gone.
         if (policy) await stage.checkpoint("chapter");
         await seg.run(ctx);
+        // ...and once its steps are done, before any closing card: the state the chapter ends on.
+        if (policy) await stage.checkpoint("done");
         await stage.hideCursor();
         await stage.hold(600);
       }
@@ -274,13 +279,16 @@ export function makeSegmentRecorder({
       try { stage.policyCheck(); } catch (e) { err = e; }
     }
     // A failure the policy saw after the last step still names its moment in the video.
-    if (err !== null && failedAt === null && stage.firstFailureAt !== null) failedAt = stage.firstFailureAt;
     if (stage.blocked.length) {
       err = sideEffectError(seg.key, stage.blocked);
       if (failure !== null) err.cause = failure;
     }
+    // A failure the policy saw (a refused request, leaving the app, a document that failed) names ITS moment in the
+    // video, not the moment a later step happened to throw.
+    if (err !== null && policy && stage.firstFailureAt !== null) failedAt = stage.firstFailureAt;
     const writeGuard = (failed) => fs.writeFileSync(path.join(localSegDir(seg.key), "guard.json"), JSON.stringify({
-      take, failed, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin, blocked: stage.blocked,
+      take, failed, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin,
+      blocked: redactFailures ? stage.blocked.map(() => "(redacted)") : stage.blocked,
       ...(policy ? { policy: { appOrigin: policy.appOrigin, launchPath: policy.launchPath, target: policy.target.kind }, diagnostics: stage.diagnostics } : {}),
     }, null, 2));
     writeGuard(true);

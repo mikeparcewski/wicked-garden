@@ -17,6 +17,7 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Demo board</ti
 <button id="leave" onclick="history.pushState({}, '', '/elsewhere')">Leave</button>
 <button id="save" onclick="fetch('/app/save', {method:'POST', body:'x'})">Save</button>
 <p id="out"></p>
+<span hidden>ACME-HIDDEN-NOTE</span>
 <script>fetch('/app/data').then(r => r.text()).then(t => { document.getElementById('out').dataset.loaded = t; });</script>
 </body></html>"""
 
