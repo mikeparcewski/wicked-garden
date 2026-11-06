@@ -52,8 +52,6 @@ export function makeCtx(stage, timings) {
     hideCursor: () => stage.hideCursor(),
     /** The engine-run recorder's checkpoint: still in the app, its document loaded, the capture live (stage.mjs). */
     checkpoint: (kind) => stage.checkpoint(kind),
-    /** Until no request is in flight in any frame for a moment (bounded; a page that never goes quiet is not a failure). */
-    settle: (opts) => stage.settle(opts),
     /** An optional step that was skipped: marked on the timeline and listed in the take's record. */
     skipped: (entry) => stage.skipped(entry),
     /** A response from the app whose URL matches (any method unless given). Register it before the click that causes it. */
@@ -233,6 +231,7 @@ export function makeSegmentRecorder({
       hide: story.hide ?? [],
       // A crew app is recorded in its own frame only: studio's page around it is never in the picture (§13 A1.2).
       focusContent: policy?.target?.kind === "crew_app",
+      redactSkips: redactFailures,
     });
     const timings = Object.create(null); // a label like `__proto__` is still a timing
     let ctx = makeCtx(stage, timings);
@@ -260,7 +259,8 @@ export function makeSegmentRecorder({
         await stage.go(story.startPath || "/");
         // The app gets ready behind the card. A wait longer than the card's own hold is cut from the take.
         if (seg.prepare) await seg.prepare(ctx);
-        if (stage.focusContent) ({ view } = await stage.view());
+        // (A crew app) its own frame fills the window from here on, proven at every checkpoint, or the take fails.
+        if (stage.focusContent) { await stage.requireView(); view = "app_frame"; }
         const waited = Date.now() - t0;
         if (waited > CARD_CUT_AFTER_MS) {
           stage.cutSince((t0 + CARD_CUT_AFTER_MS) / 1000, "the app got ready behind the chapter card");
@@ -305,6 +305,8 @@ export function makeSegmentRecorder({
     if (stage.blocked.length) {
       err = sideEffectError(seg.key, stage.blocked);
       if (failure !== null) err.cause = failure;
+      // The step the first refusal happened in (the storyline's words), not a later one that happened to throw.
+      if (stage.blockedDuring) err.step = stage.blockedDuring;
     }
     // A failure the policy saw (a refused request, leaving the app, a document that failed) names ITS moment in the
     // video, not the moment a later step happened to throw.

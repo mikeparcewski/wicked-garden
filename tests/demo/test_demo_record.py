@@ -438,7 +438,9 @@ def test_hide_takes_one_selector_per_entry_and_nothing_that_ends_a_rule():
     story, chapters = _story([{"hold": {"ms": 10}}])
     story["hide"] = [{"css": "#banner, .toast[data-x='1']"}, {"css": "header", "in": "content"}]
     assert _check(story, chapters)["ok"]
-    for css in ("x{}", "a;b", "@import url(x)", "a/*b*/", "a\\{", "<b>", " "):
+    story["hide"] = [{"css": ".studio > .banner"}]
+    assert _check(story, chapters)["ok"], "the child combinator is one selector"
+    for css in ("x{}", "a;b", "@import url(x)", "a/*b*/", "a\\{", "<b", " "):
         story["hide"] = [{"css": css}]
         got = _check(story, chapters)
         assert got.get("code") == "storyline_refused" and got["where"].startswith("storyline.hide[0]"), (css, got)
@@ -542,3 +544,29 @@ def test_a_required_step_that_fails_names_the_step_even_when_redacted(app, tmp_p
              live=False)
     assert v["overall"] == "FAIL" and v["cause"] == "step_failed", v
     assert 'storyline.segments[0].steps[1] (waitVisible text "Never there")' in v["reason"], v
+
+
+@needs_deps
+def test_a_failed_take_still_discloses_its_skips_and_a_private_skip_reason_never_leaves(app, tmp_path):
+    origin, _ = app
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"text": "HIDDEN-NOTE"}}, "optional": True},
+                                          {"click": {"target": {"button": "Save"}}}, {"hold": {"ms": 600}}], live=False)
+    assert v["overall"] == "FAIL" and v["cause"] == "side_effect_blocked", v
+    assert 'steps[1] (click button "Save")' in v["reason"], "the refusal names the step it happened in"
+    sk = v["chapters"][0]["skipped_steps"]
+    assert [x["step"] for x in sk] == ["storyline.segments[0].steps[0]"] and sk[0]["reason"] == "(redacted)", sk
+    # Redacted at the source: the take's own timeline never holds the browser's words either.
+    timelines = list((tmp_path / "root" / "demo-video").rglob("timeline.json"))
+    marks = [m for t in timelines for m in json.loads(t.read_text())["marks"].get("skipped", [])]
+    assert marks and all(m["reason"] == "(redacted)" for m in marks), marks
+    assert "ACME" not in "".join(f.read_text() for f in (tmp_path / "root" / "demo-video").rglob("*.json"))
+
+
+@needs_deps
+def test_a_slow_optional_click_never_holds_the_take_past_its_five_seconds(app, tmp_path):
+    origin, _ = app
+    # Visible but never clickable (disabled): the whole optional step, cursor moves included, gives up within ~5 s.
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"button": "Disabled"}}, "optional": True}, {"hold": {"ms": 300}}])
+    assert v["overall"] == "PASS", v
+    ch = v["chapters"][0]
+    assert len(ch["skipped_steps"]) == 1 and ch["end"] - ch["ready_at"] < 9, ch

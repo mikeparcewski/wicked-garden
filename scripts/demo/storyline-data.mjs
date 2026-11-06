@@ -33,7 +33,7 @@ export const OPTIONAL_WAIT_S = 5;
 /** The verbs a step may mark `optional` (DES-DEMO-RECORD-001 §13 A1.3): cosmetic ones, never a measured one. */
 export const OPTIONAL_VERBS = Object.freeze(["click", "point", "waitVisible"]);
 // A `hide` entry is one CSS selector: nothing that could end it and start another rule, an at-rule or a comment.
-const HIDE_CSS_BAD = /[{};@\\<>]|\/\*/;
+const HIDE_CSS_BAD = /[{};@\\<]|\/\*/;
 const PATH_RE = LAUNCH_PATH_RE;
 const LABEL_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;
 const TARGET_KINDS = ["role", "text", "section", "button", "testId", "css"];
@@ -257,7 +257,7 @@ function checkStorylineInner(raw, chapters, nav) {
       only(h, ["css", "in"], w);
       const css = str(h.css, `${w}.css`, { max: 200, oneLine: true });
       if (!css.trim()) refuse(`${w}.css`, "must not be empty");
-      if (HIDE_CSS_BAD.test(css)) refuse(`${w}.css`, "must be one CSS selector (no { } ; @ \\ < > or comments)");
+      if (HIDE_CSS_BAD.test(css)) refuse(`${w}.css`, "must be one CSS selector (no { } ; @ \\ < or comments)");
       if (h.in !== undefined && h.in !== "content") refuse(`${w}.in`, 'must be "content" (the app\'s own frame inside the page) or absent');
       return h.in === "content" ? { css, in: "content" } : { css };
     });
@@ -378,24 +378,28 @@ export function describeStep(s) {
 }
 
 /**
- * The chapter's first target (§13 A1.1): the first required `waitVisible`, `point`, `click` or `type` target before
+ * The chapter's first targeted step (§13 A1.1): the first required `waitVisible`, `point`, `click` or `type` before
  * anything that changes or measures the page (`go`, `waitForPath`, `fast`, `time`). Null when there is none.
  */
-export function firstTarget(steps) {
+export function firstTargetStep(steps) {
   for (const s of steps) {
     if (["go", "waitForPath", "fast", "time"].includes(s.verb)) return null;
-    if (s.target && !s.optional) return s.target;
+    if (s.target && !s.optional) return s;
   }
   return null;
 }
 
-async function runStep(ctx, s) {
+/** The chapter's first target (firstTargetStep's), or null. */
+export const firstTarget = (steps) => firstTargetStep(steps)?.target ?? null;
+
+async function runStep(ctx, s, deadline = null) {
+  const bound = deadline === null ? {} : { deadline };
   switch (s.verb) {
     case "go": await ctx.go(s.path); await ctx.checkpoint("go"); break;
     case "caption": await ctx.caption(esc(s.kicker), esc(s.title), esc(s.body ?? ""), s.readMs); break;
-    case "point": await ctx.point(locate(ctx, s.target), s.label); break; // a text sink: plain
+    case "point": await ctx.point(locate(ctx, s.target), s.label, bound); break; // a text sink: plain
     case "unpoint": await ctx.unpoint(); break;
-    case "click": await ctx.click(locate(ctx, s.target)); await ctx.checkpoint("click"); break;
+    case "click": await ctx.click(locate(ctx, s.target), bound); await ctx.checkpoint("click"); break;
     case "type": await ctx.type(locate(ctx, s.target), s.text); await ctx.checkpoint("type"); break;
     case "hold": await ctx.hold(s.ms); break;
     case "card": await ctx.card(cardHtml(s.title, s.body), s.ms); await ctx.uncard(); await ctx.checkpoint("uncard"); break;
@@ -411,13 +415,14 @@ async function runStep(ctx, s) {
 
 async function runSteps(ctx, steps) {
   for (const s of steps) {
+    if (ctx.stage) ctx.stage.currentStep = describeStep(s); // a refusal names the step it happened in
     if (s.optional) {
       // An optional step (§13 A1.3) whose target is not there within OPTIONAL_WAIT_S, or whose action fails, is
-      // skipped and said so; a failure the recorder itself raised (a refused request, leaving the app, a stalled
-      // capture: each carries a code) is never swallowed.
+      // skipped and said so; every wait in it shares that one deadline (a click given up on is never made later).
+      // A failure the recorder itself raised (a refused request, leaving the app, a stalled capture: each carries a
+      // code) is never swallowed.
       try {
-        await ctx.waitVisible(locate(ctx, s.target), OPTIONAL_WAIT_S * 1000);
-        await runStep(ctx, s);
+        await runStep(ctx, s, Date.now() + OPTIONAL_WAIT_S * 1000);
       } catch (e) {
         if (e?.code) throw named(e, s);
         await ctx.skipped({ step: s.at ?? null, verb: s.verb, what: describeStep(s), reason: String(e?.message ?? e).split("\n")[0].slice(0, 200) });
@@ -443,18 +448,21 @@ function named(e, s) {
 
 /**
  * Compile a checked storyline into the `story` makeSegmentRecorder takes (record.mjs). Each chapter gets ready
- * behind its chapter card (`prepare`, §13 A1.1): the page goes network-quiet, then the storyline's `ready` target
- * and the chapter's first target are visible. Once the card lifts, `run` marks the `ready` checkpoint and runs the
+ * behind its chapter card (`prepare`, §13 A1.1): once the launch page has loaded and gone network-quiet, the
+ * storyline's `ready` target and the chapter's first target are visible. Once the card lifts, `run` marks the `ready` checkpoint and runs the
  * chapter's steps.
  */
 export function compileStoryline(checked, { launchPath }) {
-  const waitFor = async (ctx, t, what) => {
+  // A wait that never sees its target names it by the storyline's own words (kept when the failure is redacted).
+  const readyStep = { at: "storyline.ready", verb: "ready", target: checked.ready };
+  const waitFor = async (ctx, s, what) => {
     try {
-      await ctx.waitVisible(locate(ctx, t), PREPARE_WAIT_S * 1000);
+      await ctx.waitVisible(locate(ctx, s.target), PREPARE_WAIT_S * 1000);
     } catch (e) {
       if (e?.code) throw e;
-      const err = new Error(`app_not_ready: the app never showed ${what} (${t.kind} ${JSON.stringify(t.value)}${t.in ? " in content" : ""}): ${String(e.message).split("\n")[0]}`);
+      const err = new Error(`app_not_ready: the app never showed ${what}, ${describeStep(s)}: ${String(e.message).split("\n")[0]}`);
       err.code = "app_not_ready";
+      err.step = describeStep(s);
       throw err;
     }
   };
@@ -464,17 +472,17 @@ export function compileStoryline(checked, { launchPath }) {
     segments.push({ key: "intro", intro: true, title: "Introduction", async run(ctx) { await ctx.card(cardHtml(i.title, i.body), i.ms); } });
   }
   for (const g of checked.segments) {
-    const first = firstTarget(g.steps);
+    const first = firstTargetStep(g.steps);
     segments.push({
       key: g.key, title: g.title, blurb: g.blurb, tags: g.tags,
+      // Behind the card, after the launch page loaded and its network went quiet (Stage.go).
       async prepare(ctx) {
-        await ctx.settle();
-        await waitFor(ctx, checked.ready, "its ready target");
+        await waitFor(ctx, readyStep, "its ready target");
         if (first) await waitFor(ctx, first, "the chapter's first target");
       },
       async run(ctx) {
         // Ready already (behind the card); proven again on screen, now that the card is gone.
-        await waitFor(ctx, checked.ready, "its ready target");
+        await waitFor(ctx, readyStep, "its ready target");
         await ctx.checkpoint("ready");
         await runSteps(ctx, g.steps);
       },
