@@ -1330,3 +1330,24 @@ def test_an_unresolved_target_is_never_complete(capsys):
     out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
     assert out["result"]["complete"] is True
     assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+
+
+def test_an_unresolved_target_is_labelled_on_every_call_path(capsys):
+    """A miss without a `next_cursor` key (a tool that does not page, e.g. TraverseGraph) and a
+    miss fetched with `all_pages: false` both carry the UNRESOLVED: line."""
+    no_cursor = [{"resolved": False, "query": "tax", "nodes": [], "edges": [], "suggestions": []}]
+    _estate_client.set_dispatch(_paged_dispatch(no_cursor, []))
+    out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
+    assert out["result"]["resolved"] is False
+    assert "complete" not in out["result"]
+    assert sum(d.startswith("UNRESOLVED:") for d in out["diagnostics"]) == 1
+    paged_miss = [{"resolved": False, "query": "tax", "dependents": [], "total": 0,
+                   "truncated": False, "next_cursor": None}]
+    _estate_client.set_dispatch(_paged_dispatch(paged_miss, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"},
+                         "all_pages": False})
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # A resolved answer is not labelled.
+    _estate_client.set_dispatch(_paged_dispatch([{"resolved": True, "nodes": [1]}], []))
+    out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
+    assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])

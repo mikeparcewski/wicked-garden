@@ -36,9 +36,10 @@
 
 - **`search` never certifies an unresolved target's empty answer as complete (e2e MAJOR-2).** When estate answers
   `resolved: false` (a name or path the graph does not hold, or, before estate 0.32.1, any name passed to
-  `BlastRadius` / `Lineage` / `TraverseGraph`), the shim's `call` now reports `complete: false` with an `UNRESOLVED:`
-  diagnostic instead of `complete: true` over zero dependents. The `search` skill says that `resolved: false` is a
-  miss, never "no dependents", and to re-query with a SymbolId from `suggestions`.
+  `BlastRadius` / `Lineage` / `TraverseGraph`), the shim's `call` adds an `UNRESOLVED:` diagnostic on every path
+  (joined pages, `all_pages: false`, a tool that does not page), and a joined `BlastRadius` / `Lineage` answer says
+  `complete: false` instead of `complete: true` over zero dependents. The `search` skill says that `resolved: false`
+  is a miss, never "no dependents", and to re-query with a SymbolId from `suggestions`.
 
 ## [12.64.0] — 2026-11-05
 

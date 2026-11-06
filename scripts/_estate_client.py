@@ -1043,9 +1043,10 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     something non-pageable cut the walk (a depth horizon or the node cap).
 
     The result is complete only if the pages ran out and estate resolved the target. A page that
-    fails, a run that hits `MAX_PAGES`, or a target estate answers `resolved: false` for (a name
-    or path the graph does not hold) is reported in `diagnostics` with `complete: false` and is
-    never presented as the whole answer. A reply without `next_cursor` (an older estate, or a tool that does not page) is
+    fails or a run that hits `MAX_PAGES` is reported in `diagnostics` with `complete: false`, and
+    an answer estate marks `resolved: false` (its target is a name or path the graph does not
+    hold) gets `complete: false`; neither is ever presented as the whole answer. A reply with no
+    `next_cursor` key gets no `complete` field; `flag_unresolved` labels its miss. A reply without `next_cursor` (an older estate, or a tool that does not page) is
     returned as its single page. Fail-open (None) when the first call fails, the same as
     `call_blocks`.
     """
@@ -1088,12 +1089,9 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     resumed = bool(args.get("cursor"))
     # A target estate could not resolve (`resolved: false`: a name or path the graph does not
     # hold) answers zero rows that are a MISS, not the whole answer: never `complete: true`.
+    # (`call` adds the UNRESOLVED: line on every path, `flag_unresolved`.)
     unresolved = merged.get("resolved") is False
     whole = complete and not merged.get("truncated", False) and not resumed and not unresolved
-    if unresolved:
-        diagnostics.append("UNRESOLVED: estate resolved no symbol for the target (resolved: "
-                           "false); the empty answer is a miss, NOT proof of no dependents. "
-                           "Re-query with a SymbolId from `suggestions` or SearchEntity")
     if resumed:
         diagnostics.append("PAGING: resumed from the supplied cursor; these rows are the REST of "
                            "the answer, not the whole of it (omit `cursor` for every row)")
@@ -1106,6 +1104,26 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     merged["complete"] = whole
     merged["pages"] = pages
     return {"result": merged, "diagnostics": diagnostics}
+
+
+#: The line `flag_unresolved` adds: zero rows for an unresolved target are a miss, not an answer.
+_UNRESOLVED_LINE = ("UNRESOLVED: estate resolved no symbol for the target (resolved: false); the "
+                    "empty answer is a miss, NOT proof of no dependents. Re-query with a SymbolId "
+                    "from `suggestions` or SearchEntity")
+
+
+def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
+    """Label an answer estate marks `resolved: false` with the `UNRESOLVED:` diagnostic, on every
+    `call` path (joined pages, one page, or a tool that does not page), so a miss never reads as
+    an empty answer. Anything else is returned unchanged."""
+    if not blocks or not isinstance(blocks.get("result"), dict):
+        return blocks
+    if blocks["result"].get("resolved") is False:
+        diagnostics = list(blocks.get("diagnostics") or [])
+        if _UNRESOLVED_LINE not in diagnostics:
+            diagnostics.append(_UNRESOLVED_LINE)
+        return {**blocks, "diagnostics": diagnostics}
+    return blocks
 
 
 def call_raw(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> Optional[dict]:
@@ -1495,6 +1513,7 @@ def main(argv: list) -> int:
             blocks = call_blocks(tool, args.get("arguments", {}))
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
+        blocks = flag_unresolved(blocks)
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":

@@ -106,8 +106,8 @@ answers `matches: []` for a code symbol — a 0-hit `query` does not mean the gr
 
 **`resolved: false` is a miss, not an answer.** When estate cannot resolve the target (a name or
 path the graph does not hold), `BlastRadius`, `Lineage`, `TraverseGraph` and `Path` answer
-`resolved: false` with ranked `suggestions`; for a joined `BlastRadius` / `Lineage` answer the
-shim also reports `complete: false` with an `UNRESOLVED:` diagnostic. Zero rows there never mean
+`resolved: false` with ranked `suggestions`, and the shim adds an `UNRESOLVED:` diagnostic (a
+joined `BlastRadius` / `Lineage` answer also says `complete: false`). Zero rows there never mean
 "no dependents": re-query with a SymbolId from `suggestions`. (Estate before 0.32.1 resolved names only in `Path`: if it answers
 `resolved: false` for a name `SearchEntity` finds, pass that SymbolId.)
 
