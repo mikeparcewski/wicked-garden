@@ -60,7 +60,9 @@ tables in a frame inside the page): the probe summary lists such frames under `f
 
 Limits: 12 chapters, 60 steps a chapter, 30 s for any `ms` (an intro at least 1.5 s), keys at most 48 characters
 (`^[a-z0-9][a-z0-9-]*$`, not `intro`), plain text only (no HTML), 64 KB a file. Every wait gives up after 30 s
-(`fast`: 120 s), and a storyline that could run past 15 minutes if every wait ran to its timeout is refused.
+(`fast`: 120 s). A storyline whose own fixed timing passes 12 minutes is refused: its holds, captions, cards and
+each step's motion, plus about 12 s a chapter for its card, the launch page and the ready check (a wait counts its
+minimum, not its timeout).
 
 ## What fails a take (and comes back to you)
 

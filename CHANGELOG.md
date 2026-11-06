@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [12.65.0] — 2026-11-06
+
+Minor: the garden side of the catalog by verb (DES-CATALOG-002 lane B, #1409): `wicked-garden-classify` catalog mode,
+`wicked-garden-engineering` `release` and `scaffold`, and `wicked-garden-draft` kinds, which pair with wicked-crew
+0.17.1's catalog v2; the garden half of the engine-run demo recorder (#1415, wicked-core#1249), whose engine and crew
+halves are not released yet; and `search` never certifies an unresolved target's empty answer as complete (#1414).
+Docs and skill wording for 12.64 (#1400) and a site re-pin (#1411).
+
 ### Added
 
 - **The engine-run demo recorder (`scripts/demo/demo-record.mjs`, wicked-core#1249).** The garden half of moving a
@@ -1425,7 +1433,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...HEAD
+[12.65.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...v12.65.0
 [12.64.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...v12.64.0
 [12.63.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...v12.63.0
 [12.62.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.61.0...v12.62.0
