@@ -178,7 +178,7 @@ estate default 24 for `Lineage` and 8 for `BlastRadius`, max 24).
      `dependencies` are the consumers and `flows` the hops). Lineage's default depth is its
      ceiling (24), and the shim follows `next_cursor` to the end of the answer (estate#279):
      check `resolved` first (`false` is a miss, above), then `complete`, and report a `false` as
-     partial.
+     partial (a missing `complete` or `"result": null`: as in § Blast radius step 3).
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
      `{"symbol": "<name>"}` → `dependents`.
    - **both**: run both and present each direction. (A bounded multi-hop walk
