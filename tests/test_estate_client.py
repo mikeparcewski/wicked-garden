@@ -1311,3 +1311,22 @@ def test_resuming_through_an_uncapped_last_page_is_not_whole(capsys):
     assert out["result"]["complete"] is False
     assert any("REST of the answer" in d for d in out["diagnostics"])
     assert not any("whole answer" in d for d in out["diagnostics"])
+
+
+def test_an_unresolved_target_is_never_complete(capsys):
+    """e2e MAJOR-2: estate answers a name it cannot resolve with `resolved: false` and zero
+    rows; the shim must not certify that empty answer as `complete: true`."""
+    miss = [{"resolved": False, "query": "tax", "dependents": [], "total": 0,
+             "truncated": False, "next_cursor": None,
+             "suggestions": [{"symbol": "py . src/pricing.py/tax().", "name": "tax"}]}]
+    _estate_client.set_dispatch(_paged_dispatch(miss, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is False
+    assert out["result"]["resolved"] is False
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # A resolved, uncut single page stays whole.
+    hit = [{**miss[0], "resolved": True, "dependents": [{"symbol": "a"}], "total": 1}]
+    _estate_client.set_dispatch(_paged_dispatch(hit, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is True
+    assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])

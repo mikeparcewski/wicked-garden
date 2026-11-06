@@ -1042,9 +1042,10 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     from the last page, whose `next_cursor` is null and whose `truncated` then says only whether
     something non-pageable cut the walk (a depth horizon or the node cap).
 
-    The result is complete only if the pages ran out. A page that fails, or a run that hits
-    `MAX_PAGES`, is reported in `diagnostics` with `complete: false` and is never presented as the
-    whole answer. A reply without `next_cursor` (an older estate, or a tool that does not page) is
+    The result is complete only if the pages ran out and estate resolved the target. A page that
+    fails, a run that hits `MAX_PAGES`, or a target estate answers `resolved: false` for (a name
+    or path the graph does not hold) is reported in `diagnostics` with `complete: false` and is
+    never presented as the whole answer. A reply without `next_cursor` (an older estate, or a tool that does not page) is
     returned as its single page. Fail-open (None) when the first call fails, the same as
     `call_blocks`.
     """
@@ -1085,7 +1086,14 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
         cursor = result.get("next_cursor")
     # Resumed from a caller's cursor, the join holds the rest of the answer, not all of it.
     resumed = bool(args.get("cursor"))
-    whole = complete and not merged.get("truncated", False) and not resumed
+    # A target estate could not resolve (`resolved: false`: a name or path the graph does not
+    # hold) answers zero rows that are a MISS, not the whole answer: never `complete: true`.
+    unresolved = merged.get("resolved") is False
+    whole = complete and not merged.get("truncated", False) and not resumed and not unresolved
+    if unresolved:
+        diagnostics.append("UNRESOLVED: estate resolved no symbol for the target (resolved: "
+                           "false); the empty answer is a miss, NOT proof of no dependents. "
+                           "Re-query with a SymbolId from `suggestions` or SearchEntity")
     if resumed:
         diagnostics.append("PAGING: resumed from the supplied cursor; these rows are the REST of "
                            "the answer, not the whole of it (omit `cursor` for every row)")

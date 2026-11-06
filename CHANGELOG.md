@@ -32,6 +32,14 @@
 - `tests/test_catalog_v2_skills.py` pins the catalog-mode rules, the triage line, the `<request>` rule and every new
   ref's route from its router.
 
+### Fixed
+
+- **`search` never certifies an unresolved target's empty answer as complete (e2e MAJOR-2).** When estate answers
+  `resolved: false` (a name or path the graph does not hold, or, before estate 0.32.1, any name passed to
+  `BlastRadius` / `Lineage` / `TraverseGraph`), the shim's `call` now reports `complete: false` with an `UNRESOLVED:`
+  diagnostic instead of `complete: true` over zero dependents. The `search` skill says that `resolved: false` is a
+  miss, never "no dependents", and to re-query with a SymbolId from `suggestions`.
+
 ## [12.64.0] — 2026-11-05
 
 Minor: the `wicked-garden-apps` skill for crew's Apps runs, with knowledge queries (#1386, #1396, #1407), the answer

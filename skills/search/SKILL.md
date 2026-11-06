@@ -104,6 +104,13 @@ wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"SearchEnti
 `name` is the exact / substring symbol match; `query` is full-text over the knowledge stores and
 answers `matches: []` for a code symbol — a 0-hit `query` does not mean the graph is empty.
 
+**`resolved: false` is a miss, not an answer.** When estate cannot resolve the target (a name or
+path the graph does not hold), `BlastRadius`, `Lineage`, `TraverseGraph` and `Path` answer
+`resolved: false` with ranked `suggestions`; for a joined `BlastRadius` / `Lineage` answer the
+shim also reports `complete: false` with an `UNRESOLVED:` diagnostic. Zero rows there never mean
+"no dependents": re-query with a SymbolId from `suggestions`. (Estate before 0.32.1 resolved names only in `Path`: if it answers
+`resolved: false` for a name `SearchEntity` finds, pass that SymbolId.)
+
 **Name the path that answered** (`shim` or `ungrounded`) in every result. If the shim answers
 `{"ok": false, …}` or the fence denies the call, write `estate: not available (<reason>)` in your
 output and continue **UNGROUNDED** — report the gap; do not substitute grep for the graph. A
@@ -136,8 +143,9 @@ files import this file" — no longer an empty "no resolved dependents".
    `.wicked-estate-extractors/archetype.toml` (provenance `extractor:archetype-playbook`).
    **The whole answer, not page 1** (estate#279): estate pages a wide answer (`next_cursor`), and
    the shim's `call` follows every cursor and joins the pages, so `dependents` is complete. Read
-   `complete` in the result: `false` means a page failed or a depth/node cap cut the walk (see
-   `diagnostics`), and you report it as partial, never as the full blast radius.
+   `complete` in the result: `false` means a page failed, a depth/node cap cut the walk, or the
+   target did not resolve (`resolved: false`, see above and `diagnostics`), and you report it as
+   partial or as a miss, never as the full blast radius.
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
