@@ -93,8 +93,8 @@ def _restate_apply_report(core, db: str, worktree: Path, target: int) -> None:
     try:
         with tempfile.TemporaryDirectory(prefix="wicked-domain-next-") as tmp:
             after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
-    except (RuntimeError, OSError, ValueError) as e:
-        # The target is lowered either way; only the restatement is missing, and it says so.
+    except Exception as e:  # noqa: BLE001 - the target is lowered either way (pi r2)
+        # Only the restatement is missing, and it says so; nothing here may fail the step.
         print(f"[extract-next] {REPORT_REL} not restated: {e}", file=sys.stderr)
         return
     # Only the page's own small scalar fields are carried over (codex r2): the file is seat-writable,
@@ -175,8 +175,8 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
         doc["lowered_to"] = target
     if choice == "lower" and worktree is not None and source == "repository":
         # A retried answer (the target already lowered) restates it too: the report says what
-        # the store holds now, whichever attempt wrote the target. Nothing lowered (no share to
-        # lower to, so the daemon's minimum still applies): the report is not touched (pi r1).
+        # the store holds now, whichever attempt wrote the target. No repository target in force
+        # (no share to lower to, so the daemon's minimum applies): the report is not touched.
         _restate_apply_report(core, db, worktree, target)
     if run_id != "standalone":
         generation.save(db, run_id, doc)

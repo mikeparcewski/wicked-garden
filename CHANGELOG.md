@@ -9,7 +9,8 @@
   (`minimum_met`, `coverage_line`, `coverage`, plus `lowered_to`) from a fresh `wicked-core coverage` against the
   lowered minimum, keeping only the page's own short counts (the report is seat-writable). The report
   `extract-apply` wrote before the answer said "minimum 80%, not met", and the coverage step's judge read it as
-  evidence against the run. It is restated only when the repository's own target is in force. A report that cannot
+  evidence against the run. It is restated whenever the repository's own target is in force (a retried answer
+  restates it again), and left alone when no share could be lowered to. A report that cannot
   be read or written safely (a link, not a file, not JSON, over 1 MiB, nested too deep) is left alone and the step
   says so; the lowered target stands either way.
 - **A Demo video of a normal app now records cleanly on the first take** (DES-DEMO-RECORD-001 §13 A1, e2e F10).

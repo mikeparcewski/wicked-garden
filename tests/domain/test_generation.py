@@ -599,3 +599,30 @@ def test_a_huge_or_wide_planted_report_is_restated_small(tmp_path, capsys):
                   worktree=wt)
     assert path.read_text() == big
     assert "not restated" in capsys.readouterr().err
+
+
+def test_a_retried_lower_answer_restates_again_and_a_failed_recompute_never_fails_the_step(
+        tmp_path, capsys):
+    """pi r2: the step re-run with the same answer (the target already lowered) restates the
+    report again; a recompute that fails leaves it alone, says so, and the step still decides."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    env = _env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower")
+    next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=60 * MIN, worktree=wt)
+    path.write_text('{"minimum_met": false, "coverage_line": "66% real requirements, minimum 80%"}')
+    next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=61 * MIN, worktree=wt)
+    assert core.set_calls == [66], "the retry does not set the target again"
+    assert json.loads(path.read_text())["minimum_met"] is True
+
+    def broken(db, out):
+        raise ZeroDivisionError("no behaviours")
+    core.coverage_against_minimum = broken
+    path.write_text('{"minimum_met": false}')
+    d = next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=62 * MIN, worktree=wt)
+    assert d["next"] == "done"
+    assert path.read_text() == '{"minimum_met": false}'
+    assert "not restated" in capsys.readouterr().err
