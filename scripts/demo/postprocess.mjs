@@ -19,6 +19,9 @@ export const CAPTURE = "capture.mp4";
 /** ffprobe beside a given ffmpeg binary (`FFMPEG=/path/to/ffmpeg` is honoured for both). */
 export const ffprobeOf = (ffmpeg) => ffmpeg.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
 
+/** A value for an FFMETADATA line: `=`, `;`, `#` and `\` escaped with a backslash (as the format says), newlines as spaces. */
+export const ffmetaValue = (v) => String(v ?? "").replace(/\r?\n/g, " ").replace(/[=;#\\]/g, (c) => `\\${c}`);
+
 /**
  * The video clock of a timeline, in master frames so it agrees with the cut to the frame: `inFrame`, the first
  * master frame kept; `spans`, the time-lapse spans as [a, b) frame ranges with their factor; `keptBefore(k)`, how many
@@ -86,10 +89,10 @@ export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ff
 
   // A chapter marked after the master's last frame (a take killed within the second) sits at the end, not past it.
   const chapters = tl.marks.chapters.map((c) => ({ ...c, out: Math.min(Math.max(0, outAt(c.t)), kept / fps) }));
-  const meta = [";FFMETADATA1", `title=${(tl.title || "Demo").replace(/[=;#\\\n]/g, " ")}`];
+  const meta = [";FFMETADATA1", `title=${ffmetaValue(tl.title || "Demo")}`];
   chapters.forEach((c, i) => {
     const start = Math.round(c.out * 1000), end = Math.round((i + 1 < chapters.length ? chapters[i + 1].out : total) * 1000);
-    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${start}`, `END=${end}`, `title=${c.title.replace(/[=;#\\\n]/g, " ")}`);
+    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${start}`, `END=${end}`, `title=${ffmetaValue(c.title)}`);
   });
   fs.writeFileSync(path.join(outDir, "chapters.ffmeta"), meta.join("\n") + "\n");
 

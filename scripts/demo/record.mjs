@@ -19,7 +19,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { Stage } from "./stage.mjs";
-import { buildVideo, videoClock, CAPTURE, ffprobeOf } from "./postprocess.mjs";
+import { buildVideo, videoClock, CAPTURE, ffprobeOf, ffmetaValue } from "./postprocess.mjs";
 import { fixtureOrigin, sideEffectError } from "./readonly.mjs";
 
 // ---- module-level constants (used by exports) --------------------------------------------------
@@ -45,6 +45,8 @@ export function makeCtx(stage, timings) {
     uncard: () => stage.uncard(),
     hold: (ms) => stage.hold(ms),
     hideCursor: () => stage.hideCursor(),
+    /** The engine-run recorder's checkpoint: still in the app, its document loaded, the capture live (stage.mjs). */
+    checkpoint: (kind) => stage.checkpoint(kind),
     /** A response from the app whose URL matches (any method unless given). Register it before the click that causes it. */
     waitForResponse: (re, { method, timeout = 300_000 } = {}) =>
       stage.page.waitForResponse((r) => re.test(r.url()) && (!method || r.request().method() === method.toUpperCase()), { timeout }),
@@ -98,11 +100,11 @@ export function stitchParts(parts, outFile, { ffmpeg = "ffmpeg", title = "Demo",
   const list = path.join(workDir, "concat.txt");
   fs.writeFileSync(list, parts.map((p) => `file '${p.file.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n") + "\n");
   let at = 0;
-  const meta = [";FFMETADATA1", `title=${String(title).replace(/[=;#\\\n]/g, " ")}`];
+  const meta = [";FFMETADATA1", `title=${ffmetaValue(title)}`];
   const rows = ["| Time | Chapter |", "|---|---|"];
   for (const p of parts) {
     const d = probeSeconds(p.file);
-    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${Math.round(at * 1000)}`, `END=${Math.round((at + d) * 1000)}`, `title=${String(p.title).replace(/[=;#\\\n]/g, " ")}`);
+    meta.push("[CHAPTER]", "TIMEBASE=1/1000", `START=${Math.round(at * 1000)}`, `END=${Math.round((at + d) * 1000)}`, `title=${ffmetaValue(p.title)}`);
     rows.push(`| ${Math.floor(at / 60)}:${String(Math.floor(at % 60)).padStart(2, "0")} | ${p.title} |`);
     at += d;
   }
@@ -138,6 +140,8 @@ export function extractFrame(video, atSec, outFile, { ffmpeg = "ffmpeg" } = {}) 
  * @param {number} [opts.trimStart]    opening-slide trim (default SEGMENT_TRIM_START)
  * @param {Function|null} [opts.consoleHandler] page.on("console", handler) installed before navigation
  * @param {Function|null} [opts.extendCtx] (baseCtx, seg, stage) => extra ctx keys to spread in
+ * @param {object|null} [opts.policy]  the engine-run recorder's request policy (readonly.mjs demoPolicy); null = the
+ *                                     hand recorder's write guard
  */
 export function makeSegmentRecorder({
   palette = null,
@@ -150,6 +154,8 @@ export function makeSegmentRecorder({
   trimStart = SEGMENT_TRIM_START,
   consoleHandler = null,
   extendCtx = null,
+  policy = null,
+  dropPicturesAfterFirst = false,
 }) {
   const CHAPTERS_LIST = story.segments.filter((s) => !s.intro).map((s) => s.title);
   const LAST_KEY = story.segments[story.segments.length - 1].key;
@@ -203,15 +209,16 @@ export function makeSegmentRecorder({
   }
 
   return async function recordSegment(seg) {
-    const n = CHAPTERS_LIST.indexOf(seg.title);
+    // By position among the chapters, never by title: two chapters may share one.
+    const n = story.segments.filter((s) => !s.intro).indexOf(seg);
     const take = (readLocalGuard(seg.key)?.take ?? 0) + 1;
     console.log(`● ${seg.key} (take ${take})`);
     const stage = new Stage({
       baseUrl, outDir: localSegDir(seg.key), chapters: CHAPTERS_LIST, brand, palette,
       stickyOffset: story.stickyOffset, headful: process.env.DEMO_HEADFUL === "1", keepFrames: process.env.DEMO_KEEP_FRAMES === "1",
-      locale: story.locale, timezoneId: story.timezoneId, writableOrigin, consoleHandler, ffmpeg: FFMPEG_BIN,
+      locale: story.locale, timezoneId: story.timezoneId, writableOrigin, consoleHandler, ffmpeg: FFMPEG_BIN, policy, dropPicturesAfterFirst,
     });
-    const timings = {};
+    const timings = Object.create(null); // a label like `__proto__` is still a timing
     let ctx = makeCtx(stage, timings);
     fs.mkdirSync(localSegDir(seg.key), { recursive: true });
     fs.rmSync(localSegVideo(seg.key), { force: true });
@@ -226,6 +233,7 @@ export function makeSegmentRecorder({
       if (extendCtx) ctx = { ...ctx, ...extendCtx(ctx, seg, stage) };
       if (seg.intro) {
         await seg.run(ctx);
+        if (policy) await stage.checkpoint("chapter");
       } else {
         await stage.card(`<div class="seg"><div class="num">${String(n + 1).padStart(2, "0")}</div><div>
 <div class="of">Chapter ${n + 1} of ${CHAPTERS_LIST.length}</div><h1>${esc(seg.title)}</h1>${seg.blurb ? `<p>${esc(seg.blurb)}</p>` : ""}
@@ -236,6 +244,8 @@ export function makeSegmentRecorder({
         await stage.hold(Math.max(1200, 4200 - (Date.now() - t0)));
         await stage.chapter(n);
         await stage.uncard();
+        // The engine-run recorder proves the app is on screen, live, once the chapter card is gone.
+        if (policy) await stage.checkpoint("chapter");
         await seg.run(ctx);
         await stage.hideCursor();
         await stage.hold(600);
@@ -247,6 +257,9 @@ export function makeSegmentRecorder({
       } else if (!seg.intro) {
         await stage.card("", 1100);
       }
+      // The engine-run recorder: the capture is proven live at the very end too, so a capture that died after
+      // the last checkpoint never stitches its frozen picture into a passing take.
+      if (policy) await stage.checkpoint("end");
     } catch (e) {
       failure = e;
       failedAt = Date.now() / 1000;
@@ -255,12 +268,20 @@ export function makeSegmentRecorder({
     }
     // An encoder that failed while close() drained it is a failed take too: its master may be short of the end.
     let err = failure ?? stage.encoderError ?? null;
+    // The engine-run recorder: a take that left the app or whose app frame failed to load fails even when no
+    // checkpoint came after it.
+    if (err === null && policy) {
+      try { stage.policyCheck(); } catch (e) { err = e; }
+    }
+    // A failure the policy saw after the last step still names its moment in the video.
+    if (err !== null && failedAt === null && stage.firstFailureAt !== null) failedAt = stage.firstFailureAt;
     if (stage.blocked.length) {
       err = sideEffectError(seg.key, stage.blocked);
       if (failure !== null) err.cause = failure;
     }
     const writeGuard = (failed) => fs.writeFileSync(path.join(localSegDir(seg.key), "guard.json"), JSON.stringify({
       take, failed, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin, blocked: stage.blocked,
+      ...(policy ? { policy: { appOrigin: policy.appOrigin, launchPath: policy.launchPath, target: policy.target.kind }, diagnostics: stage.diagnostics } : {}),
     }, null, 2));
     writeGuard(true);
     if (err !== null) {
@@ -272,7 +293,12 @@ export function makeSegmentRecorder({
       const tl = JSON.parse(fs.readFileSync(path.join(localSegDir(seg.key), "timeline.json"), "utf8"));
       fs.writeFileSync(path.join(localSegDir(seg.key), "timeline.json"), JSON.stringify({ ...tl, title: story.title }, null, 1));
       fs.writeFileSync(path.join(localSegDir(seg.key), "timings.json"), JSON.stringify(timings, null, 2));
-      r = buildVideo(localSegDir(seg.key), localSegVideo(seg.key), { trimStart, ffmpeg: FFMPEG_BIN });
+      try {
+        r = buildVideo(localSegDir(seg.key), localSegVideo(seg.key), { trimStart, ffmpeg: FFMPEG_BIN });
+      } catch (e) {
+        e.code ??= "encoder_failed"; // the cut failing is the host's, never the storyline's
+        throw e;
+      }
     } catch (e) {
       fs.rmSync(localSegVideo(seg.key), { force: true });
       localKeepFailedTake(seg.key, take, e, stage, null);

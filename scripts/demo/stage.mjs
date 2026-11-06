@@ -17,7 +17,7 @@
 // DEMO_KEEP_FRAMES=1 (keepFrames) also writes every screencast frame to frames/ with its timestamp in
 // timeline.json, for looking at what the screencast delivered; the master is still what gets cut.
 import { loadChromium } from "./_playwright.mjs";
-import { armGuard } from "./readonly.mjs";
+import { armGuard, armPolicy, underPath } from "./readonly.mjs";
 import { CAPTURE, FPS } from "./postprocess.mjs";
 import { NEUTRAL_PALETTE } from "./palette.mjs";
 import fs from "node:fs";
@@ -36,16 +36,22 @@ function hexToRgb(hex) {
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
-export function stageHtml({ name, logoSvg, accent }, appUrl, palette = NEUTRAL_PALETTE) {
+// `webFonts: false` (the engine-run recorder, DES-DEMO-RECORD-001 §3.4): the stage page requests nothing from the
+// network, so its own page never trips the request policy; the fonts fall back to the system's.
+export function stageHtml({ name, logoSvg, accent }, appUrl, palette = NEUTRAL_PALETTE, { webFonts = true } = {}) {
   const logo = (logoSvg || "").replace(/<\?xml[^>]*>/, "");
   // The storyline's own brand colour, else the studio skin's accent (palette.mjs), never a fixed red.
   const [r, g, b] = hexToRgb(accent || palette.accent);
+  // The capture-liveness pixel: the canvas colour and a neighbour one step away in blue, so a pulse changes the
+  // picture (a new screencast frame) without anything a viewer can see.
+  const [cr, cg, cb] = hexToRgb(palette.canvas);
+  const pulseA = `rgb(${cr},${cg},${cb})`, pulseB = `rgb(${cr},${cg},${cb > 0 ? cb - 1 : 1})`;
   const p = palette;
   const face = encodeURIComponent(p.font).replace(/%20/g, "+");
   const lk = logo ? `${logo}<span class="nm">${esc(name)}</span>` : `<span class="nm solo">${esc(name)}</span>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(name)} demo</title>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=${face}:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+${webFonts ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=${face}:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">` : ""}
 <style>
 :root{--ink:${p.ink};--ink2:${p.ink2};--muted:${p.muted};--line:${p.line};--bg:${p.canvas};--surface:${p.surface};--brand:rgb(${r},${g},${b});--brand-soft:rgba(${r},${g},${b},.14);--brand-glow:rgba(${r},${g},${b},.45);}
 *{box-sizing:border-box}html,body{margin:0;width:${W}px;height:${H}px;overflow:hidden;background:var(--bg);
@@ -110,9 +116,10 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 #card .seg p{margin-top:18px;font-size:23px;max-width:880px}
 #card .seg .meta{margin-top:34px}
 #card li{font-size:21px;color:var(--ink2);display:flex;gap:14px;align-items:baseline}#card li b{color:var(--brand);font-variant-numeric:tabular-nums;font-size:16px}
+#pulse{position:fixed;right:0;bottom:0;width:2px;height:2px;background:${pulseA};z-index:2147483647;pointer-events:none}
 </style></head><body>
 <div id="win"><div id="bar"><div class="dots"><i></i><i></i><i></i></div><div id="url"><b>${esc(name)}</b><span id="path">/</span></div><div style="width:47px"></div></div>
-<iframe id="app" src="${appUrl}"></iframe></div>
+<iframe id="app" name="app" data-src="${esc(appUrl)}"></iframe></div><i id="pulse"></i>
 <div id="band"><div id="cap"></div><div id="brand"><div class="lk">${lk}</div><div id="prog"></div><div id="chap"></div></div></div>
 <div id="speed"><svg viewBox="0 0 24 24" style="fill:var(--bg)"><path d="M4 5v14l8-7zM12 5v14l8-7z"/></svg><span class="x"></span><span class="lbl"></span><span class="t"></span></div>
 <div id="hl"><span></span></div>
@@ -120,6 +127,7 @@ body{background:radial-gradient(1200px 700px at 50% 0%,color-mix(in srgb,var(--b
 <div id="card"><div class="in"></div></div>
 <script>
 const $=s=>document.querySelector(s);
+{const f=$('#app');f.src=f.dataset.src;}
 window.__stage={
   caption(c){const host=$('#cap');const olds=[...host.querySelectorAll('.cap')];olds.forEach(o=>{o.style.transitionDuration='.28s';o.classList.add('out');setTimeout(()=>o.remove(),300)});
     const el=document.createElement('div');el.className='cap out';
@@ -138,6 +146,7 @@ window.__stage={
     const s=h.querySelector('span');s.textContent=label||'';s.style.display=label?'':'none';h.classList.toggle('below',!!below);h.classList.add('on')},
   cursor(x,y,show){const c=$('#cur');c.style.transform='translate('+(x-5)+'px,'+(y-3)+'px)';c.classList.toggle('on',show!==false)},
   ripple(x,y){const r=document.createElement('div');r.className='rip';r.style.left=x+'px';r.style.top=y+'px';document.body.appendChild(r);setTimeout(()=>r.remove(),700)},
+  pulse(){const e=$('#pulse');e.dataset.on=e.dataset.on==='1'?'0':'1';e.style.background=e.dataset.on==='1'?'${pulseB}':'${pulseA}'},
   card(html){const c=$('#card');if(html===null){c.classList.remove('on');return}c.querySelector('.in').innerHTML=html;c.querySelectorAll('[data-logo]').forEach(e=>{e.className='lk';e.innerHTML=document.querySelector('#brand .lk').innerHTML});c.classList.add('on')},
 };
 </script></body></html>`;
@@ -152,6 +161,12 @@ const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-t
 // 1080p pictures) the host cannot encode live and the take fails rather than grow without bound.
 const BACKLOG_WARN = 32 * 1024 * 1024;
 const BACKLOG_FAIL = 256 * 1024 * 1024;
+
+function demoError(code, message) {
+  const e = new Error(`${code}: ${message}`);
+  e.code = code;
+  return e;
+}
 
 function encoderFailure(message) {
   const e = new Error(message);
@@ -181,7 +196,7 @@ export class Stage {
    * @param {boolean} [o.keepFrames=false]  also write every screencast frame to frames/ (debugging; DEMO_KEEP_FRAMES=1)
    */
   constructor({ baseUrl, outDir, chapters, brand, palette = null, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
-    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false }) {
+    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false, policy = null, dropPicturesAfterFirst = false }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.ffmpeg = ffmpeg;
@@ -198,7 +213,19 @@ export class Stage {
     this.readOnly = !writableOrigin;
     this.blocked = [];
     this.consoleHandler = consoleHandler;
-    this.marks = { chapters: [], speed: [], captions: [] };
+    // The engine-run recorder's request policy (readonly.mjs demoPolicy): null = the hand recorder's write guard.
+    this.policy = policy;
+    this.diagnostics = { wsRefused: [], wsFramesDropped: 0 };
+    this.leftApp = null; // the first app-frame URL outside the launch path (policy only)
+    this.appErrors = []; // app documents (the app frame or a frame inside it) that failed to load
+    this.firstFailureAt = null; // wall clock (s) when the first of those was seen
+    this.lastPictureAt = 0; // wall clock (s) of the newest screencast picture
+    this.pictureSeq = 0; // how many screencast pictures have arrived
+    this.captureStalledAt = null; // set by the liveness monitor when pictures stopped arriving (policy only)
+    // A test seam (demo-record.mjs passes it only under its test jail marker): ignore every picture after the
+    // first, as a capture channel that died would.
+    this.dropPicturesAfterFirst = dropPicturesAfterFirst;
+    this.marks = { chapters: [], speed: [], captions: [], checkpoints: [] };
     this.chapterIndex = -1;
     this.latest = null; // the newest screencast picture (JPEG bytes)
     this.emitted = 0; // master frames handed to the encoder
@@ -216,12 +243,55 @@ export class Stage {
     // A service worker answers requests the context's routes never see, so a guarded recording runs without one.
     this.context = await this.browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: this.locale, ...(this.timezoneId ? { timezoneId: this.timezoneId } : {}), serviceWorkers: "block" });
     // No writes except to the fixture origin, if one is named (readonly.mjs): the page routes below still win for the stage itself.
-    this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
+    // The frame the storyline drives is bound by IDENTITY once known (a page script can rename a frame); before
+    // that, the stage's only child frame named "app".
+    const isAppFrame = (f) => !!f && (this.appFrame ? f === this.appFrame : f.name() === "app" && f.parentFrame() === this.page?.mainFrame());
+    const inApp = (f) => { for (let x = f; x; x = x.parentFrame()) if (isAppFrame(x)) return true; return false; };
+    // A document of another page (a popup) is refused like the stage's own navigation: one page is driven.
+    const navOf = (f) => (isAppFrame(f) ? "app" : f && (f === this.page?.mainFrame() || (this.page && f.page() !== this.page)) ? "stage" : null);
+    const fail = (list, entry) => { list.push(entry); this.firstFailureAt ??= this.now(); };
+    if (this.policy) {
+      const armed = await armPolicy(this.context, this.policy, { navOf, onBlocked: () => { this.firstFailureAt ??= this.now(); } });
+      this.blocked = armed.blocked;
+      this.diagnostics = armed.diagnostics;
+    } else {
+      this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
+    }
     this.page = await this.context.newPage();
+    if (this.policy) {
+      // No second page: a popup or a link to a new window is refused and closed.
+      this.context.on("page", (p) => {
+        if (p === this.page) return;
+        fail(this.blocked, `a new page opened (${p.url()}): the recorder drives one page`);
+        p.close().catch(() => {});
+      });
+    }
+    // The app's documents — the app frame and every frame inside it (a crew app renders in a nested editor
+    // frame): a failed one (4xx/5xx, or refused by the network) is an app that did not render.
+    this.page.on("response", (r) => {
+      const req = r.request();
+      let mine = false;
+      try { mine = req.isNavigationRequest() && inApp(req.frame()); } catch { /* no frame */ }
+      if (mine && r.status() >= 400) fail(this.appErrors, `${r.status()} ${r.url()}`);
+    });
+    this.page.on("requestfailed", (req) => {
+      let mine = false;
+      try { mine = req.isNavigationRequest() && inApp(req.frame()); } catch { /* no frame */ }
+      if (mine && !/blockedbyclient/i.test(req.failure()?.errorText ?? "")) fail(this.appErrors, `${req.failure()?.errorText ?? "failed"} ${req.url()}`);
+    });
     if (this.consoleHandler) this.page.on("console", this.consoleHandler);
-    const html = stageHtml(this.brand, this.baseUrl + firstPath, this.palette);
+    const html = stageHtml(this.brand, this.baseUrl + firstPath, this.palette, { webFonts: !this.policy });
     await this.page.route(this.baseUrl + STAGE_PATH, (route) => route.fulfill({ status: 200, contentType: "text/html", body: html }));
     this.page.on("framenavigated", (f) => {
+      if (this.policy && isAppFrame(f)) {
+        // Same-document (history API) transitions too: a click must not carry the demo out of the app, and the
+        // frame's document must stay one the app served (not data:, blob: or a blank page after it loaded).
+        if (!this.appOutside(f.url())) { /* still in the app */ } else if (!(f.url() === "about:blank" && !this.appLoaded)) {
+          this.leftApp ??= f.url();
+          this.firstFailureAt ??= this.now();
+        }
+        if (/^https?:/.test(f.url())) this.appLoaded = true;
+      }
       if (f !== this.page.mainFrame() && f.url().startsWith(this.baseUrl)) {
         const u = new URL(f.url());
         // Path only: query strings (search terms, section ids) would crowd the address bar.
@@ -240,7 +310,13 @@ export class Stage {
     this.cdp.on("Page.screencastFrame", (ev) => {
       // Frames due before this picture existed show the previous one: a change lands at its own time, never early.
       if (this.ticker) this.emitUpTo(Math.min(ev.metadata.timestamp, this.now()));
+      if (this.dropPicturesAfterFirst && this.pictureSeq > 0) {
+        this.cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
+        return;
+      }
       this.latest = Buffer.from(ev.data, "base64");
+      this.lastPictureAt = this.now();
+      this.pictureSeq += 1;
       if (this.keepFrames) {
         const name = `f${String(this.frames.length).padStart(6, "0")}.jpg`;
         fs.writeFileSync(path.join(this.outDir, "frames", name), this.latest);
@@ -250,12 +326,22 @@ export class Stage {
       this.cdp.send("Page.screencastFrameAck", { sessionId: ev.sessionId }).catch(() => {});
     });
     await this.cdp.send("Page.startScreencast", { format: "jpeg", quality: 95, maxWidth: W, maxHeight: H, everyNthFrame: 1 });
-    await withTimeout(first, 15_000, "the screencast delivered no frame within 15 s");
+    await withTimeout(first, 15_000, "the screencast delivered no frame within 15 s").catch((e) => { throw demoError("capture_stalled", e.message); });
     // The master: frame k is the picture at t0 + k/FPS. Frames fall due with the clock; whatever is due is sent at
     // each tick and before each new picture (so a late tick costs no time and shifts nothing earlier).
     this.encoder = this.startEncoder();
     this.t0 = this.now();
     this.ticker = setInterval(() => this.emitUpTo(this.now()), 1000 / FPS);
+    if (this.policy) {
+      // Capture liveness between checkpoints too: every second the stage flips its corner pixel, and pictures that
+      // stop arriving for 4 s mark the take stalled (a capture channel that died repeats its last picture into a
+      // video that looks fine).
+      this.liveness = setInterval(() => {
+        if (this.captureStalledAt !== null) return;
+        this.page.evaluate(() => window.__stage?.pulse()).catch(() => {});
+        if (this.now() - this.lastPictureAt > 4) this.captureStalledAt = this.now();
+      }, 1000);
+    }
     this.emitUpTo(this.t0); // frame 0
     this.writeTimeline(false);
     this.cursorAt = { x: FRAME.x + FRAME.w / 2, y: FRAME.y + FRAME.h / 2 };
@@ -318,6 +404,44 @@ export class Stage {
   stage(fn, arg) { this.check(); return this.page.evaluate(`(${fn.toString()})(window.__stage, ${JSON.stringify(arg ?? null)})`); }
   hold(ms) { this.check(); return sleep(ms); }
 
+  /**
+   * A checkpoint (after `ready`, a go, a click, typing, a card leaving): the app is still where it should be, its
+   * document loaded, and the screencast is LIVE — the stage flips a 2 px pixel in its corner and a new picture must
+   * arrive within 2 s. A frozen capture channel repeats the last picture into a valid-looking video; this catches
+   * it, while a still app view passes (the pixel changes, the app need not).
+   */
+  async checkpoint(kind) {
+    this.check();
+    this.policyCheck();
+    const seq = this.pictureSeq;
+    const t = this.now();
+    await this.stage((s) => s.pulse());
+    const deadline = Date.now() + 2000;
+    while (this.pictureSeq <= seq && Date.now() < deadline) await sleep(50);
+    if (this.pictureSeq <= seq) throw demoError("capture_stalled", `no new screencast picture within 2 s of the ${kind} checkpoint`);
+    this.mark("checkpoints", { t, kind, pictureAt: this.lastPictureAt, chapter: this.chapterIndex });
+  }
+
+  /** The policy's sticky failures, and where the app frame is now (policy only). */
+  policyCheck() {
+    if (!this.policy) return;
+    if (this.captureStalledAt !== null) throw demoError("capture_stalled", "the screen capture stopped delivering pictures");
+    if (this.appFrame && this.appOutside(this.appFrame.url())) this.leftApp ??= this.appFrame.url();
+    if (this.leftApp) throw demoError("left_app", `the app frame left ${this.policy.launchPath}: ${this.leftApp}`);
+    if (this.appErrors.length) throw demoError("app_not_ready", `the app did not load: ${this.appErrors.slice(0, 3).join("; ")}`);
+  }
+
+  /** Whether a URL is outside the app (another origin, not http(s), or not under the launch path). */
+  appOutside(url) {
+    try {
+      const u = new URL(url);
+      return !/^https?:$/.test(u.protocol) || u.origin !== this.policy.appOrigin || !underPath(u.pathname, this.policy.launchPath);
+    } catch {
+      return true;
+    }
+  }
+
+
   async card(html, ms) {
     await this.stage((s, h) => s.card(h), html);
     await sleep(ms);
@@ -338,7 +462,13 @@ export class Stage {
   }
 
   async go(p) {
-    await this.appFrame.goto(this.baseUrl + p, { waitUntil: "domcontentloaded" });
+    try {
+      await this.appFrame.goto(this.baseUrl + p, { waitUntil: "domcontentloaded" });
+    } catch (e) {
+      if (!this.policy) throw e;
+      this.policyCheck();
+      throw demoError("app_not_ready", `the app page ${p} did not load: ${String(e.message).split("\n")[0]}`);
+    }
     await this.appFrame.waitForLoadState("networkidle").catch(() => {});
     await sleep(700);
   }
@@ -418,6 +548,7 @@ export class Stage {
   async close() {
     // Also after an open() that failed part-way: close what was opened, and write a timeline only once recording began.
     let meta = null;
+    if (this.liveness) { clearInterval(this.liveness); this.liveness = null; }
     if (this.ticker) {
       await sleep(600); // the last picture settles before the master stops
       clearInterval(this.ticker);
