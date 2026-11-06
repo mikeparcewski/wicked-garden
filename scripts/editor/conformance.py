@@ -985,8 +985,9 @@ def main(argv: list[str] | None = None) -> int:
                 for field, cap in (("id", 200), ("version", 200), ("title", 500)):
                     if len(str(e.get(field) or "")) > cap:
                         raise PackError(f"editor {str(e.get('id'))[:60]!r}: its {field} is over {cap} characters")
-                if len(e.get("permissions") or []) > 32:
-                    raise PackError(f"editor {str(e.get('id'))[:60]!r}: over 32 permission declarations")
+                perms = e.get("permissions")
+                if perms is not None and (not isinstance(perms, list) or len(perms) > 32):
+                    raise PackError(f"editor {str(e.get('id'))[:60]!r}: permissions must be a list of at most 32")
                 protocol = e.get("protocol")
                 if isinstance(protocol, list) and any(isinstance(v, int) and not 0 <= v <= 1000 for v in protocol):
                     raise PackError(f"editor {str(e.get('id'))[:60]!r}: a protocol number outside 0-1000")
@@ -996,7 +997,7 @@ def main(argv: list[str] | None = None) -> int:
             # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
             body = entry_path(args.pack, e).read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
-    except (PackError, ValueError, RecursionError, OSError) as exc:  # NUL in a path, bad UTF-8, deep JSON, an
+    except (PackError, ValueError, TypeError, RecursionError, OSError) as exc:  # NUL in a path, bad UTF-8, deep JSON, an
         # entry the seat made unreadable: the run's tree is the creator's, so a file in it that cannot be read is too
         return out({"ok": False, "pack": str(args.pack), "error": f"{type(exc).__name__}: {exc}",
                     "cause": "pack_invalid"}, 2)

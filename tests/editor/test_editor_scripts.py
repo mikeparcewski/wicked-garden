@@ -628,7 +628,8 @@ def test_an_engine_report_is_bounded_whatever_the_pack_puts_in_it(tmp_path):
 
 
 @pytest.mark.parametrize("field, value", [("title", "t" * 70_000), ("protocol", [1, 2, 10 ** 400]),
-                                          ("permissions", [{"id": "artifact.read", "why": "to read it"}] * 40)])
+                                          ("permissions", [{"id": "artifact.read", "why": "to read it"}] * 40),
+                                          ("permissions", 1), ("permissions", True)])
 def test_a_pack_value_no_host_page_or_reader_can_carry_is_the_pack_s(tmp_path, field, value):
     tree = tmp_path / "tree"
     pack = tree / "acme-json"
