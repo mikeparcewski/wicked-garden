@@ -43,7 +43,7 @@ CREW_FRAME = """<!doctype html><html><head><meta charset="utf-8"><title>Escalati
 <button id="worker" onclick="try { new Worker('/apps/esc/worker.js'); document.getElementById('rows').dataset.worker = 'started'; } catch (e) { document.getElementById('rows').dataset.worker = 'refused'; }">Worker</button>
 <a id="pop" href="/apps/esc/other" target="_blank">Pop out</a>
 <script>
-fetch('/api/v1/apps/esc/query', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})
+fetch('/api/v1/apps/' + location.pathname.split('/')[2] + '/query', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})
   .then(r => r.text()).then(t => { document.getElementById('rows').textContent = 'rows ' + t; });
 </script></body></html>"""
 
@@ -72,8 +72,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
         Handler.seen.append(f"GET {self.path}")
         if self.path in ("/apps/esc", "/apps/esc/"):
             return self._send(200, CREW_PAGE.encode())
-        if self.path == "/apps/esc/frame":
+        if self.path in ("/apps/esc/frame", "/apps/esc2/frame"):
             return self._send(200, CREW_FRAME.encode())
+        if self.path == "/apps/esc2":
+            # A page that replaces its adopted style sheets a moment after it loads (a theme switch).
+            swap = "<script>setTimeout(() => { document.adoptedStyleSheets = []; }, 2500);</script></body>"
+            return self._send(200, CREW_PAGE.replace("/apps/esc/frame", "/apps/esc2/frame").replace("</body>", swap).encode())
         if self.path == "/apps/esc/worker.js":
             return self._send(200, b"self.postMessage(1);", "text/javascript")
         if self.path in ("/app", "/app/", "/app/details"):

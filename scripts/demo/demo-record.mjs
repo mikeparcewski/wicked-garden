@@ -192,6 +192,12 @@ export function takeNotes(tl, offset = 0) {
 
 const readJson = (file) => { try { return JSON.parse(fs.readFileSync(file, "utf8")); } catch { return null; } };
 
+/** `{hide_invalid}` from the segments' guards, when any `hide` selector did not parse. */
+function hideInvalidOf(dirs) {
+  const bad = [...new Set(dirs.flatMap((d) => readJson(path.join(d, "guard.json"))?.hide_invalid ?? []))];
+  return bad.length ? { hide_invalid: bad } : {};
+}
+
 /** The chapters sheet's moments: per chapter, the app once its card is gone, at `ready`, and after its last action. */
 export function sheetMoments(clock) {
   // Every chapter gets its `ready` moment (the app, proven on screen) and its last action's: at most two
@@ -354,7 +360,7 @@ export async function runRecord(env = process.env) {
       });
       return done({
         overall: REFUSAL_CAUSES.includes(code) ? "INCONCLUSIVE" : "FAIL", cause: code, reason: `chapter ${seg.key}: ${said(e, redact)}`,
-        storyline_sha: storylineSha, chapters: notes, clock: "take",
+        storyline_sha: storylineSha, chapters: notes, clock: "take", ...hideInvalidOf(story.segments.map((s) => path.join(segDir, s.key))),
       });
     }
   }
@@ -381,7 +387,10 @@ export async function runRecord(env = process.env) {
     ff = ffprobeJson(ffprobe, video);
     writeJson(path.join(reviewDir, "ffprobe.json"), ff);
   } catch (e) {
-    return done({ overall: "INCONCLUSIVE", cause: "encoder_failed", reason: said(e), storyline_sha: storylineSha, chapters });
+    // Every chapter recorded: each still discloses its cuts and skips, on its own take's clock.
+    const notes = chapters.map((c) => ({ ...c, ...takeNotes(readJson(path.join(segDir, c.key, "timeline.json"))) }));
+    return done({ overall: "INCONCLUSIVE", cause: "encoder_failed", reason: said(e), storyline_sha: storylineSha, chapters: notes, clock: "take",
+      ...hideInvalidOf(parts.map((p) => p.dir)) });
   }
 
   // The verdict, from what the files say. (A blocked request already failed its chapter above, in record.mjs; the

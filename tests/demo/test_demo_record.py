@@ -455,9 +455,11 @@ def test_a_chapters_first_target_stops_at_anything_that_changes_the_page():
         "const t = (v, o) => ({ verb: 'waitVisible', target: { kind: 'text', value: v }, ...(o ? { optional: true } : {}) });"
         "console.log(JSON.stringify([firstTarget([{ verb: 'caption' }, t('a')])?.value ?? null,"
         " firstTarget([t('skip', true), t('b')])?.value ?? null, firstTarget([{ verb: 'go', path: '/x' }, t('c')]),"
-        " firstTarget([{ verb: 'time', steps: [t('d')] }])]));"
+        " firstTarget([{ verb: 'time', steps: [t('d')] }]),"
+        " firstTarget([{ verb: 'click', optional: true, target: { kind: 'text', value: 'open' } }, t('e')])]));"
     ))
-    assert got == ["a", "b", None, None]
+    # An optional click may reveal what follows it, so nothing past it is waited for ahead of time.
+    assert got == ["a", "b", None, None, None]
 
 
 @needs_node
@@ -570,3 +572,12 @@ def test_a_slow_optional_click_never_holds_the_take_past_its_five_seconds(app, t
     assert v["overall"] == "PASS", v
     ch = v["chapters"][0]
     assert len(ch["skipped_steps"]) == 1 and ch["end"] - ch["ready_at"] < 9, ch
+
+
+@needs_deps
+def test_a_crew_app_whose_page_drops_the_crop_even_for_a_moment_fails(app, tmp_path):
+    origin, _ = app
+    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 3000}},
+                                          {"point": {"target": {"text": "Zoom", "in": "content"}, "label": "Zoom"}}],
+             launch="/apps/esc2", target='{"kind":"crew_app","id":"esc2"}', ready=CREW_READY)
+    assert v["overall"] == "FAIL" and v["cause"] == "app_not_ready" and "app_frame_lost" in v["reason"], v

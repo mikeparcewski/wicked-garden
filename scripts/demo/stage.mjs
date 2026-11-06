@@ -46,18 +46,29 @@ function keepChromeOut({ hide, focus, mark, path }) {
     rules.push("html, body { overflow: hidden !important; }", "body * { visibility: hidden !important; }",
       `[${mark}] { visibility: visible !important; position: fixed !important; inset: 0 !important; width: 100vw !important; ` +
       "height: 100vh !important; max-width: none !important; max-height: none !important; min-width: 0 !important; " +
-      "min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; " +
-      "transform: none !important; z-index: 2147483647 !important; }",
+      "min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; " +
+      "box-sizing: border-box !important; opacity: 1 !important; transform: none !important; z-index: 2147483647 !important; }",
+      // A modal's backdrop paints in the top layer, over everything.
+      "::backdrop { display: none !important; }",
       // An ancestor that makes a containing block (a transform, a filter, containment) would hold a fixed frame
       // inside itself; one that clips would cut it.
       `[${path}] { transform: none !important; filter: none !important; perspective: none !important; contain: none !important; ` +
-      "backdrop-filter: none !important; will-change: auto !important; clip-path: none !important; overflow: visible !important; }");
+      "backdrop-filter: none !important; will-change: auto !important; clip-path: none !important; overflow: visible !important; " +
+      "opacity: 1 !important; }");
   }
   if (!rules.length) return;
   const sheet = new CSSStyleSheet();
   for (const r of rules) { try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* a selector that does not parse: skipped */ } }
+  // Once adopted, a sheet the page dropped is re-adopted, and the loss is remembered: the recorder fails a take whose
+  // crop was lost even for a moment (frames already filmed cannot be repaired).
+  let adopted = false;
   const adopt = () => {
-    try { if (!document.adoptedStyleSheets.includes(sheet)) document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]; } catch { /* no document yet */ }
+    try {
+      if (document.adoptedStyleSheets.includes(sheet)) return;
+      if (adopted) window.__wickedDemoSheetLost = (window.__wickedDemoSheetLost || 0) + 1;
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      adopted = true;
+    } catch { /* no document yet */ }
   };
   adopt();
   document.addEventListener("DOMContentLoaded", adopt);
@@ -209,6 +220,10 @@ window.__stage={
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** What is left of `deadline` (epoch ms) as a Playwright timeout, at least 1 ms; `dflt` with no deadline. */
 const left = (deadline, dflt) => (deadline === null ? dflt : Math.max(1, deadline - Date.now()));
+/** An optional step whose time ran out stops here, at the next operation (no animation runs past it). */
+const due = (deadline) => { if (deadline !== null && Date.now() >= deadline) throw new Error("the optional step's time ran out"); };
+/** A pause, cut short by `deadline`. */
+const pause = (ms, deadline) => sleep(deadline === null ? ms : Math.max(0, Math.min(ms, deadline - Date.now())));
 
 // The master: near-lossless, fast enough to keep up with 30 fps on a busy host, a keyframe (= a fragment) every second.
 const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-tune", "stillimage", "-g", String(FPS), "-keyint_min", String(FPS),
@@ -319,7 +334,11 @@ export class Stage {
     const navOf = (f) => (isAppFrame(f) ? "app" : f && (f === this.page?.mainFrame() || (this.page && f.page() !== this.page)) ? "stage" : null);
     const fail = (list, entry) => { list.push(entry); this.firstFailureAt ??= this.now(); };
     if (this.policy) {
-      const armed = await armPolicy(this.context, this.policy, { navOf, onBlocked: () => { this.firstFailureAt ??= this.now(); this.blockedDuring ??= this.currentStep; } });
+      const armed = await armPolicy(this.context, this.policy, { navOf, onBlocked: () => {
+        this.firstFailureAt ??= this.now();
+        // The first refusal's moment, once: before any step it happened while the chapter loaded or got ready.
+        if (this.blockedDuring === null) this.blockedDuring = this.currentStep ?? "before the chapter's steps (while it loaded or got ready)";
+      } });
       this.blocked = armed.blocked;
       this.diagnostics = armed.diagnostics;
     } else {
@@ -548,12 +567,17 @@ export class Stage {
     // The app's frame fills the window: it sits at the origin at full size, and it is what the page shows at the
     // centre and near each corner (nothing over it, nothing clipping it).
     const r = await this.appFrame.evaluate((attr) => {
+      if (window.__wickedDemoSheetLost) return "app_frame_lost";
       const f = document.querySelector(`[${attr}]`);
       if (!f) return "app_frame_missing";
       const b = f.getBoundingClientRect(), W = innerWidth, H = innerHeight;
-      const placed = Math.abs(b.left) <= 2 && Math.abs(b.top) <= 2 && b.width >= W * 0.98 && b.height >= H * 0.98;
+      // Exactly the window (within 2 px on every edge): neither short of it nor running past it.
+      const placed = [b.left, b.top, b.right - W, b.bottom - H].every((d) => Math.abs(d) <= 2);
       const shown = [[0.5, 0.5], [0.04, 0.04], [0.96, 0.04], [0.04, 0.96], [0.96, 0.96]].every(([x, y]) => document.elementFromPoint(W * x, H * y) === f);
-      return placed && shown ? "app_frame" : "app_frame_partial";
+      // Painted, too: no transparent frame or ancestor.
+      let opaque = true;
+      for (let e = f; e; e = e.parentElement) if (Number(getComputedStyle(e).opacity) < 0.99) opaque = false;
+      return placed && shown && opaque ? "app_frame" : "app_frame_partial";
     }, FOCUS_ATTR).catch(() => "app_frame_missing");
     return { view: r };
   }
@@ -561,7 +585,12 @@ export class Stage {
   /** (A crew app) Its frame fills the window now, or the take fails: studio's page would be in the picture. */
   async requireView() {
     if (!this.focusContent) return;
-    const { view } = await this.view();
+    // A page that just reloaded re-pins its frame a moment later: up to 2 s to show it (a lost crop never recovers).
+    let { view } = await this.view();
+    for (const until = Date.now() + 2000; view !== "app_frame" && view !== "app_frame_lost" && Date.now() < until;) {
+      await sleep(100);
+      ({ view } = await this.view());
+    }
     if (view !== "app_frame") {
       throw demoError("app_not_ready", `the app's own frame does not fill the window (${view}): studio's page around it could not be kept out of the picture`);
     }
@@ -627,11 +656,13 @@ export class Stage {
 
   /** Box of a locator in stage coordinates (Playwright reports main-frame viewport coordinates). */
   async box(locator, { deadline = null } = {}) {
+    due(deadline);
     await locator.first().waitFor({ state: "visible", timeout: left(deadline, 60_000) });
     return locator.first().boundingBox({ timeout: left(deadline, 30_000) });
   }
 
   async reveal(locator, { deadline = null } = {}) {
+    due(deadline);
     // Centre it, unless it is taller than most of the viewport: then bring its top just under the sticky app header.
     // Scrolls the element's nearest scrollable ancestor, falling back to the window.
     await locator.first().evaluate((el, offset) => {
@@ -641,7 +672,7 @@ export class Stage {
       while (p && !(p.scrollHeight > p.clientHeight && /(auto|scroll)/.test(getComputedStyle(p).overflowY))) p = p.parentElement;
       (p && p !== document.body && p !== document.documentElement ? p : window).scrollBy({ top: by, behavior: "smooth" });
     }, this.stickyOffset, { timeout: left(deadline, 30_000) }).catch(() => {});
-    await sleep(900);
+    await pause(900, deadline);
   }
 
   async point(locator, label, { below = false, hold = 0, reveal = true, deadline = null } = {}) {
@@ -664,7 +695,7 @@ export class Stage {
     const x = b.x + Math.min(b.width / 2, 60), y = b.y + b.height / 2;
     await this.stage((s, c) => s.cursor(c.x, c.y, true), { x, y });
     this.cursorAt = { x, y };
-    await sleep(800);
+    await pause(800, deadline);
     return { x, y };
   }
 
@@ -672,6 +703,7 @@ export class Stage {
   async click(locator, { reveal = true, after = 900, deadline = null } = {}) {
     if (reveal) await this.reveal(locator, { deadline });
     const { x, y } = await this.moveTo(locator, { deadline });
+    due(deadline);
     await this.stage((s, c) => s.ripple(c.x, c.y), { x, y });
     await locator.first().click(deadline === null ? {} : { timeout: left(deadline, 0) });
     await sleep(after);

@@ -379,11 +379,14 @@ export function describeStep(s) {
 
 /**
  * The chapter's first targeted step (§13 A1.1): the first required `waitVisible`, `point`, `click` or `type` before
- * anything that changes or measures the page (`go`, `waitForPath`, `fast`, `time`). Null when there is none.
+ * anything that changes or measures the page (`go`, `waitForPath`, `fast`, `time`, an optional `click`). Null when
+ * there is none.
  */
 export function firstTargetStep(steps) {
   for (const s of steps) {
     if (["go", "waitForPath", "fast", "time"].includes(s.verb)) return null;
+    // An optional click may reveal what comes after it: nothing past it is waited for ahead of time.
+    if (s.optional && s.verb === "click") return null;
     if (s.target && !s.optional) return s;
   }
   return null;
