@@ -453,3 +453,176 @@ def test_a_large_budget_prints_its_counts_with_separators_too():
     assert d["next"] == "ask"
     assert "budget reached (2,000 minutes; the budget is 1,000 pages or 1,440 minutes)" in d["line"], d
     assert d["choices"][0]["label"] == "Map up to 1,000 more pages"
+
+
+class _LoweringCore(_Core):
+    """`_Core` plus the checked recompute `extract-apply` and the restatement use."""
+
+    def coverage_against_minimum(self, db, out):
+        doc = self.coverage(db, out)
+        pct = doc["resolved"] * 100 // doc["behavior_bearing"]
+        minimum = self.own or self.target
+        return doc, pct >= minimum, f"{pct}% real requirements, minimum {minimum}%"
+
+
+def test_lowering_the_minimum_restates_the_apply_report_in_the_worktree(tmp_path, capsys):
+    """wicked-core e2e F29: the page's apply report (written before the answer) said "minimum 80%,
+    not met"; after "lower" it states the lowered minimum, so the coverage judge reads no stale
+    number. Fails without the restatement: the report kept minimum_met false and "minimum 80%"."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    stale = {"applied": {"resolved": 5}, "minimum_met": False,
+             "coverage_line": "66% real requirements, minimum 80%"}
+    (wt / ".wicked" / "domain" / "apply-report.json").write_text(json.dumps(stale))
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    d = next_page.run(str(db), _repo(tmp_path), core=core,
+                      env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                      worktree=wt)
+    assert core.set_calls == [66] and d["next"] == "done"
+    report = json.loads((wt / ".wicked" / "domain" / "apply-report.json").read_text())
+    assert report["minimum_met"] is True
+    assert report["coverage_line"] == "66% real requirements, minimum 66%"
+    assert report["lowered_to"] == 66
+    assert report["applied"] == {"resolved": 5}, "the page's own counts are kept"
+    assert report["coverage"]["resolved"] == 660
+
+
+def test_a_choice_other_than_lower_leaves_the_apply_report_alone(tmp_path, capsys):
+    core = _LoweringCore(230)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    path.write_text('{"minimum_met": false}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="continue"), now=60 * MIN,
+                  worktree=wt)
+    assert path.read_text() == '{"minimum_met": false}'
+
+
+def test_lowering_with_no_apply_report_writes_none(tmp_path, capsys):
+    core = _LoweringCore(230)
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert not (wt / ".wicked").exists()
+
+
+@pytest.mark.parametrize("plant", ["symlink", "not-an-object", "read-recursion", "write-recursion"])
+def test_a_planted_apply_report_never_fails_the_lowering(tmp_path, capsys, monkeypatch, plant):
+    """codex/pi r1: the report sits in the seat-writable worktree. A link, a non-object, or JSON
+    nested past the stack (RecursionError on the read, or only on the write back; how deep that
+    is depends on the Python, so it is raised here directly) is left alone and said so; the
+    target is lowered and the step decides as usual."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"minimum_met": false}')
+    if plant == "symlink":
+        path.symlink_to(outside)
+    elif plant == "not-an-object":
+        path.write_text("[1, 2]")
+    else:
+        path.write_text('{"minimum_met": false}')
+        name = "read_json_file" if plant == "read-recursion" else "write_json_file"
+
+        def deep(*_a, **_k):
+            raise RecursionError("maximum recursion depth exceeded")
+        monkeypatch.setattr(next_page.rules_file, name, deep)
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    d = next_page.run(str(db), _repo(tmp_path), core=core,
+                      env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                      worktree=wt)
+    assert core.set_calls == [66] and d["next"] == "done"
+    assert outside.read_text() == '{"minimum_met": false}', "a link is never followed"
+    if plant == "symlink":
+        assert path.is_symlink()
+    else:
+        assert path.read_text() in ("[1, 2]", '{"minimum_met": false}')
+    assert "not restated" in capsys.readouterr().err
+
+
+def test_nothing_lowered_leaves_the_apply_report_alone(tmp_path, capsys):
+    """pi r1: at a 0% share there is nothing to lower to; the daemon's minimum stands and the
+    report is not restated as if it had been lowered."""
+    core = _LoweringCore(0)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    path.write_text('{"minimum_met": false}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert core.set_calls == []
+    assert path.read_text() == '{"minimum_met": false}'
+
+
+def test_a_huge_or_wide_planted_report_is_restated_small(tmp_path, capsys):
+    """codex r2: a seat-written report nested below the recursion limit but wide re-serialised
+    into tens of MiB. Only the page's short scalar fields are carried over, so the restated
+    report stays small whatever the seat planted; one over the read limit is left alone."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    wide = "[" * 400 + ",".join(["0"] * 5000) + "]" * 400
+    path.write_text('{"entries": 7, "author": "extract-loop", "refused": ' + wide +
+                    ', "applied": {"resolved": 5, "x": ' + wide + '}}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert path.stat().st_size < 4096
+    report = json.loads(path.read_text())
+    assert report["entries"] == 7 and report["author"] == "extract-loop"
+    assert report["applied"] == {"resolved": 5} and "refused" not in report
+    assert report["minimum_met"] is True and report["lowered_to"] == 66
+    # Over the read limit: left alone, said so, the target still lowered.
+    big = '{"pad": "' + "x" * (next_page.REPORT_READ_LIMIT + 10) + '"}'
+    path.write_text(big)
+    core2 = _LoweringCore(660, behaviours=1000)
+    next_page.run(str(db), _repo(tmp_path), core=core2,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=61 * MIN,
+                  worktree=wt)
+    assert path.read_text() == big
+    assert "not restated" in capsys.readouterr().err
+
+
+def test_a_retried_lower_answer_restates_again_and_a_failed_recompute_never_fails_the_step(
+        tmp_path, capsys):
+    """pi r2: the step re-run with the same answer (the target already lowered) restates the
+    report again; a recompute that fails leaves it alone, says so, and the step still decides."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    env = _env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower")
+    next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=60 * MIN, worktree=wt)
+    path.write_text('{"minimum_met": false, "coverage_line": "66% real requirements, minimum 80%"}')
+    next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=61 * MIN, worktree=wt)
+    assert core.set_calls == [66], "the retry does not set the target again"
+    assert json.loads(path.read_text())["minimum_met"] is True
+
+    def broken(db, out):
+        raise ZeroDivisionError("no behaviours")
+    core.coverage_against_minimum = broken
+    path.write_text('{"minimum_met": false}')
+    d = next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=62 * MIN, worktree=wt)
+    assert d["next"] == "done"
+    assert path.read_text() == '{"minimum_met": false}'
+    assert "not restated" in capsys.readouterr().err
