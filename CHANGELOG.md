@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [12.65.1] — 2026-11-06
+
+Patch: no machine-specific paths or local usernames in the package or the repository.
+
+### Fixed
+
+- **The npm package no longer ships the dev plans.** `docs/plans/` joins the dev artifacts in `.npmignore`, beside
+  `.product/` and `evidence/`; nothing at runtime reads them. The two 2026-06-10 codegraph plans name the wicked-brain
+  checkout as `~/Projects/wicked-brain` instead of an absolute home path, and the AW-25 run-terminal evidence record
+  writes its home directory as `~/`. Twelve more evidence records under `evidence/aw25-golden/chain/` and
+  `evidence/th6-dod/` (never in the package) no longer carry a local username inside a scratch-directory name or the
+  machine's host name. Seven `.wicked-vault` entries record `created_by` as the GitHub handle instead of a local
+  username (outside the envelope hash, so every entry still verifies).
+
 ## [12.65.0] — 2026-11-06
 
 Minor: the garden side of the catalog by verb (DES-CATALOG-002 lane B, #1409): `wicked-garden-classify` catalog mode,
@@ -1433,7 +1447,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...HEAD
+[12.65.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...v12.65.1
 [12.65.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...v12.65.0
 [12.64.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...v12.64.0
 [12.63.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.62.0...v12.63.0

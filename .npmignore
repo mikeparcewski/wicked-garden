@@ -61,3 +61,4 @@ package-lock.json
 # Dev artifacts — design/requirements docs and run evidence are not runtime files (#1137)
 .product/
 evidence/
+docs/plans/
