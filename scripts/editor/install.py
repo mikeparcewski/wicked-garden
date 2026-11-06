@@ -63,10 +63,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _pack import (  # noqa: E402
-    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editors_of, entry_path, read_manifest,
+    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editors_of, entry_path, find_editor_packs, read_manifest,
 )
 
-SKIP_DIRS = {"node_modules", "dist", ".git"}
 # A choice id: the target, optionally bound to the plan by the digest of the manifest it showed. The id
 # rides the consent gate's answer token and an env var: [A-Za-z0-9_-], at most 32 (core consent_plan.rs).
 DIGEST_CHARS = 21
@@ -119,14 +118,6 @@ def _message(body: dict) -> str:
 
 # ── 1. locate ──────────────────────────────────────────────────────────────────────────────
 
-def _is_editor_pack(manifest_path: Path) -> bool:
-    try:
-        editors_of(read_manifest(manifest_path.parent))
-        return True
-    except PackError:
-        return False
-
-
 def run_tree() -> Path:
     """The run's worktree for ``--from-run``. The engine runs an install Tool phase IN the worktree and hands
     ``$WICKED_TREE`` as that worktree's git tree id (wicked-core#776), never a path; reading the id as a path found
@@ -140,11 +131,7 @@ def locate(args) -> tuple[Path, dict]:
         pack = args.dir
     elif args.from_run:
         tree = run_tree()
-        found = []
-        for dirpath, dirnames, filenames in os.walk(tree):
-            dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
-            if MANIFEST_NAME in filenames and _is_editor_pack(Path(dirpath) / MANIFEST_NAME):
-                found.append(Path(dirpath))
+        found = find_editor_packs(tree)
         if len(found) != 1:
             names = ", ".join(str(p) for p in found) or "none"
             raise Failure(2, f"--from-run needs exactly one editor pack ({MANIFEST_NAME} spec 2 with editors) under "

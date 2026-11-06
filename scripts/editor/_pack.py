@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -44,6 +45,8 @@ PERMISSIONS = {
 # each with the line the consent gate shows.
 INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
+# Directories a run's worktree search never enters.
+SKIP_DIRS = {"node_modules", "dist", ".git"}
 
 
 class PackError(Exception):
@@ -100,3 +103,41 @@ def write_manifest(pack: Path, manifest: dict) -> None:
     tmp = path.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
     tmp.replace(path)
+
+
+def _is_editor_pack(pack: Path) -> bool:
+    try:
+        editors_of(read_manifest(pack))
+        return True
+    except PackError:
+        return False
+
+
+def find_editor_packs(tree: Path) -> list[Path]:
+    """Every directory under ``tree`` holding a spec-2 ``wicked-pack.json`` with editors, in walk order,
+    outside node_modules/.git/dist. Linked directories are not followed (``os.walk``'s default)."""
+    found = []
+    for dirpath, dirnames, filenames in os.walk(tree):
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        if MANIFEST_NAME in filenames and _is_editor_pack(Path(dirpath)):
+            found.append(Path(dirpath))
+    return found
+
+
+def refuse_links(tree: Path, pack: Path, editors: list[dict]) -> None:
+    """Refuse a pack whose manifest or entry is a link, or reaches one, between ``tree`` and the file.
+
+    The engine runs the conformance cases on the host over a tree a seat wrote: a link there could hand
+    the browser (and the report's hash) a host file the seat cannot read itself. ``entry_path`` already
+    refuses an entry that resolves outside the pack; this refuses any link at all on the way."""
+    root = Path(os.path.abspath(tree))
+    files = [pack / MANIFEST_NAME] + [pack / str(e.get("entry")) for e in editors]
+    for f in files:
+        path = Path(os.path.abspath(f))
+        if path != root and root not in path.parents:
+            raise PackError(f"{f} is outside the run's tree")
+        cur = path
+        while cur != root:
+            if cur.is_symlink():
+                raise PackError(f"{cur.relative_to(root)} is a link; an editor pack is plain files")
+            cur = cur.parent
