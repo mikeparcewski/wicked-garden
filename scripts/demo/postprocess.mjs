@@ -37,9 +37,11 @@ export function videoClock(tl, trimStart = 0) {
   // Inside a span only frame a and every frame where floor((k - a) / factor) advances are kept: one in `factor`.
   // Spans never overlap here: a later span starts where the one before it ends (a nested Stage.fast() counts once).
   const spans = [];
+  // A `cut` span (a chapter card held while the app got ready behind it) keeps only its first frame.
   for (const s of [...tl.marks.speed].sort((x, y) => x.start - y.start)) {
     const a = Math.max(inFrame, toFrame(s.start), spans.length ? spans[spans.length - 1].b : 0), b = toFrame(s.end);
-    if (b > a && s.factor > 1) spans.push({ a, b, f: s.factor });
+    const f = s.cut ? b - a + 1 : s.factor;
+    if (b > a && f > 1) spans.push({ a, b, f });
   }
   const keptIn = (a, b, f) => (b > a ? Math.floor((b - a - 1) / f) + 1 : 0);
   const keptBefore = (k) => {
@@ -107,7 +109,7 @@ export function buildVideo(outDir, outFile, { ffmpeg = process.env.FFMPEG || "ff
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
   const md = ["| Time | Chapter |", "|---|---|", ...chapters.map((c) => `| ${fmt(c.out)} | ${c.title} |`)];
   fs.writeFileSync(path.join(outDir, "chapters.md"), md.join("\n") + "\n");
-  return { seconds: total, chapters: chapters.map((c) => ({ at: fmt(c.out), title: c.title })), speedups: speed.length, frames: nFrames - inFrame };
+  return { seconds: total, chapters: chapters.map((c) => ({ at: fmt(c.out), title: c.title })), speedups: speed.filter((x) => !x.cut).length, frames: nFrames - inFrame };
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

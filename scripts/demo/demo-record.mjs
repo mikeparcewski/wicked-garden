@@ -56,7 +56,8 @@ const INSTALL = {
 /** The first line of an error, trimmed; with `redact`, only its code (a page's text never reaches a model). */
 function said(e, redact = false) {
   const code = e?.code ?? null;
-  if (redact) return code ? `${code}` : "the step failed";
+  // A step's name is the storyline's own words (never the page's): it stays when the failure is redacted.
+  if (redact) return `${code ?? "the step failed"}${typeof e?.step === "string" ? ` at ${e.step}` : ""}`;
   return String(e?.message ?? e).split("\n")[0].slice(0, 300);
 }
 
@@ -156,9 +157,12 @@ export function partClock(parts, ffprobe) {
   for (const p of parts) {
     let tl = null;
     try { tl = JSON.parse(fs.readFileSync(path.join(p.dir, "timeline.json"), "utf8")); } catch { /* no timeline */ }
-    const entry = { key: p.key, start: round1(offset), ready_at: null, checkpoints: [] };
+    const entry = { key: p.key, start: round1(offset), ready_at: null, checkpoints: [], skipped_steps: [], load_cut_s: 0 };
     if (tl) {
       const clock = videoClock(tl, SEGMENT_TRIM_START);
+      // What the take left out, said in its record (§13 A1): optional steps it skipped, and the card time it cut.
+      entry.skipped_steps = (tl.marks?.skipped ?? []).map((x) => ({ step: x.step ?? null, verb: x.verb ?? null, what: x.what ?? null, reason: x.reason ?? null, at: round1(offset + clock.outAt(x.t)) }));
+      entry.load_cut_s = round1((tl.marks?.speed ?? []).filter((x) => x.cut).reduce((n, x) => n + Math.max(0, x.end - x.start), 0));
       for (const c of tl.marks?.checkpoints ?? []) {
         const at = round1(offset + clock.outAt(c.t));
         const pictureAt = round1(offset + clock.outAt(Math.max(c.t, c.pictureAt ?? c.t)));
@@ -238,7 +242,14 @@ export async function runProbe(env = process.env) {
   }
   if (r.blocked.length) problems.push(`${r.blocked.length} request(s) the recorder refuses (${redact ? "redacted" : r.blocked.slice(0, 3).join("; ")})`);
   if (problems.length) return result(cfg.root, { overall: "INCONCLUSIVE", cause: "app_unreachable", reason: problems.join("; ") });
-  return result(cfg.root, { overall: "PASS", launch_path: cfg.policy.launchUrl, structure_only: redact, page: `${r.slug}.json` });
+  return result(cfg.root, {
+    overall: "PASS", launch_path: cfg.policy.launchUrl, structure_only: redact, page: `${r.slug}.json`,
+    // What the recorder will film (§13 A1.2): a crew app's own frame only, so the storyline targets it alone.
+    ...(cfg.policy.target.kind === "crew_app" ? {
+      recorded_view: "app_frame",
+      note: 'The video shows only the app\'s own frame (the page summary\'s first frame); studio\'s page around it is hidden. Every target, `ready` included, is `"in": "content"`.',
+    } : { recorded_view: "page" }),
+  });
 }
 
 // ---- record --------------------------------------------------------------------------------------------------
@@ -285,7 +296,10 @@ export async function runRecord(env = process.env) {
     const storyText = read("storyline.json");
     const chaptersText = read("chapters.json");
     storylineSha = crypto.createHash("sha256").update(storyText).digest("hex");
-    checked = parseStoryline(storyText, chaptersText, { appOrigin: cfg.policy.appOrigin, launchPath: cfg.policy.launchUrl });
+    // A crew app is recorded in its own frame only, so each of its targets is `in: "content"` (§13 A1.2).
+    checked = parseStoryline(storyText, chaptersText, {
+      appOrigin: cfg.policy.appOrigin, launchPath: cfg.policy.launchUrl, contentOnly: cfg.policy.target.kind === "crew_app",
+    });
   } catch (e) {
     return done({ overall: "FAIL", cause: "storyline_refused", reason: said(e), storyline_sha: storylineSha, chapters: [] });
   }
@@ -373,7 +387,14 @@ export async function runRecord(env = process.env) {
     ...(problems.length ? { cause: "chapter_mismatch", reason: problems.join("; ") } : {}),
     storyline_sha: storylineSha, read_only: blocked.length === 0, blocked: redact ? blocked.map(() => "(redacted)") : blocked,
     // By position, never by title (two chapters may share one).
-    chapters: chapters.map((c, i) => ({ ...c, start: ff.chapters[i]?.start ?? null, end: ff.chapters[i]?.end ?? null, ready_at: clock[i]?.ready_at ?? null, checkpoints: clock[i]?.checkpoints ?? [] })),
+    chapters: chapters.map((c, i) => ({
+      ...c, start: ff.chapters[i]?.start ?? null, end: ff.chapters[i]?.end ?? null, ready_at: clock[i]?.ready_at ?? null, checkpoints: clock[i]?.checkpoints ?? [],
+      // A skip's reason is the browser's words, which can quote the page: redacted when live data stays private.
+      skipped_steps: (clock[i]?.skipped_steps ?? []).map((x) => (redact ? { ...x, reason: "(redacted)" } : x)),
+      load_cut_s: clock[i]?.load_cut_s ?? 0,
+    })),
+    view: cfg.policy.target.kind === "crew_app" ? (guards.every((g) => g?.view === "app_frame" || g?.view === undefined) ? "app_frame" : "app_frame_partial") : "page",
+    hide_invalid: [...new Set(guards.flatMap((g) => g?.hide_invalid ?? []))],
     ffprobe: ff, diagnostics,
   });
 }

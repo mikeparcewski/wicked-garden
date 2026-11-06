@@ -26,6 +26,49 @@ import { spawn } from "node:child_process";
 
 // Served from the app's own origin (route interception), so the app iframe is same-origin with the stage.
 const STAGE_PATH = "/__demo_stage__";
+const FOCUS_ATTR = "data-wicked-demo-focus";
+
+/**
+ * (An init script, in every frame of the recording's page) Keep chrome out of the picture (§13 A1.2). The stage is
+ * the top document; the app frame is its child (depth 1) and the app's own frame inside it is depth 2. Each `hide`
+ * entry becomes ONE rule of a constructed style sheet (insertRule parses exactly one rule, so a selector cannot
+ * carry another); with `focus` (a crew app) the app frame's first iframe fills the window and the rest of that page
+ * is invisible. The recorder's code, never the storyline's: the storyline only names selectors.
+ */
+function keepChromeOut({ hide, focus, mark }) {
+  if (window === window.top) return;
+  let depth = 0;
+  for (let w = window; w !== w.top && depth < 4; w = w.parent) depth += 1;
+  const rules = hide.filter((h) => (h.in === "content" ? 2 : 1) === depth).map((h) => `${h.css} { display: none !important; }`);
+  const pin = focus && depth === 1;
+  if (pin) {
+    rules.push("html, body { overflow: hidden !important; }", "body * { visibility: hidden !important; }",
+      `[${mark}] { visibility: visible !important; position: fixed !important; inset: 0 !important; width: 100vw !important; ` +
+      "height: 100vh !important; max-width: none !important; max-height: none !important; min-width: 0 !important; " +
+      "min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; " +
+      "transform: none !important; z-index: 2147483647 !important; }");
+  }
+  if (!rules.length) return;
+  const sheet = new CSSStyleSheet();
+  for (const r of rules) { try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* a selector that does not parse: skipped */ } }
+  const adopt = () => {
+    try { if (!document.adoptedStyleSheets.includes(sheet)) document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]; } catch { /* no document yet */ }
+  };
+  adopt();
+  document.addEventListener("DOMContentLoaded", adopt);
+  window.addEventListener("load", adopt);
+  if (pin) {
+    // The first iframe in the page is the app's own frame (what `in: "content"` names), whenever it is (re)made.
+    const pinFirst = () => {
+      const f = document.querySelector("iframe");
+      for (const x of document.querySelectorAll(`[${mark}]`)) if (x !== f) x.removeAttribute(mark);
+      if (f && !f.hasAttribute(mark)) f.setAttribute(mark, "");
+      adopt();
+    };
+    new MutationObserver(pinFirst).observe(document, { childList: true, subtree: true });
+    pinFirst();
+  }
+}
 const W = 1920, H = 1080;
 export const FRAME = { x: 160, y: 20, w: 1600, h: 900, bar: 38 };
 
@@ -196,7 +239,7 @@ export class Stage {
    * @param {boolean} [o.keepFrames=false]  also write every screencast frame to frames/ (debugging; DEMO_KEEP_FRAMES=1)
    */
   constructor({ baseUrl, outDir, chapters, brand, palette = null, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
-    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false, policy = null, dropPicturesAfterFirst = false }) {
+    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false, policy = null, dropPicturesAfterFirst = false, hide = [], focusContent = false }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.ffmpeg = ffmpeg;
@@ -226,7 +269,14 @@ export class Stage {
     // A test seam (demo-record.mjs passes it only under its test jail marker): ignore every picture after the
     // first, as a capture channel that died would.
     this.dropPicturesAfterFirst = dropPicturesAfterFirst;
-    this.marks = { chapters: [], speed: [], captions: [], checkpoints: [] };
+    this.marks = { chapters: [], speed: [], captions: [], checkpoints: [], skipped: [] };
+    // Chrome kept out of the picture (§13 A1.2): the storyline's `hide` selectors, and (a crew app) everything in
+    // the launch page but the app's own frame.
+    this.hide = hide;
+    this.focusContent = focusContent;
+    this.hideInvalid = []; // `hide` selectors the browser could not parse (skipped: hiding is cosmetic)
+    this.inflight = new Set(); // requests in flight, over every frame (settle)
+    this.lastNetAt = 0; // wall clock (s) of the last request start or end
     this.chapterIndex = -1;
     this.latest = null; // the newest screencast picture (JPEG bytes)
     this.emitted = 0; // master frames handed to the encoder
@@ -258,7 +308,12 @@ export class Stage {
     } else {
       this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
     }
+    if (this.hide.length || this.focusContent) await this.context.addInitScript(keepChromeOut, { hide: this.hide, focus: this.focusContent, mark: FOCUS_ATTR });
     this.page = await this.context.newPage();
+    const netEvent = () => { this.lastNetAt = this.now(); };
+    this.page.on("request", (r) => { this.inflight.add(r); netEvent(); });
+    this.page.on("requestfinished", (r) => { this.inflight.delete(r); netEvent(); });
+    this.page.on("requestfailed", (r) => { this.inflight.delete(r); netEvent(); });
     if (this.policy) {
       // No second page: a popup or a link to a new window is refused and closed.
       this.context.on("page", (p) => {
@@ -312,6 +367,12 @@ export class Stage {
       }
     });
     await this.page.goto(this.baseUrl + STAGE_PATH, { waitUntil: "load" });
+    if (this.hide.length) {
+      // The stage's own document says which selectors parse (the app's documents never see this check).
+      this.hideInvalid = await this.page.evaluate((list) => list.filter((h) => {
+        try { document.createDocumentFragment().querySelector(h.css); return false; } catch { return true; }
+      }).map((h) => h.css), this.hide);
+    }
     await this.page.evaluate(() => document.fonts.ready).catch(() => {}); // offline: falls back to system fonts
     this.app = this.page.frameLocator("#app");
     this.appFrame = await (await this.page.$("#app")).contentFrame();
@@ -433,6 +494,46 @@ export class Stage {
     while (this.pictureSeq <= seq && Date.now() < deadline) await sleep(50);
     if (this.pictureSeq <= seq) throw demoError("capture_stalled", `no new screencast picture within 2 s of the ${kind} checkpoint`);
     this.mark("checkpoints", { t, kind, pictureAt: this.lastPictureAt, chapter: this.chapterIndex });
+  }
+
+  /**
+   * Until no request has been in flight, in any frame, for `quietMs` (bounded by `timeoutMs`; a page that never
+   * goes quiet, such as one holding a long poll, is not a failure). Returns whether it went quiet.
+   */
+  async settle({ quietMs = 500, timeoutMs = 15_000 } = {}) {
+    this.check();
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      // A request that was redirected is answered by the one it became.
+      for (const r of this.inflight) if (r.redirectedTo() !== null) this.inflight.delete(r);
+      if (this.inflight.size === 0 && this.now() - this.lastNetAt >= quietMs / 1000) return true;
+      await sleep(100);
+    }
+    return false;
+  }
+
+  /** An optional step was skipped: a timeline mark (and the take's record lists it). */
+  skipped(entry) {
+    this.mark("skipped", { t: this.now(), chapter: this.chapterIndex, ...entry });
+    console.log(`  skipped ${entry.what ?? entry.step}: ${entry.reason}`);
+  }
+
+  /** Cut the video from `start` (wall clock, s) to now: frames that all show the same card (§13 A1.1). */
+  cutSince(start, label) {
+    const end = this.now();
+    if (end > start) this.mark("speed", { start, end, factor: 1, cut: true, label });
+  }
+
+  /** What the take shows (a crew app: whether its own frame fills the window). */
+  async view() {
+    if (!this.focusContent) return { view: "page" };
+    const r = await this.appFrame.evaluate((attr) => {
+      const f = document.querySelector(`[${attr}]`);
+      if (!f) return null;
+      const b = f.getBoundingClientRect();
+      return { w: b.width / innerWidth, h: b.height / innerHeight };
+    }, FOCUS_ATTR).catch(() => null);
+    return { view: r === null ? "app_frame_missing" : r.w >= 0.98 && r.h >= 0.98 ? "app_frame" : "app_frame_partial" };
   }
 
   /** The policy's sticky failures, and where the app frame is now (policy only). */

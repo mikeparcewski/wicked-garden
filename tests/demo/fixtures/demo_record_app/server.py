@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import http.server
 import threading
+import time
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Demo board</title>
 <style>body{font-family:sans-serif;margin:40px}table{border-collapse:collapse}td{border:1px solid #ccc;padding:6px}</style></head>
-<body><h1>Demo board</h1>
+<body><div id="devbar" style="background:#ff0000;height:90px;color:#fff">DEV BUILD</div><h1>Demo board</h1>
 <section><h2>Tickets</h2><table><tr><td>SECRET-ROW-ACME</td><td><button>Open SECRET-ROW-ACME</button></td></tr></table></section>
 <button id="details" onclick="history.pushState({}, '', '/app/details'); document.getElementById('out').textContent='Details shown'">Open details</button>
 <button id="leave" onclick="history.pushState({}, '', '/elsewhere')">Leave</button>
@@ -21,25 +22,34 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Demo board</ti
 <script>fetch('/app/data').then(r => r.text()).then(t => { document.getElementById('out').dataset.loaded = t; });</script>
 </body></html>"""
 
-# A crew-shaped app at /apps/esc: it loads its rows with the app query POST and listens on /ws, like a crew app.
-CREW_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Escalations</title></head>
-<body><h1>Escalations</h1>
+# A crew-shaped app at /apps/esc, laid out like studio's app page: studio's chrome (a red gate banner, a chat panel)
+# around the app's own frame, where the app loads its rows with the app query POST. Studio holds /ws.
+CREW_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Studio</title></head>
+<body style="margin:0;font-family:sans-serif">
+<div id="gate-banner" style="background:#ff0000;color:#fff;height:120px">A required check failed: how should the step go on?
+<button>Dismiss</button></div>
+<aside id="chat" style="float:right;width:300px;height:500px;background:#ff0000">VERDICT: FAIL</aside>
+<iframe src="/apps/esc/frame" style="width:600px;height:400px;border:0"></iframe>
+<script>try { new WebSocket('ws://' + location.host + '/ws'); } catch (e) {}</script>
+</body></html>"""
+
+CREW_FRAME = """<!doctype html><html><head><meta charset="utf-8"><title>Escalations</title></head>
+<body style="background:#20304a;color:#fff;font-family:sans-serif"><h1>Escalations</h1><h2>Inner chart</h2><button>Zoom</button>
 <table><tr><td><a href="/apps/esc/tickets/SECRET-ID-42">SECRET-ROW-ACME</a></td>
 <td><input aria-label="SECRET-NOTE-7" value="x"></td></tr></table>
 <p id="rows">loading</p>
-<iframe src="/apps/esc/frame" style="width:400px;height:120px"></iframe>
 <button id="term" onclick="new WebSocket('ws://' + location.host + '/ws/terminals')">Terminal</button>
 <button id="worker" onclick="try { new Worker('/apps/esc/worker.js'); document.getElementById('rows').dataset.worker = 'started'; } catch (e) { document.getElementById('rows').dataset.worker = 'refused'; }">Worker</button>
 <a id="pop" href="/apps/esc/other" target="_blank">Pop out</a>
 <script>
 fetch('/api/v1/apps/esc/query', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'})
   .then(r => r.text()).then(t => { document.getElementById('rows').textContent = 'rows ' + t; });
-try { new WebSocket('ws://' + location.host + '/ws'); } catch (e) {}
 </script></body></html>"""
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
     seen: list[str] = []
+    query_delay: float = 0.0  # seconds the app query takes (a slow app)
 
     def log_message(self, *args):  # quiet
         pass
@@ -62,7 +72,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path in ("/apps/esc", "/apps/esc/"):
             return self._send(200, CREW_PAGE.encode())
         if self.path == "/apps/esc/frame":
-            return self._send(200, b"<!doctype html><h2>Inner chart</h2><button>Zoom</button>")
+            return self._send(200, CREW_FRAME.encode())
         if self.path == "/apps/esc/worker.js":
             return self._send(200, b"self.postMessage(1);", "text/javascript")
         if self.path in ("/app", "/app/", "/app/details"):
@@ -77,11 +87,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
     def do_POST(self):  # noqa: N802
         Handler.seen.append(f"POST {self.path}")
+        if self.path.endswith("/query") and Handler.query_delay:
+            time.sleep(Handler.query_delay)
         return self._send(200, b"saved", "text/plain")
 
 
 def start() -> tuple[http.server.ThreadingHTTPServer, list[str]]:
     Handler.seen = []
+    Handler.query_delay = 0.0
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, Handler.seen

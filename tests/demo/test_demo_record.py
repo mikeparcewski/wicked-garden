@@ -30,12 +30,13 @@ def _node(script: str) -> str:
     return out.stdout
 
 
-def _check(storyline: dict, chapters: list, launch: str = "/app") -> dict:
+def _check(storyline: dict, chapters: list, launch: str = "/app", content_only: bool = False) -> dict:
     """{ok} or {code, where} from storyline-data.mjs checkStoryline."""
     return json.loads(_node(
         "import { checkStoryline } from './storyline-data.mjs';"
         f"const s = {json.dumps(storyline)}, c = {json.dumps(chapters)};"
-        "try { checkStoryline(s, c, { appOrigin: 'http://127.0.0.1:7721', launchPath: " + json.dumps(launch) + " });"
+        "try { checkStoryline(s, c, { appOrigin: 'http://127.0.0.1:7721', launchPath: " + json.dumps(launch)
+        + f", contentOnly: {json.dumps(content_only)} }});"
         " console.log(JSON.stringify({ ok: true })); }"
         "catch (e) { console.log(JSON.stringify({ code: e.code, where: e.where, msg: e.message })); }"
     ))
@@ -270,13 +271,13 @@ def test_the_probe_keeps_live_rows_out_when_told_to(app, tmp_path):
 
 
 CREW = '{"kind":"crew_app","id":"esc"}'
-CREW_READY = {"role": "heading", "name": "Escalations"}
+CREW_READY = {"role": "heading", "name": "Escalations", "in": "content"}
 
 
 @needs_deps
 def test_a_crew_app_loads_its_rows_through_its_query_and_nothing_else(app, tmp_path):
     origin, seen = app
-    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved"}}}, {"hold": {"ms": 400}}],
+    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 400}}],
              launch="/apps/esc", target=CREW, ready=CREW_READY)
     assert v["overall"] == "PASS", v
     assert "POST /api/v1/apps/esc/query" in seen and "WS /ws" in seen, seen
@@ -285,7 +286,7 @@ def test_a_crew_app_loads_its_rows_through_its_query_and_nothing_else(app, tmp_p
 @needs_deps
 def test_a_terminal_socket_never_connects(app, tmp_path):
     origin, seen = app
-    v = _run("record", tmp_path, origin, [{"click": {"target": {"button": "Terminal"}}}, {"hold": {"ms": 800}}],
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"button": "Terminal", "in": "content"}}}, {"hold": {"ms": 800}}],
              launch="/apps/esc", target=CREW, ready=CREW_READY)
     assert "WS /ws/terminals" not in seen, seen
     assert any("/ws/terminals" in u for u in v["diagnostics"]["ws_refused"]), v
@@ -294,7 +295,7 @@ def test_a_terminal_socket_never_connects(app, tmp_path):
 @needs_deps
 def test_a_web_worker_is_never_started(app, tmp_path):
     origin, seen = app
-    _run("record", tmp_path, origin, [{"click": {"target": {"button": "Worker"}}}, {"hold": {"ms": 800}}],
+    _run("record", tmp_path, origin, [{"click": {"target": {"button": "Worker", "in": "content"}}}, {"hold": {"ms": 800}}],
          launch="/apps/esc", target=CREW, ready=CREW_READY)
     assert "GET /apps/esc/worker.js" not in seen, seen
 
@@ -302,7 +303,7 @@ def test_a_web_worker_is_never_started(app, tmp_path):
 @needs_deps
 def test_a_popup_fails_the_take(app, tmp_path):
     origin, _ = app
-    v = _run("record", tmp_path, origin, [{"click": {"target": {"role": "link", "name": "Pop out"}}}, {"hold": {"ms": 800}}],
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"role": "link", "name": "Pop out", "in": "content"}}}, {"hold": {"ms": 800}}],
              launch="/apps/esc", target=CREW, ready=CREW_READY)
     assert v["overall"] == "FAIL" and v["cause"] == "side_effect_blocked", v
 
@@ -349,13 +350,13 @@ def test_a_multichapter_take_keeps_every_chapter_in_order(app, tmp_path):
 def test_a_failure_message_carries_no_page_text_when_rows_stay_out_of_models(app, tmp_path):
     origin, _ = app
     # The target resolves to a hidden element: Playwright's timeout error quotes it, page text included ("ACME").
-    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "HIDDEN-NOTE"}}}], live=False)
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"button": "Open details"}}}, {"waitVisible": {"target": {"text": "HIDDEN-NOTE"}}}], live=False)
     assert v["overall"] == "FAIL", v
     assert "ACME" not in json.dumps(v), v
     notes = "".join(f.read_text() for f in (tmp_path / "root" / "demo-video").rglob("*.json"))
     assert "ACME" not in notes, "a failure note quotes the page"
     # The same take with rows allowed to reach a model keeps the quote (the sentinel is really in the error).
-    _run("record", tmp_path / "full", origin, [{"waitVisible": {"target": {"text": "HIDDEN-NOTE"}}}], live=True)
+    _run("record", tmp_path / "full", origin, [{"click": {"target": {"button": "Open details"}}}, {"waitVisible": {"target": {"text": "HIDDEN-NOTE"}}}], live=True)
     full_notes = "".join(f.read_text() for f in (tmp_path / "full" / "root" / "demo-video").rglob("failure.json"))
     assert "ACME" in full_notes, "the error really quotes the page (else this test proves nothing)"
 
@@ -400,3 +401,144 @@ def test_a_target_inside_the_apps_own_frame_is_reachable(app, tmp_path):
     p = _run("probe", tmp_path, origin, launch="/apps/esc", target=CREW)
     summary = json.loads((tmp_path / "root" / "probe" / p["page"]).read_text())
     assert any("Inner chart" in " ".join(f["headings"]) for f in summary.get("frames", [])), summary
+
+
+
+# ---- DES-DEMO-RECORD-001 §13 A1: a normal app records cleanly the first time ---------------------------------
+
+@needs_node
+def test_optional_is_only_for_cosmetic_steps_and_never_inside_a_measured_one():
+    ok = {"click": {"target": {"button": "x"}}, "optional": True}
+    assert _check(*_story([ok, {"point": {"target": {"text": "y"}, "label": "y"}, "optional": True},
+                          {"waitVisible": {"target": {"text": "z"}}, "optional": False}]))["ok"]
+    for bad in ({"type": {"target": {"text": "q"}, "text": "a"}, "optional": True},
+                {"hold": {"ms": 10}, "optional": True},
+                {"click": {"target": {"button": "x"}}, "optional": "yes"},
+                {"time": {"label": "t", "steps": [ok]}}):
+        got = _check(*_story([bad]))
+        assert got.get("code") == "storyline_refused" and got["where"].endswith(".optional"), (bad, got)
+
+
+@needs_node
+def test_a_crew_app_storyline_targets_only_the_apps_own_frame():
+    story, chapters = _story([{"click": {"target": {"button": "x", "in": "content"}}}])
+    story["ready"]["in"] = "content"
+    assert _check(story, chapters, content_only=True)["ok"]
+    story["ready"].pop("in")
+    got = _check(story, chapters, content_only=True)
+    assert got.get("code") == "storyline_refused" and got["where"] == "storyline.ready.in", got
+    story["ready"]["in"] = "content"
+    story["segments"][0]["steps"] = [{"point": {"target": {"text": "outer"}, "label": "l"}}]
+    assert _check(story, chapters, content_only=True)["where"] == "storyline.segments[0].steps[0].point.target.in"
+    assert _check(story, chapters)["ok"], "a loopback app's page is the app: any target is fine"
+
+
+@needs_node
+def test_hide_takes_one_selector_per_entry_and_nothing_that_ends_a_rule():
+    story, chapters = _story([{"hold": {"ms": 10}}])
+    story["hide"] = [{"css": "#banner, .toast[data-x='1']"}, {"css": "header", "in": "content"}]
+    assert _check(story, chapters)["ok"]
+    for css in ("x{}", "a;b", "@import url(x)", "a/*b*/", "a\\{", "<b>", " "):
+        story["hide"] = [{"css": css}]
+        got = _check(story, chapters)
+        assert got.get("code") == "storyline_refused" and got["where"].startswith("storyline.hide[0]"), (css, got)
+    story["hide"] = [{"css": "a"}] * 13
+    assert _check(story, chapters).get("code") == "storyline_refused"
+
+
+@needs_node
+def test_a_chapters_first_target_stops_at_anything_that_changes_the_page():
+    got = json.loads(_node(
+        "import { firstTarget } from './storyline-data.mjs';"
+        "const t = (v, o) => ({ verb: 'waitVisible', target: { kind: 'text', value: v }, ...(o ? { optional: true } : {}) });"
+        "console.log(JSON.stringify([firstTarget([{ verb: 'caption' }, t('a')])?.value ?? null,"
+        " firstTarget([t('skip', true), t('b')])?.value ?? null, firstTarget([{ verb: 'go', path: '/x' }, t('c')]),"
+        " firstTarget([{ verb: 'time', steps: [t('d')] }])]));"
+    ))
+    assert got == ["a", "b", None, None]
+
+
+@needs_node
+def test_a_cut_keeps_one_frame_of_its_span_and_moves_what_follows_earlier():
+    got = json.loads(_node(
+        "import { videoClock } from './postprocess.mjs';"
+        "const tl = { t0: 0, capture: { fps: 30 }, marks: { speed: [{ start: 2, end: 8, factor: 1, cut: true }] } };"
+        "const c = videoClock(tl, 0);"
+        "console.log(JSON.stringify([c.outAt(1), Math.round(c.outAt(10) * 30), c.spans.length]));"
+    ))
+    # 10 s of master: 2 s before the cut, one kept frame of its 6 s, then 2 s after it.
+    assert got == [1, 2 * 30 + 1 + 2 * 30, 1], got
+
+
+def _red_share(video: Path, at: float, tmp: Path) -> float:
+    """The share of a frame's pixels that are the fixture's chrome red (a small decode of the frame at `at`)."""
+    ffmpeg = os.environ.get("FFMPEG", "ffmpeg")
+    r = subprocess.run([ffmpeg, "-v", "error", "-ss", str(at), "-i", str(video), "-frames:v", "1", "-vf", "scale=192:108",
+                        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, timeout=60)
+    assert r.returncode == 0 and len(r.stdout) == 192 * 108 * 3, r.stderr
+    px = r.stdout
+    red = sum(1 for i in range(0, len(px), 3) if px[i] > 190 and px[i + 1] < 70 and px[i + 2] < 70)
+    return red / (192 * 108)
+
+
+def _ready_at(v: dict) -> float:
+    return next(c for c in v["chapters"] if c["key"] != "intro")["ready_at"]
+
+
+@needs_deps
+def test_a_crew_app_take_shows_its_own_frame_and_never_studios_chrome(app, tmp_path):
+    origin, _ = app
+    steps = [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 600}}]
+    v = _run("record", tmp_path, origin, steps, launch="/apps/esc", target=CREW, ready=CREW_READY)
+    assert v["overall"] == "PASS" and v["view"] == "app_frame", v
+    video = tmp_path / "root" / "demo-video" / "demo.mp4"
+    # (test_a_hide_entry_keeps_a_dev_banner_out_of_frame proves the same red is seen when it is in the picture.)
+    for at in (_ready_at(v) + 0.3, v["chapters"][0]["end"] - 1.5):
+        assert _red_share(video, at, tmp_path) < 0.002, f"studio's banner or chat is in the picture at {at}"
+
+
+@needs_deps
+def test_a_hide_entry_keeps_a_dev_banner_out_of_frame(app, tmp_path):
+    origin, _ = app
+    story = {"title": "Board demo", "ready": {"role": "heading", "name": "Demo board"}, "hide": [{"css": "#devbar"}, {"css": "a:::b"}],
+             "segments": [{"key": "01-board", "title": "The board", "steps": [{"hold": {"ms": 600}}]}]}
+    v = _run("record", tmp_path, origin, story=story)
+    assert v["overall"] == "PASS" and v["hide_invalid"] == ["a:::b"], v
+    assert _red_share(tmp_path / "root" / "demo-video" / "demo.mp4", _ready_at(v) + 0.3, tmp_path) < 0.002
+    story.pop("hide")
+    shown = _run("record", tmp_path / "shown", origin, story=story)
+    assert _red_share(tmp_path / "shown" / "root" / "demo-video" / "demo.mp4", _ready_at(shown) + 0.3, tmp_path) > 0.02
+
+
+@needs_deps
+def test_a_slow_app_gets_ready_behind_the_card_and_the_wait_is_cut(app, tmp_path):
+    origin, _ = app
+    sys.modules["server"].Handler.query_delay = 7.0
+    steps = [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 500}}]
+    v = _run("record", tmp_path, origin, steps, launch="/apps/esc", target=CREW, ready=CREW_READY)
+    assert v["overall"] == "PASS", v
+    ch = v["chapters"][0]
+    # About 7 s of loading, of which all but the card's own 3 s is cut; the app is on screen, ready, about 4-5 s in.
+    assert ch["load_cut_s"] >= 3, ch
+    assert ch["ready_at"] - ch["start"] < 7.5, ch
+    # The rows were there when the card lifted: the chapter's wait for them took no time on screen.
+    assert ch["end"] - ch["ready_at"] < 4.5, ch
+
+
+@needs_deps
+def test_an_optional_step_that_misses_is_skipped_and_said(app, tmp_path):
+    origin, _ = app
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"role": "button", "name": "✕"}}, "optional": True},
+                                          {"click": {"target": {"button": "Open details"}}}, {"waitVisible": {"target": {"text": "Details shown"}}}])
+    assert v["overall"] == "PASS", v
+    sk = v["chapters"][0]["skipped_steps"]
+    assert [x["step"] for x in sk] == ["storyline.segments[0].steps[0]"] and sk[0]["verb"] == "click", sk
+
+
+@needs_deps
+def test_a_required_step_that_fails_names_the_step_even_when_redacted(app, tmp_path):
+    origin, _ = app
+    v = _run("record", tmp_path, origin, [{"click": {"target": {"button": "Open details"}}}, {"waitVisible": {"target": {"text": "Never there"}}}],
+             live=False)
+    assert v["overall"] == "FAIL" and v["cause"] == "step_failed", v
+    assert 'storyline.segments[0].steps[1] (waitVisible text "Never there")' in v["reason"], v
