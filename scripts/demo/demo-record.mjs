@@ -356,7 +356,8 @@ export async function runRecord(env = process.env) {
       // A failed take discloses its cuts and skips too, each chapter on its own take's clock (nothing was stitched).
       const notes = chapters.map((c) => {
         const take = c.status === "failed" && g ? path.join(segDir, c.key, `failed-${g.take}`) : path.join(segDir, c.key);
-        return { ...c, ...takeNotes(readJson(path.join(take, "timeline.json"))) };
+        const view = readJson(path.join(segDir, c.key, "guard.json"))?.view;
+        return { ...c, ...takeNotes(readJson(path.join(take, "timeline.json"))), ...(view ? { view } : {}) };
       });
       return done({
         overall: REFUSAL_CAUSES.includes(code) ? "INCONCLUSIVE" : "FAIL", cause: code, reason: `chapter ${seg.key}: ${said(e, redact)}`,
@@ -388,7 +389,10 @@ export async function runRecord(env = process.env) {
     writeJson(path.join(reviewDir, "ffprobe.json"), ff);
   } catch (e) {
     // Every chapter recorded: each still discloses its cuts and skips, on its own take's clock.
-    const notes = chapters.map((c) => ({ ...c, ...takeNotes(readJson(path.join(segDir, c.key, "timeline.json"))) }));
+    const notes = chapters.map((c) => {
+      const view = readJson(path.join(segDir, c.key, "guard.json"))?.view;
+      return { ...c, ...takeNotes(readJson(path.join(segDir, c.key, "timeline.json"))), ...(view ? { view } : {}) };
+    });
     return done({ overall: "INCONCLUSIVE", cause: "encoder_failed", reason: said(e), storyline_sha: storylineSha, chapters: notes, clock: "take",
       ...hideInvalidOf(parts.map((p) => p.dir)) });
   }

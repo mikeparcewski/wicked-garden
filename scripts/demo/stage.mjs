@@ -59,13 +59,15 @@ function keepChromeOut({ hide, focus, mark, path }) {
   if (!rules.length) return;
   const sheet = new CSSStyleSheet();
   for (const r of rules) { try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* a selector that does not parse: skipped */ } }
-  // Once adopted, a sheet the page dropped is re-adopted, and the loss is remembered: the recorder fails a take whose
-  // crop was lost even for a moment (frames already filmed cannot be repaired).
+  // Once adopted, a sheet the page dropped is re-adopted, and (the crop) the loss is reported: the recorder fails a
+  // take whose crop was lost even for a moment while the app was on screen (frames already filmed cannot be repaired).
   let adopted = false;
   const adopt = () => {
     try {
       if (document.adoptedStyleSheets.includes(sheet)) return;
-      if (adopted) window.__wickedDemoSheetLost = (window.__wickedDemoSheetLost || 0) + 1;
+      // Told to the recorder, which latches it for the rest of the take (a reload's fresh document forgets nothing
+      // there) and counts it only once the chapter is on screen (a drop behind the chapter card films nothing).
+      if (adopted && pin) { try { window.__wickedDemoCropLost?.(); } catch { /* no recorder binding (the probe) */ } }
       document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
       adopted = true;
     } catch { /* no document yet */ }
@@ -306,6 +308,8 @@ export class Stage {
     this.currentStep = null; // the storyline step running now (a refusal names the step it happened in)
     this.blockedDuring = null;
     this.viewRequired = false; // (a crew app) once its chapter is ready, every checkpoint proves its frame fills the window
+    this.cropArmed = false; // (a crew app) its chapter is on screen: a dropped crop from now on was filmed
+    this.cropLost = null; // wall clock (s) when the page first dropped the crop while the app was on screen
     this.hideInvalid = []; // `hide` selectors the browser could not parse (skipped: hiding is cosmetic)
     this.inflight = new Set(); // requests in flight, over every frame (settle)
     this.lastNetAt = 0; // wall clock (s) of the last request start or end
@@ -343,6 +347,12 @@ export class Stage {
       this.diagnostics = armed.diagnostics;
     } else {
       this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
+    }
+    if (this.focusContent) {
+      // A crop the page dropped once the chapter was on screen fails the take, even if a reload hides the evidence.
+      await this.context.exposeBinding("__wickedDemoCropLost", () => {
+        if (this.cropArmed && this.cropLost === null) { this.cropLost = this.now(); this.firstFailureAt ??= this.cropLost; }
+      });
     }
     if (this.hide.length || this.focusContent) await this.context.addInitScript(keepChromeOut, { hide: this.hide, focus: this.focusContent, mark: FOCUS_ATTR, path: FOCUS_PATH_ATTR });
     this.page = await this.context.newPage();
@@ -567,7 +577,6 @@ export class Stage {
     // The app's frame fills the window: it sits at the origin at full size, and it is what the page shows at the
     // centre and near each corner (nothing over it, nothing clipping it).
     const r = await this.appFrame.evaluate((attr) => {
-      if (window.__wickedDemoSheetLost) return "app_frame_lost";
       const f = document.querySelector(`[${attr}]`);
       if (!f) return "app_frame_missing";
       const b = f.getBoundingClientRect(), W = innerWidth, H = innerHeight;
@@ -582,12 +591,16 @@ export class Stage {
     return { view: r };
   }
 
+  /** (A crew app) The chapter card has lifted: a crop the page drops from now on is in the picture. */
+  armCrop() { if (this.focusContent) this.cropArmed = true; }
+
   /** (A crew app) Its frame fills the window now, or the take fails: studio's page would be in the picture. */
   async requireView() {
     if (!this.focusContent) return;
     // A page that just reloaded re-pins its frame a moment later: up to 2 s to show it (a lost crop never recovers).
+    if (this.cropLost !== null) this.policyCheck();
     let { view } = await this.view();
-    for (const until = Date.now() + 2000; view !== "app_frame" && view !== "app_frame_lost" && Date.now() < until;) {
+    for (const until = Date.now() + 2000; view !== "app_frame" && Date.now() < until;) {
       await sleep(100);
       ({ view } = await this.view());
     }
@@ -601,6 +614,7 @@ export class Stage {
   policyCheck() {
     if (!this.policy) return;
     if (this.captureStalledAt !== null) throw demoError("capture_stalled", "the screen capture stopped delivering pictures");
+    if (this.cropLost !== null) throw demoError("app_not_ready", "the app's own frame does not fill the window (app_frame_lost): the page dropped the recorder's crop, so studio's page was in the picture");
     if (this.appFrame && this.appOutside(this.appFrame.url())) this.leftApp ??= this.appFrame.url();
     if (this.leftApp) throw demoError("left_app", `the app frame left ${this.policy.launchPath}: ${this.leftApp}`);
     if (this.appErrors.length) throw demoError("app_not_ready", `the app did not load: ${this.appErrors.slice(0, 3).join("; ")}`);
@@ -706,7 +720,7 @@ export class Stage {
     due(deadline);
     await this.stage((s, c) => s.ripple(c.x, c.y), { x, y });
     await locator.first().click(deadline === null ? {} : { timeout: left(deadline, 0) });
-    await sleep(after);
+    await pause(after, deadline);
   }
 
   async type(locator, text, { delay = 28 } = {}) {

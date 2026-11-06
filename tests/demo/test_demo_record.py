@@ -577,7 +577,25 @@ def test_a_slow_optional_click_never_holds_the_take_past_its_five_seconds(app, t
 @needs_deps
 def test_a_crew_app_whose_page_drops_the_crop_even_for_a_moment_fails(app, tmp_path):
     origin, _ = app
-    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 3000}},
+    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 4000}},
                                           {"point": {"target": {"text": "Zoom", "in": "content"}, "label": "Zoom"}}],
              launch="/apps/esc2", target='{"kind":"crew_app","id":"esc2"}', ready=CREW_READY)
     assert v["overall"] == "FAIL" and v["cause"] == "app_not_ready" and "app_frame_lost" in v["reason"], v
+
+
+@needs_deps
+def test_a_dropped_crop_still_fails_the_take_after_a_reload_hides_it(app, tmp_path):
+    origin, _ = app
+    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 5000}},
+                                          {"go": {"path": "/apps/esc3"}}, {"hold": {"ms": 500}}],
+             launch="/apps/esc3", target='{"kind":"crew_app","id":"esc3"}', ready=CREW_READY)
+    assert v["overall"] == "FAIL" and v["cause"] == "app_not_ready" and "app_frame_lost" in v["reason"], v
+
+
+@needs_deps
+def test_a_page_that_swaps_its_sheets_while_it_starts_still_records(app, tmp_path):
+    origin, _ = app
+    # Behind the chapter card nothing is filmed: the crop is restored before the card lifts, and the take passes.
+    v = _run("record", tmp_path, origin, [{"waitVisible": {"target": {"text": "rows saved", "in": "content"}}}, {"hold": {"ms": 600}}],
+             launch="/apps/esc4", target='{"kind":"crew_app","id":"esc4"}', ready=CREW_READY)
+    assert v["overall"] == "PASS" and v["view"] == "app_frame", v

@@ -270,6 +270,7 @@ export function makeSegmentRecorder({
         }
         await stage.chapter(n);
         await stage.uncard();
+        stage.armCrop();
         // The engine-run recorder proves the app is on screen, live, once the chapter card is gone.
         if (policy) await stage.checkpoint("chapter");
         await seg.run(ctx);

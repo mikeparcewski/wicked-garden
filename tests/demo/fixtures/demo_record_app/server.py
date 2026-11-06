@@ -72,12 +72,21 @@ class Handler(http.server.BaseHTTPRequestHandler):
         Handler.seen.append(f"GET {self.path}")
         if self.path in ("/apps/esc", "/apps/esc/"):
             return self._send(200, CREW_PAGE.encode())
-        if self.path in ("/apps/esc/frame", "/apps/esc2/frame"):
+        if self.path in ("/apps/esc/frame", "/apps/esc2/frame", "/apps/esc3/frame", "/apps/esc4/frame"):
             return self._send(200, CREW_FRAME.encode())
         if self.path == "/apps/esc2":
             # A page that replaces its adopted style sheets a moment after it loads (a theme switch).
-            swap = "<script>setTimeout(() => { document.adoptedStyleSheets = []; }, 2500);</script></body>"
+            swap = "<script>setTimeout(() => { document.adoptedStyleSheets = []; }, 6000);</script></body>"
             return self._send(200, CREW_PAGE.replace("/apps/esc/frame", "/apps/esc2/frame").replace("</body>", swap).encode())
+        if self.path == "/apps/esc4":
+            # A theme set up while the page starts (behind the chapter card): it swaps its sheets once, early.
+            swap = "<script>setTimeout(() => { document.adoptedStyleSheets = []; }, 300);</script></body>"
+            return self._send(200, CREW_PAGE.replace("/apps/esc/frame", "/apps/esc4/frame").replace("</body>", swap).encode())
+        if self.path == "/apps/esc3":
+            # The same, on its second load only (the chapter's own): a later reload leaves a clean document behind.
+            swap = ("<script>const n = Number(sessionStorage.loads || 0) + 1; sessionStorage.loads = n;"
+                    " if (n === 2) setTimeout(() => { document.adoptedStyleSheets = []; }, 6000);</script></body>")
+            return self._send(200, CREW_PAGE.replace("/apps/esc/frame", "/apps/esc3/frame").replace("</body>", swap).encode())
         if self.path == "/apps/esc/worker.js":
             return self._send(200, b"self.postMessage(1);", "text/javascript")
         if self.path in ("/app", "/app/", "/app/details"):
