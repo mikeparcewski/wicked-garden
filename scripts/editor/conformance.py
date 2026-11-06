@@ -840,18 +840,44 @@ def load_timeout(arg: float | None, env: str | None) -> float:
     return value
 
 
-REPORT_STRING_MAX = 2000
+REPORT_STRING_MAX = 1000
+# More editors than this in one pack is refused outright in engine mode (a real pack holds one or a few).
+ENGINE_EDITORS_MAX = 20
 
 
-def _bounded(value, limit: int = REPORT_STRING_MAX):
-    """``value`` with every string cut to ``limit`` characters (marked), lists to 50 items, recursively."""
-    if isinstance(value, str):
-        return value if len(value) <= limit else value[:limit] + "… (cut)"
-    if isinstance(value, list):
-        return [_bounded(v, limit) for v in value[:50]]
-    if isinstance(value, dict):
-        return {str(k)[:limit]: _bounded(v, limit) for k, v in value.items()}
-    return value
+def _cut(value, limit: int = REPORT_STRING_MAX) -> str:
+    text = value if isinstance(value, str) else json.dumps(value, default=str)[:limit] if value is not None else ""
+    return text if len(text) <= limit else text[:limit] + "… (cut)"
+
+
+def engine_report(report: dict) -> dict:
+    """The report the engine reads: a FIXED shape built from the harness's own result, never pack-controlled
+    structure. Every verdict-bearing field is kept whole (each editor, its full set of protocols, every case's
+    ok); diagnostics are cut to one bounded string each. Depth and size are bounded whatever the pack holds."""
+    def case(c) -> dict:
+        c = c if isinstance(c, dict) else {}
+        row: dict = {"ok": c.get("ok") is True}
+        if not row["ok"] and c.get("error") is not None:
+            row["error"] = _cut(c.get("error"))
+        return row
+    editors = []
+    for e in report.get("editors") or []:
+        protocol = e.get("protocol")
+        editors.append({
+            "id": _cut(e.get("id"), 200), "version": _cut(e.get("version"), 200),
+            "sha256": _cut(e.get("sha256"), 64),
+            # The whole set: a pack-controlled list is never truncated into a different requirement.
+            "protocol": sorted({p for p in protocol if isinstance(p, int) and not isinstance(p, bool)})
+            if isinstance(protocol, list) else [],
+            "negotiated": e.get("negotiated") if isinstance(e.get("negotiated"), int) else None,
+            "ok": e.get("ok") is True,
+            "cases": {_cut(k, 64): case(v) for k, v in (e.get("cases") or {}).items()},
+        })
+    out = {"ok": report.get("ok") is True, "pack": _cut(report.get("pack"), 500), "editors": editors}
+    for k in ("cause", "error"):
+        if report.get(k) is not None:
+            out[k] = _cut(report.get(k)) if k == "error" else _cut(report.get(k), 64)
+    return out
 
 
 def engine_inputs(env) -> tuple[dict | None, dict]:
@@ -881,7 +907,7 @@ def engine_inputs(env) -> tuple[dict | None, dict]:
     except (PackError, ValueError, RecursionError) as exc:
         return refuse("pack_invalid", str(exc))
     if len(found) != 1:
-        names = ", ".join(str(p.relative_to(tree)) or "." for p in found) or "none"
+        names = ", ".join(str(p.relative_to(tree)) or "." for p in found[:5]) or "none"
         return refuse("pack_invalid", f"the run's tree must hold exactly one editor pack (wicked-pack.json spec 2 with "
                                       f"editors); found {len(found)} ({names})")
     return {"pack": found[0], "root": Path(tree), "port": int(raw_port), "dist": Path(dist).resolve(),
@@ -904,12 +930,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.engine:
         engine, refusal = engine_inputs(os.environ)
         if engine is None:
-            print(json.dumps({"ok": False, "pack": None, **refusal}, indent=2))
+            text = json.dumps(engine_report({"ok": False, "pack": None, **refusal}), indent=2)
+            print(text)
             # The out file is only trusted once the inputs are: a refusal before them goes to stdout alone.
             out = os.environ.get(OUT_ENV, "")
             if os.path.isabs(out) and refusal["cause"] != "no_jail":
                 with contextlib.suppress(OSError):
-                    Path(out).write_text(json.dumps({"ok": False, "pack": None, **refusal}, indent=2))
+                    Path(out).write_text(text)
             return 2
         if args.pack is not None or args.host_url is not None or args.studio_dist is not None:
             parser.error("--engine takes every input from the environment: no --pack, --host-url or --studio-dist")
@@ -918,13 +945,13 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--pack is required (or --engine)")
 
     def out(report: dict, code: int) -> int:
-        if engine is not None:
-            # Every string bounded (an editor's error text, a path from the pack): the engine reads a report of
-            # bounded size, and a pack's verdict must never grow into a report it refuses.
-            report = _bounded(report)
         if engine is not None and not report.get("ok"):
             # A pack problem always names its cause where it is found; an un-named failure is never blamed on the pack.
             report.setdefault("cause", {1: "case_failed", 3: "no_browser"}.get(code, "bad_arguments"))
+        if engine is not None:
+            # The engine reads a fixed, bounded shape (an editor's error text, a pack's paths and identities can
+            # never grow it into a report the engine refuses, or cut a requirement out of it).
+            report = engine_report(report)
         try:
             text = json.dumps(report, indent=2, allow_nan=False)
         except ValueError:  # a pack-controlled non-finite number reached the report: say so in valid JSON
@@ -950,6 +977,8 @@ def main(argv: list[str] | None = None) -> int:
                                  finite=engine is not None)
         editors = editors_of(manifest)
         if engine is not None:
+            if len(editors) > ENGINE_EDITORS_MAX:
+                raise PackError(f"the pack declares {len(editors)} editors; engine mode runs at most {ENGINE_EDITORS_MAX}")
             refuse_links(engine["root"], args.pack, editors)
         entries = {}
         for e in editors:

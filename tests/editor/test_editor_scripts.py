@@ -595,10 +595,20 @@ def test_engine_discovery_refuses_a_subtree_it_cannot_read_and_install_reads_as_
 
 def test_an_engine_report_is_bounded_whatever_the_pack_puts_in_it(tmp_path):
     mod = _conformance_module()
-    big = {"ok": False, "error": "x" * 1_000_000, "editors": [{"gaps": ["y" * 5000] * 500}]}
-    small = mod._bounded(big)
-    assert len(json.dumps(small)) < 400_000
-    assert small["error"].endswith("(cut)") and len(small["editors"][0]["gaps"]) == 50
+    nested: object = "x"
+    for _ in range(200):
+        nested = {"n": nested}
+    big = {"ok": False, "error": "x" * 1_000_000, "pack": "/p", "editors": [
+        {"id": nested, "version": ["v"] * 10_000, "sha256": "ab", "protocol": [1] * 60 + [2], "ok": False,
+         "cases": {"14-card": {"ok": False, "error": "e" * 50_000, "reply": {f"k{i}": "v" * 1000 for i in range(5000)}},
+                   "0-manifest": {"ok": True}}}]}
+    small = mod.engine_report(big)
+    text = json.dumps(small)
+    assert len(text) < 20_000, len(text)
+    # Every verdict-bearing field kept whole: the protocol-2 requirement past item 50 survives, each case's ok too.
+    e = small["editors"][0]
+    assert e["protocol"] == [1, 2] and e["cases"]["14-card"]["ok"] is False and e["cases"]["0-manifest"]["ok"] is True
+    assert "reply" not in e["cases"]["14-card"] and isinstance(e["id"], str)
     tree = tmp_path / "tree"
     pack = tree / "acme-json"
     assert scaffold(pack).returncode == 0
@@ -607,7 +617,14 @@ def test_an_engine_report_is_bounded_whatever_the_pack_puts_in_it(tmp_path):
     (pack / "wicked-pack.json").write_text(json.dumps(m))
     done = run("conformance.py", "--engine", "--json", env=_engine_env(tree, tmp_path, WG_EDITOR_CONFORMANCE_REEXEC="1"))
     out = (tmp_path / "out" / "report.json").read_text()
-    assert len(out) < 100_000 and json.loads(out)["cause"] == "pack_invalid", out[:300]
+    assert len(out) < 20_000 and json.loads(out)["cause"] == "pack_invalid", out[:300]
+    # Discovery refusals go through the same writer: many candidate packs name a few, bounded.
+    many = tmp_path / "many"
+    for i in range(8):
+        assert scaffold(many / (f"p{i}-" + "d" * 200)).returncode == 0
+    done = run("conformance.py", "--engine", "--json", env=_engine_env(many, tmp_path))
+    out = (tmp_path / "out" / "report.json").read_text()
+    assert done.returncode == 2 and json.loads(out)["cause"] == "pack_invalid" and "found 8" in out and len(out) < 5_000
 
 
 def test_the_host_running_out_of_resources_in_pack_check_is_the_harness_s(tmp_path, monkeypatch):
