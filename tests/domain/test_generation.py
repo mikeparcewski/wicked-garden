@@ -453,3 +453,63 @@ def test_a_large_budget_prints_its_counts_with_separators_too():
     assert d["next"] == "ask"
     assert "budget reached (2,000 minutes; the budget is 1,000 pages or 1,440 minutes)" in d["line"], d
     assert d["choices"][0]["label"] == "Map up to 1,000 more pages"
+
+
+class _LoweringCore(_Core):
+    """`_Core` plus the checked recompute `extract-apply` and the restatement use."""
+
+    def coverage_against_minimum(self, db, out):
+        doc = self.coverage(db, out)
+        pct = doc["resolved"] * 100 // doc["behavior_bearing"]
+        minimum = self.own or self.target
+        return doc, pct >= minimum, f"{pct}% real requirements, minimum {minimum}%"
+
+
+def test_lowering_the_minimum_restates_the_apply_report_in_the_worktree(tmp_path, capsys):
+    """wicked-core e2e F29: the page's apply report (written before the answer) said "minimum 80%,
+    not met"; after "lower" it states the lowered minimum, so the coverage judge reads no stale
+    number. Fails without the restatement: the report kept minimum_met false and "minimum 80%"."""
+    core = _LoweringCore(660, behaviours=1000)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    stale = {"applied": {"resolved": 5}, "minimum_met": False,
+             "coverage_line": "66% real requirements, minimum 80%"}
+    (wt / ".wicked" / "domain" / "apply-report.json").write_text(json.dumps(stale))
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    d = next_page.run(str(db), _repo(tmp_path), core=core,
+                      env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                      worktree=wt)
+    assert core.set_calls == [66] and d["next"] == "done"
+    report = json.loads((wt / ".wicked" / "domain" / "apply-report.json").read_text())
+    assert report["minimum_met"] is True
+    assert report["coverage_line"] == "66% real requirements, minimum 66%"
+    assert report["lowered_to"] == 66
+    assert report["applied"] == {"resolved": 5}, "the rest of the page's report is kept"
+    assert report["coverage"]["resolved"] == 660
+
+
+def test_a_choice_other_than_lower_leaves_the_apply_report_alone(tmp_path, capsys):
+    core = _LoweringCore(230)
+    wt = tmp_path / "wt"
+    (wt / ".wicked" / "domain").mkdir(parents=True)
+    path = wt / ".wicked" / "domain" / "apply-report.json"
+    path.write_text('{"minimum_met": false}')
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="continue"), now=60 * MIN,
+                  worktree=wt)
+    assert path.read_text() == '{"minimum_met": false}'
+
+
+def test_lowering_with_no_apply_report_writes_none(tmp_path, capsys):
+    core = _LoweringCore(230)
+    wt = tmp_path / "wt"
+    wt.mkdir()
+    db = tmp_path / "graphs" / "estate.db"
+    db.parent.mkdir()
+    next_page.run(str(db), _repo(tmp_path), core=core,
+                  env=_env(WICKED_REPEAT_PASS=3, WICKED_REPEAT_CHOICE="lower"), now=60 * MIN,
+                  worktree=wt)
+    assert not (wt / ".wicked").exists()

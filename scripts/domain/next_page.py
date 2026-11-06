@@ -22,7 +22,9 @@ step:
 
 The engine re-runs this step with the operator's choice in `WICKED_REPEAT_CHOICE`: `continue`
 grants a fresh budget, `lower` sets the repository's own target to the share mapped so far (so
-the coverage step passes and the graph is built, labelled with that share).
+the coverage step passes and the graph is built, labelled with that share) and restates the
+page's `.wicked/domain/apply-report.json` in the worktree against the lowered minimum, so the
+work the coverage step's judge reads no longer says "minimum 80%, not met" (wicked-core e2e F29).
 
 Usage (the preset's command, run from the run's worktree):
     wicked-garden run scripts/domain/next_page.py --db <store> --repo-root <repo>
@@ -41,6 +43,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
 from domain import _clients, generation, rules_file  # noqa: E402
+from domain.apply_rules import REPORT_REL  # noqa: E402
 
 CHOICE_ENV = "WICKED_REPEAT_CHOICE"
 PASS_ENV = "WICKED_REPEAT_PASS"
@@ -55,8 +58,41 @@ def _left_to_map(coverage: dict, repo_root: str, seen: set[str]) -> int:
     return sum(1 for n in nodes if n.get("file") in tracked and n.get("symbol_id") not in seen)
 
 
+def _restate_apply_report(core, db: str, worktree: Path, target: int) -> None:
+    """After "lower": rewrite the worktree's apply report (written by `extract-apply` against the
+    old minimum) with the share and verdict `wicked-core coverage` gives NOW, against the
+    repository's own target. Only an existing report is restated; one that cannot be read safely
+    (a link, not a file, not JSON) is left alone and said so, never followed."""
+    try:
+        report = rules_file.read_json_file(worktree, REPORT_REL)
+    except FileNotFoundError:
+        return
+    except rules_file.RulesFileRefused as e:
+        print(f"[extract-next] {REPORT_REL} not restated: {e}", file=sys.stderr)
+        return
+    if not isinstance(report, dict):
+        print(f"[extract-next] {REPORT_REL} not restated: not a JSON object", file=sys.stderr)
+        return
+    try:
+        with tempfile.TemporaryDirectory(prefix="wicked-domain-next-") as tmp:
+            after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+    except (RuntimeError, OSError, ValueError) as e:
+        # The target is lowered either way; only the restatement is missing, and it says so.
+        print(f"[extract-next] {REPORT_REL} not restated: {e}", file=sys.stderr)
+        return
+    report["coverage"] = {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
+                                                     "risk_flagged", "unaccounted")}
+    report["minimum_met"] = met
+    report["coverage_line"] = line
+    report["lowered_to"] = target
+    try:
+        rules_file.write_json_file(worktree, REPORT_REL, report)
+    except (rules_file.RulesFileRefused, OSError) as e:
+        print(f"[extract-next] {REPORT_REL} not restated: {e}", file=sys.stderr)
+
+
 def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None,
-        now: int | None = None) -> dict:
+        now: int | None = None, worktree: Path | None = None) -> dict:
     env = os.environ if env is None else env
     core = core or _clients.host_core_client()
     repo = Path(repo_root).name or "the repository"
@@ -112,6 +148,10 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
     if choice == "lower" and 1 <= point["pct"] < target:
         target, source = core.requirements_target(db, set_pct=point["pct"])
         doc["lowered_to"] = target
+    if choice == "lower" and worktree is not None:
+        # A retried answer (the target already lowered) restates it too: the report says what
+        # the store holds now, whichever attempt wrote the target.
+        _restate_apply_report(core, db, worktree, target)
     if run_id != "standalone":
         generation.save(db, run_id, doc)
 
@@ -136,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo-root", required=True, help="the registered repository's root")
     args = ap.parse_args(argv)
     try:
-        run(args.db, args.repo_root)
+        run(args.db, args.repo_root, worktree=Path.cwd())
     except (RuntimeError, OSError, ValueError) as e:
         print(f"[extract-next] FAILED: {e}", file=sys.stderr)
         return 1
