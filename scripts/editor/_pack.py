@@ -70,15 +70,18 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def read_manifest(pack: Path, cap: int | None = None) -> dict:
-    """The pack's manifest. ``cap`` (the engine's host run): a manifest bigger than it is refused unread."""
+def read_manifest(pack: Path, cap: int | None = None, finite: bool = False) -> dict:
+    """The pack's manifest. The engine's host run passes ``cap`` (a manifest bigger than it is refused unread) and
+    ``finite`` (NaN, Infinity or an overflowing number is refused: its report must stay valid JSON); other callers
+    read as before."""
     path = pack / MANIFEST_NAME
     if not path.is_file():
         raise PackError(f"{pack} holds no {MANIFEST_NAME}")
     if cap is not None and path.stat().st_size > cap:
         raise PackError(f"{path} is over {cap} bytes")
     try:
-        manifest = json.loads(path.read_text(encoding="utf-8"), parse_constant=_no_constant, parse_float=_finite)
+        text = path.read_text(encoding="utf-8")
+        manifest = json.loads(text, parse_constant=_no_constant, parse_float=_finite) if finite else json.loads(text)
     except (OSError, ValueError, RecursionError) as exc:
         raise PackError(f"{path} is not JSON: {exc}") from exc
     if not isinstance(manifest, dict):
@@ -125,7 +128,7 @@ def _is_editor_pack(pack: Path, strict: bool = False) -> bool:
     """Whether ``pack`` is an editor pack. ``strict``: a manifest that cannot be read at all (too big, not JSON)
     raises instead of being skipped, so it can never hide a candidate from the exactly-one rule."""
     try:
-        manifest = read_manifest(pack, cap=MANIFEST_CAP if strict else None)
+        manifest = read_manifest(pack, cap=MANIFEST_CAP if strict else None, finite=strict)
     except PackError:
         if strict:
             raise
@@ -145,7 +148,12 @@ def find_editor_packs(tree: Path, strict: bool = False) -> list[Path]:
     seat-written link never makes the host read its target), and so does one that cannot be read (over the
     cap, not JSON): it can never drop out of the exactly-one rule. Other callers keep the old skipping."""
     found = []
-    for dirpath, dirnames, filenames in os.walk(tree):
+
+    def unreadable(err: OSError) -> None:
+        # A directory the walk cannot read could hide a second pack: strict discovery refuses rather than skips it.
+        raise PackError(f"{err.filename} cannot be read, so the tree cannot be shown to hold exactly one editor pack")
+
+    for dirpath, dirnames, filenames in os.walk(tree, onerror=unreadable if strict else None):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
         if MANIFEST_NAME not in filenames:
             continue

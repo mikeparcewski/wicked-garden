@@ -568,7 +568,10 @@ def run_editor_v2(browser, origin: str, editor: dict, sha: str, report: dict, ti
         try:
             page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
         except Exception as exc:  # noqa: BLE001
-            page.close()
+            if type(exc).__name__ == "TargetClosedError":  # the browser went away: the host's, never the editor's
+                report.setdefault("host_failure", f"the browser went away mid-run ({str(exc).splitlines()[0]})")
+            with contextlib.suppress(Exception):
+                page.close()
             raise PageFailed("no plugin.ready the host accepted within its 3 s") from exc
         page.wait_for_timeout(300)
         return page, errors
@@ -814,8 +817,12 @@ def manifest_case(pack: Path) -> dict:
     except Exception as exc:  # noqa: BLE001
         # The checker is garden's own, exercised on every pack it ships; what makes it throw is the pack's shape
         # (bad UTF-8, JSON nested past the limit, a field of the wrong type): case 0 fails, a verdict the pack's
-        # author fixes. The same pack fails crew's install gate the same way. Only a checker that will not import
-        # is the harness's (above).
+        # author fixes. The same pack fails crew's install gate the same way. Only a checker that will not import,
+        # or the host running out of what it needs (descriptors, memory, an I/O error), is the harness's.
+        import errno  # noqa: PLC0415
+        if isinstance(exc, MemoryError) or (isinstance(exc, OSError) and exc.errno in (
+                errno.EMFILE, errno.ENFILE, errno.EIO, errno.ENOMEM, errno.ENOSPC)):
+            return {"ok": False, "error": f"pack check unavailable: {exc}", "host_failure": f"pack check unavailable: {exc}"}
         return {"ok": False, "error": f"pack check could not read the pack: {type(exc).__name__}: {exc}"}
     errs = [f.render() for f in findings if f.level == "error"]
     return {"ok": not errs, "errors": errs[:10]}
@@ -921,7 +928,8 @@ def main(argv: list[str] | None = None) -> int:
             # Before a byte of the pack is read past its manifest: no link anywhere in it (codex: case 0 also reads
             # the pack's skills), and none on the way to it from the run's tree.
             refuse_links_under(engine["root"], args.pack)
-        manifest = read_manifest(args.pack, cap=MANIFEST_CAP if engine is not None else None)
+        manifest = read_manifest(args.pack, cap=MANIFEST_CAP if engine is not None else None,
+                                 finite=engine is not None)
         editors = editors_of(manifest)
         if engine is not None:
             refuse_links(engine["root"], args.pack, editors)

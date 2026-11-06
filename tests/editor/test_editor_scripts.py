@@ -571,6 +571,41 @@ def test_a_pack_the_checker_cannot_decode_fails_case_0_and_a_stop_is_classified(
 
 
 @pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
+def test_engine_discovery_refuses_a_subtree_it_cannot_read_and_install_reads_as_before(tmp_path):
+    mod = _conformance_module()
+    sys.path.insert(0, str(SCRIPTS))
+    import _pack  # noqa: PLC0415
+    tree = tmp_path / "tree"
+    assert scaffold(tree / "good").returncode == 0
+    assert scaffold(tree / "hidden" / "second").returncode == 0
+    (tree / "hidden").chmod(0o000)
+    try:
+        got, refusal = mod.engine_inputs(_engine_env(tree, tmp_path))
+        assert got is None and refusal["cause"] == "pack_invalid" and "cannot be read" in refusal["error"], refusal
+        assert _pack.find_editor_packs(tree) == [tree / "good"]  # install's walk is unchanged
+    finally:
+        (tree / "hidden").chmod(0o755)
+    # A non-finite number is refused only by the engine's reader; install reads the manifest as before.
+    m = (tree / "good" / "wicked-pack.json").read_text()
+    (tree / "good" / "wicked-pack.json").write_text(m.replace("{", '{"x-provenance": 1e999, ', 1))
+    assert _pack.read_manifest(tree / "good")["x-provenance"] == float("inf")
+    with pytest.raises(_pack.PackError):
+        _pack.read_manifest(tree / "good", finite=True)
+
+
+def test_the_host_running_out_of_resources_in_pack_check_is_the_harness_s(tmp_path, monkeypatch):
+    import errno  # noqa: PLC0415
+    mod = _conformance_module()
+    import pack.check  # noqa: PLC0415
+
+    def emfile(*_a, **_k):
+        raise OSError(errno.EMFILE, "Too many open files")
+    monkeypatch.setattr(pack.check, "check_pack", emfile)
+    m0 = mod.manifest_case(tmp_path)
+    assert m0["ok"] is False and "host_failure" in m0, m0
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="permissions")
 def test_engine_mode_calls_an_unreadable_entry_or_a_non_finite_number_an_invalid_pack(tmp_path):
     tree = tmp_path / "tree"
     pack = tree / "acme-json"
