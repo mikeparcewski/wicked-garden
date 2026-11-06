@@ -106,10 +106,12 @@ answers `matches: []` for a code symbol — a 0-hit `query` does not mean the gr
 
 **`resolved: false` is a miss, not an answer.** When estate cannot resolve the target (a name or
 path the graph does not hold), `BlastRadius`, `Lineage`, `TraverseGraph` and `Path` answer
-`resolved: false` with ranked `suggestions`, and the shim adds an `UNRESOLVED:` diagnostic (a
-joined `BlastRadius` / `Lineage` answer also says `complete: false`). Zero rows there never mean
-"no dependents": re-query with a SymbolId from `suggestions`. (Estate before 0.32.1 resolved names only in `Path`: if it answers
-`resolved: false` for a name `SearchEntity` finds, pass that SymbolId.)
+`resolved: false` with ranked `suggestions` (`Path` also names the operand in `unresolved`), and
+the shim adds an `UNRESOLVED:` diagnostic (a joined `BlastRadius` / `Lineage` answer also says
+`complete: false`). Check `resolved` before reading rows, `found` or cut flags. Zero rows there
+never mean "no dependents": re-query with a SymbolId from `suggestions` or `SearchEntity`, and if
+none fits, report the target as not in the graph. (Estate before 0.32.1 resolved names only in
+`Path`: if it answers `resolved: false` for a name `SearchEntity` finds, pass that SymbolId.)
 
 **Name the path that answered** (`shim` or `ungrounded`) in every result. If the shim answers
 `{"ok": false, …}` or the fence denies the call, write `estate: not available (<reason>)` in your
@@ -142,10 +144,11 @@ files import this file" — no longer an empty "no resolved dependents".
    *declares* a capability — and archetype→playbook relationships via garden's
    `.wicked-estate-extractors/archetype.toml` (provenance `extractor:archetype-playbook`).
    **The whole answer, not page 1** (estate#279): estate pages a wide answer (`next_cursor`), and
-   the shim's `call` follows every cursor and joins the pages, so `dependents` is complete. Read
-   `complete` in the result: `false` means a page failed, a depth/node cap cut the walk, or the
-   target did not resolve (`resolved: false`, see above and `diagnostics`), and you report it as
-   partial or as a miss, never as the full blast radius.
+   the shim's `call` follows every cursor and joins the pages. Claim the full blast radius only
+   when `complete` is `true`. `resolved: false` is a miss (see above), not a partial answer;
+   otherwise `complete: false` means a page failed or a depth/node cap cut the walk (see
+   `diagnostics`), and you report it as partial. A missing `complete` (an older estate) means
+   read `truncated` and `next_cursor` yourself; `"result": null` means estate is not available.
    Results carry confidence + provenance per edge and an `unresolved_callers` count —
    reference sites **no resolver could bind** (repeat call sites of a bound relationship
    are NOT counted, so `0` is legitimate for a fully-resolved hot symbol).
@@ -174,7 +177,8 @@ estate default 24 for `Lineage` and 8 for `BlastRadius`, max 24).
      `{"symbol": "<name>"}` → `dependencies` (with `"relation": "flows_to"`, value flow →
      `dependencies` are the consumers and `flows` the hops). Lineage's default depth is its
      ceiling (24), and the shim follows `next_cursor` to the end of the answer (estate#279):
-     check `complete` and report a `false` as partial.
+     check `resolved` first (`false` is a miss, above), then `complete`, and report a `false` as
+     partial.
    - **upstream** (what depends on it): the **`BlastRadius`** tool with
      `{"symbol": "<name>"}` → `dependents`.
    - **both**: run both and present each direction. (A bounded multi-hop walk

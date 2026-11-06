@@ -1046,9 +1046,9 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     fails or a run that hits `MAX_PAGES` is reported in `diagnostics` with `complete: false`, and
     an answer estate marks `resolved: false` (its target is a name or path the graph does not
     hold) gets `complete: false`; neither is ever presented as the whole answer. A reply with no
-    `next_cursor` key gets no `complete` field; `flag_unresolved` labels its miss. A reply without `next_cursor` (an older estate, or a tool that does not page) is
-    returned as its single page. Fail-open (None) when the first call fails, the same as
-    `call_blocks`.
+    `next_cursor` key (an older estate, or a tool that does not page) is returned as its single
+    page with no `complete` field; `call` still labels its miss (`flag_unresolved`). Fail-open
+    (None) when the first call fails, the same as `call_blocks`.
     """
     # A caller-supplied cursor is honoured, never dropped: paging resumes there (and a stale one
     # surfaces estate's error) instead of silently restarting at page 1.

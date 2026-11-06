@@ -1347,6 +1347,19 @@ def test_an_unresolved_target_is_labelled_on_every_call_path(capsys):
     out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"},
                          "all_pages": False})
     assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # Path's miss (estate marks the operand in `unresolved` AND says `resolved: false`) and a
+    # Lineage miss are labelled the same way.
+    path_miss = [{"hops": [], "found": False, "depth_bounded": False, "node_bounded": False,
+                  "unresolved": "from", "resolved": False, "query": "tax", "suggestions": []}]
+    _estate_client.set_dispatch(_paged_dispatch(path_miss, []))
+    out = _call(capsys, {"tool": "Path", "arguments": {"from": "tax", "to": "total"}})
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    lineage_miss = [{"resolved": False, "query": "tax", "dependencies": [], "total": 0,
+                     "truncated": False, "next_cursor": None}]
+    _estate_client.set_dispatch(_paged_dispatch(lineage_miss, []))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is False
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
     # A resolved answer is not labelled.
     _estate_client.set_dispatch(_paged_dispatch([{"resolved": True, "nodes": [1]}], []))
     out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
