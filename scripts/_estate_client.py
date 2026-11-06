@@ -1042,11 +1042,13 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     from the last page, whose `next_cursor` is null and whose `truncated` then says only whether
     something non-pageable cut the walk (a depth horizon or the node cap).
 
-    The result is complete only if the pages ran out. A page that fails, or a run that hits
-    `MAX_PAGES`, is reported in `diagnostics` with `complete: false` and is never presented as the
-    whole answer. A reply without `next_cursor` (an older estate, or a tool that does not page) is
-    returned as its single page. Fail-open (None) when the first call fails, the same as
-    `call_blocks`.
+    The result is complete only if the pages ran out and estate resolved the target. A page that
+    fails or a run that hits `MAX_PAGES` is reported in `diagnostics` with `complete: false`, and
+    an answer estate marks `resolved: false` (its target is a name or path the graph does not
+    hold) gets `complete: false`; neither is ever presented as the whole answer. A reply with no
+    `next_cursor` key (an older estate, or a tool that does not page) is returned as its single
+    page with no `complete` field; `call` still labels its miss (`flag_unresolved`). Fail-open
+    (None) when the first call fails, the same as `call_blocks`.
     """
     # A caller-supplied cursor is honoured, never dropped: paging resumes there (and a stale one
     # surfaces estate's error) instead of silently restarting at page 1.
@@ -1085,7 +1087,11 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
         cursor = result.get("next_cursor")
     # Resumed from a caller's cursor, the join holds the rest of the answer, not all of it.
     resumed = bool(args.get("cursor"))
-    whole = complete and not merged.get("truncated", False) and not resumed
+    # A target estate could not resolve (`resolved: false`: a name or path the graph does not
+    # hold) answers zero rows that are a MISS, not the whole answer: never `complete: true`.
+    # (`call` adds the UNRESOLVED: line on every path, `flag_unresolved`.)
+    unresolved = merged.get("resolved") is False
+    whole = complete and not merged.get("truncated", False) and not resumed and not unresolved
     if resumed:
         diagnostics.append("PAGING: resumed from the supplied cursor; these rows are the REST of "
                            "the answer, not the whole of it (omit `cursor` for every row)")
@@ -1098,6 +1104,26 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
     merged["complete"] = whole
     merged["pages"] = pages
     return {"result": merged, "diagnostics": diagnostics}
+
+
+#: The line `flag_unresolved` adds: zero rows for an unresolved target are a miss, not an answer.
+_UNRESOLVED_LINE = ("UNRESOLVED: estate resolved no symbol for the target (resolved: false); the "
+                    "empty answer is a miss, NOT proof of no dependents. Re-query with a SymbolId "
+                    "from `suggestions` or SearchEntity")
+
+
+def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
+    """Label an answer estate marks `resolved: false` with the `UNRESOLVED:` diagnostic, on every
+    `call` path (joined pages, one page, or a tool that does not page), so a miss never reads as
+    an empty answer. Anything else is returned unchanged."""
+    if not blocks or not isinstance(blocks.get("result"), dict):
+        return blocks
+    if blocks["result"].get("resolved") is False:
+        diagnostics = list(blocks.get("diagnostics") or [])
+        if _UNRESOLVED_LINE not in diagnostics:
+            diagnostics.append(_UNRESOLVED_LINE)
+        return {**blocks, "diagnostics": diagnostics}
+    return blocks
 
 
 def call_raw(tool: str, arguments: Optional[dict] = None, timeout: float = 8.0) -> Optional[dict]:
@@ -1487,6 +1513,7 @@ def main(argv: list) -> int:
             blocks = call_blocks(tool, args.get("arguments", {}))
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
+        blocks = flag_unresolved(blocks)
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":

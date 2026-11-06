@@ -1311,3 +1311,56 @@ def test_resuming_through_an_uncapped_last_page_is_not_whole(capsys):
     assert out["result"]["complete"] is False
     assert any("REST of the answer" in d for d in out["diagnostics"])
     assert not any("whole answer" in d for d in out["diagnostics"])
+
+
+def test_an_unresolved_target_is_never_complete(capsys):
+    """e2e MAJOR-2: estate answers a name it cannot resolve with `resolved: false` and zero
+    rows; the shim must not certify that empty answer as `complete: true`."""
+    miss = [{"resolved": False, "query": "tax", "dependents": [], "total": 0,
+             "truncated": False, "next_cursor": None,
+             "suggestions": [{"symbol": "py . src/pricing.py/tax().", "name": "tax"}]}]
+    _estate_client.set_dispatch(_paged_dispatch(miss, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is False
+    assert out["result"]["resolved"] is False
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # A resolved, uncut single page stays whole.
+    hit = [{**miss[0], "resolved": True, "dependents": [{"symbol": "a"}], "total": 1}]
+    _estate_client.set_dispatch(_paged_dispatch(hit, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is True
+    assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+
+
+def test_an_unresolved_target_is_labelled_on_every_call_path(capsys):
+    """A miss without a `next_cursor` key (a tool that does not page, e.g. TraverseGraph) and a
+    miss fetched with `all_pages: false` both carry the UNRESOLVED: line."""
+    no_cursor = [{"resolved": False, "query": "tax", "nodes": [], "edges": [], "suggestions": []}]
+    _estate_client.set_dispatch(_paged_dispatch(no_cursor, []))
+    out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
+    assert out["result"]["resolved"] is False
+    assert "complete" not in out["result"]
+    assert sum(d.startswith("UNRESOLVED:") for d in out["diagnostics"]) == 1
+    paged_miss = [{"resolved": False, "query": "tax", "dependents": [], "total": 0,
+                   "truncated": False, "next_cursor": None}]
+    _estate_client.set_dispatch(_paged_dispatch(paged_miss, []))
+    out = _call(capsys, {"tool": "BlastRadius", "arguments": {"symbol": "tax"},
+                         "all_pages": False})
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # Path's miss (estate marks the operand in `unresolved` AND says `resolved: false`) and a
+    # Lineage miss are labelled the same way.
+    path_miss = [{"hops": [], "found": False, "depth_bounded": False, "node_bounded": False,
+                  "unresolved": "from", "resolved": False, "query": "tax", "suggestions": []}]
+    _estate_client.set_dispatch(_paged_dispatch(path_miss, []))
+    out = _call(capsys, {"tool": "Path", "arguments": {"from": "tax", "to": "total"}})
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    lineage_miss = [{"resolved": False, "query": "tax", "dependencies": [], "total": 0,
+                     "truncated": False, "next_cursor": None}]
+    _estate_client.set_dispatch(_paged_dispatch(lineage_miss, []))
+    out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "tax"}})
+    assert out["result"]["complete"] is False
+    assert any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+    # A resolved answer is not labelled.
+    _estate_client.set_dispatch(_paged_dispatch([{"resolved": True, "nodes": [1]}], []))
+    out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
+    assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
