@@ -33,9 +33,25 @@ storyline at the plan gate; the recorder reads the approved copy, not your later
 }
 ```
 
-- `ready`: a target that proves the app rendered. Each chapter starts on the launch page and waits for it (30 s);
-  never seeing it fails the take `app_not_ready`. Pick it from the probe summary.
+- `ready`: a target that proves the app rendered, so pick the app's own content, not a toolbar or chrome around
+  it. Each chapter gets ready behind its chapter card, before anything is on screen:
+  1. The launch page loads.
+  2. The network goes quiet.
+  3. `ready` becomes visible.
+  4. The chapter's first target becomes visible. That is the first required `waitVisible`, `point`, `click` or
+     `type` before any `go`, `waitForPath`, `fast` or `time`.
+
+  Each target gets up to 60 s. Never seeing one fails the take `app_not_ready`, naming the target. A slow app's
+  extra wait is cut from the video (the frames cut show only the card).
+- `hide`: chrome to keep out of the picture, such as a dev banner or a cookie bar. It is a list of at most 12
+  `{"css": "<one selector>", "in"?: "content"}`, hidden with `display: none` for the whole take. Never write a
+  step to dismiss chrome: hide it.
 - `intro`, `closing`, `brand: {name, accent: "#rrggbb"}`: optional.
+
+**A crew app** (the probe's `result.json` says `"recorded_view": "app_frame"`): the video shows only the app's
+own frame. Studio's page around it (banners, the chat, the sidebar) is never filmed, so there is nothing to
+dismiss. Every target, `ready` included, carries `"in": "content"`; one that does not is refused, naming the
+field.
 
 ## Steps (exactly one verb per step)
 
@@ -53,6 +69,12 @@ storyline at the plan gate; the recorder reads the approved copy, not your later
 | `fast` | `label`, `factor` (2-16), `until: {target}` or `until: {path}` — a time-lapse over a real wait (up to 120 s) |
 | `time` | `label` (letters, digits, spaces, `._-`), `steps` — measures them into the chapter's timings (not nested) |
 
+Any `click`, `point` or `waitVisible` may add `"optional": true` beside its verb, for example
+`{"click": {"target": {...}}, "optional": true}`. An optional step whose target is not there within 5 s, or whose
+action fails, is skipped and listed in `record.json` (`skipped_steps`). Use it for nice-to-have moments only,
+never for the point of the demo and never inside `time`. A required step that fails fails the chapter, and the
+reason names the step (`storyline.segments[1].steps[8] (click role "button" "…")`).
+
 A `target` is one of `{"role": "button", "name": "Save"}`, `{"text": "..."}`, `{"section": "<heading>"}`,
 `{"button": "<visible text>"}`, `{"testId": "..."}`, `{"css": "..."}`, with optional `"nth": 0` and `"exact": true`.
 Add `"in": "content"` when the target is inside the app's own frame (a crew app renders its pages, charts and
@@ -69,7 +91,8 @@ minimum, not its timeout).
 | Cause | Means |
 |---|---|
 | `storyline_refused` | a field this form does not take, or a limit; the reason names the field |
-| `app_not_ready` | the `ready` target never showed, or an app page did not load |
+| `app_not_ready` | the `ready` target or the chapter's first target never showed, or an app page did not load |
+| `step_failed` | a required step failed; the reason names it (`storyline.segments[i].steps[j] (verb target)`) |
 | `left_app` | a click or `go` took the app frame out of the launch path |
 | `side_effect_blocked` | the app tried a request the recorder refuses (any write but the app's own query, another origin) |
 | `chapter_mismatch` | the video's chapters are not the approved ones |

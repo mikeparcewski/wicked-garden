@@ -24,6 +24,11 @@ import { fixtureOrigin, sideEffectError } from "./readonly.mjs";
 
 // ---- module-level constants (used by exports) --------------------------------------------------
 export const SEGMENT_TRIM_START = 0.9; // the set-up behind the opening slide is trimmed from every take's video
+// How long a chapter card stays up while its app loads behind it (ms). A chapter whose app takes longer to get
+// ready (DES-DEMO-RECORD-001 §13 A1.1) keeps this much of the card and the rest of the wait is cut: the frames cut
+// all show the same card, never the app.
+export const CARD_HOLD_MS = 4200;
+const CARD_CUT_AFTER_MS = CARD_HOLD_MS - 1200;
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 // ---- ctx ---------------------------------------------------------------------------------------
@@ -47,6 +52,8 @@ export function makeCtx(stage, timings) {
     hideCursor: () => stage.hideCursor(),
     /** The engine-run recorder's checkpoint: still in the app, its document loaded, the capture live (stage.mjs). */
     checkpoint: (kind) => stage.checkpoint(kind),
+    /** An optional step that was skipped: marked on the timeline and listed in the take's record. */
+    skipped: (entry) => stage.skipped(entry),
     /** A response from the app whose URL matches (any method unless given). Register it before the click that causes it. */
     waitForResponse: (re, { method, timeout = 300_000 } = {}) =>
       stage.page.waitForResponse((r) => re.test(r.url()) && (!method || r.request().method() === method.toUpperCase()), { timeout }),
@@ -200,7 +207,8 @@ export function makeSegmentRecorder({
       segment: key,
       take,
       code: err.code ?? null,
-      message: redactFailures ? (err.code ?? "failed") : err.message,
+      // The failed step's name is the storyline's own words: it stays when the message is redacted.
+      message: redactFailures ? `${err.code ?? "failed"}${typeof err.step === "string" ? ` at ${err.step}` : ""}` : err.message,
       cause: redactFailures ? null : err.cause?.message ?? null,
       blocked: redactFailures ? stage.blocked.map(() => "(redacted)") : stage.blocked,
       failed_at_sec: failedAtInVideo(dir, failedAt, trimStart),
@@ -220,6 +228,10 @@ export function makeSegmentRecorder({
       baseUrl, outDir: localSegDir(seg.key), chapters: CHAPTERS_LIST, brand, palette,
       stickyOffset: story.stickyOffset, headful: process.env.DEMO_HEADFUL === "1", keepFrames: process.env.DEMO_KEEP_FRAMES === "1",
       locale: story.locale, timezoneId: story.timezoneId, writableOrigin, consoleHandler, ffmpeg: FFMPEG_BIN, policy, dropPicturesAfterFirst,
+      hide: story.hide ?? [],
+      // A crew app is recorded in its own frame only: studio's page around it is never in the picture (§13 A1.2).
+      focusContent: policy?.target?.kind === "crew_app",
+      redactSkips: redactFailures,
     });
     const timings = Object.create(null); // a label like `__proto__` is still a timing
     let ctx = makeCtx(stage, timings);
@@ -229,6 +241,7 @@ export function makeSegmentRecorder({
     fs.rmSync(path.join(localSegDir(seg.key), CAPTURE), { force: true });
     let failure = null;
     let failedAt = null;
+    let view;
     try {
       await stage.open(story.startPath || "/");
       // extendCtx must run after open() so that stage.app/page are set when the
@@ -244,9 +257,20 @@ export function makeSegmentRecorder({
         const t0 = Date.now();
         if (story.beforeSegment) await story.beforeSegment(ctx, seg);
         await stage.go(story.startPath || "/");
-        await stage.hold(Math.max(1200, 4200 - (Date.now() - t0)));
+        // The app gets ready behind the card. A wait longer than the card's own hold is cut from the take.
+        if (seg.prepare) await seg.prepare(ctx);
+        // (A crew app) its own frame fills the window from here on, proven at every checkpoint, or the take fails.
+        if (stage.focusContent) { await stage.requireView(); view = "app_frame"; }
+        const waited = Date.now() - t0;
+        if (waited > CARD_CUT_AFTER_MS) {
+          stage.cutSince((t0 + CARD_CUT_AFTER_MS) / 1000, "the app got ready behind the chapter card");
+          await stage.hold(1200);
+        } else {
+          await stage.hold(Math.max(1200, CARD_HOLD_MS - waited));
+        }
         await stage.chapter(n);
         await stage.uncard();
+        stage.armCrop();
         // The engine-run recorder proves the app is on screen, live, once the chapter card is gone.
         if (policy) await stage.checkpoint("chapter");
         await seg.run(ctx);
@@ -282,12 +306,15 @@ export function makeSegmentRecorder({
     if (stage.blocked.length) {
       err = sideEffectError(seg.key, stage.blocked);
       if (failure !== null) err.cause = failure;
+      // The step the first refusal happened in (the storyline's words), not a later one that happened to throw.
+      if (stage.blockedDuring) err.step = stage.blockedDuring;
     }
     // A failure the policy saw (a refused request, leaving the app, a document that failed) names ITS moment in the
     // video, not the moment a later step happened to throw.
     if (err !== null && policy && stage.firstFailureAt !== null) failedAt = stage.firstFailureAt;
     const writeGuard = (failed) => fs.writeFileSync(path.join(localSegDir(seg.key), "guard.json"), JSON.stringify({
       take, failed, readOnly: stage.readOnly, writableOrigin: stage.writableOrigin,
+      ...(view !== undefined ? { view } : {}), ...(stage.hideInvalid.length ? { hide_invalid: stage.hideInvalid } : {}),
       blocked: redactFailures ? stage.blocked.map(() => "(redacted)") : stage.blocked,
       ...(policy ? { policy: { appOrigin: policy.appOrigin, launchPath: policy.launchPath, target: policy.target.kind }, diagnostics: stage.diagnostics } : {}),
     }, null, 2));

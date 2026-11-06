@@ -117,6 +117,8 @@ export async function probePages({ base, paths, out, viewport = { width: 1600, h
         } catch { /* a frame that went away or refuses evaluation */ }
       }
       if (frames.length) info.frames = frames.slice(0, 5);
+      // A crew app is filmed in its own frame only (DES-DEMO-RECORD-001 §13 A1.2): say so where the storyline is written from.
+      if (policy?.target?.kind === "crew_app") info.filmed = 'only frames[0] (the app\'s own frame) is filmed; the page around it is hidden, so every target is "in": "content"';
       fs.writeFileSync(path.join(out, `${slug}.json`), JSON.stringify(info, null, 2));
       results.push({ path: p, slug, info, blocked: [...blocked], status: response?.status() ?? null, finalUrl: page.url(), frameErrors: [...frameErrors], otherPages });
     }

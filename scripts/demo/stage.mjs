@@ -26,6 +26,73 @@ import { spawn } from "node:child_process";
 
 // Served from the app's own origin (route interception), so the app iframe is same-origin with the stage.
 const STAGE_PATH = "/__demo_stage__";
+const FOCUS_ATTR = "data-wicked-demo-focus";
+const FOCUS_PATH_ATTR = "data-wicked-demo-focus-path";
+
+/**
+ * (An init script, in every frame of the recording's page) Keep chrome out of the picture (§13 A1.2). The stage is
+ * the top document; the app frame is its child (depth 1) and the app's own frame inside it is depth 2. Each `hide`
+ * entry becomes ONE rule of a constructed style sheet (insertRule parses exactly one rule, so a selector cannot
+ * carry another); with `focus` (a crew app) the app frame's first iframe fills the window and the rest of that page
+ * is invisible. The recorder's code, never the storyline's: the storyline only names selectors.
+ */
+function keepChromeOut({ hide, focus, mark, path }) {
+  if (window === window.top) return;
+  let depth = 0;
+  for (let w = window; w !== w.top && depth < 4; w = w.parent) depth += 1;
+  const rules = hide.filter((h) => (h.in === "content" ? 2 : 1) === depth).map((h) => `${h.css} { display: none !important; }`);
+  const pin = focus && depth === 1;
+  if (pin) {
+    rules.push("html, body { overflow: hidden !important; }", "body * { visibility: hidden !important; }",
+      `[${mark}] { visibility: visible !important; position: fixed !important; inset: 0 !important; width: 100vw !important; ` +
+      "height: 100vh !important; max-width: none !important; max-height: none !important; min-width: 0 !important; " +
+      "min-height: 0 !important; margin: 0 !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important; " +
+      "box-sizing: border-box !important; opacity: 1 !important; transform: none !important; z-index: 2147483647 !important; }",
+      // A modal's backdrop paints in the top layer, over everything.
+      "::backdrop { display: none !important; }",
+      // An ancestor that makes a containing block (a transform, a filter, containment) would hold a fixed frame
+      // inside itself; one that clips would cut it.
+      `[${path}] { transform: none !important; filter: none !important; perspective: none !important; contain: none !important; ` +
+      "backdrop-filter: none !important; will-change: auto !important; clip-path: none !important; overflow: visible !important; " +
+      "opacity: 1 !important; }");
+  }
+  if (!rules.length) return;
+  const sheet = new CSSStyleSheet();
+  for (const r of rules) { try { sheet.insertRule(r, sheet.cssRules.length); } catch { /* a selector that does not parse: skipped */ } }
+  // Once adopted, a sheet the page dropped is re-adopted, and (the crop) the loss is reported: the recorder fails a
+  // take whose crop was lost even for a moment while the app was on screen (frames already filmed cannot be repaired).
+  let adopted = false;
+  const adopt = () => {
+    try {
+      if (document.adoptedStyleSheets.includes(sheet)) return;
+      // Told to the recorder, which latches it for the rest of the take (a reload's fresh document forgets nothing
+      // there) and counts it only once the chapter is on screen (a drop behind the chapter card films nothing).
+      if (adopted && pin) { try { window.__wickedDemoCropLost?.(); } catch { /* no recorder binding (the probe) */ } }
+      document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+      adopted = true;
+    } catch { /* no document yet */ }
+  };
+  adopt();
+  document.addEventListener("DOMContentLoaded", adopt);
+  window.addEventListener("load", adopt);
+  // A page that replaces its adopted sheets (a theme switch) drops this one with no DOM mutation: re-adopt it often.
+  setInterval(adopt, 250);
+  if (pin) {
+    // The first iframe in the page is the app's own frame (what `in: "content"` names), whenever it is (re)made.
+    const pinFirst = () => {
+      const f = document.querySelector("iframe");
+      for (const x of document.querySelectorAll(`[${mark}]`)) if (x !== f) x.removeAttribute(mark);
+      const up = new Set();
+      for (let e = f?.parentElement; e && e !== document.documentElement; e = e.parentElement) up.add(e);
+      for (const x of document.querySelectorAll(`[${path}]`)) if (!up.has(x)) x.removeAttribute(path);
+      for (const e of up) if (!e.hasAttribute(path)) e.setAttribute(path, "");
+      if (f && !f.hasAttribute(mark)) f.setAttribute(mark, "");
+      adopt();
+    };
+    new MutationObserver(pinFirst).observe(document, { childList: true, subtree: true });
+    pinFirst();
+  }
+}
 const W = 1920, H = 1080;
 export const FRAME = { x: 160, y: 20, w: 1600, h: 900, bar: 38 };
 
@@ -153,6 +220,12 @@ window.__stage={
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** What is left of `deadline` (epoch ms) as a Playwright timeout, at least 1 ms; `dflt` with no deadline. */
+const left = (deadline, dflt) => (deadline === null ? dflt : Math.max(1, deadline - Date.now()));
+/** An optional step whose time ran out stops here, at the next operation (no animation runs past it). */
+const due = (deadline) => { if (deadline !== null && Date.now() >= deadline) throw new Error("the optional step's time ran out"); };
+/** A pause, cut short by `deadline`. */
+const pause = (ms, deadline) => sleep(deadline === null ? ms : Math.max(0, Math.min(ms, deadline - Date.now())));
 
 // The master: near-lossless, fast enough to keep up with 30 fps on a busy host, a keyframe (= a fragment) every second.
 const MASTER_ARGS = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "12", "-tune", "stillimage", "-g", String(FPS), "-keyint_min", String(FPS),
@@ -196,7 +269,7 @@ export class Stage {
    * @param {boolean} [o.keepFrames=false]  also write every screencast frame to frames/ (debugging; DEMO_KEEP_FRAMES=1)
    */
   constructor({ baseUrl, outDir, chapters, brand, palette = null, stickyOffset = 88, headful = false, locale = "en-US", timezoneId, writableOrigin = null, consoleHandler = null,
-    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false, policy = null, dropPicturesAfterFirst = false }) {
+    ffmpeg = process.env.FFMPEG || "ffmpeg", keepFrames = false, policy = null, dropPicturesAfterFirst = false, hide = [], focusContent = false, redactSkips = false }) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.outDir = outDir;
     this.ffmpeg = ffmpeg;
@@ -226,7 +299,20 @@ export class Stage {
     // A test seam (demo-record.mjs passes it only under its test jail marker): ignore every picture after the
     // first, as a capture channel that died would.
     this.dropPicturesAfterFirst = dropPicturesAfterFirst;
-    this.marks = { chapters: [], speed: [], captions: [], checkpoints: [] };
+    this.marks = { chapters: [], speed: [], captions: [], checkpoints: [], skipped: [] };
+    // Chrome kept out of the picture (§13 A1.2): the storyline's `hide` selectors, and (a crew app) everything in
+    // the launch page but the app's own frame.
+    this.hide = hide;
+    this.focusContent = focusContent;
+    this.redactSkips = redactSkips; // a skip's reason is the browser's words: kept out when live data stays private
+    this.currentStep = null; // the storyline step running now (a refusal names the step it happened in)
+    this.blockedDuring = null;
+    this.viewRequired = false; // (a crew app) once its chapter is ready, every checkpoint proves its frame fills the window
+    this.cropArmed = false; // (a crew app) its chapter is on screen: a dropped crop from now on was filmed
+    this.cropLost = null; // wall clock (s) when the page first dropped the crop while the app was on screen
+    this.hideInvalid = []; // `hide` selectors the browser could not parse (skipped: hiding is cosmetic)
+    this.inflight = new Set(); // requests in flight, over every frame (settle)
+    this.lastNetAt = 0; // wall clock (s) of the last request start or end
     this.chapterIndex = -1;
     this.latest = null; // the newest screencast picture (JPEG bytes)
     this.emitted = 0; // master frames handed to the encoder
@@ -252,13 +338,28 @@ export class Stage {
     const navOf = (f) => (isAppFrame(f) ? "app" : f && (f === this.page?.mainFrame() || (this.page && f.page() !== this.page)) ? "stage" : null);
     const fail = (list, entry) => { list.push(entry); this.firstFailureAt ??= this.now(); };
     if (this.policy) {
-      const armed = await armPolicy(this.context, this.policy, { navOf, onBlocked: () => { this.firstFailureAt ??= this.now(); } });
+      const armed = await armPolicy(this.context, this.policy, { navOf, onBlocked: () => {
+        this.firstFailureAt ??= this.now();
+        // The first refusal's moment, once: before any step it happened while the chapter loaded or got ready.
+        if (this.blockedDuring === null) this.blockedDuring = this.currentStep ?? "before the chapter's steps (while it loaded or got ready)";
+      } });
       this.blocked = armed.blocked;
       this.diagnostics = armed.diagnostics;
     } else {
       this.blocked = await armGuard(this.context, { writableOrigin: this.writableOrigin });
     }
+    if (this.focusContent) {
+      // A crop the page dropped once the chapter was on screen fails the take, even if a reload hides the evidence.
+      await this.context.exposeBinding("__wickedDemoCropLost", () => {
+        if (this.cropArmed && this.cropLost === null) { this.cropLost = this.now(); this.firstFailureAt ??= this.cropLost; }
+      });
+    }
+    if (this.hide.length || this.focusContent) await this.context.addInitScript(keepChromeOut, { hide: this.hide, focus: this.focusContent, mark: FOCUS_ATTR, path: FOCUS_PATH_ATTR });
     this.page = await this.context.newPage();
+    const netEvent = () => { this.lastNetAt = this.now(); };
+    this.page.on("request", (r) => { this.inflight.add(r); netEvent(); });
+    this.page.on("requestfinished", (r) => { this.inflight.delete(r); netEvent(); });
+    this.page.on("requestfailed", (r) => { this.inflight.delete(r); netEvent(); });
     if (this.policy) {
       // No second page: a popup or a link to a new window is refused and closed.
       this.context.on("page", (p) => {
@@ -312,10 +413,16 @@ export class Stage {
       }
     });
     await this.page.goto(this.baseUrl + STAGE_PATH, { waitUntil: "load" });
+    if (this.hide.length) {
+      // The stage's own document says which selectors parse (the app's documents never see this check).
+      this.hideInvalid = await this.page.evaluate((list) => list.filter((h) => {
+        try { new CSSStyleSheet().insertRule(`${h.css} { display: none !important; }`); return false; } catch { return true; }
+      }).map((h) => h.css), this.hide);
+    }
     await this.page.evaluate(() => document.fonts.ready).catch(() => {}); // offline: falls back to system fonts
     this.app = this.page.frameLocator("#app");
     this.appFrame = await (await this.page.$("#app")).contentFrame();
-    await this.appFrame.waitForLoadState("networkidle").catch(() => {});
+    await this.idle();
     // Screencast: every changed picture, kept as "the newest" for the ticker (and on disk only with keepFrames).
     this.cdp = await this.context.newCDPSession(this.page);
     let gotFirst;
@@ -432,13 +539,82 @@ export class Stage {
     const deadline = Date.now() + 2000;
     while (this.pictureSeq <= seq && Date.now() < deadline) await sleep(50);
     if (this.pictureSeq <= seq) throw demoError("capture_stalled", `no new screencast picture within 2 s of the ${kind} checkpoint`);
+    if (this.viewRequired) await this.requireView();
     this.mark("checkpoints", { t, kind, pictureAt: this.lastPictureAt, chapter: this.chapterIndex });
+  }
+
+  /**
+   * Until no request has been in flight, in any frame, for `quietMs` (bounded by `timeoutMs`; a page that never
+   * goes quiet, such as one holding a long poll, is not a failure). Returns whether it went quiet.
+   */
+  async settle({ quietMs = 500, timeoutMs = 15_000 } = {}) {
+    this.check();
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      // A request that was redirected is answered by the one it became.
+      for (const r of this.inflight) if (r.redirectedTo() !== null) this.inflight.delete(r);
+      if (this.inflight.size === 0 && this.now() - this.lastNetAt >= quietMs / 1000) return true;
+      await sleep(100);
+    }
+    return false;
+  }
+
+  /** An optional step was skipped: a timeline mark (and the take's record lists it). */
+  skipped(entry) {
+    this.mark("skipped", { t: this.now(), chapter: this.chapterIndex, ...entry, ...(this.redactSkips ? { reason: "(redacted)" } : {}) });
+    console.log(`  skipped ${entry.what ?? entry.step} (optional)`);
+  }
+
+  /** Cut the video from `start` (wall clock, s) to now: frames that all show the same card (§13 A1.1). */
+  cutSince(start, label) {
+    const end = this.now();
+    if (end > start) this.mark("speed", { start, end, factor: 1, cut: true, label });
+  }
+
+  /** What the take shows (a crew app: whether its own frame fills the window). */
+  async view() {
+    if (!this.focusContent) return { view: "page" };
+    // The app's frame fills the window: it sits at the origin at full size, and it is what the page shows at the
+    // centre and near each corner (nothing over it, nothing clipping it).
+    const r = await this.appFrame.evaluate((attr) => {
+      const f = document.querySelector(`[${attr}]`);
+      if (!f) return "app_frame_missing";
+      const b = f.getBoundingClientRect(), W = innerWidth, H = innerHeight;
+      // Exactly the window (within 2 px on every edge): neither short of it nor running past it.
+      const placed = [b.left, b.top, b.right - W, b.bottom - H].every((d) => Math.abs(d) <= 2);
+      const shown = [[0.5, 0.5], [0.04, 0.04], [0.96, 0.04], [0.04, 0.96], [0.96, 0.96]].every(([x, y]) => document.elementFromPoint(W * x, H * y) === f);
+      // Painted, too: no transparent frame or ancestor.
+      let opaque = true;
+      for (let e = f; e; e = e.parentElement) if (Number(getComputedStyle(e).opacity) < 0.99) opaque = false;
+      return placed && shown && opaque ? "app_frame" : "app_frame_partial";
+    }, FOCUS_ATTR).catch(() => "app_frame_missing");
+    return { view: r };
+  }
+
+  /** (A crew app) The chapter card has lifted: a crop the page drops from now on is in the picture. */
+  armCrop() { if (this.focusContent) this.cropArmed = true; }
+
+  /** (A crew app) Its frame fills the window now, or the take fails: studio's page would be in the picture. */
+  async requireView() {
+    if (!this.focusContent) return;
+    // A page that just reloaded re-pins its frame a moment later: up to 2 s to show it (a lost crop never recovers).
+    if (this.cropLost !== null) this.policyCheck();
+    let { view } = await this.view();
+    for (const until = Date.now() + 2000; view !== "app_frame" && Date.now() < until;) {
+      await sleep(100);
+      ({ view } = await this.view());
+    }
+    if (view !== "app_frame") {
+      throw demoError("app_not_ready", `the app's own frame does not fill the window (${view}): studio's page around it could not be kept out of the picture`);
+    }
+    this.viewRequired = true;
   }
 
   /** The policy's sticky failures, and where the app frame is now (policy only). */
   policyCheck() {
     if (!this.policy) return;
     if (this.captureStalledAt !== null) throw demoError("capture_stalled", "the screen capture stopped delivering pictures");
+    if (this.cropLost !== null) throw demoError("app_not_ready", "the app's own frame does not fill the window (app_frame_lost): the page dropped the recorder's crop, so studio's page was in the picture");
     if (this.appFrame && this.appOutside(this.appFrame.url())) this.leftApp ??= this.appFrame.url();
     if (this.leftApp) throw demoError("left_app", `the app frame left ${this.policy.launchPath}: ${this.leftApp}`);
     if (this.appErrors.length) throw demoError("app_not_ready", `the app did not load: ${this.appErrors.slice(0, 3).join("; ")}`);
@@ -482,17 +658,25 @@ export class Stage {
       this.policyCheck();
       throw demoError("app_not_ready", `the app page ${p} did not load: ${String(e.message).split("\n")[0]}`);
     }
-    await this.appFrame.waitForLoadState("networkidle").catch(() => {});
+    await this.idle();
     await sleep(700);
   }
 
-  /** Box of a locator in stage coordinates (Playwright reports main-frame viewport coordinates). */
-  async box(locator) {
-    await locator.first().waitFor({ state: "visible", timeout: 60_000 });
-    return locator.first().boundingBox();
+  /** The app's network settles: the engine-run recorder's one bounded quiet wait (settle), else Playwright's idle. */
+  async idle() {
+    if (this.policy) await this.settle();
+    else await this.appFrame.waitForLoadState("networkidle").catch(() => {});
   }
 
-  async reveal(locator) {
+  /** Box of a locator in stage coordinates (Playwright reports main-frame viewport coordinates). */
+  async box(locator, { deadline = null } = {}) {
+    due(deadline);
+    await locator.first().waitFor({ state: "visible", timeout: left(deadline, 60_000) });
+    return locator.first().boundingBox({ timeout: left(deadline, 30_000) });
+  }
+
+  async reveal(locator, { deadline = null } = {}) {
+    due(deadline);
     // Centre it, unless it is taller than most of the viewport: then bring its top just under the sticky app header.
     // Scrolls the element's nearest scrollable ancestor, falling back to the window.
     await locator.first().evaluate((el, offset) => {
@@ -501,13 +685,13 @@ export class Stage {
       let p = el.parentElement;
       while (p && !(p.scrollHeight > p.clientHeight && /(auto|scroll)/.test(getComputedStyle(p).overflowY))) p = p.parentElement;
       (p && p !== document.body && p !== document.documentElement ? p : window).scrollBy({ top: by, behavior: "smooth" });
-    }, this.stickyOffset).catch(() => {});
-    await sleep(900);
+    }, this.stickyOffset, { timeout: left(deadline, 30_000) }).catch(() => {});
+    await pause(900, deadline);
   }
 
-  async point(locator, label, { below = false, hold = 0, reveal = true } = {}) {
-    if (reveal) await this.reveal(locator);
-    const raw = await this.box(locator);
+  async point(locator, label, { below = false, hold = 0, reveal = true, deadline = null } = {}) {
+    if (reveal) await this.reveal(locator, { deadline });
+    const raw = await this.box(locator, { deadline });
     // Clip to the visible app viewport (inside the window frame) so a tall section never spills over the stage.
     const top = FRAME.y + FRAME.bar + 12, bottom = FRAME.y + FRAME.h - 12, left = FRAME.x + 12, right = FRAME.x + FRAME.w - 12;
     const x = Math.max(raw.x, left), y = Math.max(raw.y, top);
@@ -520,21 +704,23 @@ export class Stage {
   }
   async unpoint() { await this.stage((s) => s.highlight(null)); await sleep(350); }
 
-  async moveTo(locator) {
-    const b = await this.box(locator);
+  async moveTo(locator, { deadline = null } = {}) {
+    const b = await this.box(locator, { deadline });
     const x = b.x + Math.min(b.width / 2, 60), y = b.y + b.height / 2;
     await this.stage((s, c) => s.cursor(c.x, c.y, true), { x, y });
     this.cursorAt = { x, y };
-    await sleep(800);
+    await pause(800, deadline);
     return { x, y };
   }
 
-  async click(locator, { reveal = true, after = 900 } = {}) {
-    if (reveal) await this.reveal(locator);
-    const { x, y } = await this.moveTo(locator);
+  /** `deadline` (epoch ms) bounds every wait in the step (an optional step's): a click Playwright gives up on is never made later. */
+  async click(locator, { reveal = true, after = 900, deadline = null } = {}) {
+    if (reveal) await this.reveal(locator, { deadline });
+    const { x, y } = await this.moveTo(locator, { deadline });
+    due(deadline);
     await this.stage((s, c) => s.ripple(c.x, c.y), { x, y });
-    await locator.first().click();
-    await sleep(after);
+    await locator.first().click(deadline === null ? {} : { timeout: left(deadline, 0) });
+    await pause(after, deadline);
   }
 
   async type(locator, text, { delay = 28 } = {}) {

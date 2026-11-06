@@ -143,7 +143,8 @@ That list becomes the `segments` array in the storyline file for the `record` ac
 Your container cannot reach the app, so steps 5 and the checklist's live items change: read the `probe/` page summary
 (the engine loaded the app's launch page for you) instead of rehearsing live, write `storyline.json` (not a module)
 beside `script.md` and `chapters.json`, and reset nothing (the recorder is read-only). The person approves the plan
-at the gate; the engine records it. Format: `refs/storyline-json.md`.
+at the gate; the engine records it. Format: `refs/storyline-json.md`. For a crew app, the video shows only the
+app's own frame, so every target is `"in": "content"`. Keep other chrome out with `hide`, never with a dismiss click.
 
 ### Checklist (acceptance gate)
 

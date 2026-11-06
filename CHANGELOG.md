@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Demo video of a normal app now records cleanly on the first take** (DES-DEMO-RECORD-001 §13 A1, e2e F10).
+  - **Ready before it is filmed.** Each chapter gets ready behind its chapter card: the page goes network-quiet,
+    then the storyline's `ready` target and the chapter's first target are visible (up to 60 s each). Only then
+    does the card lift. When getting ready takes longer than the card's usual hold, the extra time is cut from the
+    video. Those frames all show the card, and `record.json` reports the cut per chapter as `load_cut_s`.
+  - **Chrome stays out of the picture.**
+    - A crew app is filmed in its own frame only. Studio's banners, chat and sidebar are hidden by the recorder,
+      so each target in a crew-app storyline is `"in": "content"`, and the check refuses one that is not.
+    - The take fails if the app's own frame does not fill the window, checked at every checkpoint.
+    - Any app can list chrome to hide in the new `hide` field. Each entry is one CSS selector, added as one rule
+      of a constructed style sheet.
+    - `record.json` says which view was filmed (`view`) and lists any hide selector that did not parse
+      (`hide_invalid`).
+  - **Optional steps.** A `click`, `point` or `waitVisible` may be `"optional": true`.
+    - If its target is not there within 5 s, or its action fails within that time, it is skipped and listed in
+      `skipped_steps`. A failed take lists its skips and cuts too.
+    - A refused request, leaving the app, or a stalled capture still fails the take.
+    - A required step that fails names itself (`storyline.segments[i].steps[j] (verb target)`), even when the
+      failure is redacted.
+
 ## [12.65.1] — 2026-11-06
 
 Patch: no machine-specific paths or local usernames in the package or the repository.

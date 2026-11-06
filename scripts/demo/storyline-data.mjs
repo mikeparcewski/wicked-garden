@@ -6,7 +6,7 @@
 // steps over the recorder's ctx verbs, checked here and compiled into the `story` object makeSegmentRecorder takes.
 // storyline.mjs stays for recording by hand outside crew.
 //
-//   storyline.json  {title, ready, intro?, segments:[{key, title, blurb?, tags?, steps:[...]}], closing?}
+//   storyline.json  {title, ready, intro?, hide?, segments:[{key, title, blurb?, tags?, steps:[...]}], closing?}
 //   chapters.json   [{key, title, ...}]  — the approved chapter plan; its keys must equal the segments' keys
 //
 // Every string is plain text (escaped at every sink). Every navigation path resolves against the app origin and
@@ -17,7 +17,7 @@ export const KEY_MAX = 48;
 export const KEY_RE = new RegExp(`^[a-z0-9][a-z0-9-]{0,${KEY_MAX - 1}}$`);
 export const LIMITS = Object.freeze({
   chapters: 12, steps: 60, ms: 30_000, text: 500, fileBytes: 64 * 1024, factorMin: 2, factorMax: 16, nth: 50,
-  introMinMs: 1500,
+  introMinMs: 1500, hide: 12,
   // The most a take may spend on its own fixed timing (holds, captions, cards and each step's own motion), well
   // under the engine's 20-minute deadline: a storyline that could never finish is refused here (a verdict on the
   // storyline). Waits on the app are bounded by their timeouts and by that deadline (a slow app is the host's).
@@ -26,6 +26,14 @@ export const LIMITS = Object.freeze({
 /** How long one wait may take (seconds): `waitVisible`, `waitForPath`, `ready`, a `go`'s load; `fast` waits longer. */
 export const WAIT_S = 30;
 export const FAST_WAIT_S = 120;
+/** How long a chapter may take to get ready behind its card, per target (seconds): its `ready`, then its first one. */
+export const PREPARE_WAIT_S = 60;
+/** How long an `optional` step waits for its target before it is skipped (seconds). */
+export const OPTIONAL_WAIT_S = 5;
+/** The verbs a step may mark `optional` (DES-DEMO-RECORD-001 §13 A1.3): cosmetic ones, never a measured one. */
+export const OPTIONAL_VERBS = Object.freeze(["click", "point", "waitVisible"]);
+// A `hide` entry is one CSS selector: nothing that could end it and start another rule, an at-rule or a comment.
+const HIDE_CSS_BAD = /[{};@\\<]|\/\*/;
 const PATH_RE = LAUNCH_PATH_RE;
 const LABEL_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;
 const TARGET_KINDS = ["role", "text", "section", "button", "testId", "css"];
@@ -98,7 +106,7 @@ export function resolveNav(p, where, { appOrigin, launchPath }) {
   return u.pathname + u.search;
 }
 
-function target(t, where) {
+function target(t, where, nav) {
   obj(t, where);
   only(t, [...TARGET_KINDS, "name", "nth", "exact", "in"], where);
   const kinds = TARGET_KINDS.filter((k) => t[k] !== undefined);
@@ -117,6 +125,11 @@ function target(t, where) {
   if (t.in !== undefined) {
     if (t.in !== "content") refuse(`${where}.in`, 'must be "content" (the app\'s own frame inside the page) or absent');
     out.in = "content";
+  }
+  // A crew app's take shows only the app's own frame (§13 A1.2): studio's page around it is hidden, so a target
+  // there could never be seen.
+  if (nav?.contentOnly && out.in !== "content") {
+    refuse(`${where}.in`, 'must be "content": a crew app is recorded in its own frame only, and studio\'s page around it is hidden');
   }
   return out;
 }
@@ -138,30 +151,42 @@ const STEP_FIELDS = {
 
 function step(s, where, nav, depth) {
   obj(s, where);
-  const verbs = Object.keys(s);
+  const verbs = Object.keys(s).filter((k) => k !== "optional");
   if (verbs.length !== 1 || !Object.hasOwn(STEP_FIELDS, verbs[0])) refuse(where, `must be one of ${Object.keys(STEP_FIELDS).join(", ")}`);
   const verb = verbs[0];
   const w = `${where}.${verb}`;
+  if (s.optional !== undefined) {
+    if (typeof s.optional !== "boolean") refuse(`${where}.optional`, "must be true or false");
+    if (s.optional && !OPTIONAL_VERBS.includes(verb)) refuse(`${where}.optional`, `only ${OPTIONAL_VERBS.join(", ")} may be optional`);
+    if (s.optional && depth > 0) refuse(`${where}.optional`, "a step inside a time step is never optional (a measured interaction is whole)");
+  }
+  const checked = stepBody(verb, s, w, nav, depth, where);
+  checked.at = where;
+  if (s.optional) checked.optional = true;
+  return checked;
+}
+
+function stepBody(verb, s, w, nav, depth, where) {
   const a = verb === "unpoint" ? (s[verb] === null || s[verb] === true ? {} : obj(s[verb], w)) : obj(s[verb], w);
   only(a, STEP_FIELDS[verb], w);
   switch (verb) {
     case "go": return { verb, path: resolveNav(a.path, `${w}.path`, nav) };
     case "caption": return { verb, kicker: str(a.kicker, `${w}.kicker`, { max: 80 }), title: str(a.title, `${w}.title`, { max: 200 }),
       body: str(a.body, `${w}.body`, { optional: true }), readMs: int(a.readMs, `${w}.readMs`, 0, LIMITS.ms, { optional: true }) };
-    case "point": return { verb, target: target(a.target, `${w}.target`), label: str(a.label, `${w}.label`, { max: 120 }) };
+    case "point": return { verb, target: target(a.target, `${w}.target`, nav), label: str(a.label, `${w}.label`, { max: 120 }) };
     case "unpoint": return { verb };
-    case "click": return { verb, target: target(a.target, `${w}.target`) };
-    case "type": return { verb, target: target(a.target, `${w}.target`), text: str(a.text, `${w}.text`) };
+    case "click": return { verb, target: target(a.target, `${w}.target`, nav) };
+    case "type": return { verb, target: target(a.target, `${w}.target`, nav), text: str(a.text, `${w}.text`) };
     case "hold": return { verb, ms: int(a.ms, `${w}.ms`, 0, LIMITS.ms) };
     case "card": return { verb, title: str(a.title, `${w}.title`, { max: 200 }), body: str(a.body, `${w}.body`, { optional: true }),
       ms: int(a.ms, `${w}.ms`, 0, LIMITS.ms) };
-    case "waitVisible": return { verb, target: target(a.target, `${w}.target`) };
+    case "waitVisible": return { verb, target: target(a.target, `${w}.target`, nav) };
     case "waitForPath": return { verb, path: resolveNav(a.path, `${w}.path`, nav) };
     case "fast": {
       const until = obj(a.until, `${w}.until`);
       only(until, ["target", "path"], `${w}.until`);
       if ((until.target === undefined) === (until.path === undefined)) refuse(`${w}.until`, "must name exactly one of target, path");
-      const u = until.target !== undefined ? { target: target(until.target, `${w}.until.target`) } : { path: resolveNav(until.path, `${w}.until.path`, nav) };
+      const u = until.target !== undefined ? { target: target(until.target, `${w}.until.target`, nav) } : { path: resolveNav(until.path, `${w}.until.path`, nav) };
       return { verb, label: str(a.label, `${w}.label`, { max: 80 }), factor: int(a.factor, `${w}.factor`, LIMITS.factorMin, LIMITS.factorMax), until: u };
     }
     case "time": {
@@ -218,11 +243,25 @@ export function checkStoryline(raw, chapters, nav) {
 
 function checkStorylineInner(raw, chapters, nav) {
   const s = obj(raw, "storyline");
-  only(s, ["title", "ready", "intro", "segments", "closing", "brand"], "storyline");
+  only(s, ["title", "ready", "intro", "segments", "closing", "brand", "hide"], "storyline");
   const out = {
     title: str(s.title, "storyline.title", { max: 200, oneLine: true }),
-    ready: target(s.ready, "storyline.ready"),
+    ready: target(s.ready, "storyline.ready", nav),
+    hide: [],
   };
+  if (s.hide !== undefined) {
+    if (!Array.isArray(s.hide) || s.hide.length > LIMITS.hide) refuse("storyline.hide", `must be a list of at most ${LIMITS.hide} entries`);
+    out.hide = s.hide.map((h, i) => {
+      const w = `storyline.hide[${i}]`;
+      obj(h, w);
+      only(h, ["css", "in"], w);
+      const css = str(h.css, `${w}.css`, { max: 200, oneLine: true });
+      if (!css.trim()) refuse(`${w}.css`, "must not be empty");
+      if (HIDE_CSS_BAD.test(css)) refuse(`${w}.css`, "must be one CSS selector (no { } ; @ \\ < or comments)");
+      if (h.in !== undefined && h.in !== "content") refuse(`${w}.in`, 'must be "content" (the app\'s own frame inside the page) or absent');
+      return h.in === "content" ? { css, in: "content" } : { css };
+    });
+  }
   if (s.brand !== undefined) {
     const b = obj(s.brand, "storyline.brand");
     only(b, ["name", "accent"], "storyline.brand");
@@ -331,42 +370,104 @@ function cardHtml(title, body) {
   return `<div data-logo></div><h1>${esc(title)}</h1>${body ? `<p>${esc(body)}</p>` : ""}`;
 }
 
+/** A step, as a failure or a skip names it: its place in the storyline, its verb and its target. */
+export function describeStep(s) {
+  const t = s.target ?? s.until?.target;
+  const what = t ? ` ${t.kind} ${JSON.stringify(t.value)}${t.name !== undefined ? ` ${JSON.stringify(t.name)}` : ""}${t.in ? " in content" : ""}` : "";
+  return `${s.at ?? "a step"} (${s.verb}${what})`;
+}
+
+/**
+ * The chapter's first targeted step (§13 A1.1): the first required `waitVisible`, `point`, `click` or `type` before
+ * anything that changes or measures the page (`go`, `waitForPath`, `fast`, `time`, an optional `click`). Null when
+ * there is none.
+ */
+export function firstTargetStep(steps) {
+  for (const s of steps) {
+    if (["go", "waitForPath", "fast", "time"].includes(s.verb)) return null;
+    // An optional click may reveal what comes after it: nothing past it is waited for ahead of time.
+    if (s.optional && s.verb === "click") return null;
+    if (s.target && !s.optional) return s;
+  }
+  return null;
+}
+
+/** The chapter's first target (firstTargetStep's), or null. */
+export const firstTarget = (steps) => firstTargetStep(steps)?.target ?? null;
+
+async function runStep(ctx, s, deadline = null) {
+  const bound = deadline === null ? {} : { deadline };
+  switch (s.verb) {
+    case "go": await ctx.go(s.path); await ctx.checkpoint("go"); break;
+    case "caption": await ctx.caption(esc(s.kicker), esc(s.title), esc(s.body ?? ""), s.readMs); break;
+    case "point": await ctx.point(locate(ctx, s.target), s.label, bound); break; // a text sink: plain
+    case "unpoint": await ctx.unpoint(); break;
+    case "click": await ctx.click(locate(ctx, s.target), bound); await ctx.checkpoint("click"); break;
+    case "type": await ctx.type(locate(ctx, s.target), s.text); await ctx.checkpoint("type"); break;
+    case "hold": await ctx.hold(s.ms); break;
+    case "card": await ctx.card(cardHtml(s.title, s.body), s.ms); await ctx.uncard(); await ctx.checkpoint("uncard"); break;
+    case "waitVisible": await ctx.waitVisible(locate(ctx, s.target), (s.optional ? OPTIONAL_WAIT_S : WAIT_S) * 1000); break;
+    case "waitForPath": await ctx.waitForPath(pathPrefixRegExp(s.path.split("?")[0]), WAIT_S * 1000); break;
+    case "fast": await ctx.fast(s.label, s.factor, () => (s.until.target // the badge is a text sink: plain
+      ? ctx.waitVisible(locate(ctx, s.until.target), FAST_WAIT_S * 1000)
+      : ctx.waitForPath(pathPrefixRegExp(s.until.path.split("?")[0]), FAST_WAIT_S * 1000))); break;
+    case "time": await ctx.time(s.label, () => runSteps(ctx, s.steps)); break;
+    default: throw new Error(`unknown step ${s.verb}`);
+  }
+}
+
 async function runSteps(ctx, steps) {
   for (const s of steps) {
-    switch (s.verb) {
-      case "go": await ctx.go(s.path); await ctx.checkpoint("go"); break;
-      case "caption": await ctx.caption(esc(s.kicker), esc(s.title), esc(s.body ?? ""), s.readMs); break;
-      case "point": await ctx.point(locate(ctx, s.target), s.label); break; // a text sink: plain
-      case "unpoint": await ctx.unpoint(); break;
-      case "click": await ctx.click(locate(ctx, s.target)); await ctx.checkpoint("click"); break;
-      case "type": await ctx.type(locate(ctx, s.target), s.text); await ctx.checkpoint("type"); break;
-      case "hold": await ctx.hold(s.ms); break;
-      case "card": await ctx.card(cardHtml(s.title, s.body), s.ms); await ctx.uncard(); await ctx.checkpoint("uncard"); break;
-      case "waitVisible": await ctx.waitVisible(locate(ctx, s.target), WAIT_S * 1000); break;
-      case "waitForPath": await ctx.waitForPath(pathPrefixRegExp(s.path.split("?")[0]), WAIT_S * 1000); break;
-      case "fast": await ctx.fast(s.label, s.factor, () => (s.until.target // the badge is a text sink: plain
-        ? ctx.waitVisible(locate(ctx, s.until.target), FAST_WAIT_S * 1000)
-        : ctx.waitForPath(pathPrefixRegExp(s.until.path.split("?")[0]), FAST_WAIT_S * 1000))); break;
-      case "time": await ctx.time(s.label, () => runSteps(ctx, s.steps)); break;
-      default: throw new Error(`unknown step ${s.verb}`);
+    if (ctx.stage) ctx.stage.currentStep = describeStep(s); // a refusal names the step it happened in
+    if (s.optional) {
+      // An optional step (§13 A1.3) whose target is not there within OPTIONAL_WAIT_S, or whose action fails, is
+      // skipped and said so; every wait in it shares that one deadline (a click given up on is never made later).
+      // A failure the recorder itself raised (a refused request, leaving the app, a stalled capture: each carries a
+      // code) is never swallowed.
+      try {
+        await runStep(ctx, s, Date.now() + OPTIONAL_WAIT_S * 1000);
+      } catch (e) {
+        if (e?.code) throw named(e, s);
+        await ctx.skipped({ step: s.at ?? null, verb: s.verb, what: describeStep(s), reason: String(e?.message ?? e).split("\n")[0].slice(0, 200) });
+      }
+      continue;
+    }
+    try {
+      await runStep(ctx, s);
+    } catch (e) {
+      throw named(e, s);
     }
   }
 }
 
+/** A failed step's error names the step (once: a time step's inner step names itself). */
+function named(e, s) {
+  if (e && typeof e === "object" && e.step === undefined) {
+    e.step = describeStep(s);
+    if (typeof e.message === "string") e.message = `${e.step}: ${e.message}`;
+  }
+  return e;
+}
+
 /**
- * Compile a checked storyline into the `story` makeSegmentRecorder takes (record.mjs). Each chapter first waits for
- * the storyline's `ready` target in the app frame and marks a checkpoint there; then it runs its steps.
+ * Compile a checked storyline into the `story` makeSegmentRecorder takes (record.mjs). Each chapter gets ready
+ * behind its chapter card (`prepare`, §13 A1.1): once the launch page has loaded and gone network-quiet, the
+ * storyline's `ready` target and the chapter's first target are visible. Once the card lifts, `run` marks the `ready` checkpoint and runs the
+ * chapter's steps.
  */
 export function compileStoryline(checked, { launchPath }) {
-  const ready = async (ctx) => {
+  // A wait that never sees its target names it by the storyline's own words (kept when the failure is redacted).
+  const readyStep = { at: "storyline.ready", verb: "ready", target: checked.ready };
+  const waitFor = async (ctx, s, what) => {
     try {
-      await ctx.waitVisible(locate(ctx, checked.ready), WAIT_S * 1000);
+      await ctx.waitVisible(locate(ctx, s.target), PREPARE_WAIT_S * 1000);
     } catch (e) {
-      const err = new Error(`app_not_ready: the app never showed its ready target (${checked.ready.kind} ${JSON.stringify(checked.ready.value)}): ${String(e.message).split("\n")[0]}`);
+      if (e?.code) throw e;
+      const err = new Error(`app_not_ready: the app never showed ${what}, ${describeStep(s)}: ${String(e.message).split("\n")[0]}`);
       err.code = "app_not_ready";
+      err.step = describeStep(s);
       throw err;
     }
-    await ctx.checkpoint("ready");
   };
   const segments = [];
   if (checked.intro) {
@@ -374,13 +475,28 @@ export function compileStoryline(checked, { launchPath }) {
     segments.push({ key: "intro", intro: true, title: "Introduction", async run(ctx) { await ctx.card(cardHtml(i.title, i.body), i.ms); } });
   }
   for (const g of checked.segments) {
-    segments.push({ key: g.key, title: g.title, blurb: g.blurb, tags: g.tags, async run(ctx) { await ready(ctx); await runSteps(ctx, g.steps); } });
+    const first = firstTargetStep(g.steps);
+    segments.push({
+      key: g.key, title: g.title, blurb: g.blurb, tags: g.tags,
+      // Behind the card, after the launch page loaded and its network went quiet (Stage.go).
+      async prepare(ctx) {
+        await waitFor(ctx, readyStep, "its ready target");
+        if (first) await waitFor(ctx, first, "the chapter's first target");
+      },
+      async run(ctx) {
+        // Ready already (behind the card); proven again on screen, now that the card is gone.
+        await waitFor(ctx, readyStep, "its ready target");
+        await ctx.checkpoint("ready");
+        await runSteps(ctx, g.steps);
+      },
+    });
   }
   return {
     title: checked.title,
     // The exact path (and query) the person launched: a server may serve `/app/` and redirect `/app`.
     startPath: launchPath,
     brand: checked.brand ? { name: checked.brand.name, accent: checked.brand.accent } : undefined,
+    hide: checked.hide ?? [],
     segments,
     ...(checked.closing ? {
       closing: (all) => cardHtml(fillTimings(checked.closing.title, all), fillTimings(checked.closing.body, all)),
