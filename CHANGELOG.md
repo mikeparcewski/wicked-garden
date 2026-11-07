@@ -75,6 +75,16 @@
 
 ### Fixed
 
+- **Refresh map reads the store estate actually writes (e2e-1105 F40).** `refresh.py` queried
+  `meta(key, value)`, but estate's table is `meta(k, v)`. The error was caught and read as "the store records no
+  indexed commit", so a Refresh re-asked nothing, and the map it then rebuilt read as current while `sum` kept its
+  stale "code doesn't meet it". The refresh now reads `meta(k, v)`: the singular `repo_commit`, or
+  `repo:<label>:commit` when the store holds exactly one labelled repository. A store it cannot read (a missing
+  table or column, a build record or commit that does not parse) fails `extract-prepare` with the cause, never
+  "no commit". The tests now run on a store real estate built (`tests/domain/fixtures/refresh/`, made by
+  `build.py` with wicked-estate 0.32.1 and wicked-core). The hand-built test stores carry estate's real
+  `meta(k, v)`.
+
 - **domain-extraction: Refresh map re-asks the mapped behaviours whose code changed since the map was built**
   (wicked-garden#1425). `prepare_worklist.py` compares the build's code commit (wicked-core#1327) with the commit the
   store is indexed at (the run's base) in the registered checkout, and frames the mapped behaviours in changed

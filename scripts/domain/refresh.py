@@ -37,37 +37,72 @@ def _ro(db: str) -> sqlite3.Connection:
     return sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
 
 
-def build_and_base(db: str) -> tuple[str | None, str | None]:
-    """(the commit the map was built from, the commit the store is indexed at now), each None when
-    the store does not say (no build yet, a build by an older wicked-core, an older store)."""
-    built = base = None
+class RefreshUnreadable(RuntimeError):
+    """The store could not be read for the refresh (a missing table or column, a locked or
+    corrupt file). Said as such and fails the step: never read as "no commit recorded"
+    (e2e-1105 F40: a wrong column name read as "no indexed commit" and the stale map stood)."""
+
+
+def _meta(con: sqlite3.Connection, key: str) -> str | None:
+    """One value of estate's `meta(k, v)` table, or None when the key is absent."""
+    row = con.execute("SELECT v FROM meta WHERE k = ?", (key,)).fetchone()
+    return row[0] if row is not None and isinstance(row[0], str) else None
+
+
+def indexed_commit(con: sqlite3.Connection) -> tuple[str | None, str]:
+    """The commit the store is indexed at now and where it was read: estate's singular
+    `repo_commit` for a store of one repository, else `repo:<label>:commit` when the store holds
+    exactly one labelled repository (estate `repo_scope.rs`, "Provenance"). (None, why) when it
+    cannot say which."""
+    commit = (_meta(con, "repo_commit") or "").strip()
+    if commit:
+        return commit.lower(), "repo_commit"
+    labels_raw = _meta(con, "repo_labels")
+    if not labels_raw:
+        return None, "the store records no indexed commit"
+    try:
+        labels = json.loads(labels_raw)
+    except ValueError as e:
+        raise RefreshUnreadable(f"the store's repo_labels is not JSON ({e})") from e
+    if not isinstance(labels, list) or not all(isinstance(x, str) for x in labels):
+        raise RefreshUnreadable("the store's repo_labels is not a list of labels")
+    if len(labels) != 1:
+        return None, (f"the store holds {len(labels)} labelled repositories, so which one this "
+                      f"run maps cannot be told")
+    commit = (_meta(con, f"repo:{labels[0]}:commit") or "").strip()
+    if not commit:
+        return None, f"the store records no indexed commit for repository `{labels[0]}`"
+    return commit.lower(), f"repo:{labels[0]}:commit"
+
+
+def build_and_base(db: str) -> tuple[str | None, str | None, str]:
+    """(the commit the map was built from, the commit the store is indexed at now, why the base
+    is missing). Each commit is None when the store does not say: no build yet, a build by an
+    older wicked-core, a store with no indexed commit. Raises [`RefreshUnreadable`] when the store
+    cannot be read: a read that fails is never "not recorded"."""
     try:
         con = _ro(db)
         try:
-            try:
-                row = con.execute("SELECT n.data FROM nodes n JOIN symbols s ON s.sid = n.symbol "
-                                  "WHERE s.sym = ?", (BUILD_SYMBOL,)).fetchone()
-            except sqlite3.OperationalError:
-                row = None
+            row = con.execute("SELECT n.data FROM nodes n JOIN symbols s ON s.sid = n.symbol "
+                              "WHERE s.sym = ?", (BUILD_SYMBOL,)).fetchone()
+            built = None
             if row is not None:
                 try:
                     meta = json.loads(row[0] or "{}").get("metadata") or {}
-                except (TypeError, ValueError, AttributeError):
-                    meta = {}
+                except (TypeError, ValueError, AttributeError) as e:
+                    raise RefreshUnreadable(f"the map's build record is not readable ({e})") from e
                 c = meta.get("code_commit") if isinstance(meta, dict) else None
-                built = c.strip().lower() if isinstance(c, str) else None
-            try:
-                row = con.execute("SELECT value FROM meta WHERE key = 'repo_commit'").fetchone()
-            except sqlite3.OperationalError:
-                row = None
-            if row is not None and isinstance(row[0], str):
-                base = row[0].strip().lower()
+                built = c.strip().lower() if isinstance(c, str) and c.strip() else None
+            base, why = indexed_commit(con)
         finally:
             con.close()
-    except sqlite3.Error:
-        return None, None
-    return (built if built and _HEX.match(built) else None,
-            base if base and _HEX.match(base) else None)
+    except sqlite3.Error as e:
+        raise RefreshUnreadable(f"the store {db} could not be read ({e})") from e
+    if built is not None and not _HEX.match(built):
+        raise RefreshUnreadable(f"the map's build record names {built!r}, not a commit")
+    if base is not None and not _HEX.match(base):
+        raise RefreshUnreadable(f"the store's indexed commit is {base!r}, not a commit")
+    return built, base, why
 
 
 def changed_files(repo_root: str, built: str, base: str) -> set[str]:
@@ -104,8 +139,11 @@ def _mapped_in(db: str, files: list[str]) -> list[tuple[str, str, str, str, str]
         if has_ann:
             conds.append("EXISTS (SELECT 1 FROM annotations a WHERE a.node_sym = n.symbol "
                          "AND a.type = 'business_rule' AND trim(a.value) != '')")
-        if not conds or "requirement" not in cols:
-            return []
+        if "requirement" not in cols or "requirement_validated" not in cols or not has_ann:
+            # Every estate store wicked-garden maps carries these: one that does not is not read
+            # as "nothing mapped" (e2e-1105 F40).
+            raise RefreshUnreadable(f"the store {db} has no requirement columns or annotations "
+                                    f"table (columns: {sorted(cols)})")
         prior = ("COALESCE((SELECT a.value FROM annotations a WHERE a.node_sym = n.symbol AND "
                  "a.type = 'business_rule' AND trim(a.value) != '' ORDER BY a.ts DESC, a.id DESC "
                  "LIMIT 1), n.requirement, '')" if has_ann else "COALESCE(n.requirement, '')")
@@ -142,13 +180,14 @@ def changed_units(db: str, repo_root: str, tracked: set[str],
     """The mapped behaviours in product files changed since the map was built, as coverage-style
     nodes (`symbol_id`, `name`, `file`, `kind`) plus `prior` (the earlier statement), and a line
     saying what was compared. `exclude`: units already framed for another reason (unmapped,
-    placeholders). Never raises: a store or checkout that cannot say re-asks nothing."""
-    built, base = build_and_base(db)
+    placeholders). A store that does not record a commit, or a checkout that cannot say, re-asks
+    nothing and says why; a store that cannot be READ raises [`RefreshUnreadable`]."""
+    built, base, why = build_and_base(db)
     if built is None:
         return [], ("no build commit recorded (no map yet, or a map built by an older "
                     "wicked-core): changed behaviours are not re-asked")
     if base is None:
-        return [], "the store records no indexed commit: changed behaviours are not re-asked"
+        return [], f"{why}: changed behaviours are not re-asked"
     if built == base:
         return [], f"code unchanged since the map was built ({built[:12]})"
     try:
@@ -160,7 +199,7 @@ def changed_units(db: str, repo_root: str, tracked: set[str],
     try:
         rows = _mapped_in(db, files) if files else []
     except sqlite3.Error as e:
-        return [], f"the mapped behaviours could not be read ({e}): none re-asked"
+        raise RefreshUnreadable(f"the mapped behaviours could not be read from {db} ({e})") from e
     units = []
     for sym, name, file, data, prior in rows:
         if sym in exclude:

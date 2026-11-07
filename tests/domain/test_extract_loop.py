@@ -292,6 +292,8 @@ def _star_db(tmp_path):
         CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
         CREATE TABLE files (path TEXT, git_sha TEXT);
         CREATE TABLE content (git_sha TEXT, blob BLOB);
+        -- estate's own meta table (wicked-estate-store sqlite.rs): Refresh map reads it.
+        CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
     """)
     syms = ["s::core", "s::a", "s::b", "s::c", "s::a1", "s::i1", "s::i2", "s::file", "s::route"]
     for i, sym in enumerate(syms, start=1):

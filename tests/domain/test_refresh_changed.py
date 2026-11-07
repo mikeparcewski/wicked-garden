@@ -67,7 +67,7 @@ def _store(tmp_path, built, base, *, code_commit=True):
         CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
         CREATE TABLE files (path TEXT, git_sha TEXT);
         CREATE TABLE content (git_sha TEXT, blob BLOB);
-        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
         CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, node_sym INTEGER,
             key TEXT, value TEXT, confidence REAL DEFAULT 1.0, provenance TEXT DEFAULT '',
             author TEXT DEFAULT '', ts INTEGER DEFAULT 0, type TEXT DEFAULT 'note');
