@@ -77,7 +77,11 @@ The template's plumbing is what the conformance run checks; keep it and put your
   Render content with `textContent` or `DOMParser` — never as live markup.
 - **Writes** (`version.write {base, ops, summary}`) carry text and colours only: `{op:'text',
   anchor, value, before}`, `{op:'style', anchor, style:{background?, color?}}`, `{op:'remove',
-  anchor}`. A `stale` or `head_moved` reply is shown to the user, never retried silently.
+  anchor}`. A `stale` or `head_moved` reply is shown to the user, never retried silently. An editor that asks
+  `artifact.write` marks the ONE control that saves an edit with `data-wicked-save` (conformance case 7 fills its
+  empty text fields, presses that control and expects exactly one version).
+- **Show what you open**: an editor opens an artifact to show it. Ask `artifact.read`, read on the handshake and
+  render it (case 18 looks for its text in your frame), and read again on `artifact.changed`.
 - **Events you answer**: `host.ping` within 2 s; `host.size` (inline / pane / full — the same
   frame, never a reload or a re-read); `host.theme`; `artifact.changed` (re-read unless `by` is
   `this-editor`). Ignore any unknown `type`; a malformed message is dropped, never a crash.
@@ -114,13 +118,15 @@ Runs each editor in headless Chromium inside studio's own conformance host page,
 the daemon (`--host-url`, else `$WICKED_CREW_URL` — never a typed port) or served from a studio
 `dist`. It serves the candidate's entry on the bundle route itself (hash-checked, no network) and
 runs: 0 manifest (`pack check`), 1 handshake, 2 sizes, 3 no network, 4 permissions withdrawn,
-5 typing never acts, 6 key forwarding, 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
-12 the pinned hash; for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
+5 typing never acts, 6 key forwarding, 7 an edit saved through your `data-wicked-save` control (one version; a
+viewer that asks no `artifact.write` passes), 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
+12 the pinned hash, 18 it shows what it is handed (it asks `artifact.read`, the page's text is visible in it, and it
+reads again when another version lands); for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
 14 the card (height, actions answered in 2 s), 15 each options tab mounted as its own options
 instance, told its tab (and `host.tab` to the others and back; the controls' values),
 16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-12 under the
-protocol-2 host. Its report lists the gaps it cannot see (case 7, a scripted edit, is your
-editor's own UI; axe is not run; WebRTC is invisible to request interception). Each page load and
+protocol-2 host. Its report lists the gaps it cannot see (case 7 drives only your marked control,
+your other edits are your own tests'; axe is not run; WebRTC is invisible to request interception). Each page load and
 daemon read may take `--timeout` seconds (else `$WG_EDITOR_CONFORMANCE_TIMEOUT`, default 120): a slow
 host never fails a correct editor, and the editor's own 3 s / 2 s deadlines never stretch (crew's install
 reads the variable from the daemon's environment, inside its own overall cap). Exit 0 all

@@ -34,11 +34,18 @@ cases against a hostile bundle belong to studio's CI):
   5  typing        typing a sentence into it yields exactly ONE ``ui.typed``, the rest lands in the
                    composer, and 0 writes, drafts or selections; Backspace/Delete do nothing
   6  forwarding    Escape and Mod+K pressed in it reach the host as ``ui.key``
+  7  edit          it saves through its own UI: an editor that asks ``artifact.write`` marks the control that saves
+                   with ``data-wicked-save``; with every empty text field in it filled, a click on that control lands
+                   exactly ONE version (an editor that asks no ``artifact.write`` is a viewer and passes)
   8  strict-input  malformed host messages leave it alive
   9  liveness      it answers ``host.ping`` over a full ping period
   10 keyboard      every control in it can take focus (axe is not run: a reported gap)
   11 theme         a ``host.theme`` change leaves it alive, with no running animation
   12 hash-pinned   a wrong pinned hash never starts it
+  18 shows         it shows the content it is handed: it asks ``artifact.read``, reads within 3 s of the handshake, a
+                   text run of the version it read is visible in it, and when another version lands
+                   (``artifact.changed``) it reads again and shows the new one (the visible checks run for kinds
+                   ``page`` and ``deck``, the samples this host has)
 
 Protocol 2 (an editor whose ``protocol`` lists 2; DES-EDITOR-PLUGIN-CONTRACT-001 §8.3):
 
@@ -57,8 +64,8 @@ Protocol 1 only:
 
   17 v1-compat     the host negotiated 1, and cases 1-12 passed under this protocol-2 host
 
-Case 7 (a scripted edit) needs the editor's own UI and is not run here: an editor asking for
-``artifact.write`` gets it reported as a gap for its author's tests.
+Cases 7 and 18 are behaviour (G9b): an editor that never reads the artifact it opens, or cannot save an edit
+through its own UI, is not conformant. Both are recorded without stopping the run, so the other cases still report.
 
 Prints one JSON report ``{ok, pack, host, editors: [{id, version, protocol, sha256, ok, cases, gaps}]}``.
 Exit 0 every editor passed, 1 a case failed, 2 bad arguments or an unreadable pack, 3 no headless
@@ -161,6 +168,20 @@ FRAME_HELLO = """(() => {
 LOG = ("() => (window.__wickedEditor?.log ?? []).map(e => ({kind: e.kind, type: e.type ?? null, "
        "code: e.code ?? null, why: e.why ?? e.reason ?? null}))")
 COMPOSER = "() => window.__wickedEditor?.composer() ?? null"
+# Cases 7 and 18 (the behaviour an editor owes the artifact it opens).
+SHOW_WAIT_S = 3.0
+EDIT_WAIT_S = 5.0
+EDIT_SENTENCE = "Conformance case seven"
+SAVE_MARK = "data-wicked-save"
+# The empty text fields case 7 fills before it presses the marked control.
+EDIT_FIELDS = ('input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="email"], '
+               'input[type="tel"], input[type="number"], textarea')
+# The visible text runs of the version the host hands out (on the host page, never in the editor's frame): every leaf
+# anchored element's text, whitespace collapsed, 4+ characters, outside anything hidden.
+CONTENT_RUNS = ("() => { const d = new DOMParser().parseFromString(window.__wickedEditor.adapter.headHtml(), 'text/html');"
+                " return [...d.querySelectorAll('[data-wid]')].filter(e => !e.querySelector('[data-wid]')"
+                " && !e.closest('[hidden], [data-wi-no-anchor], script, style'))"
+                ".map(e => (e.textContent || '').replace(/\\s+/g, ' ').trim()).filter(t => t.length >= 4); }")
 JUNK = ["null", "'x'", "{p:'wicked.editor'}", "{p:'wicked.editor',v:1,type:'nonsense',payload:{}}",
         "{p:'wicked.editor',v:1,type:'host.size',payload:null}", "{p:'wicked.editor',v:1,type:'host.theme'}"]
 
@@ -303,8 +324,11 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         if not ok:
             raise CaseFailed(name)
 
+    shown_kind = sample_kind(editor)
+
     def url(sha_value: str, grant_list: list[str]) -> str:
-        q = {"editor": eid, "version": version, "sha": sha_value, "title": title, "grants": ",".join(grant_list)}
+        q = {"editor": eid, "version": version, "sha": sha_value, "title": title, "grants": ",".join(grant_list),
+             **({"kind": "deck"} if shown_kind == "deck" else {})}
         return f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}"
 
     # Reduced motion on: the host passes it in host.hello's prefs, and case 11 then requires no animation.
@@ -349,6 +373,9 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         # What the host negotiated (a host before protocol 2 has no `negotiated`: it speaks 1).
         # null = a host before protocol 2 (it has no `negotiated`): case 17 then cannot be shown.
         report["negotiated"] = page.evaluate("() => window.__wickedEditor.host()?.negotiated ?? null")
+
+        # 18: it shows what it is handed, and reads again when another version lands (before case 2's read baseline).
+        cases["18-shows"] = shows_case(page, frame, perms, shown_kind, alive)
 
         reads_before = page.evaluate("() => window.__wickedEditor.adapter.reads")
         for size in ("inline", "full", "pane"):
@@ -423,6 +450,9 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         check("10-keyboard", all(c["tab"] >= 0 and c["focused"] for c in controls), controls=len(controls),
               unreachable=[c for c in controls if not (c["tab"] >= 0 and c["focused"])][:5])
 
+        # 7: it saves through its own UI (grants still on).
+        cases["7-edit"] = edit_case(page, frame, perms, log, alive)
+
         # 4: every grant withdrawn, then a change lands; only what happens AFTER the withdrawal counts,
         # and the liveness wait below (a full ping period) proves it still answers afterwards.
         mark = len(log())
@@ -465,9 +495,135 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         page.close()
 
 
+# Every editor's cases: wicked-crew's CONFORMANCE_CASES and wicked-core's editor_conformance CASES require the same ids.
 CASES_V1 = ("0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
-            "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned")
+            "7-edit", "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned", "18-shows")
 CASES_V2 = ("13-surfaces", "14-card", "15-options", "16-full")
+
+
+def sample_kind(editor: dict) -> str | None:
+    """The conformance host's sample an editor is shown on: the page, or the deck for a deck-only editor. None: the
+    host has no sample of any kind it opens (case 18 then checks the reads, not what is visible)."""
+    kinds = editor.get("kinds") if isinstance(editor.get("kinds"), list) else []
+    return "page" if "page" in kinds else "deck" if "deck" in kinds else None
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"\s+", " ", text or "").strip()
+
+
+def shown_runs(frame_text: str, runs: list) -> list[str]:
+    """The text runs of the handed version that the editor's visible text holds (whitespace-insensitive)."""
+    seen = _squash(frame_text)
+    return [r for r in runs if isinstance(r, str) and _squash(r) and _squash(r) in seen]
+
+
+def _frame_text(frame) -> str:
+    try:
+        return frame.locator("body").inner_text(timeout=1000)
+    except Exception:  # noqa: BLE001 — a frame that cannot be read shows nothing
+        return ""
+
+
+def _poll(page, done, wait_s: float) -> bool:
+    deadline = time.monotonic() + wait_s
+    while True:
+        if done():
+            return True
+        if time.monotonic() >= deadline:
+            return False
+        page.wait_for_timeout(150)
+
+
+def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
+    """Case 18: the editor shows the content it is handed, and follows a new version (DES-EDITOR-PLUGINS-001 §5:
+    ``artifact.changed`` → re-read unless ``by`` is this editor). Never raises: the other cases still run."""
+    if "artifact.read" not in perms:
+        return {"ok": False, "error": "it asks no artifact.read: an editor opens an artifact to show it (ask "
+                                      "artifact.read and render what artifact.read returns)"}
+    reads = lambda: page.evaluate("() => window.__wickedEditor.adapter.reads")  # noqa: E731
+    runs = page.evaluate(CONTENT_RUNS) if kind is not None else []
+    got: dict = {}
+
+    def first() -> bool:
+        got["reads"] = reads()
+        got["seen"] = shown_runs(_frame_text(frame), runs) if kind is not None else []
+        return got["reads"] >= 1 and (kind is None or bool(got["seen"]))
+    read_ok = _poll(page, first, SHOW_WAIT_S)
+    before = got["reads"]
+    page.evaluate("() => window.__wickedEditor.agentVersion()")
+    reread = _poll(page, lambda: reads() > before, SHOW_WAIT_S)
+    after_runs = page.evaluate(CONTENT_RUNS) if kind is not None else []
+    new_runs = [r for r in after_runs if r not in runs]
+    got_after: dict = {}
+
+    def follows() -> bool:
+        got_after["seen"] = shown_runs(_frame_text(frame), new_runs or after_runs)
+        return kind is None or bool(got_after["seen"])
+    # What the new version changed, when the editor shows that part; else any run of the new version.
+    shows_new = reread and _poll(page, follows, SHOW_WAIT_S)
+    if kind is not None and new_runs and not shows_new:
+        got_after["seen"] = shown_runs(_frame_text(frame), after_runs)
+        shows_new = reread and bool(got_after["seen"])
+    page.wait_for_timeout(300)  # its re-read settles before case 2 takes its read baseline
+    ok = read_ok and reread and shows_new and alive()
+    detail: dict = {"ok": ok, "reads": got["reads"], "shown": got["seen"][:3], "reread": reread,
+                    "shown_after": got_after.get("seen", [])[:3]}
+    if kind is None:
+        detail["note"] = "no sample of its kinds on the conformance host: the reads were checked, not what it shows"
+    if not ok:
+        detail["error"] = ("it did not read the artifact within 3 s of the handshake" if got["reads"] < 1
+                           else "none of the handed content is visible in it" if not read_ok
+                           else "it did not read again when another version landed (artifact.changed)" if not reread
+                           else "it read the new version but does not show it" if not shows_new
+                           else "it stopped answering")
+    return detail
+
+
+def edit_case(page, frame, perms: list, log, alive) -> dict:
+    """Case 7: an editor that may write saves an edit through its own UI: the empty text fields filled, one click on
+    the control marked ``data-wicked-save`` lands exactly one version. Never raises: the other cases still run."""
+    if "artifact.write" not in perms:
+        return {"ok": True, "viewer": True, "note": "it asks no artifact.write: a viewer (Open with says it only views)"}
+    save = frame.locator(f"[{SAVE_MARK}]")
+    if save.count() == 0:
+        return {"ok": False, "marked": 0,
+                "error": f"no control marked {SAVE_MARK}: an editor that asks artifact.write marks the control that "
+                         f"saves an edit with {SAVE_MARK}"}
+    fields = frame.locator(EDIT_FIELDS)
+    filled = 0
+    for i in range(fields.count()):
+        f = fields.nth(i)
+        try:
+            if f.is_visible() and f.is_editable() and f.input_value() == "":
+                f.fill("7" if (f.get_attribute("type") or "") == "number" else EDIT_SENTENCE)
+                filled += 1
+        except Exception:  # noqa: BLE001 — a field it will not take is the editor's, the save below decides
+            continue
+    page.wait_for_timeout(150)
+    # A save control may stay disabled until there is something to save: judged after the fields are filled.
+    marked = [save.nth(i) for i in range(save.count())]
+    usable = [m for m in marked if m.is_visible() and m.is_enabled()]
+    if not usable:
+        return {"ok": False, "marked": len(marked), "filled": filled,
+                "error": f"its {SAVE_MARK} control is hidden or disabled with every empty text field filled"}
+    head = "() => window.__wickedEditor.adapter.artifact().head"
+    written = lambda: sum(1 for e in log() if e["kind"] == "written")  # noqa: E731
+    refused = lambda: sum(1 for e in log() if e["kind"] == "refused" and e["type"] == "version.write")  # noqa: E731
+    head0, written0, refused0 = page.evaluate(head), written(), refused()
+    usable[0].click()
+    landed = _poll(page, lambda: written() > written0, EDIT_WAIT_S)
+    page.wait_for_timeout(400)  # a second write from the same click would land here
+    moved, wrote, refusals = page.evaluate(head) - head0, written() - written0, refused() - refused0
+    in_version = EDIT_SENTENCE in (page.evaluate("() => window.__wickedEditor.adapter.headHtml()") or "")
+    ok = landed and wrote == 1 and moved == 1 and refusals == 0 and alive()
+    detail: dict = {"ok": ok, "filled": filled, "writes": wrote, "head_moved": moved, "refused": refusals,
+                    "typed_in_version": in_version}
+    if not ok:
+        detail["error"] = (f"a click on its {SAVE_MARK} control landed no version within {EDIT_WAIT_S:g} s"
+                           if not landed else f"one click landed {wrote} writes and moved the head by {moved}"
+                           if wrote != 1 or moved != 1 else "the host refused a write" if refusals else "it stopped answering")
+    return detail
 
 
 def record_stop(report: dict, exc: Exception, cases: tuple) -> None:
@@ -493,8 +649,8 @@ def speaks(editor: dict, version: int) -> bool:
 
 
 def expected_cases(editor: dict) -> int:
-    """0-6 and 8-12, plus 13-16 for a protocol-2 editor or 17 for a protocol-1 one."""
-    return 12 + (4 if speaks(editor, 2) else 1)
+    """0-12 and 18, plus 13-16 for a protocol-2 editor or 17 for a protocol-1 one."""
+    return len(CASES_V1) + (4 if speaks(editor, 2) else 1)
 
 
 HOST_ANSWER_S = 2.0
@@ -1071,7 +1227,10 @@ def main(argv: list[str] | None = None) -> int:
                       if isinstance(e.get("protocol"), list) else [],
                       "sha256": entries[(str(e.get("id")), str(e.get("version")))][1],
                       "cases": {"0-manifest": m0}, "gaps": [
-                          "case 7 (a scripted edit) is the editor's own UI: not run here",
+                          f"case 7 fills the empty text fields and presses the one control marked {SAVE_MARK}: the "
+                          "editor's other edits are its own tests'",
+                          "case 18 checks what is visible on the page and deck samples only; another kind is checked "
+                          "for its reads",
                           "case 2 checks no reload or re-read across sizes, not each size's layout",
                           "case 6 does not walk Tab/Shift+Tab off the editor's edges",
                           "case 5 presses Backspace/Delete with no part known to be selected (a generic editor exposes "
@@ -1088,7 +1247,7 @@ def main(argv: list[str] | None = None) -> int:
                         run_editor(browser, origin, e, er["sha256"], er, timeout_s)
                     except Exception as exc:  # noqa: BLE001 (codex: an editor-owned wait escaped the cases)
                         record_stop(er, exc, CASES_V1)
-                    base_ok = len(er["cases"]) == 12 and all(c.get("ok") for c in er["cases"].values())
+                    base_ok = len(er["cases"]) == len(CASES_V1) and all(c.get("ok") for c in er["cases"].values())
                     if speaks(e, 2) and base_ok and er.get("negotiated") is None:
                         # A host before protocol 2 runs this editor the protocol-1 way: its surfaces cannot be
                         # checked here (not a failure of the editor). crew requires 13-16 of a protocol-2 install,
