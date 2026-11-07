@@ -167,6 +167,18 @@ def visited(doc: dict[str, Any] | None) -> set[str]:
     return set(doc.get("visited") or [])
 
 
+def page_in_flight(doc: dict[str, Any] | None) -> list[str] | None:
+    """The units `extract-prepare` framed for the page in flight (possibly none), or None when no
+    page is in flight: no record, or the page was closed by `extract-next` (`close_page` removes
+    `pending`). `[]` therefore means exactly "this pass's prepare framed an empty page", which is
+    how `extract-apply` tells a map with nothing left to ask (F42) from an extract step that left
+    its work undone. Host-side: the seat can neither write this record nor shrink the page."""
+    if not doc or "pending" not in doc:
+        return None
+    pending = doc.get("pending")
+    return list(pending) if isinstance(pending, list) else None
+
+
 def changed(doc: dict[str, Any] | None) -> set[str]:
     """Mapped units this generation found changed since the map was built (wicked-garden#1425):
     the only resolved units a page may ask again (prepare frames each once: a closed page's units
@@ -220,7 +232,9 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
     if not pending:
-        doc["pending"] = []
+        # A closed page has no `pending` at all (`page_in_flight`): an empty list would read as an
+        # empty page still in flight, and a rework after the close could skip its rules file.
+        doc.pop("pending", None)
         doc.pop("answered", None)
         return 0, 0
     unmapped = {n.get("symbol_id") for n in coverage.get("unaccounted_nodes") or []}
@@ -233,7 +247,7 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
         was_real = changed(doc)
         closed = {s for s in pending if s not in unmapped and s not in held and s not in was_real}
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
-    doc["pending"] = []
+    doc.pop("pending", None)
     doc.pop("answered", None)
     if "not_product" not in coverage:
         # An older wicked-core lists no placeholders, so "accounted" cannot be told from "real":

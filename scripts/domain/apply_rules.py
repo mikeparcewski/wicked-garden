@@ -35,8 +35,11 @@ Usage (the preset's command, run from the run's worktree):
     wicked-garden run scripts/domain/apply_rules.py --db <store> --repo-root <repo> \
         [--rules .wicked/domain/rules.json] [--coverage-out coverage-report.json]
 
-Exit 0 when the file was applied (refused entries are listed, not fatal); 1 when the file is
-missing or refused, or a write fails.
+Exit 0 when the file was applied (refused entries are listed, not fatal), or when there was
+nothing to extract: the run's host-side generation record shows this pass's `extract-prepare`
+framed an empty page and no rules file was left (e2e-1105 F42: a re-map of a map that is already
+current finishes with "map already current at <commit>; nothing to extract"). 1 when the file is
+missing for a page that framed units (or with no page in flight), refused, or a write fails.
 """
 
 from __future__ import annotations
@@ -182,6 +185,73 @@ def _restatable(db: str, store) -> tuple[dict[str, dict], set[str]]:
     return out, changed
 
 
+def _page_framed_nothing(db: str) -> bool:
+    """Did this pass's `extract-prepare` frame an EMPTY page? Read from the run's generation record
+    on the host (`generation.page_in_flight`), never from the seat-writable worklist: the seat can
+    rewrite that file, but cannot write the record or make prepare frame fewer units. False outside
+    a run, with no record, with no page in flight (a closed page reworked after `extract-next`), and
+    for a page that framed any unit: a missing rules file is then the extract step's undone work."""
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if not run_id:
+        return False
+    try:
+        return generation.page_in_flight(generation.load(db, run_id)) == []
+    except (OSError, ValueError):
+        return False
+
+
+def _built_at(db: str) -> str | None:
+    """The commit the map was built from (else the one the store is indexed at), for the line only."""
+    try:
+        built, base, _ = refresh.build_and_base(db)
+    except Exception:  # noqa: BLE001 - wording only; the coverage numbers carry the verdict
+        return None
+    return (built or base or "")[:12] or None
+
+
+def _nothing_to_extract(db: str, base: Path, coverage_rel: str, core) -> dict:
+    """The page framed no units and the extract step (rightly) wrote no rules file: write nothing
+    to the store, publish the coverage and apply reports the later steps read, and say so in one
+    honest line (e2e-1105 F42). "Already current" only when coverage shows nothing unmapped and no
+    placeholder; otherwise the line says what is left and why this page framed none of it."""
+    rules_file.check_writable(base, coverage_rel)
+    rules_file.check_writable(base, REPORT_REL)
+    with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
+        after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+    unmapped, held = int(after.get("unaccounted") or 0), int(after.get("risk_flagged") or 0)
+    if not unmapped and not held:
+        at = _built_at(db)
+        what = (f"map already current{f' at {at}' if at else ''}; nothing to extract (this page "
+                "framed no units)")
+    else:
+        what = (f"nothing to extract: this page framed no units ({unmapped} unmapped, {held} "
+                "placeholder(s) left, each asked by an earlier page of this run or in a file the "
+                "repository does not track)")
+    rules_file.write_json_file(base, coverage_rel, after)
+    report = {
+        "declared_seat": None,
+        "author": AUTHOR,
+        "entries": 0,
+        "applied": {"resolved": 0, "risk": 0, "kept": 0},
+        "eligible": 0,
+        "changed_since_build": {"listed": 0, "restated": 0},
+        "reworked": 0,
+        "unsourced": 0,
+        "not_product": 0,
+        "refused": [],
+        "refused_count": 0,
+        "nothing_to_extract": True,
+        "line": what,
+        "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
+                                                "risk_flagged", "unaccounted")},
+        "minimum_met": met,
+        "coverage_line": line,
+    }
+    rules_file.write_json_file(base, REPORT_REL, report)
+    print(f"[extract-apply] {what}. {line or ''}".rstrip(), file=sys.stderr)
+    return report
+
+
 def _rule_keys(db: str, symbol_id: str) -> list[str]:
     try:
         return refresh.rule_keys(db, symbol_id)
@@ -204,6 +274,11 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     try:
         doc = rules_file.read_json_file(base, rules_rel)
     except FileNotFoundError:
+        # No file is right only when this pass's prepare framed nothing (the host's record says so);
+        # a page with units, a closed page or no record keeps the refusal: an extract step that
+        # skipped its work fails closed.
+        if _page_framed_nothing(db):
+            return _nothing_to_extract(db, base, coverage_rel, core)
         raise rules_file.RulesFileRefused(
             f"the extract step left no rules file at {rules_rel}") from None
     seat, accepted, refused = rules_file.check_rules_doc(doc)

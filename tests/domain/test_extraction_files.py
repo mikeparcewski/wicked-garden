@@ -1350,3 +1350,144 @@ def test_the_direct_store_reads_whether_a_unit_shows_a_code_mismatch_now(tmp_pat
 def test_the_rules_file_refuses_the_hosts_clearing_value_as_a_mismatch():
     entry = {**_rule("s::sum"), "code_meets": False, "mismatch": " Code meets  IT "}
     assert "reserved" in rules_file.check_rule_entry(entry)
+
+
+# --- e2e-1105 F42: re-mapping a map that is already current -------------------------------------
+
+_BUILT = "8cc32aabde358bf81042ed116623a51c0ef03a96"
+
+
+def _current_map(tmp_path):
+    """The star store with every behaviour a real requirement and a map built at the commit the
+    store is indexed at (rig run 7389da9a: "code unchanged since the map was built")."""
+    import sqlite3
+    from domain import refresh
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    c = sqlite3.connect(db)
+    c.execute("INSERT INTO symbols VALUES (99, ?)", (refresh.BUILD_SYMBOL,))
+    c.execute("INSERT INTO nodes VALUES (99, 'requirements graph', 'requirements-graph/build', ?, "
+              "NULL)", (json.dumps({"metadata": {"code_commit": _BUILT}}),))
+    c.execute("INSERT INTO meta VALUES ('repo_commit', ?)", (_BUILT,))
+    c.commit()
+    c.close()
+    estate = _Estate()
+    for s in _STAR:
+        estate.writes[s] = {"req": (f"{s} must hold", True, "extract-loop"), "ann": {"key": "k"}}
+    return db, repo, wt, estate, _TargetCore(estate, {s: "f.py" for s in _STAR})
+
+
+class _TargetCore(_RealCore):
+    def requirements_target(self, db, set_pct=None):
+        return 80, "daemon"
+
+
+def test_a_re_map_of_a_current_map_finishes_instead_of_failing(tmp_path, monkeypatch, capsys):
+    """F42: prepare framed an empty page, the extract step rightly wrote no rules file, and apply
+    refused ("left no rules file") into a "step failed" gate. Apply reads the HOST's record of the
+    page: an empty page finishes, writes no rule and no rules file, publishes the reports the
+    later steps read, and says the map is current; extract-next then ends the generation."""
+    from domain import next_page
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate,
+                                   core=core)
+    assert doc["units"] == [] and doc["unmapped"] == 0 and doc["changed_since_build"] == 0
+    before = json.dumps(estate.writes, sort_keys=True)
+    capsys.readouterr()
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True
+    assert report["line"] == ("map already current at 8cc32aabde35; nothing to extract (this "
+                              "page framed no units)")
+    assert json.dumps(estate.writes, sort_keys=True) == before, "no rule was written"
+    assert not (wt / rules_file.RULES_REL).exists(), "no rules file was faked"
+    assert json.loads((wt / "coverage-report.json").read_text())["resolved"] == len(_STAR)
+    on_disk = json.loads((wt / apply_rules.REPORT_REL).read_text())
+    assert on_disk["nothing_to_extract"] is True and on_disk["refused_count"] == 0
+    assert "map already current at 8cc32aabde35" in capsys.readouterr().err
+    # The rest of the loop: extract-next closes the empty page and the generation is done.
+    d = next_page.run(db, repo, core=core, env={"WICKED_RUN_ID": "run-1"})
+    assert d["next"] == "done", d
+    assert generation.page_in_flight(generation.load(db, "run-1")) is None
+
+
+def test_apply_main_exits_0_on_an_empty_page_with_no_rules_file(tmp_path, monkeypatch, capsys):
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    monkeypatch.setattr(_clients, "host_estate_client", lambda db: estate)
+    monkeypatch.setattr(_clients, "host_core_client", lambda: core)
+    monkeypatch.chdir(wt)
+    assert apply_rules.main(["--db", db, "--repo-root", repo]) == 0
+    assert "nothing to extract" in capsys.readouterr().err
+
+
+def test_an_extractor_that_skips_a_page_with_units_still_fails_closed(tmp_path, monkeypatch):
+    """The threat: an extract step that skips its work must not pass. A page that framed units and
+    left no rules file is refused, even when the seat rewrote the worklist in its worktree to look
+    empty: apply reads the host's record, never the seat-writable worklist."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate,
+                                   core=core)
+    assert len(doc["units"]) == 4
+    rules_file.write_json_file(wt, rules_file.WORKLIST_REL, {**doc, "units": [], "unmapped": 0})
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+    assert estate.writes == {}
+    assert not (wt / "coverage-report.json").exists()
+    assert not (wt / apply_rules.REPORT_REL).exists()
+
+
+def test_a_closed_page_reworked_with_no_rules_file_still_fails_closed(tmp_path, monkeypatch):
+    """A coverage send-back reworks extract AFTER extract-next closed the page: no page is in
+    flight, so a rework that deletes its rules file is refused, never read as an empty page."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 4, estate=estate, core=core)["units"]]
+    _write_rules(wt, "codex", [_rule(s) for s in first])
+    _apply(wt, db, repo, estate, core)
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    assert generation.page_in_flight(generation.load(db, "run-1")) is None
+    (wt / rules_file.RULES_REL).unlink()
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_no_rules_file_outside_a_run_or_without_a_record_still_fails_closed(tmp_path,
+                                                                           monkeypatch):
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-never-prepared")
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_an_empty_page_with_work_left_says_so_instead_of_current(tmp_path, monkeypatch):
+    """An empty page is not always a current map: units left that an earlier page of this run
+    already asked are named, never called current."""
+    db, repo, wt = _star(tmp_path), _git_repo(tmp_path), _wt(tmp_path)
+    estate = _Estate()
+    core = _RealCore(estate, {s: "f.py" for s in _STAR})
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    first = [u["symbol_id"] for u in prepare_worklist.prepare(
+        db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate, core=core)["units"]]
+    generation.record_answered(db, "run-1", first)  # all asked, none stated
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, core._doc())
+    generation.save(db, "run-1", rec)
+    assert prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 0, estate=estate,
+                                    core=core)["units"] == []
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True
+    assert "already current" not in report["line"]
+    assert report["line"].startswith(f"nothing to extract: this page framed no units "
+                                     f"({len(_STAR)} unmapped, 0 placeholder(s) left")
