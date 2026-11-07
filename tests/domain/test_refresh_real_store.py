@@ -142,3 +142,24 @@ def test_the_fixture_carries_no_identity_of_the_machine_that_built_it(tmp_path):
         raw = f.read_bytes()
         for marker in (b"/Users/", b"/home/", b"/private/", b"gpgsig", b"SSH SIGNATURE"):
             assert marker not in raw, (f.name, marker)
+
+
+def test_a_labelled_store_with_a_map_is_refused_not_refreshed_empty(tmp_path):
+    """codex r2: a labelled store prefixes node paths with its label, which the mapping steps do
+    not translate; with a map built, the refresh refuses it rather than finding nothing."""
+    db = _db(tmp_path, "labelled.db")
+    con = sqlite3.connect(db)
+    con.execute("INSERT INTO symbols (sym) VALUES (?)", (refresh.BUILD_SYMBOL,))
+    sid = con.execute("SELECT sid FROM symbols WHERE sym = ?", (refresh.BUILD_SYMBOL,)).fetchone()[0]
+    cols = [r[1] for r in con.execute("PRAGMA table_info(nodes)")]
+    values = {"symbol": sid, "name": "requirements graph", "kind": '{"other":"requirements_graph"}',
+              "language": "wicked-apps", "file": "requirements-graph/build",
+              "data": json.dumps({"metadata": {"code_commit": MANIFEST["built"]}})}
+    use = [c for c in cols if c in values]
+    con.execute(f"INSERT INTO nodes ({', '.join(use)}) VALUES ({', '.join('?' * len(use))})",
+                [values[c] for c in use])
+    con.commit()
+    con.close()
+    repo = _repo(tmp_path)
+    with pytest.raises(refresh.RefreshUnreadable, match="labelled"):
+        refresh.changed_units(db, str(repo), rules_file.tracked_files(repo), set())

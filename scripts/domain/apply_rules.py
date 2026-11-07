@@ -11,11 +11,11 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
   * every entry must name a behaviour the store has and that `wicked-core coverage`, run here,
     reports unmapped or as a risk-flagged placeholder (not a real requirement yet), or a mapped
     behaviour this run's generation record (host-side) lists as changed since the map was built
-    (wicked-garden#1425), in a file `git ls-files` tracks in the registered repository —
-    anything else is refused and listed; an empty statement never overwrites a placeholder's
-    statement (the floor only fills blanks), and a changed mapped behaviour is only ever
-    restated by a rule that resolves (anything less keeps its rule: a real requirement is never
-    degraded by a page);
+    (wicked-garden#1425) or as framed by this run itself (a rework of a page it already applied),
+    in a file `git ls-files` tracks in the registered repository — anything else is refused and
+    listed; an empty statement never overwrites a placeholder's statement (the floor only fills
+    blanks), and either kind of mapped behaviour is only ever restated by a rule that resolves
+    (anything less keeps its rule: a real requirement is never degraded by a page);
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence >= 0.75 to
     resolve, the RISK floor, a read-back per write), authored
@@ -226,7 +226,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         before = core.coverage(db, str(Path(tmp) / "coverage.json"))
     # Not real requirements yet: the unmapped behaviours and the risk-flagged placeholders a page
-    # may revisit (wicked-core#1233). A resolved behaviour is never rewritten from a page.
+    # may revisit (wicked-core#1233). A resolved behaviour is rewritten from a page only when this
+    # run framed it or found it changed, and only by a rule that resolves (`_restatable`).
     held = {n["symbol_id"] for n in _clients.placeholder_nodes(before)
             if isinstance(n.get("symbol_id"), str)}
     unmapped = {n["symbol_id"]: n for n in [*_clients.unaccounted_nodes(before),

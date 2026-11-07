@@ -194,20 +194,29 @@ def changed_units(db: str, repo_root: str, tracked: set[str],
     nodes (`symbol_id`, `name`, `file`, `kind`) plus `prior` (the earlier statement), and a line
     saying what was compared. `exclude`: units already framed for another reason (unmapped,
     placeholders). A store that does not record a commit, or a checkout that cannot say, re-asks
-    nothing and says why; a store that cannot be READ raises [`RefreshUnreadable`]."""
+    nothing and says why; a store that cannot be READ, a labelled store, or a recorded pair of
+    commits the checkout cannot compare raises [`RefreshUnreadable`]."""
     built, base, why = build_and_base(db)
     if built is None:
         return [], ("no build commit recorded (no map yet, or a map built by an older "
                     "wicked-core): changed behaviours are not re-asked")
     if base is None:
         return [], f"{why}: changed behaviours are not re-asked"
+    if why.startswith("repo:"):
+        # A labelled store prefixes every node path with its label; the mapping steps compare
+        # repository paths. Said and refused, never an empty refresh of a stale map (codex r2).
+        raise RefreshUnreadable(f"the store is labelled ({why}): Refresh map reads a store of one "
+                                f"un-labelled repository, as wicked-crew registers them")
     if built == base:
         return [], f"code unchanged since the map was built ({built[:12]})"
     try:
         files = changed_files(repo_root, built, base)
     except RuntimeError as e:
-        return [], (f"the files changed since the map was built ({built[:12]}..{base[:12]}) "
-                    f"could not be read ({e}): changed behaviours are not re-asked")
+        # Both commits are recorded, so the comparison must run (codex r2): a checkout that cannot
+        # make it (a shallow clone, a rewritten history) fails the step, never re-asks nothing.
+        raise RefreshUnreadable(f"the files changed since the map was built "
+                                f"({built[:12]}..{base[:12]}) could not be read in "
+                                f"{repo_root}: {e}") from e
     files = sorted(f for f in files if f in tracked)
     try:
         rows = _mapped_in(db, files) if files else []

@@ -9,6 +9,8 @@ placeholders (or accept only those in apply) and `sum` is never asked, so its fi
 """
 
 import json
+
+import pytest
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -197,11 +199,13 @@ def test_a_map_built_without_a_code_commit_re_asks_nothing_and_says_so(tmp_path,
     assert "no build commit recorded" in capsys.readouterr().err
 
 
-def test_a_commit_the_checkout_does_not_hold_re_asks_nothing(tmp_path):
+def test_a_commit_the_checkout_does_not_hold_fails_the_refresh(tmp_path):
+    """codex r2: both commits are recorded, so a checkout that cannot compare them fails the step
+    rather than re-asking nothing and rebuilding a stale map as current."""
     repo, built, base = _repo(tmp_path)
     db = _store(tmp_path, "f" * 40, base)
-    units, line = refresh.changed_units(db, str(repo), rules_file.tracked_files(repo), set())
-    assert units == [] and "could not be read" in line
+    with pytest.raises(refresh.RefreshUnreadable, match="could not be read"):
+        refresh.changed_units(db, str(repo), rules_file.tracked_files(repo), set())
 
 
 def test_outside_a_run_nothing_is_re_asked(tmp_path, monkeypatch):
