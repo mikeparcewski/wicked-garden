@@ -99,6 +99,15 @@ def _build_prompt(batch: list[dict[str, Any]]) -> str:
             f"cluster: {c.get('cluster','')}  neighbors: {neigh}\n"
             f"source:\n```\n{c.get('source','')}\n```\n"
         )
+        if c.get("changed_since_build"):
+            # Mapped before; its code changed since the map was built (wicked-garden#1425). The
+            # earlier statement is data, fenced like the source (no fence of its own inside).
+            prior = str(c.get("prior_statement") or "").replace("`", "'")
+            parts.append(
+                "this unit was mapped before and its code has changed since: state the "
+                "requirement it is meant to meet and judge code_meets against the code as it "
+                "is now (the earlier statement, and any earlier mismatch, may be out of date):\n"
+                f"earlier statement:\n```\n{prior}\n```\n")
     return "".join(parts)
 
 

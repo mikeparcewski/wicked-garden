@@ -38,8 +38,9 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 When `.wicked/domain/worklist.json` exists in your working directory, the run's host step
 `extract-prepare` wrote it: behaviours that are not real requirements yet (the unmapped ones,
-then placeholders an earlier page left empty or under the confidence threshold), hub-first,
-each framed with its source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
+then placeholders an earlier page left empty or under the confidence threshold, then mapped
+behaviours whose code changed since the map was built, marked `changed_since_build` with their
+`prior_statement`), hub-first, each framed with its source slice and neighbours. Your seat cannot write the store and needs no `wicked-core` or
 `wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
 and only this:
 
@@ -76,7 +77,11 @@ and only this:
    review lists an empty statement whose source shows a rule as a missed rule, and fails a
    page that leaves most of the units whose source shows a rule empty, or whose statements
    mostly describe code (a page of mostly plain types and plumbing, left empty, is fine). A
-   restated shape is never a rule at any confidence: leave it empty. Set each confidence by
+   restated shape is never a rule at any confidence: leave it empty. A unit marked
+   `changed_since_build` was mapped before: its `prior_statement` (and any old mismatch) may be
+   out of date, so state it, and judge `code_meets`, against the code as it is now. Only a
+   statement the host resolves replaces its rule; an empty, invalid or low-confidence one keeps
+   the earlier rule (never a placeholder). Set each confidence by
    how directly the source supports the rule: a constraint visible in the unit's full
    definition (enforced in its body, or encoded in its type: a closed set, a limit, a
    documented required field) is high (0.85 or more); a rule only guessed from a name, a
@@ -94,7 +99,9 @@ and only this:
    requirement counts, and the mismatch is shown beside it as a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
-   report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself
+   report unmapped or as a placeholder (or that the run's own host-side record does not list as
+   changed since the map was built: the worklist's mark is framing, not permission), or whose
+   file the repository does not track; it re-judges the rest itself
    and writes it as `extract-loop` (the seat a file names is reported, never trusted).
 
 ## Outside a run: you DRIVE the deterministic harness — you don't loop yourself

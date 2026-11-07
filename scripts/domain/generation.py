@@ -109,7 +109,7 @@ def _valid(doc: Any) -> bool:
                 isinstance(p.get(k), int) and not isinstance(p.get(k), bool)
                 for k in ("page", "pct", "real", "behaviours", "at")):
             return False
-    for key in ("visited", "pending", "answered"):
+    for key in ("visited", "pending", "answered", "changed"):
         ids = doc.get(key) or []
         if not isinstance(ids, list) or not all(isinstance(i, str) for i in ids):
             return False
@@ -167,7 +167,22 @@ def visited(doc: dict[str, Any] | None) -> set[str]:
     return set(doc.get("visited") or [])
 
 
-def frame_page(db: str, run_id: str, symbol_ids: list[str]) -> None:
+def changed(doc: dict[str, Any] | None) -> set[str]:
+    """Mapped units this generation found changed since the map was built (wicked-garden#1425):
+    the only resolved units a page may ask again (prepare frames each once: a closed page's units
+    are `visited`)."""
+    if not doc:
+        return set()
+    return set(doc.get("changed") or [])
+
+
+def changed_left(doc: dict[str, Any] | None) -> int:
+    """Changed mapped units no closed page of this generation has asked yet."""
+    return len(changed(doc) - visited(doc))
+
+
+def frame_page(db: str, run_id: str, symbol_ids: list[str],
+               changed_ids: list[str] | None = None) -> None:
     """Record the units the page being prepared framed (`pending`). Re-preparing the same page
     (a retried step) replaces them, so a failed attempt never hides a unit from the next. Raises
     when the record cannot be saved: it decides what the next page skips and what the page's
@@ -176,6 +191,8 @@ def frame_page(db: str, run_id: str, symbol_ids: list[str]) -> None:
     if doc is None:
         raise ValueError(f"no generation record for run {run_id}")
     doc["pending"] = list(symbol_ids)
+    if changed_ids:  # kept for the whole generation: apply accepts these, next-page counts them
+        doc["changed"] = sorted(set(doc.get("changed") or []) | set(changed_ids))
     doc.pop("answered", None)  # not recorded yet (an empty list is "answered none")
     save(db, run_id, doc)
 
@@ -198,7 +215,8 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     """Close the page in flight; returns (units it framed, of those now REAL requirements), both
     measured on the page's own units (another writer's progress elsewhere never counts as this
     page's yield). The units `extract-apply` recorded as answered join `visited`; without that
-    record, every framed unit that is no longer unmapped does. (0, 0) when an answer to an ask
+    record, every framed unit that is a real requirement now does, except a changed mapped unit
+    (real before the page: it stays open). (0, 0) when an answer to an ask
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
     if not pending:
@@ -210,8 +228,10 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     answered = doc.get("answered")
     if isinstance(answered, list):  # recorded by extract-apply, possibly empty
         closed = set(answered) & set(pending)
-    else:  # never recorded: only what is a real requirement now is known to be answered
-        closed = {s for s in pending if s not in unmapped and s not in held}
+    else:  # never recorded: only what is a real requirement now is known to be answered; a
+        # changed mapped unit was real BEFORE the page, so it closes only on the record (codex r2)
+        was_real = changed(doc)
+        closed = {s for s in pending if s not in unmapped and s not in held and s not in was_real}
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
     doc["pending"] = []
     doc.pop("answered", None)
@@ -321,32 +341,68 @@ def progress_line(repo: str, points: list[dict[str, Any]], target: int, *,
     return " · ".join(parts)
 
 
+def _budget_spent(doc: dict[str, Any], now: int, max_pages: int,
+                  max_minutes: int) -> str | None:
+    """What of the latest grant is spent ("20 pages", "240 minutes"), or None."""
+    grant, page = doc["grant"], doc["points"][-1]["page"]
+    pages_used = page - grant["page"]
+    minutes_used = (now - grant["at"]) / 60000
+    if pages_used >= max_pages:
+        return f"{count(pages_used)} page{'s' if pages_used != 1 else ''}"
+    if minutes_used >= max_minutes:
+        return f"{count(int(minutes_used))} minutes"
+    return None
+
+
 def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: int,
-           max_minutes: int, left_to_map: int) -> dict[str, Any]:
+           max_minutes: int, left_to_map: int, changed_left: int = 0) -> dict[str, Any]:
     """The loop's decision after the record's last point (pure). Returns the `wicked-repeat`
-    object: `done` when the REAL share reaches the target; `ask` when nothing is left to map,
+    object: `done` when the REAL share reaches the target and no mapped behaviour that changed
+    since the map was built is left to re-ask (`changed_left`, wicked-garden#1425: those are
+    paged through under the same budget ask); `ask` when nothing is left to map,
     when the last page resolved almost nothing of what it framed, when the last two pages added
     no real requirement, or when the grant's pages or minutes are spent; `continue` otherwise."""
     points = doc["points"]
     last = points[-1]
     page = last["page"]
     if last["pct"] >= target:
-        return {"next": "done",
-                "line": progress_line(repo, points, target, next_page=None, done=True)}
+        line = progress_line(repo, points, target, next_page=None, done=True)
+        if changed_left <= 0:
+            return {"next": "done", "line": line}
+        line += (f" · {count(changed_left)} mapped behaviour{'s' if changed_left != 1 else ''} "
+                 f"changed since the map was built left to re-ask")
+        choices = [{"id": "continue", "label": f"Map up to {count(max_pages)} more pages"},
+                   FINISH]
+        y = page_yield(points)
+        if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
+                and last["page"] > doc["grant"]["page"]):
+            # The seat answered almost none of the page (pi r2): asked, not paged on silently.
+            return {"next": "ask", "choices": choices, "recommended": "continue",
+                    "line": f"{line} · the last page answered under 1 in {LOW_YIELD_PER} of its "
+                            f"units: read its review before mapping more"}
+        spent = _budget_spent(doc, now, max_pages, max_minutes)
+        if spent:
+            return {"next": "ask", "choices": choices, "recommended": "continue",
+                    "line": f"{line} · budget reached ({spent}; the budget is "
+                            f"{count(max_pages)} pages or {count(max_minutes)} minutes)"}
+        return {"next": "continue", "line": line}
     line = progress_line(repo, points, target, next_page=page + 1, left_to_map=left_to_map)
     # A target is a whole percentage 1..100 the real share so far must meet: below 1% nothing
     # can be lowered to (codex/agy r1 on #1369 — "lower to 1%" at 0.5% asked again forever).
     lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
                                       f"the graph"} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {count(max_pages)} more pages"}
+    # With changed units left there is always work, so an ask with no "lower" (a share under 1%)
+    # still offers a way to finish (codex r2).
+    stop = lower if lower is not None else (FINISH if changed_left > 0 else None)
     # Near-zero yield on a full page (domain-real): the page's review passed a page that stated
     # almost nothing (wicked-crew run 4b49cbe1: 3 rules of 500 units). Never mapped on silently,
     # and asked before "nothing left" too (codex on #1375), so the last page is not passed either.
     y = page_yield(points)
     if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
             and last["page"] > doc["grant"]["page"]):
-        if left_to_map > 0:
-            choices = [c for c in (more, lower) if c is not None]
+        if left_to_map > 0 or changed_left > 0:
+            choices = [c for c in (more, stop) if c is not None]
             warn = (f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
                     f"read its review before mapping more")
         else:
@@ -358,7 +414,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
                     f"resolved under 1 in {LOW_YIELD_PER} of its units and nothing is left to "
                     f"map: read its review")
         return {"next": "ask", "choices": choices, "recommended": choices[0]["id"], "line": warn}
-    if left_to_map <= 0:
+    if left_to_map <= 0 and changed_left <= 0:
         head = progress_line(repo, points, target, next_page=None, left_to_map=0)
         rest = (f"{head} · nothing left to map "
                 f"in the files the repository tracks")
@@ -371,15 +427,12 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     # operator try again (codex/agy r1 on #1369: "Map more" re-asked at once).
     since = [p for p in points if p["page"] >= grant["page"]]
     if len(since) >= 3 and since[-3]["real"] == last["real"]:
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+        return {"next": "ask", "choices": [c for c in (more, stop) if c is not None],
                 "recommended": "lower" if lower is not None else "continue",
                 "line": f"{line} · the last two pages added no real requirement"}
-    pages_used = page - grant["page"]
-    minutes_used = (now - grant["at"]) / 60000
-    if pages_used >= max_pages or minutes_used >= max_minutes:
-        spent = (f"{count(pages_used)} page{'s' if pages_used != 1 else ''}"
-                 if pages_used >= max_pages else f"{count(int(minutes_used))} minutes")
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+    spent = _budget_spent(doc, now, max_pages, max_minutes)
+    if spent:
+        return {"next": "ask", "choices": [c for c in (more, stop) if c is not None],
                 "recommended": "continue",
                 "line": f"{line} · budget reached ({spent}; the budget is {count(max_pages)} pages "
                         f"or {count(max_minutes)} minutes)"}

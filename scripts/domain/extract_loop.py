@@ -121,6 +121,12 @@ def _seat() -> str:
     return f"extract-loop:{agent}" if agent else "extract-loop"
 
 
+def rule_key(sid: str, seat: str) -> str:
+    """The annotation key a seat's rule about `sid` is written under (see `_write_node`)."""
+    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
+    return "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+
+
 def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str,
                 seat: str | None = None, read_back=None, clear_mismatch: bool = False) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
@@ -132,8 +138,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     # and wicked-core, which counts agreeing seats by author, would only ever see one. The default
     # seat (no run agent) keeps the historical key, so a standalone re-run still replaces itself.
     seat = seat or _seat()
-    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
-    rid = "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+    rid = rule_key(sid, seat)
     # Operator ruling 2026-11-06: a true requirement whose code is wrong still counts; the
     # mismatch is a finding beside it. It is written FIRST, under its own key: if a later write
     # fails, the node is not yet resolved and the next apply asks it again, so a requirement never
@@ -1078,6 +1083,12 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         framed = [_rule_extractor.frame_context(
             u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
+        for f, u in zip(framed, take):
+            # A mapped unit whose code changed since the map was built (wicked-garden#1425, codex
+            # r2): the prompt says so and shows the earlier statement, as data.
+            if u.get("changed_since_build") is True:
+                f.update(changed_since_build=True,
+                         prior_statement=str(u.get("prior_statement") or "")[:600])
         ids = {u["symbol_id"] for u in take}
         by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
         if by_id == _NO_MODEL:
