@@ -9,9 +9,13 @@ daemon host, is the only writer, and it trusts nothing the seat could have touch
     seat name, too many entries, not JSON, a symlink) is refused whole and nothing is written;
     an entry outside it is refused and listed;
   * every entry must name a behaviour the store has and that `wicked-core coverage`, run here,
-    reports unmapped or as a risk-flagged placeholder (not a real requirement yet), in a file
-    `git ls-files` tracks in the registered repository — anything else is refused and listed; an
-    empty statement never overwrites a placeholder's statement (the floor only fills blanks);
+    reports unmapped or as a risk-flagged placeholder (not a real requirement yet), or a mapped
+    behaviour this run's generation record (host-side) lists as changed since the map was built
+    (wicked-garden#1425), in a file `git ls-files` tracks in the registered repository —
+    anything else is refused and listed; an empty statement never overwrites a placeholder's
+    statement (the floor only fills blanks), and a changed mapped behaviour is only ever
+    restated by a rule that resolves (anything less keeps its rule: a real requirement is never
+    degraded by a page);
   * what passes is judged and written exactly as the extraction harness writes its own model's
     rules (`extract_loop.decide_and_write`: the rule validator, confidence >= 0.75 to
     resolve, the RISK floor, a read-back per write), authored
@@ -45,7 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, extract_loop, generation, rules_file  # noqa: E402
+from domain import _clients, _rule_extractor, extract_loop, generation, rules_file  # noqa: E402
 
 REPORT_REL = ".wicked/domain/apply-report.json"
 # Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
@@ -148,6 +152,33 @@ def _record_answered(db: str, answered: list[str]) -> None:
               "closes the units that are real requirements now", file=sys.stderr)
 
 
+def _changed_since_build(db: str, store) -> dict[str, dict]:
+    """The mapped behaviours this run's generation record lists as changed since the map was
+    built (`prepare_worklist.py` framed them), as coverage-style nodes read from the store. The
+    record is host-side, beside the store: a seat cannot add to it."""
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if not run_id or store is None:
+        return {}
+    try:
+        ids = generation.changed(generation.load(db, run_id))
+    except (OSError, ValueError):
+        return {}
+    out = {}
+    for sid in ids:
+        row = store.node_row.get(store.sid_of.get(sid))
+        if row is not None:
+            out[sid] = {"symbol_id": sid, "name": row[0] or "", "file": row[1] or "",
+                        "kind": extract_loop.kind_of_row(row)}
+    return out
+
+
+def _restates(entry: dict, ids: set[str], why: str | None) -> bool:
+    """Would this entry RESOLVE (a valid rule at the threshold, about product code whose source
+    the host read)? A changed mapped behaviour is restated only then."""
+    ok, _ = _rule_extractor.validate_rule(entry, ids)
+    return ok and why is None and float(entry["confidence"]) >= extract_loop.RESOLVE_THRESHOLD
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -184,14 +215,18 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     unmapped = {n["symbol_id"]: n for n in [*_clients.unaccounted_nodes(before),
                                             *_clients.placeholder_nodes(before)]
                 if isinstance(n, dict) and isinstance(n.get("symbol_id"), str)}
+    # Mapped behaviours whose code changed since the map was built: restated, never degraded.
+    restate = {sid: n for sid, n in _changed_since_build(db, store).items() if sid not in unmapped}
+    nodes = {**restate, **unmapped}
     tracked = rules_file.tracked_files(repo_root)
 
     eligible: list[dict] = []
     for entry in accepted:
         sid = entry["symbol_id"]
-        node = unmapped.get(sid)
+        node = nodes.get(sid)
         if node is None:
-            why = "is not an unmapped behaviour or a placeholder in the store"
+            why = ("is not an unmapped behaviour or a placeholder in the store, nor a mapped one "
+                   "this run found changed since the map was built")
         elif node.get("file") not in tracked:
             why = f"its file {node.get('file')!r} is not tracked in the repository"
         else:
@@ -213,6 +248,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                  else None)
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
+    restated = 0  # changed mapped behaviours restated (counted in "resolved" too)
     # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
     unconfirmed = {extract_loop.NO_SOURCE_REASON: 0, extract_loop.NOT_PRODUCT_REASON: 0}
     in_progress = None  # the symbol whose writes have started and not finished
@@ -233,15 +269,20 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 outcomes["kept"] += 1
                 answered.append(sid)
                 continue
-            in_progress = sid
             # The source is re-read here, on the host: a rule about a unit whose code cannot be
             # read is unconfirmed whatever the seat (or its worklist file) says (#1370).
             # Tests and data files are never validated either: what they hold is evidence.
             sourced = store is not None and bool(store.source_slice(sid).strip())
-            why = extract_loop.unconfirmed_reason(unmapped[sid].get("file", ""), sourced,
-                                                  str(unmapped[sid].get("kind") or ""))
+            why = extract_loop.unconfirmed_reason(nodes[sid].get("file", ""), sourced,
+                                                  str(nodes[sid].get("kind") or ""))
+            if sid in restate and not _restates(entry, ids, why):
+                # A real requirement stays one: an answer that would not resolve keeps its rule.
+                outcomes["kept"] += 1
+                answered.append(sid)
+                continue
+            in_progress = sid
             outcome = extract_loop.decide_and_write(estate, store, sid,
-                                                    unmapped[sid].get("name", ""), entry, ids, nc,
+                                                    nodes[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author, read_back=read_back,
                                                     unconfirmed=why)
             if outcome == "unconfirmed":  # a RISK write, counted apart by its reason
@@ -249,6 +290,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 outcome = "risk"
             in_progress = None
             outcomes[outcome] += 1
+            restated += sid in restate
             answered.append(sid)
 
         _record_answered(db, answered)  # before anything that can still fail (codex r3)
@@ -275,6 +317,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
         "eligible": len(eligible),
+        "changed_since_build": {"framed": len(restate), "restated": restated},
         "unsourced": unconfirmed[extract_loop.NO_SOURCE_REASON],
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],
@@ -297,7 +340,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
           f"{outcomes['risk']} RISK-flagged (unconfirmed: "
           f"{unconfirmed[extract_loop.NO_SOURCE_REASON]} with no source, "
           f"{unconfirmed[extract_loop.NOT_PRODUCT_REASON]} not product code), "
-          f"{outcomes['kept']} kept, {len(refused)} refused "
+          f"{outcomes['kept']} kept, {len(refused)} refused, {restated} of "
+          f"{len(restate)} changed since the map was built restated "
           f"(written as {author}). {line or ''}".rstrip(), file=sys.stderr)
     return report
 

@@ -75,6 +75,16 @@
 
 ### Fixed
 
+- **domain-extraction: Refresh map re-asks the mapped behaviours whose code changed since the map was built**
+  (wicked-garden#1425). `prepare_worklist.py` compares the build's code commit (wicked-core#1327) with the commit the
+  store is indexed at (the run's base) in the registered checkout, and frames the mapped behaviours in changed
+  product files after the unmapped ones and the placeholders, marked `changed_since_build` with their earlier
+  statement. The generation record keeps that set, so `apply_rules.py` accepts those units. A restatement that
+  resolves replaces the rule and writes "code meets it" over a stale mismatch, while anything less keeps the
+  rule, so a real requirement is never degraded. `next_page.py` keeps paging while changed behaviours are left,
+  even at the minimum, under the same budget ask. A map built by an older wicked-core has no code commit, so
+  nothing is re-asked and the step says so.
+
 - **"Lower the minimum" restates the page's apply report** (wicked-core e2e F29). After the person lowers a
   repository's coverage minimum, `next_page.py` rewrites the worktree's `.wicked/domain/apply-report.json`
   (`minimum_met`, `coverage_line`, `coverage`, plus `lowered_to`) from a fresh `wicked-core coverage` against the

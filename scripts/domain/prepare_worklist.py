@@ -5,7 +5,9 @@ Runs on the daemon host, where `wicked-core`, `wicked-estate` and the repository
 store are. It takes the behaviours that are not real requirements yet from `wicked-core
 coverage` (the same authority the coverage gate recomputes against): the unmapped ones first,
 then the risk-flagged placeholders an earlier page left (an empty statement, a rule under the
-confidence threshold), skipping any unit an earlier page of this generation already framed. It
+confidence threshold), then the MAPPED behaviours in files changed since the map was built
+(`refresh.py`, wicked-garden#1425: a Refresh map re-asks them, so a fixed function does not keep its
+old statement or finding), skipping any unit an earlier page of this generation already framed. It
 keeps those in files the repository tracks, orders them hub-first (estate's PageRank hubs, then their neighbours by graph distance — the order
 `extract_loop.py` uses, so a later run continues from the frontier), frames each one (its
 source slice, callers and callees, community) and writes up to `--limit` of them to the
@@ -28,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, extract_loop, generation, rules_file  # noqa: E402
+from domain import _clients, _rule_extractor, extract_loop, generation, refresh, rules_file  # noqa: E402
 
 # One page of a generation: what one seat turn states. 300 took a claude seat ~6 min on
 # wicked-crew (rig run 7588cff1, 240 stated + 60 left as risks); a page carries a fixed cost
@@ -63,8 +65,15 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     # seat left empty stays one; a later generation may try it again).
     seen = generation.visited(record)
     revisit = {n["symbol_id"] for n in placeholders}
-    candidates = [n for n in [*unmapped, *placeholders] if n["symbol_id"] not in seen]
     tracked = rules_file.tracked_files(repo_root)
+    # Mapped behaviours whose code changed since the map was built: asked again, after the rest.
+    # Only inside a run (the record is what lets apply accept them).
+    stale, stale_line = ([], "outside a run: changed behaviours are not re-asked")
+    if run_id:
+        stale, stale_line = refresh.changed_units(
+            db, repo_root, tracked, {n["symbol_id"] for n in [*unmapped, *placeholders]})
+    restate = {n["symbol_id"]: n for n in stale}
+    candidates = [n for n in [*unmapped, *placeholders, *stale] if n["symbol_id"] not in seen]
     in_repo = [n for n in candidates if n.get("file") in tracked]
     skipped = len(candidates) - len(in_repo)
 
@@ -73,10 +82,13 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     hubs, how = extract_loop._centrality_hubs(estate, store)
     order, hops = extract_loop.hub_first_order(store, hubs)
     tail = len(order)
-    # The product's code first, the unmapped before the placeholders, each hub-first; tests and
-    # fixtures (an older wicked-core still counts them) after it, in the same order.
+    # The product's code first, the unmapped before the placeholders before the changed mapped
+    # behaviours, each hub-first; tests and fixtures (an older wicked-core still counts them) after
+    # it, in the same order.
+    def tier(sid: str) -> int:
+        return 2 if sid in restate else (1 if sid in revisit else 0)
     in_repo.sort(key=lambda n: (extract_loop.is_test_path(n.get("file", "")),
-                                n["symbol_id"] in revisit,
+                                tier(n["symbol_id"]),
                                 order.get(n["symbol_id"], tail), n["symbol_id"]))
     take = in_repo[:limit] if limit > 0 else in_repo
 
@@ -99,6 +111,8 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                                              neighbor_names=store.blast_neighbors(sid))
         unit.update(kind=n.get("kind", ""), position=order.get(sid, tail) + 1,
                     hop=hops.get(sid))
+        if sid in restate:  # mapped before; its code changed since the map was built
+            unit.update(changed_since_build=True, prior_statement=restate[sid]["prior"])
         room -= len(rules_file.encoded(unit))
         if room < 0:  # the seat refuses a bigger worklist; the rest is the next pass's
             break
@@ -112,6 +126,7 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                                               "risk_flagged", "unaccounted")},
         "unmapped": len(unmapped),
         "placeholders": len(placeholders),
+        "changed_since_build": len(stale),
         "asked_before": len(seen),
         "not_in_repo": skipped,
         "units": units,
@@ -133,7 +148,9 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         # yield (codex on #1375), so a page whose units cannot be recorded is not prepared (and
         # no worklist is published for it).
         try:
-            generation.frame_page(db, run_id, [u["symbol_id"] for u in units])
+            framed = [u["symbol_id"] for u in units]
+            generation.frame_page(db, run_id, framed,
+                                  changed_ids=[s for s in framed if s in restate])
         except (OSError, ValueError) as e:
             raise RuntimeError(f"the page's units could not be recorded in the generation "
                                f"record ({e})") from e
@@ -141,11 +158,13 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     front = units[0]["symbol_id"] if units else "-"
     no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
     again = sum(1 for u in units if u["symbol_id"] in revisit)
+    restated = sum(1 for u in units if u["symbol_id"] in restate)
     print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s) and {len(placeholders)} "
           f"placeholder(s), {len(seen)} asked by an earlier page of this run; {skipped} in files "
           f"the repository does not track (left out); {len(units)} framed into {out_rel} "
-          f"({again} placeholder(s) asked again, {no_source} with no source), frontier {front}; "
-          f"{doc['order']}", file=sys.stderr)
+          f"({again} placeholder(s) asked again, {restated} changed since the map was built, "
+          f"{no_source} with no source), frontier {front}; {doc['order']}; refresh: {stale_line}",
+          file=sys.stderr)
     return doc
 
 

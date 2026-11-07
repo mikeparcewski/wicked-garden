@@ -18,7 +18,8 @@ step:
     ask when the budget (`WICKED_DOMAIN_MAX_PAGES`, default 20, or `WICKED_DOMAIN_MAX_MINUTES`,
     default 240, per grant) is spent, nothing is left to ask, the last page resolved under 1 in
     20 of its units, or two pages added no real requirement — map more, lower the target for this
-    repository, or stop; done at the target.
+    repository, or stop; done at the target once no mapped behaviour that changed since the map
+    was built is left to re-ask (wicked-garden#1425).
 
 The engine re-runs this step with the operator's choice in `WICKED_REPEAT_CHOICE`: `continue`
 grants a fresh budget, `lower` sets the repository's own target to the share mapped so far (so
@@ -184,7 +185,8 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
     max_pages, max_minutes = generation.budget_from_env(env)
     decision = generation.decide(doc, repo=repo, target=target, now=now, max_pages=max_pages,
                                  max_minutes=max_minutes,
-                                 left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)))
+                                 left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)),
+                                 changed_left=generation.changed_left(doc))
     if choice == "finish":
         decision = {"next": "done", "line": generation.progress_line(
             repo, doc["points"], target, next_page=None, left_to_map=0)
