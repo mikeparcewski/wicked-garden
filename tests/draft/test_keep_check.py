@@ -1,0 +1,192 @@
+"""Tests for scripts/draft/keep_check.py — a refine keeps the person's own edits (DES-CHAT-ARTIFACTS-001 §6.2, §13 A5)."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from draft import keep_check as kc
+
+REPO = Path(__file__).resolve().parents[2]
+SCRIPT = REPO / "scripts" / "draft" / "keep_check.py"
+
+
+def deck(slides: list[tuple[str, str, str]], styles: dict[str, str] | None = None) -> str:
+    """A deck: (slide id, title, body) per slide, each anchored like interactive instruments it."""
+    styles = styles or {}
+    out = []
+    for sid, title, body in slides:
+        st = f' style="{styles[sid]}"' if sid in styles else ""
+        out.append(f'<section data-slide-id="{sid}" data-wid="sec-{sid}"{st}><h2 data-wid="{sid}-h">{title}</h2>'
+                   f'<p data-wid="{sid}-p">{body}</p></section>')
+    return "<!doctype html><html><body>" + "".join(out) + "</body></html>"
+
+
+BASE = [("s1", "Intro", "Hello"), ("s2", "Plan", "Steps"), ("s3", "Risks", "Few"), ("s4", "Ask", "Budget")]
+
+
+class Lineage:
+    def __init__(self, tmp: Path, root_html: str) -> None:
+        self.tmp = tmp
+        self.steps: list[dict] = []
+        self.add("root", root_html)
+
+    def add(self, step: str, html: str, allow: list[str] | None = None) -> "Lineage":
+        p = self.tmp / f"_v{len(self.steps)}.html"
+        p.write_text(html, encoding="utf-8")
+        self.steps.append({"version": len(self.steps), "html": str(p), "step": step, **({"allow": allow} if allow else {})})
+        return self
+
+    def map(self) -> dict:
+        m, _ = kc.build_map(self.steps)
+        return m
+
+
+def verdict(m: dict, html: str, allow: list[str] | None = None) -> dict:
+    return kc.check(m, kc.Version(html), allow or [])
+
+
+def test_a_retitle_by_hand_is_kept_byte_for_byte(tmp_path: Path):
+    v1 = deck(BASE)
+    lin = Lineage(tmp_path, v1).add("job", v1).add("hand", deck([("s1", "Release 0.17 — what changed", "Hello"), *BASE[1:]]))
+    m = lin.map()
+    assert m["texts"] == {"s1-h": "Release 0.17 — what changed"}
+    kept = deck([("s1", "Release 0.17 — what changed", "Hello, engineers"), *BASE[1:]])
+    assert verdict(m, kept)["ok"] is True
+    lost = deck([("s1", "Release 0.17: what changed", "Hello, engineers"), *BASE[1:]])
+    r = verdict(m, lost)
+    assert r["ok"] is False and r["violations"][0]["kind"] == "changed" and r["violations"][0]["wid"] == "s1-h"
+
+
+def test_let_this_change_it_releases_exactly_that_value(tmp_path: Path):
+    lin = Lineage(tmp_path, deck(BASE)).add("hand", deck([("s1", "Mine", "Hello"), *BASE[1:]]))
+    m = lin.map()
+    entry = next(e for e in kc.entry_ids(m) if e["wid"] == "s1-h")
+    changed = deck([("s1", "Theirs", "Hello"), *BASE[1:]])
+    assert verdict(m, changed, [entry["id"]])["ok"] is True
+    # The same title edited again by hand is a new value: the old "let it change" no longer releases it.
+    lin.add("hand", deck([("s1", "Mine again", "Hello"), *BASE[1:]]))
+    assert verdict(lin.map(), changed, [entry["id"]])["ok"] is False
+
+
+def test_a_moved_slide_holds_through_two_refines(tmp_path: Path):
+    moved = [BASE[2], BASE[0], BASE[1], BASE[3]]
+    lin = Lineage(tmp_path, deck(BASE)).add("hand", deck(moved))
+    m = lin.map()
+    assert m["order"] == ["s3", "s1", "s2", "s4"]
+    refined = deck([(s, t, b + " tightened") for s, t, b in moved])
+    lin.add("job", refined)
+    assert verdict(lin.map(), refined)["ok"] is True
+    again = deck([(s, t, b + " again") for s, t, b in moved] + [("s9", "New", "Slide")])
+    assert verdict(lin.map(), again)["ok"] is True, "a new slide anywhere is fine"
+    assert verdict(lin.map(), deck(BASE))["violations"][0]["kind"] == "order"
+
+
+def test_move_a_then_move_b_keeps_the_latest_order(tmp_path: Path):
+    a = [BASE[1], BASE[0], BASE[2], BASE[3]]
+    b = [BASE[1], BASE[0], BASE[3], BASE[2]]
+    m = Lineage(tmp_path, deck(BASE)).add("hand", deck(a)).add("hand", deck(b)).map()
+    assert verdict(m, deck(b))["ok"] is True
+    assert verdict(m, deck(a))["ok"] is False
+
+
+def test_reorder_then_delete_keeps_the_slide_gone_and_the_survivors_order(tmp_path: Path):
+    reordered = [BASE[3], BASE[0], BASE[1], BASE[2]]
+    deleted = [BASE[3], BASE[0], BASE[2]]
+    lin = Lineage(tmp_path, deck(BASE)).add("hand", deck(reordered)).add("hand", deck(deleted))
+    m = lin.map()
+    assert "sec-s2" in m["gone"] and m["order"] == ["s4", "s1", "s3"]
+    lin.add("job", deck(deleted))
+    lin.add("job", deck(deleted))
+    assert verdict(lin.map(), deck(deleted))["ok"] is True
+    back = verdict(lin.map(), deck(reordered))
+    assert back["ok"] is False and {v["kind"] for v in back["violations"]} >= {"reappeared"}
+
+
+def test_a_removed_section_stays_removed(tmp_path: Path):
+    m = Lineage(tmp_path, deck(BASE)).add("hand", deck(BASE[:3])).map()
+    assert verdict(m, deck(BASE[:3]))["ok"] is True
+    assert verdict(m, deck(BASE))["violations"][0]["kind"] == "reappeared"
+
+
+def test_styled_then_removed_section_protects_nothing_but_its_absence(tmp_path: Path):
+    m = (Lineage(tmp_path, deck(BASE)).add("hand", deck(BASE, {"s2": "color:#c00"}))
+         .add("hand", deck([BASE[0], BASE[2], BASE[3]])).map())
+    assert m["attrs"] == {} and "sec-s2" in m["gone"]
+    assert verdict(m, deck([BASE[0], BASE[2], BASE[3]]))["ok"] is True
+
+
+def test_retitle_twice_protects_the_second_title(tmp_path: Path):
+    m = (Lineage(tmp_path, deck(BASE)).add("hand", deck([("s1", "First", "Hello"), *BASE[1:]]))
+         .add("hand", deck([("s1", "Second", "Hello"), *BASE[1:]])).map())
+    assert m["texts"]["s1-h"] == "Second"
+
+
+def test_undo_follows_the_parent_chain_so_the_undone_value_is_not_protected(tmp_path: Path):
+    # v0 root, v1 the draft, v2 a hand retitle; Undo forks v1 → v3 (parent v1): the chain is v0, v1, v3.
+    v1 = deck(BASE)
+    lin = Lineage(tmp_path, v1).add("job", v1)
+    lin.add("hand", v1)  # the fork of v1, as the host walks it (v2 is not on the chain)
+    m = lin.map()
+    assert kc.entry_ids(m) == []
+
+
+def test_a_theme_step_protects_nothing(tmp_path: Path):
+    themed = deck(BASE).replace("<body>", "<body style='background:#000'>")
+    m = Lineage(tmp_path, deck(BASE)).add("theme", themed).map()
+    assert kc.entry_ids(m) == []
+
+
+def test_a_pre_provenance_version_is_never_claimed_as_kept(tmp_path: Path):
+    m = Lineage(tmp_path, deck(BASE)).add("unknown", deck([("s1", "Someone", "Hello"), *BASE[1:]])).map()
+    assert kc.entry_ids(m) == []
+
+
+def test_a_job_step_releases_only_its_accepted_allow(tmp_path: Path):
+    lin = Lineage(tmp_path, deck(BASE)).add("hand", deck([("s1", "Mine", "Mine too"), *BASE[1:]]))
+    ids = {e["wid"]: e["id"] for e in kc.entry_ids(lin.map())}
+    lin.add("job", deck([("s1", "Theirs", "Mine too"), *BASE[1:]]), allow=[ids["s1-h"]])
+    m = lin.map()
+    assert "s1-h" not in m["texts"] and m["texts"]["s1-p"] == "Mine too"
+
+
+def test_an_added_slide_must_stay_with_its_initial_text(tmp_path: Path):
+    added = BASE + [("s5", "Extra", "Notes")]
+    m = Lineage(tmp_path, deck(BASE)).add("hand", deck(added)).map()
+    assert "sec-s5" in m["added"] and m["texts"]["s5-h"] == "Extra"
+    assert verdict(m, deck(BASE))["violations"][0]["kind"] == "missing"
+
+
+def test_touched_entries_overlap_the_anchor_by_subtree(tmp_path: Path):
+    lin = Lineage(tmp_path, deck(BASE)).add("hand", deck([("s1", "Mine", "Mine too"), ("s2", "Ours", "Steps"), *BASE[2:]]))
+    m, head = kc.build_map(lin.steps)
+    touched = {e["wid"]: e["touched"] for e in kc.entries_for(m, head, ["sec-s1"])}
+    assert touched == {"s1-h": True, "s1-p": True, "s2-h": False}
+
+
+def test_cli_map_then_check(tmp_path: Path):
+    lin = Lineage(tmp_path, deck(BASE)).add("hand", deck([("s1", "Mine", "Hello"), *BASE[1:]]))
+    lineage = tmp_path / "lineage.json"
+    lineage.write_text(json.dumps({"steps": lin.steps}), encoding="utf-8")
+    out = subprocess.run([sys.executable, str(SCRIPT), "map", "--lineage", str(lineage), "--json"], capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    mapped = json.loads(out.stdout)
+    assert [e["label"] for e in mapped["entries"]] == ["slide 1 · heading “Mine”"]
+    mp = tmp_path / "map.json"
+    mp.write_text(json.dumps(mapped["map"]), encoding="utf-8")
+    bad = tmp_path / "bad.html"
+    bad.write_text(deck(BASE), encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(mp), str(bad), "--json"], capture_output=True, text=True)
+    assert proc.returncode == 1 and json.loads(proc.stdout)["violations"][0]["wid"] == "s1-h"
+
+
+def test_unreadable_input_is_an_error_never_a_pass(tmp_path: Path):
+    with pytest.raises(kc.KeepError):
+        kc.build_map([{"html": str(tmp_path / "nope.html"), "step": "root"}])
+    proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(tmp_path / "none.json"), str(tmp_path / "x.html")],
+                          capture_output=True, text=True)
+    assert proc.returncode == 2

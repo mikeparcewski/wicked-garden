@@ -9,16 +9,21 @@ and prints one verdict:
   * pages     — the RENDERED page count meets the brief's budget (`page_count.py`); when neither a
                 PDF nor a Chrome render is available the count is UNVERIFIED and the verdict says so;
   * claims    — no placeholders, every number/URL cited or visibly labelled illustrative, no
-                dangling `data-source` paths, no URL the sources never mention (`claims_scan.py`).
+                dangling `data-source` paths, no URL the sources never mention (`claims_scan.py`);
+  * leaks     — no process notes in the artifact: inbox/state paths, the run's id, "self-check",
+                "UNVERIFIED", bare `[S]` markers, first-person drafting narration, in visible text,
+                speaker notes, attributes and comments (`leak_scan.py`);
+  * notes     — with `--notes`, the run's `notes.json` exists and has its one shape (`notes_check.py`):
+                what could not be confirmed is listed there, never in the document.
 
 Exit: 0 = every floor met (and verified); 1 = a floor failed — fix the document and re-run;
-3 = no floor failed but the page count could not be verified — disclose it in the notes;
+3 = no floor failed but the page count could not be verified — disclose it in notes.json;
 2 = usage / unreadable input. Stdlib only.
 
 CLI:
     self_check.py <file.html> [--pdf <exported.pdf>] [--pages N [--exact]] [--render]
                   [--repo <dir> …] [--min-contrast 4.5] [--min-font-pt 7] [--mode print|screen|both]
-                  [--no-pages] [--json]
+                  [--no-pages] [--notes <notes.json>] [--run-id <id>] [--json]
 """
 
 from __future__ import annotations
@@ -30,15 +35,19 @@ from pathlib import Path
 
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from draft import claims_scan, contrast_check, page_count  # noqa: E402
+from draft import claims_scan, contrast_check, leak_scan, notes_check, page_count  # noqa: E402
 
 
 def run(html: str, pdf: str | None = None, pages: int | None = None, exact: bool = False,
         render: bool = False, repos: list[str] | None = None, min_contrast: float = 4.5,
-        min_font_pt: float = 7.0, mode: str = "print", check_pages: bool = True) -> dict:
+        min_font_pt: float = 7.0, mode: str = "print", check_pages: bool = True,
+        notes: str | None = None, run_ids: list[str] | None = None) -> dict:
     checks: dict[str, dict] = {}
     checks["contrast"] = contrast_check.run(html, min_contrast, min_font_pt, mode)
     checks["claims"] = claims_scan.run(html, repos)
+    checks["leaks"] = leak_scan.run(html, run_ids)
+    if notes is not None:
+        checks["notes"] = notes_check.run(notes)
     if check_pages:
         checks["pages"] = page_count.run(html, pdf=pdf, budget=pages, exact=exact, render=render)
     failed = [name for name, rep in checks.items()
@@ -95,12 +104,14 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--min-font-pt", type=float, default=7.0, help="0 disables the print size floor")
     ap.add_argument("--mode", choices=("print", "screen", "both"), default="print")
     ap.add_argument("--no-pages", action="store_true", help="skip the page check (web pages, prose docs)")
+    ap.add_argument("--notes", help="the run's notes.json (required to exist and be valid when given)")
+    ap.add_argument("--run-id", action="append", default=[], help="the drafting run's id (it must not appear in the document)")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     try:
         report = run(args.html, pdf=args.pdf, pages=args.pages, exact=args.exact, render=args.render,
                      repos=args.repo, min_contrast=args.min_contrast, min_font_pt=args.min_font_pt,
-                     mode=args.mode, check_pages=not args.no_pages)
+                     mode=args.mode, check_pages=not args.no_pages, notes=args.notes, run_ids=args.run_id)
     except (OSError, ValueError) as exc:
         print(json.dumps({"check": "draft-self-check", "verdict": "ERROR", "error": str(exc)}))
         return 2
@@ -110,18 +121,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"draft self-check: {report['verdict']}")
         for line in report["summary"]:
             print(f"  {line}")
-        for name, fmt in (("contrast", contrast_check.format_finding), ("claims", claims_scan.format_finding)):
+        for name, fmt in (("contrast", contrast_check.format_finding), ("claims", claims_scan.format_finding),
+                          ("leaks", leak_scan.format_finding)):
             for f in report["checks"][name]["findings"][:40]:
                 print("  " + fmt(f))
             extra = len(report["checks"][name]["findings"]) - 40
             if extra > 0:
                 print(f"    ... {extra} more {name} findings (use --json for all)")
+        for problem in report["checks"].get("notes", {}).get("findings", []):
+            print(f"  [notes] {problem}")
         for note in report["checks"]["contrast"].get("notes", []):
             print(f"    note: {note}")
         for note in report["checks"].get("pages", {}).get("notes", []):
             print(f"    note: {note}")
         for line in report["disclose"]:
-            print(f"  DISCLOSE in the deliverable's notes -> {line}")
+            print(f"  DISCLOSE in notes.json and your reply (never in the document) -> {line}")
     if report["verdict"] == "FAIL":
         return 1
     if report["verdict"] == "UNVERIFIED":

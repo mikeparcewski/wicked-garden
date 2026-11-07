@@ -44,7 +44,7 @@ wicked-garden run scripts/draft/claims_scan.py out.html --repo /path/to/snapshot
 
 The two "done" states are `PASS` and `UNVERIFIED`-with-disclosure. `FAIL` is fixed in the
 DOCUMENT and re-run; never by loosening the flags, never by `zoom`/`scale`. `UNVERIFIED` is never
-rounded up to a pass: the check prints one `DISCLOSE in the deliverable's notes -> …` line per
+rounded up to a pass: the check prints one `DISCLOSE in notes.json and your reply (never in the document) -> …` line per
 unverified check — copy those lines into the document's notes and your reply. A disclosure always
 names **which** check, **why** on this seat, and **what a reviewer does to verify**:
 
@@ -94,7 +94,7 @@ Say which of these you did by hand.
    without computing. Check font sizes: nothing under 7pt in print.
 2. **Pages.** Print the HTML to PDF (browser: File → Print → Save as PDF, A4, default margins)
    and read the page count from the viewer. No printer available → write "page count
-   unverified" in the notes with your wrapper/break count.
+   unverified" in `notes.json` with your wrapper/break count.
 3. **Claims.** Search the visible text for `PLACEHOLDER`, `TODO`, `TBD`, `lorem`, `{{`,
    `[INSERT`; list every number and URL and point each at a `data-source` path that exists in
    the snapshot; confirm every mock has a visible "illustrative" label.

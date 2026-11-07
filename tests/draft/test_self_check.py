@@ -66,7 +66,7 @@ def test_cli_json_and_error(tmp_path: Path):
     proc = subprocess.run([sys.executable, str(SCRIPT), str(html), "--no-pages", "--json"], capture_output=True, text=True)
     assert proc.returncode == 0
     payload = json.loads(proc.stdout)
-    assert payload["verdict"] == "PASS" and set(payload["checks"]) == {"contrast", "claims"}
+    assert payload["verdict"] == "PASS" and set(payload["checks"]) == {"contrast", "claims", "leaks"}
     assert sc.main([str(tmp_path / "missing.html")]) == 2
 
 

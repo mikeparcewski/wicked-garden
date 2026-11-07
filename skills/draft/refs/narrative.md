@@ -19,7 +19,7 @@ sized to the brief, grounded) still apply; this ref adds what a narrative needs.
 
 - **Name the audience** from the brief (executives, engineers, customers) and write for them: an
   executive narrative leads with the outcome and the cost; an engineering one with the mechanism.
-  With no audience named, write for an informed outsider and say so in the notes.
+  With no audience named, write for an informed outsider and say so in `notes.json`.
 - **One story.** A second storyline is a second document; cut it or mention it in a line.
 - **No claim without a source.** Adjectives are claims too: "fast", "secure", "loved" need a cited
   number or a quote, or they go. A story that the sources do not support is not told.
