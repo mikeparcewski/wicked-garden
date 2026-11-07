@@ -35,8 +35,11 @@ Usage (the preset's command, run from the run's worktree):
     wicked-garden run scripts/domain/apply_rules.py --db <store> --repo-root <repo> \
         [--rules .wicked/domain/rules.json] [--coverage-out coverage-report.json]
 
-Exit 0 when the file was applied (refused entries are listed, not fatal); 1 when the file is
-missing or refused, or a write fails.
+Exit 0 when the file was applied (refused entries are listed, not fatal), or when there was
+nothing to extract: the run's host-side generation record shows this pass's `extract-prepare`
+framed an empty page (e2e-1105 F42: a re-map of a map that is already current finishes with "map
+already current at <commit>; nothing to extract", and applies no rules file). 1 when the file is
+missing for a page that framed units (or with no page in flight), refused, or a write fails.
 """
 
 from __future__ import annotations
@@ -182,6 +185,93 @@ def _restatable(db: str, store) -> tuple[dict[str, dict], set[str]]:
     return out, changed
 
 
+def _page_framed_nothing(db: str) -> bool:
+    """Did this pass's `extract-prepare` frame an EMPTY page? Read from the run's generation record
+    on the host (`generation.page_in_flight`), never from the seat-writable worklist: the seat can
+    rewrite that file, but cannot write the record or make prepare frame fewer units. False outside
+    a run, with no record, with no page in flight (a closed page reworked after `extract-next`), and
+    for a page that framed any unit: a missing rules file is then the extract step's undone work."""
+    run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
+    if not run_id:
+        return False
+    try:
+        return generation.page_in_flight(generation.load(db, run_id)) == []
+    except (OSError, ValueError):
+        return False
+
+
+def _freshness(db: str) -> tuple[bool, str]:
+    """(is the map current, what to say): current only when the store records both the commit
+    the map was built from and the one it is indexed at now, and they are the same (codex r1: full
+    coverage alone says nothing about whether the requirements match the code)."""
+    try:
+        built, at, why = refresh.build_and_base(db)
+    except Exception as e:  # noqa: BLE001 - prepare already failed on an unreadable store
+        return False, f"whether the map matches the code could not be read ({e!s:.200})"
+    if built and at and built == at:
+        return True, built[:12]
+    if built and at:
+        return False, (f"the code changed since the map was built ({built[:12]}..{at[:12]}) and "
+                       "each changed behaviour was asked by an earlier page of this run or is not "
+                       "product code")
+    if built is None:
+        return False, ("the store records no commit the map was built from, so whether it matches "
+                       "the code could not be told")
+    return False, f"{why}, so whether the map matches the code could not be told"
+
+
+def _nothing_to_extract(db: str, base: Path, rules_rel: str, coverage_rel: str, core) -> dict:
+    """This pass's prepare framed no units: write nothing to the store, whatever rules file the
+    worktree holds (an earlier page's file left behind is not this page's answer, codex r1),
+    publish the coverage and apply reports the later steps read, and say so in one honest line
+    (e2e-1105 F42). "Already current" only when coverage shows nothing unmapped and no placeholder
+    AND the map was built at the commit the store is indexed at."""
+    rules_file.check_writable(base, coverage_rel)
+    rules_file.check_writable(base, REPORT_REL)
+    with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
+        after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
+    unmapped, held = int(after.get("unaccounted") or 0), int(after.get("risk_flagged") or 0)
+    current = False
+    if unmapped or held:
+        what = (f"nothing to extract: this page framed no units ({unmapped} unmapped, {held} "
+                "placeholder(s) left, each asked by an earlier page of this run or in a file the "
+                "repository does not track)")
+    else:
+        current, said = _freshness(db)
+        what = (f"map already current at {said}; nothing to extract (this page framed no units)"
+                if current else
+                f"nothing to extract: this page framed no units and every behaviour is a real "
+                f"requirement, but {said}")
+    ignored = os.path.lexists(base / rules_rel)
+    if ignored:
+        what += f"; the {rules_rel} left in the worktree was not applied"
+    rules_file.write_json_file(base, coverage_rel, after)
+    report = {
+        "declared_seat": None,
+        "author": AUTHOR,
+        "entries": 0,
+        "applied": {"resolved": 0, "risk": 0, "kept": 0},
+        "eligible": 0,
+        "changed_since_build": {"listed": 0, "restated": 0},
+        "reworked": 0,
+        "unsourced": 0,
+        "not_product": 0,
+        "refused": [],
+        "refused_count": 0,
+        "nothing_to_extract": True,
+        "map_current": current,
+        "rules_file_ignored": ignored,
+        "line": what,
+        "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
+                                                "risk_flagged", "unaccounted")},
+        "minimum_met": met,
+        "coverage_line": line,
+    }
+    rules_file.write_json_file(base, REPORT_REL, report)
+    print(f"[extract-apply] {what}. {line or ''}".rstrip(), file=sys.stderr)
+    return report
+
+
 def _rule_keys(db: str, symbol_id: str) -> list[str]:
     try:
         return refresh.rule_keys(db, symbol_id)
@@ -201,6 +291,11 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
     core = core or _clients.host_core_client()
     estate = estate or _clients.host_estate_client(db)
+    if _page_framed_nothing(db):
+        # The host's record says this pass's prepare framed nothing: there is nothing to apply,
+        # with or without a file. A page with units, a closed page or no record goes on below, where
+        # a missing file is refused: an extract step that skipped its work fails closed.
+        return _nothing_to_extract(db, base, rules_rel, coverage_rel, core)
     try:
         doc = rules_file.read_json_file(base, rules_rel)
     except FileNotFoundError:

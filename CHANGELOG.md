@@ -75,6 +75,18 @@
 
 ### Fixed
 
+- **Re-mapping a map that is already current finishes instead of failing (e2e-1105 F42).** `extract-prepare`
+  framed an empty page ("0 unmapped … 0 changed since the map was built"), the extract step rightly wrote no
+  `.wicked/domain/rules.json`, and `extract-apply` refused ("the extract step left no rules file"), which raised a
+  "step failed" gate. Apply now reads the run's host-side generation record, which prepare already writes beside
+  the store, and never reads the worklist the seat can rewrite. Prepare marks the page it frames as open
+  (`page_open`, cleared when `extract-next` closes it). When this pass's page is open and framed no units, apply
+  writes no rule and applies no rules file, even one an earlier page left in the worktree. It publishes
+  `coverage-report.json` and the apply report (`nothing_to_extract: true`) and says "map already current at
+  <commit>; nothing to extract". It says "current" only when every behaviour is a real requirement and the map
+  was built at the commit the store is indexed at; otherwise it says what is left, or that freshness could not be
+  told. A missing rules file is still refused for a page that framed units, for a page `extract-next` already
+  closed (a coverage send-back's rework), for a record written before the marker, and outside a run.
 - **Refresh map reads the store estate actually writes (e2e-1105 F40).** `refresh.py` queried
   `meta(key, value)`, but estate's table is `meta(k, v)`. The error was caught and read as "the store records no
   indexed commit", so a Refresh re-asked nothing, and the map it then rebuilt read as current while `sum` kept its

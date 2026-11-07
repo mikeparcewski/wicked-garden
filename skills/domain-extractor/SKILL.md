@@ -44,6 +44,13 @@ behaviours whose code changed since the map was built, marked `changed_since_bui
 `wicked-estate` — the host step `extract-apply` checks and writes what you produce. Do this,
 and only this:
 
+0. **A worklist with no units** (`"units": []`): there is nothing to state. Write no file and
+   say so in one line. The host's apply step reads its own record of the page it prepared and
+   finishes it ("map already current … nothing to extract"); it applies no rules file for such
+   a page. It refuses a missing file for a page that had units, so never leave the file out
+   when the worklist has any. A review that sends back a page with no units asks for work the
+   host cannot apply: say so plainly, and the person decides at the step's gate.
+
 1. Run the harness in file mode (one `Bash` call; it stops inside its budget):
    ```bash
    wicked-garden run scripts/domain/extract_loop.py --worklist .wicked/domain/worklist.json \
