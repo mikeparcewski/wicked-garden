@@ -1,0 +1,11 @@
+{
+ "built": "b3bf43fddaf49eb787ce6fa3af3ba0957a2f817a",
+ "base": "439986006cc5b6d145c9433f08c3760853391884",
+ "symbols": {
+  "sum": "ts-javascript . . . src/math/sum().",
+  "mean": "ts-javascript . . . src/math/mean().",
+  "clamp": "ts-javascript . . . src/other/clamp()."
+ },
+ "estate": "wicked-estate 0.32.1",
+ "core": "wicked-core"
+}

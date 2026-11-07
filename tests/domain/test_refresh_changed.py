@@ -9,6 +9,8 @@ placeholders (or accept only those in apply) and `sum` is never asked, so its fi
 """
 
 import json
+
+import pytest
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -67,7 +69,7 @@ def _store(tmp_path, built, base, *, code_commit=True):
         CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);
         CREATE TABLE files (path TEXT, git_sha TEXT);
         CREATE TABLE content (git_sha TEXT, blob BLOB);
-        CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT);
+        CREATE TABLE meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);
         CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, node_sym INTEGER,
             key TEXT, value TEXT, confidence REAL DEFAULT 1.0, provenance TEXT DEFAULT '',
             author TEXT DEFAULT '', ts INTEGER DEFAULT 0, type TEXT DEFAULT 'note');
@@ -197,11 +199,13 @@ def test_a_map_built_without_a_code_commit_re_asks_nothing_and_says_so(tmp_path,
     assert "no build commit recorded" in capsys.readouterr().err
 
 
-def test_a_commit_the_checkout_does_not_hold_re_asks_nothing(tmp_path):
+def test_a_commit_the_checkout_does_not_hold_fails_the_refresh(tmp_path):
+    """codex r2: both commits are recorded, so a checkout that cannot compare them fails the step
+    rather than re-asking nothing and rebuilding a stale map as current."""
     repo, built, base = _repo(tmp_path)
     db = _store(tmp_path, "f" * 40, base)
-    units, line = refresh.changed_units(db, str(repo), rules_file.tracked_files(repo), set())
-    assert units == [] and "could not be read" in line
+    with pytest.raises(refresh.RefreshUnreadable, match="could not be read"):
+        refresh.changed_units(db, str(repo), rules_file.tracked_files(repo), set())
 
 
 def test_outside_a_run_nothing_is_re_asked(tmp_path, monkeypatch):
@@ -356,3 +360,32 @@ def test_at_the_minimum_a_page_that_answered_none_of_its_units_is_asked_not_page
     d = generation.decide(doc, repo="tm", target=80, now=60000, max_pages=20, max_minutes=240,
                           left_to_map=0, changed_left=30)
     assert d["next"] == "ask" and [c["id"] for c in d["choices"]] == ["continue", "finish"]
+
+
+def test_a_rework_restates_a_unit_this_run_already_applied(tmp_path, monkeypatch):
+    """e2e-1105 (run 672b5c14): the coverage review sent the run back for mean's inherited
+    mismatch after the page was applied; the extractor added it, but apply refused mean (already
+    resolved, not changed since the build), so the finding never reached the store. A unit this
+    run itself framed may be restated (only by a resolving rule); one it never framed may not."""
+    repo, built, base = _repo(tmp_path)
+    db, wt = _store(tmp_path, built, base), _wt(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-rework")
+    cov = _Core().coverage(db, str(tmp_path / "c.json"))
+    generation.open_record(db, "run-rework", cov, "tm")
+    rec = generation.load(db, "run-rework")
+    rec["visited"] = [MEAN]  # page 1 framed and closed it
+    generation.save(db, "run-rework", rec)
+    prov = {"source": "math", "ref": MEAN, "source_kinds": ["code-body"]}
+    rules = [{"symbol_id": MEAN, "statement": "The mean is the sum of every element over the count.",
+              "confidence": 0.9, "provenance": prov, "code_meets": False,
+              "mismatch": "it inherits sum's skipped first element"},
+             {"symbol_id": CLAMP, "statement": "A value is held within [lo, hi].",
+              "confidence": 0.9, "provenance": {**prov, "ref": CLAMP}}]
+    rules_file.write_json_file(wt, rules_file.RULES_REL, rules_file.rules_doc("claude", rules))
+    estate = _Estate()
+    report = apply_rules.apply(db, str(repo), wt, rules_file.RULES_REL, "coverage-report.json",
+                               estate=estate, core=_Core())
+    assert report["reworked"] == 1 and report["applied"]["resolved"] == 1
+    assert [r["symbol_id"] for r in report["refused"]] == [CLAMP]
+    mismatch = {v for (t, _k), v in estate.anns[MEAN].items() if t == "code_mismatch"}
+    assert mismatch == {"it inherits sum's skipped first element"}

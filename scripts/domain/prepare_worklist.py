@@ -70,8 +70,14 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     # Only inside a run (the record is what lets apply accept them).
     stale, stale_line = ([], "outside a run: changed behaviours are not re-asked")
     if run_id:
-        stale, stale_line = refresh.changed_units(
-            db, repo_root, tracked, {n["symbol_id"] for n in [*unmapped, *placeholders]})
+        try:
+            stale, stale_line = refresh.changed_units(
+                db, repo_root, tracked, {n["symbol_id"] for n in [*unmapped, *placeholders]})
+        except refresh.RefreshUnreadable as e:
+            # A store the refresh cannot read fails the step, said as such (e2e-1105 F40): never
+            # a page that silently skips the changed behaviours and a map that then reads current.
+            raise RuntimeError(f"Refresh map cannot tell what changed since the map was built: "
+                               f"{e}") from e
     restate = {n["symbol_id"]: n for n in stale}
     candidates = [n for n in [*unmapped, *placeholders, *stale] if n["symbol_id"] not in seen]
     in_repo = [n for n in candidates if n.get("file") in tracked]
