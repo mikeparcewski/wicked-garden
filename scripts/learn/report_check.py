@@ -155,23 +155,25 @@ def _trim_bare(u: str) -> str:
     return u[:end]
 
 
-def _md_destination(text: str, i: int, angle: bool) -> tuple[str, int] | None:
-    """The markdown link destination starting at ``text[i]``, exactly as a renderer reads it, or ``None``
-    when it is not a complete destination (then its text stays for the bare-URL scan). ``<…>`` form: up
-    to the ``>`` on the same line, parentheses kept. Bare form: up to the ``)`` that closes the link
-    (nested parens kept) or the whitespace before a title."""
+def _md_destination(text: str, i: int, angle: bool) -> tuple[str | None, int]:
+    """The markdown link destination starting at ``text[i]``, exactly as a renderer reads it, and where
+    the scan stopped. The destination is ``None`` when it is not complete (its text then stays for the
+    bare-URL scan). ``<…>`` form: up to the ``>`` on the same line, parentheses kept. Bare form: up to the
+    ``)`` that closes the link (nested parens kept) or the whitespace before a title."""
     if angle:
-        j = text.find(">", i)
-        if j < 0 or "\n" in text[i:j] or "<" in text[i:j]:
-            return None
-        return text[i:j], j
+        j = i
+        while j < len(text) and text[j] not in "<>\n":
+            j += 1
+        if j < len(text) and text[j] == ">":
+            return text[i:j], j
+        return None, j
     depth, j = 0, i
     while j < len(text):
         ch = text[j]
         if ch.isspace():
             return text[i:j], j  # a title may follow; whatever follows is scanned on its own
         if ch in "<>":
-            return None
+            return None, j
         if ch == "(":
             depth += 1
         elif ch == ")":
@@ -179,7 +181,7 @@ def _md_destination(text: str, i: int, angle: bool) -> tuple[str, int] | None:
                 return text[i:j], j
             depth -= 1
         j += 1
-    return None
+    return None, j
 
 
 def urls_in(text: str) -> list[tuple[str, bool]]:
@@ -195,13 +197,12 @@ def urls_in(text: str) -> list[tuple[str, bool]]:
         start = m.start(2)
         if start < consumed:
             continue  # inside a destination already read
-        got = _md_destination(text, start, bool(m.group(1)))
-        if got is None:
-            continue
-        dest, end = got
+        dest, end = _md_destination(text, start, bool(m.group(1)))
+        consumed = end  # a later link starting inside this span is not re-scanned (linear work)
+        if dest is None:
+            continue  # incomplete: its text stays for the bare-URL scan, which checks every URL in it
         out.append((dest, False))
         masked[start:end] = " " * (end - start)
-        consumed = end
     rest = "".join(masked)
     masked = list(rest)
     for m in AUTOLINK_RE.finditer(rest):

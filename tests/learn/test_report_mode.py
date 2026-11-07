@@ -573,6 +573,16 @@ def test_an_unterminated_destination_hides_nothing():
         assert any("invented.invalid" in m for m in bad), opener
 
 
+@pytest.mark.parametrize("prefix", ["](https://a", "](<https://a"])
+def test_unterminated_nested_destinations_are_scanned_once(prefix):
+    import time
+    p = packet(report="[C1] [C2] [C3] " + prefix * 16000)
+    t = time.monotonic()
+    code, out = run_check(p)
+    assert code == 1 and "url-not-in-log" in rules(out)
+    assert time.monotonic() - t < 3
+
+
 def test_a_located_code_quote_in_a_file_of_many_lines_is_bounded(tmp_path):
     import time
     repo = tmp_path / "repo"
