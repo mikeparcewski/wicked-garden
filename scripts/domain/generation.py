@@ -215,7 +215,8 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     """Close the page in flight; returns (units it framed, of those now REAL requirements), both
     measured on the page's own units (another writer's progress elsewhere never counts as this
     page's yield). The units `extract-apply` recorded as answered join `visited`; without that
-    record, every framed unit that is no longer unmapped does. (0, 0) when an answer to an ask
+    record, every framed unit that is a real requirement now does, except a changed mapped unit
+    (real before the page: it stays open). (0, 0) when an answer to an ask
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
     if not pending:

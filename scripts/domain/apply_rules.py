@@ -141,7 +141,8 @@ def _annotation_read_back(db: str):
 def _record_answered(db: str, answered: list[str]) -> None:
     """Record which of the page's units this step wrote (or kept), in the run's generation
     record, so only those close with the page. Never fatal: without it the next step closes the
-    units that are real requirements now."""
+    units that are real requirements now, except a changed mapped unit, which stays open to be
+    asked again (it was real before the page)."""
     run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
     if not run_id:  # an empty list is recorded too: "answered none" (Copilot on #1375)
         return
@@ -149,7 +150,8 @@ def _record_answered(db: str, answered: list[str]) -> None:
         generation.record_answered(db, run_id, answered)
     except (OSError, ValueError) as e:
         print(f"[extract-apply] the answered units could not be recorded ({e}); the next step "
-              "closes the units that are real requirements now", file=sys.stderr)
+              "closes the units that are real requirements now (a changed mapped unit stays open)",
+              file=sys.stderr)
 
 
 def _changed_since_build(db: str, store) -> dict[str, dict]:
