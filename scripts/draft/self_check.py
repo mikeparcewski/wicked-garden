@@ -10,8 +10,9 @@ and prints one verdict:
                 PDF nor a Chrome render is available the count is UNVERIFIED and the verdict says so;
   * claims    — no placeholders, every number/URL cited or visibly labelled illustrative, no
                 dangling `data-source` paths, no URL the sources never mention (`claims_scan.py`);
-  * leaks     — no process notes in the artifact: inbox/state paths, the run's id, "self-check",
-                "UNVERIFIED", bare `[S]` markers, first-person drafting narration, in visible text,
+  * leaks     — no process notes in the artifact: inbox/state paths, the run's id, a drafting check's
+                verdict ("UNVERIFIED", "self-check: PASS"), bare `[S]` markers, first-person drafting
+                narration (never the subject's own vocabulary), in visible text,
                 speaker notes, attributes and comments (`leak_scan.py`);
   * notes     — with `--notes`, the run's `notes.json` exists and has its one shape (`notes_check.py`):
                 what could not be confirmed is listed there, never in the document.

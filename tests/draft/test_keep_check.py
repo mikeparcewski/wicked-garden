@@ -254,6 +254,40 @@ def test_r1_the_lineage_starts_at_its_root_and_a_malformed_map_is_an_error(tmp_p
     assert proc.returncode == 2
 
 
+def test_r2_descendants_removed_with_a_tombstone_stay_removed(tmp_path: Path):
+    m = (Lineage(tmp_path, doc('<div data-wid="parent"><p data-wid="child">Remove me</p></div><p data-wid="k">Keep</p>'))
+         .add("hand", doc('<p data-wid="k">Keep</p>')).map())
+    assert m["gone"] == ["parent"] and m["gone_with"] == {"parent": ["child"]}
+    assert verdict(m, doc('<p data-wid="child">Remove me</p><p data-wid="k">Keep</p>'))["ok"] is False
+    gone = next(e for e in kc.entry_ids(m) if e["kind"] == "gone")
+    assert verdict(m, doc('<p data-wid="child">Remove me</p><p data-wid="k">Keep</p>'), [gone["id"]])["ok"] is True
+
+
+def test_r2_spacing_in_an_unanchored_pre_is_content(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<div data-wid="p"><pre>a b</pre></div>')).add("hand", doc('<div data-wid="p"><pre>a    b</pre></div>')).map()
+    assert "a    b" in m["texts"]["p"]
+    assert verdict(m, doc('<div data-wid="p"><pre>a b</pre></div>'))["ok"] is False
+
+
+def test_r2_an_added_empty_cell_stays_empty(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="a">x</p>')).add("hand", doc('<p data-wid="a">x</p><p data-wid="p"></p>')).map()
+    assert m["texts"]["p"] == ""
+    assert verdict(m, doc('<p data-wid="a">x</p><p data-wid="p">Changed</p>'))["ok"] is False
+
+
+def test_r2_a_template_or_repeated_slide_never_satisfies_the_order(tmp_path: Path):
+    m = Lineage(tmp_path, deck(BASE[:2])).add("hand", deck([BASE[1], BASE[0]])).map()
+    real = deck(BASE[:2])
+    tricked = real.replace("<body>", '<body><template><section data-slide-id="s2" data-wid="t2"></section><section data-slide-id="s1" data-wid="t1"></section></template>')
+    assert verdict(m, tricked)["ok"] is False
+    assert any(v["kind"] == "duplicate" for v in verdict(m, deck([BASE[1], BASE[0], BASE[1]]).replace('data-wid="sec-s2"', 'data-wid="x"', 1))["violations"])
+
+
+def test_r2_a_repeated_attribute_reads_as_the_browser_reads_it(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="p" class="a">x</p>')).add("hand", doc('<p data-wid="p" class="mine">x</p>')).map()
+    assert verdict(m, doc('<p data-wid="p" class="changed" class="mine">x</p>'))["ok"] is False
+
+
 def test_unreadable_input_is_an_error_never_a_pass(tmp_path: Path):
     with pytest.raises(kc.KeepError):
         kc.build_map([{"html": str(tmp_path / "nope.html"), "step": "root"}])

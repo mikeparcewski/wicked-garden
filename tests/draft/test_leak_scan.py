@@ -52,11 +52,23 @@ def test_r1_inline_markup_comments_css_and_check_names_cannot_hide_a_leak():
     assert kinds("<!-- I used SearchEntity; [S] -->") == {"narration", "source-marker"}
     assert kinds("<style>/* /Users/alice/.wicked-crew/inbox */</style><p>x</p>") == {"state-path"}
     assert kinds('<style>p::before { content: "I used SearchEntity"; }</style>') == {"narration"}
-    assert kinds("<p>I ran keep_check.py to validate the edits.</p>") == {"narration"}
+    assert kinds("<p>I ran keep_check.py to validate the edits.</p>") >= {"narration"}
     assert kinds("<p>See sources\\brief-abcd.txt</p>") == {"state-path"}
 
 
+def test_r2_attributes_of_script_and_style_line_breaks_more_inline_tags_and_check_verdicts():
+    assert kinds('<script src="/Users/alice/.wicked-crew/inbox/run.js"></script>') == {"state-path"}
+    assert kinds(f'<style data-run="{RUN}">p{{}}</style>', [RUN]) == {"run-id"}
+    assert kinds("<p>I used <ins>SearchEntity</ins> to draft this.</p>") == {"narration"}
+    assert kinds("<p>I used\n  SearchEntity to draft this.</p>") == {"narration"}
+    assert kinds("<p>Self-check: PASS</p>") == {"process-word"}
+    assert kinds("<p>keep_check.py: PASS</p>") == {"process-word"}
+    assert kinds("<p>We ran the self-check.</p>") == {"process-word"}
+
+
 def test_r1_subject_vocabulary_passes():
+    assert ls.scan("<p>To start the device, run the self-check.</p>")["ok"] is True
+    assert ls.scan("<p>The parser reads config/notes.json.</p>")["ok"] is True
     assert ls.scan("<p>The safety device performs a self-check before starting.</p>")["ok"] is True
     assert ls.scan("<p>The parser reads notes.json from its input directory.</p>")["ok"] is True
 

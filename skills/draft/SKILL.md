@@ -44,7 +44,7 @@ Relative paths in this skill are relative to the directory that contains this SK
 | 1 | **Readable** | every text/background pair ≥ **4.5:1** (3:1 for large text: ≥ 24px, or ≥ 18.66px bold), judged on the colours as COMPOSITED (alpha tints, gradients, `opacity`); print text ≥ **7pt** | `scripts/draft/contrast_check.py` |
 | 2 | **Sized to the brief** | the RENDERED page count meets the budget the brief names — "two pages" means two PDF pages, not two `.page` wrappers | `scripts/draft/page_count.py` |
 | 3 | **Grounded** | every number, URL, quote and capability claim cites a repo path; mocks are visibly labelled; no `[PLACEHOLDER]` / TODO / lorem in the deliverable | `scripts/draft/claims_scan.py` |
-| 4 | **Honest** | how the draft was made stays out of it: no inbox paths, run ids, "self-check", "UNVERIFIED", bare `[S]` markers or "I used …" narration — not in the text, the speaker notes, the attributes or the comments. What could not be confirmed goes in `notes.json` beside the deliverable | `scripts/draft/leak_scan.py`, `scripts/draft/notes_check.py` |
+| 4 | **Honest** | how the draft was made stays out of it: no inbox paths, run ids, a check's verdict ("UNVERIFIED", "self-check: PASS"), bare `[S]` markers or "I used …" narration — not in the text, the speaker notes, the attributes or the comments. The subject's own words stay (a device's self-check, a parser's notes.json) What could not be confirmed goes in `notes.json` beside the deliverable | `scripts/draft/leak_scan.py`, `scripts/draft/notes_check.py` |
 
 One command runs all four (§ Self-check). Details and worked examples: `refs/design-floor.md`
 (colour and print typography), `refs/claims.md` (the citation convention), `refs/self-check.md`

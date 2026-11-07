@@ -82,23 +82,33 @@ def _text(node: Node) -> str:
     """The text a node OWNS: its subtree's text without its anchored descendants' (each is a word boundary), so a word
     around an anchored child is the parent's and the child's words are the child's. Text nodes are joined as written (never with
     an invented space); whitespace runs collapse, except inside ``pre`` / ``textarea`` where spacing is content."""
-    out: list[str] = []
+    segs: list[tuple[str, bool]] = []  # (text, raw: spacing is content)
 
     def walk(n: Node, top: bool) -> None:
         if not top and n.tag and not n.tag.startswith("#") and n.attrs.get("data-wid"):
-            out.append(" ")  # the child's words are its own; adding or moving an anchored child changes no parent text
+            segs.append((" ", False))  # the child's words are its own; adding or moving an anchored child changes no parent text
             return
         if n.tag in _NOT_DOM:
             return
         for c in n.children:
             if c.tag == "#text":
-                out.append(c.text if _in_raw(c.parent or c) else _WS.sub(" ", c.text))
+                segs.append((c.text, _in_raw(c.parent or c)))
             elif c.tag and not c.tag.startswith("#"):
                 walk(c, False)
 
     walk(node, True)
-    joined = "".join(out)
-    return joined if _in_raw(node) else _WS.sub(" ", joined).strip()
+    # Collapse only prose: a run of prose segments is collapsed as one; raw (pre / textarea) text is kept verbatim.
+    out: list[str] = []
+    prose: list[str] = []
+    for text, raw in segs:
+        if raw:
+            out.append(_WS.sub(" ", "".join(prose)))
+            prose = []
+            out.append(text)
+        else:
+            prose.append(text)
+    out.append(_WS.sub(" ", "".join(prose)))
+    return "".join(out).strip() if not any(raw for _, raw in segs) else "".join(out)
 
 
 class Version:
@@ -123,18 +133,28 @@ class Version:
         return "data-slide-id" in el.attrs or "data-slide" in el.attrs or el.tag in SLIDE_TAGS or "slide" in el.classes()
 
     def _slides(self) -> list[str]:
-        """Top-level slide keys in document order: `data-slide-id` (a deck), else the container's `data-wid`."""
+        """Top-level slide keys in document order: `data-slide-id` (a deck), else the container's `data-wid`. A key
+        seen twice is recorded in `slide_duplicates` (an ambiguous order never satisfies a protected one)."""
         out: list[str] = []
+        self.slide_duplicates: set[str] = set()
         for el in self.doc.elements():
+            if any(a.tag in _NOT_DOM for a in [el, *el.ancestors()]):
+                continue
             if not self._is_slide(el) or any(self._is_slide(a) for a in el.ancestors()):
                 continue
             key = el.attrs.get("data-slide-id") or el.attrs.get("data-wid")
-            if key and key not in out:
+            if not key:
+                continue
+            if key in out:
+                self.slide_duplicates.add(key)
+            else:
                 out.append(key)
         return out
 
     def slide_node(self, key: str) -> Node | None:
         for el in self.doc.elements():
+            if any(a.tag in _NOT_DOM for a in [el, *el.ancestors()]):
+                continue
             if el.attrs.get("data-slide-id") == key or (el.attrs.get("data-wid") == key and self._is_slide(el)):
                 return el
         return None
@@ -181,7 +201,8 @@ def _load(path: str) -> Version:
 
 
 def empty_map() -> dict:
-    return {"texts": {}, "attrs": {}, "gone": [], "added": [], "order": None, "labels": {}}
+    # `gone_with`: per tombstone, the anchors removed WITH it (they stay absent too; released with it).
+    return {"texts": {}, "attrs": {}, "gone": [], "gone_with": {}, "added": [], "order": None, "labels": {}}
 
 
 def entry_ids(m: dict) -> list[dict]:
@@ -223,6 +244,7 @@ def release(m: dict, allow: list[str]) -> dict:
             out["added"].remove(e["wid"])
         elif e["kind"] == "gone":
             out["gone"].remove(e["wid"])
+            out["gone_with"].pop(e["wid"], None)
         elif e["kind"] == "order":
             out["order"] = None
     return out
@@ -250,11 +272,15 @@ def hand_step(m: dict, parent: Version, child: Version) -> None:
             continue
         dropped = {w} | (parent.descendants(w) & gone_now)
         _forget(m, dropped)
+        inner = set(m["gone_with"].pop(w, []))
         for d in dropped - {w}:
             if d in m["gone"]:
                 m["gone"].remove(d)
+            inner |= {d} | set(m["gone_with"].pop(d, []))
         if w not in m["gone"]:
             m["gone"].append(w)
+        if inner:
+            m["gone_with"][w] = sorted(inner)
         m["labels"][w] = parent.label(w)
         for d in dropped:
             key = parent.slide_key_of(d)
@@ -265,10 +291,13 @@ def hand_step(m: dict, parent: Version, child: Version) -> None:
             # Added (or re-added: its tombstone is cleared): present, with its initial text and attributes.
             if w in m["gone"]:
                 m["gone"].remove(w)
+                m["gone_with"].pop(w, None)
+            for outer, inner in list(m["gone_with"].items()):
+                if w in inner:
+                    m["gone_with"][outer] = [x for x in inner if x != w]
             if w not in m["added"]:
                 m["added"].append(w)
-            if _text(node):
-                m["texts"][w] = _text(node)
+            m["texts"][w] = _text(node)  # an added empty cell stays as the person left it
             if child.attrs(w):
                 m["attrs"][w] = dict(child.attrs(w))
             m["labels"][w] = child.label(w)
@@ -324,13 +353,15 @@ def entries_for(m: dict, head: Version | None, touch: list[str]) -> list[dict]:
 
 def validate_map(m: object) -> dict:
     """The map, if it has exactly the shape `map` writes; else KeepError (a malformed map is never a pass)."""
-    if not isinstance(m, dict) or set(m) != {"texts", "attrs", "gone", "added", "order", "labels"}:
+    if not isinstance(m, dict) or set(m) != {"texts", "attrs", "gone", "gone_with", "added", "order", "labels"}:
         raise KeepError("the map file is not a keep_check map")
     ok = (isinstance(m["texts"], dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in m["texts"].items())
           and isinstance(m["attrs"], dict)
           and all(isinstance(k, str) and isinstance(v, dict) and all(isinstance(n, str) and (x is None or isinstance(x, str)) for n, x in v.items())
                   for k, v in m["attrs"].items())
           and all(isinstance(m[k], list) and all(isinstance(x, str) for x in m[k]) for k in ("gone", "added"))
+          and isinstance(m["gone_with"], dict)
+          and all(isinstance(k, str) and isinstance(v, list) and all(isinstance(x, str) for x in v) for k, v in m["gone_with"].items())
           and (m["order"] is None or (isinstance(m["order"], list) and all(isinstance(x, str) for x in m["order"])))
           and isinstance(m["labels"], dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in m["labels"].items()))
     if not ok:
@@ -349,7 +380,8 @@ def check(m: dict, candidate: Version, allow: list[str]) -> dict:
             violations.append({"kind": "missing", "wid": wid, "label": eff["labels"].get(wid, wid),
                                "sentence": f"your edit to {eff['labels'].get(wid, wid)} was removed"})
 
-    protected = set(eff["texts"]) | set(eff["attrs"]) | set(eff["added"]) | set(eff["gone"]) | set(eff["order"] or [])
+    protected = (set(eff["texts"]) | set(eff["attrs"]) | set(eff["added"]) | set(eff["gone"])
+                 | {x for inner in eff["gone_with"].values() for x in inner})
     for wid in sorted(protected & candidate.duplicates):
         violations.append({"kind": "duplicate", "wid": wid, "label": eff["labels"].get(wid, wid),
                            "sentence": f"the anchor of {eff['labels'].get(wid, wid)} appears more than once"})
@@ -372,10 +404,14 @@ def check(m: dict, candidate: Version, allow: list[str]) -> dict:
         if wid not in candidate.nodes:
             lost(wid)
     for wid in eff["gone"]:
-        if wid in candidate.nodes:
+        back = [x for x in [wid, *eff["gone_with"].get(wid, [])] if x in candidate.nodes]
+        if back:
             violations.append({"kind": "reappeared", "wid": wid, "label": eff["labels"].get(wid, wid),
                                "sentence": f"{eff['labels'].get(wid, wid)} that you removed is back"})
     if eff["order"] is not None:
+        for k in sorted(set(eff["order"]) & candidate.slide_duplicates):
+            violations.append({"kind": "duplicate", "wid": k, "label": "a slide in your order",
+                               "sentence": "a slide you placed appears more than once"})
         present = [k for k in eff["order"] if k in candidate.slides]
         for k in eff["order"]:
             if k not in candidate.slides:

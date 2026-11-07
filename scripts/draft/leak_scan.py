@@ -12,9 +12,9 @@ and HTML comments (an export ships them). It rejects execution metadata, never s
 
 | Kind | Fails | Scanned in |
 |---|---|---|
-| ``state-path`` | the run's inbox or state paths (``.wicked-crew``, ``attempt-<id>``, ``sources/brief-…``, ``notes.json``, a home directory) | everything |
+| ``state-path`` | the run's inbox or state paths (``.wicked-crew``, ``attempt-<id>``, ``refine-<id>``, ``sources/brief-…``, a home directory) | everything |
 | ``run-id`` | the drafting run's own id (``--run-id``) | everything |
-| ``process-word`` | the self-check's verdict ("UNVERIFIED", "self-check: PASS", "ran the self-check") | text, notes, attributes, comments, CSS ``content`` |
+| ``process-word`` | a drafting check's verdict or its running ("UNVERIFIED", "self-check: PASS", "keep_check.py: PASS", "I ran the self-check") | text, notes, attributes, comments, CSS ``content`` |
 | ``source-marker`` | a bare source marker such as ``[S]`` or ``[S2]`` | text, notes, attributes, comments, CSS ``content`` |
 | ``narration`` | first-person narration of the drafting ("I used SearchEntity…", "I ran keep_check.py…", "the brief says…") | text, notes, attributes, comments, CSS ``content`` |
 
@@ -48,16 +48,18 @@ _SEP = r"[\\/]"  # a path separator, either platform's
 _STATE_PATH = re.compile(
     r"(?:\.wicked-crew\b|\.wicked-qe\b|wicked-interactive" + _SEP + r"docs\b|interactive-(?:drafts|chats|edits|reviews)\b"
     r"|\battempt-[0-9a-f]{8}-[0-9a-f-]{8,}|\b(?:sources|records)" + _SEP + r"(?:brief|conversation|message|run|doc|attachment|page|MANIFEST)-"
-    r"|" + _SEP + r"(?:notes\.json|current\.html|revised\.html|keep-map\.json)\b"
+    r"|\brefine-[0-9a-f]{8}-[0-9a-f-]{8,}"
     r"|/Users/[^/\s\"'<>]+/|/home/[^/\s\"'<>]+/|[A-Za-z]:\\Users\\|/private/(?:tmp|var/folders)/|/tmp/crew-)",
     re.IGNORECASE,
 )
 # The self-check's own verdict words. "self-check" alone is subject vocabulary ("the device runs a self-check");
 # only the drafting check's verdict or its running is execution metadata.
+_CHECKS = r"(?:self[- _]check|keep_check|contrast_check|claims_scan|notes_check|leak_scan|page_count)(?:\.py)?"
 _PROCESS_WORD = re.compile(
-    r"\bUNVERIFIED\b|\bself[- ]check\b\W{0,3}(?:verdict\W{0,3})?(?:PASS|FAIL|UNVERIFIED)\b"
-    r"|\b(?:ran|run|running|re-ran|rerun) (?:the |a |my )?(?:draft )?self[- ]check\b|\bdraft self[- ]check\b")
-_UNVERIFIED_CASE = re.compile(r"UNVERIFIED")
+    r"\bUNVERIFIED\b"  # the verdict word, in capitals only ("unverified claims" is prose)
+    r"|(?i:\b" + _CHECKS + r"\W{0,3}(?:verdict\W{0,3})?(?:PASS|FAIL|UNVERIFIED|passed|failed)\b)"
+    r"|(?i:\b(?:I|we) (?:ran|re-ran|reran|have run|re-run) (?:the |a |my )?(?:draft )?" + _CHECKS + r")"
+    r"|(?i:\bdraft self[- ]check\b)")
 _SOURCE_MARKER = re.compile(r"\[(?:S\d{0,3}|src\d{0,3}|source\d{0,3})\]", re.IGNORECASE)
 _TOOLS = (r"(?:SearchEntity|FetchContent|ContextBundle|RetrieveEntity|TraverseGraph|the estate|estate tools?|MCP"
           r"|the (?:repo(?:sitory)? )?snapshot|the brief|the sources?|the (?:source )?packet|the self[- ]check"
@@ -89,7 +91,8 @@ def _in_notes(node: Node) -> bool:
 
 
 # Text inside these joins the block it sits in (``I used <em>SearchEntity</em>`` is one sentence).
-_INLINE = frozenset("a abbr b bdi bdo cite code data dfn em i kbd mark q s samp small span strong sub sup time u var wbr br".split())
+_INLINE = frozenset(("a abbr b bdi bdo cite code data del dfn em i ins kbd label mark output q ruby rt rp s samp small span "
+                     "strong sub sup time u var wbr br font").split())
 _CSS_CONTENT = re.compile(r"""content\s*:\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
 
 
@@ -115,6 +118,12 @@ def _units(html: str) -> list[tuple[str, str, str]]:
         if not node.tag or node.tag.startswith("#"):
             continue
         locator = node.path()
+        for name, value in node.attrs.items():
+            if value:
+                units.append((f"attr:{name}", locator, value))
+                if name == "style":
+                    for m in _CSS_CONTENT.finditer(value):
+                        units.append(("css", locator, m.group(1) or m.group(2) or ""))
         if node.tag in ("script", "style"):
             body = "".join(c.text for c in node.children if c.tag == "#text")
             units.append(("code", locator, body))
@@ -122,15 +131,10 @@ def _units(html: str) -> list[tuple[str, str, str]]:
                 for m in _CSS_CONTENT.finditer(body):
                     units.append(("css", locator, m.group(1) or m.group(2) or ""))
             continue
-        for name, value in node.attrs.items():
-            if value:
-                units.append((f"attr:{name}", locator, value))
-                if name == "style":
-                    for m in _CSS_CONTENT.finditer(value):
-                        units.append(("css", locator, m.group(1) or m.group(2) or ""))
         if node.tag in _INLINE and node.parent is not None and node.parent.tag not in ("", None):
             continue  # its words are read with the block it sits in
-        text = block_text(node)
+        # HTML renders a run of whitespace (a line break in the source) as one space.
+        text = re.sub(r"\s+", " ", block_text(node))
         if text.strip():
             units.append(("notes" if _in_notes(node) else "text", locator, text))
     return units
@@ -165,9 +169,6 @@ def scan(html: str, run_ids: list[str] | None = None) -> dict:
         if name in _STRUCTURAL_ATTRS or name.startswith("on"):
             continue
         for m in _PROCESS_WORD.finditer(text):
-            # "unverified" in lower case is prose about the subject; only the verdict word in capitals fails.
-            if m.group(0).lower() == "unverified" and not _UNVERIFIED_CASE.fullmatch(m.group(0)):
-                continue
             hit("process-word", where, locator, text, m)
         for m in _SOURCE_MARKER.finditer(text):
             hit("source-marker", where, locator, text, m)
