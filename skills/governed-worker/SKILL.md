@@ -223,7 +223,14 @@ verdict with reasons. You are output-only.
   Judge each rule from the diff, the tests and your own runs, and write one line
   per rule above the verdict line: `RULE <id>: KEPT — <evidence, file:line>`,
   `RULE <id>: BROKEN — <what breaks it, file:line>`, or `RULE <id>: N/A — <the
-  rule's own scope condition, quoted, and why this change is outside it>`. N/A
+  rule's own scope condition, quoted, and why this change is outside it>`. You
+  judge THIS change: it breaks a rule when it introduces or activates the break,
+  by what it adds, modifies, deletes or renames, including through code it did
+  not touch (a new call into an old helper that breaks the rule). A break that
+  existing code already had, which the change neither introduces nor activates,
+  is `RULE <id>: N/A — pre-existing: <file:line> is not in this change` (the one
+  N/A that rests on the change's extent, not the rule's scope), worth a note but
+  never a Critical or a FAIL. N/A
   needs the rule itself to exclude the change (another project, a kind of change
   it names that this is not, paths it limits itself to); a rule that names no
   files covers every file, and a file it gives as an example does not narrow it.

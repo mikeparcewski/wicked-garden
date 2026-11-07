@@ -85,6 +85,13 @@
   even at the minimum, under the same budget ask. A map built by an older wicked-core has no code commit, so
   nothing is re-asked and the step says so.
 
+- **An evaluator judges the change, not the code it did not touch** (wicked-core#1339). `wicked-garden-governed-worker`
+  E7 now says that a change breaks a rule when it introduces or activates the break, by what it adds, modifies,
+  deletes or renames, including through code it did not touch. A break that existing code already had is
+  `N/A — pre-existing: <file:line> is not in this change`. That is a note, never a Critical or a FAIL. A
+  domain-extraction page that wrote only its rules file had been failed on a JSDoc rule broken by the repository's
+  existing functions, which cost the person three answers.
+
 - **"Lower the minimum" restates the page's apply report** (wicked-core e2e F29). After the person lowers a
   repository's coverage minimum, `next_page.py` rewrites the worktree's `.wicked/domain/apply-report.json`
   (`minimum_met`, `coverage_line`, `coverage`, plus `lowered_to`) from a fresh `wicked-core coverage` against the
