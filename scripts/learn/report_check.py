@@ -21,10 +21,10 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
   to check them against (``records-missing``), too many sources or claims;
 - sources: a bad or duplicate ``S<n>`` id; a record that is not exactly one of web
   ``{url, title, observed_at}``, file ``{file, page?, quote}``, code ``{path, line?, quote}`` or tool
-  ``{source, tool, args, observed_at}``; a non-http(s) url; an ``observed_at`` that is not an ISO-8601
-  time with seconds and a zone, or lies in the future; a web source while the web was not available
+  ``{source, tool, args, observed_at}`` (``args`` may be ``{}``, never absent); a non-http(s) url; an
+  ``observed_at`` that is not an ISO-8601 time with seconds and a zone, or lies in the future; a web source while the web was not available
   (``web-not-available``), or the ``web`` source dressed as a tool (``web-as-tool``); a quote under 8
-  characters once normalised; a file that is not among the staged ``documents`` (``file-not-staged``;
+  characters once normalised (a code quote located by ``line`` is checked on that line instead); a file that is not among the staged ``documents`` (``file-not-staged``;
   ``brief`` is text pasted into the brief, checked against ``packet.brief``); a file or code path that
   resolves outside its folder (symlinks included), is missing, or whose text does not hold the quote
   (``quote-not-found``; ``quote-not-found-in-pdf-text`` when only a pdf's text derivative was searched,
@@ -33,11 +33,14 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
   oversized file) is listed under ``unchecked`` with the reason;
 - claims: a bad or duplicate ``C<n>`` id, empty text, no source (``claim-unsourced``), a source id the
   log does not hold (``claim-unknown-source``);
-- the report: empty; a ``[C<n>]`` citation of an unknown claim; a claim the report never cites; a URL
-  (in the report or in a claim) that is not a web source in the log (``url-not-in-log``);
+- the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
+  cites; a URL (in the report or in a claim) that is not a web source in the log (``url-not-in-log``: a
+  markdown destination or autolink is compared exactly, a bare URL without its closing punctuation);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
-  a stop while documents are staged (``stopped-with-documents``); no claims and no stop reason.
+  a stop while something is readable: a non-empty staged document, a source in the log, or text in
+  the brief (``stopped-with-documents``); no claims and no stop reason. All the text one check reads is
+  budgeted (256 MiB); a file past the budget is listed as ``unchecked``.
 
 Standard library only.
 """
@@ -75,12 +78,16 @@ WEB_STATES = ("used", "not-picked", "unavailable")
 WEB_SOURCE = "web"  # crew's web source: its pages are web records, never tool records
 SOURCE_ID_RE = re.compile(r"^S[1-9]\d{0,5}$")
 CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
-CITE_GROUP_RE = re.compile(r"\[(C[1-9]\d{0,5}(?:\s*,\s*C[1-9]\d{0,5})*)\]")
+# Any citation group, ids of any length: an id the claims cannot hold is reported, never skipped.
+CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
 # Parentheses may belong to a URL (``/wiki/X_(y)``); an unbalanced closing one is the text's, not the URL's.
 URL_RE = re.compile(r"""https?://[^\s<>\[\]{}"'`|\\^]+""", re.IGNORECASE)
-URL_TRAILING = ".,;:!?*"
+URL_TRAILING = ".,;:!?*_"
+# A markdown link's destination and an autolink are taken exactly as written: no punctuation is trimmed.
+MD_LINK_RE = re.compile(r"\]\(\s*<?(https?://)", re.IGNORECASE)
+AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>", re.IGNORECASE)
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
-ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3}|\.\d{6})?(?:Z|[+-]\d{2}:\d{2})$")
+ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
 TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml",
                  ".html", ".htm", ".xml", ".log", ".rst", ".ini", ".toml"}
 PACKET_MAX_BYTES = 8 * 1024 * 1024
@@ -88,6 +95,7 @@ DOC_MAX_BYTES = 64 * 1024 * 1024
 MAX_SOURCES = 2000
 MAX_CLAIMS = 2000
 QUOTE_MIN_CHARS = 8
+TEXT_BUDGET_BYTES = 256 * 1024 * 1024  # all the text one check reads, over every file
 FUTURE_SKEW = timedelta(minutes=10)
 # A critique of a pasted claim, or an estimate's scope from the intent, cites the brief:
 # ``{"file": "brief", "quote": ...}``, checked against ``packet.brief``.
@@ -103,10 +111,14 @@ def _nonempty(v: object) -> bool:
 
 
 def _iso(v: object) -> datetime | None:
-    if not isinstance(v, str) or not ISO_RE.match(v):
+    m = ISO_RE.match(v) if isinstance(v, str) else None
+    if not m:
         return None
+    # Python 3.10's fromisoformat takes 3 or 6 fraction digits only: compare at microseconds.
+    frac = m.group(1)
+    t = v if frac is None else v.replace("." + frac, "." + (frac + "000000")[:6], 1)
     try:
-        dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(t.replace("Z", "+00:00"))
     except ValueError:
         return None
     return dt if dt.tzinfo else None
@@ -124,19 +136,63 @@ def norm_url(url: str) -> str | None:
     return urlunparse((p.scheme.lower(), p.netloc.lower(), p.path, p.params, p.query, ""))
 
 
-def urls_in(text: str) -> list[str]:
-    """Every http(s) URL in the text, without the sentence punctuation or unbalanced ``)`` after it."""
-    out = []
-    for m in URL_RE.finditer(text or ""):
-        u = m.group(0)
-        while u:
-            if u[-1] in URL_TRAILING:
-                u = u[:-1]
-            elif u[-1] == ")" and u.count("(") < u.count(")"):
-                u = u[:-1]
-            else:
+def _trim_bare(u: str, before: str) -> str:
+    """A bare URL without the sentence punctuation, the closing emphasis or the unbalanced ``)`` after it.
+    One backward scan: the work is linear in the URL's length."""
+    opens, closes = u.count("("), u.count(")")
+    end = len(u)
+    while end:
+        ch = u[end - 1]
+        if ch in "_*" and before == ch:
+            before = ""  # the emphasis that opened before the URL closes here
+        elif ch in URL_TRAILING:
+            pass
+        elif ch == ")" and opens < closes:
+            closes -= 1
+        else:
+            break
+        end -= 1
+    return u[:end]
+
+
+def _md_destination(text: str, i: int) -> tuple[str, int]:
+    """The markdown link destination starting at ``text[i]`` (just after ``](`` or ``](<``), exactly as
+    a renderer reads it: up to whitespace, ``>``, or the ``)`` that closes the link (nested parens kept)."""
+    depth, j = 0, i
+    while j < len(text):
+        ch = text[j]
+        if ch.isspace() or ch in "<>":
+            break
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            if depth == 0:
                 break
-        out.append(u)
+            depth -= 1
+        j += 1
+    return text[i:j], j
+
+
+def urls_in(text: str) -> list[str]:
+    """Every http(s) URL in the text. A markdown destination or an autolink is exact; a bare URL loses
+    the punctuation that ends its sentence."""
+    text = text or ""
+    out: list[str] = []
+    masked = list(text)
+    for m in MD_LINK_RE.finditer(text):
+        start = m.start(1)
+        dest, end = _md_destination(text, start)
+        out.append(dest)
+        masked[start:end] = " " * (end - start)
+    for m in AUTOLINK_RE.finditer(text):
+        out.append(m.group(1))
+        masked[m.start(1):m.end(1)] = " " * (m.end(1) - m.start(1))
+    rest = "".join(masked)
+    for m in URL_RE.finditer(rest):
+        before = rest[m.start() - 1] if m.start() else ""
+        u = _trim_bare(m.group(0), before)
+        if u:
+            out.append(u)
     return out
 
 
@@ -188,17 +244,21 @@ class Texts:
 
     def __init__(self) -> None:
         self._cache: dict[tuple[Path, bool], tuple[str | None, str, bool]] = {}
+        self._budget = TEXT_BUDGET_BYTES
 
     def get(self, path: Path, root: Path, code: bool = False) -> tuple[str | None, str, bool]:
         """(normalised text or None, why it is None, whether it came from a pdf's derivative).
 
         A repository file (``code``) is read as text whatever its suffix."""
         if (path, code) not in self._cache:
-            self._cache[(path, code)] = self._read(path, root, code)
+            got = self._read(path, root, code, self._budget)
+            if got[0] is not None:
+                self._budget -= len(got[0].encode("utf-8"))
+            self._cache[(path, code)] = got
         return self._cache[(path, code)]
 
     @staticmethod
-    def _read(path: Path, root: Path, code: bool = False) -> tuple[str | None, str, bool]:
+    def _read(path: Path, root: Path, code: bool = False, budget: int = TEXT_BUDGET_BYTES) -> tuple[str | None, str, bool]:
         suffix = path.suffix.lower()
         if code:
             candidates, from_pdf = [path], False
@@ -215,8 +275,12 @@ class Texts:
             real = _inside(c, root)
             if real is None:
                 return None, f"{c.name} resolves outside the folder: not read", from_pdf
-            if real.stat().st_size > DOC_MAX_BYTES:
+            size = real.stat().st_size
+            if size > DOC_MAX_BYTES:
                 return None, f"over {DOC_MAX_BYTES // (1024 * 1024)} MiB: read the original", from_pdf
+            if size > budget:
+                return None, (f"this check already read {TEXT_BUDGET_BYTES // (1024 * 1024)} MiB of text: "
+                              "read the original"), from_pdf
             text = norm_text(real.read_text(encoding="utf-8", errors="replace"))
             if text:
                 return text, "", from_pdf
@@ -291,9 +355,10 @@ def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, 
             out.append(_f(w, "source-observed-at", f"observed_at {s['observed_at']} is in the future"))
     if kind in ("file", "code"):
         q = s.get("quote")
-        if not _nonempty(q):
+        located = kind == "code" and isinstance(s.get("line"), int) and not isinstance(s.get("line"), bool)
+        if not _nonempty(q) or not norm_text(q):
             out.append(_f(w, "source-quote", "a file or code source carries the quote the claim rests on"))
-        elif len(norm_text(q)) < QUOTE_MIN_CHARS:
+        elif not located and len(norm_text(q)) < QUOTE_MIN_CHARS:
             out.append(_f(w, "source-quote", f"the quote is under {QUOTE_MIN_CHARS} characters: too short to locate"))
     quote_ok = not any(f["rule"] == "source-quote" for f in out)
     if kind == "web":
@@ -309,8 +374,8 @@ def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, 
             out.append(_f(w, "source-tool", "a tool source names its source and the tool called"))
         elif s["source"].strip().lower() == WEB_SOURCE:
             out.append(_f(w, "web-as-tool", "a page from the web source is a web record {url, title, observed_at}"))
-        args = s.get("args")
-        if not (_nonempty(args) or (isinstance(args, dict) and args)):
+        args = s.get("args", None)
+        if not (_nonempty(args) or isinstance(args, (dict, list))):
             out.append(_f(w, "source-args", "a tool source carries the read-only arguments it was called with, "
                           "so the fidelity check can call it again"))
     elif kind == "code":
@@ -330,7 +395,13 @@ def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, 
                 out.append(_f(w, "path-missing", f"{p} is not a file in the repository"))
             elif quote_ok:
                 text, why, from_pdf = ctx.texts.get(real, ctx.repo, code=True)
-                out += _quote_finding(w, s["quote"], text, why, from_pdf, str(p), sid, ctx.unchecked)
+                if text is not None and isinstance(line, int) and not isinstance(line, bool) and line >= 1:
+                    raw = real.read_text(encoding="utf-8", errors="replace").splitlines()
+                    text = norm_text(raw[line - 1]) if line <= len(raw) else ""
+                    if norm_text(s["quote"]) not in text:
+                        out.append(_f(w, "quote-not-found", f"the quote is not on line {line} of {p}"))
+                else:
+                    out += _quote_finding(w, s["quote"], text, why, from_pdf, str(p), sid, ctx.unchecked)
     else:  # file
         f = s.get("file")
         page = s.get("page")
@@ -358,8 +429,8 @@ def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, 
     return out, sid, kind
 
 
-def _cid_key(cid: str) -> int:
-    return int(cid[1:])
+def _cid_key(cid: str) -> tuple[int, str]:
+    return (len(cid), cid)
 
 
 def check(packet: object, records: Path | None = None, now: datetime | None = None,
@@ -462,9 +533,12 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
             findings.append(_f("packet", "stopped-with-claims", "a stopped report carries no claims"))
         if report.strip():
             findings.append(_f("packet", "stopped-with-report", "a stop delivers its reason (stopped) and no report"))
-        if documents or staged:
-            findings.append(_f("packet", "stopped-with-documents", "documents are staged, so there is something to "
-                               "read: a stop is only for a job with nothing readable"))
+        readable = [d for d in staged if (records / d).is_file() and (records / d).stat().st_size > 0] if records else []
+        read = [k for k in ids.values() if k is not None]
+        if readable or read or _nonempty(brief):
+            findings.append(_f("packet", "stopped-with-documents", "there is something to read (a staged document, "
+                               "a source in the log, or text in the brief): a stop is only for a job with nothing "
+                               "readable"))
     elif not claims:
         findings.append(_f("packet", "report-no-claims", "a report with no claims says why it stopped (stopped)"))
     if lens is not None and LENSES[lens] == "required" and documents is not None and not documents and claims:
@@ -474,7 +548,7 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
         findings.append(_f("report", "report-empty", "the report is empty"))
     cited: set[str] = set()
     for m in CITE_GROUP_RE.finditer(report):
-        cited |= {x.strip() for x in m.group(1).split(",")}
+        cited |= {x.strip()[:16] for x in m.group(1).split(",")}
     for cid in sorted(cited - cids, key=_cid_key):
         findings.append(_f("report", "report-unknown-claim", f"cites [{cid}], which the claims do not hold"))
     if not stopped:

@@ -53,12 +53,13 @@ A web source looks like `{"id": "S4", "url": "https://example.org/terms", "title
 |---|---|---|
 | web | `{id, url, title, observed_at}` | A page you fetched. `observed_at` is the fetch time in UTC: in a crew run it is the web source's `fetched_at`, copied, never typed, and `gather` pastes that fetch result's receipt (its URL and `fetched_at`) verbatim in its output, so the fidelity check can match the record to it. A search result is a lead, not a source: fetch the page before you cite it. Never cite the `web` source as a tool. |
 | file | `{id, file, page?, quote}` | A staged document. `quote` is the exact words the claim rests on, copied, at least 8 characters. `page` is the pdf page. A quote from a pdf's text derivative (`<name>.txt`) may name that derivative as `file`. `file: "brief"` quotes the packet's `brief`. |
-| code | `{id, path, line?, quote}` | A file in the repository in scope, `path` relative to its root, with the exact line quoted. |
-| tool | `{id, source, tool, args, observed_at}` | A call to one of the job's picked sources (a database, a tracker). `args` is the read-only query or arguments, verbatim, so the call can be made again. `observed_at` is the call time. Put what the call returned in the claim, not in the record. |
+| code | `{id, path, line?, quote}` | A file in the repository in scope, `path` relative to its root, with the exact words quoted. With `line`, the quote must be on that line and may be short; without it, at least 8 characters. |
+| tool | `{id, source, tool, args, observed_at}` | A call to one of the job's picked sources (a database, a tracker). `args` is the read-only query or arguments, verbatim (`{}` for a call that takes none), so the call can be made again. `observed_at` is the call time. Put what the call returned in the claim, not in the record. |
 
 Times are ISO-8601 with seconds and a zone (`2026-11-06T21:41:03Z`). A URL appears in the report, or in a
 claim, only when it is exactly the `url` of a web source in the log (a fragment may differ; a trailing slash
-may not). A file source names only a file among `documents`, or `brief`.
+may not). A markdown link's destination and an `<autolink>` are read exactly as written; a bare URL loses
+only the punctuation that ends its sentence. A file source names only a file among `documents`, or `brief`.
 
 ## The floor
 
@@ -71,7 +72,7 @@ Pass both folders as absolute paths: `gather`'s preflight prints the documents f
 It exits 0 with no findings, 1 with findings, and 2 when the packet cannot be read. Its findings include an
 unsourced claim, a claim citing a source the log does not hold, a URL the log does not hold, a file not among
 the staged documents, a quote not in its file's text, a web source when the web was not available, a stop
-while documents are staged, and a documents-required lens that reports with no documents. It lists the files
+while something is readable (a non-empty staged document, a source in the log, text in the brief), and a documents-required lens that reports with no documents. It lists the files
 whose text it could not read (an image, a pdf with no text derivative, an empty file) under `unchecked`, with
 the reason, for the fidelity check to read in the original.
 

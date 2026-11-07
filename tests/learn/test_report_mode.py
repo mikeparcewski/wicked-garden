@@ -347,7 +347,7 @@ def test_a_staged_file_symlinked_outside_the_records_is_refused(tmp_path):
     lambda p: p.update(lens=[]), lambda p: p.update(lens={}), lambda p: p.update(web={"state": []}),
     lambda p: p["claims"][0].update(id="C" + "1" * 5000), lambda p: p["sources"][0].update(id="S" + "1" * 5000),
     lambda p: p["claims"][0].update(sources=[["S1"], {"a": 1}]), lambda p: p.update(report=["x"]),
-    lambda p: p["claims"].append("not an object"), lambda p: p["sources"][3].update(args=[1]),
+    lambda p: p["claims"].append("not an object"), lambda p: p["sources"][3].update(args=None),
 ])
 def test_malformed_packets_give_findings_not_tracebacks(mutate):
     p = packet()
@@ -387,7 +387,7 @@ def test_the_web_source_cannot_be_dressed_as_a_tool_and_tools_carry_their_args()
 def test_a_document_quoted_many_times_is_read_once(monkeypatch):
     calls = []
     real = rc.Texts._read
-    monkeypatch.setattr(rc.Texts, "_read", staticmethod(lambda path, root, code=False: calls.append(path) or real(path, root, code)))
+    monkeypatch.setattr(rc.Texts, "_read", staticmethod(lambda path, root, code=False, budget=rc.TEXT_BUDGET_BYTES: calls.append(path) or real(path, root, code, budget)))
     p = packet()
     p["sources"] += [dict(p["sources"][1], id=f"S{n}") for n in range(5, 50)]
     run_check(p)
@@ -433,7 +433,7 @@ def test_unchecked_files_say_why():
     assert "not a text format" in why["scan.png"] and "empty" in why["blank.md"]
 
 
-@pytest.mark.parametrize("at", [None, "2026-11-06T21:40Z", "2026-11-06T21:40:12.1Z"])
+@pytest.mark.parametrize("at", [None, "2026-11-06T21:40Z", "2026-11-06T21:40:12.Z"])
 def test_observed_at_needs_seconds_and_may_not_be_missing(at):
     p = packet()
     if at is None:
@@ -441,6 +441,87 @@ def test_observed_at_needs_seconds_and_may_not_be_missing(at):
     else:
         p["sources"][2]["observed_at"] = at
     assert "source-observed-at" in rules(run_check(p)[1])
+
+
+# --- review folds (codex + pi, r2) ---------------------------------------------------------------
+
+@pytest.mark.parametrize("cite, unknown", [("[C1000000]", ["C1000000"]), ("[C2, C1000000]", ["C1000000"]),
+                                           ("[C9, C1000000000000000000000000]", ["C9", "C1" + "0" * 14])])
+def test_a_citation_of_any_length_is_checked(cite, unknown):
+    p = packet()
+    p["report"] += f" An invented assertion {cite}."
+    out = run_check(p)[1]
+    got = [f["message"].split("[")[1].split("]")[0] for f in out["findings"] if f["rule"] == "report-unknown-claim"]
+    assert got == unknown
+
+
+def test_a_markdown_destination_is_taken_exactly():
+    p = packet(report=f"[details]({URL}!) [C1] [C2] [C3]")
+    assert "url-not-in-log" in rules(run_check(p)[1])
+    p = packet(report=f"[details]({URL}!) and <{URL}!> [C1] [C2] [C3]")
+    p["sources"][2]["url"] = URL + "!"
+    assert run_check(p)[0] == 0
+    p = packet(report=f"Read it at {URL}! Or _{URL}_ and *{URL}*. [C1] [C2] [C3]")
+    assert run_check(p)[0] == 0
+
+
+def test_a_long_run_of_closing_parentheses_is_linear():
+    import time
+    p = packet(report=f"[C1] [C2] [C3] {URL}" + ")" * 400000)
+    t = time.monotonic()
+    code, _ = run_check(p)
+    assert code == 0 and time.monotonic() - t < 3
+
+
+def test_text_read_by_one_check_is_budgeted(monkeypatch):
+    monkeypatch.setattr(rc, "TEXT_BUDGET_BYTES", 80)
+    code, out = run_check(packet())
+    assert code == 0 and any("already read" in u["why"] for u in out["unchecked"])
+
+
+def test_a_stop_is_judged_on_what_is_readable(tmp_path):
+    recs = tmp_path / "zero"
+    recs.mkdir()
+    (recs / "empty.md").write_text("", encoding="utf-8")
+    stop = packet(documents=[], sources=[], claims=[], report="", stopped="the one document is empty")
+    assert run_check(stop, recs)[0] == 0
+    with_code = dict(stop, sources=[{"id": "S1", "path": "src/a.py", "line": 1, "quote": "x = 1"}])
+    assert "stopped-with-documents" in rules(run_check(with_code, recs)[1])
+    with_brief = dict(stop, brief="Critique this: remote work raises output by 13%.")
+    assert "stopped-with-documents" in rules(run_check(with_brief, recs)[1])
+
+
+@pytest.mark.parametrize("args, ok", [({}, True), ([], True), (["--since", "2026-07-01"], True), ("q", True),
+                                      (None, False), ("  ", False), ("missing", False)])
+def test_tool_args_may_be_empty_but_not_missing(args, ok):
+    p = packet()
+    if args == "missing":
+        del p["sources"][3]["args"]
+    else:
+        p["sources"][3]["args"] = args
+    assert (run_check(p)[0] == 0) is ok
+
+
+@pytest.mark.parametrize("at", ["2026-11-06T21:40:12.1Z", "2026-11-06T21:40:12.123456789Z", "2026-11-06T21:40:12+00:00"])
+def test_fractional_seconds_of_any_precision_pass(at):
+    p = packet()
+    p["sources"][2]["observed_at"] = at
+    assert run_check(p)[0] == 0
+
+
+def test_a_short_code_quote_is_checked_on_its_line(tmp_path):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "a.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
+    p = packet()
+    p["sources"].append({"id": "S5", "path": "a.py", "line": 1, "quote": "x = 1"})
+    p["claims"].append({"id": "C4", "text": "x starts at one.", "sources": ["S5"]})
+    p["report"] += " [C4]"
+    assert run_check(p, repo=repo)[0] == 0
+    p["sources"][-1]["line"] = 2
+    assert "quote-not-found" in rules(run_check(p, repo=repo)[1])
+    del p["sources"][-1]["line"]
+    assert "source-quote" in rules(run_check(p, repo=repo)[1])
 
 
 # --- the skill text -----------------------------------------------------------------------------
