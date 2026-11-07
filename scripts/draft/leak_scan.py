@@ -14,9 +14,12 @@ and HTML comments (an export ships them). It rejects execution metadata, never s
 |---|---|---|
 | ``state-path`` | the run's inbox or state paths (``.wicked-crew``, ``attempt-<id>``, ``sources/brief-…``, ``notes.json``, a home directory) | everything |
 | ``run-id`` | the drafting run's own id (``--run-id``) | everything |
-| ``process-word`` | "self-check", "UNVERIFIED" | text, notes, attributes |
-| ``source-marker`` | a bare source marker such as ``[S]`` or ``[S2]`` | text, notes, attributes |
-| ``narration`` | first-person narration of the drafting ("I used SearchEntity…", "the brief says…") | text, notes, attributes |
+| ``process-word`` | the self-check's verdict ("UNVERIFIED", "self-check: PASS", "ran the self-check") | text, notes, attributes, comments, CSS ``content`` |
+| ``source-marker`` | a bare source marker such as ``[S]`` or ``[S2]`` | text, notes, attributes, comments, CSS ``content`` |
+| ``narration`` | first-person narration of the drafting ("I used SearchEntity…", "I ran keep_check.py…", "the brief says…") | text, notes, attributes, comments, CSS ``content`` |
+
+Text is read per block with its inline children joined in (``I used <em>SearchEntity</em>`` is caught), and
+script/style bodies are read for paths and run ids.
 
 Exit: 0 = clean; 1 = a leak (fix the document, re-run); 2 = usage / unreadable input. Stdlib only.
 
@@ -41,18 +44,24 @@ from draft._dom import Node, parse  # noqa: E402
 _STRUCTURAL_ATTRS = frozenset({"class", "id", "style", "data-wid", "data-slide-id", "data-wid-notes", "for", "type",
                                "rel", "lang", "dir", "role", "width", "height"})
 
+_SEP = r"[\\/]"  # a path separator, either platform's
 _STATE_PATH = re.compile(
-    r"(?:\.wicked-crew\b|\.wicked-qe\b|wicked-interactive/docs\b|interactive-(?:drafts|chats|edits|reviews)\b"
-    r"|\battempt-[0-9a-f]{8}-[0-9a-f-]{8,}|\b(?:sources|records)/(?:brief|conversation|message|run|doc|attachment|page|MANIFEST)-"
-    r"|\bnotes\.json\b|\b(?:current|revised)\.html\b"
+    r"(?:\.wicked-crew\b|\.wicked-qe\b|wicked-interactive" + _SEP + r"docs\b|interactive-(?:drafts|chats|edits|reviews)\b"
+    r"|\battempt-[0-9a-f]{8}-[0-9a-f-]{8,}|\b(?:sources|records)" + _SEP + r"(?:brief|conversation|message|run|doc|attachment|page|MANIFEST)-"
+    r"|" + _SEP + r"(?:notes\.json|current\.html|revised\.html|keep-map\.json)\b"
     r"|/Users/[^/\s\"'<>]+/|/home/[^/\s\"'<>]+/|[A-Za-z]:\\Users\\|/private/(?:tmp|var/folders)/|/tmp/crew-)",
     re.IGNORECASE,
 )
-_PROCESS_WORD = re.compile(r"\bself[- ]check(?:s|ed)?\b|\bUNVERIFIED\b", re.IGNORECASE)
-# `UNVERIFIED` only in capitals is the self-check's verdict word; "unverified" in prose is subject vocabulary.
+# The self-check's own verdict words. "self-check" alone is subject vocabulary ("the device runs a self-check");
+# only the drafting check's verdict or its running is execution metadata.
+_PROCESS_WORD = re.compile(
+    r"\bUNVERIFIED\b|\bself[- ]check\b\W{0,3}(?:verdict\W{0,3})?(?:PASS|FAIL|UNVERIFIED)\b"
+    r"|\b(?:ran|run|running|re-ran|rerun) (?:the |a |my )?(?:draft )?self[- ]check\b|\bdraft self[- ]check\b")
 _UNVERIFIED_CASE = re.compile(r"UNVERIFIED")
 _SOURCE_MARKER = re.compile(r"\[(?:S\d{0,3}|src\d{0,3}|source\d{0,3})\]", re.IGNORECASE)
-_TOOLS = r"(?:SearchEntity|FetchContent|ContextBundle|RetrieveEntity|TraverseGraph|the estate|estate tools?|MCP|the (?:repo(?:sitory)? )?snapshot|the brief|the sources?|the (?:source )?packet|the self[- ]check)"
+_TOOLS = (r"(?:SearchEntity|FetchContent|ContextBundle|RetrieveEntity|TraverseGraph|the estate|estate tools?|MCP"
+          r"|the (?:repo(?:sitory)? )?snapshot|the brief|the sources?|the (?:source )?packet|the self[- ]check"
+          r"|(?:self_check|keep_check|contrast_check|claims_scan|notes_check|leak_scan|page_count)(?:\.py)?)")
 _NARRATION = re.compile(
     r"\bI (?:used|ran|called|queried|searched|checked|read)\b[^.!?\n]{0,60}?\b" + _TOOLS + r"|"
     r"\bI (?:could(?:n'?t| not)|was unable to|did not|didn'?t) (?:find|verify|confirm|measure|read|reach|locate)\b|"
@@ -79,24 +88,51 @@ def _in_notes(node: Node) -> bool:
     return False
 
 
+# Text inside these joins the block it sits in (``I used <em>SearchEntity</em>`` is one sentence).
+_INLINE = frozenset("a abbr b bdi bdo cite code data dfn em i kbd mark q s samp small span strong sub sup time u var wbr br".split())
+_CSS_CONTENT = re.compile(r"""content\s*:\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
+
+
 def _units(html: str) -> list[tuple[str, str, str]]:
-    """Every scannable unit: (where, locator, text). `where` is text | notes | attr:<name> | comment."""
+    """Every scannable unit: (where, locator, text). `where` is text | notes | attr:<name> | comment | code | css.
+    Text is read per block, with its inline children joined in, so markup inside a sentence cannot split a leak."""
     doc = parse(html)
     units: list[tuple[str, str, str]] = []
+
+    def block_text(node: Node) -> str:
+        out: list[str] = []
+        for c in node.children:
+            if c.tag == "#text":
+                out.append(c.text)
+            elif c.tag in _INLINE:
+                out.append(block_text(c))
+        return "".join(out)
+
     for node in doc.root.walk():
-        if node.tag == "#text":
-            parent = node.parent
-            if parent is None or parent.tag in ("script", "style"):
-                continue
-            if not node.text.strip():
-                continue
-            units.append(("notes" if _in_notes(parent) else "text", parent.path() if parent.tag else "document", node.text))
-        elif node.tag == "#comment":
+        if node.tag == "#comment":
             units.append(("comment", node.parent.path() if node.parent is not None and node.parent.tag else "document", node.text))
-        elif node.tag and not node.tag.startswith("#"):
-            for name, value in node.attrs.items():
-                if value:
-                    units.append((f"attr:{name}", node.path(), value))
+            continue
+        if not node.tag or node.tag.startswith("#"):
+            continue
+        locator = node.path()
+        if node.tag in ("script", "style"):
+            body = "".join(c.text for c in node.children if c.tag == "#text")
+            units.append(("code", locator, body))
+            if node.tag == "style":
+                for m in _CSS_CONTENT.finditer(body):
+                    units.append(("css", locator, m.group(1) or m.group(2) or ""))
+            continue
+        for name, value in node.attrs.items():
+            if value:
+                units.append((f"attr:{name}", locator, value))
+                if name == "style":
+                    for m in _CSS_CONTENT.finditer(value):
+                        units.append(("css", locator, m.group(1) or m.group(2) or ""))
+        if node.tag in _INLINE and node.parent is not None and node.parent.tag not in ("", None):
+            continue  # its words are read with the block it sits in
+        text = block_text(node)
+        if text.strip():
+            units.append(("notes" if _in_notes(node) else "text", locator, text))
     return units
 
 
@@ -123,8 +159,8 @@ def scan(html: str, run_ids: list[str] | None = None) -> dict:
             if m is not None:
                 hit("run-id", where, locator, text, m)
                 break
-        if where == "comment":
-            continue
+        if where == "code":
+            continue  # script and style bodies carry paths and ids, never the reader's words
         name = where[5:] if where.startswith("attr:") else ""
         if name in _STRUCTURAL_ATTRS or name.startswith("on"):
             continue
@@ -152,7 +188,19 @@ def format_finding(f: dict) -> str:
     return f"[{f['kind']}] {f['where']} at {f['path']}: “{f['excerpt']}”"
 
 
+def safe_console() -> None:
+    """Never crash printing an excerpt on a code-page console (Windows piped stdout)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("html")
     ap.add_argument("--run-id", action="append", default=[], help="the drafting run's id (it must not appear)")

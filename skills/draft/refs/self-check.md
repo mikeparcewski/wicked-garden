@@ -1,13 +1,14 @@
 # The self-check — flags, output, exit codes, manual alternative
 
-`scripts/draft/self_check.py` runs the three floors and prints one verdict. The three checks are
-also individually runnable (same flags, same JSON shape per check).
+`scripts/draft/self_check.py` runs the floors and prints one verdict: contrast, pages, claims, and the
+honest floor — the leak scan always, and the `notes.json` check with `--notes`. Each check is also
+individually runnable (same flags, same JSON shape per check).
 
 ## Commands
 
 ```bash
 # print brochure, budget from the brief, render with headless Chrome, trace claims to the snapshot
-wicked-garden run scripts/draft/self_check.py out.html --pages 2 --exact --render --repo /path/to/snapshot
+wicked-garden run scripts/draft/self_check.py out.html --pages 2 --exact --render --repo /path/to/snapshot --notes notes.json --run-id <run>
 
 # the product already exported a PDF — authoritative page count
 wicked-garden run scripts/draft/self_check.py out.html --pages 2 --exact --pdf out.pdf
@@ -19,6 +20,8 @@ wicked-garden run scripts/draft/self_check.py out.html --no-pages --mode screen 
 wicked-garden run scripts/draft/contrast_check.py out.html --mode print --min 4.5 --min-font-pt 7
 wicked-garden run scripts/draft/page_count.py out.html --budget 2 --exact --render
 wicked-garden run scripts/draft/claims_scan.py out.html --repo /path/to/snapshot
+wicked-garden run scripts/draft/leak_scan.py out.html --run-id <run>
+wicked-garden run scripts/draft/notes_check.py notes.json
 ```
 
 | Flag | Meaning |
@@ -31,6 +34,8 @@ wicked-garden run scripts/draft/claims_scan.py out.html --repo /path/to/snapshot
 | `--min-contrast` | default 4.5 (large text always 3.0) |
 | `--min-font-pt` | print size floor, default 7; `0` disables |
 | `--mode print\|screen\|both` | which `@media` rules apply (default `print`) |
+| `--notes <file>` | the run's `notes.json`: it must exist and hold exactly `left_out`, `sources`, `assumptions` |
+| `--run-id <id>` (repeatable) | the drafting run's id: it must not appear in the document (the leak scan) |
 | `--json` | machine-readable report |
 
 ## Verdict and exit codes
@@ -45,7 +50,8 @@ wicked-garden run scripts/draft/claims_scan.py out.html --repo /path/to/snapshot
 The two "done" states are `PASS` and `UNVERIFIED`-with-disclosure. `FAIL` is fixed in the
 DOCUMENT and re-run; never by loosening the flags, never by `zoom`/`scale`. `UNVERIFIED` is never
 rounded up to a pass: the check prints one `DISCLOSE in notes.json and your reply (never in the document) -> …` line per
-unverified check — copy those lines into the document's notes and your reply. A disclosure always
+unverified check — copy those lines into `notes.json` (`left_out` or `assumptions`) and your reply, never
+into the document or its speaker notes. A disclosure always
 names **which** check, **why** on this seat, and **what a reviewer does to verify**:
 
 ```
@@ -98,3 +104,6 @@ Say which of these you did by hand.
 3. **Claims.** Search the visible text for `PLACEHOLDER`, `TODO`, `TBD`, `lorem`, `{{`,
    `[INSERT`; list every number and URL and point each at a `data-source` path that exists in
    the snapshot; confirm every mock has a visible "illustrative" label.
+4. **Honest.** Search the whole file (text, speaker notes, attributes, comments, CSS `content`) for
+   inbox paths, your run id, "UNVERIFIED", bare `[S]` markers and "I used …" / "the brief says …";
+   remove them. Write `notes.json` beside the document with `left_out`, `sources` and `assumptions`.

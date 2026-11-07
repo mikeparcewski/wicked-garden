@@ -70,26 +70,53 @@ def _h8(value: str | None) -> str:
     return hashlib.sha256(("\0none" if value is None else value).encode("utf-8")).hexdigest()[:8]
 
 
+_NOT_DOM = frozenset({"script", "style", "template", "noscript"})
+_RAW_WS = frozenset({"pre", "textarea"})
+
+
+def _in_raw(node: Node) -> bool:
+    return any(a.tag in _RAW_WS for a in [node, *node.ancestors()])
+
+
 def _text(node: Node) -> str:
+    """The text a node OWNS: its subtree's text without its anchored descendants' (each is a word boundary), so a word
+    around an anchored child is the parent's and the child's words are the child's. Text nodes are joined as written (never with
+    an invented space); whitespace runs collapse, except inside ``pre`` / ``textarea`` where spacing is content."""
     out: list[str] = []
-    for n in node.walk():
-        if n.tag == "#text" and not any(a.tag in ("script", "style") for a in n.ancestors()):
-            out.append(n.text)
-    return _WS.sub(" ", " ".join(out)).strip()
+
+    def walk(n: Node, top: bool) -> None:
+        if not top and n.tag and not n.tag.startswith("#") and n.attrs.get("data-wid"):
+            out.append(" ")  # the child's words are its own; adding or moving an anchored child changes no parent text
+            return
+        if n.tag in _NOT_DOM:
+            return
+        for c in n.children:
+            if c.tag == "#text":
+                out.append(c.text if _in_raw(c.parent or c) else _WS.sub(" ", c.text))
+            elif c.tag and not c.tag.startswith("#"):
+                walk(c, False)
+
+    walk(node, True)
+    joined = "".join(out)
+    return joined if _in_raw(node) else _WS.sub(" ", joined).strip()
 
 
 class Version:
-    """One parsed version: its anchored nodes, which of them are leaves, and its slides in order."""
+    """One parsed version: its anchored nodes (never inside script/style/template/noscript, which are not the
+    document), the anchors it repeats, and its slides in order."""
 
     def __init__(self, html: str) -> None:
         self.doc = parse(html)
         self.nodes: dict[str, Node] = {}
+        self.duplicates: set[str] = set()
         for el in self.doc.elements():
             wid = el.attrs.get("data-wid")
-            if wid and wid not in self.nodes:
+            if not wid or any(a.tag in _NOT_DOM for a in [el, *el.ancestors()]):
+                continue
+            if wid in self.nodes:
+                self.duplicates.add(wid)
+            else:
                 self.nodes[wid] = el
-        self.leaves = {w for w, n in self.nodes.items()
-                       if not any(d is not n and d.attrs.get("data-wid") for d in n.walk() if d.tag and not d.tag.startswith("#"))}
         self.slides = self._slides()
 
     def _is_slide(self, el: Node) -> bool:
@@ -118,6 +145,9 @@ class Version:
     def descendants(self, wid: str) -> set[str]:
         node = self.nodes[wid]
         return {d.attrs["data-wid"] for d in node.walk() if d is not node and d.tag and not d.tag.startswith("#") and d.attrs.get("data-wid")}
+
+    def ancestors(self, wid: str) -> set[str]:
+        return {a.attrs["data-wid"] for a in self.nodes[wid].ancestors() if a.attrs.get("data-wid")}
 
     def slide_key_of(self, wid: str) -> str | None:
         node = self.nodes[wid]
@@ -209,27 +239,27 @@ def _forget(m: dict, wids: set[str]) -> None:
 def hand_step(m: dict, parent: Version, child: Version) -> None:
     """Upsert one hand step's parent → child diff into the map (in place)."""
     removed = [w for w in parent.nodes if w not in child.nodes]
-    # A removed ancestor's tombstone covers its descendants: only the outermost removed nodes are tombstoned.
+    gone_now = set(removed)
+    # A removed ancestor's tombstone covers its REMOVED descendants: only the outermost removed nodes are tombstoned.
+    # A descendant that survives (an unwrap moved it) keeps its own entries.
     covered: set[str] = set()
     for w in removed:
-        covered |= parent.descendants(w)
+        covered |= parent.descendants(w) & gone_now
     for w in removed:
         if w in covered:
             continue
-        _forget(m, {w} | parent.descendants(w))
-        for d in parent.descendants(w):
+        dropped = {w} | (parent.descendants(w) & gone_now)
+        _forget(m, dropped)
+        for d in dropped - {w}:
             if d in m["gone"]:
                 m["gone"].remove(d)
         if w not in m["gone"]:
             m["gone"].append(w)
         m["labels"][w] = parent.label(w)
-        key = parent.slide_key_of(w)
-        if m["order"] is not None and key is not None and key in m["order"]:
-            m["order"].remove(key)
-        for d in parent.descendants(w):
-            dk = parent.slide_key_of(d)
-            if m["order"] is not None and dk is not None and dk in m["order"]:
-                m["order"].remove(dk)
+        for d in dropped:
+            key = parent.slide_key_of(d)
+            if m["order"] is not None and key is not None and key in m["order"]:
+                m["order"].remove(key)
     for w, node in child.nodes.items():
         if w not in parent.nodes:
             # Added (or re-added: its tombstone is cleared): present, with its initial text and attributes.
@@ -237,13 +267,13 @@ def hand_step(m: dict, parent: Version, child: Version) -> None:
                 m["gone"].remove(w)
             if w not in m["added"]:
                 m["added"].append(w)
-            if w in child.leaves:
+            if _text(node):
                 m["texts"][w] = _text(node)
             if child.attrs(w):
                 m["attrs"][w] = dict(child.attrs(w))
             m["labels"][w] = child.label(w)
             continue
-        if w in child.leaves and _text(node) != _text(parent.nodes[w]):
+        if _text(node) != _text(parent.nodes[w]):
             m["texts"][w] = _text(node)
             m["labels"][w] = child.label(w)
         before, after = parent.attrs(w), child.attrs(w)
@@ -265,6 +295,8 @@ def build_map(steps: list[dict]) -> tuple[dict, Version | None]:
         kind = s.get("step") if isinstance(s, dict) else None
         if kind not in STEP_KINDS or not isinstance(s.get("html"), str):
             raise KeepError(f"step {i} must be {{html, step: {'|'.join(STEP_KINDS)}}}")
+        if (i == 0) != (kind == "root"):
+            raise KeepError("the lineage starts with its one root step")
         cur = _load(s["html"])
         if kind == "hand" and prev is not None:
             hand_step(m, prev, cur)
@@ -283,11 +315,27 @@ def entries_for(m: dict, head: Version | None, touch: list[str]) -> list[dict]:
     if head is not None:
         for t in touch:
             if t in head.nodes:
-                touched |= {t} | head.descendants(t)
+                touched |= {t} | head.descendants(t) | head.ancestors(t)
     out = []
     for e in entry_ids(m):
         out.append({**e, "touched": e["wid"] is not None and e["wid"] in touched})
     return out
+
+
+def validate_map(m: object) -> dict:
+    """The map, if it has exactly the shape `map` writes; else KeepError (a malformed map is never a pass)."""
+    if not isinstance(m, dict) or set(m) != {"texts", "attrs", "gone", "added", "order", "labels"}:
+        raise KeepError("the map file is not a keep_check map")
+    ok = (isinstance(m["texts"], dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in m["texts"].items())
+          and isinstance(m["attrs"], dict)
+          and all(isinstance(k, str) and isinstance(v, dict) and all(isinstance(n, str) and (x is None or isinstance(x, str)) for n, x in v.items())
+                  for k, v in m["attrs"].items())
+          and all(isinstance(m[k], list) and all(isinstance(x, str) for x in m[k]) for k in ("gone", "added"))
+          and (m["order"] is None or (isinstance(m["order"], list) and all(isinstance(x, str) for x in m["order"])))
+          and isinstance(m["labels"], dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in m["labels"].items()))
+    if not ok:
+        raise KeepError("the map file is not a keep_check map")
+    return m
 
 
 def check(m: dict, candidate: Version, allow: list[str]) -> dict:
@@ -301,6 +349,10 @@ def check(m: dict, candidate: Version, allow: list[str]) -> dict:
             violations.append({"kind": "missing", "wid": wid, "label": eff["labels"].get(wid, wid),
                                "sentence": f"your edit to {eff['labels'].get(wid, wid)} was removed"})
 
+    protected = set(eff["texts"]) | set(eff["attrs"]) | set(eff["added"]) | set(eff["gone"]) | set(eff["order"] or [])
+    for wid in sorted(protected & candidate.duplicates):
+        violations.append({"kind": "duplicate", "wid": wid, "label": eff["labels"].get(wid, wid),
+                           "sentence": f"the anchor of {eff['labels'].get(wid, wid)} appears more than once"})
     for wid, text in eff["texts"].items():
         if wid not in candidate.nodes:
             lost(wid)
@@ -339,7 +391,19 @@ def check(m: dict, candidate: Version, allow: list[str]) -> dict:
                         f"keep: {len(violations)} of your edits not kept — {violations[0]['sentence']}")}
 
 
+def safe_console() -> None:
+    """Never crash printing a label on a code-page console (Windows piped stdout)."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    safe_console()
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     mp = sub.add_parser("map")
@@ -360,9 +424,7 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(report, indent=2 if not args.json else None))
             return 0
         raw = json.loads(Path(args.map).read_text(encoding="utf-8"))
-        m = raw.get("map", raw) if isinstance(raw, dict) else None
-        if not isinstance(m, dict) or not all(k in m for k in ("texts", "attrs", "gone", "added", "order", "labels")):
-            raise KeepError("the map file is not a keep_check map")
+        m = validate_map(raw.get("map", raw) if isinstance(raw, dict) else None)
         report = check(m, _load(args.html), args.allow)
     except (OSError, ValueError) as exc:
         print(json.dumps({"check": "keep", "ok": False, "error": str(exc)}))

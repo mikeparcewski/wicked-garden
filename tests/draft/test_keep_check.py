@@ -184,6 +184,76 @@ def test_cli_map_then_check(tmp_path: Path):
     assert proc.returncode == 1 and json.loads(proc.stdout)["violations"][0]["wid"] == "s1-h"
 
 
+def doc(body: str) -> str:
+    return f"<!doctype html><html><body>{body}</body></html>"
+
+
+def test_r1_text_around_an_anchored_child_is_the_parents(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="p">Hi <a data-wid="a">world</a></p>')).add(
+        "hand", doc('<p data-wid="p">Bye <a data-wid="a">world</a></p>')).map()
+    assert m["texts"] == {"p": "Bye"}
+    assert verdict(m, doc('<p data-wid="p">Hi <a data-wid="a">world</a></p>'))["ok"] is False
+
+
+def test_r1_an_unwrapped_descendant_keeps_its_protection(tmp_path: Path):
+    v0 = doc('<div data-wid="w"><p data-wid="p">Old</p></div>')
+    lin = Lineage(tmp_path, v0).add("hand", doc('<div data-wid="w"><p data-wid="p">Mine</p></div>')).add("hand", doc('<p data-wid="p">Mine</p>'))
+    m = lin.map()
+    assert m["texts"]["p"] == "Mine" and "w" in m["gone"]
+    assert verdict(m, doc('<p data-wid="p">Theirs</p>'))["ok"] is False
+
+
+def test_r1_the_unchanged_head_always_satisfies_its_own_map(tmp_path: Path):
+    head = doc('<p data-wid="p">Mine <b data-wid="b">new</b></p><pre data-wid="c">a    b</pre>')
+    m = (Lineage(tmp_path, doc('<p data-wid="p">Old</p><pre data-wid="c">a b</pre>'))
+         .add("hand", doc('<p data-wid="p">Mine</p><pre data-wid="c">a b</pre>')).add("hand", head).map())
+    assert verdict(m, head)["ok"] is True
+    assert m["texts"]["c"] == "a    b", "spacing inside pre is content"
+    assert verdict(m, head.replace("a    b", "a b"))["ok"] is False
+
+
+def test_r1_words_are_not_split_or_joined_by_markup(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="p">any where</p>')).add("hand", doc('<p data-wid="p">any<b>where</b></p>')).map()
+    assert m["texts"]["p"] == "anywhere"
+
+
+def test_r1_a_repeated_anchor_never_satisfies_the_check(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="p">Old</p>')).add("hand", doc('<p data-wid="p">Mine</p>')).map()
+    sneaky = doc('<template><p data-wid="p">Mine</p></template><p data-wid="p">Changed</p>')
+    assert verdict(m, sneaky)["ok"] is False
+    assert verdict(m, doc('<p data-wid="p">Mine</p><p data-wid="p">Changed</p>'))["violations"][0]["kind"] == "duplicate"
+
+
+def test_r1_an_attribute_edit_on_a_surviving_node_is_kept_exactly(tmp_path: Path):
+    m = (Lineage(tmp_path, doc('<p data-wid="p" class="a" title="t">x</p>'))
+         .add("hand", doc('<p data-wid="p" class="b">x</p>')).map())
+    assert m["attrs"]["p"] == {"class": "b", "title": None}
+    assert verdict(m, doc('<p data-wid="p" class="b">x</p>'))["ok"] is True
+    assert verdict(m, doc('<p data-wid="p" class="a">x</p>'))["ok"] is False
+    assert verdict(m, doc('<p data-wid="p" class="b" title="t">x</p>'))["ok"] is False
+    entry = next(e for e in kc.entry_ids(m) if e.get("name") == "class")
+    assert verdict(m, doc('<p data-wid="p" class="c">x</p>'), [entry["id"]])["ok"] is True
+
+
+def test_r1_a_protected_ancestor_is_touched_too(tmp_path: Path):
+    lin = Lineage(tmp_path, doc('<div data-wid="w"><p data-wid="p">x</p></div>')).add("hand", doc('<div data-wid="w" style="color:red"><p data-wid="p">x</p></div>'))
+    m, head = kc.build_map(lin.steps)
+    assert [e["touched"] for e in kc.entries_for(m, head, ["p"])] == [True]
+
+
+def test_r1_the_lineage_starts_at_its_root_and_a_malformed_map_is_an_error(tmp_path: Path):
+    p = tmp_path / "h.html"
+    p.write_text(doc("<p>x</p>"), encoding="utf-8")
+    with pytest.raises(kc.KeepError):
+        kc.build_map([{"html": str(p), "step": "hand"}])
+    with pytest.raises(kc.KeepError):
+        kc.validate_map({**kc.empty_map(), "order": ""})
+    bad = tmp_path / "m.json"
+    bad.write_text(json.dumps({**kc.empty_map(), "order": ""}), encoding="utf-8")
+    proc = subprocess.run([sys.executable, str(SCRIPT), "check", "--map", str(bad), str(p)], capture_output=True, text=True)
+    assert proc.returncode == 2
+
+
 def test_unreadable_input_is_an_error_never_a_pass(tmp_path: Path):
     with pytest.raises(kc.KeepError):
         kc.build_map([{"html": str(tmp_path / "nope.html"), "step": "root"}])
