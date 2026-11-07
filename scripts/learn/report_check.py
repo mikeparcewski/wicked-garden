@@ -34,9 +34,8 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
 - claims: a bad or duplicate ``C<n>`` id, empty text, no source (``claim-unsourced``), a source id the
   log does not hold (``claim-unknown-source``);
 - the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
-  cites; a URL (in the report or in a claim) that is not a web source in the log (``url-not-in-log``: a
-  markdown destination or autolink is compared exactly, a bare URL without its closing punctuation; a
-  bare URL inside emphasis marks is refused as ``url-formatted``);
+  cites; a URL (in the report or in a claim) not written as ``<url>`` or ``[title](url)``
+  (``url-form``), or not exactly a web source in the log, its fragment aside (``url-not-in-log``);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
   a stop while something is readable: a non-empty staged document, a source in the log, or text in
@@ -81,12 +80,12 @@ SOURCE_ID_RE = re.compile(r"^S[1-9]\d{0,5}$")
 CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
 # Any citation group, ids of any length: an id the claims cannot hold is reported, never skipped.
 CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
-# Parentheses may belong to a URL (``/wiki/X_(y)``); an unbalanced closing one is the text's, not the URL's.
-URL_RE = re.compile(r"""https?://[^\s<>\[\]{}"'`|\\^]+""", re.IGNORECASE)
-URL_TRAILING = ".,;:!?"
-# A markdown link's destination and an autolink are taken exactly as written: no punctuation is trimmed.
-MD_LINK_RE = re.compile(r"\]\(\s*(<?)(https?://)", re.IGNORECASE)
-AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>", re.IGNORECASE)
+# A URL is written in one of two delimited forms, read exactly: ``<url>`` (also ``[title](<url>)``), up to
+# the ``>``; or a markdown destination ``[title](url)``, up to the ``)``, with no parenthesis, space or
+# angle bracket inside. Anything else (a bare URL, a link with a title) is refused as ``url-form``: no
+# punctuation is ever trimmed, so what is checked is exactly what a reader opens.
+URL_START_RE = re.compile(r"https?://", re.IGNORECASE)
+URL_MAX_CHARS = 4096
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
 TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml",
@@ -137,82 +136,32 @@ def norm_url(url: str) -> str | None:
     return urlunparse((p.scheme.lower(), p.netloc.lower(), p.path, p.params, p.query, ""))
 
 
-def _trim_bare(u: str) -> str:
-    """A bare URL without the sentence punctuation or the unbalanced ``)`` after it. Formatting marks
-    (``_``, ``*``) are never trimmed: a URL wrapped in them does not match, and the seat rewrites it as a
-    link. One backward scan: the work is linear in the URL's length."""
-    opens, closes = u.count("("), u.count(")")
-    end = len(u)
-    while end:
-        ch = u[end - 1]
-        if ch in URL_TRAILING:
-            pass
-        elif ch == ")" and opens < closes:
-            closes -= 1
-        else:
-            break
-        end -= 1
-    return u[:end]
-
-
-def _md_destination(text: str, i: int, angle: bool) -> tuple[str | None, int]:
-    """The markdown link destination starting at ``text[i]``, exactly as a renderer reads it, and where
-    the scan stopped. The destination is ``None`` when it is not complete (its text then stays for the
-    bare-URL scan). ``<…>`` form: up to the ``>`` on the same line, parentheses kept. Bare form: up to the
-    ``)`` that closes the link (nested parens kept) or the whitespace before a title."""
-    if angle:
-        j = i
-        while j < len(text) and text[j] not in "<>\n":
-            j += 1
-        if j < len(text) and text[j] == ">":
-            return text[i:j], j
-        return None, j
-    depth, j = 0, i
-    while j < len(text):
-        ch = text[j]
-        if ch.isspace():
-            return text[i:j], j  # a title may follow; whatever follows is scanned on its own
-        if ch in "<>":
-            return None, j
-        if ch == "(":
-            depth += 1
-        elif ch == ")":
-            if depth == 0:
-                return text[i:j], j
-            depth -= 1
-        j += 1
-    return None, j
-
-
-def urls_in(text: str) -> list[tuple[str, bool]]:
-    """Every http(s) URL in the text. A markdown destination or an autolink is exact; a bare URL loses
-    the punctuation that ends its sentence. Returns ``(url, ambiguous)``: a bare URL right after an
-    emphasis mark (``_``, ``*``) is ambiguous, since what the reader sees is not what is written. Each
-    character is scanned a bounded number of times."""
+def urls_in(text: str) -> list[tuple[str | None, str]]:
+    """Every URL in the text as ``(url, snippet)``; ``url`` is ``None`` when it is not written in one of
+    the two delimited forms. Each URL is read once, forward, at most ``URL_MAX_CHARS`` characters; a URL
+    start inside a URL already read (a query parameter) is part of it."""
     text = text or ""
-    out: list[str] = []
-    masked = list(text)
-    consumed = 0
-    for m in MD_LINK_RE.finditer(text):
-        start = m.start(2)
-        if start < consumed:
-            continue  # inside a destination already read
-        dest, end = _md_destination(text, start, bool(m.group(1)))
-        consumed = end  # a later link starting inside this span is not re-scanned (linear work)
-        if dest is None:
-            continue  # incomplete: its text stays for the bare-URL scan, which checks every URL in it
-        out.append((dest, False))
-        masked[start:end] = " " * (end - start)
-    rest = "".join(masked)
-    masked = list(rest)
-    for m in AUTOLINK_RE.finditer(rest):
-        out.append((m.group(1), False))
-        masked[m.start(1):m.end(1)] = " " * (m.end(1) - m.start(1))
-    rest = "".join(masked)
-    for m in URL_RE.finditer(rest):
-        u = _trim_bare(m.group(0))
-        if u:
-            out.append((u, m.start() > 0 and rest[m.start() - 1] in "_*"))
+    out: list[tuple[str | None, str]] = []
+    covered = 0
+    for m in URL_START_RE.finditer(text):
+        i = m.start()
+        if i < covered:
+            continue
+        window = text[i:i + URL_MAX_CHARS + 1]
+        url = None
+        if i >= 1 and text[i - 1] == "<":
+            j = window.find(">")
+            if j > 0 and not any(c.isspace() or c == "<" for c in window[:j]):
+                url = window[:j]
+        elif i >= 2 and text[i - 2:i] == "](":
+            j = window.find(")")
+            if j > 0 and not any(c.isspace() or c in "(<>" for c in window[:j]):
+                url = window[:j]
+        if url is None:
+            out.append((None, window[:80]))
+        else:
+            out.append((url, url))
+            covered = i + len(url)
     return out
 
 
@@ -606,10 +555,10 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
         for cid in sorted(cids - cited, key=_cid_key):
             findings.append(_f("report", "report-uncited-claim", f"claim {cid} is not cited in the report"))
     for where, text in [("report", report)] + texts:
-        for u, ambiguous in urls_in(text):
-            if ambiguous:
-                findings.append(_f(where, "url-formatted", f"{u[:200]} sits inside emphasis marks, so the reader "
-                                   "may see a different URL: write it as a link [title](url) or <url>"))
+        for u, snippet in urls_in(text):
+            if u is None:
+                findings.append(_f(where, "url-form", f"{snippet} is not written as <url> or [title](url): "
+                                   "write it in one of those forms, so it is read exactly"))
             elif norm_url(u) not in web_urls:
                 findings.append(_f(where, "url-not-in-log", f"{u[:200]} is not a web source in the log: "
                                    "cite only pages this job fetched"))

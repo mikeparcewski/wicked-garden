@@ -56,7 +56,7 @@ def packet(**over) -> dict:
             {"id": "C3", "text": "Support logged 14 open tickets last quarter.", "sources": ["S4"]},
         ],
         "stopped": None,
-        "report": f"Acceptance is deemed [C1]. Capped [C2, C3], see {URL}#terms.\n\n## Sources\n- S1\n",
+        "report": f"Acceptance is deemed [C1]. Capped [C2, C3], see <{URL}#terms>.\n\n## Sources\n- S1\n",
     }
     p.update(over)
     return p
@@ -142,32 +142,13 @@ def test_a_cited_url_must_appear_in_the_source_log(where):
     p = packet()
     stray = "https://never-fetched.example.com/page"
     if where == "report":
-        p["report"] += f"\nMore at {stray}."
+        p["report"] += f"\nMore at <{stray}>."
     else:
-        p["claims"][2]["text"] += f" ({stray})"
+        p["claims"][2]["text"] += f" [{stray}]({stray})"
     code, out = run_check(p)
     assert code == 1
     hits = [f for f in out["findings"] if f["rule"] == "url-not-in-log"]
     assert len(hits) == 1 and stray in hits[0]["message"]
-
-
-def test_a_logged_url_matches_with_a_fragment_or_inside_a_markdown_link():
-    p = packet(report=f"[terms]({URL}) and <{URL}#x>, ({URL}). [C1] [C2] [C3]")
-    assert run_check(p)[0] == 0
-
-
-def test_a_trailing_slash_is_a_different_page():
-    p = packet(report=f"[C1] [C2] [C3] {URL}/")
-    assert "url-not-in-log" in rules(run_check(p)[1])
-
-
-def test_parentheses_inside_a_url_are_kept():
-    wiki = "https://en.wikipedia.org/wiki/Complexity_(computer_science)"
-    p = packet(report=f"See [the article]({wiki}) and ({wiki}). [C1] [C2] [C3]")
-    p["sources"][2]["url"] = wiki
-    assert run_check(p)[0] == 0
-    p["report"] = "See https://en.wikipedia.org/wiki/Complexity. [C1] [C2] [C3]"
-    assert "url-not-in-log" in rules(run_check(p)[1])
 
 
 def test_web_sources_when_the_web_was_not_available_fail():
@@ -187,7 +168,7 @@ def test_a_documents_required_lens_reporting_without_documents_fails_but_its_sto
     empty.mkdir()
     web = dict(packet()["sources"][2], id="S1")
     p = packet(documents=[], sources=[web], claims=[{"id": "C1", "text": "Terms.", "sources": ["S1"]}],
-               report=f"Terms [C1]. {URL}")
+               report=f"Terms [C1]. <{URL}>")
     assert "documents-required" in rules(run_check(p, empty)[1])
     stop = packet(documents=[], sources=[], claims=[], report="",
                   stopped="Due diligence needs documents and none were staged for this job.")
@@ -241,7 +222,7 @@ def test_file_sources_must_be_staged_and_stay_inside_the_records(tmp_path):
 
 
 def test_report_citations_are_checked_both_ways():
-    out = run_check(packet(report=f"[C1] [C2] [C7] {URL}"))[1]
+    out = run_check(packet(report=f"[C1] [C2] [C7] <{URL}>"))[1]
     assert {"report-unknown-claim", "report-uncited-claim"} <= rules(out)
 
 
@@ -377,7 +358,7 @@ def test_the_web_source_cannot_be_dressed_as_a_tool_and_tools_carry_their_args()
     p = packet(web={"state": "not-picked", "reason": "not picked"})
     p["sources"][2] = {"id": "S3", "source": "web", "tool": "fetch", "args": {"url": URL},
                        "observed_at": "2026-11-06T21:40:12Z"}
-    p["report"] = p["report"].replace(f"see {URL}#terms.", "")
+    p["report"] = p["report"].replace(f"see <{URL}#terms>.", "")
     assert rules(run_check(p)[1]) == {"web-as-tool"}
     p = packet()
     del p["sources"][3]["args"]
@@ -455,24 +436,6 @@ def test_a_citation_of_any_length_is_checked(cite, unknown):
     assert got == unknown
 
 
-def test_a_markdown_destination_is_taken_exactly():
-    p = packet(report=f"[details]({URL}!) [C1] [C2] [C3]")
-    assert "url-not-in-log" in rules(run_check(p)[1])
-    p = packet(report=f"[details]({URL}!) and <{URL}!> [C1] [C2] [C3]")
-    p["sources"][2]["url"] = URL + "!"
-    assert run_check(p)[0] == 0
-    p = packet(report=f"Read it at {URL}! Or ({URL}). [C1] [C2] [C3]")
-    assert run_check(p)[0] == 0
-
-
-def test_a_long_run_of_closing_parentheses_is_linear():
-    import time
-    p = packet(report=f"[C1] [C2] [C3] {URL}" + ")" * 400000)
-    t = time.monotonic()
-    code, _ = run_check(p)
-    assert code == 0 and time.monotonic() - t < 3
-
-
 def test_text_read_by_one_check_is_budgeted(monkeypatch):
     monkeypatch.setattr(rc, "TEXT_BUDGET_BYTES", 80)
     code, out = run_check(packet())
@@ -526,15 +489,6 @@ def test_a_short_code_quote_is_checked_on_its_line(tmp_path):
 
 # --- review folds (codex r3) ---------------------------------------------------------------------
 
-def test_nested_markdown_prefixes_are_scanned_once():
-    import time
-    n = 8000
-    p = packet(report="[C1] [C2] [C3] " + "](https://a" * n + ")" * n)
-    t = time.monotonic()
-    run_check(p)
-    assert time.monotonic() - t < 3
-
-
 def test_a_located_code_quote_reads_its_file_once(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -549,38 +503,6 @@ def test_a_located_code_quote_reads_its_file_once(tmp_path, monkeypatch):
     p["report"] += " [C4]"
     assert run_check(p, repo=repo)[0] == 0
     assert reads.count("a.py") == 1
-
-
-@pytest.mark.parametrize("wrap", ["_", "*", "__", "**"])
-def test_a_bare_url_inside_emphasis_is_refused(wrap):
-    # What the reader sees inside emphasis is not what is written: the floor never trims the marks
-    # (a different logged URL could match), it asks for a link instead.
-    for logged in (URL, URL + wrap[0]):
-        p = packet(report=f"[C1] [C2] [C3] {wrap}{URL}{wrap} here")
-        p["sources"][2]["url"] = logged
-        assert "url-formatted" in rules(run_check(p)[1]), logged
-    p = packet(report=f"[C1] [C2] [C3] {wrap}[the terms]({URL}){wrap} here")
-    assert run_check(p)[0] == 0
-    p = packet(report=f"[C1] [C2] [C3] {URL}{wrap[0]} here")
-    p["sources"][2]["url"] = URL + wrap[0]
-    assert run_check(p)[0] == 0
-
-
-def test_an_unterminated_destination_hides_nothing():
-    for opener in ("<", ""):
-        p = packet(report=f"[ref]({opener}{URL}#f) https://invented.invalid/ [C1] [C2] [C3]")
-        bad = [f["message"] for f in run_check(p)[1]["findings"] if f["rule"] == "url-not-in-log"]
-        assert any("invented.invalid" in m for m in bad), opener
-
-
-@pytest.mark.parametrize("prefix", ["](https://a", "](<https://a"])
-def test_unterminated_nested_destinations_are_scanned_once(prefix):
-    import time
-    p = packet(report="[C1] [C2] [C3] " + prefix * 16000)
-    t = time.monotonic()
-    code, out = run_check(p)
-    assert code == 1 and "url-not-in-log" in rules(out)
-    assert time.monotonic() - t < 3
 
 
 def test_a_located_code_quote_in_a_file_of_many_lines_is_bounded(tmp_path):
@@ -609,10 +531,62 @@ def test_a_stop_sees_a_pdfs_text_derivative(tmp_path):
     assert run_check(stop, recs)[0] == 0
 
 
-def test_an_angle_bracket_destination_keeps_its_parentheses():
-    p = packet(report=f"[details](<{URL})>) [C1] [C2] [C3]")
-    p["sources"][2]["url"] = URL + ")"
+# --- URLs: two delimited forms, read exactly (codex r1-r6) ------------------------------------------
+
+def test_a_logged_url_in_either_form_passes_and_its_fragment_is_ignored():
+    p = packet(report=f"[terms]({URL}) and <{URL}#x>, and [again](<{URL}>). [C1] [C2] [C3]")
     assert run_check(p)[0] == 0
+
+
+@pytest.mark.parametrize("text", [f"see {URL} here", f"see ({URL}).", f"**{URL}**", f"_{URL}_",
+                                  f"[t]({URL} \"title\")", f"`{URL}`", f"[t](<{URL})", f"<{URL} >"])
+def test_a_url_in_any_other_form_is_refused(text):
+    p = packet(report=f"[C1] [C2] [C3] {text}")
+    assert "url-form" in rules(run_check(p)[1])
+
+
+@pytest.mark.parametrize("cited", [f"<{URL}/>", f"[t]({URL}/)", f"<{URL}!>", f"[t]({URL}.)", f"<{URL}_>"])
+def test_a_url_differing_by_one_character_is_not_in_the_log(cited):
+    p = packet(report=f"[C1] [C2] [C3] {cited}")
+    assert "url-not-in-log" in rules(run_check(p)[1])
+
+
+def test_a_url_with_parentheses_is_written_in_angle_brackets():
+    wiki = "https://en.wikipedia.org/wiki/Complexity_(computer_science)"
+    p = packet(report=f"See <{wiki}> and [the article](<{wiki}>). [C1] [C2] [C3]")
+    p["sources"][2]["url"] = wiki
+    assert run_check(p)[0] == 0
+    p["report"] = f"See [the article]({wiki}). [C1] [C2] [C3]"
+    assert "url-form" in rules(run_check(p)[1])
+
+
+def test_a_url_inside_a_logged_url_is_part_of_it():
+    inner = URL + "?next=https://other.example/x"
+    p = packet(report=f"<{inner}> [C1] [C2] [C3]")
+    p["sources"][2]["url"] = inner
+    assert run_check(p)[0] == 0
+
+
+@pytest.mark.parametrize("text", [
+    f"[broken](<{URL} [evil]({URL}!) [C1]",           # an unterminated angle form never hides a later URL
+    f"[ref](<{URL}#f) <https://invented.invalid/>",
+    f"[x]({URL}'unfetched) <https://invented.invalid/>",
+])
+def test_no_malformed_url_hides_another(text):
+    p = packet(report=text + " [C1] [C2] [C3]")
+    out = run_check(p)[1]
+    assert rules(out) & {"url-form", "url-not-in-log"}
+    if "invented" in text:
+        assert any("invented.invalid" in f["message"] for f in out["findings"])
+
+
+@pytest.mark.parametrize("text", ["](https://a" * 16000, "](<https://a" * 16000, "<https://a" * 16000,
+                                  f"[C1] <{URL}" + ")" * 400000])
+def test_url_reading_is_bounded(text):
+    import time
+    t = time.monotonic()
+    run_check(packet(report="[C1] [C2] [C3] " + text))
+    assert time.monotonic() - t < 3
 
 
 # --- the skill text -----------------------------------------------------------------------------
@@ -644,5 +618,6 @@ def test_report_mode_states_the_web_and_stop_rules():
     # The one floor finding a seat may clear by reading the original is named the same everywhere.
     for text in (claims, check, SCRIPT.read_text(encoding="utf-8")):
         assert "quote-not-found-in-pdf-text" in text
+    assert "`url-form`" in claims and "`[title](url)`" in claims
     for needle in ("receipt", "`args`", "fetched_at"):
         assert needle in check and needle in claims, needle
