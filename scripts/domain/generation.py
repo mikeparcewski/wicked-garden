@@ -36,6 +36,9 @@ DEFAULT_MAX_PAGES = 20
 DEFAULT_MAX_MINUTES = 240
 # The most points one record keeps (the engine stops a loop at 200 passes).
 MAX_POINTS = 512
+# Set by `frame_page`, removed by `close_page`: a page prepared and not closed yet. Only this
+# marker says a page is in flight (`page_in_flight`); `pending: []` alone is also a closed page.
+PAGE_OPEN = "page_open"
 _RUN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
@@ -169,11 +172,12 @@ def visited(doc: dict[str, Any] | None) -> set[str]:
 
 def page_in_flight(doc: dict[str, Any] | None) -> list[str] | None:
     """The units `extract-prepare` framed for the page in flight (possibly none), or None when no
-    page is in flight: no record, or the page was closed by `extract-next` (`close_page` removes
-    `pending`). `[]` therefore means exactly "this pass's prepare framed an empty page", which is
-    how `extract-apply` tells a map with nothing left to ask (F42) from an extract step that left
-    its work undone. Host-side: the seat can neither write this record nor shrink the page."""
-    if not doc or "pending" not in doc:
+    page is in flight: no record, a page `extract-next` closed, or a record written before the
+    `page_open` marker (an old close left `pending: []` too, so only the marker says a page is
+    open). `[]` therefore means exactly "this pass's prepare framed an empty page", which is how
+    `extract-apply` tells a map with nothing left to ask (e2e-1105 F42) from an extract step that
+    left its work undone. Host-side: the seat can neither write this record nor shrink the page."""
+    if not doc or doc.get(PAGE_OPEN) is not True:
         return None
     pending = doc.get("pending")
     return list(pending) if isinstance(pending, list) else None
@@ -203,6 +207,7 @@ def frame_page(db: str, run_id: str, symbol_ids: list[str],
     if doc is None:
         raise ValueError(f"no generation record for run {run_id}")
     doc["pending"] = list(symbol_ids)
+    doc[PAGE_OPEN] = True  # this page is open until `close_page` (see `page_in_flight`)
     if changed_ids:  # kept for the whole generation: apply accepts these, next-page counts them
         doc["changed"] = sorted(set(doc.get("changed") or []) | set(changed_ids))
     doc.pop("answered", None)  # not recorded yet (an empty list is "answered none")
@@ -232,9 +237,8 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     re-runs the step with no page in flight."""
     pending = list(doc.get("pending") or [])
     if not pending:
-        # A closed page has no `pending` at all (`page_in_flight`): an empty list would read as an
-        # empty page still in flight, and a rework after the close could skip its rules file.
-        doc.pop("pending", None)
+        doc["pending"] = []
+        doc.pop(PAGE_OPEN, None)
         doc.pop("answered", None)
         return 0, 0
     unmapped = {n.get("symbol_id") for n in coverage.get("unaccounted_nodes") or []}
@@ -247,7 +251,8 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
         was_real = changed(doc)
         closed = {s for s in pending if s not in unmapped and s not in held and s not in was_real}
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
-    doc.pop("pending", None)
+    doc["pending"] = []
+    doc.pop(PAGE_OPEN, None)
     doc.pop("answered", None)
     if "not_product" not in coverage:
         # An older wicked-core lists no placeholders, so "accounted" cannot be told from "real":

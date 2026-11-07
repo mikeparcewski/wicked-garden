@@ -37,8 +37,8 @@ Usage (the preset's command, run from the run's worktree):
 
 Exit 0 when the file was applied (refused entries are listed, not fatal), or when there was
 nothing to extract: the run's host-side generation record shows this pass's `extract-prepare`
-framed an empty page and no rules file was left (e2e-1105 F42: a re-map of a map that is already
-current finishes with "map already current at <commit>; nothing to extract"). 1 when the file is
+framed an empty page (e2e-1105 F42: a re-map of a map that is already current finishes with "map
+already current at <commit>; nothing to extract", and applies no rules file). 1 when the file is
 missing for a page that framed units (or with no page in flight), refused, or a write fails.
 """
 
@@ -200,33 +200,51 @@ def _page_framed_nothing(db: str) -> bool:
         return False
 
 
-def _built_at(db: str) -> str | None:
-    """The commit the map was built from (else the one the store is indexed at), for the line only."""
+def _freshness(db: str) -> tuple[bool, str]:
+    """(is the map current, what to say): current only when the store records both the commit
+    the map was built from and the one it is indexed at now, and they are the same (codex r1: full
+    coverage alone says nothing about whether the requirements match the code)."""
     try:
-        built, base, _ = refresh.build_and_base(db)
-    except Exception:  # noqa: BLE001 - wording only; the coverage numbers carry the verdict
-        return None
-    return (built or base or "")[:12] or None
+        built, at, why = refresh.build_and_base(db)
+    except Exception as e:  # noqa: BLE001 - prepare already failed on an unreadable store
+        return False, f"whether the map matches the code could not be read ({e!s:.200})"
+    if built and at and built == at:
+        return True, built[:12]
+    if built and at:
+        return False, (f"the code changed since the map was built ({built[:12]}..{at[:12]}) and "
+                       "each changed behaviour was asked by an earlier page of this run or is not "
+                       "product code")
+    if built is None:
+        return False, ("the store records no commit the map was built from, so whether it matches "
+                       "the code could not be told")
+    return False, f"{why}, so whether the map matches the code could not be told"
 
 
-def _nothing_to_extract(db: str, base: Path, coverage_rel: str, core) -> dict:
-    """The page framed no units and the extract step (rightly) wrote no rules file: write nothing
-    to the store, publish the coverage and apply reports the later steps read, and say so in one
-    honest line (e2e-1105 F42). "Already current" only when coverage shows nothing unmapped and no
-    placeholder; otherwise the line says what is left and why this page framed none of it."""
+def _nothing_to_extract(db: str, base: Path, rules_rel: str, coverage_rel: str, core) -> dict:
+    """This pass's prepare framed no units: write nothing to the store, whatever rules file the
+    worktree holds (an earlier page's file left behind is not this page's answer, codex r1),
+    publish the coverage and apply reports the later steps read, and say so in one honest line
+    (e2e-1105 F42). "Already current" only when coverage shows nothing unmapped and no placeholder
+    AND the map was built at the commit the store is indexed at."""
     rules_file.check_writable(base, coverage_rel)
     rules_file.check_writable(base, REPORT_REL)
     with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
         after, met, line = core.coverage_against_minimum(db, str(Path(tmp) / "coverage.json"))
     unmapped, held = int(after.get("unaccounted") or 0), int(after.get("risk_flagged") or 0)
-    if not unmapped and not held:
-        at = _built_at(db)
-        what = (f"map already current{f' at {at}' if at else ''}; nothing to extract (this page "
-                "framed no units)")
-    else:
+    current = False
+    if unmapped or held:
         what = (f"nothing to extract: this page framed no units ({unmapped} unmapped, {held} "
                 "placeholder(s) left, each asked by an earlier page of this run or in a file the "
                 "repository does not track)")
+    else:
+        current, said = _freshness(db)
+        what = (f"map already current at {said}; nothing to extract (this page framed no units)"
+                if current else
+                f"nothing to extract: this page framed no units and every behaviour is a real "
+                f"requirement, but {said}")
+    ignored = os.path.lexists(base / rules_rel)
+    if ignored:
+        what += f"; the {rules_rel} left in the worktree was not applied"
     rules_file.write_json_file(base, coverage_rel, after)
     report = {
         "declared_seat": None,
@@ -241,6 +259,8 @@ def _nothing_to_extract(db: str, base: Path, coverage_rel: str, core) -> dict:
         "refused": [],
         "refused_count": 0,
         "nothing_to_extract": True,
+        "map_current": current,
+        "rules_file_ignored": ignored,
         "line": what,
         "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
                                                 "risk_flagged", "unaccounted")},
@@ -271,14 +291,14 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
     core = core or _clients.host_core_client()
     estate = estate or _clients.host_estate_client(db)
+    if _page_framed_nothing(db):
+        # The host's record says this pass's prepare framed nothing: there is nothing to apply,
+        # with or without a file. A page with units, a closed page or no record goes on below, where
+        # a missing file is refused: an extract step that skipped its work fails closed.
+        return _nothing_to_extract(db, base, rules_rel, coverage_rel, core)
     try:
         doc = rules_file.read_json_file(base, rules_rel)
     except FileNotFoundError:
-        # No file is right only when this pass's prepare framed nothing (the host's record says so);
-        # a page with units, a closed page or no record keeps the refusal: an extract step that
-        # skipped its work fails closed.
-        if _page_framed_nothing(db):
-            return _nothing_to_extract(db, base, coverage_rel, core)
         raise rules_file.RulesFileRefused(
             f"the extract step left no rules file at {rules_rel}") from None
     seat, accepted, refused = rules_file.check_rules_doc(doc)

@@ -1395,7 +1395,8 @@ def test_a_re_map_of_a_current_map_finishes_instead_of_failing(tmp_path, monkeyp
     before = json.dumps(estate.writes, sort_keys=True)
     capsys.readouterr()
     report = _apply(wt, db, repo, estate, core)
-    assert report["nothing_to_extract"] is True
+    assert report["nothing_to_extract"] is True and report["map_current"] is True
+    assert report["rules_file_ignored"] is False
     assert report["line"] == ("map already current at 8cc32aabde35; nothing to extract (this "
                               "page framed no units)")
     assert json.dumps(estate.writes, sort_keys=True) == before, "no rule was written"
@@ -1491,3 +1492,50 @@ def test_an_empty_page_with_work_left_says_so_instead_of_current(tmp_path, monke
     assert "already current" not in report["line"]
     assert report["line"].startswith(f"nothing to extract: this page framed no units "
                                      f"({len(_STAR)} unmapped, 0 placeholder(s) left")
+
+
+def test_an_empty_page_never_applies_a_rules_file_left_in_the_worktree(tmp_path, monkeypatch):
+    """codex r1: an earlier page's rules file left in the worktree is not this page's answer. On
+    a page the host framed empty, apply writes nothing, whatever file the worktree holds."""
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    _write_rules(wt, "codex", [_rule(s, "a different statement") for s in _STAR])
+    before = json.dumps(estate.writes, sort_keys=True)
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True and report["rules_file_ignored"] is True
+    assert report["line"].endswith(f"the {rules_file.RULES_REL} left in the worktree was not "
+                                   "applied")
+    assert json.dumps(estate.writes, sort_keys=True) == before
+
+
+def test_a_record_closed_by_the_older_code_never_reads_as_an_empty_page(tmp_path, monkeypatch):
+    """codex r1: the older close_page left `pending: []` with no marker. A rework after such a
+    close that deletes its rules file is refused, never read as an empty page in flight."""
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate, core=core)
+    rec = generation.load(db, "run-1")
+    rec.pop(generation.PAGE_OPEN)  # exactly what a record written before the marker holds
+    generation.save(db, "run-1", rec)
+    assert rec["pending"] == [] and generation.page_in_flight(rec) is None
+    with pytest.raises(rules_file.RulesFileRefused, match="left no rules file"):
+        _apply(wt, db, repo, estate, core)
+
+
+def test_full_coverage_without_a_build_commit_is_never_called_current(tmp_path, monkeypatch):
+    """codex r1: every behaviour a real requirement says nothing about whether the requirements
+    match the code. Without a recorded build commit the line says so instead of "current"."""
+    import sqlite3
+    db, repo, wt, estate, core = _current_map(tmp_path)
+    c = sqlite3.connect(db)
+    c.execute("DELETE FROM nodes WHERE symbol = 99")
+    c.commit()
+    c.close()
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    assert prepare_worklist.prepare(db, repo, wt, rules_file.WORKLIST_REL, 500, estate=estate,
+                                    core=core)["units"] == []
+    report = _apply(wt, db, repo, estate, core)
+    assert report["nothing_to_extract"] is True and report["map_current"] is False
+    assert "already current" not in report["line"]
+    assert "no commit the map was built from" in report["line"], report["line"]
