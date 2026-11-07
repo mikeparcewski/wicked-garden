@@ -2,6 +2,35 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`wicked-garden-learn` report mode: the skill side of the `sourced-report` workflow** (DES-CATALOG-002 rev 8
+  §2.d, seam CS3). Six job cards (Research, Competitive, Due diligence, Analyze documents, Critique, Estimate)
+  share one read-only workflow, and a brief line (`Lens: <lens>.`) picks the report's shape from
+  `skills/learn/refs/report-<lens>.md`. Report mode is learn without the walkthrough and the write-up: it reads the
+  staged documents, the job's picked sources and the web, and changes nothing.
+  - **The packet** (`refs/report-claims.md`): a source log `S1..Sn` (a fetched page with its URL, title and fetch
+    time; a staged file with its quote and page; a repository file with its line and quote; a source call with
+    the arguments to repeat it), claims `C1..Cn` that each cite source ids, the web's state, and the report.
+  - **The web** is reached only through the job's crew `web` source, so each fetch time comes from that source.
+    When the job did not pick the web, or it is not available, the report says so and goes on with the rest. It
+    stops only when nothing is readable, and never answers from memory.
+  - **Documents:** Due diligence and Analyze documents refuse without them; Critique and Estimate take them
+    optionally (operator ruling 5).
+  - **The fidelity check** (`refs/report-check.md`, the `fidelity` action) runs on a seat that did not gather. It
+    re-checks every claim at its source, removes what does not hold, and fails the run when any claim does not
+    hold, so a person sees the findings.
+  - **The floor** (`scripts/learn/report_check.py`, read-only): `preflight` refuses a documents-required lens with
+    no documents (exit 3). `check` fails:
+    - an unsourced claim, or a source id the log does not hold;
+    - a URL the log does not hold, or one not written as `<url>` or `[title](url)` (URLs are read exactly);
+    - a file not staged, or a quote not in its file's text (a file resolving outside its folder is never read);
+    - a web source when the web was not available;
+    - a stop while something is readable;
+    - a report that cites an unknown claim or leaves one uncited.
+
+    A malformed packet gets findings or exit 2, never a traceback.
+
 ### Changed
 
 - **Drafts keep process notes out of the artifact, and a refine keeps the person's own edits** (plugins-complete
