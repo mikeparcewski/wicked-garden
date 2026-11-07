@@ -76,6 +76,11 @@ def test_r3_repeated_attributes_root_text_line_breaks_and_plural_narration():
     assert kinds("<p>We could not verify the latency figure.</p>") == {"narration"}
 
 
+def test_r4_controls_and_adjacent_css_strings_cannot_split_a_leak():
+    assert kinds("<p>I used <button>SearchEntity</button> to draft this.</p>") == {"narration"}
+    assert kinds('<style>p::before {content: "I used " "SearchEntity";}</style><p>Hello</p>') == {"narration"}
+
+
 def test_r1_subject_vocabulary_passes():
     assert ls.scan("<p>To start the device, run the self-check.</p>")["ok"] is True
     assert ls.scan("<p>The parser reads config/notes.json.</p>")["ok"] is True

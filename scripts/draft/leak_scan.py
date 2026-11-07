@@ -92,9 +92,15 @@ def _in_notes(node: Node) -> bool:
 
 
 # Text inside these joins the block it sits in (``I used <em>SearchEntity</em>`` is one sentence).
-_INLINE = frozenset(("a abbr b bdi bdo cite code data del dfn em i ins kbd label mark output q ruby rt rp s samp small span "
-                     "strong sub sup time u var wbr br font").split())
-_CSS_CONTENT = re.compile(r"""content\s*:\s*(?:"([^"]*)"|'([^']*)')""", re.IGNORECASE)
+_INLINE = frozenset(("a abbr b bdi bdo button cite code data del dfn em i ins kbd label mark meter option output progress q "
+                     "ruby rt rp s samp select small span strong sub sup textarea time u var wbr br font").split())
+_CSS_CONTENT = re.compile(r"""content\s*:\s*([^;}]*)""", re.IGNORECASE)
+_CSS_STRING = re.compile(r""""([^"]*)"|'([^']*)'""")
+
+
+def _css_content(value: str) -> str:
+    """The text a CSS ``content`` value renders: its quoted strings, adjacent ones joined (``"I used " "X"``)."""
+    return "".join(m.group(1) if m.group(1) is not None else m.group(2) for m in _CSS_STRING.finditer(value))
 
 
 def _units(html: str) -> list[tuple[str, str, str]]:
@@ -132,13 +138,13 @@ def _units(html: str) -> list[tuple[str, str, str]]:
                 units.append((f"attr:{name}", locator, value))
                 if name == "style":
                     for m in _CSS_CONTENT.finditer(value):
-                        units.append(("css", locator, m.group(1) or m.group(2) or ""))
+                        units.append(("css", locator, _css_content(m.group(1))))
         if node.tag in ("script", "style"):
             body = "".join(c.text for c in node.children if c.tag == "#text")
             units.append(("code", locator, body))
             if node.tag == "style":
                 for m in _CSS_CONTENT.finditer(body):
-                    units.append(("css", locator, m.group(1) or m.group(2) or ""))
+                    units.append(("css", locator, _css_content(m.group(1))))
             continue
         if node.tag in _INLINE and node.parent is not None and node.parent.tag not in ("", None):
             continue  # its words are read with the block it sits in

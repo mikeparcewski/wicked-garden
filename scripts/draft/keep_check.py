@@ -72,52 +72,80 @@ def _h8(value: str | None) -> str:
 
 _NOT_DOM = frozenset({"script", "style", "template", "noscript"})
 _RAW_WS = frozenset({"pre", "textarea"})
+def _raw_region(node: Node) -> Node | None:
+    """The ``pre`` / ``textarea`` a node is inside (spacing there is content), or None."""
+    for a in [node, *node.ancestors()]:
+        if a.tag in _RAW_WS:
+            return a
+    return None
 
 
-def _in_raw(node: Node) -> bool:
-    return any(a.tag in _RAW_WS for a in [node, *node.ancestors()])
+# Unanchored elements that start a new rendered line: their text is a separate word from the text around them.
+_BREAKING = frozenset(("address article aside blockquote dd details dialog div dl dt fieldset figcaption figure footer form "
+                       "h1 h2 h3 h4 h5 h6 header hgroup hr li main nav ol p pre section summary table tbody td tfoot th "
+                       "thead tr ul").split())
 
 
 def _text(node: Node) -> str:
     """The text a node OWNS: its subtree's text without its anchored descendants' (each is a word boundary), so a word
-    around an anchored child is the parent's and the child's words are the child's. Text nodes are joined as written (never with
-    an invented space); whitespace runs collapse, except inside ``pre`` / ``textarea`` where spacing is content."""
-    segs: list[tuple[str, bool]] = []  # (text, raw: spacing is content)
+    around an anchored child is the parent's and the child's words are the child's. Inline markup joins text as
+    written (never an invented space); a ``br`` or an unanchored block is a word boundary; whitespace runs collapse,
+    except inside ``pre`` / ``textarea``, where each region's text is kept verbatim, whatever inline markup splits it."""
+    segs: list[tuple[str, Node | None]] = []  # (text, raw region or None for prose)
 
     def walk(n: Node, top: bool) -> None:
         if not top and n.tag and not n.tag.startswith("#") and n.attrs.get("data-wid"):
-            segs.append((" ", False))  # the child's words are its own; adding or moving an anchored child changes no parent text
+            segs.append((" ", None))  # the child's words are its own; adding or moving an anchored child changes no parent text
             return
         if n.tag in _NOT_DOM:
             return
         for c in n.children:
             if c.tag == "#text":
-                segs.append((c.text, _in_raw(c.parent or c)))
+                segs.append((c.text, _raw_region(c.parent or c)))
+            elif c.tag == "br":
+                region = _raw_region(c)
+                segs.append(("\n" if region is not None else " ", region))
             elif c.tag and not c.tag.startswith("#"):
+                breaking = c.tag in _BREAKING and _raw_region(c) is None
+                if breaking:
+                    segs.append((" ", None))
                 walk(c, False)
+                if breaking:
+                    segs.append((" ", None))
 
     walk(node, True)
-    # Collapse only prose: a run of prose segments is collapsed as one, and prose that is only whitespace (indentation
-    # around a pre) is no text at all; raw (pre / textarea) text is kept verbatim.
-    if not any(raw for _, raw in segs):
+    if all(region is None for _, region in segs):
         return _WS.sub(" ", "".join(t for t, _ in segs)).strip()
-    out: list[str] = []
+    # Prose collapses (and prose that is only whitespace, such as indentation around a pre, is no text); each raw
+    # region's text is joined as one verbatim string; regions and prose are separated by a boundary mark.
+    parts: list[str] = []
     prose: list[str] = []
+    raw: list[str] = []
+    region: Node | None = None
 
-    def flush() -> None:
-        joined = _WS.sub(" ", "".join(prose))
-        if joined.strip():
-            out.append(joined.strip())
+    def flush_prose() -> None:
+        joined = _WS.sub(" ", "".join(prose)).strip()
+        if joined:
+            parts.append(joined)
         prose.clear()
 
-    for text, raw in segs:
+    def flush_raw() -> None:
         if raw:
-            flush()
-            out.append(text)
-        else:
+            parts.append("".join(raw))
+        raw.clear()
+
+    for text, reg in segs:
+        if reg is None:
             prose.append(text)
-    flush()
-    return "\x1f".join(out)
+            continue
+        if reg is not region or prose and "".join(prose).strip():
+            flush_raw()
+        flush_prose() if "".join(prose).strip() else prose.clear()
+        region = reg
+        raw.append(text)
+    flush_raw()
+    flush_prose()
+    return "\x1f".join(parts)
 
 
 class Version:

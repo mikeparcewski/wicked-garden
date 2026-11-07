@@ -305,6 +305,19 @@ def test_r3_a_revision_that_repeats_any_anchor_is_refused(tmp_path: Path):
     assert verdict(m, doc('<p data-wid="a">x</p><p data-wid="b">y</p><p data-wid="b">z</p>'))["violations"][0]["kind"] == "duplicate"
 
 
+def test_r4_inline_markup_inside_a_pre_changes_nothing(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<pre data-wid="p">a b</pre>')).add("hand", doc('<pre data-wid="p">a    b</pre>')).map()
+    assert verdict(m, doc('<pre data-wid="p">a<span>    </span>b</pre>'))["ok"] is True
+
+
+def test_r4_a_line_break_or_a_block_is_a_word_boundary(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="p">pending</p>')).add("hand", doc('<p data-wid="p">not<br>approved</p>')).map()
+    assert m["texts"]["p"] == "not approved"
+    assert verdict(m, doc('<p data-wid="p">notapproved</p>'))["ok"] is False
+    m2 = Lineage(tmp_path, doc('<div data-wid="d"><div>a</div></div>')).add("hand", doc('<div data-wid="d"><div>not</div><div>approved</div></div>')).map()
+    assert verdict(m2, doc('<div data-wid="d"><div>notapproved</div></div>'))["ok"] is False
+
+
 def test_unreadable_input_is_an_error_never_a_pass(tmp_path: Path):
     with pytest.raises(kc.KeepError):
         kc.build_map([{"html": str(tmp_path / "nope.html"), "step": "root"}])
