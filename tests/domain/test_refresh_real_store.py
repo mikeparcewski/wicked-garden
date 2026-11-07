@@ -144,9 +144,11 @@ def test_the_fixture_carries_no_identity_of_the_machine_that_built_it(tmp_path):
             assert marker not in raw, (f.name, marker)
 
 
-def test_a_labelled_store_with_a_map_is_refused_not_refreshed_empty(tmp_path):
-    """codex r2: a labelled store prefixes node paths with its label, which the mapping steps do
-    not translate; with a map built, the refresh refuses it rather than finding nothing."""
+@pytest.mark.parametrize("metadata", [{"code_commit": MANIFEST["built"]}, {"generation": 1}])
+def test_a_labelled_store_with_a_map_is_refused_not_refreshed_empty(tmp_path, metadata):
+    """codex r2/r3: a labelled store prefixes node paths with its label, which the mapping steps do
+    not translate; with a map built (whether or not it recorded its commit), the refresh refuses
+    it rather than finding nothing."""
     db = _db(tmp_path, "labelled.db")
     con = sqlite3.connect(db)
     con.execute("INSERT INTO symbols (sym) VALUES (?)", (refresh.BUILD_SYMBOL,))
@@ -154,7 +156,7 @@ def test_a_labelled_store_with_a_map_is_refused_not_refreshed_empty(tmp_path):
     cols = [r[1] for r in con.execute("PRAGMA table_info(nodes)")]
     values = {"symbol": sid, "name": "requirements graph", "kind": '{"other":"requirements_graph"}',
               "language": "wicked-apps", "file": "requirements-graph/build",
-              "data": json.dumps({"metadata": {"code_commit": MANIFEST["built"]}})}
+              "data": json.dumps({"metadata": metadata})}
     use = [c for c in cols if c in values]
     con.execute(f"INSERT INTO nodes ({', '.join(use)}) VALUES ({', '.join('?' * len(use))})",
                 [values[c] for c in use])

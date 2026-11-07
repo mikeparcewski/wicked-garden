@@ -11,9 +11,11 @@ run's base, after the engine's D8 index). The files git reports changed between 
 registered checkout, are the files whose mapped behaviours are asked again.
 
 Everything here is a read: the store through a read-only connection, git with fixed arguments in
-the registered checkout (never the seat-writable worktree). A store or a build that cannot say
-(an older wicked-core wrote no code commit, a commit the checkout does not hold) re-asks nothing
-and says why.
+the registered checkout (never the seat-writable worktree). A store that does not RECORD a commit
+(no map yet, an older wicked-core wrote no code commit, no indexed commit) re-asks nothing and says
+why. A store that cannot be read, a labelled store with a map, or a recorded pair of commits the
+checkout cannot compare fails the step with the cause (e2e-1105 F40): never an empty refresh of a
+stale map.
 """
 
 from __future__ import annotations
@@ -81,10 +83,12 @@ def indexed_commit(con: sqlite3.Connection) -> tuple[str | None, str]:
 
 
 def build_and_base(db: str) -> tuple[str | None, str | None, str]:
-    """(the commit the map was built from, the commit the store is indexed at now, why the base
-    is missing). Each commit is None when the store does not say: no build yet, a build by an
-    older wicked-core, a store with no indexed commit. Raises [`RefreshUnreadable`] when the store
-    cannot be read: a read that fails is never "not recorded"."""
+    """(the commit the map was built from, the commit the store is indexed at now, where the base
+    was read or why it is missing). Each commit is None when the store does not say: no build yet,
+    a build by an older wicked-core, a store with no indexed commit. Raises [`RefreshUnreadable`]
+    when the store cannot be read (a read that fails is never "not recorded"), and for a labelled
+    store that holds a map (its node paths carry the label, which the mapping steps do not
+    translate; codex r2/r3), whether or not the map recorded its commit."""
     try:
         con = _ro(db)
         try:
@@ -107,6 +111,10 @@ def build_and_base(db: str) -> tuple[str | None, str | None, str]:
                                             f"is not text ({type(c).__name__})")
                 built = c.strip().lower() if c and c.strip() else None
             base, why = indexed_commit(con)
+            labelled = why.startswith("repo:") or bool(_meta(con, "repo_labels"))
+            if row is not None and labelled:
+                raise RefreshUnreadable("the store is labelled: Refresh map reads a store of one "
+                                        "un-labelled repository, as wicked-crew registers them")
         finally:
             con.close()
     except sqlite3.Error as e:
@@ -193,20 +201,15 @@ def changed_units(db: str, repo_root: str, tracked: set[str],
     """The mapped behaviours in product files changed since the map was built, as coverage-style
     nodes (`symbol_id`, `name`, `file`, `kind`) plus `prior` (the earlier statement), and a line
     saying what was compared. `exclude`: units already framed for another reason (unmapped,
-    placeholders). A store that does not record a commit, or a checkout that cannot say, re-asks
-    nothing and says why; a store that cannot be READ, a labelled store, or a recorded pair of
-    commits the checkout cannot compare raises [`RefreshUnreadable`]."""
+    placeholders). A store that does not RECORD a commit re-asks nothing and says why; a store
+    that cannot be READ, a labelled store with a map, or a recorded pair of commits the checkout
+    cannot compare raises [`RefreshUnreadable`]."""
     built, base, why = build_and_base(db)
     if built is None:
         return [], ("no build commit recorded (no map yet, or a map built by an older "
                     "wicked-core): changed behaviours are not re-asked")
     if base is None:
         return [], f"{why}: changed behaviours are not re-asked"
-    if why.startswith("repo:"):
-        # A labelled store prefixes every node path with its label; the mapping steps compare
-        # repository paths. Said and refused, never an empty refresh of a stale map (codex r2).
-        raise RefreshUnreadable(f"the store is labelled ({why}): Refresh map reads a store of one "
-                                f"un-labelled repository, as wicked-crew registers them")
     if built == base:
         return [], f"code unchanged since the map was built ({built[:12]})"
     try:
