@@ -37,7 +37,7 @@ Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin
 If none of these is available, or Python 3 is missing, skip the script-backed step, say so, and follow the manual alternative where one is given next to it — never invent the script's output.
 Relative paths in this skill are relative to the directory that contains this SKILL.md.
 
-## Actions (one per `learn` workflow phase)
+## Actions (one per phase of the `learn` and `sourced-report` workflows)
 
 | Action | Role | Writes | Does |
 |---|---|---|---|
@@ -74,23 +74,28 @@ not the claims ledger. The brief's `Lens:` line picks the report's shape; no lin
 **`research` in report mode** (the `gather` step; often a team, each member covering part of the question):
 1. **Preflight.** Run `wicked-garden run scripts/learn/report_check.py preflight --lens <lens> --records <documents folder>`
    (the documents folder is `records/` in a crew run). Exit 3 means the lens needs documents and none
-   were staged: stop with its reason. Without the launcher, count the staged files yourself: `due-diligence`
-   and `analyze` need at least one.
-2. **Read only this job's sources:** the staged documents, the project sources your tools list, and the web.
+   were staged: stop with its reason. Otherwise put the absolute documents path it prints (`records`) in
+   your output; the later steps use it. Without the launcher, count the staged files yourself:
+   `due-diligence` and `analyze` need at least one.
+2. **Read only this job's sources:** the staged documents, the repository in scope, the project sources
+   your tools list, the web, and the text the brief itself carries (a claim to critique, a scope to
+   estimate: refs/report-claims.md's `brief`).
 3. **The web.** In a crew run, reach it only through the job's `web` source, with its `search` and `fetch`
-   tools. Never use curl or another fetcher: the fetch time in each record comes from that source. If those
-   tools are not in your list, the web is `not-picked`. If a call is refused or the source is not
-   installed, it is `unavailable`. Record which, with the reason, and go on with the rest. Outside a crew
-   run, use your own web tools and record each fetch time yourself.
+   tools. Never use curl or another fetcher: the fetch time in each record comes from that source. Paste
+   each fetch result's receipt (its URL and `fetched_at`) verbatim in your output. If those tools are not in
+   your list, the web is `not-picked`. If a call is refused or the source is not installed, it is
+   `unavailable`. Record which, with the reason, and go on with the rest. Outside a crew run, use your own
+   web tools and record each fetch time yourself.
 4. **Record as you read.** Put each source in the source log as you read it, and draft candidate claims,
    each tied to the ids of the sources that support it.
-5. **Stop only when nothing is readable:** no documents, no picked source and no web. Then `stopped` says
-   what was missing. Never answer from memory.
+5. **Stop only when nothing is readable:** no document, no repository, no picked source, no web and no text
+   in the brief to work from. Then `stopped` says what was missing. Never answer from memory.
 
 **`synthesize` in report mode:** merge the logs (one record per page, per quote and per call, renumbered
-S1..Sn), number the claims C1..Cn, and write the report in the lens's shape. Run the floor on the packet,
-`wicked-garden run scripts/learn/report_check.py check --packet <file> --records <documents folder>`,
-from your notes folder, and fix every finding. Put the packet in your output as one json block.
+S1..Sn), number the claims C1..Cn, and write the report in the lens's shape. Save the packet in your notes
+folder and run the floor on it, `wicked-garden run scripts/learn/report_check.py check --packet <file> --records <documents folder> [--repo <repository>]`,
+with absolute paths. Fix every finding, except the one exception refs/report-claims.md names. Put the
+packet, and the receipts `gather` pasted, in your output.
 
 **`fidelity`:** refs/report-check.md.
 

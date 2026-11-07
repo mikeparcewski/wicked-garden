@@ -1,7 +1,8 @@
 # Lens: estimate
 
 **Brief line:** `Lens: estimate.` **Card:** Estimate and price. **Documents:** optional (a statement of
-work, a rate card, a backlog). The scope comes from the intent when no document is staged.
+work, a rate card, a backlog). The scope comes from the intent when no document is staged: copy that
+text into the packet's `brief` and cite each scope item from it.
 
 ## What the person gets
 
@@ -23,5 +24,6 @@ Effort ranges per item, rates from the documents, every assumption named, and th
 ## Rules
 
 - Ranges, never a single point.
-- A repository in scope may be read for size and complexity (files, modules, tests); cite paths.
+- A repository in scope may be read for size and complexity (files, modules, tests); cite it with code
+  records (refs/report-claims.md).
 - Recompute every total before you finish.

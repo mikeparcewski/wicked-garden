@@ -10,8 +10,8 @@
   `skills/learn/refs/report-<lens>.md`. Report mode is learn without the walkthrough and the write-up: it reads the
   staged documents, the job's picked sources and the web, and changes nothing.
   - **The packet** (`refs/report-claims.md`): a source log `S1..Sn` (a fetched page with its URL, title and fetch
-    time; a staged file with its quote and page; a source call), claims `C1..Cn` that each cite source ids, the
-    web's state, and the report.
+    time; a staged file with its quote and page; a repository file with its line and quote; a source call with
+    the arguments to repeat it), claims `C1..Cn` that each cite source ids, the web's state, and the report.
   - **The web** is reached only through the job's crew `web` source, so each fetch time comes from that source.
     When the job did not pick the web, or it is not available, the report says so and goes on with the rest. It
     stops only when nothing is readable, and never answers from memory.
@@ -22,8 +22,10 @@
     hold, so a person sees the findings.
   - **The floor** (`scripts/learn/report_check.py`, read-only): `preflight` refuses a documents-required lens with
     no documents (exit 3). `check` fails an unsourced claim, a source id the log does not hold, a URL the log
-    does not hold, a file not staged, a quote not in its file's text, a web source when the web was not
-    available, and a report that cites an unknown claim or leaves one uncited.
+    does not hold, a file not staged, a quote not in its file's text (files resolving outside their folder are
+    never read), a web source when the web was not available, a stop while documents are staged, and a report
+    that cites an unknown claim or leaves one uncited. A malformed packet gets findings or exit 2, never a
+    traceback.
 
 ### Changed
 
