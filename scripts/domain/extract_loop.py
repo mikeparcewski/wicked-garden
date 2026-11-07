@@ -355,8 +355,12 @@ class _DirectStore:
             row = self._c.execute(
                 "SELECT value FROM annotations WHERE node_sym = ? AND type = ? AND trim(value) != '' "
                 "ORDER BY ts DESC, id DESC LIMIT 1", (sid, CODE_MISMATCH_ANN)).fetchone()
-        except sqlite3.OperationalError:
-            return False
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e) or "no such column" in str(e):  # no annotations kept here
+                return False
+            # Any other failed read (a lock) aborts before anything is written (codex r3): a met
+            # restatement must never resolve past a finding it could not see.
+            raise RuntimeError(f"reading {symbol_id}'s code mismatch failed: {e}") from e
         return row is not None and row[0].strip() != CODE_MEETS
 
     def source_slice(self, symbol_id: str, cap: int = 4000) -> str:

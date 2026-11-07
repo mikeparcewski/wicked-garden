@@ -760,3 +760,24 @@ def test_file_mode_never_reads_a_malformed_code_meets_as_met(bad):
     entry = extract_loop.to_entry("a::b", {**_good("a::b"), "code_meets": bad})
     ok, _ = _rule_extractor.validate_rule(entry, {"a::b"})
     assert not ok, entry
+
+
+def test_a_failed_mismatch_read_stops_the_write():
+    """codex r3: a locked read returned "no mismatch", so a met restatement resolved past a live
+    finding without clearing it. Only a store with no annotations table reads as none."""
+    from domain import _mocks
+    import sqlite3
+    sid = "sym::payments::Payment.charge::b1"
+
+    class Locked:
+        def mismatch_now(self, s):
+            raise RuntimeError("reading its code mismatch failed: database is locked")
+
+    estate = _mocks.EstateClient()
+    with pytest.raises(RuntimeError, match="locked"):
+        extract_loop.decide_and_write(estate, Locked(), sid, "charge", _good(sid), {sid}, {}, {})
+    assert estate.annotation_writes == [] and estate.requirement_writes == []
+    store = extract_loop._DirectStore.__new__(extract_loop._DirectStore)
+    store._c = sqlite3.connect(":memory:")
+    store.sid_of = {sid: 1}
+    assert store.mismatch_now(sid) is False, "no annotations table: nothing to clear"
