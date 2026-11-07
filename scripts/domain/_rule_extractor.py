@@ -17,8 +17,18 @@ stdin (no argv length limit), UTF-8 pinned, hard timeout.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from typing import Any
+
+from domain.rules_file import MAX_MISMATCH
+
+# The value the host writes over an earlier mismatch when a unit is restated as met (wicked-core
+# `CODE_MEETS`); reserved, so a seat can never write it as a finding.
+CODE_MEETS = "code meets it"
+
+# C0 controls and DEL: never in a value the host hands estate's argv.
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 # A generous per-batch ceiling; a hung/slow model must never wedge the loop.
 _MODEL_TIMEOUT = 180
@@ -36,6 +46,14 @@ _PROMPT_HEADER = (
     'or \\"\\" if you cannot state it safely>", "confidence": <number 0..1>, '
     '"provenance": {"source": "<repo/module>", "ref": "<the symbol_id>", '
     '"source_kinds": ["code-body"|"type-def"|"comment"|"doc", ...]}}\n'
+    "State the requirement the unit is MEANT to meet (its doc comment, its tests, its name "
+    "and its callers agree on it), and set confidence by how sure you are of that "
+    "requirement, not of the code. When the code does not meet it (a bug: e.g. a sum that "
+    "skips the first element), still state the requirement as intended and add "
+    '"code_meets": false, "mismatch": "<one line: how the code departs>". Never restate '
+    "the bug as the requirement. Say code_meets false only when a doc comment, a test or a "
+    "caller shows the intended requirement; a unit whose intent is unclear still takes "
+    "statement \"\" with low confidence and no mismatch.\n"
     "Most product code encodes a rule: a check, a refusal, a limit, a default, an "
     "ordering, a permission or a state change is a rule even when it is small, so state "
     "it. A type or interface is a rule only when it encodes a constraint the business "
@@ -141,7 +159,30 @@ def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
     invalid = [k for k in kinds if not isinstance(k, str) or k not in _VALID_SOURCE_KINDS]
     if invalid:
         return False, f"invalid source_kinds {invalid!r} (expected subset of {sorted(_VALID_SOURCE_KINDS)})"
+    meets = rule.get("code_meets", True)
+    if not isinstance(meets, bool):
+        return False, f"code_meets {meets!r} is not true or false"
+    if not meets and not code_mismatch(rule):
+        return False, "code_meets is false but no mismatch says how the code departs"
     return True, "ok"
+
+
+def code_mismatch(rule: Any) -> str:
+    """How the code departs from the stated requirement (operator ruling 2026-11-06: the
+    requirement still counts; the mismatch is a finding beside it), or "" when the rule says
+    the code meets it."""
+    if not isinstance(rule, dict) or rule.get("code_meets", True) is not False:
+        return ""
+    text = rule.get("mismatch")
+    if not isinstance(text, str):
+        return ""
+    # One line, no control characters, valid Unicode, bounded like the rules file's field
+    # (`MAX_MISMATCH`; the file refuses a longer one, a host model's answer is cut to it), and never
+    # starting with "-": it is an argv value to the estate CLI, which reads a leading "--" as a flag.
+    text = text.encode("utf-8", "replace").decode("utf-8")
+    text = " ".join(_CONTROL.sub(" ", text).split())[:MAX_MISMATCH].lstrip("- ").strip()
+    # The host's own clearing value is never a seat's finding (codex/pi r2: it would hide one).
+    return "" if text.casefold() == CODE_MEETS else text
 
 
 def extract_rules(batch: list[dict[str, Any]], model_argv: list[str],

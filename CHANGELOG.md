@@ -4,6 +4,16 @@
 
 ### Changed
 
+- **A true requirement whose code is wrong counts as a real requirement; the mismatch is a finding** (operator
+  ruling 2026-11-06). A rules-file entry may carry `"code_meets": false` and a one-line `"mismatch"` (at most 300
+  characters, no control characters, never starting with `-`, never the reserved `"code meets it"`). The rule
+  resolves on its confidence as before, and the host writes a `code_mismatch` annotation FIRST (key
+  `<rule key>:mismatch`, read back by value before the rule and the requirement are written), so a requirement
+  never counts without its finding. A unit later restated as met writes `"code meets it"` over the old mismatch
+  on the same key. wicked-core shows the newest non-blank one beside the requirement. An unmet rule that cannot
+  say how is refused (a placeholder). The extractor prompt and the `domain-extractor` skill say: state the
+  requirement the unit is meant to meet (a doc comment, a test or a caller shows it), with confidence in that
+  requirement, never the bug.
 - **Editor conformance checks what an editor does with the artifact it opens** (plugins-complete G9b). Two cases
   join every editor's run (and the required set wicked-crew and wicked-core check):
   - **`18-shows`**: the editor asks `artifact.read`, reads within 3 s of the handshake, a text run of the version it

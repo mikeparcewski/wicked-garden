@@ -117,13 +117,14 @@ def _annotation_read_back(db: str):
     if not {"annotations", "symbols"} <= tables:
         return None
 
-    def check(symbol_id: str, key: str) -> bool:
+    def check(symbol_id: str, key: str, value: str | None = None) -> bool:
         try:
             con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
             try:
                 row = con.execute("SELECT 1 FROM annotations a JOIN symbols s ON "
-                                  "s.sid = a.node_sym WHERE s.sym = ? AND a.key = ? LIMIT 1",
-                                  (symbol_id, key)).fetchone()
+                                  "s.sid = a.node_sym WHERE s.sym = ? AND a.key = ? "
+                                  "AND (? IS NULL OR a.value = ?) LIMIT 1",
+                                  (symbol_id, key, value, value)).fetchone()
             finally:
                 con.close()
         except sqlite3.Error as e:  # a failed read-back is a failed write, said as one

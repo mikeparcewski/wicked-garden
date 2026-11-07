@@ -46,6 +46,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on p
 from domain import _clients, _rule_extractor, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
+# wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
+CODE_MISMATCH_ANN = "code_mismatch"
+# wicked-core's `CODE_MEETS`: the value a restatement writes over an earlier mismatch (estate's CLI
+# has no annotation delete; `--replace` on the same key retires the old one).
+CODE_MEETS = _rule_extractor.CODE_MEETS
 
 
 
@@ -117,7 +122,7 @@ def _seat() -> str:
 
 
 def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str,
-                seat: str | None = None, read_back=None) -> None:
+                seat: str | None = None, read_back=None, clear_mismatch: bool = False) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
     validated requirement + business_rule annotation; RISK ⇒ a non-blank requirement
     (validated=False) + a risk annotation — either way the node is ACCOUNTED, so the
@@ -129,6 +134,33 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     seat = seat or _seat()
     basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
     rid = "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+    # Operator ruling 2026-11-06: a true requirement whose code is wrong still counts; the
+    # mismatch is a finding beside it. It is written FIRST, under its own key: if a later write
+    # fails, the node is not yet resolved and the next apply asks it again, so a requirement never
+    # counts without its finding. A rule the code meets writes `CODE_MEETS` over an earlier
+    # mismatch (`clear_mismatch`), so a fixed unit stops showing one.
+    def durable(key: str, value: str | None = None) -> None:
+        # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
+        # reads it back directly (`read_back(sid, key, value)`, one query instead of a third
+        # process). With `value`, the row must hold exactly that (codex r2: an older row on the same
+        # key must not vouch for a replacement that did not land).
+        if read_back is not None:
+            ok = read_back(sid, key, value)
+        else:
+            ok = any(a.get("key") == key and (value is None or a.get("value") == value)
+                     for a in estate.read_annotations(sid))
+        if not ok:
+            raise RuntimeError(f"write not durable: {sid} missing annotation {key} on read-back")
+
+    marker = ""
+    if resolved and rule:
+        marker = _rule_extractor.code_mismatch(rule) or (CODE_MEETS if clear_mismatch else "")
+    if marker:
+        estate.annotate(sid, type=CODE_MISMATCH_ANN, key=f"{rid}:mismatch", value=marker,
+                        confidence=float(rule.get("confidence", 0.9)),
+                        provenance="extract-loop:code-mismatch", replace=True, author=seat)
+        # Verified BEFORE anything counts: a lost finding leaves the unit unresolved (codex r2).
+        durable(f"{rid}:mismatch", marker)
     if resolved and rule:
         stmt = rule["statement"]
         estate.annotate(sid, type="business_rule", key=rid, value=stmt,
@@ -154,14 +186,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         confidence=safe_conf,
                         provenance="extract-loop:risk", replace=True, author=seat)
         estate.set_requirement(sid, requirement=risk_req, validated=False, validated_by=seat)
-    # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
-    # reads it back directly (`read_back(sid, key)`, one query instead of a third process).
-    if read_back is not None:
-        durable = read_back(sid, rid)
-    else:
-        durable = any(a.get("key") == rid for a in estate.read_annotations(sid))
-    if not durable:
-        raise RuntimeError(f"write not durable: {sid} missing annotation {rid} on read-back")
+    durable(rid)
 
 
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
@@ -317,6 +342,26 @@ class _DirectStore:
         if sid is None:
             return 0
         return self.in_deg.get(sid, 0) + len(self.callees.get(sid, []))
+
+    def mismatch_now(self, symbol_id: str) -> bool:
+        """Does the unit show a code mismatch now: its newest non-blank `code_mismatch` (ts, then
+        row id) is not `CODE_MEETS` (operator ruling 2026-11-06)? A rule the code meets then
+        writes `CODE_MEETS` over it. A store without annotations shows none."""
+        import sqlite3
+        sid = self.sid_of.get(symbol_id)
+        if sid is None:
+            return False
+        try:
+            row = self._c.execute(
+                "SELECT value FROM annotations WHERE node_sym = ? AND type = ? AND trim(value) != '' "
+                "ORDER BY ts DESC, id DESC LIMIT 1", (sid, CODE_MISMATCH_ANN)).fetchone()
+        except sqlite3.OperationalError as e:
+            if "no such table" in str(e) or "no such column" in str(e):  # no annotations kept here
+                return False
+            # Any other failed read (a lock) aborts before anything is written (codex r3): a met
+            # restatement must never resolve past a finding it could not see.
+            raise RuntimeError(f"reading {symbol_id}'s code mismatch failed: {e}") from e
+        return row is not None and row[0].strip() != CODE_MEETS
 
     def source_slice(self, symbol_id: str, cap: int = 4000) -> str:
         sid = self.sid_of.get(symbol_id)
@@ -866,7 +911,7 @@ NOT_PRODUCT_REASON = ("not product code (a test, data or document file): recorde
 def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids: set[str],
                      node_community: dict[str, str], community_sizes: dict[str, int],
                      seat: str | None = None, read_back=None,
-                     unconfirmed: str | None = None) -> str:
+                     unconfirmed: str | None = None, prior_mismatch=None) -> str:
     """The deterministic decision + write for ONE node (RISK-FLOOR: it terminates RESOLVED or
     RISK). Shared by this harness and the host apply step (`apply_rules.py`), so a rule stated
     in a seat container is judged exactly like one the host's own model returned. `unconfirmed`
@@ -886,8 +931,13 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # penalty on units with no Louvain community; a community boost of up to 1.1 likewise
         # raised rules the seat was unsure of). Communities still frame the unit, never its verdict.
         resolved = float(rule["confidence"]) >= RESOLVE_THRESHOLD
+        # Does the unit show a code mismatch now? The caller's read, else the direct store's: every
+        # writer that holds a store clears a stale finding (codex r2).
+        shows = prior_mismatch or getattr(store, "mismatch_now", None)
+        clear = bool(resolved and shows is not None and shows(sid))
         _write_node(estate, sid, name, rule, resolved,
-                    "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back)
+                    "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back,
+                    clear_mismatch=clear)
         return "resolved" if resolved else "risk"
     if (rule or {}).get("statement"):
         _write_node(estate, sid, name, rule, False, reason, seat=seat, read_back=read_back)
@@ -960,8 +1010,20 @@ def to_entry(sid: str, rule: dict | None) -> dict:
                                      and k in rules_file.SOURCE_KINDS][: rules_file.MAX_SOURCE_KINDS]
         if rules_file.check_rule_entry({**entry, "provenance": clean}) is None:
             entry["provenance"] = clean
+    # Operator ruling 2026-11-06 (codex r1): an unmet requirement keeps its finding through the
+    # file. A `code_meets: false` with no usable mismatch stays false with an empty mismatch, so
+    # the host's validator refuses it (a placeholder), never reads it as a rule the code meets.
+    if rule.get("code_meets") is False:
+        entry["code_meets"] = False
+        entry["mismatch"] = _rule_extractor.code_mismatch(rule)
+    elif "code_meets" in rule and not isinstance(rule["code_meets"], bool):
+        # Malformed (e.g. "false", 0, null): never read as a rule the code meets (codex r2).
+        entry["statement"] = ""
     if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
         entry["statement"] = ""
+        entry.pop("mismatch", None)
+        if entry.get("code_meets") is False:
+            entry["mismatch"] = ""
     return entry
 
 

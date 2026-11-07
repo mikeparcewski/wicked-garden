@@ -597,3 +597,187 @@ def test_store_mode_never_validates_on_the_estate_source_fallback(monkeypatch):
     assert extract_loop.run("x.db", time_budget=30, limit=0, batch=12, dry_run=False) == 0
     req, validated = estate.writes["a::f1"]["req"][:2]
     assert validated is False and "no source" in req
+
+
+# --- a true requirement whose code is wrong (operator ruling 2026-11-06) -------
+
+def _unmet(sid, **extra):
+    return {**_good(sid), "statement": "sum returns the total of every element",
+            "code_meets": False, "mismatch": "the loop starts at index 1, so it skips the first",
+            **extra}
+
+
+def test_validate_rule_accepts_a_requirement_the_code_does_not_meet():
+    ok, why = _rule_extractor.validate_rule(_unmet("a::b"), {"a::b"})
+    assert ok, why
+    assert _rule_extractor.code_mismatch(_unmet("a::b")).startswith("the loop starts")
+    assert _rule_extractor.code_mismatch(_good("a::b")) == ""
+    assert _rule_extractor.code_mismatch({**_good("a::b"), "code_meets": True,
+                                          "mismatch": "ignored"}) == ""
+
+
+@pytest.mark.parametrize("extra,reason", [
+    ({"mismatch": ""}, "no mismatch"),
+    ({"mismatch": "   "}, "no mismatch"),
+    ({"mismatch": None}, "no mismatch"),
+    ({"code_meets": "no"}, "not true or false"),
+])
+def test_validate_rule_refuses_an_unmet_rule_that_does_not_say_how(extra, reason):
+    ok, why = _rule_extractor.validate_rule(_unmet("a::b", **extra), {"a::b"})
+    assert not ok and reason in why
+
+
+def test_an_unmet_requirement_still_resolves_and_writes_its_mismatch_after_the_rule():
+    """tiny-math's `sum` skips the first element: before the ruling the seat lowered its
+    confidence and the host wrote a placeholder that never counted. Now the requirement is
+    validated (real) and the mismatch is a `code_mismatch` annotation written AFTER the rule,
+    with the rule's key, so wicked-core reads it as a finding beside a real requirement."""
+    from domain import _mocks
+    estate = _mocks.EstateClient()
+    sid = "sym::payments::Payment.charge::b1"
+    out = extract_loop.decide_and_write(estate, None, sid, "charge", _unmet(sid), {sid}, {}, {})
+    assert out == "resolved"
+    assert estate.requirement_writes == [(sid, "sum returns the total of every element", True)]
+    types = [(a["type"], a["key"]) for a in estate.annotation_writes]
+    # The finding first: a failure after it leaves the unit unresolved, so it is asked again.
+    assert [t for t, _ in types] == [extract_loop.CODE_MISMATCH_ANN, "business_rule"]
+    assert types[0][1] == types[1][1] + ":mismatch", "its own key, beside the rule's"
+    assert estate.annotation_writes[0]["value"].startswith("the loop starts at index 1")
+    # A rule the code meets writes no mismatch.
+    estate2 = _mocks.EstateClient()
+    assert extract_loop.decide_and_write(estate2, None, sid, "charge", _good(sid), {sid}, {},
+                                         {}) == "resolved"
+    assert [a["type"] for a in estate2.annotation_writes] == ["business_rule"]
+    # An unmet rule that cannot say how is a placeholder, as any invalid rule is.
+    estate3 = _mocks.EstateClient()
+    bad = _unmet(sid, mismatch="")
+    assert extract_loop.decide_and_write(estate3, None, sid, "charge", bad, {sid}, {}, {}) \
+        == "risk"
+    assert [a["type"] for a in estate3.annotation_writes] == ["risk"]
+
+
+def test_the_mismatch_is_read_back_on_its_own_key():
+    """pi r1 on this change: the read-back matched by key alone, and the mismatch shared the
+    rule's key, so a mismatch that landed could vouch for a rule that did not (and a mismatch that
+    did not land went unchecked). Each write is read back on its own key."""
+    from domain import _mocks
+    sid = "sym::payments::Payment.charge::b1"
+    landed: list[str] = []
+
+    class Lossy(_mocks.EstateClient):
+        def annotate(self, symbol_id, type, key, value, **kw):
+            if type != extract_loop.CODE_MISMATCH_ANN:  # the mismatch silently does not land
+                super().annotate(symbol_id, type, key, value, **kw)
+
+    lossy = Lossy()
+    with pytest.raises(RuntimeError, match=":mismatch on read-back"):
+        extract_loop.decide_and_write(lossy, None, sid, "charge", _unmet(sid), {sid}, {}, {})
+    # codex r2: checked BEFORE anything counts, so a lost finding leaves the unit unresolved.
+    assert lossy.annotation_writes == [] and lossy.requirement_writes == []
+
+    def read_back(s, key, value=None):
+        landed.append(key)
+        return True
+    extract_loop.decide_and_write(_mocks.EstateClient(), None, sid, "charge", _unmet(sid), {sid},
+                                  {}, {}, read_back=read_back)
+    assert len(landed) == 2 and landed[0] == landed[1] + ":mismatch", "the finding first"
+
+
+def test_a_restatement_the_code_meets_writes_code_meets_over_an_earlier_mismatch():
+    """The code was fixed and the unit restated: estate's CLI cannot delete, so the same key is
+    replaced with CODE_MEETS (which wicked-core reads as no finding). Only when the unit shows a
+    mismatch now: no extra write for every rule."""
+    from domain import _mocks
+    sid = "sym::payments::Payment.charge::b1"
+    shown = _mocks.EstateClient()
+    assert extract_loop.decide_and_write(shown, None, sid, "charge", _good(sid), {sid}, {}, {},
+                                         prior_mismatch=lambda s: True) == "resolved"
+    assert [(a["type"], a["value"]) for a in shown.annotation_writes][0] == \
+        (extract_loop.CODE_MISMATCH_ANN, extract_loop.CODE_MEETS)
+    assert shown.annotation_writes[0]["replace"] is True
+    none = _mocks.EstateClient()
+    extract_loop.decide_and_write(none, None, sid, "charge", _good(sid), {sid}, {}, {},
+                                  prior_mismatch=lambda s: False)
+    assert [a["type"] for a in none.annotation_writes] == ["business_rule"]
+
+
+def test_file_mode_keeps_an_unmet_rule_and_refuses_one_that_cannot_say_how():
+    """codex r1: `to_entry` (the seat's file mode) dropped `code_meets`/`mismatch`, so the finding
+    vanished and an unmet rule with no mismatch read as one the code meets."""
+    kept = extract_loop.to_entry("a::b", _unmet("a::b"))
+    assert kept["code_meets"] is False and kept["mismatch"].startswith("the loop starts")
+    blank = extract_loop.to_entry("a::b", _unmet("a::b", mismatch="  "))
+    assert blank["code_meets"] is False and blank["mismatch"] == ""
+    ok, why = _rule_extractor.validate_rule(blank, {"a::b"})
+    assert not ok and "no mismatch" in why
+    assert "code_meets" not in extract_loop.to_entry("a::b", _good("a::b"))
+
+
+def test_a_mismatch_never_starts_with_a_dash():
+    """codex r1: estate's CLI reads a leading "--" value as a flag, after the rule was written."""
+    assert _rule_extractor.code_mismatch(_unmet("a::b", mismatch="--review probe")) == "review probe"
+    ok, _ = _rule_extractor.validate_rule(_unmet("a::b", mismatch=" -- "), {"a::b"})
+    assert not ok
+
+
+def test_a_host_models_mismatch_is_one_bounded_line_without_control_characters():
+    rule = _unmet("a::b", mismatch="skips\x00 the\x07 first\n element" + "x" * 400)
+    text = _rule_extractor.code_mismatch(rule)
+    assert "\x00" not in text and "\x07" not in text and "\n" not in text
+    assert text.startswith("skips the first element") and len(text) == 300
+
+
+def test_an_older_row_never_vouches_for_a_replacement_that_did_not_land():
+    """codex r2: a stale mismatch on the key, and a CODE_MEETS replacement that silently fails:
+    the read-back checks the value, so the write is not reported durable."""
+    from domain import _mocks
+    sid = "sym::payments::Payment.charge::b1"
+
+    class Stuck(_mocks.EstateClient):
+        def annotate(self, symbol_id, type, key, value, **kw):
+            if type == extract_loop.CODE_MISMATCH_ANN and value == extract_loop.CODE_MEETS:
+                return  # the replacement does not land; the old row stays
+            super().annotate(symbol_id, type, key, value, **kw)
+
+    stuck = Stuck()
+    extract_loop.decide_and_write(stuck, None, sid, "charge", _unmet(sid), {sid}, {}, {})
+    with pytest.raises(RuntimeError, match=":mismatch on read-back"):
+        extract_loop.decide_and_write(stuck, None, sid, "charge", _good(sid), {sid}, {}, {},
+                                      prior_mismatch=lambda s: True)
+
+
+def test_a_seat_can_never_write_the_hosts_clearing_value():
+    """codex/pi r2: "code meets it" as a seat's mismatch would hide its own finding."""
+    for forged in ("code meets it", "  Code   Meets It ", "-- code meets it"):
+        assert _rule_extractor.code_mismatch(_unmet("a::b", mismatch=forged)) == ""
+        ok, _ = _rule_extractor.validate_rule(_unmet("a::b", mismatch=forged), {"a::b"})
+        assert not ok
+
+
+@pytest.mark.parametrize("bad", ["false", 0, None, "no"])
+def test_file_mode_never_reads_a_malformed_code_meets_as_met(bad):
+    """codex r2: a present, non-boolean code_meets became a rule the code meets in file mode."""
+    entry = extract_loop.to_entry("a::b", {**_good("a::b"), "code_meets": bad})
+    ok, _ = _rule_extractor.validate_rule(entry, {"a::b"})
+    assert not ok, entry
+
+
+def test_a_failed_mismatch_read_stops_the_write():
+    """codex r3: a locked read returned "no mismatch", so a met restatement resolved past a live
+    finding without clearing it. Only a store with no annotations table reads as none."""
+    from domain import _mocks
+    import sqlite3
+    sid = "sym::payments::Payment.charge::b1"
+
+    class Locked:
+        def mismatch_now(self, s):
+            raise RuntimeError("reading its code mismatch failed: database is locked")
+
+    estate = _mocks.EstateClient()
+    with pytest.raises(RuntimeError, match="locked"):
+        extract_loop.decide_and_write(estate, Locked(), sid, "charge", _good(sid), {sid}, {}, {})
+    assert estate.annotation_writes == [] and estate.requirement_writes == []
+    store = extract_loop._DirectStore.__new__(extract_loop._DirectStore)
+    store._c = sqlite3.connect(":memory:")
+    store.sid_of = {sid: 1}
+    assert store.mismatch_now(sid) is False, "no annotations table: nothing to clear"

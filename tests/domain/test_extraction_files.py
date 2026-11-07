@@ -1303,3 +1303,50 @@ def test_the_seats_reviewed_confidence_decides_never_its_community():
         == "resolved"
     assert extract_loop.decide_and_write(estate, None, "s::crowd", "crowd", unsure, ids,
                                          community, sizes) == "risk"
+
+
+def test_a_rules_file_entry_may_say_the_code_does_not_meet_its_requirement():
+    """Operator ruling 2026-11-06: `code_meets` (a boolean) and `mismatch` (one line) are part of
+    the schema; anything else in them is refused."""
+    entry = {**_rule("s::sum"), "code_meets": False, "mismatch": "skips the first element"}
+    assert rules_file.check_rule_entry(entry) is None
+    assert "code_meets" in rules_file.check_rule_entry({**entry, "code_meets": "false"})
+    assert "mismatch" in rules_file.check_rule_entry({**entry, "mismatch": 3})
+    assert "limit" in rules_file.check_rule_entry({**entry, "mismatch": "x" * 301})
+    assert "control" in rules_file.check_rule_entry({**entry, "mismatch": "a\x07b"})
+    assert "starts with" in rules_file.check_rule_entry({**entry, "mismatch": "--value x"})
+
+
+def test_the_direct_store_reads_whether_a_unit_shows_a_code_mismatch_now(tmp_path):
+    """The newest non-blank `code_mismatch` decides (ts, then row id); `CODE_MEETS` is no finding,
+    and a newer blank never hides a real one."""
+    import sqlite3
+    db = tmp_path / "estate.db"
+    con = sqlite3.connect(db)
+    con.executescript(
+        "CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT UNIQUE);"
+        "CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);"
+        "CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);"
+        "CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, node_sym INTEGER, "
+        "key TEXT, value TEXT, ts INTEGER, type TEXT);"
+        "INSERT INTO symbols VALUES (1, 's::sum'), (2, 's::mean'), (3, 's::clamp'), (4, 's::max');"
+        "INSERT INTO annotations (node_sym, key, value, ts, type) VALUES "
+        "(1, 'R:mismatch', 'skips the first', 100, 'code_mismatch'),"
+        "(2, 'R:mismatch', 'skips the first', 100, 'code_mismatch'),"
+        f"(2, 'R:mismatch', '{extract_loop.CODE_MEETS}', 100, 'code_mismatch'),"
+        "(3, 'R', 'clamp bounds n', 100, 'business_rule'),"
+        "(4, 'R:mismatch', 'off by one', 100, 'code_mismatch'),"
+        "(4, 'Q:mismatch', '  ', 200, 'code_mismatch');")
+    con.commit()
+    con.close()
+    store = extract_loop._DirectStore(str(db))
+    assert store.mismatch_now("s::sum") is True
+    assert store.mismatch_now("s::mean") is False, "the later row (same second) is CODE_MEETS"
+    assert store.mismatch_now("s::clamp") is False
+    assert store.mismatch_now("s::max") is True, "a newer blank never hides it"
+    assert store.mismatch_now("s::unknown") is False
+
+
+def test_the_rules_file_refuses_the_hosts_clearing_value_as_a_mismatch():
+    entry = {**_rule("s::sum"), "code_meets": False, "mismatch": " Code meets  IT "}
+    assert "reserved" in rules_file.check_rule_entry(entry)

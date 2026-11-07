@@ -58,7 +58,8 @@ and only this:
    each entry is exactly `{"symbol_id": "<the unit's id, verbatim>", "statement": "<the
    business rule, or \"\" when the source does not let you state one>", "confidence": <0..1>,
    "provenance": {"source": "<module>", "ref": "<the symbol_id>", "source_kinds":
-   ["code-body"|"type-def"|"comment"|"doc"]}}` — no other keys. Then check it:
+   ["code-body"|"type-def"|"comment"|"doc"]}}`, plus `"code_meets": false, "mismatch": "<one
+   line>"` only when the code does not meet the requirement — no other keys. Then check it:
    `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
    --worklist .wicked/domain/worklist.json` and fix what it names.
    **Read each unit's source and write each statement yourself.** A helper that writes the
@@ -83,6 +84,14 @@ and only this:
    each statement's confidence on its own; never stamp one value on the whole page (equal
    values are fine where the support is equal). Only real requirements count toward the
    target; a placeholder is shown, never counted.
+   **When the code is wrong, state the requirement anyway.** State what the unit is meant to
+   do (its doc comment, its tests, its name and callers agree), with your confidence in that
+   requirement, and add `"code_meets": false` and a one-line `"mismatch"` saying how the code
+   departs (e.g. "the loop starts at index 1, so the first element is skipped"), but only when a
+   doc comment, a test or a caller shows the intended requirement; a unit whose intent is
+   unclear still gets an empty statement and no mismatch. Never restate
+   the bug as the requirement, and never lower the confidence because the code is wrong: the
+   requirement counts, and the mismatch is shown beside it as a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
    report unmapped or as a placeholder, or whose file the repository does not track; it re-judges the rest itself
