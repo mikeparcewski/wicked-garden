@@ -620,6 +620,38 @@ def test_params_and_an_empty_query_are_part_of_the_url(cited):
     assert "url-not-in-log" in rules(run_check(p)[1])
 
 
+# --- codex r8 -----------------------------------------------------------------------------------
+
+def test_user_information_is_compared_exactly():
+    p = packet(report="[C1] [C2] [C3] <https://alice:secret@example.org/terms>")
+    p["sources"][2]["url"] = "https://Alice:Secret@example.org/terms"
+    assert "url-not-in-log" in rules(run_check(p)[1])
+    p["report"] = "[C1] [C2] [C3] <https://Alice:Secret@EXAMPLE.org/terms>"
+    assert run_check(p)[0] == 0
+
+
+def test_a_long_logged_url_passes():
+    long_url = "https://example.org/?token=" + "a" * 5000
+    p = packet(report=f"[C1] [C2] [C3] <{long_url}>")
+    p["sources"][2]["url"] = long_url
+    assert run_check(p)[0] == 0
+
+
+@pytest.mark.parametrize("text, refused", [
+    ("The component sets `href=value` and `src=asset.png`.", False),
+    ('<a href="https://unfetched.invalid">x</a>', True),
+    ('<img src="https://unfetched.invalid/x.png">', True),
+    (f'[t](<{URL}> "Title")', True),
+    (f"[t][r]\n\n[r]: <{URL}> (Title)", True),
+    ("[t][r]\n\n> [r]: https&#58;//unfetched.invalid/path", True),
+    ("[t][r]\n\n- [r]: //unfetched.invalid/path", True),
+    ("_www.unfetched.invalid", True),
+])
+def test_r8_link_forms(text, refused):
+    p = packet(report=f"[C1] [C2] [C3] {text}")
+    assert ("url-form" in rules(run_check(p)[1])) is refused
+
+
 # --- the skill text -----------------------------------------------------------------------------
 
 def _skill() -> str:

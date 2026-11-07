@@ -87,7 +87,7 @@ CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
 # angle bracket inside. Anything else (a bare URL, a link with a title) is refused as ``url-form``: no
 # punctuation is ever trimmed, so what is checked is exactly what a reader opens.
 URL_START_RE = re.compile(r"https?://", re.IGNORECASE)
-URL_MAX_CHARS = 4096
+URL_MAX_CHARS = 64 * 1024  # a signed or token URL can be long; past this it is refused, not truncated
 # What a renderer would decode or link that the floor does not read: a backslash escape or a character
 # reference inside a URL, a link destination or autolink that does not start with http(s)://, a
 # reference definition not in angle form, a www. autolink, raw HTML links. Each is refused as url-form.
@@ -95,10 +95,12 @@ URL_ESCAPE_RE = re.compile(r"\\|&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9
 LINKISH_RES = (
     (re.compile(r"\]\((?!\s*<?https?://)", re.IGNORECASE), "a link destination that is not http(s)://"),
     (re.compile(r"<(?!https?://)[A-Za-z][A-Za-z0-9+.-]*:", re.IGNORECASE), "an autolink that is not http(s)://"),
-    (re.compile(r"^ {0,3}\[[^\]\n]+\]:(?![ \t]*<https?://)", re.IGNORECASE | re.MULTILINE),
-     "a reference definition not written as [ref]: <url>"),
-    (re.compile(r"(?<![/\w.@-])www\.", re.IGNORECASE), "a www. address"),
-    (re.compile(r"<a\b|\b(?:href|src)\s*=", re.IGNORECASE), "a raw HTML link"),
+    # Inside a blockquote or a list item too (CommonMark containers).
+    (re.compile(r"^(?:[ \t]*(?:>|[*+-]|\d{1,9}[.)])?)*[ \t]*\[[^\]\n]+\]:(?![ \t]*<https?://[^>\s]*>[ \t]*$)",
+                re.IGNORECASE | re.MULTILINE),
+     "a reference definition not written as [ref]: <url>, with no title"),
+    (re.compile(r"(?<![/A-Za-z0-9.@-])www\.", re.IGNORECASE), "a www. address"),
+    (re.compile(r"<(?:a|img|iframe|link|area|form)\b[^>]*>", re.IGNORECASE), "a raw HTML link"),
 )
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
@@ -139,7 +141,8 @@ def _iso(v: object) -> datetime | None:
 
 
 def norm_url(url: str) -> str | None:
-    """Scheme and host lowercased and the fragment dropped; everything else is kept exactly as written."""
+    """The scheme and hostname lowercased and the fragment dropped; everything else (user information,
+    port, path, params, query) is kept exactly as written."""
     try:
         p = urlsplit(url.strip())
         p.port  # noqa: B018  (raises ValueError on a malformed authority)
@@ -147,8 +150,11 @@ def norm_url(url: str) -> str | None:
         return None
     if p.scheme.lower() not in ("http", "https") or not p.netloc:
         return None
+    userinfo, _, hostport = p.netloc.rpartition("@")
+    host, colon, port = hostport.rpartition(":") if not hostport.endswith("]") and ":" in hostport else (hostport, "", "")
+    netloc = (userinfo + "@" if _ else "") + host.lower() + colon + port
     rest = url.strip()[len(p.scheme) + 3 + len(p.netloc):].split("#", 1)[0]
-    return f"{p.scheme.lower()}://{p.netloc.lower()}{rest}"
+    return f"{p.scheme.lower()}://{netloc}{rest}"
 
 
 def urls_in(text: str) -> list[tuple[str | None, str]]:
@@ -168,7 +174,9 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
         url = None
         if i >= 1 and text[i - 1] == "<":
             j = window.find(">")
-            if j > 0 and not any(c.isspace() or c == "<" for c in window[:j]):
+            in_link = text[max(0, i - 3):i - 1] == "]("
+            if (j > 0 and not any(c.isspace() or c == "<" for c in window[:j])
+                    and (not in_link or window[j + 1:j + 2] == ")")):
                 url = window[:j]
         elif i >= 2 and text[i - 2:i] == "](":
             j = window.find(")")

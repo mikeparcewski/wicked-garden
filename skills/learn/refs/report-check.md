@@ -41,7 +41,9 @@ Each claim ends in one of three states:
 
 - Every factual sentence in the report cites a claim. An uncited factual sentence is a finding.
 - No source is invented: every URL and file is in the log, every web record matches a fetch receipt, and
-  the log matches what the job could read. A web source when the packet says the web was not available is a
+  the log matches what the job could read. Read the report as it renders: every link a reader could open
+  (a reference link, an email or `www.` address, an HTML link included) is a logged web source, or it is a
+  finding. A web source when the packet says the web was not available is a
   fabrication.
 - When the web was not used, the report says why, in plain words.
 - The lens's shape is there (refs/report-<lens>.md): for example, an estimate states every assumption,

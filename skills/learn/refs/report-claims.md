@@ -63,8 +63,11 @@ Times are ISO-8601 with seconds and a zone (`2026-11-06T21:41:03Z`).
 reference definition is `[ref]: <url>`. Write each URL as the reader opens it: no backslash escapes and no
 character references (`&amp;`, `&#58;`). Anything else is refused (`url-form`): a bare URL, a link with a
 title, a relative or `//` link, another scheme, a `www.` address, raw HTML links. The floor reads URLs
-exactly and never trims or decodes. A URL appears only when it is exactly the `url` of a web source in the log (a fragment may
-differ; a trailing slash may not). A file source names only a file among `documents`, or `brief`.
+exactly and never trims or decodes. It reads these forms with patterns, not a full markdown parser, so the
+fidelity check, which reads the report as it renders, is the guard for any link the patterns miss. A URL
+appears only when it is exactly the `url` of a web source in the log (only the scheme's and host's letter
+case and the fragment may differ; a trailing slash may not). A file source names only a file among
+`documents`, or `brief`.
 
 ## The floor
 
