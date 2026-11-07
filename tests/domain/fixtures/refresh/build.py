@@ -10,8 +10,9 @@ What it records, in this directory:
     indexed at "map", mapped (sum and mean resolved, sum with a code mismatch, clamp resolved),
     the requirements graph built by `wicked-core domain-graph` (its build record names "map"),
     then re-indexed at "fix" (the engine's D8 base index of the Refresh run).
-  * `labelled.db` — the same repository indexed at "map" under a label (`--repo tm`), so the
-    labelled `repo:<label>:commit` meta form is read from a real store too.
+  * `labelled.db` — the same repository indexed at "fix" under a label (`--repo tm`), so the
+    labelled `repo:<label>:commit` meta form is read from a real store too (it holds no
+    requirements build record).
   * `manifest.json` — the two commits and the binaries' versions.
 
 Usage: build.py --estate <wicked-estate> --core <wicked-core>   (rebuilds the files in place)
@@ -42,11 +43,15 @@ OTHER = ("/** Holds n within [lo, hi]. @returns {number} */\n"
 
 
 def git(repo, *args):
-    env = dict(os.environ, GIT_AUTHOR_DATE="2026-10-16T12:00:00Z",
-               GIT_COMMITTER_DATE="2026-10-16T12:00:00Z")
-    return subprocess.run(["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t",
-                           "-c", "core.fsmonitor=false", *args], check=True, capture_output=True,
-                          text=True, env=env).stdout.strip()
+    # The fixture carries no identity of the machine that built it: no global or system config
+    # (no signing key, no user), a synthetic author and committer, fixed dates, no signatures.
+    env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_SYSTEM=os.devnull,
+               GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="fixture", GIT_AUTHOR_EMAIL="fixture@example.invalid",
+               GIT_COMMITTER_NAME="fixture", GIT_COMMITTER_EMAIL="fixture@example.invalid",
+               GIT_AUTHOR_DATE="2026-10-16T12:00:00Z", GIT_COMMITTER_DATE="2026-10-16T12:00:00Z")
+    return subprocess.run(["git", "-C", str(repo), "-c", "commit.gpgsign=false",
+                           "-c", "tag.gpgsign=false", "-c", "core.fsmonitor=false", *args],
+                          check=True, capture_output=True, text=True, env=env).stdout.strip()
 
 
 def main() -> int:

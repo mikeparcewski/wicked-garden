@@ -1,6 +1,6 @@
 {
- "built": "7348c2556b19533e6efa070872f66318919ef8e9",
- "base": "3930709e9037d2318829d7c4c3010d9e317c73e4",
+ "built": "b3bf43fddaf49eb787ce6fa3af3ba0957a2f817a",
+ "base": "439986006cc5b6d145c9433f08c3760853391884",
  "symbols": {
   "sum": "ts-javascript . . . src/math/sum().",
   "mean": "ts-javascript . . . src/math/mean().",

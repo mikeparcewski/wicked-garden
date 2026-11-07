@@ -44,9 +44,14 @@ class RefreshUnreadable(RuntimeError):
 
 
 def _meta(con: sqlite3.Connection, key: str) -> str | None:
-    """One value of estate's `meta(k, v)` table, or None when the key is absent."""
+    """One value of estate's `meta(k, v)` table, or None when the key is absent. A value that is
+    not text is unreadable, never absent (codex r1)."""
     row = con.execute("SELECT v FROM meta WHERE k = ?", (key,)).fetchone()
-    return row[0] if row is not None and isinstance(row[0], str) else None
+    if row is None:
+        return None
+    if not isinstance(row[0], str):
+        raise RefreshUnreadable(f"the store's meta `{key}` is not text ({type(row[0]).__name__})")
+    return row[0]
 
 
 def indexed_commit(con: sqlite3.Connection) -> tuple[str | None, str]:
@@ -87,12 +92,20 @@ def build_and_base(db: str) -> tuple[str | None, str | None, str]:
                               "WHERE s.sym = ?", (BUILD_SYMBOL,)).fetchone()
             built = None
             if row is not None:
+                # Absent record: no map yet. A record from an older wicked-core: no code_commit.
+                # Anything else that does not parse is unreadable (codex r1), never "no commit".
                 try:
-                    meta = json.loads(row[0] or "{}").get("metadata") or {}
-                except (TypeError, ValueError, AttributeError) as e:
-                    raise RefreshUnreadable(f"the map's build record is not readable ({e})") from e
-                c = meta.get("code_commit") if isinstance(meta, dict) else None
-                built = c.strip().lower() if isinstance(c, str) and c.strip() else None
+                    data = json.loads(row[0]) if isinstance(row[0], str) else None
+                except ValueError as e:
+                    raise RefreshUnreadable(f"the map's build record is not JSON ({e})") from e
+                meta = data.get("metadata", {}) if isinstance(data, dict) else None
+                if not isinstance(meta, dict):
+                    raise RefreshUnreadable("the map's build record has no metadata object")
+                c = meta.get("code_commit")
+                if c is not None and not isinstance(c, str):
+                    raise RefreshUnreadable(f"the map's build record names a code commit that "
+                                            f"is not text ({type(c).__name__})")
+                built = c.strip().lower() if c and c.strip() else None
             base, why = indexed_commit(con)
         finally:
             con.close()

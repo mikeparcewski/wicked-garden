@@ -97,3 +97,48 @@ def test_a_store_the_refresh_cannot_read_fails_the_step_and_says_why(tmp_path, m
     with pytest.raises(RuntimeError, match="Refresh map cannot tell what changed"):
         prepare_worklist.prepare(db, str(repo), wt, rules_file.WORKLIST_REL, 0,
                                  estate=_Estate(), core=_Core())
+
+
+@pytest.mark.parametrize("data, why", [
+    ('{"metadata": {"code_commit": 123}}', "not text"),
+    ('{"metadata": ["bad"]}', "no metadata object"),
+    ("not json", "not JSON"),
+])
+def test_a_build_record_that_does_not_parse_is_unreadable_not_absent(tmp_path, data, why):
+    """codex r1: a malformed build record must not read as "no build commit recorded"."""
+    db = _db(tmp_path)
+    con = sqlite3.connect(db)
+    con.execute("UPDATE nodes SET data = ? WHERE symbol = (SELECT sid FROM symbols WHERE sym = ?)",
+                (data, refresh.BUILD_SYMBOL))
+    con.commit()
+    con.close()
+    with pytest.raises(refresh.RefreshUnreadable, match=why):
+        refresh.build_and_base(db)
+
+
+def test_a_meta_value_that_is_not_text_is_unreadable_not_absent(tmp_path):
+    """codex r1: a BLOB `repo_commit` must not read as "no indexed commit"."""
+    db = _db(tmp_path)
+    con = sqlite3.connect(db)
+    con.execute("UPDATE meta SET v = ? WHERE k = 'repo_commit'", (sqlite3.Binary(b"x"),))
+    con.commit()
+    con.close()
+    with pytest.raises(refresh.RefreshUnreadable, match="repo_commit"):
+        refresh.build_and_base(db)
+
+
+def test_the_fixture_carries_no_identity_of_the_machine_that_built_it(tmp_path):
+    """codex r1: the bundled commits are unsigned, by a synthetic author, and no file of the
+    fixture holds a home path."""
+    repo = _repo(tmp_path)
+    log = subprocess.run(["git", "-C", str(repo), "log", "--all",
+                          "--format=%an <%ae> %cn <%ce> %G?"], check=True, capture_output=True,
+                         text=True).stdout.split("\n")
+    assert {line for line in log if line} == {
+        "fixture <fixture@example.invalid> fixture <fixture@example.invalid> N"}
+    for f in FIXTURE.iterdir():
+        if f.suffix == ".py":  # the builder names what it turns off
+            continue
+        raw = f.read_bytes()
+        for marker in (b"/Users/", b"/home/", b"/private/", b"gpgsig", b"SSH SIGNATURE"):
+            assert marker not in raw, (f.name, marker)
