@@ -909,6 +909,17 @@ def test_case_18_an_editor_must_read_show_and_follow_what_it_is_handed(tmp_path)
     _edit_entry(stale, button=False, reread=False)
     cases = _cases(stale)
     assert cases["18-shows"]["ok"] is False and cases["18-shows"]["reread"] is False, cases["18-shows"]
+    # A deck editor whose change handler asks for a version that does not exist: the refused read is no re-read
+    # (on the deck sample the re-read is all case 18 can judge after a change).
+    deck = tmp_path / "deck"
+    assert run("scaffold.py", "--vendor", "acme", "--id", "acme-json", "--title", "Deck viewer", "--kinds", "deck",
+               "--out", str(deck)).returncode == 0
+    entry = deck / FIXTURE_ENTRY
+    entry.write_text(entry.read_text().replace("case 'artifact.changed': if (p.by !== 'this-editor') load(); break;",
+                                               "case 'artifact.changed': req('artifact.read', { version: 999 }); break;", 1))
+    assert run("pin.py", str(deck)).returncode == 0
+    cases = _cases(deck)
+    assert cases["18-shows"]["ok"] is False and cases["18-shows"]["reread"] is False, cases["18-shows"]
 
 
 @pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
@@ -930,12 +941,14 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
     entry = form / FIXTURE_ENTRY
     entry.write_text(entry.read_text()
         .replace('<button type="button" id="full">', '<input type="email" id="who" required aria-label="Who"> '
+                 '<input type="number" id="n" required max="5" step="2" aria-label="Count"> '
                  '<input type="text" id="note" aria-label="Note"> ' + SAVE_BUTTON.replace(">Save", " disabled>Save")
                  + ' <button type="button" id="full">', 1)
         .replace("\n  async function load() {", """
   let wait = null;
-  const valid = () => document.getElementById('who').checkValidity() && document.getElementById('who').value && document.getElementById('note').value;
-  for (const id of ['who', 'note']) document.getElementById(id).addEventListener('input', () => {
+  const valid = () => document.getElementById('who').checkValidity() && document.getElementById('who').value
+    && document.getElementById('n').checkValidity() && document.getElementById('note').value;
+  for (const id of ['who', 'n', 'note']) document.getElementById(id).addEventListener('input', () => {
     clearTimeout(wait); wait = setTimeout(() => { document.getElementById('save').disabled = !valid(); }, 300); });
   document.getElementById('save').addEventListener('click', async () => {
     const p = parts[0]; if (!p || !valid()) return;
@@ -945,7 +958,25 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
   async function load() {""", 1))
     assert run("pin.py", str(form)).returncode == 0
     cases = _cases(form)
-    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 2 and cases["7-edit"]["typed_in_version"] is True, cases["7-edit"]
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 3 and cases["7-edit"]["typed_in_version"] is True, cases["7-edit"]
+    # A field already at its maxlength, Save waiting for a change: the field is changed within its limit.
+    full = tmp_path / "full"
+    assert scaffold(full, *perms).returncode == 0
+    entry = full / FIXTURE_ENTRY
+    entry.write_text(entry.read_text()
+        .replace('<button type="button" id="full">', '<input type="text" id="t" maxlength="5" value="hello" aria-label="T"> '
+                 + SAVE_BUTTON.replace(">Save", " disabled>Save") + ' <button type="button" id="full">', 1)
+        .replace("\n  async function load() {", """
+  document.getElementById('t').addEventListener('input', () => { document.getElementById('save').disabled = document.getElementById('t').value === 'hello'; });
+  document.getElementById('save').addEventListener('click', async () => {
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('t').value, before }], summary: 'T' });
+  });
+  async function load() {""", 1))
+    assert run("pin.py", str(full)).returncode == 0
+    cases = _cases(full)
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 0, cases["7-edit"]
     # A marked control that writes nothing: no version lands.
     entry = silent / FIXTURE_ENTRY
     entry.write_text(entry.read_text().replace('<button type="button" id="full">', SAVE_BUTTON + ' <button type="button" id="full">', 1))

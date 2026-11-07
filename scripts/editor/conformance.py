@@ -543,12 +543,16 @@ def answered_reads_by(r: dict, t: float) -> int:
 # A valid value for a field case 7 fills, by its type and constraints (a validating form keeps Save disabled otherwise).
 FIELD_VALUE = ("(e, sentence) => { const t = (e.getAttribute('type') || 'text').toLowerCase();"
                " if (t === 'email') return 'conformance@example.com'; if (t === 'url') return 'https://example.com/conformance';"
-               " if (t === 'tel') return '5550100'; if (t === 'number') { const min = parseFloat(e.min), max = parseFloat(e.max),"
-               " step = parseFloat(e.step); let v = Number.isFinite(min) ? min : 7;"
-               " if (!Number.isFinite(min) && Number.isFinite(step) && step > 0) v = Math.ceil(7 / step) * step;"
-               " if (Number.isFinite(max) && v > max) v = max; return String(v); }"
+               " if (t === 'tel') return '5550100'; if (t === 'number') { const min = parseFloat(e.min), max = parseFloat(e.max);"
+               " const st = parseFloat(e.step), step = Number.isFinite(st) && st > 0 ? st : 1, base = Number.isFinite(min) ? min : 0;"
+               " let v = base + Math.ceil((Math.max(7, base) - base) / step) * step;"
+               " if (Number.isFinite(max) && v > max) v = base + Math.floor((max - base) / step) * step; return String(v); }"
                " let v = sentence; while (e.minLength > 0 && v.length < e.minLength) v += ' ' + sentence;"
                " return e.maxLength > 0 ? v.slice(0, e.maxLength) : v; }")
+# A different value for a field that already holds one, within its length limit (Save waits for a change).
+FIELD_CHANGED = ("e => { const v = String(e.value || ''), add = ' (conformance)';"
+                 " if (!(e.maxLength > 0) || v.length + add.length <= e.maxLength) return v + add;"
+                 " if (v.length < e.maxLength) return v + 'x'; const c = v.slice(-1) === 'x' ? 'y' : 'x'; return v.slice(0, -1) + c; }")
 SAVE_READY_S = 2.0
 WRITE_QUIET_S = 1.5
 READ_QUIET_S = 2.0
@@ -609,9 +613,11 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
         # A read the host answered (not refused) within 3 s of the handshake, on the host's clock.
         read_ok = r["hs"] is not None and answered_reads_by(r, r["hs"] + SHOW_WAIT_S * 1000) > 0
         first_ms = (r["at"][0] - r["hs"]) if r["at"] and r["hs"] is not None else None
-        before = len(reads()["at"])
+        answered = lambda x: len(x["at"]) - len(x["refused"])  # noqa: E731
+        before = answered(reads())
         page.evaluate("() => window.__wickedEditor.agentVersion()")
-        reread = _poll(page, lambda: len(reads()["at"]) > before, SHOW_WAIT_S)
+        # A read the host ANSWERED after the change (a refused one, e.g. a version that does not exist, is not one).
+        reread = _poll(page, lambda: answered(reads()) > before, SHOW_WAIT_S)
         after_runs = page.evaluate(CONTENT_RUNS)
         new_runs = [x for x in after_runs if x not in runs]
         seen_after: list = []
@@ -681,7 +687,7 @@ def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
             text_like = [f for f in usable_fields if (f.get_attribute("type") or "text").lower() in ("text", "search")
                          or f.evaluate("e => e.tagName") == "TEXTAREA"]
             if text_like:
-                changed = text_like[0].input_value() + " (conformance)"
+                changed = text_like[0].evaluate(FIELD_CHANGED)
                 text_like[0].fill(changed)
                 text_like[0].evaluate(commit)
         # A save control may stay disabled until there is something to save (and a form may validate on a debounce).
