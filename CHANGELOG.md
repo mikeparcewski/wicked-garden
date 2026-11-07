@@ -7,9 +7,10 @@
 - **Drafts keep process notes out of the artifact, and a refine keeps the person's own edits** (plugins-complete
   G4; DES-CHAT-ARTIFACTS-001 slices A6 and A5). Three new `wicked-garden-draft` scripts:
   - **`leak_scan.py`** (now part of `self_check.py`): fails a document that carries how it was made: inbox or
-    state paths, the run's id (`--run-id`), "self-check", "UNVERIFIED", bare `[S]` source markers, or first-person
-    drafting narration ("I used SearchEntity…", "the brief asks…"). It reads visible text, speaker notes,
-    attributes and comments, and passes subject vocabulary (a deck that explains a tool by name).
+    state paths, the run's id (`--run-id`), a drafting check's verdict ("UNVERIFIED", "self-check: PASS"), bare `[S]`
+    source markers, or first-person drafting narration ("I used SearchEntity…", "the brief asks…"). It reads text per
+    block with inline markup joined, speaker notes, every attribute occurrence, comments and CSS `content`, and passes
+    the subject's own vocabulary (a deck that explains a tool by name, a device's self-check).
   - **`notes_check.py`** (`self_check.py --notes <notes.json>`): the run's `notes.json` exists and has exactly
     `left_out`, `sources` and `assumptions`. What a draft could not confirm is listed there, never in the document;
     speaker notes are a talk track.
