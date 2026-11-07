@@ -652,6 +652,14 @@ def test_r8_link_forms(text, refused):
     assert ("url-form" in rules(run_check(p)[1])) is refused
 
 
+def test_a_long_run_of_container_markers_is_linear():
+    import time
+    for text in ["\t" * 200000 + "x", "> " * 100000 + "x", "- > 1. " * 30000 + "x"]:
+        t = time.monotonic()
+        run_check(packet(report="[C1] [C2] [C3]\n" + text))
+        assert time.monotonic() - t < 3
+
+
 # --- the skill text -----------------------------------------------------------------------------
 
 def _skill() -> str:

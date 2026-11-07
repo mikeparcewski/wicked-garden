@@ -96,7 +96,7 @@ LINKISH_RES = (
     (re.compile(r"\]\((?!\s*<?https?://)", re.IGNORECASE), "a link destination that is not http(s)://"),
     (re.compile(r"<(?!https?://)[A-Za-z][A-Za-z0-9+.-]*:", re.IGNORECASE), "an autolink that is not http(s)://"),
     # Inside a blockquote or a list item too (CommonMark containers).
-    (re.compile(r"^(?:[ \t]*(?:>|[*+-]|\d{1,9}[.)])?)*[ \t]*\[[^\]\n]+\]:(?![ \t]*<https?://[^>\s]*>[ \t]*$)",
+    (re.compile(r"^[ \t]*(?:(?:>|[*+-]|\d{1,9}[.)])[ \t]*)*\[[^\]\n]+\]:(?![ \t]*<https?://[^>\s]*>[ \t]*$)",
                 re.IGNORECASE | re.MULTILINE),
      "a reference definition not written as [ref]: <url>, with no title"),
     (re.compile(r"(?<![/A-Za-z0-9.@-])www\.", re.IGNORECASE), "a www. address"),
