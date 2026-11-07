@@ -597,3 +597,59 @@ def test_store_mode_never_validates_on_the_estate_source_fallback(monkeypatch):
     assert extract_loop.run("x.db", time_budget=30, limit=0, batch=12, dry_run=False) == 0
     req, validated = estate.writes["a::f1"]["req"][:2]
     assert validated is False and "no source" in req
+
+
+# --- a true requirement whose code is wrong (operator ruling 2026-11-06) -------
+
+def _unmet(sid, **extra):
+    return {**_good(sid), "statement": "sum returns the total of every element",
+            "code_meets": False, "mismatch": "the loop starts at index 1, so it skips the first",
+            **extra}
+
+
+def test_validate_rule_accepts_a_requirement_the_code_does_not_meet():
+    ok, why = _rule_extractor.validate_rule(_unmet("a::b"), {"a::b"})
+    assert ok, why
+    assert _rule_extractor.code_mismatch(_unmet("a::b")).startswith("the loop starts")
+    assert _rule_extractor.code_mismatch(_good("a::b")) == ""
+    assert _rule_extractor.code_mismatch({**_good("a::b"), "code_meets": True,
+                                          "mismatch": "ignored"}) == ""
+
+
+@pytest.mark.parametrize("extra,reason", [
+    ({"mismatch": ""}, "no mismatch"),
+    ({"mismatch": "   "}, "no mismatch"),
+    ({"mismatch": None}, "no mismatch"),
+    ({"code_meets": "no"}, "not true or false"),
+])
+def test_validate_rule_refuses_an_unmet_rule_that_does_not_say_how(extra, reason):
+    ok, why = _rule_extractor.validate_rule(_unmet("a::b", **extra), {"a::b"})
+    assert not ok and reason in why
+
+
+def test_an_unmet_requirement_still_resolves_and_writes_its_mismatch_after_the_rule():
+    """tiny-math's `sum` skips the first element: before the ruling the seat lowered its
+    confidence and the host wrote a placeholder that never counted. Now the requirement is
+    validated (real) and the mismatch is a `code_mismatch` annotation written AFTER the rule,
+    with the rule's key, so wicked-core reads it as a finding beside a real requirement."""
+    from domain import _mocks
+    estate = _mocks.EstateClient()
+    sid = "sym::payments::Payment.charge::b1"
+    out = extract_loop.decide_and_write(estate, None, sid, "charge", _unmet(sid), {sid}, {}, {})
+    assert out == "resolved"
+    assert estate.requirement_writes == [(sid, "sum returns the total of every element", True)]
+    types = [(a["type"], a["key"]) for a in estate.annotation_writes]
+    assert [t for t, _ in types] == ["business_rule", extract_loop.CODE_MISMATCH_ANN]
+    assert types[0][1] == types[1][1], "the mismatch carries the rule's key"
+    assert estate.annotation_writes[1]["value"].startswith("the loop starts at index 1")
+    # A rule the code meets writes no mismatch.
+    estate2 = _mocks.EstateClient()
+    assert extract_loop.decide_and_write(estate2, None, sid, "charge", _good(sid), {sid}, {},
+                                         {}) == "resolved"
+    assert [a["type"] for a in estate2.annotation_writes] == ["business_rule"]
+    # An unmet rule that cannot say how is a placeholder, as any invalid rule is.
+    estate3 = _mocks.EstateClient()
+    bad = _unmet(sid, mismatch="")
+    assert extract_loop.decide_and_write(estate3, None, sid, "charge", bad, {sid}, {}, {}) \
+        == "risk"
+    assert [a["type"] for a in estate3.annotation_writes] == ["risk"]

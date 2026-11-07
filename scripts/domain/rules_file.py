@@ -43,12 +43,15 @@ MAX_WORKLIST_BYTES = 64 * 1024 * 1024  # what prepare may publish and the seat w
 MAX_RULES = 20000
 MAX_SYMBOL_ID = 1000
 MAX_STATEMENT = 2000
+# How the code departs from the stated requirement (operator ruling 2026-11-06): one line.
+MAX_MISMATCH = 300
 MAX_PROVENANCE_STR = 500
 MAX_SOURCE_KINDS = 4
 SOURCE_KINDS = frozenset({"code-body", "type-def", "comment", "doc"})
 
 _TOP_KEYS = frozenset({"schema", "seat", "rules"})
-_RULE_KEYS = frozenset({"symbol_id", "statement", "confidence", "provenance"})
+_RULE_KEYS = frozenset({"symbol_id", "statement", "confidence", "provenance", "code_meets",
+                        "mismatch"})
 _PROVENANCE_KEYS = frozenset({"source", "ref", "source_kinds"})
 # The seat a file DECLARES: a short plain token, reported as declared. It is never authorship —
 # the file is seat-written, so a name in it proves nothing (the host authors what it applies).
@@ -110,6 +113,12 @@ def check_rule_entry(entry: Any) -> str | None:
     if isinstance(conf, bool) or not isinstance(conf, (int, float)) or not 0 <= conf <= 1 \
             or not math.isfinite(conf):
         return f"confidence {_shown(repr(conf), 40)} is not a number in [0,1]"
+    if "code_meets" in entry and not isinstance(entry["code_meets"], bool):
+        return f"code_meets is {type(entry['code_meets']).__name__}, expected true or false"
+    if "mismatch" in entry:
+        why = _bad_text(entry["mismatch"], MAX_MISMATCH, allow_empty=True)
+        if why:
+            return f"mismatch {why}"
     if "provenance" in entry:
         prov = entry["provenance"]
         if not isinstance(prov, dict):

@@ -36,6 +36,12 @@ _PROMPT_HEADER = (
     'or \\"\\" if you cannot state it safely>", "confidence": <number 0..1>, '
     '"provenance": {"source": "<repo/module>", "ref": "<the symbol_id>", '
     '"source_kinds": ["code-body"|"type-def"|"comment"|"doc", ...]}}\n'
+    "State the requirement the unit is MEANT to meet (its doc comment, its tests, its name "
+    "and its callers agree on it), and set confidence by how sure you are of that "
+    "requirement, not of the code. When the code does not meet it (a bug: e.g. a sum that "
+    "skips the first element), still state the requirement as intended and add "
+    '"code_meets": false, "mismatch": "<one line: how the code departs>". Never restate '
+    "the bug as the requirement.\n"
     "Most product code encodes a rule: a check, a refusal, a limit, a default, an "
     "ordering, a permission or a state change is a rule even when it is small, so state "
     "it. A type or interface is a rule only when it encodes a constraint the business "
@@ -141,7 +147,22 @@ def validate_rule(rule: Any, batch_ids: set[str]) -> tuple[bool, str]:
     invalid = [k for k in kinds if not isinstance(k, str) or k not in _VALID_SOURCE_KINDS]
     if invalid:
         return False, f"invalid source_kinds {invalid!r} (expected subset of {sorted(_VALID_SOURCE_KINDS)})"
+    meets = rule.get("code_meets", True)
+    if not isinstance(meets, bool):
+        return False, f"code_meets {meets!r} is not true or false"
+    if not meets and not code_mismatch(rule):
+        return False, "code_meets is false but no mismatch says how the code departs"
     return True, "ok"
+
+
+def code_mismatch(rule: Any) -> str:
+    """How the code departs from the stated requirement (operator ruling 2026-11-06: the
+    requirement still counts; the mismatch is a finding beside it), or "" when the rule says
+    the code meets it."""
+    if not isinstance(rule, dict) or rule.get("code_meets", True) is not False:
+        return ""
+    text = rule.get("mismatch")
+    return " ".join(text.split())[:300] if isinstance(text, str) else ""
 
 
 def extract_rules(batch: list[dict[str, Any]], model_argv: list[str],

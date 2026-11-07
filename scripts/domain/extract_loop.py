@@ -46,6 +46,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on p
 from domain import _clients, _rule_extractor, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
+# wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
+CODE_MISMATCH_ANN = "code_mismatch"
 
 
 
@@ -136,6 +138,15 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         provenance=str(rule.get("provenance", {}).get("source", "extract-loop")),
                         replace=True, author=seat)
         estate.set_requirement(sid, requirement=stmt, validated=True, validated_by=seat)
+        # Operator ruling 2026-11-06: a true requirement whose code is wrong still counts; the
+        # mismatch is a finding beside it, written AFTER the rule (wicked-core reads a mismatch
+        # only when it is no older than the node's newest business rule, so a later restatement
+        # without one supersedes it: no delete).
+        mismatch = _rule_extractor.code_mismatch(rule)
+        if mismatch:
+            estate.annotate(sid, type=CODE_MISMATCH_ANN, key=rid, value=mismatch,
+                            confidence=float(rule.get("confidence", 0.9)),
+                            provenance="extract-loop:code-mismatch", replace=True, author=seat)
     else:
         stmt = (rule or {}).get("statement") or ""
         risk_req = f"[RISK] {name}: {reason}" + (f" — {stmt}" if stmt else "")

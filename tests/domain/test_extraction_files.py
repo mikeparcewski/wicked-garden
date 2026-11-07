@@ -1303,3 +1303,14 @@ def test_the_seats_reviewed_confidence_decides_never_its_community():
         == "resolved"
     assert extract_loop.decide_and_write(estate, None, "s::crowd", "crowd", unsure, ids,
                                          community, sizes) == "risk"
+
+
+def test_a_rules_file_entry_may_say_the_code_does_not_meet_its_requirement():
+    """Operator ruling 2026-11-06: `code_meets` (a boolean) and `mismatch` (one line) are part of
+    the schema; anything else in them is refused."""
+    entry = {**_rule("s::sum"), "code_meets": False, "mismatch": "skips the first element"}
+    assert rules_file.check_rule_entry(entry) is None
+    assert "code_meets" in rules_file.check_rule_entry({**entry, "code_meets": "false"})
+    assert "mismatch" in rules_file.check_rule_entry({**entry, "mismatch": 3})
+    assert "limit" in rules_file.check_rule_entry({**entry, "mismatch": "x" * 301})
+    assert "control" in rules_file.check_rule_entry({**entry, "mismatch": "a\x07b"})
