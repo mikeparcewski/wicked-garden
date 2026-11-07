@@ -29,6 +29,8 @@ class Node:
     children: list["Node"] = field(default_factory=list)
     parent: "Node | None" = None
     text: str = ""  # #text / #comment payload
+    # Every attribute occurrence as written (a repeated one included): what ships in the source, for the leak scan.
+    source_attrs: list[tuple[str, str]] = field(default_factory=list)
 
     # ── tree helpers ────────────────────────────────────────────────────────────────────────
     def ancestors(self) -> Iterator["Node"]:
@@ -95,6 +97,14 @@ class Node:
         return out
 
 
+def _attrs(attrs: list[tuple[str, str | None]]) -> dict[str, str]:
+    """An element's attributes as a browser reads them: a repeated attribute keeps its FIRST value."""
+    out: dict[str, str] = {}
+    for k, v in attrs:
+        out.setdefault(k.lower(), v or "")
+    return out
+
+
 class _Builder(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -105,7 +115,7 @@ class _Builder(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        node = Node(tag=tag, attrs={k.lower(): (v or "") for k, v in attrs}, parent=self.cursor)
+        node = Node(tag=tag, attrs=_attrs(attrs), parent=self.cursor, source_attrs=[(k.lower(), v or "") for k, v in attrs])
         self.cursor.children.append(node)
         if tag in VOID_TAGS:
             return
@@ -114,7 +124,7 @@ class _Builder(HTMLParser):
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        node = Node(tag=tag, attrs={k.lower(): (v or "") for k, v in attrs}, parent=self.cursor)
+        node = Node(tag=tag, attrs=_attrs(attrs), parent=self.cursor, source_attrs=[(k.lower(), v or "") for k, v in attrs])
         self.cursor.children.append(node)
 
     def handle_endtag(self, tag: str) -> None:

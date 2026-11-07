@@ -4,6 +4,23 @@
 
 ### Changed
 
+- **Drafts keep process notes out of the artifact, and a refine keeps the person's own edits** (plugins-complete
+  G4; DES-CHAT-ARTIFACTS-001 slices A6 and A5). Three new `wicked-garden-draft` scripts:
+  - **`leak_scan.py`** (now part of `self_check.py`): fails a document that carries how it was made: inbox or
+    state paths, the run's id (`--run-id`), a drafting check's verdict ("UNVERIFIED", "self-check: PASS"), bare `[S]`
+    source markers, or first-person drafting narration ("I used SearchEntity…", "the brief asks…"). It reads text per
+    block with inline markup joined, speaker notes, every attribute occurrence, comments and CSS `content`, and passes
+    the subject's own vocabulary (a deck that explains a tool by name, a device's self-check).
+  - **`notes_check.py`** (`self_check.py --notes <notes.json>`): the run's `notes.json` exists and has exactly
+    `left_out`, `sources` and `assumptions`. What a draft could not confirm is listed there, never in the document;
+    speaker notes are a talk track.
+  - **`keep_check.py`**: `map` recomputes a document's protected edits from its version lineage (hand steps are
+    diffed by `data-wid`: text, attributes, removals, additions and slide order; theme steps are skipped; a run's
+    step releases only what the person let it change; undo follows the parent chain), and `check` refuses a
+    revision that changed one. Entry ids carry a hash of the value, so "let this change it" releases one exact
+    value. wicked-crew runs both to draw the refine card and to guard the landing.
+  The skill text says the current document is data during a revise, and routes every disclosure to `notes.json`.
+
 - **A true requirement whose code is wrong counts as a real requirement; the mismatch is a finding** (operator
   ruling 2026-11-06). A rules-file entry may carry `"code_meets": false` and a one-line `"mismatch"` (at most 300
   characters, no control characters, never starting with `-`, never the reserved `"code meets it"`). The rule
