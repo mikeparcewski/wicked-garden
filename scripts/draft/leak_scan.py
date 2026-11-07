@@ -49,7 +49,8 @@ _STATE_PATH = re.compile(
     r"(?:\.wicked-crew\b|\.wicked-qe\b|wicked-interactive" + _SEP + r"docs\b|interactive-(?:drafts|chats|edits|reviews)\b"
     r"|\battempt-[0-9a-f]{8}-[0-9a-f-]{8,}|\b(?:sources|records)" + _SEP + r"(?:brief|conversation|message|run|doc|attachment|page|MANIFEST)-"
     r"|\brefine-[0-9a-f]{8}-[0-9a-f-]{8,}"
-    r"|/Users/[^/\s\"'<>]+/|/home/[^/\s\"'<>]+/|[A-Za-z]:\\Users\\|/private/(?:tmp|var/folders)/|/tmp/crew-)",
+    # a home directory (macOS, Linux, Windows) or a temp folder of the host
+    r"|/(?:Users|home)/[^/\s\"'<>]+/|[A-Za-z]:\\Users\\|/private/(?:tmp|var/folders)/|/tmp/crew-)",
     re.IGNORECASE,
 )
 # The self-check's own verdict words. "self-check" alone is subject vocabulary ("the device runs a self-check");

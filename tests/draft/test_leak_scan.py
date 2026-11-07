@@ -39,7 +39,7 @@ def test_a_deck_that_explains_a_tool_by_name_passes():
 def test_process_words_inbox_paths_and_the_run_id_fail_anywhere():
     assert kinds("<p>Page count UNVERIFIED</p>") == {"process-word"}
     assert kinds("<p>I re-ran the self-check: PASS</p>") == {"process-word"}
-    assert kinds('<img alt="chart" src="/Users/someone/.wicked-crew/interactive-drafts/doc/attempt-x/a.png">') == {"state-path"}
+    assert kinds('<img alt="chart" src="/home/someone/.wicked-crew/interactive-drafts/doc/attempt-x/a.png">') == {"state-path"}
     assert kinds(f"<!-- run {RUN} --><p>Done</p>", [RUN]) == {"run-id"}
     assert kinds(f"<p>Made by run {RUN[:8]}.</p>", [RUN]) == {"run-id"}
     assert kinds("<p>See sources/brief-abc.md</p>") == {"state-path"}
@@ -50,14 +50,14 @@ def test_r1_inline_markup_comments_css_and_check_names_cannot_hide_a_leak():
     assert kinds("<p>[<span>S</span>]</p>") == {"source-marker"}
     assert kinds(f"<p>run <b>{RUN[:4]}</b>{RUN[4:8]}</p>", [RUN]) == {"run-id"}
     assert kinds("<!-- I used SearchEntity; [S] -->") == {"narration", "source-marker"}
-    assert kinds("<style>/* /Users/alice/.wicked-crew/inbox */</style><p>x</p>") == {"state-path"}
+    assert kinds("<style>/* /home/alice/.wicked-crew/inbox */</style><p>x</p>") == {"state-path"}
     assert kinds('<style>p::before { content: "I used SearchEntity"; }</style>') == {"narration"}
     assert kinds("<p>I ran keep_check.py to validate the edits.</p>") >= {"narration"}
     assert kinds("<p>See sources\\brief-abcd.txt</p>") == {"state-path"}
 
 
 def test_r2_attributes_of_script_and_style_line_breaks_more_inline_tags_and_check_verdicts():
-    assert kinds('<script src="/Users/alice/.wicked-crew/inbox/run.js"></script>') == {"state-path"}
+    assert kinds('<script src="/home/alice/.wicked-crew/inbox/run.js"></script>') == {"state-path"}
     assert kinds(f'<style data-run="{RUN}">p{{}}</style>', [RUN]) == {"run-id"}
     assert kinds("<p>I used <ins>SearchEntity</ins> to draft this.</p>") == {"narration"}
     assert kinds("<p>I used\n  SearchEntity to draft this.</p>") == {"narration"}
@@ -87,6 +87,10 @@ def test_r1_subject_vocabulary_passes():
     assert ls.scan("<p>The device's self-check passed inspection.</p>")["ok"] is True
     assert ls.scan("<p>The safety device performs a self-check before starting.</p>")["ok"] is True
     assert ls.scan("<p>The parser reads notes.json from its input directory.</p>")["ok"] is True
+
+
+def test_a_macos_home_folder_is_a_host_path():
+    assert kinds("<p>See /" + "Users/someone/notes/x.md</p>") == {"state-path"}
 
 
 def test_structural_attributes_are_not_read_as_words():
