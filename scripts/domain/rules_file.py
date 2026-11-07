@@ -119,6 +119,8 @@ def check_rule_entry(entry: Any) -> str | None:
         why = _bad_text(entry["mismatch"], MAX_MISMATCH, allow_empty=True)
         if why:
             return f"mismatch {why}"
+        if entry["mismatch"].lstrip().startswith("-"):
+            return "mismatch starts with '-' (the host passes it to the estate CLI as a value)"
     if "provenance" in entry:
         prov = entry["provenance"]
         if not isinstance(prov, dict):

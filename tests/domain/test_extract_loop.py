@@ -639,9 +639,10 @@ def test_an_unmet_requirement_still_resolves_and_writes_its_mismatch_after_the_r
     assert out == "resolved"
     assert estate.requirement_writes == [(sid, "sum returns the total of every element", True)]
     types = [(a["type"], a["key"]) for a in estate.annotation_writes]
-    assert [t for t, _ in types] == ["business_rule", extract_loop.CODE_MISMATCH_ANN]
-    assert types[0][1] == types[1][1], "the mismatch carries the rule's key"
-    assert estate.annotation_writes[1]["value"].startswith("the loop starts at index 1")
+    # The finding first: a failure after it leaves the unit unresolved, so it is asked again.
+    assert [t for t, _ in types] == [extract_loop.CODE_MISMATCH_ANN, "business_rule"]
+    assert types[0][1] == types[1][1] + ":mismatch", "its own key, beside the rule's"
+    assert estate.annotation_writes[0]["value"].startswith("the loop starts at index 1")
     # A rule the code meets writes no mismatch.
     estate2 = _mocks.EstateClient()
     assert extract_loop.decide_and_write(estate2, None, sid, "charge", _good(sid), {sid}, {},
@@ -653,3 +654,71 @@ def test_an_unmet_requirement_still_resolves_and_writes_its_mismatch_after_the_r
     assert extract_loop.decide_and_write(estate3, None, sid, "charge", bad, {sid}, {}, {}) \
         == "risk"
     assert [a["type"] for a in estate3.annotation_writes] == ["risk"]
+
+
+def test_the_mismatch_is_read_back_on_its_own_key():
+    """pi r1 on this change: the read-back matched by key alone, and the mismatch shared the
+    rule's key, so a mismatch that landed could vouch for a rule that did not (and a mismatch that
+    did not land went unchecked). Each write is read back on its own key."""
+    from domain import _mocks
+    sid = "sym::payments::Payment.charge::b1"
+    landed: list[str] = []
+
+    class Lossy(_mocks.EstateClient):
+        def annotate(self, symbol_id, type, key, value, **kw):
+            if type != extract_loop.CODE_MISMATCH_ANN:  # the mismatch silently does not land
+                super().annotate(symbol_id, type, key, value, **kw)
+
+    with pytest.raises(RuntimeError, match=":mismatch on read-back"):
+        extract_loop.decide_and_write(Lossy(), None, sid, "charge", _unmet(sid), {sid}, {}, {})
+
+    def read_back(s, key):
+        landed.append(key)
+        return True
+    extract_loop.decide_and_write(_mocks.EstateClient(), None, sid, "charge", _unmet(sid), {sid},
+                                  {}, {}, read_back=read_back)
+    assert len(landed) == 2 and landed[1] == landed[0] + ":mismatch"
+
+
+def test_a_restatement_the_code_meets_writes_code_meets_over_an_earlier_mismatch():
+    """The code was fixed and the unit restated: estate's CLI cannot delete, so the same key is
+    replaced with CODE_MEETS (which wicked-core reads as no finding). Only when the unit shows a
+    mismatch now: no extra write for every rule."""
+    from domain import _mocks
+    sid = "sym::payments::Payment.charge::b1"
+    shown = _mocks.EstateClient()
+    assert extract_loop.decide_and_write(shown, None, sid, "charge", _good(sid), {sid}, {}, {},
+                                         prior_mismatch=lambda s: True) == "resolved"
+    assert [(a["type"], a["value"]) for a in shown.annotation_writes][0] == \
+        (extract_loop.CODE_MISMATCH_ANN, extract_loop.CODE_MEETS)
+    assert shown.annotation_writes[0]["replace"] is True
+    none = _mocks.EstateClient()
+    extract_loop.decide_and_write(none, None, sid, "charge", _good(sid), {sid}, {}, {},
+                                  prior_mismatch=lambda s: False)
+    assert [a["type"] for a in none.annotation_writes] == ["business_rule"]
+
+
+def test_file_mode_keeps_an_unmet_rule_and_refuses_one_that_cannot_say_how():
+    """codex r1: `to_entry` (the seat's file mode) dropped `code_meets`/`mismatch`, so the finding
+    vanished and an unmet rule with no mismatch read as one the code meets."""
+    kept = extract_loop.to_entry("a::b", _unmet("a::b"))
+    assert kept["code_meets"] is False and kept["mismatch"].startswith("the loop starts")
+    blank = extract_loop.to_entry("a::b", _unmet("a::b", mismatch="  "))
+    assert blank["code_meets"] is False and blank["mismatch"] == ""
+    ok, why = _rule_extractor.validate_rule(blank, {"a::b"})
+    assert not ok and "no mismatch" in why
+    assert "code_meets" not in extract_loop.to_entry("a::b", _good("a::b"))
+
+
+def test_a_mismatch_never_starts_with_a_dash():
+    """codex r1: estate's CLI reads a leading "--" value as a flag, after the rule was written."""
+    assert _rule_extractor.code_mismatch(_unmet("a::b", mismatch="--review probe")) == "review probe"
+    ok, _ = _rule_extractor.validate_rule(_unmet("a::b", mismatch=" -- "), {"a::b"})
+    assert not ok
+
+
+def test_a_host_models_mismatch_is_one_bounded_line_without_control_characters():
+    rule = _unmet("a::b", mismatch="skips\x00 the\x07 first\n element" + "x" * 400)
+    text = _rule_extractor.code_mismatch(rule)
+    assert "\x00" not in text and "\x07" not in text and "\n" not in text
+    assert text.startswith("skips the first element") and len(text) == 300

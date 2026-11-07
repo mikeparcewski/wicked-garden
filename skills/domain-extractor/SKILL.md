@@ -87,7 +87,9 @@ and only this:
    **When the code is wrong, state the requirement anyway.** State what the unit is meant to
    do (its doc comment, its tests, its name and callers agree), with your confidence in that
    requirement, and add `"code_meets": false` and a one-line `"mismatch"` saying how the code
-   departs (e.g. "the loop starts at index 1, so the first element is skipped"). Never restate
+   departs (e.g. "the loop starts at index 1, so the first element is skipped"), but only when a
+   doc comment, a test or a caller shows the intended requirement; a unit whose intent is
+   unclear still gets an empty statement and no mismatch. Never restate
    the bug as the requirement, and never lower the confidence because the code is wrong: the
    requirement counts, and the mismatch is shown beside it as a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.

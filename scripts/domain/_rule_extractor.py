@@ -17,8 +17,14 @@ stdin (no argv length limit), UTF-8 pinned, hard timeout.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from typing import Any
+
+from domain.rules_file import MAX_MISMATCH
+
+# C0 controls and DEL: never in a value the host hands estate's argv.
+_CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
 # A generous per-batch ceiling; a hung/slow model must never wedge the loop.
 _MODEL_TIMEOUT = 180
@@ -41,7 +47,9 @@ _PROMPT_HEADER = (
     "requirement, not of the code. When the code does not meet it (a bug: e.g. a sum that "
     "skips the first element), still state the requirement as intended and add "
     '"code_meets": false, "mismatch": "<one line: how the code departs>". Never restate '
-    "the bug as the requirement.\n"
+    "the bug as the requirement. Say code_meets false only when a doc comment, a test or a "
+    "caller shows the intended requirement; a unit whose intent is unclear still takes "
+    "statement \"\" with low confidence and no mismatch.\n"
     "Most product code encodes a rule: a check, a refusal, a limit, a default, an "
     "ordering, a permission or a state change is a rule even when it is small, so state "
     "it. A type or interface is a rule only when it encodes a constraint the business "
@@ -162,7 +170,13 @@ def code_mismatch(rule: Any) -> str:
     if not isinstance(rule, dict) or rule.get("code_meets", True) is not False:
         return ""
     text = rule.get("mismatch")
-    return " ".join(text.split())[:300] if isinstance(text, str) else ""
+    if not isinstance(text, str):
+        return ""
+    # One line, no control characters, valid Unicode, bounded like the rules file's field
+    # (`MAX_MISMATCH`; the file refuses a longer one, a host model's answer is cut to it), and never
+    # starting with "-": it is an argv value to the estate CLI, which reads a leading "--" as a flag.
+    text = text.encode("utf-8", "replace").decode("utf-8")
+    return " ".join(_CONTROL.sub(" ", text).split())[:MAX_MISMATCH].lstrip("- ").strip()
 
 
 def extract_rules(batch: list[dict[str, Any]], model_argv: list[str],

@@ -133,6 +133,33 @@ def _annotation_read_back(db: str):
     return check
 
 
+def _mismatch_now(db: str):
+    """Does the symbol show a code mismatch now (its newest `code_mismatch` is not `CODE_MEETS`)?
+    A rule the code meets then writes `CODE_MEETS` over it (operator ruling 2026-11-06). `None` for
+    a store without estate's tables (an injected test client): nothing to clear there."""
+    import sqlite3
+    from urllib.parse import quote
+
+    if _annotation_read_back(db) is None:
+        return None
+
+    def now(symbol_id: str) -> bool:
+        try:
+            con = sqlite3.connect(f"file:{quote(db)}?mode=ro", uri=True)
+            try:
+                row = con.execute("SELECT a.value FROM annotations a JOIN symbols s ON "
+                                  "s.sid = a.node_sym WHERE s.sym = ? AND a.type = ? "
+                                  "ORDER BY a.ts DESC, a.id DESC LIMIT 1",
+                                  (symbol_id, extract_loop.CODE_MISMATCH_ANN)).fetchone()
+            finally:
+                con.close()
+        except sqlite3.Error as e:  # an unreadable store is a failed write, said as one
+            raise RuntimeError(f"reading {symbol_id}'s code mismatch failed: {e}") from e
+        return row is not None and row[0] != extract_loop.CODE_MEETS
+
+    return now
+
+
 def _record_answered(db: str, answered: list[str]) -> None:
     """Record which of the page's units this step wrote (or kept), in the run's generation
     record, so only those close with the page. Never fatal: without it the next step closes the
@@ -210,6 +237,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     # client (an injected one) reads back through itself.
     read_back = (_annotation_read_back(db) if isinstance(estate, _clients.CliEstateClient)
                  else None)
+    mismatch_now = _mismatch_now(db) if isinstance(estate, _clients.CliEstateClient) else None
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
     # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
@@ -242,7 +270,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     unmapped[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author, read_back=read_back,
-                                                    unconfirmed=why)
+                                                    unconfirmed=why, prior_mismatch=mismatch_now)
             if outcome == "unconfirmed":  # a RISK write, counted apart by its reason
                 unconfirmed[why] += 1
                 outcome = "risk"
