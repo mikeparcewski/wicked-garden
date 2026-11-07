@@ -49,7 +49,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, extract_loop, generation, rules_file  # noqa: E402
+from domain import _clients, _rule_extractor, extract_loop, generation, refresh, rules_file  # noqa: E402
 
 REPORT_REL = ".wicked/domain/apply-report.json"
 # Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
@@ -172,6 +172,13 @@ def _changed_since_build(db: str, store) -> dict[str, dict]:
     return out
 
 
+def _rule_keys(db: str, symbol_id: str) -> list[str]:
+    try:
+        return refresh.rule_keys(db, symbol_id)
+    except Exception as e:  # noqa: BLE001 - a store that cannot say is a failed step, said so
+        raise RuntimeError(f"the rules {symbol_id} holds could not be read: {e}") from e
+
+
 def _restates(entry: dict, ids: set[str], why: str | None) -> bool:
     """Would this entry RESOLVE (a valid rule at the threshold, about product code whose source
     the host read)? A changed mapped behaviour is restated only then."""
@@ -281,6 +288,11 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                 answered.append(sid)
                 continue
             in_progress = sid
+            # Earlier rule rows under other keys (another seat's, an older harness's): the
+            # restatement supersedes them too, or the graph keeps the obsolete statement beside
+            # it (codex r1). Read before the write; the estate CLI replaces by key.
+            superseded = ([k for k in _rule_keys(db, sid)
+                           if k != extract_loop.rule_key(sid, author)] if sid in restate else [])
             outcome = extract_loop.decide_and_write(estate, store, sid,
                                                     nodes[sid].get("name", ""), entry, ids, nc,
                                                     sizes, seat=author, read_back=read_back,
@@ -288,6 +300,17 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
             if outcome == "unconfirmed":  # a RISK write, counted apart by its reason
                 unconfirmed[why] += 1
                 outcome = "risk"
+            for key in superseded:
+                estate.annotate(sid, type="business_rule", key=key, value=entry["statement"],
+                                confidence=float(entry["confidence"]),
+                                provenance="extract-loop:restated", replace=True, author=author)
+                if read_back is not None:
+                    ok = read_back(sid, key, entry["statement"])
+                else:
+                    ok = any(a.get("key") == key and a.get("value") == entry["statement"]
+                             for a in estate.read_annotations(sid))
+                if not ok:
+                    raise RuntimeError(f"write not durable: {sid} rule {key} on read-back")
             in_progress = None
             outcomes[outcome] += 1
             restated += sid in restate
@@ -317,7 +340,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
         "eligible": len(eligible),
-        "changed_since_build": {"framed": len(restate), "restated": restated},
+        "changed_since_build": {"listed": len(restate), "restated": restated},
         "unsourced": unconfirmed[extract_loop.NO_SOURCE_REASON],
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],

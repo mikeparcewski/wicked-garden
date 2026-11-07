@@ -121,6 +121,12 @@ def _seat() -> str:
     return f"extract-loop:{agent}" if agent else "extract-loop"
 
 
+def rule_key(sid: str, seat: str) -> str:
+    """The annotation key a seat's rule about `sid` is written under (see `_write_node`)."""
+    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
+    return "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+
+
 def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, reason: str,
                 seat: str | None = None, read_back=None, clear_mismatch: bool = False) -> None:
     """The two coordinated writes + read-back (vault record+verify). RESOLVED ⇒ a
@@ -132,8 +138,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     # and wicked-core, which counts agreeing seats by author, would only ever see one. The default
     # seat (no run agent) keeps the historical key, so a standalone re-run still replaces itself.
     seat = seat or _seat()
-    basis = sid if seat == "extract-loop" else f"{sid}|{seat}"
-    rid = "RULE-%s" % hashlib.sha256(basis.encode()).hexdigest()[:12]
+    rid = rule_key(sid, seat)
     # Operator ruling 2026-11-06: a true requirement whose code is wrong still counts; the
     # mismatch is a finding beside it. It is written FIRST, under its own key: if a later write
     # fails, the node is not yet resolved and the next apply asks it again, so a requirement never

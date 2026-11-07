@@ -126,7 +126,7 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                                               "risk_flagged", "unaccounted")},
         "unmapped": len(unmapped),
         "placeholders": len(placeholders),
-        "changed_since_build": len(stale),
+        "changed_since_build": sum(1 for n in stale if n["symbol_id"] not in seen),
         "asked_before": len(seen),
         "not_in_repo": skipped,
         "units": units,
@@ -148,9 +148,10 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         # yield (codex on #1375), so a page whose units cannot be recorded is not prepared (and
         # no worklist is published for it).
         try:
-            framed = [u["symbol_id"] for u in units]
-            generation.frame_page(db, run_id, framed,
-                                  changed_ids=[s for s in framed if s in restate])
+            # Every changed unit found, not only this page's: the next page's decision counts
+            # what is left of them (codex r1: a page full of unmapped units framed none).
+            generation.frame_page(db, run_id, [u["symbol_id"] for u in units],
+                                  changed_ids=sorted(restate))
         except (OSError, ValueError) as e:
             raise RuntimeError(f"the page's units could not be recorded in the generation "
                                f"record ({e})") from e

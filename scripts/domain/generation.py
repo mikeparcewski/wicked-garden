@@ -169,7 +169,8 @@ def visited(doc: dict[str, Any] | None) -> set[str]:
 
 def changed(doc: dict[str, Any] | None) -> set[str]:
     """Mapped units this generation found changed since the map was built (wicked-garden#1425):
-    the only resolved units a page may ask again, and only once."""
+    the only resolved units a page may ask again (prepare frames each once: a closed page's units
+    are `visited`)."""
     if not doc:
         return set()
     return set(doc.get("changed") or [])
@@ -388,7 +389,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     y = page_yield(points)
     if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
             and last["page"] > doc["grant"]["page"]):
-        if left_to_map > 0:
+        if left_to_map > 0 or changed_left > 0:
             choices = [c for c in (more, lower) if c is not None]
             warn = (f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
                     f"read its review before mapping more")

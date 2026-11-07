@@ -79,7 +79,9 @@ and only this:
    mostly describe code (a page of mostly plain types and plumbing, left empty, is fine). A
    restated shape is never a rule at any confidence: leave it empty. A unit marked
    `changed_since_build` was mapped before: its `prior_statement` (and any old mismatch) may be
-   out of date, so state it, and judge `code_meets`, against the code as it is now. Set each confidence by
+   out of date, so state it, and judge `code_meets`, against the code as it is now. Only a
+   statement the host resolves replaces its rule; an empty, invalid or low-confidence one keeps
+   the earlier rule (never a placeholder). Set each confidence by
    how directly the source supports the rule: a constraint visible in the unit's full
    definition (enforced in its body, or encoded in its type: a closed set, a limit, a
    documented required field) is high (0.85 or more); a rule only guessed from a name, a
@@ -97,8 +99,9 @@ and only this:
    requirement counts, and the mismatch is shown beside it as a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
-   report unmapped or as a placeholder (or the worklist did not mark changed since the map was
-   built), or whose file the repository does not track; it re-judges the rest itself
+   report unmapped or as a placeholder (or that the run's own host-side record does not list as
+   changed since the map was built: the worklist's mark is framing, not permission), or whose
+   file the repository does not track; it re-judges the rest itself
    and writes it as `extract-loop` (the seat a file names is reported, never trusted).
 
 ## Outside a run: you DRIVE the deterministic harness — you don't loop yourself

@@ -174,11 +174,15 @@ def test_a_fixed_function_is_re_asked_restated_and_its_mismatch_cleared(tmp_path
     report = apply_rules.apply(db, str(repo), wt, rules_file.RULES_REL, "coverage-report.json",
                                estate=estate, core=_Core())
     assert report["applied"] == {"resolved": 1, "risk": 0, "kept": 1}
-    assert report["changed_since_build"] == {"framed": 2, "restated": 1}
+    assert report["changed_since_build"] == {"listed": 2, "restated": 1}
     assert [r["symbol_id"] for r in report["refused"]] == [CLAMP]
-    # sum: restated on its rule's key, and "code meets it" written over the stale finding
-    rid = next(k for (t, k) in estate.anns[SUM] if t == "business_rule")
+    # sum: restated, "code meets it" written over the stale finding, and the earlier rule row
+    # (under another key: `RULE-1` here) superseded too, so the graph keeps no obsolete statement
+    rid = extract_loop.rule_key(SUM, "extract-loop")
+    assert rid != "RULE-1"
     assert estate.anns[SUM][("code_mismatch", f"{rid}:mismatch")] == extract_loop.CODE_MEETS
+    assert estate.anns[SUM][("business_rule", rid)] == rules[0]["statement"]
+    assert estate.anns[SUM][("business_rule", "RULE-1")] == rules[0]["statement"]
     assert estate.reqs[SUM] == ("The sum of numbers must include every element.", True)
     assert MEAN not in estate.anns and MEAN not in estate.reqs
 
@@ -246,3 +250,30 @@ def test_the_rule_prompt_carries_the_earlier_statement_of_a_changed_unit_as_data
     assert "old '''rule'''" in text  # no fence of its own inside the data fence
     assert "earlier statement" not in _rule_extractor._build_prompt([{**unit,
                                                                      "changed_since_build": False}])
+
+
+def test_changed_units_past_the_first_page_keep_the_run_paging(tmp_path, monkeypatch):
+    """codex r1: with one unit per page, the record must hold every changed unit found, not only
+    the page's, or the next-page decision sees none left after the first."""
+    repo, built, base = _repo(tmp_path)
+    db, wt = _store(tmp_path, built, base), _wt(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    doc = prepare_worklist.prepare(db, str(repo), wt, rules_file.WORKLIST_REL, 1,
+                                   estate=_Estate(), core=_Core())
+    assert len(doc["units"]) == 1
+    rec = generation.load(db, "run-1")
+    assert generation.changed(rec) == {SUM, MEAN}
+    generation.record_answered(db, "run-1", [doc["units"][0]["symbol_id"]])
+    rec = generation.load(db, "run-1")
+    generation.close_page(rec, _Core().coverage(db, str(tmp_path / "c.json")))
+    assert generation.changed_left(rec) == 1
+
+
+def test_a_low_yield_page_still_offers_to_go_on_while_changed_units_are_left():
+    """codex r1: below the minimum, nothing unmapped left, a page that resolved none of its 20
+    framed units must still offer to continue when changed units remain."""
+    doc = _gen_doc(66, changed=[f"s::{i}" for i in range(40)])
+    doc["points"][-1].update(framed=20, page_real=0)
+    d = generation.decide(doc, repo="tm", target=80, now=60000, max_pages=20, max_minutes=240,
+                          left_to_map=0, changed_left=20)
+    assert d["next"] == "ask" and "continue" in [c["id"] for c in d["choices"]]
