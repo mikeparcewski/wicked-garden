@@ -524,6 +524,59 @@ def test_a_short_code_quote_is_checked_on_its_line(tmp_path):
     assert "source-quote" in rules(run_check(p, repo=repo)[1])
 
 
+# --- review folds (codex r3) ---------------------------------------------------------------------
+
+def test_nested_markdown_prefixes_are_scanned_once():
+    import time
+    n = 8000
+    p = packet(report="[C1] [C2] [C3] " + "](https://a" * n + ")" * n)
+    t = time.monotonic()
+    run_check(p)
+    assert time.monotonic() - t < 3
+
+
+def test_a_located_code_quote_reads_its_file_once(tmp_path, monkeypatch):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "a.py").write_text("x = 1\ny = 2\n", encoding="utf-8")
+    reads = []
+    real = Path.read_text
+    monkeypatch.setattr(Path, "read_text", lambda self, *a, **k: reads.append(self.name) or real(self, *a, **k))
+    p = packet()
+    for n in range(5, 25):
+        p["sources"].append({"id": f"S{n}", "path": "a.py", "line": 1, "quote": "x = 1"})
+    p["claims"].append({"id": "C4", "text": "x starts at one.", "sources": [f"S{n}" for n in range(5, 25)]})
+    p["report"] += " [C4]"
+    assert run_check(p, repo=repo)[0] == 0
+    assert reads.count("a.py") == 1
+
+
+@pytest.mark.parametrize("suffix", ["_", "*"])
+def test_an_unopened_trailing_emphasis_mark_is_part_of_the_url(suffix):
+    p = packet(report=f"[C1] [C2] [C3] {URL}{suffix} here")
+    assert "url-not-in-log" in rules(run_check(p)[1])
+    p["sources"][2]["url"] = URL + suffix
+    assert run_check(p)[0] == 0
+
+
+def test_a_stop_sees_a_pdfs_text_derivative(tmp_path):
+    recs = tmp_path / "pdf"
+    recs.mkdir()
+    (recs / "sow.pdf").write_bytes(b"")
+    (recs / "sow.txt").write_text("Acceptance is deemed after 10 business days.\n", encoding="utf-8")
+    stop = packet(lens="analyze", documents=["sow.pdf"], sources=[], claims=[], report="",
+                  stopped="the document is empty")
+    assert "stopped-with-documents" in rules(run_check(stop, recs)[1])
+    (recs / "sow.txt").write_text("", encoding="utf-8")
+    assert run_check(stop, recs)[0] == 0
+
+
+def test_an_angle_bracket_destination_keeps_its_parentheses():
+    p = packet(report=f"[details](<{URL})>) [C1] [C2] [C3]")
+    p["sources"][2]["url"] = URL + ")"
+    assert run_check(p)[0] == 0
+
+
 # --- the skill text -----------------------------------------------------------------------------
 
 def _skill() -> str:

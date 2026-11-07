@@ -82,9 +82,9 @@ CLAIM_ID_RE = re.compile(r"^C[1-9]\d{0,5}$")
 CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
 # Parentheses may belong to a URL (``/wiki/X_(y)``); an unbalanced closing one is the text's, not the URL's.
 URL_RE = re.compile(r"""https?://[^\s<>\[\]{}"'`|\\^]+""", re.IGNORECASE)
-URL_TRAILING = ".,;:!?*_"
+URL_TRAILING = ".,;:!?"
 # A markdown link's destination and an autolink are taken exactly as written: no punctuation is trimmed.
-MD_LINK_RE = re.compile(r"\]\(\s*<?(https?://)", re.IGNORECASE)
+MD_LINK_RE = re.compile(r"\]\(\s*(<?)(https?://)", re.IGNORECASE)
 AUTOLINK_RE = re.compile(r"<(https?://[^\s<>]+)>", re.IGNORECASE)
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
@@ -143,8 +143,10 @@ def _trim_bare(u: str, before: str) -> str:
     end = len(u)
     while end:
         ch = u[end - 1]
-        if ch in "_*" and before == ch:
-            before = ""  # the emphasis that opened before the URL closes here
+        if ch in "_*":
+            if before != ch:
+                break  # part of the URL: only the emphasis that opened right before it closes here
+            before = ""
         elif ch in URL_TRAILING:
             pass
         elif ch == ")" and opens < closes:
@@ -155,9 +157,15 @@ def _trim_bare(u: str, before: str) -> str:
     return u[:end]
 
 
-def _md_destination(text: str, i: int) -> tuple[str, int]:
-    """The markdown link destination starting at ``text[i]`` (just after ``](`` or ``](<``), exactly as
-    a renderer reads it: up to whitespace, ``>``, or the ``)`` that closes the link (nested parens kept)."""
+def _md_destination(text: str, i: int, angle: bool) -> tuple[str, int]:
+    """The markdown link destination starting at ``text[i]``, exactly as a renderer reads it. ``<…>``
+    form: up to the ``>``, parentheses kept. Bare form: up to whitespace, ``<``/``>`` or the ``)`` that
+    closes the link (nested parens kept)."""
+    if angle:
+        j = i
+        while j < len(text) and text[j] not in "<>\n":
+            j += 1
+        return text[i:j], j
     depth, j = 0, i
     while j < len(text):
         ch = text[j]
@@ -175,16 +183,22 @@ def _md_destination(text: str, i: int) -> tuple[str, int]:
 
 def urls_in(text: str) -> list[str]:
     """Every http(s) URL in the text. A markdown destination or an autolink is exact; a bare URL loses
-    the punctuation that ends its sentence."""
+    the punctuation that ends its sentence. Each character is scanned a bounded number of times."""
     text = text or ""
     out: list[str] = []
     masked = list(text)
+    consumed = 0
     for m in MD_LINK_RE.finditer(text):
-        start = m.start(1)
-        dest, end = _md_destination(text, start)
+        start = m.start(2)
+        if start < consumed:
+            continue  # inside a destination already read
+        dest, end = _md_destination(text, start, bool(m.group(1)))
         out.append(dest)
         masked[start:end] = " " * (end - start)
-    for m in AUTOLINK_RE.finditer(text):
+        consumed = end
+    rest = "".join(masked)
+    masked = list(rest)
+    for m in AUTOLINK_RE.finditer(rest):
         out.append(m.group(1))
         masked[m.start(1):m.end(1)] = " " * (m.end(1) - m.start(1))
     rest = "".join(masked)
@@ -240,25 +254,36 @@ def staged_documents(records: Path | None) -> list[str]:
 
 
 class Texts:
-    """The normalised text of each confined file, read once however many sources quote it."""
+    """The normalised text of each confined file, read once however many sources quote it, within one
+    budget for the whole check."""
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[Path, bool], tuple[str | None, str, bool]] = {}
+        self._cache: dict[tuple[Path, bool], tuple[str | None, str, bool, list[str] | None]] = {}
         self._budget = TEXT_BUDGET_BYTES
+
+    def _entry(self, path: Path, root: Path, code: bool):
+        if (path, code) not in self._cache:
+            got = self._read(path, root, code, self._budget)
+            if got[0] is not None:
+                self._budget -= 2 * len(got[0].encode("utf-8")) if code else len(got[0].encode("utf-8"))
+            self._cache[(path, code)] = got
+        return self._cache[(path, code)]
 
     def get(self, path: Path, root: Path, code: bool = False) -> tuple[str | None, str, bool]:
         """(normalised text or None, why it is None, whether it came from a pdf's derivative).
 
         A repository file (``code``) is read as text whatever its suffix."""
-        if (path, code) not in self._cache:
-            got = self._read(path, root, code, self._budget)
-            if got[0] is not None:
-                self._budget -= len(got[0].encode("utf-8"))
-            self._cache[(path, code)] = got
-        return self._cache[(path, code)]
+        return self._entry(path, root, code)[:3]
+
+    def line(self, path: Path, root: Path, n: int) -> str | None:
+        """Line ``n`` (from 1) of a repository file, normalised; ``""`` past its end; ``None`` unread."""
+        lines = self._entry(path, root, True)[3]
+        if lines is None:
+            return None
+        return lines[n - 1] if n <= len(lines) else ""
 
     @staticmethod
-    def _read(path: Path, root: Path, code: bool = False, budget: int = TEXT_BUDGET_BYTES) -> tuple[str | None, str, bool]:
+    def _read(path: Path, root: Path, code: bool = False, budget: int = TEXT_BUDGET_BYTES):
         suffix = path.suffix.lower()
         if code:
             candidates, from_pdf = [path], False
@@ -267,25 +292,27 @@ class Texts:
         elif suffix in TEXT_SUFFIXES:
             candidates, from_pdf = [path], False
         else:
-            return None, "not a text format (an image or another binary): read the original", False
+            return None, "not a text format (an image or another binary): read the original", False, None
         why = "a pdf with no text derivative: read the original" if from_pdf else "empty"
         for c in candidates:
             if not c.is_file():
                 continue
             real = _inside(c, root)
             if real is None:
-                return None, f"{c.name} resolves outside the folder: not read", from_pdf
+                return None, f"{c.name} resolves outside the folder: not read", from_pdf, None
             size = real.stat().st_size
             if size > DOC_MAX_BYTES:
-                return None, f"over {DOC_MAX_BYTES // (1024 * 1024)} MiB: read the original", from_pdf
-            if size > budget:
+                return None, f"over {DOC_MAX_BYTES // (1024 * 1024)} MiB: read the original", from_pdf, None
+            if size * (2 if code else 1) > budget:
                 return None, (f"this check already read {TEXT_BUDGET_BYTES // (1024 * 1024)} MiB of text: "
-                              "read the original"), from_pdf
-            text = norm_text(real.read_text(encoding="utf-8", errors="replace"))
+                              "read the original"), from_pdf, None
+            raw = real.read_text(encoding="utf-8", errors="replace")
+            lines = [norm_text(x) for x in raw.splitlines()] if code else None
+            text = " ".join(x for x in lines if x) if code else norm_text(raw)
             if text:
-                return text, "", from_pdf
+                return text, "", from_pdf, lines
             why = "its text is empty: read the original"
-        return None, why, from_pdf
+        return None, why, from_pdf, None
 
 
 def preflight(lens: str, records: Path | None) -> tuple[int, dict]:
@@ -396,9 +423,7 @@ def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, 
             elif quote_ok:
                 text, why, from_pdf = ctx.texts.get(real, ctx.repo, code=True)
                 if text is not None and isinstance(line, int) and not isinstance(line, bool) and line >= 1:
-                    raw = real.read_text(encoding="utf-8", errors="replace").splitlines()
-                    text = norm_text(raw[line - 1]) if line <= len(raw) else ""
-                    if norm_text(s["quote"]) not in text:
+                    if norm_text(s["quote"]) not in (ctx.texts.line(real, ctx.repo, line) or ""):
                         out.append(_f(w, "quote-not-found", f"the quote is not on line {line} of {p}"))
                 else:
                     out += _quote_finding(w, s["quote"], text, why, from_pdf, str(p), sid, ctx.unchecked)
@@ -459,7 +484,6 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
         documents = None
     else:
         documents = {str(d).replace("\\", "/") for d in docs}
-    staged = staged_documents(records)
     if documents and records is None:
         findings.append(_f("packet", "records-missing", "the packet names staged documents: check it with --records "
                            "(the documents folder) so each file and quote is verified"))
@@ -533,7 +557,8 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
             findings.append(_f("packet", "stopped-with-claims", "a stopped report carries no claims"))
         if report.strip():
             findings.append(_f("packet", "stopped-with-report", "a stop delivers its reason (stopped) and no report"))
-        readable = [d for d in staged if (records / d).is_file() and (records / d).stat().st_size > 0] if records else []
+        # Every staged file counts, a pdf's text derivative included: a stop is for nothing readable.
+        readable = [d for d in staged_files(records) if (records / d).stat().st_size > 0] if records else []
         read = [k for k in ids.values() if k is not None]
         if readable or read or _nonempty(brief):
             findings.append(_f("packet", "stopped-with-documents", "there is something to read (a staged document, "

@@ -23,7 +23,7 @@
   - **The floor** (`scripts/learn/report_check.py`, read-only): `preflight` refuses a documents-required lens with
     no documents (exit 3). `check` fails an unsourced claim, a source id the log does not hold, a URL the log
     does not hold, a file not staged, a quote not in its file's text (files resolving outside their folder are
-    never read), a web source when the web was not available, a stop while documents are staged, and a report
+    never read), a web source when the web was not available, a stop while something is readable, and a report
     that cites an unknown claim or leaves one uncited. A malformed packet gets findings or exit 2, never a
     traceback.
 
