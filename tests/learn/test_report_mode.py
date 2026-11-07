@@ -461,7 +461,7 @@ def test_a_markdown_destination_is_taken_exactly():
     p = packet(report=f"[details]({URL}!) and <{URL}!> [C1] [C2] [C3]")
     p["sources"][2]["url"] = URL + "!"
     assert run_check(p)[0] == 0
-    p = packet(report=f"Read it at {URL}! Or _{URL}_ and *{URL}*. [C1] [C2] [C3]")
+    p = packet(report=f"Read it at {URL}! Or ({URL}). [C1] [C2] [C3]")
     assert run_check(p)[0] == 0
 
 
@@ -551,12 +551,40 @@ def test_a_located_code_quote_reads_its_file_once(tmp_path, monkeypatch):
     assert reads.count("a.py") == 1
 
 
-@pytest.mark.parametrize("suffix", ["_", "*"])
-def test_an_unopened_trailing_emphasis_mark_is_part_of_the_url(suffix):
-    p = packet(report=f"[C1] [C2] [C3] {URL}{suffix} here")
-    assert "url-not-in-log" in rules(run_check(p)[1])
-    p["sources"][2]["url"] = URL + suffix
+@pytest.mark.parametrize("wrap", ["_", "*", "__", "**"])
+def test_a_bare_url_inside_emphasis_is_refused(wrap):
+    # What the reader sees inside emphasis is not what is written: the floor never trims the marks
+    # (a different logged URL could match), it asks for a link instead.
+    for logged in (URL, URL + wrap[0]):
+        p = packet(report=f"[C1] [C2] [C3] {wrap}{URL}{wrap} here")
+        p["sources"][2]["url"] = logged
+        assert "url-formatted" in rules(run_check(p)[1]), logged
+    p = packet(report=f"[C1] [C2] [C3] {wrap}[the terms]({URL}){wrap} here")
     assert run_check(p)[0] == 0
+    p = packet(report=f"[C1] [C2] [C3] {URL}{wrap[0]} here")
+    p["sources"][2]["url"] = URL + wrap[0]
+    assert run_check(p)[0] == 0
+
+
+def test_an_unterminated_destination_hides_nothing():
+    for opener in ("<", ""):
+        p = packet(report=f"[ref]({opener}{URL}#f) https://invented.invalid/ [C1] [C2] [C3]")
+        bad = [f["message"] for f in run_check(p)[1]["findings"] if f["rule"] == "url-not-in-log"]
+        assert any("invented.invalid" in m for m in bad), opener
+
+
+def test_a_located_code_quote_in_a_file_of_many_lines_is_bounded(tmp_path):
+    import time
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "big.txt").write_text("\n" * 4_000_000 + "x = 1\n", encoding="utf-8")
+    p = packet()
+    p["sources"].append({"id": "S5", "path": "big.txt", "line": 4_000_001, "quote": "x = 1"})
+    p["claims"].append({"id": "C4", "text": "x starts at one.", "sources": ["S5"]})
+    p["report"] += " [C4]"
+    t = time.monotonic()
+    assert run_check(p, repo=repo)[0] == 0
+    assert time.monotonic() - t < 5
 
 
 def test_a_stop_sees_a_pdfs_text_derivative(tmp_path):

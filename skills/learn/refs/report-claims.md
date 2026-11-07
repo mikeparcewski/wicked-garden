@@ -59,7 +59,8 @@ A web source looks like `{"id": "S4", "url": "https://example.org/terms", "title
 Times are ISO-8601 with seconds and a zone (`2026-11-06T21:41:03Z`). A URL appears in the report, or in a
 claim, only when it is exactly the `url` of a web source in the log (a fragment may differ; a trailing slash
 may not). A markdown link's destination and an `<autolink>` are read exactly as written; a bare URL loses
-only the punctuation that ends its sentence. A file source names only a file among `documents`, or `brief`.
+only the punctuation that ends its sentence, and is never put inside emphasis marks (`_`, `*`): write
+it as a link instead. A file source names only a file among `documents`, or `brief`.
 
 ## The floor
 

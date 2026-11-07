@@ -35,7 +35,8 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
   log does not hold (``claim-unknown-source``);
 - the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
   cites; a URL (in the report or in a claim) that is not a web source in the log (``url-not-in-log``: a
-  markdown destination or autolink is compared exactly, a bare URL without its closing punctuation);
+  markdown destination or autolink is compared exactly, a bare URL without its closing punctuation; a
+  bare URL inside emphasis marks is refused as ``url-formatted``);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
   a stop while something is readable: a non-empty staged document, a source in the log, or text in
@@ -136,18 +137,15 @@ def norm_url(url: str) -> str | None:
     return urlunparse((p.scheme.lower(), p.netloc.lower(), p.path, p.params, p.query, ""))
 
 
-def _trim_bare(u: str, before: str) -> str:
-    """A bare URL without the sentence punctuation, the closing emphasis or the unbalanced ``)`` after it.
-    One backward scan: the work is linear in the URL's length."""
+def _trim_bare(u: str) -> str:
+    """A bare URL without the sentence punctuation or the unbalanced ``)`` after it. Formatting marks
+    (``_``, ``*``) are never trimmed: a URL wrapped in them does not match, and the seat rewrites it as a
+    link. One backward scan: the work is linear in the URL's length."""
     opens, closes = u.count("("), u.count(")")
     end = len(u)
     while end:
         ch = u[end - 1]
-        if ch in "_*":
-            if before != ch:
-                break  # part of the URL: only the emphasis that opened right before it closes here
-            before = ""
-        elif ch in URL_TRAILING:
+        if ch in URL_TRAILING:
             pass
         elif ch == ")" and opens < closes:
             closes -= 1
@@ -157,33 +155,38 @@ def _trim_bare(u: str, before: str) -> str:
     return u[:end]
 
 
-def _md_destination(text: str, i: int, angle: bool) -> tuple[str, int]:
-    """The markdown link destination starting at ``text[i]``, exactly as a renderer reads it. ``<…>``
-    form: up to the ``>``, parentheses kept. Bare form: up to whitespace, ``<``/``>`` or the ``)`` that
-    closes the link (nested parens kept)."""
+def _md_destination(text: str, i: int, angle: bool) -> tuple[str, int] | None:
+    """The markdown link destination starting at ``text[i]``, exactly as a renderer reads it, or ``None``
+    when it is not a complete destination (then its text stays for the bare-URL scan). ``<…>`` form: up
+    to the ``>`` on the same line, parentheses kept. Bare form: up to the ``)`` that closes the link
+    (nested parens kept) or the whitespace before a title."""
     if angle:
-        j = i
-        while j < len(text) and text[j] not in "<>\n":
-            j += 1
+        j = text.find(">", i)
+        if j < 0 or "\n" in text[i:j] or "<" in text[i:j]:
+            return None
         return text[i:j], j
     depth, j = 0, i
     while j < len(text):
         ch = text[j]
-        if ch.isspace() or ch in "<>":
-            break
+        if ch.isspace():
+            return text[i:j], j  # a title may follow; whatever follows is scanned on its own
+        if ch in "<>":
+            return None
         if ch == "(":
             depth += 1
         elif ch == ")":
             if depth == 0:
-                break
+                return text[i:j], j
             depth -= 1
         j += 1
-    return text[i:j], j
+    return None
 
 
-def urls_in(text: str) -> list[str]:
+def urls_in(text: str) -> list[tuple[str, bool]]:
     """Every http(s) URL in the text. A markdown destination or an autolink is exact; a bare URL loses
-    the punctuation that ends its sentence. Each character is scanned a bounded number of times."""
+    the punctuation that ends its sentence. Returns ``(url, ambiguous)``: a bare URL right after an
+    emphasis mark (``_``, ``*``) is ambiguous, since what the reader sees is not what is written. Each
+    character is scanned a bounded number of times."""
     text = text or ""
     out: list[str] = []
     masked = list(text)
@@ -192,21 +195,23 @@ def urls_in(text: str) -> list[str]:
         start = m.start(2)
         if start < consumed:
             continue  # inside a destination already read
-        dest, end = _md_destination(text, start, bool(m.group(1)))
-        out.append(dest)
+        got = _md_destination(text, start, bool(m.group(1)))
+        if got is None:
+            continue
+        dest, end = got
+        out.append((dest, False))
         masked[start:end] = " " * (end - start)
         consumed = end
     rest = "".join(masked)
     masked = list(rest)
     for m in AUTOLINK_RE.finditer(rest):
-        out.append(m.group(1))
+        out.append((m.group(1), False))
         masked[m.start(1):m.end(1)] = " " * (m.end(1) - m.start(1))
     rest = "".join(masked)
     for m in URL_RE.finditer(rest):
-        before = rest[m.start() - 1] if m.start() else ""
-        u = _trim_bare(m.group(0), before)
+        u = _trim_bare(m.group(0))
         if u:
-            out.append(u)
+            out.append((u, m.start() > 0 and rest[m.start() - 1] in "_*"))
     return out
 
 
@@ -255,17 +260,17 @@ def staged_documents(records: Path | None) -> list[str]:
 
 class Texts:
     """The normalised text of each confined file, read once however many sources quote it, within one
-    budget for the whole check."""
+    budget for the whole check. A repository file keeps its raw text too, for quotes located by line."""
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[Path, bool], tuple[str | None, str, bool, list[str] | None]] = {}
+        self._cache: dict[tuple[Path, bool], tuple[str | None, str, bool, str | None]] = {}
         self._budget = TEXT_BUDGET_BYTES
 
     def _entry(self, path: Path, root: Path, code: bool):
         if (path, code) not in self._cache:
             got = self._read(path, root, code, self._budget)
             if got[0] is not None:
-                self._budget -= 2 * len(got[0].encode("utf-8")) if code else len(got[0].encode("utf-8"))
+                self._budget -= len(got[0].encode("utf-8")) + len((got[3] or "").encode("utf-8"))
             self._cache[(path, code)] = got
         return self._cache[(path, code)]
 
@@ -275,12 +280,21 @@ class Texts:
         A repository file (``code``) is read as text whatever its suffix."""
         return self._entry(path, root, code)[:3]
 
-    def line(self, path: Path, root: Path, n: int) -> str | None:
-        """Line ``n`` (from 1) of a repository file, normalised; ``""`` past its end; ``None`` unread."""
-        lines = self._entry(path, root, True)[3]
-        if lines is None:
-            return None
-        return lines[n - 1] if n <= len(lines) else ""
+    def lines(self, path: Path, root: Path, wanted: set[int]) -> dict[int, str]:
+        """The wanted lines (from 1) of a repository file, normalised, in one forward scan that stops at
+        the last one wanted. A line past the end is ``""``."""
+        raw = self._entry(path, root, True)[3] or ""
+        out: dict[int, str] = {}
+        last, n, pos = max(wanted), 1, 0
+        while n <= last and pos <= len(raw):
+            nl = raw.find("\n", pos)
+            end = len(raw) if nl < 0 else nl
+            if n in wanted:
+                out[n] = norm_text(raw[pos:end])
+            if nl < 0:
+                break
+            pos, n = nl + 1, n + 1
+        return {k: out.get(k, "") for k in wanted}
 
     @staticmethod
     def _read(path: Path, root: Path, code: bool = False, budget: int = TEXT_BUDGET_BYTES):
@@ -307,10 +321,9 @@ class Texts:
                 return None, (f"this check already read {TEXT_BUDGET_BYTES // (1024 * 1024)} MiB of text: "
                               "read the original"), from_pdf, None
             raw = real.read_text(encoding="utf-8", errors="replace")
-            lines = [norm_text(x) for x in raw.splitlines()] if code else None
-            text = " ".join(x for x in lines if x) if code else norm_text(raw)
+            text = norm_text(raw)
             if text:
-                return text, "", from_pdf, lines
+                return text, "", from_pdf, (raw if code else None)
             why = "its text is empty: read the original"
         return None, why, from_pdf, None
 
@@ -353,6 +366,17 @@ class Ctx:
         self.brief = brief
         self.texts = Texts()
         self.unchecked: list[dict] = []
+        # Repository quotes located by line, checked after the log in one scan per file.
+        self.located: dict[Path, list[tuple[str, int, str, str]]] = {}
+
+    def located_findings(self) -> list[dict]:
+        out = []
+        for real, asks in self.located.items():
+            got = self.texts.lines(real, self.repo, {line for _, line, _, _ in asks})
+            for w, line, quote, p in asks:
+                if quote not in got[line]:
+                    out.append(_f(w, "quote-not-found", f"the quote is not on line {line} of {p}"))
+        return out
 
 
 def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, str | None]:
@@ -423,8 +447,7 @@ def _check_source(s: object, n: int, ctx: Ctx) -> tuple[list[dict], str | None, 
             elif quote_ok:
                 text, why, from_pdf = ctx.texts.get(real, ctx.repo, code=True)
                 if text is not None and isinstance(line, int) and not isinstance(line, bool) and line >= 1:
-                    if norm_text(s["quote"]) not in (ctx.texts.line(real, ctx.repo, line) or ""):
-                        out.append(_f(w, "quote-not-found", f"the quote is not on line {line} of {p}"))
+                    ctx.located.setdefault(real, []).append((w, line, norm_text(s["quote"]), str(p)))
                 else:
                     out += _quote_finding(w, s["quote"], text, why, from_pdf, str(p), sid, ctx.unchecked)
     else:  # file
@@ -514,6 +537,8 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
             if u:
                 web_urls.add(u)
 
+    findings += ctx.located_findings()
+
     claims = packet.get("claims", [])
     if not isinstance(claims, list):
         findings.append(_f("packet", "claims", "claims is a list"))
@@ -580,8 +605,11 @@ def check(packet: object, records: Path | None = None, now: datetime | None = No
         for cid in sorted(cids - cited, key=_cid_key):
             findings.append(_f("report", "report-uncited-claim", f"claim {cid} is not cited in the report"))
     for where, text in [("report", report)] + texts:
-        for u in urls_in(text):
-            if norm_url(u) not in web_urls:
+        for u, ambiguous in urls_in(text):
+            if ambiguous:
+                findings.append(_f(where, "url-formatted", f"{u[:200]} sits inside emphasis marks, so the reader "
+                                   "may see a different URL: write it as a link [title](url) or <url>"))
+            elif norm_url(u) not in web_urls:
                 findings.append(_f(where, "url-not-in-log", f"{u[:200]} is not a web source in the log: "
                                    "cite only pages this job fetched"))
     counts = {kind: sum(1 for k in ids.values() if k == kind) for kind in ("web", "file", "code", "tool")}
