@@ -57,7 +57,8 @@ _STATE_PATH = re.compile(
 _CHECKS = r"(?:self[- _]check|keep_check|contrast_check|claims_scan|notes_check|leak_scan|page_count)(?:\.py)?"
 _PROCESS_WORD = re.compile(
     r"\bUNVERIFIED\b"  # the verdict word, in capitals only ("unverified claims" is prose)
-    r"|(?i:\b" + _CHECKS + r"\W{0,3}(?:verdict\W{0,3})?(?:PASS|FAIL|UNVERIFIED|passed|failed)\b)"
+    # the check named in any case, its verdict in the capitals the checks print ("the self-check passed" is prose)
+    r"|(?i:\b" + _CHECKS + r")\W{0,3}(?:(?i:verdict)\W{0,3})?(?:PASS|FAIL|UNVERIFIED)\b"
     r"|(?i:\b(?:I|we) (?:ran|re-ran|reran|have run|re-run) (?:the |a |my )?(?:draft )?" + _CHECKS + r")"
     r"|(?i:\bdraft self[- ]check\b)")
 _SOURCE_MARKER = re.compile(r"\[(?:S\d{0,3}|src\d{0,3}|source\d{0,3})\]", re.IGNORECASE)
@@ -65,8 +66,8 @@ _TOOLS = (r"(?:SearchEntity|FetchContent|ContextBundle|RetrieveEntity|TraverseGr
           r"|the (?:repo(?:sitory)? )?snapshot|the brief|the sources?|the (?:source )?packet|the self[- ]check"
           r"|(?:self_check|keep_check|contrast_check|claims_scan|notes_check|leak_scan|page_count)(?:\.py)?)")
 _NARRATION = re.compile(
-    r"\bI (?:used|ran|called|queried|searched|checked|read)\b[^.!?\n]{0,60}?\b" + _TOOLS + r"|"
-    r"\bI (?:could(?:n'?t| not)|was unable to|did not|didn'?t) (?:find|verify|confirm|measure|read|reach|locate)\b|"
+    r"\b(?:I|we) (?:used|ran|called|queried|searched|checked|read)\b[^.!?\n]{0,60}?\b" + _TOOLS + r"|"
+    r"\b(?:I|we) (?:could(?:n'?t| not)|was unable to|were unable to|did not|didn'?t) (?:find|verify|confirm|measure|read|reach|locate)\b|"
     r"\bthe brief (?:says|said|asks|asked|requests|requested|calls for|wants|wanted)\b|"
     r"\b(?:per|according to) (?:the|your) brief\b|"
     r"\bas (?:instructed|requested) (?:in|by) the (?:brief|task)\b",
@@ -107,6 +108,8 @@ def _units(html: str) -> list[tuple[str, str, str]]:
         for c in node.children:
             if c.tag == "#text":
                 out.append(c.text)
+            elif c.tag == "br":
+                out.append(" ")  # a rendered line break is a word boundary
             elif c.tag in _INLINE:
                 out.append(block_text(c))
         return "".join(out)
@@ -115,10 +118,16 @@ def _units(html: str) -> list[tuple[str, str, str]]:
         if node.tag == "#comment":
             units.append(("comment", node.parent.path() if node.parent is not None and node.parent.tag else "document", node.text))
             continue
-        if not node.tag or node.tag.startswith("#"):
+        if node.tag == "":
+            # Text outside every element (before or after the document element) still renders.
+            text = block_text(node)
+            if text.strip():
+                units.append(("text", "document", text))
+            continue
+        if node.tag.startswith("#"):
             continue
         locator = node.path()
-        for name, value in node.attrs.items():
+        for name, value in node.source_attrs:  # every occurrence as written: a repeated attribute ships too
             if value:
                 units.append((f"attr:{name}", locator, value))
                 if name == "style":
@@ -133,8 +142,7 @@ def _units(html: str) -> list[tuple[str, str, str]]:
             continue
         if node.tag in _INLINE and node.parent is not None and node.parent.tag not in ("", None):
             continue  # its words are read with the block it sits in
-        # HTML renders a run of whitespace (a line break in the source) as one space.
-        text = re.sub(r"\s+", " ", block_text(node))
+        text = block_text(node)
         if text.strip():
             units.append(("notes" if _in_notes(node) else "text", locator, text))
     return units
@@ -155,7 +163,9 @@ def scan(html: str, run_ids: list[str] | None = None) -> dict:
     def hit(kind: str, where: str, locator: str, text: str, m: re.Match[str]) -> None:
         findings.append({"kind": kind, "where": where, "path": locator, "excerpt": _excerpt(text, m.start(), m.end())})
 
-    for where, locator, text in _units(html):
+    for where, locator, raw in _units(html):
+        # HTML renders a run of whitespace (a line break in the source) as one space; so is it read, on every surface.
+        text = re.sub(r"\s+", " ", raw)
         for m in _STATE_PATH.finditer(text):
             hit("state-path", where, locator, text, m)
         for rx in id_res:

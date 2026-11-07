@@ -97,18 +97,27 @@ def _text(node: Node) -> str:
                 walk(c, False)
 
     walk(node, True)
-    # Collapse only prose: a run of prose segments is collapsed as one; raw (pre / textarea) text is kept verbatim.
+    # Collapse only prose: a run of prose segments is collapsed as one, and prose that is only whitespace (indentation
+    # around a pre) is no text at all; raw (pre / textarea) text is kept verbatim.
+    if not any(raw for _, raw in segs):
+        return _WS.sub(" ", "".join(t for t, _ in segs)).strip()
     out: list[str] = []
     prose: list[str] = []
+
+    def flush() -> None:
+        joined = _WS.sub(" ", "".join(prose))
+        if joined.strip():
+            out.append(joined.strip())
+        prose.clear()
+
     for text, raw in segs:
         if raw:
-            out.append(_WS.sub(" ", "".join(prose)))
-            prose = []
+            flush()
             out.append(text)
         else:
             prose.append(text)
-    out.append(_WS.sub(" ", "".join(prose)))
-    return "".join(out).strip() if not any(raw for _, raw in segs) else "".join(out)
+    flush()
+    return "\x1f".join(out)
 
 
 class Version:
@@ -281,7 +290,8 @@ def hand_step(m: dict, parent: Version, child: Version) -> None:
             m["gone"].append(w)
         if inner:
             m["gone_with"][w] = sorted(inner)
-        m["labels"][w] = parent.label(w)
+        for d in dropped:
+            m["labels"][d] = parent.label(d)
         for d in dropped:
             key = parent.slide_key_of(d)
             if m["order"] is not None and key is not None and key in m["order"]:
@@ -291,7 +301,10 @@ def hand_step(m: dict, parent: Version, child: Version) -> None:
             # Added (or re-added: its tombstone is cleared): present, with its initial text and attributes.
             if w in m["gone"]:
                 m["gone"].remove(w)
-                m["gone_with"].pop(w, None)
+                # Its descendants removed with it stay removed until each is re-added or let change (codex r3).
+                for d in m["gone_with"].pop(w, []):
+                    if d not in child.nodes and d not in m["gone"]:
+                        m["gone"].append(d)
             for outer, inner in list(m["gone_with"].items()):
                 if w in inner:
                     m["gone_with"][outer] = [x for x in inner if x != w]
@@ -380,9 +393,9 @@ def check(m: dict, candidate: Version, allow: list[str]) -> dict:
             violations.append({"kind": "missing", "wid": wid, "label": eff["labels"].get(wid, wid),
                                "sentence": f"your edit to {eff['labels'].get(wid, wid)} was removed"})
 
-    protected = (set(eff["texts"]) | set(eff["attrs"]) | set(eff["added"]) | set(eff["gone"])
-                 | {x for inner in eff["gone_with"].values() for x in inner})
-    for wid in sorted(protected & candidate.duplicates):
+    # A revision mints no anchor: one that repeats ANY anchor is refused, so a duplicate can never poison a later
+    # lineage diff (codex r3).
+    for wid in sorted(candidate.duplicates):
         violations.append({"kind": "duplicate", "wid": wid, "label": eff["labels"].get(wid, wid),
                            "sentence": f"the anchor of {eff['labels'].get(wid, wid)} appears more than once"})
     for wid, text in eff["texts"].items():

@@ -288,6 +288,23 @@ def test_r2_a_repeated_attribute_reads_as_the_browser_reads_it(tmp_path: Path):
     assert verdict(m, doc('<p data-wid="p" class="changed" class="mine">x</p>'))["ok"] is False
 
 
+def test_r3_re_adding_a_container_keeps_its_removed_children_removed(tmp_path: Path):
+    m = (Lineage(tmp_path, doc('<div data-wid="parent"><p data-wid="child">x</p></div>'))
+         .add("hand", doc('<p data-wid="k">k</p>')).add("hand", doc('<div data-wid="parent"></div><p data-wid="k">k</p>')).map())
+    assert "child" in m["gone"]
+    assert verdict(m, doc('<div data-wid="parent"><p data-wid="child">x</p></div><p data-wid="k">k</p>'))["ok"] is False
+
+
+def test_r3_indentation_around_a_pre_is_not_content(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<div data-wid="p"><pre>a b</pre></div>')).add("hand", doc('<div data-wid="p"><pre>a    b</pre></div>')).map()
+    assert verdict(m, doc('<div data-wid="p">\n  <pre>a    b</pre>\n</div>'))["ok"] is True
+
+
+def test_r3_a_revision_that_repeats_any_anchor_is_refused(tmp_path: Path):
+    m = Lineage(tmp_path, doc('<p data-wid="a">x</p><p data-wid="b">y</p>')).map()
+    assert verdict(m, doc('<p data-wid="a">x</p><p data-wid="b">y</p><p data-wid="b">z</p>'))["violations"][0]["kind"] == "duplicate"
+
+
 def test_unreadable_input_is_an_error_never_a_pass(tmp_path: Path):
     with pytest.raises(kc.KeepError):
         kc.build_map([{"html": str(tmp_path / "nope.html"), "step": "root"}])

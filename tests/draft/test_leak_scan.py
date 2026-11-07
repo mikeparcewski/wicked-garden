@@ -63,12 +63,23 @@ def test_r2_attributes_of_script_and_style_line_breaks_more_inline_tags_and_chec
     assert kinds("<p>I used\n  SearchEntity to draft this.</p>") == {"narration"}
     assert kinds("<p>Self-check: PASS</p>") == {"process-word"}
     assert kinds("<p>keep_check.py: PASS</p>") == {"process-word"}
-    assert kinds("<p>We ran the self-check.</p>") == {"process-word"}
+    assert "process-word" in kinds("<p>We ran the self-check.</p>")
+
+
+def test_r3_repeated_attributes_root_text_line_breaks_and_plural_narration():
+    assert kinds('<p title="safe" title="I used SearchEntity">Hello</p>') == {"narration"}
+    assert kinds("<html><body><p>Hello</p></body></html>I used SearchEntity to draft this.") == {"narration"}
+    assert kinds("<p>I used<br>SearchEntity to draft this.</p>") == {"narration"}
+    assert kinds('<p title="I used\nSearchEntity to draft this.">Hello</p>') == {"narration"}
+    assert kinds("<!-- I used\nSearchEntity to draft this. -->") == {"narration"}
+    assert kinds("<p>We used SearchEntity to draft this.</p>") == {"narration"}
+    assert kinds("<p>We could not verify the latency figure.</p>") == {"narration"}
 
 
 def test_r1_subject_vocabulary_passes():
     assert ls.scan("<p>To start the device, run the self-check.</p>")["ok"] is True
     assert ls.scan("<p>The parser reads config/notes.json.</p>")["ok"] is True
+    assert ls.scan("<p>The device's self-check passed inspection.</p>")["ok"] is True
     assert ls.scan("<p>The safety device performs a self-check before starting.</p>")["ok"] is True
     assert ls.scan("<p>The parser reads notes.json from its input directory.</p>")["ok"] is True
 

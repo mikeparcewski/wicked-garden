@@ -29,6 +29,8 @@ class Node:
     children: list["Node"] = field(default_factory=list)
     parent: "Node | None" = None
     text: str = ""  # #text / #comment payload
+    # Every attribute occurrence as written (a repeated one included): what ships in the source, for the leak scan.
+    source_attrs: list[tuple[str, str]] = field(default_factory=list)
 
     # ── tree helpers ────────────────────────────────────────────────────────────────────────
     def ancestors(self) -> Iterator["Node"]:
@@ -113,7 +115,7 @@ class _Builder(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        node = Node(tag=tag, attrs=_attrs(attrs), parent=self.cursor)
+        node = Node(tag=tag, attrs=_attrs(attrs), parent=self.cursor, source_attrs=[(k.lower(), v or "") for k, v in attrs])
         self.cursor.children.append(node)
         if tag in VOID_TAGS:
             return
@@ -122,7 +124,7 @@ class _Builder(HTMLParser):
 
     def handle_startendtag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
-        node = Node(tag=tag, attrs=_attrs(attrs), parent=self.cursor)
+        node = Node(tag=tag, attrs=_attrs(attrs), parent=self.cursor, source_attrs=[(k.lower(), v or "") for k, v in attrs])
         self.cursor.children.append(node)
 
     def handle_endtag(self, tag: str) -> None:
