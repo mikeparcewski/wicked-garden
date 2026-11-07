@@ -737,7 +737,7 @@ def test_engine_mode_runs_every_case_and_writes_the_report_the_engine_reads(tmp_
     editor = report["editors"][0]
     assert editor["protocol"] == [1, 2] and editor["negotiated"] == 2
     required = ["0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
-                "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned",
+                "7-edit", "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned", "18-shows",
                 "13-surfaces", "14-card", "15-options", "16-full"]  # crew's requiredCases for a protocol-2 editor
     assert {c: editor["cases"].get(c, {}).get("ok") for c in required} == {c: True for c in required}
     # A silent editor: a verdict on the pack, never a host refusal.
@@ -822,3 +822,171 @@ def test_the_scaffolded_editor_passes_and_a_silent_one_fails_the_handshake(tmp_p
     bad = run("conformance.py", "--pack", str(silent), "--studio-dist", dist)
     report = json.loads(bad.stdout)
     assert bad.returncode == 1 and report["editors"][0]["cases"]["1-handshake"]["ok"] is False
+
+
+# ── G9b: the behaviour an editor owes the artifact it opens (cases 7 and 18) ──────────────────────
+
+# wicked-crew `editors/pack-install.ts` CONFORMANCE_CASES and wicked-core `src/editor_conformance.rs` CASES require these
+# same ids of every editor: a report that omits one never installs and never passes the engine's step.
+EVERY_EDITOR = ["0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissions", "5-typing", "6-forwarding",
+                "7-edit", "8-strict-input", "9-liveness", "10-keyboard", "11-theme", "12-hash-pinned", "18-shows"]
+
+
+def test_every_editor_runs_the_edit_and_shows_cases():
+    mod = _conformance_module()
+    assert list(mod.CASES_V1) == EVERY_EDITOR
+    assert list(mod.CASES_V2) == ["13-surfaces", "14-card", "15-options", "16-full"]
+    assert mod.expected_cases({"protocol": [1, 2]}) == 18 and mod.expected_cases({"protocol": [1]}) == 15
+    assert mod.BEHAVIOUR_CASES == ("7-edit", "18-shows") and set(mod.BEHAVIOUR_CASES) <= set(mod.CASES_V1)
+
+
+def test_shown_runs_matches_the_handed_text_whatever_the_whitespace():
+    mod = _conformance_module()
+    runs = ["Book a study room in under a minute", "One fixed fee", "Support is included"]
+    assert mod.shown_runs("1 Book a study\n room in   under a minute\n2 nothing", runs) == [runs[0]]
+    assert mod.shown_runs("Fill in the form to build an entry.", runs) == []
+    assert mod.shown_runs("", runs) == [] and mod.shown_runs("One fixed fee", [None, "", "One fixed fee"]) == ["One fixed fee"]
+
+
+def test_a_refused_read_never_counts_toward_the_first_read_deadline():
+    mod = _conformance_module()
+    # Handshake at 0: a read refused at once (1 ms), then the real read at 3.1 s: nothing answered within 3 s.
+    r = {"hs": 0.0, "at": [1.0, 3100.0], "refused": [1.2]}
+    assert mod.answered_reads_by(r, 3000.0) == 0 and mod.answered_reads_by(r, 3200.0) == 1
+    assert mod.answered_reads_by({"hs": 0.0, "at": [20.0], "refused": []}, 3000.0) == 1
+
+
+def test_the_sample_an_editor_is_shown_on_is_its_kind():
+    mod = _conformance_module()
+    assert mod.sample_kind({"kinds": ["page", "deck"]}) == "page"
+    assert mod.sample_kind({"kinds": ["deck"]}) == "deck"
+    assert mod.sample_kind({"kinds": ["demo-video"]}) is None and mod.sample_kind({}) is None
+
+
+# An editor that may write: one control marked data-wicked-save writes a text edit of the first part it shows.
+SAVE_BUTTON = '<button type="button" id="save" data-wicked-save>Save</button>'
+SAVE_SCRIPT = """
+  document.getElementById('save').addEventListener('click', async () => {
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' (edited)', before }], summary: 'An edit' });
+  });
+  async function load() {"""
+
+
+def _edit_entry(pack: Path, *, mark: bool = True, reread: bool = True, button: bool = True) -> None:
+    entry = pack / FIXTURE_ENTRY
+    text = entry.read_text()
+    if button:
+        btn = SAVE_BUTTON if mark else SAVE_BUTTON.replace(" data-wicked-save", "")
+        text = text.replace('<button type="button" id="full">', btn + ' <button type="button" id="full">', 1)
+        text = text.replace("\n  async function load() {", SAVE_SCRIPT, 1)
+    if not reread:
+        text = text.replace("case 'artifact.changed': if (p.by !== 'this-editor') load(); break;", "case 'artifact.changed': break;", 1)
+    entry.write_text(text)
+    assert run("pin.py", str(pack)).returncode == 0
+
+
+def _cases(pack: Path) -> dict:
+    done = run("conformance.py", "--pack", str(pack), "--studio-dist", os.environ["WICKED_STUDIO_DIST"])
+    return json.loads(done.stdout)["editors"][0]["cases"]
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+def test_case_18_an_editor_must_read_show_and_follow_what_it_is_handed(tmp_path):
+    good, blind, stale = tmp_path / "good", tmp_path / "blind", tmp_path / "stale"
+    assert scaffold(good).returncode == 0
+    cases = _cases(good)
+    assert cases["18-shows"]["ok"] is True and cases["18-shows"]["reread"] is True, cases["18-shows"]
+    assert cases["7-edit"] == {"ok": True, "viewer": True, "note": cases["7-edit"]["note"]}
+    # The J6 Changelog entry pack's shape: it never asks to read the page (G9).
+    assert scaffold(blind, "--permissions", "selection.chip,ui.fullscreen").returncode == 0
+    cases = _cases(blind)
+    assert cases["18-shows"]["ok"] is False and "artifact.read" in cases["18-shows"]["error"]
+    assert cases["9-liveness"]["ok"] is True  # recorded without stopping the run: every other case still reports
+    # It reads once and never again: a new version never reaches what it shows.
+    assert scaffold(stale).returncode == 0
+    _edit_entry(stale, button=False, reread=False)
+    cases = _cases(stale)
+    assert cases["18-shows"]["ok"] is False and cases["18-shows"]["reread"] is False, cases["18-shows"]
+    # A deck editor whose change handler asks for a version that does not exist: the refused read is no re-read
+    # (on the deck sample the re-read is all case 18 can judge after a change).
+    deck = tmp_path / "deck"
+    assert run("scaffold.py", "--vendor", "acme", "--id", "acme-json", "--title", "Deck viewer", "--kinds", "deck",
+               "--out", str(deck)).returncode == 0
+    entry = deck / FIXTURE_ENTRY
+    entry.write_text(entry.read_text().replace("case 'artifact.changed': if (p.by !== 'this-editor') load(); break;",
+                                               "case 'artifact.changed': req('artifact.read', { version: 999 }); break;", 1))
+    assert run("pin.py", str(deck)).returncode == 0
+    cases = _cases(deck)
+    assert cases["18-shows"]["ok"] is False and cases["18-shows"]["reread"] is False, cases["18-shows"]
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tmp_path):
+    perms = ("--permissions", "artifact.read,artifact.write,ui.fullscreen")
+    writer, unmarked, silent = tmp_path / "writer", tmp_path / "unmarked", tmp_path / "silent"
+    for pack in (writer, unmarked, silent):
+        assert scaffold(pack, *perms).returncode == 0
+    _edit_entry(writer)
+    cases = _cases(writer)
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["writes"] == 1 and cases["7-edit"]["head_moved"] == 1, cases["7-edit"]
+    _edit_entry(unmarked, mark=False)
+    cases = _cases(unmarked)
+    assert cases["7-edit"]["ok"] is False and "data-wicked-save" in cases["7-edit"]["error"], cases["7-edit"]
+    # A validating form: Save stays disabled until a valid email and a note are in (a 300 ms debounce); what was
+    # typed reaches the version.
+    form = tmp_path / "form"
+    assert scaffold(form, *perms).returncode == 0
+    entry = form / FIXTURE_ENTRY
+    entry.write_text(entry.read_text()
+        .replace('<button type="button" id="full">', '<input type="email" id="who" required aria-label="Who"> '
+                 '<input type="number" id="n" required max="5" step="2" aria-label="Count"> '
+                 '<input type="number" id="m" required value="1" max="5" step="2" aria-label="Odd"> '
+                 '<input type="number" id="d" required min="0.3" max="0.9" step="0.2" aria-label="Share"> '
+                 '<input type="text" id="note" aria-label="Note"> ' + SAVE_BUTTON.replace(">Save", " disabled>Save")
+                 + ' <button type="button" id="full">', 1)
+        .replace("\n  async function load() {", """
+  let wait = null;
+  document.getElementById('m').value = '';  // emptied at start: its value attribute (1) stays the step base
+  const valid = () => document.getElementById('who').checkValidity() && document.getElementById('who').value
+    && ['n', 'm', 'd'].every((id) => document.getElementById(id).value && document.getElementById(id).checkValidity())
+    && document.getElementById('note').value;
+  for (const id of ['who', 'n', 'm', 'd', 'note']) document.getElementById(id).addEventListener('input', () => {
+    clearTimeout(wait); wait = setTimeout(() => { document.getElementById('save').disabled = !valid(); }, 300); });
+  document.getElementById('save').addEventListener('click', async () => {
+    const p = parts[0]; if (!p || !valid()) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('note').value, before }], summary: 'A note' });
+  });
+  async function load() {""", 1))
+    assert run("pin.py", str(form)).returncode == 0
+    cases = _cases(form)
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 5 and cases["7-edit"]["typed_in_version"] is True, cases["7-edit"]
+    # A field already at its maxlength, Save waiting for a change: the field is changed within its limit.
+    full = tmp_path / "full"
+    assert scaffold(full, *perms).returncode == 0
+    entry = full / FIXTURE_ENTRY
+    entry.write_text(entry.read_text()
+        .replace('<button type="button" id="full">', '<input type="text" id="t" maxlength="5" value="hello" aria-label="T"> '
+                 + SAVE_BUTTON.replace(">Save", " disabled>Save") + ' <button type="button" id="full">', 1)
+        .replace("\n  async function load() {", """
+  document.getElementById('t').addEventListener('input', () => { document.getElementById('save').disabled = document.getElementById('t').value === 'hello'; });
+  document.getElementById('save').addEventListener('click', async () => {
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('t').value, before }], summary: 'T' });
+  });
+  async function load() {""", 1))
+    assert run("pin.py", str(full)).returncode == 0
+    cases = _cases(full)
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 0, cases["7-edit"]
+    # A marked control that writes nothing: no version lands.
+    entry = silent / FIXTURE_ENTRY
+    entry.write_text(entry.read_text().replace('<button type="button" id="full">', SAVE_BUTTON + ' <button type="button" id="full">', 1))
+    assert run("pin.py", str(silent)).returncode == 0
+    cases = _cases(silent)
+    assert cases["7-edit"]["ok"] is False and cases["7-edit"]["writes"] == 0, cases["7-edit"]
+    # A failed behaviour case never keeps the protocol-2 cases from reporting (the scaffold speaks protocol 2).
+    assert {c: cases[c]["ok"] for c in ("13-surfaces", "14-card", "15-options", "16-full")} == dict.fromkeys(
+        ("13-surfaces", "14-card", "15-options", "16-full"), True), cases

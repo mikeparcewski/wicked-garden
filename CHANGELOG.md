@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Editor conformance checks what an editor does with the artifact it opens** (plugins-complete G9b). Two cases
+  join every editor's run (and the required set wicked-crew and wicked-core check):
+  - **`18-shows`**: the editor asks `artifact.read`, reads within 3 s of the handshake, a text run of the version it
+    read is visible in its frame, and when another version lands it reads again and shows it (the visible checks
+    must show what the new version changed). An editor that never reads what it
+    opens, like the J6 Changelog entry pack, now fails.
+  - **`7-edit`** (the slot reserved for "a scripted edit"): an editor that asks `artifact.write` marks its save
+    control with `data-wicked-save`; with its empty text fields filled with valid values, one press lands exactly
+    one version. A viewer (no `artifact.write`) passes. Both cases run on the page and deck samples; an editor of
+    another kind is reported not checked.
+  Both are recorded without stopping the run, so every other case still reports. The editor-scaffold skill states
+  the two rules.
+
 ### Fixed
 
 - **"Lower the minimum" restates the page's apply report** (wicked-core e2e F29). After the person lowers a
