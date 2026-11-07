@@ -848,6 +848,14 @@ def test_shown_runs_matches_the_handed_text_whatever_the_whitespace():
     assert mod.shown_runs("", runs) == [] and mod.shown_runs("One fixed fee", [None, "", "One fixed fee"]) == ["One fixed fee"]
 
 
+def test_a_refused_read_never_counts_toward_the_first_read_deadline():
+    mod = _conformance_module()
+    # Handshake at 0: a read refused at once (1 ms), then the real read at 3.1 s: nothing answered within 3 s.
+    r = {"hs": 0.0, "at": [1.0, 3100.0], "refused": [1.2]}
+    assert mod.answered_reads_by(r, 3000.0) == 0 and mod.answered_reads_by(r, 3200.0) == 1
+    assert mod.answered_reads_by({"hs": 0.0, "at": [20.0], "refused": []}, 3000.0) == 1
+
+
 def test_the_sample_an_editor_is_shown_on_is_its_kind():
     mod = _conformance_module()
     assert mod.sample_kind({"kinds": ["page", "deck"]}) == "page"

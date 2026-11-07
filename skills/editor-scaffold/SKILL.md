@@ -124,7 +124,7 @@ viewer that asks no `artifact.write` passes), 8 strict input, 9 liveness, 10 key
 reads again when another version lands); for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
 14 the card (height, actions answered in 2 s), 15 each options tab mounted as its own options
 instance, told its tab (and `host.tab` to the others and back; the controls' values),
-16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-12 under the
+16 full screen (no reload; each mode echoed in 2 s); for a protocol-1 editor, 17 cases 1-6 and 8-12 under the
 protocol-2 host. Its report lists the gaps it cannot see (case 7 drives only your marked control,
 your other edits are your own tests'; axe is not run; WebRTC is invisible to request interception). Each page load and
 daemon read may take `--timeout` seconds (else `$WG_EDITOR_CONFORMANCE_TIMEOUT`, default 120): a slow

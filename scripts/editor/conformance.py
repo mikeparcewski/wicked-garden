@@ -64,7 +64,7 @@ Protocol 2 (an editor whose ``protocol`` lists 2; DES-EDITOR-PLUGIN-CONTRACT-001
 
 Protocol 1 only:
 
-  17 v1-compat     the host negotiated 1, and cases 1-12 passed under this protocol-2 host
+  17 v1-compat     the host negotiated 1, and cases 1-6 and 8-12 passed under this protocol-2 host (7 and 18 report on their own)
 
 Cases 7 and 18 are behaviour (G9b): an editor that never reads the artifact it opens, or cannot save an edit
 through its own UI, is not conformant. Both are recorded without stopping the run, so the other cases still report.
@@ -507,7 +507,7 @@ BEHAVIOUR_CASES = ("7-edit", "18-shows")
 
 def sample_kind(editor: dict) -> str | None:
     """The conformance host's sample an editor is shown on: the page, or the deck for a deck-only editor. None: the
-    host has no sample of any kind it opens (case 18 then checks the reads, not what is visible)."""
+    host has no sample of any kind it opens (cases 7 and 18 then report it not checked)."""
     kinds = editor.get("kinds") if isinstance(editor.get("kinds"), list) else []
     return "page" if "page" in kinds else "deck" if "deck" in kinds else None
 
@@ -524,22 +524,34 @@ def shown_runs(frame_text: str, runs: list) -> list[str]:
 
 # What the editor shows: its body's rendered text plus what its text fields hold (an editor may show the artifact in a
 # field). Read in the editor's frame; only strings come back.
-FRAME_TEXT = ("(b) => [b.innerText || '', ...[...document.querySelectorAll('input, textarea')]"
-              ".filter(e => e.type !== 'hidden' && e.type !== 'password').map(e => String(e.value || ''))].join('\\n')")
-# The editor's artifact.read requests as the host took them (its own clock), the handshake's time, and the refused ones.
-# Protocol requests only: the host's own reads (a write's inventory) never count as the editor reading.
+# Open shadow roots count (an editor built from web components renders inside them).
+FRAME_TEXT = ("(b) => { const out = [b.innerText || '']; const walk = (root) => { for (const e of root.querySelectorAll('*')) {"
+              " if ((e.tagName === 'INPUT' || e.tagName === 'TEXTAREA') && e.type !== 'hidden' && e.type !== 'password')"
+              " out.push(String(e.value || '')); if (e.shadowRoot) { out.push(e.shadowRoot.textContent || ''); walk(e.shadowRoot); } } };"
+              " walk(document); return out.join('\\n'); }")
+# The editor's artifact.read requests as the host took them (its own clock), the handshake's time, and the times of the
+# refused ones (the host refuses at once, so a refusal follows its request). Protocol requests only: the host's own
+# reads (a write's inventory) never count as the editor reading; a malformed request is logged `in` with ok false.
 READS = ("() => { const log = window.__wickedEditor?.log ?? []; const hs = log.find(e => e.kind === 'handshake');"
-         " return { hs: hs ? hs.at : null, at: log.filter(e => e.kind === 'in' && e.type === 'artifact.read').map(e => e.at),"
-         " refused: log.filter(e => e.kind === 'refused' && e.type === 'artifact.read').length }; }")
+         " return { hs: hs ? hs.at : null, at: log.filter(e => e.kind === 'in' && e.type === 'artifact.read' && e.ok !== false).map(e => e.at),"
+         " refused: log.filter(e => e.kind === 'refused' && e.type === 'artifact.read').map(e => e.at) }; }")
+
+
+def answered_reads_by(r: dict, t: float) -> int:
+    """How many of the editor's reads up to host time ``t`` were not refused."""
+    return sum(1 for a in r["at"] if a <= t) - sum(1 for a in r["refused"] if a <= t)
 # A valid value for a field case 7 fills, by its type and constraints (a validating form keeps Save disabled otherwise).
 FIELD_VALUE = ("(e, sentence) => { const t = (e.getAttribute('type') || 'text').toLowerCase();"
                " if (t === 'email') return 'conformance@example.com'; if (t === 'url') return 'https://example.com/conformance';"
-               " if (t === 'tel') return '5550100'; if (t === 'number') { const min = parseFloat(e.min), max = parseFloat(e.max);"
-               " let v = Number.isFinite(min) ? min : 7; if (Number.isFinite(max) && v > max) v = max; return String(v); }"
-               " const m = e.maxLength > 0 ? e.maxLength : sentence.length; return sentence.slice(0, m); }")
+               " if (t === 'tel') return '5550100'; if (t === 'number') { const min = parseFloat(e.min), max = parseFloat(e.max),"
+               " step = parseFloat(e.step); let v = Number.isFinite(min) ? min : 7;"
+               " if (!Number.isFinite(min) && Number.isFinite(step) && step > 0) v = Math.ceil(7 / step) * step;"
+               " if (Number.isFinite(max) && v > max) v = max; return String(v); }"
+               " let v = sentence; while (e.minLength > 0 && v.length < e.minLength) v += ' ' + sentence;"
+               " return e.maxLength > 0 ? v.slice(0, e.maxLength) : v; }")
 SAVE_READY_S = 2.0
 WRITE_QUIET_S = 1.5
-READ_QUIET_S = 1.0
+READ_QUIET_S = 2.0
 
 
 def _frame_text(frame) -> str:
@@ -591,11 +603,12 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
             r = reads()
             got["r"] = r
             got["seen"] = shown_runs(_frame_text(frame), runs)
-            return len(r["at"]) > r["refused"] and bool(got["seen"])
+            return len(r["at"]) > len(r["refused"]) and bool(got["seen"])
         _poll(page, first, SHOW_WAIT_S)
         r = got["r"]
+        # A read the host answered (not refused) within 3 s of the handshake, on the host's clock.
+        read_ok = r["hs"] is not None and answered_reads_by(r, r["hs"] + SHOW_WAIT_S * 1000) > 0
         first_ms = (r["at"][0] - r["hs"]) if r["at"] and r["hs"] is not None else None
-        read_ok = first_ms is not None and first_ms <= SHOW_WAIT_S * 1000 and len(r["at"]) > r["refused"]
         before = len(reads()["at"])
         page.evaluate("() => window.__wickedEditor.agentVersion()")
         reread = _poll(page, lambda: len(reads()["at"]) > before, SHOW_WAIT_S)
@@ -605,11 +618,11 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
 
         def follows() -> bool:
             nonlocal seen_after
-            # What the new version changed must show; only a sample whose agent version changes no text (the deck)
-            # is judged on any run of it.
-            seen_after = shown_runs(_frame_text(frame), new_runs or after_runs)
+            seen_after = shown_runs(_frame_text(frame), new_runs)
             return bool(seen_after)
-        shows_new = reread and _poll(page, follows, SHOW_WAIT_S)
+        # What the new version changed must show. The deck sample's agent version changes no text: there only the
+        # re-read is judged, and the report says so.
+        shows_new = reread and (not new_runs or _poll(page, follows, SHOW_WAIT_S))
         # Its change handling settles (no read for a quiet second, at most 4 s) before case 2 takes its read baseline.
         last = {"n": len(reads()["at"]), "t": time.monotonic()}
 
@@ -618,10 +631,12 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
             if n != last["n"]:
                 last.update(n=n, t=time.monotonic())
             return time.monotonic() - last["t"] >= READ_QUIET_S
-        _poll(page, quiet, 4.0)
+        settled = _poll(page, quiet, 6.0)
         ok = read_ok and bool(got["seen"]) and reread and shows_new and alive()
         detail: dict = {"ok": ok, "first_read_ms": None if first_ms is None else round(first_ms), "shown": got["seen"][:3],
-                        "reread": reread, "shown_after": seen_after[:3]}
+                        "reread": reread, "shown_after": seen_after[:3],
+                        **({} if new_runs else {"note": "the sample's new version changes no text: only the re-read is checked"}),
+                        **({} if settled else {"reads_unsettled": True})}
         if not ok:
             detail["error"] = ("it did not read the artifact within 3 s of the handshake" if not read_ok
                                else "none of the handed content is visible in it" if not got["seen"]
@@ -654,9 +669,11 @@ def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
         usable_fields = [fields.nth(i) for i in range(fields.count())]
         usable_fields = [f for f in usable_fields if f.is_visible() and f.is_editable()]
         filled = 0
+        commit = "e => { e.dispatchEvent(new Event('change', { bubbles: true })); e.blur(); }"
         for f in usable_fields:
             if f.input_value() == "":
                 f.fill(f.evaluate(FIELD_VALUE, EDIT_SENTENCE))
+                f.evaluate(commit)  # what leaving the field does: a form validating on change or blur sees it
                 filled += 1
         changed = None
         if filled == 0:
@@ -666,6 +683,7 @@ def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
             if text_like:
                 changed = text_like[0].input_value() + " (conformance)"
                 text_like[0].fill(changed)
+                text_like[0].evaluate(commit)
         # A save control may stay disabled until there is something to save (and a form may validate on a debounce).
         found: dict = {}
 
@@ -675,7 +693,17 @@ def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
         if not _poll(page, ready, SAVE_READY_S):
             return {"ok": False, "marked": save.count(), "filled": filled,
                     "error": f"its {SAVE_MARK} control stayed hidden or disabled with its text fields filled"}
-        prep_writes = written() - prep0  # an editor that saves as you type: noted, never credited to the click
+        # An editor that saves as you type: its writes settle (a quiet second) before the click's baseline, so they are
+        # noted and never credited to the click.
+        last_w = {"n": written(), "t": time.monotonic()}
+
+        def writes_quiet() -> bool:
+            n = written()
+            if n != last_w["n"]:
+                last_w.update(n=n, t=time.monotonic())
+            return time.monotonic() - last_w["t"] >= 1.0
+        _poll(page, writes_quiet, 4.0)
+        prep_writes = written() - prep0
         head = "() => window.__wickedEditor.adapter.artifact().head"
         head0, written0, refused0 = page.evaluate(head), written(), refused()
         found["usable"][0].click(timeout=5000)
@@ -1299,7 +1327,13 @@ def main(argv: list[str] | None = None) -> int:
                           f"case 7 fills the empty text fields (or changes the first one) and presses the first "
                           f"visible control marked {SAVE_MARK}: the editor's other edits are its own tests'",
                           "cases 7 and 18 run on the page and deck samples only (another kind is not checked here); "
-                          "case 18 reads rendered text and field values, not pixels (an editor could hide the text)",
+                          "case 18 reads rendered text, field values and open shadow roots, not pixels (an editor could "
+                          "hide the text); on the deck sample it checks the re-read only (the agent version changes no "
+                          "deck text)",
+                          "case 7 fills empty fields with values valid for their type, step and length, or changes the "
+                          "first text field; an editor whose save needs another edit (a select, a number-only form) is "
+                          "its own tests'",
+                          "case 17 restates the host-contract cases 1-6 and 8-12; 7 and 18 report on their own",
                           "case 2 checks no reload or re-read across sizes, not each size's layout",
                           "case 6 does not walk Tab/Shift+Tab off the editor's edges",
                           "case 5 presses Backspace/Delete with no part known to be selected (a generic editor exposes "
