@@ -942,13 +942,17 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
     entry.write_text(entry.read_text()
         .replace('<button type="button" id="full">', '<input type="email" id="who" required aria-label="Who"> '
                  '<input type="number" id="n" required max="5" step="2" aria-label="Count"> '
+                 '<input type="number" id="m" required value="1" max="5" step="2" aria-label="Odd"> '
+                 '<input type="number" id="d" required min="0.3" max="0.9" step="0.2" aria-label="Share"> '
                  '<input type="text" id="note" aria-label="Note"> ' + SAVE_BUTTON.replace(">Save", " disabled>Save")
                  + ' <button type="button" id="full">', 1)
         .replace("\n  async function load() {", """
   let wait = null;
+  document.getElementById('m').value = '';  // emptied at start: its value attribute (1) stays the step base
   const valid = () => document.getElementById('who').checkValidity() && document.getElementById('who').value
-    && document.getElementById('n').checkValidity() && document.getElementById('note').value;
-  for (const id of ['who', 'n', 'note']) document.getElementById(id).addEventListener('input', () => {
+    && ['n', 'm', 'd'].every((id) => document.getElementById(id).value && document.getElementById(id).checkValidity())
+    && document.getElementById('note').value;
+  for (const id of ['who', 'n', 'm', 'd', 'note']) document.getElementById(id).addEventListener('input', () => {
     clearTimeout(wait); wait = setTimeout(() => { document.getElementById('save').disabled = !valid(); }, 300); });
   document.getElementById('save').addEventListener('click', async () => {
     const p = parts[0]; if (!p || !valid()) return;
@@ -958,7 +962,7 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
   async function load() {""", 1))
     assert run("pin.py", str(form)).returncode == 0
     cases = _cases(form)
-    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 3 and cases["7-edit"]["typed_in_version"] is True, cases["7-edit"]
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 5 and cases["7-edit"]["typed_in_version"] is True, cases["7-edit"]
     # A field already at its maxlength, Save waiting for a change: the field is changed within its limit.
     full = tmp_path / "full"
     assert scaffold(full, *perms).returncode == 0

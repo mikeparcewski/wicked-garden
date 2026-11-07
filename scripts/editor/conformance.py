@@ -543,10 +543,13 @@ def answered_reads_by(r: dict, t: float) -> int:
 # A valid value for a field case 7 fills, by its type and constraints (a validating form keeps Save disabled otherwise).
 FIELD_VALUE = ("(e, sentence) => { const t = (e.getAttribute('type') || 'text').toLowerCase();"
                " if (t === 'email') return 'conformance@example.com'; if (t === 'url') return 'https://example.com/conformance';"
-               " if (t === 'tel') return '5550100'; if (t === 'number') { const min = parseFloat(e.min), max = parseFloat(e.max);"
-               " const st = parseFloat(e.step), step = Number.isFinite(st) && st > 0 ? st : 1, base = Number.isFinite(min) ? min : 0;"
-               " let v = base + Math.ceil((Math.max(7, base) - base) / step) * step;"
-               " if (Number.isFinite(max) && v > max) v = base + Math.floor((max - base) / step) * step; return String(v); }"
+               " if (t === 'tel') return '5550100'; if (t === 'number') {"
+               # The browser judges each candidate (validity, no `invalid` event): min, the value attribute, 7, 0, max,
+               # then one native step up from the step base; the field is left as it was.
+               " const was = e.value, tries = [e.min, e.getAttribute('value'), '7', '0', e.max]; let pick = null;"
+               " for (const c of tries) { if (c == null || c === '') continue; e.value = c; if (e.validity.valid) { pick = e.value; break; } }"
+               " if (pick === null) { try { e.value = ''; e.stepUp(); if (e.validity.valid) pick = e.value; } catch (_) {} }"
+               " e.value = was; return pick === null ? '7' : pick; }"
                " let v = sentence; while (e.minLength > 0 && v.length < e.minLength) v += ' ' + sentence;"
                " return e.maxLength > 0 ? v.slice(0, e.maxLength) : v; }")
 # A different value for a field that already holds one, within its length limit (Save waits for a change).
