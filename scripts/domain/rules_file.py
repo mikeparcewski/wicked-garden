@@ -121,6 +121,8 @@ def check_rule_entry(entry: Any) -> str | None:
             return f"mismatch {why}"
         if entry["mismatch"].lstrip().startswith("-"):
             return "mismatch starts with '-' (the host passes it to the estate CLI as a value)"
+        if " ".join(entry["mismatch"].split()).casefold() == "code meets it":
+            return "mismatch is the host's reserved 'code meets it'"
     if "provenance" in entry:
         prov = entry["provenance"]
         if not isinstance(prov, dict):

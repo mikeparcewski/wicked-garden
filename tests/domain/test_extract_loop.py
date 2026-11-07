@@ -669,15 +669,18 @@ def test_the_mismatch_is_read_back_on_its_own_key():
             if type != extract_loop.CODE_MISMATCH_ANN:  # the mismatch silently does not land
                 super().annotate(symbol_id, type, key, value, **kw)
 
+    lossy = Lossy()
     with pytest.raises(RuntimeError, match=":mismatch on read-back"):
-        extract_loop.decide_and_write(Lossy(), None, sid, "charge", _unmet(sid), {sid}, {}, {})
+        extract_loop.decide_and_write(lossy, None, sid, "charge", _unmet(sid), {sid}, {}, {})
+    # codex r2: checked BEFORE anything counts, so a lost finding leaves the unit unresolved.
+    assert lossy.annotation_writes == [] and lossy.requirement_writes == []
 
-    def read_back(s, key):
+    def read_back(s, key, value=None):
         landed.append(key)
         return True
     extract_loop.decide_and_write(_mocks.EstateClient(), None, sid, "charge", _unmet(sid), {sid},
                                   {}, {}, read_back=read_back)
-    assert len(landed) == 2 and landed[1] == landed[0] + ":mismatch"
+    assert len(landed) == 2 and landed[0] == landed[1] + ":mismatch", "the finding first"
 
 
 def test_a_restatement_the_code_meets_writes_code_meets_over_an_earlier_mismatch():
@@ -722,3 +725,38 @@ def test_a_host_models_mismatch_is_one_bounded_line_without_control_characters()
     text = _rule_extractor.code_mismatch(rule)
     assert "\x00" not in text and "\x07" not in text and "\n" not in text
     assert text.startswith("skips the first element") and len(text) == 300
+
+
+def test_an_older_row_never_vouches_for_a_replacement_that_did_not_land():
+    """codex r2: a stale mismatch on the key, and a CODE_MEETS replacement that silently fails:
+    the read-back checks the value, so the write is not reported durable."""
+    from domain import _mocks
+    sid = "sym::payments::Payment.charge::b1"
+
+    class Stuck(_mocks.EstateClient):
+        def annotate(self, symbol_id, type, key, value, **kw):
+            if type == extract_loop.CODE_MISMATCH_ANN and value == extract_loop.CODE_MEETS:
+                return  # the replacement does not land; the old row stays
+            super().annotate(symbol_id, type, key, value, **kw)
+
+    stuck = Stuck()
+    extract_loop.decide_and_write(stuck, None, sid, "charge", _unmet(sid), {sid}, {}, {})
+    with pytest.raises(RuntimeError, match=":mismatch on read-back"):
+        extract_loop.decide_and_write(stuck, None, sid, "charge", _good(sid), {sid}, {}, {},
+                                      prior_mismatch=lambda s: True)
+
+
+def test_a_seat_can_never_write_the_hosts_clearing_value():
+    """codex/pi r2: "code meets it" as a seat's mismatch would hide its own finding."""
+    for forged in ("code meets it", "  Code   Meets It ", "-- code meets it"):
+        assert _rule_extractor.code_mismatch(_unmet("a::b", mismatch=forged)) == ""
+        ok, _ = _rule_extractor.validate_rule(_unmet("a::b", mismatch=forged), {"a::b"})
+        assert not ok
+
+
+@pytest.mark.parametrize("bad", ["false", 0, None, "no"])
+def test_file_mode_never_reads_a_malformed_code_meets_as_met(bad):
+    """codex r2: a present, non-boolean code_meets became a rule the code meets in file mode."""
+    entry = extract_loop.to_entry("a::b", {**_good("a::b"), "code_meets": bad})
+    ok, _ = _rule_extractor.validate_rule(entry, {"a::b"})
+    assert not ok, entry

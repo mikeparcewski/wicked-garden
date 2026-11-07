@@ -50,7 +50,7 @@ RESOLVE_THRESHOLD = 0.75
 CODE_MISMATCH_ANN = "code_mismatch"
 # wicked-core's `CODE_MEETS`: the value a restatement writes over an earlier mismatch (estate's CLI
 # has no annotation delete; `--replace` on the same key retires the old one).
-CODE_MEETS = "code meets it"
+CODE_MEETS = _rule_extractor.CODE_MEETS
 
 
 
@@ -139,6 +139,19 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
     # fails, the node is not yet resolved and the next apply asks it again, so a requirement never
     # counts without its finding. A rule the code meets writes `CODE_MEETS` over an earlier
     # mismatch (`clear_mismatch`), so a fixed unit stops showing one.
+    def durable(key: str, value: str | None = None) -> None:
+        # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
+        # reads it back directly (`read_back(sid, key, value)`, one query instead of a third
+        # process). With `value`, the row must hold exactly that (codex r2: an older row on the same
+        # key must not vouch for a replacement that did not land).
+        if read_back is not None:
+            ok = read_back(sid, key, value)
+        else:
+            ok = any(a.get("key") == key and (value is None or a.get("value") == value)
+                     for a in estate.read_annotations(sid))
+        if not ok:
+            raise RuntimeError(f"write not durable: {sid} missing annotation {key} on read-back")
+
     marker = ""
     if resolved and rule:
         marker = _rule_extractor.code_mismatch(rule) or (CODE_MEETS if clear_mismatch else "")
@@ -146,6 +159,8 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
         estate.annotate(sid, type=CODE_MISMATCH_ANN, key=f"{rid}:mismatch", value=marker,
                         confidence=float(rule.get("confidence", 0.9)),
                         provenance="extract-loop:code-mismatch", replace=True, author=seat)
+        # Verified BEFORE anything counts: a lost finding leaves the unit unresolved (codex r2).
+        durable(f"{rid}:mismatch", marker)
     if resolved and rule:
         stmt = rule["statement"]
         estate.annotate(sid, type="business_rule", key=rid, value=stmt,
@@ -171,17 +186,7 @@ def _write_node(estate, sid: str, name: str, rule: dict | None, resolved: bool, 
                         confidence=safe_conf,
                         provenance="extract-loop:risk", replace=True, author=seat)
         estate.set_requirement(sid, requirement=risk_req, validated=False, validated_by=seat)
-    # Read-back re-derive: never trust the write's exit code alone. A caller holding the store
-    # reads it back directly (`read_back(sid, key)`, one query instead of a third process).
-    # Each write on its own key: the mismatch can never vouch for a rule that did not land.
-    keys = [rid] + ([f"{rid}:mismatch"] if marker else [])
-    for key in keys:
-        if read_back is not None:
-            durable = read_back(sid, key)
-        else:
-            durable = any(a.get("key") == key for a in estate.read_annotations(sid))
-        if not durable:
-            raise RuntimeError(f"write not durable: {sid} missing annotation {key} on read-back")
+    durable(rid)
 
 
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
@@ -337,6 +342,22 @@ class _DirectStore:
         if sid is None:
             return 0
         return self.in_deg.get(sid, 0) + len(self.callees.get(sid, []))
+
+    def mismatch_now(self, symbol_id: str) -> bool:
+        """Does the unit show a code mismatch now: its newest non-blank `code_mismatch` (ts, then
+        row id) is not `CODE_MEETS` (operator ruling 2026-11-06)? A rule the code meets then
+        writes `CODE_MEETS` over it. A store without annotations shows none."""
+        import sqlite3
+        sid = self.sid_of.get(symbol_id)
+        if sid is None:
+            return False
+        try:
+            row = self._c.execute(
+                "SELECT value FROM annotations WHERE node_sym = ? AND type = ? AND trim(value) != '' "
+                "ORDER BY ts DESC, id DESC LIMIT 1", (sid, CODE_MISMATCH_ANN)).fetchone()
+        except sqlite3.OperationalError:
+            return False
+        return row is not None and row[0].strip() != CODE_MEETS
 
     def source_slice(self, symbol_id: str, cap: int = 4000) -> str:
         sid = self.sid_of.get(symbol_id)
@@ -906,8 +927,10 @@ def decide_and_write(estate, store, sid: str, name: str, rule: dict | None, ids:
         # penalty on units with no Louvain community; a community boost of up to 1.1 likewise
         # raised rules the seat was unsure of). Communities still frame the unit, never its verdict.
         resolved = float(rule["confidence"]) >= RESOLVE_THRESHOLD
-        # `prior_mismatch(sid)`: the unit shows a code mismatch now (the host's direct read).
-        clear = bool(resolved and prior_mismatch is not None and prior_mismatch(sid))
+        # Does the unit show a code mismatch now? The caller's read, else the direct store's: every
+        # writer that holds a store clears a stale finding (codex r2).
+        shows = prior_mismatch or getattr(store, "mismatch_now", None)
+        clear = bool(resolved and shows is not None and shows(sid))
         _write_node(estate, sid, name, rule, resolved,
                     "below confidence threshold" if not resolved else "", seat=seat, read_back=read_back,
                     clear_mismatch=clear)
@@ -989,6 +1012,9 @@ def to_entry(sid: str, rule: dict | None) -> dict:
     if rule.get("code_meets") is False:
         entry["code_meets"] = False
         entry["mismatch"] = _rule_extractor.code_mismatch(rule)
+    elif "code_meets" in rule and not isinstance(rule["code_meets"], bool):
+        # Malformed (e.g. "false", 0, null): never read as a rule the code meets (codex r2).
+        entry["statement"] = ""
     if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
         entry["statement"] = ""
         entry.pop("mismatch", None)

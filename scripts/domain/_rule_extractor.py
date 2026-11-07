@@ -23,6 +23,10 @@ from typing import Any
 
 from domain.rules_file import MAX_MISMATCH
 
+# The value the host writes over an earlier mismatch when a unit is restated as met (wicked-core
+# `CODE_MEETS`); reserved, so a seat can never write it as a finding.
+CODE_MEETS = "code meets it"
+
 # C0 controls and DEL: never in a value the host hands estate's argv.
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 
@@ -176,7 +180,9 @@ def code_mismatch(rule: Any) -> str:
     # (`MAX_MISMATCH`; the file refuses a longer one, a host model's answer is cut to it), and never
     # starting with "-": it is an argv value to the estate CLI, which reads a leading "--" as a flag.
     text = text.encode("utf-8", "replace").decode("utf-8")
-    return " ".join(_CONTROL.sub(" ", text).split())[:MAX_MISMATCH].lstrip("- ").strip()
+    text = " ".join(_CONTROL.sub(" ", text).split())[:MAX_MISMATCH].lstrip("- ").strip()
+    # The host's own clearing value is never a seat's finding (codex/pi r2: it would hide one).
+    return "" if text.casefold() == CODE_MEETS else text
 
 
 def extract_rules(batch: list[dict[str, Any]], model_argv: list[str],

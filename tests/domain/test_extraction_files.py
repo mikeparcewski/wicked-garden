@@ -1317,25 +1317,36 @@ def test_a_rules_file_entry_may_say_the_code_does_not_meet_its_requirement():
     assert "starts with" in rules_file.check_rule_entry({**entry, "mismatch": "--value x"})
 
 
-def test_the_host_reads_whether_a_unit_shows_a_code_mismatch_now(tmp_path):
-    """The newest `code_mismatch` decides (ts, then row id); `CODE_MEETS` is no finding."""
+def test_the_direct_store_reads_whether_a_unit_shows_a_code_mismatch_now(tmp_path):
+    """The newest non-blank `code_mismatch` decides (ts, then row id); `CODE_MEETS` is no finding,
+    and a newer blank never hides a real one."""
     import sqlite3
     db = tmp_path / "estate.db"
     con = sqlite3.connect(db)
     con.executescript(
         "CREATE TABLE symbols (sid INTEGER PRIMARY KEY, sym TEXT UNIQUE);"
+        "CREATE TABLE nodes (symbol INTEGER, name TEXT, file TEXT, data TEXT, requirement TEXT);"
+        "CREATE TABLE edges (source INTEGER, target INTEGER, kind TEXT);"
         "CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, node_sym INTEGER, "
         "key TEXT, value TEXT, ts INTEGER, type TEXT);"
-        "INSERT INTO symbols VALUES (1, 's::sum'), (2, 's::mean'), (3, 's::clamp');"
+        "INSERT INTO symbols VALUES (1, 's::sum'), (2, 's::mean'), (3, 's::clamp'), (4, 's::max');"
         "INSERT INTO annotations (node_sym, key, value, ts, type) VALUES "
         "(1, 'R:mismatch', 'skips the first', 100, 'code_mismatch'),"
         "(2, 'R:mismatch', 'skips the first', 100, 'code_mismatch'),"
         f"(2, 'R:mismatch', '{extract_loop.CODE_MEETS}', 100, 'code_mismatch'),"
-        "(3, 'R', 'clamp bounds n', 100, 'business_rule');")
+        "(3, 'R', 'clamp bounds n', 100, 'business_rule'),"
+        "(4, 'R:mismatch', 'off by one', 100, 'code_mismatch'),"
+        "(4, 'Q:mismatch', '  ', 200, 'code_mismatch');")
     con.commit()
     con.close()
-    now = apply_rules._mismatch_now(str(db))
-    assert now("s::sum") is True
-    assert now("s::mean") is False, "the later row (same second) is CODE_MEETS"
-    assert now("s::clamp") is False
-    assert apply_rules._mismatch_now(str(tmp_path / "missing.db")) is None
+    store = extract_loop._DirectStore(str(db))
+    assert store.mismatch_now("s::sum") is True
+    assert store.mismatch_now("s::mean") is False, "the later row (same second) is CODE_MEETS"
+    assert store.mismatch_now("s::clamp") is False
+    assert store.mismatch_now("s::max") is True, "a newer blank never hides it"
+    assert store.mismatch_now("s::unknown") is False
+
+
+def test_the_rules_file_refuses_the_hosts_clearing_value_as_a_mismatch():
+    entry = {**_rule("s::sum"), "code_meets": False, "mismatch": " Code meets  IT "}
+    assert "reserved" in rules_file.check_rule_entry(entry)
