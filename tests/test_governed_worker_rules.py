@@ -307,3 +307,17 @@ def test_e7_evaluators_judge_the_rules_they_are_handed():  # operator ruling 202
     assert "the last line stays one `VERDICT:` line" in rule
     desc = FLOOR.read_text(encoding="utf-8").split("\n", 3)[2]
     assert "judge the steering rules they are handed" in desc
+
+
+def test_e7_judges_this_change_not_the_code_it_did_not_touch():  # wicked-core#1339, run 92749083
+    """A mapping page that wrote only its rules file was failed on a JSDoc rule broken by existing
+    code. Falsifier: drop the wording and an evaluator reads "covers every file" as licence to fail
+    a change for lines it never touched."""
+    rule = _rule("E7")
+    flat = " ".join(rule.split())
+    assert "judge THIS change" in flat
+    assert "it breaks a rule when it introduces or activates the break" in flat
+    assert "adds, modifies, deletes or renames" in flat
+    assert "including through code it did not touch" in flat
+    assert "`RULE <id>: N/A — pre-existing: <file:line> is not in this change`" in flat
+    assert "never a Critical or a FAIL" in flat
