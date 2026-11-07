@@ -34,8 +34,9 @@ and exits 0 with no findings, 1 with findings, 2 when the packet cannot be read.
 - claims: a bad or duplicate ``C<n>`` id, empty text, no source (``claim-unsourced``), a source id the
   log does not hold (``claim-unknown-source``);
 - the report: empty; a ``[C<n>]`` citation of an unknown claim (any length); a claim the report never
-  cites; a URL (in the report or in a claim) not written as ``<url>`` or ``[title](url)``
-  (``url-form``), or not exactly a web source in the log, its fragment aside (``url-not-in-log``);
+  cites; a URL (in the report or in a claim) not written as ``<url>`` or ``[title](url)``, or carrying an
+  escape or character reference, or any other link form (``url-form``); a URL that is not exactly a web
+  source in the log, its fragment aside (``url-not-in-log``);
 - the stop rule: a lens that requires documents producing claims with none staged
   (``documents-required``); a stop that carries claims or a report (the reason is the whole output);
   a stop while something is readable: a non-empty staged document, a source in the log, or text in
@@ -48,13 +49,14 @@ Standard library only.
 from __future__ import annotations
 
 import argparse
+import bisect
 import json
 import re
 import sys
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlsplit
 
 # The six lenses (refs/report-<lens>.md) and their documents rule (DES-CATALOG-002 rev 8 §3, ruling 5):
 # crew's catalog holds Start for a required input; this is the same rule, checked again by the seat.
@@ -86,6 +88,18 @@ CITE_GROUP_RE = re.compile(r"\[\s*(C\d+(?:\s*,\s*C\d+)*)\s*\]")
 # punctuation is ever trimmed, so what is checked is exactly what a reader opens.
 URL_START_RE = re.compile(r"https?://", re.IGNORECASE)
 URL_MAX_CHARS = 4096
+# What a renderer would decode or link that the floor does not read: a backslash escape or a character
+# reference inside a URL, a link destination or autolink that does not start with http(s)://, a
+# reference definition not in angle form, a www. autolink, raw HTML links. Each is refused as url-form.
+URL_ESCAPE_RE = re.compile(r"\\|&(?:#[0-9]+|#[xX][0-9a-fA-F]+|[A-Za-z][A-Za-z0-9]*);")
+LINKISH_RES = (
+    (re.compile(r"\]\((?!\s*<?https?://)", re.IGNORECASE), "a link destination that is not http(s)://"),
+    (re.compile(r"<(?!https?://)[A-Za-z][A-Za-z0-9+.-]*:", re.IGNORECASE), "an autolink that is not http(s)://"),
+    (re.compile(r"^ {0,3}\[[^\]\n]+\]:(?![ \t]*<https?://)", re.IGNORECASE | re.MULTILINE),
+     "a reference definition not written as [ref]: <url>"),
+    (re.compile(r"(?<![/\w.@-])www\.", re.IGNORECASE), "a www. address"),
+    (re.compile(r"<a\b|\b(?:href|src)\s*=", re.IGNORECASE), "a raw HTML link"),
+)
 # Seconds required: Python 3.10's fromisoformat refuses a time without them.
 ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.(\d{1,9}))?(?:Z|[+-]\d{2}:\d{2})$")
 TEXT_SUFFIXES = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".jsonl", ".yaml", ".yml",
@@ -125,23 +139,26 @@ def _iso(v: object) -> datetime | None:
 
 
 def norm_url(url: str) -> str | None:
-    """Scheme and host lowercased and the fragment dropped; the path and query are kept as written."""
+    """Scheme and host lowercased and the fragment dropped; everything else is kept exactly as written."""
     try:
-        p = urlparse(url.strip())
+        p = urlsplit(url.strip())
         p.port  # noqa: B018  (raises ValueError on a malformed authority)
     except ValueError:
         return None
     if p.scheme.lower() not in ("http", "https") or not p.netloc:
         return None
-    return urlunparse((p.scheme.lower(), p.netloc.lower(), p.path, p.params, p.query, ""))
+    rest = url.strip()[len(p.scheme) + 3 + len(p.netloc):].split("#", 1)[0]
+    return f"{p.scheme.lower()}://{p.netloc.lower()}{rest}"
 
 
 def urls_in(text: str) -> list[tuple[str | None, str]]:
     """Every URL in the text as ``(url, snippet)``; ``url`` is ``None`` when it is not written in one of
-    the two delimited forms. Each URL is read once, forward, at most ``URL_MAX_CHARS`` characters; a URL
-    start inside a URL already read (a query parameter) is part of it."""
+    the two delimited forms, or the text links somewhere the floor does not read (``LINKISH_RES``). Each
+    URL is read once, forward, at most ``URL_MAX_CHARS`` characters; a URL start inside a URL already
+    read (a query parameter) is part of it."""
     text = text or ""
     out: list[tuple[str | None, str]] = []
+    spans: list[tuple[int, int]] = []  # the URLs read, in order: matches inside them are part of them
     covered = 0
     for m in URL_START_RE.finditer(text):
         i = m.start()
@@ -159,9 +176,20 @@ def urls_in(text: str) -> list[tuple[str | None, str]]:
                 url = window[:j]
         if url is None:
             out.append((None, window[:80]))
+            continue
+        covered = i + len(url)
+        spans.append((i, covered))
+        if URL_ESCAPE_RE.search(url):
+            out.append((None, url[:80] + " (an escape or character reference: write the URL as the reader opens it)"))
         else:
             out.append((url, url))
-            covered = i + len(url)
+    starts = [a for a, _ in spans]
+    for rx, what in LINKISH_RES:
+        for m in rx.finditer(text):
+            k = bisect.bisect_right(starts, m.start()) - 1
+            if k >= 0 and spans[k][0] <= m.start() < spans[k][1]:
+                continue
+            out.append((None, f"{text[m.start():m.start() + 60]} ({what})"))
     return out
 
 

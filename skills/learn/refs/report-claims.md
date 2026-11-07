@@ -59,9 +59,11 @@ A web source looks like `{"id": "S4", "url": "https://example.org/terms", "title
 Times are ISO-8601 with seconds and a zone (`2026-11-06T21:41:03Z`).
 
 **URLs.** Write every URL, in the report and in claims, in one of two forms: `<url>`, or a link
-`[title](url)`. A URL containing parentheses goes in angle brackets: `<url>` or `[title](<url>)`. A bare URL
-or a link with a title is refused (`url-form`), because the floor reads URLs exactly and never trims
-punctuation. A URL appears only when it is exactly the `url` of a web source in the log (a fragment may
+`[title](url)`. A URL containing parentheses goes in angle brackets: `<url>` or `[title](<url>)`. A
+reference definition is `[ref]: <url>`. Write each URL as the reader opens it: no backslash escapes and no
+character references (`&amp;`, `&#58;`). Anything else is refused (`url-form`): a bare URL, a link with a
+title, a relative or `//` link, another scheme, a `www.` address, raw HTML links. The floor reads URLs
+exactly and never trims or decodes. A URL appears only when it is exactly the `url` of a web source in the log (a fragment may
 differ; a trailing slash may not). A file source names only a file among `documents`, or `brief`.
 
 ## The floor

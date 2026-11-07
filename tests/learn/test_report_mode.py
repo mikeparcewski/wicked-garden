@@ -589,6 +589,37 @@ def test_url_reading_is_bounded(text):
     assert time.monotonic() - t < 3
 
 
+# --- what a renderer decodes or links, refused (codex r7 probes) ---------------------------------
+
+@pytest.mark.parametrize("text", [
+    "[t](https://example.org/terms&#x2f;evil)",      # a character reference the renderer decodes
+    "[t](https&#58;//unfetched.invalid/x)",           # an encoded scheme
+    "[t](https://example.org/a\\)b)",               # a backslash escape
+    "[t](<https://example.org/a&amp;b>)",
+    "[t](//unfetched.invalid/x)", "[sow](sow.pdf)", "<mailto:someone@example.org>", "<ftp://x.invalid/y>",
+    "see www.unfetched.invalid for more", '<a href="https://unfetched.invalid">x</a>',
+    "[t][ref]\n\n[ref]: https://example.org/terms", "[t][ref]\n\n[ref]: https&#58;//unfetched.invalid",
+])
+def test_links_the_floor_cannot_read_exactly_are_refused(text):
+    p = packet(report=f"[C1] [C2] [C3] {text}")
+    assert "url-form" in rules(run_check(p)[1])
+
+
+@pytest.mark.parametrize("text", [f"[t][ref]\n\n[ref]: <{URL}>", "<https://www.example.org/x?href=1>",
+                                  f"<{URL}?a=1&b=2>"])
+def test_the_exact_forms_still_pass(text):
+    p = packet(report=f"[C1] [C2] [C3] {text}")
+    url = text[text.index("<") + 1:text.index(">")]
+    p["sources"][2]["url"] = url
+    assert run_check(p)[0] == 0
+
+
+@pytest.mark.parametrize("cited", [f"<{URL};>", f"<{URL}?>", f"<{URL}?a=1>"])
+def test_params_and_an_empty_query_are_part_of_the_url(cited):
+    p = packet(report=f"[C1] [C2] [C3] {cited}")
+    assert "url-not-in-log" in rules(run_check(p)[1])
+
+
 # --- the skill text -----------------------------------------------------------------------------
 
 def _skill() -> str:
