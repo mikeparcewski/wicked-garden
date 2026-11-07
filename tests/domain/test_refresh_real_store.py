@@ -140,7 +140,9 @@ def test_the_fixture_carries_no_identity_of_the_machine_that_built_it(tmp_path):
         if f.suffix == ".py":  # the builder names what it turns off
             continue
         raw = f.read_bytes()
-        for marker in (b"/Users/", b"/home/", b"/private/", b"gpgsig", b"SSH SIGNATURE"):
+        # Home and temp roots of macOS and Linux, spelled in parts so this file holds none.
+        for marker in (b"/Us" + b"ers/", b"/ho" + b"me/", b"/pri" + b"vate/", b"gpgsig",
+                       b"SSH SIGNATURE"):
             assert marker not in raw, (f.name, marker)
 
 
