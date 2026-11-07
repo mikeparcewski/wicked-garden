@@ -837,6 +837,7 @@ def test_every_editor_runs_the_edit_and_shows_cases():
     assert list(mod.CASES_V1) == EVERY_EDITOR
     assert list(mod.CASES_V2) == ["13-surfaces", "14-card", "15-options", "16-full"]
     assert mod.expected_cases({"protocol": [1, 2]}) == 18 and mod.expected_cases({"protocol": [1]}) == 15
+    assert mod.BEHAVIOUR_CASES == ("7-edit", "18-shows") and set(mod.BEHAVIOUR_CASES) <= set(mod.CASES_V1)
 
 
 def test_shown_runs_matches_the_handed_text_whatever_the_whitespace():
@@ -914,9 +915,35 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
     _edit_entry(unmarked, mark=False)
     cases = _cases(unmarked)
     assert cases["7-edit"]["ok"] is False and "data-wicked-save" in cases["7-edit"]["error"], cases["7-edit"]
+    # A validating form: Save stays disabled until a valid email and a note are in (a 300 ms debounce); what was
+    # typed reaches the version.
+    form = tmp_path / "form"
+    assert scaffold(form, *perms).returncode == 0
+    entry = form / FIXTURE_ENTRY
+    entry.write_text(entry.read_text()
+        .replace('<button type="button" id="full">', '<input type="email" id="who" required aria-label="Who"> '
+                 '<input type="text" id="note" aria-label="Note"> ' + SAVE_BUTTON.replace(">Save", " disabled>Save")
+                 + ' <button type="button" id="full">', 1)
+        .replace("\n  async function load() {", """
+  let wait = null;
+  const valid = () => document.getElementById('who').checkValidity() && document.getElementById('who').value && document.getElementById('note').value;
+  for (const id of ['who', 'note']) document.getElementById(id).addEventListener('input', () => {
+    clearTimeout(wait); wait = setTimeout(() => { document.getElementById('save').disabled = !valid(); }, 300); });
+  document.getElementById('save').addEventListener('click', async () => {
+    const p = parts[0]; if (!p || !valid()) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + document.getElementById('note').value, before }], summary: 'A note' });
+  });
+  async function load() {""", 1))
+    assert run("pin.py", str(form)).returncode == 0
+    cases = _cases(form)
+    assert cases["7-edit"]["ok"] is True and cases["7-edit"]["filled"] == 2 and cases["7-edit"]["typed_in_version"] is True, cases["7-edit"]
     # A marked control that writes nothing: no version lands.
     entry = silent / FIXTURE_ENTRY
     entry.write_text(entry.read_text().replace('<button type="button" id="full">', SAVE_BUTTON + ' <button type="button" id="full">', 1))
     assert run("pin.py", str(silent)).returncode == 0
     cases = _cases(silent)
     assert cases["7-edit"]["ok"] is False and cases["7-edit"]["writes"] == 0, cases["7-edit"]
+    # A failed behaviour case never keeps the protocol-2 cases from reporting (the scaffold speaks protocol 2).
+    assert {c: cases[c]["ok"] for c in ("13-surfaces", "14-card", "15-options", "16-full")} == dict.fromkeys(
+        ("13-surfaces", "14-card", "15-options", "16-full"), True), cases

@@ -78,8 +78,8 @@ The template's plumbing is what the conformance run checks; keep it and put your
 - **Writes** (`version.write {base, ops, summary}`) carry text and colours only: `{op:'text',
   anchor, value, before}`, `{op:'style', anchor, style:{background?, color?}}`, `{op:'remove',
   anchor}`. A `stale` or `head_moved` reply is shown to the user, never retried silently. An editor that asks
-  `artifact.write` marks the ONE control that saves an edit with `data-wicked-save` (conformance case 7 fills its
-  empty text fields, presses that control and expects exactly one version).
+  `artifact.write` marks the control that saves an edit with `data-wicked-save` (conformance case 7 fills its
+  empty text fields with valid values, presses the first visible marked control and expects exactly one version).
 - **Show what you open**: an editor opens an artifact to show it. Ask `artifact.read`, read on the handshake and
   render it (case 18 looks for its text in your frame), and read again on `artifact.changed`.
 - **Events you answer**: `host.ping` within 2 s; `host.size` (inline / pane / full — the same
