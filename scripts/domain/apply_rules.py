@@ -154,24 +154,32 @@ def _record_answered(db: str, answered: list[str]) -> None:
               file=sys.stderr)
 
 
-def _changed_since_build(db: str, store) -> dict[str, dict]:
-    """The mapped behaviours this run's generation record lists as changed since the map was
-    built (`prepare_worklist.py` framed them), as coverage-style nodes read from the store. The
-    record is host-side, beside the store: a seat cannot add to it."""
+def _restatable(db: str, store) -> tuple[dict[str, dict], set[str]]:
+    """The mapped behaviours a page of this run may restate, as coverage-style nodes read from the
+    store, and which of them are changed since the map was built. They are:
+      * those the run's generation record lists as changed since the map was built
+        (`prepare_worklist.py` framed them, wicked-garden#1425);
+      * those this run itself framed (`visited` or `pending`): a send-back that reworks a page this
+        run already applied restates its own answer, e.g. a mismatch the review asked for
+        (e2e-1105 minor: mean's inherited mismatch never reached the store because its unit was
+        resolved by then and refused).
+    The record is host-side, beside the store: a seat cannot add to it."""
     run_id = (os.environ.get("WICKED_RUN_ID") or "").strip()
     if not run_id or store is None:
-        return {}
+        return {}, set()
     try:
-        ids = generation.changed(generation.load(db, run_id))
+        rec = generation.load(db, run_id)
     except (OSError, ValueError):
-        return {}
+        return {}, set()
+    changed = generation.changed(rec)
+    own = generation.visited(rec) | set((rec or {}).get("pending") or [])
     out = {}
-    for sid in ids:
+    for sid in changed | own:
         row = store.node_row.get(store.sid_of.get(sid))
         if row is not None:
             out[sid] = {"symbol_id": sid, "name": row[0] or "", "file": row[1] or "",
                         "kind": extract_loop.kind_of_row(row)}
-    return out
+    return out, changed
 
 
 def _rule_keys(db: str, symbol_id: str) -> list[str]:
@@ -225,7 +233,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                                             *_clients.placeholder_nodes(before)]
                 if isinstance(n, dict) and isinstance(n.get("symbol_id"), str)}
     # Mapped behaviours whose code changed since the map was built: restated, never degraded.
-    restate = {sid: n for sid, n in _changed_since_build(db, store).items() if sid not in unmapped}
+    restatable, changed_ids = _restatable(db, store)
+    restate = {sid: n for sid, n in restatable.items() if sid not in unmapped}
     nodes = {**restate, **unmapped}
     tracked = rules_file.tracked_files(repo_root)
 
@@ -235,7 +244,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         node = nodes.get(sid)
         if node is None:
             why = ("is not an unmapped behaviour or a placeholder in the store, nor a mapped one "
-                   "this run found changed since the map was built")
+                   "this run framed or found changed since the map was built")
         elif node.get("file") not in tracked:
             why = f"its file {node.get('file')!r} is not tracked in the repository"
         else:
@@ -258,6 +267,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     ids = {e["symbol_id"] for e in eligible}
     outcomes = {"resolved": 0, "risk": 0, "kept": 0}
     restated = 0  # changed mapped behaviours restated (counted in "resolved" too)
+    reworked = 0  # this run's own earlier answers restated on a rework (counted in "resolved" too)
     # Valid rules written unconfirmed, by why: no source read on the host, or not product code.
     unconfirmed = {extract_loop.NO_SOURCE_REASON: 0, extract_loop.NOT_PRODUCT_REASON: 0}
     in_progress = None  # the symbol whose writes have started and not finished
@@ -315,7 +325,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                     raise RuntimeError(f"write not durable: {sid} rule {key} on read-back")
             in_progress = None
             outcomes[outcome] += 1
-            restated += sid in restate
+            restated += sid in restate and sid in changed_ids
+            reworked += sid in restate and sid not in changed_ids
             answered.append(sid)
 
         _record_answered(db, answered)  # before anything that can still fail (codex r3)
@@ -342,7 +353,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "entries": len(doc.get("rules") or []),
         "applied": outcomes,
         "eligible": len(eligible),
-        "changed_since_build": {"listed": len(restate), "restated": restated},
+        "changed_since_build": {"listed": len(changed_ids & set(restate)), "restated": restated},
+        "reworked": reworked,
         "unsourced": unconfirmed[extract_loop.NO_SOURCE_REASON],
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],
@@ -366,7 +378,8 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
           f"{unconfirmed[extract_loop.NO_SOURCE_REASON]} with no source, "
           f"{unconfirmed[extract_loop.NOT_PRODUCT_REASON]} not product code), "
           f"{outcomes['kept']} kept, {len(refused)} refused, {restated} of "
-          f"{len(restate)} changed since the map was built restated "
+          f"{len(changed_ids & set(restate))} changed since the map was built restated, "
+          f"{reworked} of this run's own answers reworked "
           f"(written as {author}). {line or ''}".rstrip(), file=sys.stderr)
     return report
 

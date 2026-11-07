@@ -356,3 +356,32 @@ def test_at_the_minimum_a_page_that_answered_none_of_its_units_is_asked_not_page
     d = generation.decide(doc, repo="tm", target=80, now=60000, max_pages=20, max_minutes=240,
                           left_to_map=0, changed_left=30)
     assert d["next"] == "ask" and [c["id"] for c in d["choices"]] == ["continue", "finish"]
+
+
+def test_a_rework_restates_a_unit_this_run_already_applied(tmp_path, monkeypatch):
+    """e2e-1105 (run 672b5c14): the coverage review sent the run back for mean's inherited
+    mismatch after the page was applied; the extractor added it, but apply refused mean (already
+    resolved, not changed since the build), so the finding never reached the store. A unit this
+    run itself framed may be restated (only by a resolving rule); one it never framed may not."""
+    repo, built, base = _repo(tmp_path)
+    db, wt = _store(tmp_path, built, base), _wt(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-rework")
+    cov = _Core().coverage(db, str(tmp_path / "c.json"))
+    generation.open_record(db, "run-rework", cov, "tm")
+    rec = generation.load(db, "run-rework")
+    rec["visited"] = [MEAN]  # page 1 framed and closed it
+    generation.save(db, "run-rework", rec)
+    prov = {"source": "math", "ref": MEAN, "source_kinds": ["code-body"]}
+    rules = [{"symbol_id": MEAN, "statement": "The mean is the sum of every element over the count.",
+              "confidence": 0.9, "provenance": prov, "code_meets": False,
+              "mismatch": "it inherits sum's skipped first element"},
+             {"symbol_id": CLAMP, "statement": "A value is held within [lo, hi].",
+              "confidence": 0.9, "provenance": {**prov, "ref": CLAMP}}]
+    rules_file.write_json_file(wt, rules_file.RULES_REL, rules_file.rules_doc("claude", rules))
+    estate = _Estate()
+    report = apply_rules.apply(db, str(repo), wt, rules_file.RULES_REL, "coverage-report.json",
+                               estate=estate, core=_Core())
+    assert report["reworked"] == 1 and report["applied"]["resolved"] == 1
+    assert [r["symbol_id"] for r in report["refused"]] == [CLAMP]
+    mismatch = {v for (t, _k), v in estate.anns[MEAN].items() if t == "code_mismatch"}
+    assert mismatch == {"it inherits sum's skipped first element"}

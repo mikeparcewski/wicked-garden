@@ -84,6 +84,12 @@
   "no commit". The tests now run on a store real estate built (`tests/domain/fixtures/refresh/`, made by
   `build.py` with wicked-estate 0.32.1 and wicked-core). The hand-built test stores carry estate's real
   `meta(k, v)`.
+- **A rework restates a unit the run already applied (e2e-1105, run 672b5c14).** The coverage review sent the run back
+  for mean's inherited mismatch after the page was applied. The extractor added it, but `apply_rules.py` refused mean
+  because it was already resolved, so the finding never reached the store, and the next review passed on the rules
+  file alone. Apply now also accepts the units this run itself framed (its generation record's visited and pending
+  units, host-side), and, as for changed units, only a restatement that resolves is written. The apply report counts
+  them as `reworked`.
 
 - **domain-extraction: Refresh map re-asks the mapped behaviours whose code changed since the map was built**
   (wicked-garden#1425). `prepare_worklist.py` compares the build's code commit (wicked-core#1327) with the commit the
