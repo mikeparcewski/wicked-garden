@@ -78,8 +78,9 @@
 - **The domain extractor records an inherited mismatch and edits its rules file with the file tools (e2e-1105).**
   Two misses repeated in every run:
   - The first pass missed mean's inherited mismatch: mean's own code is right, but it relies on `sum`, which skips
-    the first element. The skill now says a unit whose result is wrong because a callee departs inherits that
-    mismatch: mark it `code_meets: false`, with a mismatch naming the callee.
+    the first element. The skill now says a unit whose intent is shown (by a doc comment, a test or a caller) and
+    whose result is wrong because a callee departs inherits that mismatch: mark it `code_meets: false`, with a
+    mismatch naming the callee. A unit whose intent is unclear still gets no mismatch.
   - The rework edited `rules.json` with an inline `python3 - <<…`, which the seat's input governance refuses. The
     skill no longer says "a helper that writes the file is fine". It says to create and change the file with the
     file write and edit tools, never an inline interpreter.

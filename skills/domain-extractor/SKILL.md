@@ -103,10 +103,10 @@ and only this:
    requirement, and add `"code_meets": false` and a one-line `"mismatch"` saying how the code
    departs (e.g. "the loop starts at index 1, so the first element is skipped"), but only when a
    doc comment, a test or a caller shows the intended requirement; a unit whose intent is
-   unclear still gets an empty statement and no mismatch. A unit whose own code is right but
-   whose result is wrong because a callee it relies on departs inherits that mismatch: mark it
-   `"code_meets": false` too, with a mismatch naming the callee (e.g. "inherits sum's skipped
-   first element, so the mean is too low"). Never restate
+   unclear still gets an empty statement and no mismatch. A unit whose intent is shown that
+   way and whose own code is right, but whose result is wrong because a callee it relies on
+   departs, inherits that mismatch: mark it `"code_meets": false` too, with a mismatch naming
+   the callee (e.g. "inherits sum's skipped first element, so the mean is too low"). Never restate
    the bug as the requirement, and never lower the confidence because the code is wrong: the
    requirement counts, and the mismatch is shown beside it as a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
