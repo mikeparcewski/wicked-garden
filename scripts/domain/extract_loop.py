@@ -1083,6 +1083,12 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         framed = [_rule_extractor.frame_context(
             u, str(u.get("source") or "")[:4000], cluster_label=u.get("cluster"),
             neighbor_names=[str(x) for x in (u.get("neighbors") or [])][:8]) for u in take]
+        for f, u in zip(framed, take):
+            # A mapped unit whose code changed since the map was built (wicked-garden#1425, codex
+            # r2): the prompt says so and shows the earlier statement, as data.
+            if u.get("changed_since_build") is True:
+                f.update(changed_since_build=True,
+                         prior_statement=str(u.get("prior_statement") or "")[:600])
         ids = {u["symbol_id"] for u in take}
         by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
         if by_id == _NO_MODEL:

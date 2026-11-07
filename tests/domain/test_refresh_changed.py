@@ -176,7 +176,8 @@ def test_a_fixed_function_is_re_asked_restated_and_its_mismatch_cleared(tmp_path
     assert report["applied"] == {"resolved": 1, "risk": 0, "kept": 1}
     assert report["changed_since_build"] == {"listed": 2, "restated": 1}
     assert [r["symbol_id"] for r in report["refused"]] == [CLAMP]
-    # sum: restated, "code meets it" written over the stale finding, and the earlier rule row
+    # sum: restated, "code meets it" written as its NEWEST code_mismatch (wicked-core reads the
+    # newest per node, whatever its key: `code_mismatch_of`), and the earlier rule row
     # (under another key: `RULE-1` here) superseded too, so the graph keeps no obsolete statement
     rid = extract_loop.rule_key(SUM, "extract-loop")
     assert rid != "RULE-1"
@@ -277,3 +278,81 @@ def test_a_low_yield_page_still_offers_to_go_on_while_changed_units_are_left():
     d = generation.decide(doc, repo="tm", target=80, now=60000, max_pages=20, max_minutes=240,
                           left_to_map=0, changed_left=20)
     assert d["next"] == "ask" and "continue" in [c["id"] for c in d["choices"]]
+
+
+def test_the_seat_harness_keeps_the_refresh_framing_through_to_the_prompt(tmp_path, monkeypatch):
+    """codex r2: `run_files` re-frames each worklist unit; the changed mark and the earlier
+    statement must survive to the prompt the model sees."""
+    from domain import _rule_extractor
+    repo, built, base = _repo(tmp_path)
+    db, wt = _store(tmp_path, built, base), _wt(tmp_path)
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    _prepare(db, repo, wt)
+    prompts = []
+
+    def model(take, framed, ids, model_argv, dry_run, deadline=None):
+        prompts.append(_rule_extractor._build_prompt(framed))
+        return {}
+    monkeypatch.setattr(extract_loop, "_ask_model", model)
+    extract_loop.run_files(wt, rules_file.WORKLIST_REL, rules_file.RULES_REL, time_budget=30,
+                           limit=0, batch=8, dry_run=True)
+    assert prompts and "mapped before and its code has changed since" in prompts[0]
+    assert "The sum of numbers must include every element." in prompts[0]
+
+
+def test_a_changed_unit_closes_only_on_the_host_answer_record(tmp_path):
+    """codex r2: without an answer record, a page closes what is real now; a changed mapped unit
+    was real before the page, so it must stay open until the host records it answered."""
+    db = str(tmp_path / "estate.db")
+    cov = {"behavior_bearing": 3, "resolved": 3, "risk_flagged": 0, "unaccounted": 0,
+           "unaccounted_nodes": [], "placeholder_nodes": [], "not_product": 0}
+    generation.open_record(db, "run-1", cov, "tm")
+    generation.frame_page(db, "run-1", [SUM, "s::new"], changed_ids=[SUM])
+    rec = generation.load(db, "run-1")  # extract-apply never recorded its answers
+    generation.close_page(rec, cov)
+    assert rec["visited"] == ["s::new"] and generation.changed_left(rec) == 1
+
+
+def test_lower_still_ends_the_mapping_with_changed_units_left(tmp_path):
+    """codex r2: "Lower the minimum ... and build the graph" keeps its word."""
+    from domain import next_page
+
+    class Core(_Core):
+        def __init__(self):
+            self.target = 80
+        def coverage(self, db, out):
+            doc = {"coverage": 1.0, "behavior_bearing": 3, "resolved": 2, "risk_flagged": 0,
+                   "unaccounted": 1, "unaccounted_nodes": [], "placeholder_nodes": [],
+                   "not_product": 0}
+            Path(out).write_text(json.dumps(doc))
+            return doc
+        def requirements_target(self, db, set_pct=None):
+            if set_pct is not None:
+                self.target = set_pct
+            return self.target, "repository" if set_pct is not None or self.target != 80 else "daemon"
+    db = str(tmp_path / "estate.db")
+    core = Core()
+    generation.open_record(db, "run-1", core.coverage(db, str(tmp_path / "c.json")), "tm")
+    generation.frame_page(db, "run-1", [SUM], changed_ids=[SUM, MEAN])
+    env = {"WICKED_RUN_ID": "run-1", "WICKED_REPEAT_CHOICE": "lower", "WICKED_REPEAT_PASS": "1"}
+    repo, _built, _base = _repo(tmp_path)
+    d = next_page.run(db, str(repo), core=core, env=env, now=60000)
+    assert d["next"] == "done"
+
+
+def test_an_ask_under_one_percent_with_changed_units_left_offers_a_way_to_finish():
+    """codex r2: with no share to lower to, the budget ask must still let the operator finish."""
+    doc = _gen_doc(0, changed=[SUM])
+    doc["points"][-1].update(real=1, behaviours=1000)
+    d = generation.decide(doc, repo="tm", target=80, now=60000, max_pages=1, max_minutes=240,
+                          left_to_map=0, changed_left=1)
+    assert d["next"] == "ask" and [c["id"] for c in d["choices"]] == ["continue", "finish"]
+
+
+def test_at_the_minimum_a_page_that_answered_none_of_its_units_is_asked_not_paged_on():
+    """pi r2: a seat that never reaches the changed units must not burn the whole budget."""
+    doc = _gen_doc(100, changed=[f"s::{i}" for i in range(30)])
+    doc["points"][-1].update(framed=30, page_real=0)
+    d = generation.decide(doc, repo="tm", target=80, now=60000, max_pages=20, max_minutes=240,
+                          left_to_map=0, changed_left=30)
+    assert d["next"] == "ask" and [c["id"] for c in d["choices"]] == ["continue", "finish"]

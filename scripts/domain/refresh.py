@@ -121,9 +121,6 @@ def _mapped_in(db: str, files: list[str]) -> list[tuple[str, str, str, str, str]
     return out
 
 
-RULE_KEYS_LIMIT = 16  # earlier rule rows one restatement supersedes
-
-
 def rule_keys(db: str, symbol_id: str) -> list[str]:
     """The keys of the business rules `symbol_id` holds now (host read, read-only)."""
     con = _ro(db)
@@ -131,9 +128,10 @@ def rule_keys(db: str, symbol_id: str) -> list[str]:
         if not con.execute("SELECT 1 FROM sqlite_master WHERE type = 'table' AND "
                            "name = 'annotations'").fetchone():
             return []  # a store that keeps no annotations holds no rule rows
+        # Every key (codex r2): a row left out would keep its obsolete statement in the graph.
         rows = con.execute("SELECT DISTINCT a.key FROM annotations a JOIN symbols s ON "
                            "s.sid = a.node_sym WHERE s.sym = ? AND a.type = 'business_rule' "
-                           "ORDER BY a.key LIMIT ?", (symbol_id, RULE_KEYS_LIMIT)).fetchall()
+                           "ORDER BY a.key", (symbol_id,)).fetchall()
     finally:
         con.close()
     return [r[0] for r in rows if isinstance(r[0], str)]

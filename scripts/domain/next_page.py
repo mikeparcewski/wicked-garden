@@ -186,7 +186,9 @@ def run(db: str, repo_root: str, *, core=None, env: dict[str, str] | None = None
     decision = generation.decide(doc, repo=repo, target=target, now=now, max_pages=max_pages,
                                  max_minutes=max_minutes,
                                  left_to_map=_left_to_map(cov, repo_root, generation.visited(doc)),
-                                 changed_left=generation.changed_left(doc))
+                                 # "Lower the minimum ... and build the graph" ends the mapping
+                                 # as its label says, changed units left or not (codex r2).
+                                 changed_left=0 if choice == "lower" else generation.changed_left(doc))
     if choice == "finish":
         decision = {"next": "done", "line": generation.progress_line(
             repo, doc["points"], target, next_page=None, left_to_map=0)

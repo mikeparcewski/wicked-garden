@@ -227,8 +227,10 @@ def close_page(doc: dict[str, Any], coverage: dict[str, Any]) -> tuple[int, int 
     answered = doc.get("answered")
     if isinstance(answered, list):  # recorded by extract-apply, possibly empty
         closed = set(answered) & set(pending)
-    else:  # never recorded: only what is a real requirement now is known to be answered
-        closed = {s for s in pending if s not in unmapped and s not in held}
+    else:  # never recorded: only what is a real requirement now is known to be answered; a
+        # changed mapped unit was real BEFORE the page, so it closes only on the record (codex r2)
+        was_real = changed(doc)
+        closed = {s for s in pending if s not in unmapped and s not in held and s not in was_real}
     doc["visited"] = sorted(set(doc.get("visited") or []) | closed)
     doc["pending"] = []
     doc.pop("answered", None)
@@ -368,12 +370,18 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
             return {"next": "done", "line": line}
         line += (f" · {count(changed_left)} mapped behaviour{'s' if changed_left != 1 else ''} "
                  f"changed since the map was built left to re-ask")
+        choices = [{"id": "continue", "label": f"Map up to {count(max_pages)} more pages"},
+                   FINISH]
+        y = page_yield(points)
+        if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
+                and last["page"] > doc["grant"]["page"]):
+            # The seat answered almost none of the page (pi r2): asked, not paged on silently.
+            return {"next": "ask", "choices": choices, "recommended": "continue",
+                    "line": f"{line} · the last page answered under 1 in {LOW_YIELD_PER} of its "
+                            f"units: read its review before mapping more"}
         spent = _budget_spent(doc, now, max_pages, max_minutes)
         if spent:
-            return {"next": "ask",
-                    "choices": [{"id": "continue", "label": f"Map up to {count(max_pages)} more "
-                                                            f"pages"}, FINISH],
-                    "recommended": "continue",
+            return {"next": "ask", "choices": choices, "recommended": "continue",
                     "line": f"{line} · budget reached ({spent}; the budget is "
                             f"{count(max_pages)} pages or {count(max_minutes)} minutes)"}
         return {"next": "continue", "line": line}
@@ -383,6 +391,9 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     lower = ({"id": "lower", "label": f"Lower the minimum to {last['pct']}% for {repo} and build "
                                       f"the graph"} if last["pct"] >= 1 else None)
     more = {"id": "continue", "label": f"Map up to {count(max_pages)} more pages"}
+    # With changed units left there is always work, so an ask with no "lower" (a share under 1%)
+    # still offers a way to finish (codex r2).
+    stop = lower if lower is not None else (FINISH if changed_left > 0 else None)
     # Near-zero yield on a full page (domain-real): the page's review passed a page that stated
     # almost nothing (wicked-crew run 4b49cbe1: 3 rules of 500 units). Never mapped on silently,
     # and asked before "nothing left" too (codex on #1375), so the last page is not passed either.
@@ -390,7 +401,7 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     if (y is not None and y[1] >= LOW_YIELD_MIN_UNITS and y[0] * LOW_YIELD_PER < y[1]
             and last["page"] > doc["grant"]["page"]):
         if left_to_map > 0 or changed_left > 0:
-            choices = [c for c in (more, lower) if c is not None]
+            choices = [c for c in (more, stop) if c is not None]
             warn = (f"{line} · the last page resolved under 1 in {LOW_YIELD_PER} of its units: "
                     f"read its review before mapping more")
         else:
@@ -415,12 +426,12 @@ def decide(doc: dict[str, Any], *, repo: str, target: int, now: int, max_pages: 
     # operator try again (codex/agy r1 on #1369: "Map more" re-asked at once).
     since = [p for p in points if p["page"] >= grant["page"]]
     if len(since) >= 3 and since[-3]["real"] == last["real"]:
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+        return {"next": "ask", "choices": [c for c in (more, stop) if c is not None],
                 "recommended": "lower" if lower is not None else "continue",
                 "line": f"{line} · the last two pages added no real requirement"}
     spent = _budget_spent(doc, now, max_pages, max_minutes)
     if spent:
-        return {"next": "ask", "choices": [c for c in (more, lower) if c is not None],
+        return {"next": "ask", "choices": [c for c in (more, stop) if c is not None],
                 "recommended": "continue",
                 "line": f"{line} · budget reached ({spent}; the budget is {count(max_pages)} pages "
                         f"or {count(max_minutes)} minutes)"}
