@@ -75,6 +75,11 @@
 
 ### Fixed
 
+- **The domain extractor's inherited-mismatch example no longer states a direction (e2e-1105).** It said mean
+  "is too low" because `sum` skips the first element, which is wrong when that element is negative
+  (mean([-2,4]) gives 2, not 1); a run's critique caught the extractor copying it. The example now says the
+  numerator omits the first element, and the skill says to describe how the code departs, not which way the
+  result is off.
 - **The domain extractor records an inherited mismatch and edits its rules file with the file tools (e2e-1105).**
   Two misses repeated in every run:
   - The first pass missed mean's inherited mismatch: mean's own code is right, but it relies on `sum`, which skips

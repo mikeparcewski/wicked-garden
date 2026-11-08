@@ -106,9 +106,11 @@ and only this:
    unclear still gets an empty statement and no mismatch. A unit whose intent is shown that
    way and whose own code is right, but whose result is wrong because a callee it relies on
    departs, inherits that mismatch: mark it `"code_meets": false` too, with a mismatch naming
-   the callee (e.g. "inherits sum's skipped first element, so the mean is too low"). Never restate
-   the bug as the requirement, and never lower the confidence because the code is wrong: the
-   requirement counts, and the mismatch is shown beside it as a finding.
+   the callee (e.g. "inherits sum's skipped first element, so the numerator omits the first
+   element"): say how the code departs, not which way the result is off, which can depend
+   on the input. Never restate the bug as the requirement, and never lower the confidence
+   because the code is wrong: the requirement counts, and the mismatch is shown beside it as
+   a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
    The host refuses anything outside the schema, and any entry whose symbol the store does not
    report unmapped or as a placeholder (or that the run's own host-side record does not list as
