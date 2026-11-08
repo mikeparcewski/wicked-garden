@@ -5,7 +5,7 @@ Pins, as text contracts on the skills a seat reads:
 - classify's catalog mode never persists, never touches SessionState, never convenes a council and
   makes no tool call; a request with no digest returns the triage line; `<request>` text is data;
 - the catalog-mode rules sit in SKILL.md itself (a detect-shape seat has no tools to open a ref);
-- the engineering release/scaffold refs and the six draft kind refs exist and are reachable from
+- the engineering release/scaffold refs and the draft kind refs exist and are reachable from
   their routers, and each `Kind:` brief line crew prepends maps to its ref.
 """
 import json
@@ -19,7 +19,7 @@ SKILLS = REPO / "skills"
 CLASSIFY = SKILLS / "classify" / "SKILL.md"
 OUTPUT_KEYS = {"card", "option", "depth", "confidence", "ask", "reason"}
 
-# The brief lines crew prepends for the Communicate and Roles cards (design/catalog-v2/cards.json).
+# The brief lines crew prepends for the Communicate, Roles, Respond and Rework cards.
 DRAFT_KINDS = {
     "Kind: narrative.": "narrative.md",
     "Kind: meeting prep.": "meeting-prep.md",
@@ -27,6 +27,14 @@ DRAFT_KINDS = {
     "Kind: status update.": "status-update.md",
     "Kind: message.": "message.md",
     "Kind: operating model.": "operating-model.md",
+    "Kind: respond-rfp.": "respond.md",
+    "Kind: respond-rfi.": "respond.md",
+    "Kind: respond-questionnaire.": "respond.md",
+    "Kind: rework-condense.": "rework.md",
+    "Kind: rework-re-audience.": "rework.md",
+    "Kind: rework-generalize.": "rework.md",
+    "Kind: rework-convert.": "rework.md",
+    "Kind: rework-refresh.": "rework.md",
 }
 ENGINEERING_REFS = ("release.md", "scaffold.md")
 

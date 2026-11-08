@@ -23,14 +23,12 @@ metadata:
 
 # wicked-garden-draft — the document-deliverable quality floor
 
-A drafting worker can write a beautiful brochure that nobody can read, that prints on
-four pages when two were asked for, and that ships an amber `[PLACEHOLDER]` box next to
-an invented "live instance" — and every prompt-level instruction it was given ("never
-invent facts", "honour the page count") will have been *followed in spirit*. That is
-the 2026-09 recon outcome this skill exists to prevent. Guidance tells the author what
-good looks like; the **self-check re-derives it from the saved file**. A deliverable is
-not done until the self-check says `PASS` (or says `UNVERIFIED` and the notes disclose
-exactly what could not be verified).
+A drafting worker can write a beautiful brochure that nobody can read, that prints on four pages when two
+were asked for, and that ships an amber `[PLACEHOLDER]` box next to an invented "live instance" — and every
+prompt-level instruction it was given ("never invent facts", "honour the page count") will have been
+*followed in spirit*. That is the 2026-09 recon outcome this skill exists to prevent. Guidance tells the author
+what good looks like; the **self-check re-derives it from the saved file**. A deliverable is not done until the
+self-check says `PASS` (or says `UNVERIFIED` and the notes disclose exactly what could not be verified).
 
 ## Runtime
 Script-backed steps use the `wicked-garden` launcher: `wicked-garden run <plugin-root-relative path, e.g. scripts/…> [args]`. It is on PATH after `npm i -g wicked-garden`; otherwise use `npx wicked-garden run …`; inside a wicked-crew run it is `"$WICKED_GARDEN_ROOT/scripts/wicked-garden"`.
@@ -46,15 +44,13 @@ Relative paths in this skill are relative to the directory that contains this SK
 | 3 | **Grounded** | every number, URL, quote and capability claim cites a repo path; mocks are visibly labelled; no `[PLACEHOLDER]` / TODO / lorem in the deliverable | `scripts/draft/claims_scan.py` |
 | 4 | **Honest** | how the draft was made stays out of it: no inbox paths, run ids, a check's verdict ("UNVERIFIED", "self-check: PASS"), bare `[S]` markers or "I used …" narration — not in the text, the speaker notes, the attributes or the comments. The subject's own words stay (a device's self-check, a parser's notes.json) What could not be confirmed goes in `notes.json` beside the deliverable | `scripts/draft/leak_scan.py`, `scripts/draft/notes_check.py` |
 
-One command runs all four (§ Self-check). Details and worked examples: `refs/design-floor.md`
-(colour and print typography), `refs/claims.md` (the citation convention), `refs/self-check.md`
-(flags, JSON shape, exit codes, the manual alternative).
+One command runs all four (§ Self-check). Details and worked examples: `refs/design-floor.md` (colour and print typography),
+`refs/claims.md` (the citation convention), `refs/self-check.md` (flags, JSON shape, exit codes, the manual alternative).
 
 ## Kinds — the brief's `Kind:` line
 
-When the brief carries a `Kind: <kind>.` line (wicked-crew's Communicate and Roles and operating
-model cards prepend one), read that kind's ref before the outline. It adds the kind's shape, its
-default budget and what it must never do; the three floors above still decide "done".
+When the brief carries a `Kind: <kind>.` line (wicked-crew's Communicate, Roles and operating model, Respond and Rework cards prepend one),
+read that kind's ref before the outline. It adds the kind's shape, its default budget and what it must never do; the three floors above still decide "done".
 
 | Brief line | Ref |
 |---|---|
@@ -64,9 +60,18 @@ default budget and what it must never do; the three floors above still decide "d
 | `Kind: status update.` | `refs/status-update.md` |
 | `Kind: message.` | `refs/message.md` |
 | `Kind: operating model.` | `refs/operating-model.md` |
+| `Kind: respond-rfp.` | `refs/respond.md` |
+| `Kind: respond-rfi.` | `refs/respond.md` |
+| `Kind: respond-questionnaire.` | `refs/respond.md` |
+| `Kind: rework-condense.` | `refs/rework.md` |
+| `Kind: rework-re-audience.` | `refs/rework.md` |
+| `Kind: rework-generalize.` | `refs/rework.md` |
+| `Kind: rework-convert.` | `refs/rework.md` |
+| `Kind: rework-refresh.` | `refs/rework.md` |
 
-A `Kind:` line with no row here: follow the floors alone and say so in `notes.json`. A page budget the
-brief names beats the kind's default.
+Respond and rework kinds run with a `check` step that re-checks every statement against the run's `records/`, so cite precisely.
+
+A `Kind:` line with no row here: follow the floors alone and say so in `notes.json`. A page budget the brief names beats the kind's default.
 
 ## 1. Readable — the contrast floor
 
@@ -143,8 +148,7 @@ brief names beats the kind's default.
 
 ## Self-check before "done" (mandatory)
 
-Run it on the SAVED deliverable (the file on disk is what ships), fix, and re-run until
-it passes:
+Run it on the SAVED deliverable (the file on disk is what ships), fix, and re-run until it passes:
 
 ```bash
 wicked-garden run scripts/draft/self_check.py <out.html> --pages 2 --exact --render --repo <snapshot-dir> --notes <notes.json> --run-id <run>
