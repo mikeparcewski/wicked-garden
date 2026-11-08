@@ -1245,6 +1245,56 @@ def test_generated_samples_cover_every_source_in_both_halves_and_reject_malforme
         mod.build_plugin_samples(pack, plugin)
 
 
+# The browser runs a ResizeObserver's first callback as soon as it observes, before the host's hello: the scaffold
+# must not remember a height it could not send, or the report right after hello looks unchanged and is lost (CJ9).
+_RUN_PLUGIN_HELLO_HARNESS = r"""
+const vm = require('vm');
+const fs = require('fs');
+const html = fs.readFileSync(process.argv[2], 'utf8');
+const src = html.slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'));
+const node = () => ({ textContent: '', dataset: {}, style: { setProperty() {} }, setAttribute() {}, appendChild() {} });
+const byId = {};
+const main = { getBoundingClientRect: () => ({ height: 123.2 }) };
+const observers = [];
+const listeners = [];
+const document = {
+  querySelector: (sel) => (sel === 'main' ? main : null),
+  getElementById: (id) => (byId[id] = byId[id] || node()),
+  createElement: () => node(),
+  body: { dataset: {} },
+  documentElement: { style: { setProperty() {} } },
+};
+class ResizeObserver { constructor(cb) { this.cb = cb; } observe() { observers.push(this.cb); } }
+vm.runInNewContext(src, {
+  document, ResizeObserver, window: { addEventListener: (type, fn) => listeners.push([type, fn]) },
+  parent: { postMessage() {} },
+});
+for (const cb of observers) cb([]);
+const sent = [];
+const port = { onmessage: null, postMessage: (m) => sent.push(m) };
+const hello = { data: { p: 'wicked.editor', v: 1, type: 'host.hello', payload: { protocol: 3, observe: { topics: [] } } },
+                ports: [port] };
+for (const [type, fn] of listeners) if (type === 'message') fn(hello);
+process.stdout.write(JSON.stringify(sent));
+"""
+
+
+def test_run_plugin_reports_its_first_height_right_after_hello(tmp_path):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is needed to run the scaffold's script")
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    entry = pack / json.loads((pack / "wicked-pack.json").read_text())["plugins"][0]["entry"]
+    harness = tmp_path / "hello-harness.cjs"
+    harness.write_text(_RUN_PLUGIN_HELLO_HARNESS)
+    done = subprocess.run([node, str(harness), str(entry)], capture_output=True, text=True, timeout=30, check=False)
+    assert done.returncode == 0, done.stderr
+    sent = json.loads(done.stdout)
+    heights = [m["payload"] for m in sent if m.get("type") == "ui.height"]
+    assert heights == [{"px": 124}], sent
+
+
 @pytest.fixture
 def run_plugin_studio_dist():
     """Opt in to the real protocol-3 host, with no artifact-page DOM dependencies."""

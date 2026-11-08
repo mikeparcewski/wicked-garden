@@ -66,8 +66,11 @@
   // The section is as tall as the plugin says (card aspect "auto"): report the content's height after every render,
   // or the host keeps the frame at its minimum and the rows are cut off.
   // Also on every layout change (a section first mounted while folded or in a closed drawer measures 0 until shown).
+  // Nothing is measured or remembered before host.hello: the ResizeObserver's first callback runs before the port
+  // exists, and a height cached then would make the report right after hello look unchanged, so it would be lost.
   let lastHeight = 0;
   function reportHeight() {
+    if (!port) return;
     const h = Math.ceil(document.querySelector('main').getBoundingClientRect().height);
     if (h > 0 && h !== lastHeight) { lastHeight = h; send('ui.height', { px: h }); }
   }
