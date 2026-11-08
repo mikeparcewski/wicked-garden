@@ -115,7 +115,9 @@ The rest of the kit is **opt-in layers** — add what you want, skip the rest an
 
 ```bash
 # wicked-estate — the memory/knowledge layer (cross-session recall + cited search, the "what"):
-#   install the `wicked-estate` + `wicked-estate-mcp` binaries onto PATH or ~/.local/bin
+#   installs the `wicked-estate` + `wicked-estate-mcp` binaries (prebuilt and sha256-verified into ~/.local/bin on
+#   macOS, glibc Linux x64/arm64 and Windows x64; elsewhere built with cargo into $CARGO_HOME/bin or ~/.cargo/bin):
+npx wicked-installer install wicked-estate
 npm i -g wicked-bus && npx wicked-bus-install   # the audit-trail layer (fire-and-forget; fail-open without it)
 ```
 
