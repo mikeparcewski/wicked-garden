@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [12.66.1] — 2026-11-08
+
+Patch: a run plugin made from the scaffold shows its whole section as soon as it opens.
+
 ### Fixed
 
 - **A run plugin's first height reaches the host** (editor-scaffold run-plugin, CS7). The scaffold's ResizeObserver
@@ -1655,7 +1659,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...HEAD
+[12.66.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...v12.66.1
 [12.66.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...v12.66.0
 [12.65.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...v12.65.1
 [12.65.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...v12.65.0
