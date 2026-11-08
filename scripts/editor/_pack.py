@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from pathlib import Path
@@ -22,6 +23,7 @@ ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RESERVED_RE = re.compile(r"^wicked(?:$|-)")
 KIND_RE = re.compile(r"^[a-z][a-z0-9-]{1,40}$")
 SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$")
+TOPIC_SEG_RE = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
 SIZES = ("inline", "pane", "full")
 # §6.1's permission table, with the plain words the install sheet shows.
 PERMISSIONS = {
@@ -45,10 +47,66 @@ PERMISSIONS = {
 # each with the line the consent gate shows.
 INSTALL_GRANTED = {"mcp.session": "This plugin can start and talk to MCP servers"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024
+ICON_CAP = 32 * 1024
+SAMPLES_CAP = 256 * 1024
 # A manifest is a few KB; the engine's host run refuses a bigger one before it is read.
 MANIFEST_CAP = 1024 * 1024
 # Directories a run's worktree search never enters.
 SKIP_DIRS = {"node_modules", "dist", ".git"}
+
+
+def valid_topic_pattern(topic: object) -> bool:
+    """Whether ``topic`` is a valid run-plugin observe topic pattern (CONTRACT-CS7 §C2):
+    at most 120 chars; dot-separated; starts with ``wicked.run.`` (at least one segment after ``run``);
+    every segment after ``wicked`` is ``^[a-z][a-z0-9_-]{0,40}$`` or ``*``, or ``**`` as the last segment only."""
+    if not isinstance(topic, str) or not topic or len(topic) > 120:
+        return False
+    parts = topic.split(".")
+    if len(parts) < 3 or parts[0] != "wicked" or parts[1] != "run":
+        return False
+    for i, seg in enumerate(parts[2:], start=2):
+        if seg == "**":
+            if i != len(parts) - 1:
+                return False
+        elif seg == "*":
+            continue
+        elif not TOPIC_SEG_RE.fullmatch(seg):
+            return False
+    return True
+
+
+def valid_core_event(item: object) -> bool:
+    """The sample shape studio's run conformance page reads, before run/sequence normalization."""
+    def finite_number(value: object) -> bool:
+        try:
+            return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+        except OverflowError:
+            return False
+
+    return (
+        isinstance(item, dict)
+        and isinstance(item.get("type"), str) and bool(item["type"].strip())
+        and isinstance(item.get("session"), str) and bool(item["session"].strip())
+        and all(finite_number(item.get(k)) for k in ("seq", "ts"))
+    )
+
+
+def topic_matches(pattern: str, topic: str) -> bool:
+    """Whether ``pattern`` (a valid §C2 pattern) matches ``topic`` (a concrete dot-separated run topic)."""
+    if not valid_topic_pattern(pattern) or not isinstance(topic, str) or not topic:
+        return False
+    p_parts = pattern.split(".")
+    t_parts = topic.split(".")
+    if len(t_parts) < 3 or t_parts[0] != "wicked" or t_parts[1] != "run":
+        return False
+    if p_parts[-1] == "**":
+        prefix = p_parts[:-1]
+        if len(t_parts) < len(p_parts):
+            return False
+        return all(p == "*" or p == t for p, t in zip(prefix, t_parts[: len(prefix)]))
+    if len(p_parts) != len(t_parts):
+        return False
+    return all(p == "*" or p == t for p, t in zip(p_parts, t_parts))
 
 
 class PackError(Exception):
@@ -96,25 +154,63 @@ def editors_of(manifest: dict) -> list[dict]:
     return [e for e in editors if isinstance(e, dict)]
 
 
-def entry_path(pack: Path, editor: dict) -> Path:
-    """The editor's entry file, resolved inside the pack (a path that escapes it is refused)."""
-    entry = editor.get("entry")
-    if not isinstance(entry, str) or not entry.endswith(".html") or "\x00" in entry:
-        raise PackError(f"editor {editor.get('id')!r}: entry must name one .html file")
-    # A plain relative POSIX path: no absolute or drive-qualified form, no backslash, no `..` or `.`
-    # part — the same string is joined under a staging directory, so it must not climb out of one.
-    parts = entry.split("/")
-    if entry.startswith("/") or "\\" in entry or ":" in entry or any(p in ("", ".", "..") for p in parts):
-        raise PackError(f"editor {editor.get('id')!r}: entry {entry!r} must be a plain relative path inside the pack")
+def plugins_of(manifest: dict) -> list[dict]:
+    plugins = manifest.get("plugins")
+    if manifest.get("spec") != 2 or not isinstance(plugins, list) or not plugins:
+        raise PackError("the pack declares no plugins (wicked-pack.json spec 2 `plugins[]`)")
+    return [p for p in plugins if isinstance(p, dict)]
+
+
+def pack_entries_of(manifest: dict) -> tuple[list[dict], list[dict]]:
+    if manifest.get("spec") != 2:
+        raise PackError("the pack declares no editors or plugins (wicked-pack.json spec 2 `editors[]` or `plugins[]`)")
+    raw_ed = manifest.get("editors")
+    raw_pl = manifest.get("plugins")
+    editors = [e for e in raw_ed if isinstance(e, dict)] if isinstance(raw_ed, list) else []
+    plugins = [p for p in raw_pl if isinstance(p, dict)] if isinstance(raw_pl, list) else []
+    if not editors and not plugins:
+        raise PackError("the pack declares no editors or plugins (wicked-pack.json spec 2 `editors[]` or `plugins[]`)")
+    return editors, plugins
+
+
+def asset_path(pack: Path, rel: object, *, label: str, suffix: str, cap: int) -> Path:
+    """Resolve a plain relative path inside ``pack`` with the required suffix and size cap."""
+    if not isinstance(rel, str) or not rel.endswith(suffix) or "\x00" in rel:
+        raise PackError(f"{label} must name one {suffix} file")
+    parts = rel.split("/")
+    if rel.startswith("/") or "\\" in rel or ":" in rel or any(p in ("", ".", "..") for p in parts):
+        raise PackError(f"{label} {rel!r} must be a plain relative path inside the pack")
     root = pack.resolve()
-    target = (pack / entry).resolve()
+    target = (pack / rel).resolve()
     if root != target and root not in target.parents:
-        raise PackError(f"editor {editor.get('id')!r}: entry {entry} is outside the pack")
+        raise PackError(f"{label} {rel} is outside the pack")
     if not target.is_file():
-        raise PackError(f"editor {editor.get('id')!r}: entry {entry} is missing")
-    if target.stat().st_size > HOST_BUNDLE_CAP:
-        raise PackError(f"editor {editor.get('id')!r}: entry {entry} is over the host's {HOST_BUNDLE_CAP}-byte cap")
+        raise PackError(f"{label} {rel} is missing")
+    if target.stat().st_size > cap:
+        raise PackError(f"{label} {rel} is over the host's {cap}-byte cap")
     return target
+
+
+def entry_path(pack: Path, editor: dict, kind: str = "editor") -> Path:
+    """The editor's or plugin's entry file, resolved inside the pack (a path that escapes it is refused)."""
+    return asset_path(pack, editor.get("entry"), label=f"{kind} {editor.get('id')!r}: entry",
+                      suffix=".html", cap=HOST_BUNDLE_CAP)
+
+
+def plugin_extra_paths(pack: Path, plugin: dict) -> list[tuple[str, Path]]:
+    """Resolved ``(rel, path)`` pairs for optional files a run plugin declares (``samples``, ``visuals.icon``)."""
+    out: list[tuple[str, Path]] = []
+    pid = plugin.get("id")
+    samples = plugin.get("samples")
+    if samples is not None:
+        p = asset_path(pack, samples, label=f"plugin {pid!r}: samples", suffix=".ndjson", cap=SAMPLES_CAP)
+        out.append((str(samples), p))
+    visuals = plugin.get("visuals")
+    if isinstance(visuals, dict) and visuals.get("icon") is not None:
+        icon = visuals.get("icon")
+        p = asset_path(pack, icon, label=f"plugin {pid!r}: visuals.icon", suffix=".svg", cap=ICON_CAP)
+        out.append((str(icon), p))
+    return out
 
 
 def write_manifest(pack: Path, manifest: dict) -> None:
@@ -125,8 +221,8 @@ def write_manifest(pack: Path, manifest: dict) -> None:
 
 
 def _is_editor_pack(pack: Path, strict: bool = False) -> bool:
-    """Whether ``pack`` is an editor pack. ``strict``: a manifest that cannot be read at all (too big, not JSON)
-    raises instead of being skipped, so it can never hide a candidate from the exactly-one rule."""
+    """Whether ``pack`` is an editor or run-plugin pack. ``strict``: a manifest that cannot be read at all (too big,
+    not JSON) raises instead of being skipped, so it can never hide a candidate from the exactly-one rule."""
     try:
         manifest = read_manifest(pack, cap=MANIFEST_CAP if strict else None, finite=strict)
     except PackError:
@@ -134,7 +230,7 @@ def _is_editor_pack(pack: Path, strict: bool = False) -> bool:
             raise
         return False
     try:
-        editors_of(manifest)
+        pack_entries_of(manifest)
         return True
     except PackError:
         return False
@@ -212,7 +308,7 @@ def refuse_links_under(tree: Path, pack: Path) -> None:
                 raise PackError(f"{(Path(dirpath) / name).relative_to(root)} is a link; an editor pack is plain files")
 
 
-def refuse_links(tree: Path, pack: Path, editors: list[dict]) -> None:
+def refuse_links(tree: Path, pack: Path, editors: list[dict], plugins: list[dict] | None = None) -> None:
     """Refuse a pack whose manifest or entry is a link, or reaches one, between ``tree`` and the file.
 
     The engine runs the conformance cases on the host over a tree a seat wrote: a link there could hand
@@ -220,6 +316,13 @@ def refuse_links(tree: Path, pack: Path, editors: list[dict]) -> None:
     refuses an entry that resolves outside the pack; this refuses any link at all on the way."""
     root = Path(os.path.abspath(tree))
     files = [pack / MANIFEST_NAME] + [pack / str(e.get("entry")) for e in editors]
+    for p in plugins or []:
+        files.append(pack / str(p.get("entry")))
+        if p.get("samples") is not None:
+            files.append(pack / str(p.get("samples")))
+        vis = p.get("visuals")
+        if isinstance(vis, dict) and vis.get("icon") is not None:
+            files.append(pack / str(vis.get("icon")))
     for f in files:
         path = Path(os.path.abspath(f))
         if path != root and root not in path.parents:

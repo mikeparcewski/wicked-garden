@@ -1,18 +1,18 @@
 ---
 name: wicked-garden-editor-scaffold
 description: |
-  Build an artifact editor plugin for wicked-studio: scaffold a
-  wicked-pack.json spec-2 pack with one self-contained HTML editor speaking
-  wicked.editor/2 (its card, options and full-screen surfaces, Simple/Advanced)
-  and /1 to older hosts, ask only for the permissions it needs, re-pin its hash,
-  run the conformance cases in headless Chromium against studio's own
-  plugin host, then install it into a wicked-crew daemon's editors.
+  Build an artifact editor plugin or a third-party run plugin ("phase plugin") for
+  wicked-studio: scaffold a wicked-pack.json spec-2 pack with one self-contained HTML
+  entry speaking wicked.editor/2 (/1 to older hosts) or wicked.editor/3 (run plugins:
+  observe topics and run.details panels), ask only for the permissions or observe topics
+  it needs, re-pin its hash, run the conformance cases in headless Chromium against
+  studio's own plugin host, then install it into a wicked-crew daemon's editors.
 
   Use when: "build an editor plugin", "make a custom editor", "an editor for
-  this artifact kind", "scaffold an editor", "check my editor plugin",
-  "run the editor conformance", "install this editor plugin", studio
-  Settings → Developer → "Create an editor plugin", or a phase of the
-  `editor-plugin` workflow. NOT for granting an editor's permissions
+  this artifact kind", "build a phase plugin", "build a run plugin", "scaffold an editor",
+  "check my editor plugin", "run the editor conformance", "install this editor plugin",
+  studio Settings → Developer → "Create an editor plugin", `/plugin phase`, or a phase
+  of the `editor-plugin` workflow. NOT for granting an editor's permissions
   (studio Settings does that) or for editing a document (studio's built-in
   editors do that).
 metadata:
@@ -38,9 +38,11 @@ Relative paths in this skill are relative to the directory that contains this SK
 
 ```
 wicked-garden run scripts/editor/scaffold.py --vendor <vendor> --id <vendor>-<name> --title "<plain words>" --kinds <kind[,kind]> [--permissions <id[,id]>] [--surfaces <file.json>] --out <dir>
+wicked-garden run scripts/editor/scaffold.py --kind run-plugin --vendor <vendor> --id <vendor>-<name> --title "<plain words>" [--observe <topic[,topic]>] --out <dir>
 ```
 
-- **The pack** is `wicked-pack.json` spec 2 with one `editors[]` entry, plus
+- **The pack** is `wicked-pack.json` spec 2 with one `editors[]` entry (or, with `--kind run-plugin`,
+  one `plugins[]` entry, `plugins/<id>/index.html`, and `samples/events.ndjson` — see `refs/run-plugin.md`), plus
   `editors/<id>/index.html` (the whole editor: ONE file, every script and style inline) and a
   README. `--out` may be a repo root or a subdirectory; every file it would write must be absent
   (it refuses naming the first collision and writes nothing).
@@ -186,6 +188,16 @@ contract (methods, errors, events, conformance) is in `refs/mcp-server.md`; read
 A finished one ships with garden, made by this scaffold: `wicked-garden path packs/garden-mcp-inspector`
 (install it with `install.py --dir` on that path).
 
+## Kind `phase plugin` (run plugin, protocol 3)
+
+When the brief says `Kind: phase plugin.` (or you are building a third-party run plugin for a job's
+Details panel), read `refs/run-plugin.md` and follow it: scaffold with `--kind run-plugin`, declare
+`plugins[]` (`protocol: [3]`, `inline: "run-thread"`, `observe: [{topic, why}]` matching `wicked.run.*`
+per §C2, `panels: [{slot: "run.details", id, title, instances?, order, defaultOpen?, summary?}]`,
+`samples: "samples/events.ndjson"`, no `permissions`), handle `host.hello.observe` and `events.batch`
+rows `{id, topic, ...}` rendered as text only (never markup), optionally post `panel.summary`, and
+pass the run-plugin conformance cases `r0-manifest`..`r5-hash-pinned` (reported under `plugins[]`).
+
 ## In a governed run
 
 You are in one when a wicked-crew phase directive or the `wicked-garden-governed-worker`
@@ -194,20 +206,33 @@ skill was handed to you (`WICKED_RUN_ID` is set). Follow `wicked-garden-governed
 - **scope**: settle the editor's id and title, the kinds it opens, what it shows and lets the
   user do, the permissions that needs (each with its plain-words why), and the target directory
   (the root of a near-empty repo, or a subdirectory such as `editors-pack/` of an existing one).
-  Read `GET $WICKED_CREW_URL/api/v1/editors` and pick an id no installed editor holds.
+  If the brief says `Kind: phase plugin.`: settle the plugin's `id`, `title`, `observe[]` topic
+  patterns (`wicked.run.*`, each with its plain-words `why` shown in the install consent), and
+  `panels[]` section in `run.details` (no `kinds` or `permissions`; see `refs/run-plugin.md`).
+  Read `GET $WICKED_CREW_URL/api/v1/editors` and pick an id no installed editor or plugin holds.
 - **design**: the contract table — each host → plugin message it handles, each plugin → host
   request it makes with the permission it needs, its surfaces declaration (card actions, options
   tabs, full-screen modes), its sizes, keys, theme and focus behaviour —
-  checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`). Name every deviation.
-- **build**: scaffold (section 1), write the editor, re-pin and pass `pack check`. The engine runs
-  the conformance cases on the host right after this step (section 3); a failed case comes back to
-  you as a send-back naming the case. Fix it, re-pin, and pass `pack check` again.
+  checked against section 2 (and `refs/mcp-server.md` for kind `mcp-server`).
+  If the brief says `Kind: phase plugin.`: design the protocol-3 contract (`plugin.ready`,
+  `host.hello.observe`, `events.batch` row deduplication and text-only rendering, `panel.summary`,
+  `host.ping`, `host.theme`, `plugins[]`, `observe[]`, `panels[]`, and `samples/events.ndjson`)
+  against `refs/run-plugin.md`. Name every deviation.
+- **build**: scaffold (section 1; if the brief says `Kind: phase plugin.`, use
+  `scaffold.py --kind run-plugin` per `refs/run-plugin.md`), write the entry, re-pin and pass
+  `pack check`. The engine runs the conformance cases on the host right after this step (section 3;
+  `r0-manifest`..`r5-hash-pinned` for a phase plugin); a failed case comes back to you as a
+  send-back naming the case. Fix it, re-pin, and pass `pack check` again.
 - **test**: judge the engine's `[editor conformance record]` for the tree under review (every
-  required case passed for every editor; the tree is the one you review) and the editor's own
+  required case passed for every editor, or `r0-manifest`..`r5-hash-pinned` under `plugins[]` if
+  the brief says `Kind: phase plugin.`; the tree is the one you review) and the entry's own
   behaviour. Do not run the harness in your seat; its absence there is not a finding.
 - **security-review**: grants requested vs used (every permission the manifest asks for has a
-  request in the code that needs it; nothing unused), no network or outside reference, content
-  rendered as text, no message beyond the protocol, keys and typing per section 2.
-- **install-plan / install**: Tool phases run `install.py --from-run --dry-run --json`, the
-  operator's consent gate offers its choices with their files, then `install.py --from-run
-  --target <the approved choice>`. Do not install, register or serve the editor yourself.
+  request in the code that needs it; or, if the brief says `Kind: phase plugin.`, every `observe[]`
+  topic pattern is justified, no `permissions` key is present, and `events.batch` rows are rendered
+  as text only, never markup), no network or outside reference, no message beyond the protocol.
+- **install-plan / install**: Tool phases run `install.py --from-run --dry-run --json` (`--plan`;
+  if the brief says `Kind: phase plugin.`, the plan lists `plugins: [{id, version, observe: [{topic, why}]}]`
+  and the `EDITOR-GRANTS` topic tokens), the operator's consent gate offers its choices with their
+  files, then `install.py --from-run --target <the approved choice>`. Do not install, register or
+  serve the editor or plugin yourself.

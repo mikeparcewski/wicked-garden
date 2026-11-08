@@ -63,7 +63,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _pack import (  # noqa: E402
-    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, editors_of, entry_path, find_editor_packs, read_manifest,
+    INSTALL_GRANTED, ID_RE, MANIFEST_NAME, PackError, entry_path, find_editor_packs,
+    pack_entries_of, plugin_extra_paths, read_manifest,
 )
 
 # A choice id: the target, optionally bound to the plan by the digest of the manifest it showed. The id
@@ -141,9 +142,12 @@ def locate(args) -> tuple[Path, dict]:
         raise Failure(2, "pass --from-run or --dir <pack dir>")
     try:
         manifest = read_manifest(pack)
-        editors = editors_of(manifest)
+        editors, plugins = pack_entries_of(manifest)
         for e in editors:
-            entry_path(pack, e)
+            entry_path(pack, e, kind="editor")
+        for p in plugins:
+            entry_path(pack, p, kind="plugin")
+            plugin_extra_paths(pack, p)
     except PackError as err:
         raise Failure(2, str(err)) from err
     name = manifest.get("name")
@@ -163,14 +167,31 @@ def stage(pack: Path, manifest: dict, next_dir: Path) -> list[str]:
     copied = [MANIFEST_NAME]
     shutil.copy2(pack / MANIFEST_NAME, next_dir / MANIFEST_NAME)
     root = next_dir.resolve()
-    for e in editors_of(manifest):
-        source = entry_path(pack, e)  # refuses an entry that is not a plain relative path inside the pack
+    editors, plugins = pack_entries_of(manifest)
+    for e in editors:
+        source = entry_path(pack, e, kind="editor")  # refuses an entry that is not a plain relative path inside the pack
         dest = (next_dir / Path(*e["entry"].split("/"))).resolve()
         if root not in dest.parents:
             raise PackError(f"editor {e.get('id')!r}: entry {e['entry']!r} would stage outside {next_dir}")
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
         copied.append(e["entry"])
+    for p in plugins:
+        source = entry_path(pack, p, kind="plugin")
+        dest = (next_dir / Path(*p["entry"].split("/"))).resolve()
+        if root not in dest.parents:
+            raise PackError(f"plugin {p.get('id')!r}: entry {p['entry']!r} would stage outside {next_dir}")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        copied.append(p["entry"])
+        for rel_str, extra_src in plugin_extra_paths(pack, p):
+            extra_dest = (next_dir / Path(*rel_str.split("/"))).resolve()
+            if root not in extra_dest.parents:
+                raise PackError(f"plugin {p.get('id')!r}: {rel_str!r} would stage outside {next_dir}")
+            extra_dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(extra_src, extra_dest)
+            if rel_str not in copied:
+                copied.append(rel_str)
     if (pack / "README.md").is_file():
         shutil.copy2(pack / "README.md", next_dir / "README.md")
         copied.append("README.md")
@@ -209,16 +230,27 @@ def _now() -> str:
 # ── the flows ──────────────────────────────────────────────────────────────────────────────
 
 def install_grants(manifest: dict) -> list[dict]:
-    """One write per editor permission the install consent grants: crew writes that build's token
-    into the ``EDITOR-GRANTS`` steering rule when the operator approves (DES-MCP-INSPECTOR-001 §6)."""
+    """One write per editor permission or run-plugin observe topic the install consent grants: crew writes
+    that build's token into the ``EDITOR-GRANTS`` steering rule when the operator approves
+    (DES-MCP-INSPECTOR-001 §6; CONTRACT-CS7 §C3)."""
     rows = []
-    for e in editors_of(manifest):
+    editors, plugins = pack_entries_of(manifest)
+    for e in editors:
         declared = {p.get("id") for p in e.get("permissions", []) if isinstance(p, dict)}
         for perm, line in INSTALL_GRANTED.items():
             if perm in declared:
                 token = f"editor:{e.get('id')}@{e.get('version')}#{e.get('sha256')}/{perm}"
                 rows.append({"path": "EDITOR-GRANTS", "operator_owned": False,
                              "what": f"{line}: {e.get('id')} is granted {token} (steering; revoke it there)"})
+    for p in plugins:
+        pid, pver, psha = p.get("id"), p.get("version"), p.get("sha256")
+        for obs in p.get("observe", []) if isinstance(p.get("observe"), list) else []:
+            if not isinstance(obs, dict):
+                continue
+            topic, why = obs.get("topic"), obs.get("why")
+            token = f"plugin:{pid}@{pver}#{psha}/observe:{topic}"
+            rows.append({"path": "EDITOR-GRANTS", "operator_owned": False,
+                         "what": f"Observe {topic} ({why}): {pid} is granted {token}"})
     return rows
 
 
@@ -250,6 +282,7 @@ def do_plan(args) -> dict:
     root = install_root(args.install_root)
     origin = crew_origin(args.crew_url)
     key_root = Path(os.path.abspath(root / key))
+    editors, plugins = pack_entries_of(manifest)
     writes = [{"path": str(key_root / "current"), "what": "the staged copy of the editor pack (program-owned)",
                "operator_owned": False}]
     if (key_root / "current").exists():
@@ -257,14 +290,28 @@ def do_plan(args) -> dict:
                        "operator_owned": False})
     writes += [{"path": str(key_root / "installed.json"), "what": "the install record", "operator_owned": False},
                {"path": f"{origin}/api/v1/editors", "what": "wicked-crew editor registry entry "
-                f"({', '.join(str(e.get('id')) for e in editors_of(manifest))}; daemon-editors.json in its state home)",
+                f"({', '.join(str(x.get('id')) for x in editors + plugins)}; daemon-editors.json in its state home)",
                 "operator_owned": False}]
     writes += install_grants(manifest)
     digest = plan_digest(raw)
-    return {"dry_run": True, "key": key, "choices": [
+    plan: dict = {"dry_run": True, "key": key, "choices": [
         {"id": f"daemon_{digest}", "label": CHOICE_LABELS["daemon"], "default": True, "writes": writes},
         {"id": f"daemon-off_{digest}", "label": CHOICE_LABELS["daemon-off"], "writes": list(writes)}],
         "skipped": []}
+    if plugins:
+        plan["plugins"] = [
+            {
+                "id": p.get("id"),
+                "version": p.get("version"),
+                "observe": [
+                    {"topic": o.get("topic"), "why": o.get("why")}
+                    for o in (p.get("observe") if isinstance(p.get("observe"), list) else [])
+                    if isinstance(o, dict)
+                ],
+            }
+            for p in plugins
+        ]
+    return plan
 
 
 def do_install(args) -> tuple[int, dict]:
@@ -325,7 +372,8 @@ def do_uninstall(args) -> tuple[int, dict]:
     key_root = install_root(args.install_root) / key
     editors: list[str] = []
     try:
-        editors = [str(e.get("id")) for e in editors_of(read_manifest(key_root / "current"))]
+        ed, pl = pack_entries_of(read_manifest(key_root / "current"))
+        editors = [str(e.get("id")) for e in ed + pl]
     except PackError:
         editors = []
     out: dict = {"key": key, "uninstalled": True, "registry": {}}
@@ -374,7 +422,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="daemon (default): installed and on; daemon-off: installed, turned off; "
                              "a plan's choice id (-<digest>) also refuses a pack changed since the plan")
     parser.add_argument("--crew-url", help="the wicked-crew origin (default $WICKED_CREW_URL; no port is assumed)")
-    parser.add_argument("--dry-run", action="store_true", help="write nothing; print the plan as one JSON line")
+    parser.add_argument("--dry-run", "--plan", dest="dry_run", action="store_true",
+                        help="write nothing; print the plan as one JSON line")
     parser.add_argument("--install-root", type=Path, help="default $WICKED_EDITOR_INSTALL_ROOT, else ~/.wicked/editors")
     parser.add_argument("--json", action="store_true", help="print the record as one compact JSON line")
     args = parser.parse_args(argv)

@@ -99,6 +99,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+from collections import Counter
 import hashlib
 import http.server
 import json
@@ -119,7 +120,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
 
 from _pack import (  # noqa: E402
-    MANIFEST_CAP, PackError, editors_of, entry_path, find_editor_packs, read_manifest, refuse_links, refuse_links_under,
+    MANIFEST_CAP, SAMPLES_CAP, PackError, asset_path, editors_of, entry_path, find_editor_packs,
+    pack_entries_of, plugin_extra_paths, read_manifest, refuse_links, refuse_links_under, topic_matches, valid_core_event,
 )
 from _surfaces import SurfacesError, canonical_surfaces, parse_surfaces  # noqa: E402
 
@@ -199,7 +201,8 @@ class PageFailed(Exception):
 # ── the local origin ───────────────────────────────────────────────────────────────────────
 
 def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: str | None, dist: Path | None,
-                timeout_s: float = DEFAULT_TIMEOUT_S, port: int = 0):
+                timeout_s: float = DEFAULT_TIMEOUT_S, port: int = 0,
+                samples: dict[tuple[str, str], bytes] | None = None):
     """A local origin: the candidate entries on the bundle route, everything else from the host.
 
     The host page's own files (anything outside ``/api/``) are fetched from the daemon once and then served from
@@ -242,6 +245,11 @@ def make_server(candidates: dict[tuple[str, str], tuple[bytes, str]], host_url: 
                 return self._send(200, body, "text/html; charset=utf-8", {
                     "Content-Security-Policy": BUNDLE_CSP, "Cross-Origin-Resource-Policy": "same-origin",
                     "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store"})
+            if len(parts) == 7 and parts[1:4] == ["api", "v1", "editors"] and parts[6] == "samples.ndjson":
+                s_body = (samples or {}).get((urllib.parse.unquote(parts[4]), urllib.parse.unquote(parts[5])))
+                if s_body is None:
+                    return self._send(404, b'{"error":"no such plugin samples"}', "application/json")
+                return self._send(200, s_body, "application/x-ndjson; charset=utf-8", {"Cache-Control": "no-store"})
             if host_url is not None:
                 return self._proxy()
             return self._static(url.path)
@@ -503,6 +511,402 @@ CASES_V1 = ("0-manifest", "1-handshake", "2-sizes", "3-no-network", "4-permissio
 CASES_V2 = ("13-surfaces", "14-card", "15-options", "16-full")
 # What the editor does with the artifact (G9b): recorded without stopping the run, and never a prerequisite of 13-17.
 BEHAVIOUR_CASES = ("7-edit", "18-shows")
+# Every run plugin's cases (CONTRACT-CS7 §C5): same list, same order in garden, core, and crew.
+RUN_PLUGIN_CASES = ("r0-manifest", "r1-handshake", "r2-no-network", "r3-topics", "r4-replay", "r5-hash-pinned")
+# Copy of wicked-studio src/editors/runEvents.ts RUN_TOPICS (topic -> CoreEvent types).
+RUN_TOPICS: dict[str, tuple[str, ...]] = {
+    "wicked.run.session.started": ("sessionStarted",),
+    "wicked.run.session.resumed": ("resumed",),
+    "wicked.run.session.finished": ("sessionCompleted", "sessionFailed", "runCancelled"),
+    "wicked.run.unit.planned": ("unitPlanned",),
+    "wicked.run.unit.assigned": ("unitDistributed",),
+    "wicked.run.unit.started": ("unitExecuting",),
+    "wicked.run.unit.finished": ("unitDone", "unitDenied", "stepFailed"),
+    "wicked.run.human.awaited": ("awaitingHuman",),
+    "wicked.run.checks.evaluated": ("repoChecksEvaluated",),
+    "wicked.run.qe.decided": ("qeAcceptanceDecided",),
+    "wicked.run.usage.reported": ("cliUsage",),
+    "wicked.run.intake.planned": ("powerIntakePlanned",),
+    "wicked.run.rigor.rescored": ("rigorRescored",),
+    "wicked.run.checkpoint.reached": ("powerCheckpointReached",),
+    "wicked.run.turn.started": ("powerTurnStarted",),
+    "wicked.run.turn.completed": ("powerTurnCompleted",),
+    "wicked.run.handoff.stepped": ("powerHandoffStepped",),
+    "wicked.run.power.toggled": ("powerToggled",),
+}
+RUN_LOG = ("() => (window.__wickedRunPlugin?.log ?? []).map(e => ({kind: e.kind, type: e.type ?? null, "
+           "code: e.code ?? null, why: e.why ?? e.reason ?? null}))")
+
+
+def _pattern_covers(cover: str, pattern: str) -> bool:
+    """Whether every concrete topic in pattern is covered by cover (including a trailing **)."""
+    broad, narrow = cover.split("."), pattern.split(".")
+    for i, part in enumerate(broad):
+        if part == "**":
+            return len(narrow) > i
+        if i >= len(narrow) or narrow[i] == "**":
+            return False
+        if part != "*" and part != narrow[i]:
+            return False
+    return len(broad) == len(narrow)
+
+
+def split_plugin_topics(plugin: dict) -> tuple[list[str], list[str]]:
+    """Withhold the last independently testable declaration, preserving a grant with real feed coverage.
+
+    Overlapping declarations cannot make a granted row a leak. If every useful candidate is covered by
+    another declaration, or leaves no deliverable granted topic, grant all instead.
+    """
+    declared = [o["topic"] for o in plugin.get("observe", []) if isinstance(o, dict) and isinstance(o.get("topic"), str)]
+    if len(declared) >= 2:
+        for candidate in reversed(declared):
+            others = [p for p in declared if p != candidate]
+            if any(_pattern_covers(p, candidate) for p in others):
+                continue
+            if (any(any(topic_matches(p, t) for p in others) for t in RUN_TOPICS)
+                    and any(topic_matches(candidate, t) and not any(topic_matches(p, t) for p in others)
+                            for t in RUN_TOPICS)):
+                return others, [candidate]
+    return declared, []
+
+
+def build_plugin_samples(pack: Path, plugin: dict) -> bytes:
+    """Generate CoreEvents of every studio source type in BOTH the history and held halves."""
+    raw_events: list[dict] = []
+    if "samples" in plugin:
+        path = asset_path(pack, plugin["samples"], label=f"plugin {plugin.get('id')!r}: samples",
+                          suffix=".ndjson", cap=SAMPLES_CAP)
+        for lno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except ValueError as exc:
+                raise PackError(f"samples line {lno}: invalid JSON ({exc})") from exc
+            if not valid_core_event(item):
+                raise PackError(f"samples line {lno}: expected CoreEvent with type, session, numeric seq and ts")
+            raw_events.append(dict(item))
+    # The optional fields are the names toRow reads, never invented PascalCase event types or row fields.
+    def catalog(offset: int) -> list[dict]:
+        return [{"type": typ, "ord": offset + i, "attempt": 1, "description": "build", "role": "engineer",
+                 "stage": "build", "executorType": "cli", "cli": "conformance", "gateKind": "question",
+                 "passed": True, "outcome": "passed", "checks": [], "changed": [], "qe": {"status": "pass", "score": 100},
+                 "costUsd": 0.01, "inputTokens": 100, "outputTokens": 20,
+                 "plan": {"rigor": "standard", "score": 1}, "change": {"seq": 1, "by": "engine"},
+                 "pause": {"reasons": []}, "checkpoint": 1, "turn": 1, "round": 1,
+                 "step": {"ord": offset + i, "step": "build", "status": "done", "seat": "conformance"},
+                 "toggle": {"on": True, "by": "engine"}}
+                for i, typ in enumerate((typ for types in RUN_TOPICS.values() for typ in types), start=1)]
+    half = (len(raw_events) + 1) // 2
+    # Two catalog rounds per half also exercise granted live rows both before and after remount.
+    combined = (catalog(1000) + raw_events[:half] + catalog(2000)
+                + catalog(3000) + raw_events[half:] + catalog(4000))
+    events = [{**ev, "session": "conformance-run", "seq": seq, "ts": 1767225600000 + seq * 1000}
+              for seq, ev in enumerate(combined, start=1)]
+    return ("\n".join(json.dumps(ev, separators=(",", ":")) for ev in events) + "\n").encode("utf-8")
+
+
+def expected_plugin_ids(samples: bytes, grants: list[str], first_emit: int) -> tuple[list[str], list[str]]:
+    """Independent r4 oracle: history uses s<seq>, mount-2 live counters restart at l1 for granted types."""
+    events = [json.loads(line) for line in samples.decode("utf-8").splitlines() if line.strip()]
+    boundary = (len(events) + 1) // 2 + first_emit
+    types = {typ for topic, source in RUN_TOPICS.items() if any(topic_matches(p, topic) for p in grants) for typ in source}
+    replay = [f"s{e['seq']}" for e in events[:boundary] if e["type"] in types]
+    live = [f"l{i}" for i, e in enumerate((e for e in events[boundary:] if e["type"] in types), start=1)]
+    return replay, live
+
+
+def r1_handshake_verdict(log: list[dict], negotiated: int | None, *, seconds: float = 0.0) -> dict:
+    """Pure verdict for r1-handshake: plugin.ready once within 3 s, protocol 3 negotiated."""
+    hs = sum(1 for e in (log or []) if isinstance(e, dict) and e.get("kind") == "handshake")
+    ignored = sum(1 for e in (log or []) if isinstance(e, dict) and e.get("kind") == "ignored-window-message")
+    ok = hs == 1 and ignored == 0 and negotiated == 3
+    out: dict = {"ok": ok, "negotiated": negotiated, "seconds": seconds, "ignored_window_messages": ignored}
+    if not ok:
+        out["error"] = ("no plugin.ready accepted" if hs == 0
+                        else f"expected 1 handshake, got {hs}" if hs != 1
+                        else f"expected negotiated protocol 3, got {negotiated!r}" if negotiated != 3
+                        else "unexpected window messages after handshake")
+    return out
+
+
+def r2_no_network_verdict(frame_requests: list[str]) -> dict:
+    """Pure verdict for r2-no-network: 0 requests from the frame beyond its own entry."""
+    reqs = list(frame_requests or [])
+    ok = len(reqs) == 0
+    out: dict = {"ok": ok, "requests": reqs[:10]}
+    if not ok:
+        out["error"] = f"frame made {len(reqs)} external request(s): {reqs[:3]}"
+    return out
+
+
+def r3_topics_verdict(
+    delivered: list[dict],
+    grants: list[str] | tuple[str, ...],
+    withheld: list[str] | tuple[str, ...] = (),
+    *,
+    alive: bool = True,
+) -> dict:
+    """Pure verdict for r3-topics: every delivered row's topic is covered by a granted pattern,
+    overlapping granted patterns still authorize rows, at least one row arrived, and the current frame is alive."""
+    granted_list = [str(g) for g in (grants or ())]
+    withheld_list = [str(w) for w in (withheld or ())]
+    rows = [
+        r
+        for b in (delivered or [])
+        if isinstance(b, dict)
+        for r in (b.get("rows") or [])
+        if isinstance(r, dict)
+    ]
+    ungranted = [
+        str(r.get("topic") or "")
+        for r in rows
+        if not any(topic_matches(g, str(r.get("topic") or "")) for g in granted_list)
+    ]
+    leaked = [
+        str(r.get("topic") or "")
+        for r in rows
+        if any(topic_matches(w, str(r.get("topic") or "")) for w in withheld_list)
+        and not any(topic_matches(g, str(r.get("topic") or "")) for g in granted_list)
+    ]
+    ok = len(rows) >= 1 and not ungranted and not leaked and bool(alive)
+    out: dict = {
+        "ok": ok,
+        "rows": len(rows),
+        "granted": granted_list,
+        "withheld": withheld_list,
+        "ungranted": ungranted[:10],
+        "leaked": leaked[:10],
+        "alive": bool(alive),
+    }
+    if not ok:
+        out["error"] = (
+            f"withheld or ungranted topic delivered: {(leaked or ungranted)[:3]}"
+            if (leaked or ungranted)
+            else "no event rows were delivered"
+            if len(rows) == 0
+            else "the plugin frame stopped answering"
+        )
+    return out
+
+
+def r4_replay_verdict(
+    delivered: list[dict],
+    emitted_ids: list[str] | tuple[str, ...] = (),
+    live_ids: list[str] | tuple[str, ...] | None = None,
+    *,
+    alive: bool = True,
+) -> dict:
+    """Pure verdict for r4-replay: after remount(), the new mount's replay delivers every granted feed event
+    emitted so far exactly once (by row id), with no ``gap``; then the remaining live events arrive once each,
+    none twice."""
+    batches = [b for b in (delivered or []) if isinstance(b, dict)]
+    has_mount2 = any(b.get("mount") == 2 for b in batches)
+    target_batches = [b for b in batches if b.get("mount") == 2]
+    has_replay = any(b.get("replay") is True for b in target_batches)
+    gaps = [str(b.get("gap")) for b in batches if b.get("gap")]
+    replay_ids = [
+        str(r.get("id"))
+        for b in target_batches
+        if b.get("replay") is True
+        for r in (b.get("rows") or [])
+        if isinstance(r, dict) and r.get("id") is not None
+    ]
+    live_got = [
+        str(r.get("id"))
+        for b in target_batches
+        if not b.get("replay")
+        for r in (b.get("rows") or [])
+        if isinstance(r, dict) and r.get("id") is not None
+    ]
+    all_got = [
+        str(r.get("id"))
+        for b in target_batches
+        for r in (b.get("rows") or [])
+        if isinstance(r, dict) and r.get("id") is not None
+    ]
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for eid in all_got:
+        if eid in seen and eid not in duplicates:
+            duplicates.append(eid)
+        seen.add(eid)
+
+    expected_emitted = [str(x) for x in emitted_ids]
+    expected_live = [str(x) for x in (live_ids or ())]
+    missing = list((Counter(expected_emitted) - Counter(replay_ids)).elements()) + list(
+        (Counter(expected_live) - Counter(live_got)).elements())
+    unexpected = list((Counter(replay_ids) - Counter(expected_emitted)).elements()) + list(
+        (Counter(live_got) - Counter(expected_live)).elements())
+    ok = (has_mount2 and has_replay and bool(all_got) and not gaps and not duplicates
+          and not missing and not unexpected and bool(alive))
+    out: dict = {
+        "ok": ok,
+        "mount2": has_mount2,
+        "replay": has_replay,
+        "unexpected": unexpected,
+        "replayed": len(replay_ids),
+        "live": len(live_got),
+        "gaps": gaps,
+        "duplicates": duplicates,
+        "missing": missing,
+        "alive": bool(alive),
+    }
+    if not ok:
+        out["error"] = (
+            "mount 2 replay was not delivered"
+            if not has_mount2 or not has_replay
+            else f"unexpected event id(s): {unexpected}"
+            if unexpected
+            else f"replay reported gap: {gaps[0]}"
+            if gaps
+            else f"duplicate event id(s) delivered: {duplicates}"
+            if duplicates
+            else f"missing expected event id(s): {missing}"
+            if missing
+            else "no events delivered after remount"
+            if not all_got
+            else "the plugin frame stopped answering"
+        )
+    return out
+
+
+def r5_hash_pinned_verdict(log: list[dict], torn: str | None) -> dict:
+    """Pure verdict for r5-hash-pinned: a wrong pinned hash never starts the plugin (no handshake)."""
+    hs = sum(1 for e in (log or []) if isinstance(e, dict) and e.get("kind") == "handshake")
+    ok = torn is not None and hs == 0
+    out: dict = {"ok": ok, "torn": torn, "handshakes": hs}
+    if not ok:
+        out["error"] = "bundle with mismatched sha256 completed handshake" if hs > 0 else "host did not tear down mismatched bundle"
+    return out
+
+
+def run_plugin(
+    browser,
+    origin: str,
+    plugin: dict,
+    sha: str,
+    samples_path: str,
+    report: dict,
+    timeout_s: float = DEFAULT_TIMEOUT_S,
+    *, samples: bytes,
+) -> None:
+    """Run the protocol-3 run-plugin conformance cases r1-r5 against ``/editors/conformance`` in run-plugin mode."""
+    load_ms = int(timeout_s * 1000)
+    pid, version = str(plugin["id"]), str(plugin["version"])
+    granted, withheld = split_plugin_topics(plugin)
+    cases: dict = report["cases"]
+
+    def check(name: str, verdict: dict) -> None:
+        cases[name] = verdict
+        if not verdict.get("ok"):
+            raise CaseFailed(name)
+
+    def url(sha_value: str, observe_list: list[str]) -> str:
+        q = {
+            "plugin": pid,
+            "version": version,
+            "sha": sha_value,
+            "observe": ",".join(observe_list),
+            "samples": samples_path,
+        }
+        return f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}"
+
+    page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    frame_requests: list[str] = []
+    own_entry = f"{origin}/api/v1/editors/{urllib.parse.quote(pid)}/{urllib.parse.quote(version)}/entry"
+    page.on("request", lambda r: frame_requests.append(r.url)
+            if r.frame is not None and r.frame != page.main_frame and r.url.split("?", 1)[0] != own_entry else None)
+
+    # A CSP-blocked computed load may never reach Playwright's request event. Record those attempts too.
+    page.expose_binding("__wickedConformanceBlocked", lambda source, uri: frame_requests.append(uri)
+                        if source["frame"] != page.main_frame else None)
+    page.add_init_script("""if (window.top !== window) {
+      const report = window.__wickedConformanceBlocked;
+      window.addEventListener('securitypolicyviolation', e => {
+        if (e.blockedURI && !['inline', 'eval'].includes(e.blockedURI)) report(e.blockedURI);
+      });
+    }""")
+
+    def log() -> list:
+        return page.evaluate(RUN_LOG)
+
+    def alive() -> bool:
+        return page.evaluate("() => window.__wickedRunPlugin?.host()?.alive === true")
+
+    try:
+        t0 = time.time()
+        try:
+            deadline = time.monotonic() + timeout_s
+            page.goto(url(sha, granted), wait_until="domcontentloaded", timeout=load_ms)
+            page.wait_for_function("() => window.__wickedRunPlugin !== undefined", timeout=_remaining_ms(deadline))
+        except Exception as exc:  # noqa: BLE001
+            msg = (f"the conformance host page did not render within {timeout_s:g} s "
+                   f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            report.setdefault("host_failure", msg)
+            check("r1-handshake", {"ok": False, "error": msg})
+        try:
+            page.wait_for_function("() => (window.__wickedRunPlugin?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
+        except Exception:  # noqa: BLE001
+            check("r1-handshake", {"ok": False, "error": "no plugin.ready the host accepted within its 3 s",
+                                   "host_log": log()[-6:], "alive": alive()})
+        page.wait_for_timeout(300)
+        negotiated = page.evaluate("() => window.__wickedRunPlugin?.host()?.negotiated ?? null")
+        report["negotiated"] = negotiated
+        check("r1-handshake", r1_handshake_verdict(log(), negotiated, seconds=round(time.time() - t0, 2)))
+
+        # The oracle uses generated input, never the rows whose delivery it is judging.
+        page.wait_for_function(
+            "() => window.__wickedRunPlugin.delivered.some(b => b.mount === 1 && b.replay)", timeout=3000)
+        count = len(samples.splitlines())
+        held = count // 2
+        first_emit = max(1, held // 2) if held > 1 else held
+        replay_expected, live_expected = expected_plugin_ids(samples, granted, first_emit)
+        emitted = page.evaluate("n => window.__wickedRunPlugin.emit(n)", first_emit)
+        if emitted != first_emit:
+            check("r4-replay", {"ok": False, "error": f"expected {first_emit} emissions, got {emitted}"})
+        page.evaluate("() => window.__wickedRunPlugin.remount()")
+        try:
+            page.wait_for_function(
+                "() => window.__wickedRunPlugin.delivered.some(b => b.mount === 2 && b.replay)", timeout=6000)
+        except Exception:
+            check("r4-replay", {"ok": False, "error": "mount 2 replay was not delivered", "host_log": log()[-6:]})
+        remaining = held - first_emit
+        emitted = page.evaluate("() => window.__wickedRunPlugin.emit()")
+        if emitted != remaining:
+            check("r4-replay", {"ok": False, "error": f"expected {remaining} remaining emissions, got {emitted}"})
+        # The host records a post synchronously. Allow the frame to consume the port messages and report CSP loads.
+        page.wait_for_timeout(300)
+        delivered_all = page.evaluate("() => window.__wickedRunPlugin.delivered")
+        is_alive = alive()
+        check("r3-topics", r3_topics_verdict(delivered_all, granted, withheld, alive=is_alive))
+        check("r4-replay", r4_replay_verdict(delivered_all, replay_expected, live_expected, alive=is_alive))
+        check("r2-no-network", r2_no_network_verdict(frame_requests))
+
+        try:
+            deadline = time.monotonic() + timeout_s
+            page.goto(url("0" * 64, granted), wait_until="domcontentloaded", timeout=load_ms)
+            page.wait_for_function("() => window.__wickedRunPlugin !== undefined", timeout=_remaining_ms(deadline))
+        except Exception as exc:  # noqa: BLE001
+            msg = (f"the conformance host page did not render within {timeout_s:g} s "
+                   f"(--timeout / ${TIMEOUT_ENV}): {str(exc).splitlines()[0]}")
+            report.setdefault("host_failure", msg)
+            check("r5-hash-pinned", {"ok": False, "error": msg})
+        try:
+            page.wait_for_function("() => window.__wickedRunPlugin?.host()?.alive === false && "
+                                   "window.__wickedRunPlugin.log.some(e => e.kind === 'teardown')", timeout=6000)
+        except Exception:
+            pass
+        torn = next((e.get("why") for e in reversed(log()) if e.get("kind") == "teardown"), None)
+        check("r5-hash-pinned", r5_hash_pinned_verdict(log(), torn))
+    except CaseFailed:
+        pass
+    finally:
+        if errors:
+            report["page_errors"] = errors[:5]
+        page.close()
 
 
 def sample_kind(editor: dict) -> str | None:
@@ -1114,18 +1518,18 @@ def _cut(value, limit: int = REPORT_STRING_MAX) -> str:
 
 def engine_report(report: dict) -> dict:
     """The report the engine reads: a FIXED shape built from the harness's own result, never pack-controlled
-    structure. Every verdict-bearing field is kept whole (each editor, its full set of protocols, every case's
-    ok); diagnostics are cut to one bounded string each. Depth and size are bounded whatever the pack holds."""
+    structure. Every verdict-bearing field is kept whole (each editor and plugin, its full set of protocols,
+    every case's ok); diagnostics are cut to one bounded string each. Depth and size are bounded whatever the pack holds."""
     def case(c) -> dict:
         c = c if isinstance(c, dict) else {}
         row: dict = {"ok": c.get("ok") is True}
         if not row["ok"] and c.get("error") is not None:
             row["error"] = _cut(c.get("error"))
         return row
-    editors = []
-    for e in report.get("editors") or []:
+
+    def row_of(e: dict) -> dict:
         protocol = e.get("protocol")
-        editors.append({
+        return {
             "id": _cut(e.get("id"), 200), "version": _cut(e.get("version"), 200),
             "sha256": _cut(e.get("sha256"), 64),
             # The whole set: a pack-controlled list is never truncated into a different requirement.
@@ -1134,8 +1538,12 @@ def engine_report(report: dict) -> dict:
             "negotiated": e.get("negotiated") if isinstance(e.get("negotiated"), int) else None,
             "ok": e.get("ok") is True,
             "cases": {_cut(k, 64): case(v) for k, v in (e.get("cases") or {}).items()},
-        })
-    out = {"ok": report.get("ok") is True, "pack": _cut(report.get("pack"), 500), "editors": editors}
+        }
+
+    editors = [row_of(e) for e in (report.get("editors") or []) if isinstance(e, dict)]
+    plugins = [row_of(p) for p in (report.get("plugins") or []) if isinstance(p, dict)]
+    out = {"ok": report.get("ok") is True, "pack": _cut(report.get("pack"), 500),
+           "editors": editors, "plugins": plugins}
     for k in ("cause", "error"):
         if report.get(k) is not None:
             out[k] = _cut(report.get(k)) if k == "error" else _cut(report.get(k), 64)
@@ -1237,10 +1645,10 @@ def main(argv: list[str] | None = None) -> int:
             refuse_links_under(engine["root"], args.pack)
         manifest = read_manifest(args.pack, cap=MANIFEST_CAP if engine is not None else None,
                                  finite=engine is not None)
-        editors = editors_of(manifest)
+        editors, plugins = pack_entries_of(manifest)
         if engine is not None:
-            if len(editors) > ENGINE_EDITORS_MAX:
-                raise PackError(f"the pack declares {len(editors)} editors; engine mode runs at most {ENGINE_EDITORS_MAX}")
+            if len(editors) + len(plugins) > ENGINE_EDITORS_MAX:
+                raise PackError(f"the pack declares {len(editors) + len(plugins)} entries; engine mode runs at most {ENGINE_EDITORS_MAX}")
             for e in editors:
                 # What rides the host page's address (id, version, title) and the protocols the engine reads back:
                 # a value no host page or report reader can carry is the pack's to fix, never a host refusal.
@@ -1253,12 +1661,28 @@ def main(argv: list[str] | None = None) -> int:
                 protocol = e.get("protocol")
                 if isinstance(protocol, list) and any(isinstance(v, int) and not 0 <= v <= 1000 for v in protocol):
                     raise PackError(f"editor {str(e.get('id'))[:60]!r}: a protocol number outside 0-1000")
-            refuse_links(engine["root"], args.pack, editors)
+            for p in plugins:
+                for field, cap in (("id", 200), ("version", 200), ("title", 500)):
+                    if len(str(p.get(field) or "")) > cap:
+                        raise PackError(f"plugin {str(p.get('id'))[:60]!r}: its {field} is over {cap} characters")
+                obs = p.get("observe")
+                if obs is not None and (not isinstance(obs, list) or len(obs) > 16):
+                    raise PackError(f"plugin {str(p.get('id'))[:60]!r}: observe must be a list of at most 16")
+                protocol = p.get("protocol")
+                if isinstance(protocol, list) and any(isinstance(v, int) and not 0 <= v <= 1000 for v in protocol):
+                    raise PackError(f"plugin {str(p.get('id'))[:60]!r}: a protocol number outside 0-1000")
+            refuse_links(engine["root"], args.pack, editors, plugins)
         entries = {}
+        samples_map = {}
         for e in editors:
             # ONE read: the bytes served to the browser are the bytes hashed into the report (codex).
-            body = entry_path(args.pack, e).read_bytes()
+            body = entry_path(args.pack, e, kind="editor").read_bytes()
             entries[(str(e.get("id")), str(e.get("version")))] = (body, hashlib.sha256(body).hexdigest())
+        for p in plugins:
+            body = entry_path(args.pack, p, kind="plugin").read_bytes()
+            entries[(str(p.get("id")), str(p.get("version")))] = (body, hashlib.sha256(body).hexdigest())
+            plugin_extra_paths(args.pack, p)
+            samples_map[(str(p.get("id")), str(p.get("version")))] = build_plugin_samples(args.pack, p)
     except (PackError, ValueError, TypeError, RecursionError, OSError) as exc:  # NUL in a path, bad UTF-8, deep JSON, an
         # entry the seat made unreadable: the run's tree is the creator's, so a file in it that cannot be read is too
         return out({"ok": False, "pack": str(args.pack), "error": f"{type(exc).__name__}: {exc}",
@@ -1308,9 +1732,10 @@ def main(argv: list[str] | None = None) -> int:
                     "without the run"}, 3)
 
     report: dict = {"ok": False, "pack": str(args.pack), "host": host_url or str(args.studio_dist), "timeout_s": timeout_s,
-                    "editors": []}
+                    "editors": [], "plugins": []}
     try:
-        server = make_server(entries, host_url, args.studio_dist, timeout_s, engine["port"] if engine else 0)
+        server = make_server(entries, host_url, args.studio_dist, timeout_s, engine["port"] if engine else 0,
+                             samples=samples_map)
     except OSError as exc:
         report["error"] = f"the conformance origin could not listen on 127.0.0.1:{engine['port'] if engine else 0}: {exc}"
         report["cause"] = "port_unavailable"
@@ -1380,13 +1805,35 @@ def main(argv: list[str] | None = None) -> int:
                             **({"error": "the conformance host does not speak protocol 2"} if er.get("negotiated") is None else {})}
                 er["ok"] = len(er["cases"]) == er.pop("expected", expected_cases(e)) and all(c.get("ok") for c in er["cases"].values())
                 report["editors"].append(er)
+            for pl in plugins:
+                pid, pver = str(pl.get("id")), str(pl.get("version"))
+                pr = {"id": pl.get("id"), "version": pl.get("version"),
+                      "protocol": [p for p in pl.get("protocol") or [] if isinstance(p, int) and not isinstance(p, bool)]
+                      if isinstance(pl.get("protocol"), list) else [],
+                      "sha256": entries[(pid, pver)][1],
+                      "cases": {"r0-manifest": m0}, "gaps": [
+                          "r3-topics withholds an independently testable declaration when possible; overlapping grants still authorize rows",
+                          "r2-no-network cannot see WebRTC/STUN or DNS prefetch",
+                      ]}
+                if m0["ok"]:
+                    s_path = f"/api/v1/editors/{urllib.parse.quote(pid)}/{urllib.parse.quote(pver)}/samples.ndjson"
+                    try:
+                        run_plugin(browser, origin, pl, pr["sha256"], s_path, pr, timeout_s,
+                                   samples=samples_map[(pid, pver)])
+                    except Exception as exc:  # noqa: BLE001
+                        record_stop(pr, exc, RUN_PLUGIN_CASES)
+                pr["ok"] = len(pr["cases"]) == len(RUN_PLUGIN_CASES) and all(c.get("ok") for c in pr["cases"].values())
+                report["plugins"].append(pr)
             browser.close()
     finally:
         server.shutdown()
-    report["ok"] = bool(report["editors"]) and all(e["ok"] for e in report["editors"])
-    host_failure = next((e.get("host_failure") or e["cases"].get("0-manifest", {}).get("host_failure")
-                         for e in report["editors"]
-                         if e.get("host_failure") or e["cases"].get("0-manifest", {}).get("host_failure")), None)
+    all_rows = report["editors"] + report["plugins"]
+    report["ok"] = bool(all_rows) and all(r["ok"] for r in all_rows)
+    host_failure = next((r.get("host_failure") or r["cases"].get("0-manifest", {}).get("host_failure")
+                         or r["cases"].get("r0-manifest", {}).get("host_failure")
+                         for r in all_rows
+                         if r.get("host_failure") or r["cases"].get("0-manifest", {}).get("host_failure")
+                         or r["cases"].get("r0-manifest", {}).get("host_failure")), None)
     if host_failure is not None:
         # The host page or the harness failed, not the editor: a refusal the operator retries, never a send-back.
         report["ok"] = False

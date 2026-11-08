@@ -990,3 +990,365 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
     # A failed behaviour case never keeps the protocol-2 cases from reporting (the scaffold speaks protocol 2).
     assert {c: cases[c]["ok"] for c in ("13-surfaces", "14-card", "15-options", "16-full")} == dict.fromkeys(
         ("13-surfaces", "14-card", "15-options", "16-full"), True), cases
+
+
+# ── CS7: third-party run plugins (protocol 3, plugins[], r0-r5) ────────────────────────────
+
+def scaffold_run_plugin(out: Path, *extra: str) -> subprocess.CompletedProcess:
+    return run("scaffold.py", "--kind", "run-plugin", "--vendor", "acme", "--id", "acme-spend",
+               "--title", "Phase spend", "--out", str(out), *extra)
+
+
+def test_scaffold_run_plugin_writes_a_spec2_pack_that_passes_pack_check_and_pins(tmp_path):
+    out = tmp_path / "run-pack"
+    done = scaffold_run_plugin(out)
+    assert done.returncode == 0, done.stderr
+    report = json.loads(done.stdout)
+    manifest = json.loads((out / "wicked-pack.json").read_text())
+    plugin = manifest["plugins"][0]
+    assert manifest["spec"] == 2 and "editors" not in manifest and plugin["id"] == "acme-spend"
+    assert plugin["protocol"] == [3] and plugin["inline"] == "run-thread"
+    assert plugin["entry"] == "plugins/acme-spend/index.html"
+    assert plugin["samples"] == "samples/events.ndjson" and (out / "samples" / "events.ndjson").is_file()
+    assert len(plugin["observe"]) == 2 and all(o["topic"].startswith("wicked.run.") and o["why"] for o in plugin["observe"])
+    assert plugin["panels"][0]["slot"] == "run.details"
+    html = (out / plugin["entry"]).read_text()
+    assert "__PLUGIN" not in html and "const PLUGIN = 'acme-spend', VERSION = '0.1.0'" in html
+    assert report["plugin"]["sha256"] == plugin["sha256"]
+    assert [f.render() for f in check_pack(out, garden_root=REPO) if f.level == "error"] == []
+
+    # Editing the plugin entry triggers PK084 until pin.py re-pins it.
+    entry = out / plugin["entry"]
+    entry.write_text(html.replace("Waiting for run events…", "Waiting for phase events…"))
+    assert any(f.code == "PK084" for f in check_pack(out, garden_root=REPO))
+    pinned = run("pin.py", str(out))
+    assert pinned.returncode == 0 and json.loads(pinned.stdout)["plugins"][0]["changed"] is True
+    assert [f.render() for f in check_pack(out, garden_root=REPO) if f.level == "error"] == []
+
+
+def test_install_plan_lists_plugin_observe_topics_and_installs_plugin_only_pack(tmp_path):
+    pack = tmp_path / "run-pack"
+    assert scaffold_run_plugin(
+        pack, "--observe", "wicked.run.phase.*,wicked.run.usage.reported"
+    ).returncode == 0
+    root = tmp_path / "editors"
+    with FakeDaemon() as d:
+        planned = run("install.py", "--dir", str(pack), "--plan", "--json", env=_install_env(d.origin, root))
+        assert d.requests == []
+        assert planned.returncode == 0, planned.stderr
+        plan = json.loads(planned.stdout.strip().splitlines()[-1])
+        assert plan["dry_run"] is True and plan["key"] == "acme-spend"
+        assert len(plan["plugins"]) == 1
+        p_plan = plan["plugins"][0]
+        assert p_plan["id"] == "acme-spend" and p_plan["version"] == "0.1.0"
+        assert [o["topic"] for o in p_plan["observe"]] == ["wicked.run.phase.*", "wicked.run.usage.reported"]
+        assert all(o["why"] for o in p_plan["observe"])
+        grants = [w for w in plan["choices"][0]["writes"] if w["path"] == "EDITOR-GRANTS"]
+        assert len(grants) == 2 and all("observe:" in g["what"] for g in grants)
+
+        # Install the plugin-only pack through the same path.
+        choice = plan["choices"][0]["id"]
+        d.routes[("POST", "/api/v1/editors")] = (200, {"installed": True, "editors": [{"id": "acme-spend"}]})
+        installed = run("install.py", "--dir", str(pack), "--target", choice, "--json", env=_install_env(d.origin, root))
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    current = root / "acme-spend" / "current"
+    assert (current / "plugins" / "acme-spend" / "index.html").is_file()
+    assert (current / "samples" / "events.ndjson").is_file()
+
+
+def test_run_plugin_verdict_functions_r1_to_r5():
+    mod = _conformance_module()
+    assert list(mod.RUN_PLUGIN_CASES) == [
+        "r0-manifest", "r1-handshake", "r2-no-network", "r3-topics", "r4-replay", "r5-hash-pinned"
+    ]
+
+    # r1-handshake: requires exactly 1 handshake, 0 ignored window messages, protocol 3.
+    assert mod.r1_handshake_verdict([{"kind": "handshake"}], 3)["ok"] is True
+    assert mod.r1_handshake_verdict([], 3)["ok"] is False
+    assert mod.r1_handshake_verdict([{"kind": "handshake"}, {"kind": "handshake"}], 3)["ok"] is False
+    assert mod.r1_handshake_verdict([{"kind": "handshake"}], 2)["ok"] is False
+
+    # r2-no-network: 0 external frame requests.
+    assert mod.r2_no_network_verdict([])["ok"] is True
+    assert mod.r2_no_network_verdict(["https://evil.example/exfil"])["ok"] is False
+
+    # r3-topics: reject ungranted rows and an empty delivery. Integration below exercises the actual host guard.
+    granted = ["wicked.run.phase.*"]
+    withheld = ["wicked.run.unit.*"]
+    clean_batches = [
+        {"mount": 1, "replay": True, "rows": [{"id": "e1", "topic": "wicked.run.phase.started"}]},
+        {"mount": 1, "replay": False, "rows": [{"id": "e2", "topic": "wicked.run.phase.completed"}]},
+    ]
+    assert mod.r3_topics_verdict(clean_batches, granted, withheld)["ok"] is True
+    leaked_batches = [
+        {"mount": 1, "replay": True, "rows": [{"id": "e1", "topic": "wicked.run.phase.started"}]},
+        {"mount": 1, "replay": False, "rows": [{"id": "e2", "topic": "wicked.run.unit.started"}]},
+    ]
+    r3_leaked = mod.r3_topics_verdict(leaked_batches, granted, withheld)
+    assert r3_leaked["ok"] is False and "wicked.run.unit.started" in r3_leaked["leaked"]
+    assert mod.r3_topics_verdict([], granted, withheld)["ok"] is False
+    assert mod.r3_topics_verdict(clean_batches, granted, withheld, alive=False)["ok"] is False
+
+    # r4-replay: fails on a duplicate id, on a missing id, and on a gap; passes on a clean sequence.
+    clean_replay = [
+        {"mount": 1, "replay": True, "rows": [{"id": "e1", "topic": "wicked.run.phase.started"}]},
+        {"mount": 1, "replay": False, "rows": [{"id": "e2", "topic": "wicked.run.phase.completed"}]},
+        {"mount": 2, "replay": True, "rows": [
+            {"id": "e1", "topic": "wicked.run.phase.started"},
+            {"id": "e2", "topic": "wicked.run.phase.completed"},
+        ]},
+        {"mount": 2, "replay": False, "rows": [{"id": "e3", "topic": "wicked.run.phase.started"}]},
+    ]
+    assert mod.r4_replay_verdict(clean_replay, ["e1", "e2"], ["e3"])["ok"] is True
+
+    dup_replay = [
+        {"mount": 2, "replay": True, "rows": [{"id": "e1", "topic": "wicked.run.phase.started"}]},
+        {"mount": 2, "replay": False, "rows": [
+            {"id": "e1", "topic": "wicked.run.phase.started"},
+            {"id": "e2", "topic": "wicked.run.phase.completed"},
+        ]},
+    ]
+    r4_dup = mod.r4_replay_verdict(dup_replay, ["e1"], ["e2"])
+    assert r4_dup["ok"] is False and "e1" in r4_dup["duplicates"]
+
+    missing_replay = [
+        {"mount": 2, "replay": True, "rows": [{"id": "e1", "topic": "wicked.run.phase.started"}]},
+        {"mount": 2, "replay": False, "rows": [{"id": "e3", "topic": "wicked.run.phase.started"}]},
+    ]
+    r4_missing = mod.r4_replay_verdict(missing_replay, ["e1", "e2"], ["e3"])
+    assert r4_missing["ok"] is False and "e2" in r4_missing["missing"]
+
+    gap_replay = [
+        {"mount": 2, "replay": True, "gap": "dropped_before_seq_4", "rows": [
+            {"id": "e1", "topic": "wicked.run.phase.started"},
+            {"id": "e2", "topic": "wicked.run.phase.completed"},
+        ]},
+        {"mount": 2, "replay": False, "rows": [{"id": "e3", "topic": "wicked.run.phase.started"}]},
+    ]
+    r4_gap = mod.r4_replay_verdict(gap_replay, ["e1", "e2"], ["e3"])
+    assert r4_gap["ok"] is False and r4_gap["gaps"] == ["dropped_before_seq_4"]
+
+    # r5-hash-pinned: torn down and 0 handshakes.
+    assert mod.r5_hash_pinned_verdict([], "bundle_hash_mismatch")["ok"] is True
+    assert mod.r5_hash_pinned_verdict([{"kind": "handshake"}], "bundle_hash_mismatch")["ok"] is False
+    assert mod.r5_hash_pinned_verdict([], None)["ok"] is False
+
+
+def test_conformance_samples_server_and_engine_report_carry_plugins(tmp_path):
+    import socket  # noqa: PLC0415
+    import urllib.request  # noqa: PLC0415
+    mod = _conformance_module()
+    pack = tmp_path / "run-pack"
+    assert scaffold_run_plugin(pack).returncode == 0
+    manifest = json.loads((pack / "wicked-pack.json").read_text())
+    plugin = manifest["plugins"][0]
+    samples_bytes = mod.build_plugin_samples(pack, plugin)
+    rows = [json.loads(line) for line in samples_bytes.decode("utf-8").splitlines() if line.strip()]
+    seen_types = {r["type"] for r in rows}
+    assert {typ for types in mod.RUN_TOPICS.values() for typ in types} <= seen_types
+    assert all(r["session"] == "conformance-run" and isinstance(r["seq"], int) and isinstance(r["ts"], (int, float)) for r in rows)
+    assert [r["seq"] for r in rows] == list(range(1, len(rows) + 1))
+
+    # The local origin serves the generated samples file on /api/v1/editors/<id>/<version>/samples.ndjson.
+    (tmp_path / "index.html").write_text("<!doctype html><title>studio</title>")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = mod.make_server({}, None, tmp_path, 5.0, port, samples={("acme-spend", "0.1.0"): samples_bytes})
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/api/v1/editors/acme-spend/0.1.0/samples.ndjson", timeout=5
+        ) as resp:  # noqa: S310
+            assert resp.status == 200 and resp.read() == samples_bytes
+    finally:
+        server.shutdown()
+        server.server_close()
+
+    # The report and engine_report carry the top-level plugins array.
+    rep = mod.engine_report({
+        "ok": True,
+        "pack": str(pack),
+        "editors": [],
+        "plugins": [{
+            "id": "acme-spend",
+            "version": "0.1.0",
+            "sha256": plugin["sha256"],
+            "protocol": [3],
+            "negotiated": 3,
+            "ok": True,
+            "cases": {c: {"ok": True} for c in mod.RUN_PLUGIN_CASES},
+        }],
+    })
+    assert rep["ok"] is True and rep["editors"] == [] and len(rep["plugins"]) == 1
+    assert rep["plugins"][0]["id"] == "acme-spend" and rep["plugins"][0]["protocol"] == [3]
+    assert set(rep["plugins"][0]["cases"]) == set(mod.RUN_PLUGIN_CASES)
+
+
+
+@pytest.mark.parametrize("patterns", [
+    ["wicked.run.**", "wicked.run.phase.*"],
+    ["wicked.run.unit.*", "wicked.run.**"],
+    ["wicked.run.unit.*", "wicked.run.unit.started"],
+    ["wicked.run.*.started", "wicked.run.unit.*"],
+])
+def test_overlapping_plugin_patterns_do_not_make_granted_rows_leaks(patterns):
+    mod = _conformance_module()
+    grants, withheld = mod.split_plugin_topics({"observe": [{"topic": p} for p in patterns]})
+    assert grants
+    for w in withheld:
+        assert not any(mod._pattern_covers(g, w) for g in grants)
+    rows = [{"id": str(i), "topic": t} for i, t in enumerate(mod.RUN_TOPICS)
+            if any(mod.topic_matches(g, t) for g in grants)]
+    assert mod.r3_topics_verdict([{"rows": rows}], grants, withheld)["ok"]
+    # A withheld broad pattern may overlap a granted narrower one: those rows remain authorized.
+    assert mod.r3_topics_verdict([{"rows": [{"id": "s1", "topic": "wicked.run.unit.started"}]}],
+                                 ["wicked.run.unit.*"], ["wicked.run.**"])["ok"]
+
+
+def test_r4_requires_mount2_and_exact_independent_replay_and_live_ids(tmp_path):
+    mod = _conformance_module()
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    plugin = json.loads((pack / "wicked-pack.json").read_text())["plugins"][0]
+    samples = mod.build_plugin_samples(pack, plugin)
+    grants, _ = mod.split_plugin_topics(plugin)
+    first = len(samples.splitlines()) // 4
+    replay, live = mod.expected_plugin_ids(samples, grants, first)
+    assert replay and live and all(i.startswith("s") for i in replay) and live[0] == "l1"
+    batches = [{"mount": 2, "replay": True, "rows": [{"id": i} for i in replay]},
+               {"mount": 2, "replay": False, "rows": [{"id": i} for i in live]}]
+    assert mod.r4_replay_verdict(batches, replay, live)["ok"]
+    assert not mod.r4_replay_verdict([{**b, "mount": 1} for b in batches], replay, live)["ok"]
+    assert not mod.r4_replay_verdict(batches[1:], replay, live)["ok"]
+    assert not mod.r4_replay_verdict(batches[:1], replay, live)["ok"]
+    dropped = [{**batches[0], "rows": batches[0]["rows"][1:]}, batches[1]]
+    assert not mod.r4_replay_verdict(dropped, replay, live)["ok"]
+    extra = [*batches, {"mount": 2, "replay": False, "rows": [{"id": "l999"}]}]
+    assert mod.r4_replay_verdict(extra, replay, live)["unexpected"] == ["l999"]
+
+
+def test_generated_samples_cover_every_source_in_both_halves_and_reject_malformed_extras(tmp_path):
+    mod = _conformance_module()
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    plugin = json.loads((pack / "wicked-pack.json").read_text())["plugins"][0]
+    path = pack / plugin["samples"]
+    # Many extras must not push catalog coverage out of either half.
+    path.write_text(path.read_text() * 30)
+    rows = [json.loads(line) for line in mod.build_plugin_samples(pack, plugin).splitlines()]
+    half = (len(rows) + 1) // 2
+    types = {typ for source in mod.RUN_TOPICS.values() for typ in source}
+    assert types <= {e["type"] for e in rows[:half]}
+    assert types <= {e["type"] for e in rows[half:]}
+    path.write_text('{}\n')
+    with pytest.raises(mod.PackError, match="samples line 1.*CoreEvent"):
+        mod.build_plugin_samples(pack, plugin)
+
+
+@pytest.fixture
+def run_plugin_studio_dist():
+    """Opt in to the real protocol-3 host, with no artifact-page DOM dependencies."""
+    dist = os.environ.get("CS7_RUN_PLUGIN_DIST")
+    if not dist:
+        pytest.skip("set CS7_RUN_PLUGIN_DIST to a built studio dist for real run-plugin coverage")
+    pytest.importorskip("playwright.sync_api")
+    assert (Path(dist) / "index.html").is_file()
+    return Path(dist)
+
+
+def _plugin_conformance(pack, dist):
+    done = run("conformance.py", "--pack", str(pack), "--studio-dist", str(dist), "--json", "--timeout", "30")
+    report = json.loads(done.stdout)
+    return done, report
+
+
+def test_scaffold_run_plugin_real_host_conformance(tmp_path, run_plugin_studio_dist):
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    done, report = _plugin_conformance(pack, run_plugin_studio_dist)
+    assert done.returncode == 0, json.dumps(report, indent=2) + done.stderr
+    row = report["plugins"][0]
+    assert report["ok"] and row["ok"]
+    assert set(row["cases"]) == set(_conformance_module().RUN_PLUGIN_CASES)
+    assert row["cases"]["r4-replay"]["live"] > 0
+    assert row["cases"]["r4-replay"]["mount2"]
+
+
+def test_run_plugin_real_host_detects_removed_topic_guard(tmp_path, run_plugin_studio_dist):
+    # Mutate only a COPY of the built host page: feed it the declared observe list rather than the harness's grant.
+    # A verdict-only fixture cannot catch this regression; the real host and RunEventFeed must deliver the leak.
+    mutant = tmp_path / "studio-unfiltered"
+    shutil.copytree(run_plugin_studio_dist, mutant)
+    patched = 0
+    for js in mutant.rglob("*.js"):
+        text = js.read_text()
+        text, n = re.subn(r'\b\w+\.get\("observe"\)',
+                          '"wicked.run.session.*,wicked.run.unit.*"', text)
+        if n:
+            js.write_text(text)
+            patched += n
+    assert patched == 1, "the real host's observe query reader must be the only mutation"
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    done, report = _plugin_conformance(pack, mutant)
+    assert done.returncode == 1, report
+    verdict = report["plugins"][0]["cases"]["r3-topics"]
+    assert not verdict["ok"] and verdict["ungranted"] and verdict["alive"], report
+
+
+def test_run_plugin_real_host_rejects_computed_network_load(tmp_path, run_plugin_studio_dist):
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    manifest = json.loads((pack / "wicked-pack.json").read_text())
+    entry = pack / manifest["plugins"][0]["entry"]
+    entry.write_text(entry.read_text().replace('</body>',
+        "<script>new Image().src = ['https:', '', 'evil.example', 'image.png'].join('/');</script></body>"))
+    assert run("pin.py", str(pack)).returncode == 0
+    # Computed loads pass the static scan, so the browser's CSP/request observation has to catch this one.
+    assert not [f for f in check_pack(pack, garden_root=REPO) if f.level == "error"]
+    done, report = _plugin_conformance(pack, run_plugin_studio_dist)
+    assert done.returncode == 1, report
+    verdict = report["plugins"][0]["cases"]["r2-no-network"]
+    assert not verdict["ok"] and any("evil.example" in url for url in verdict["requests"]), report
+
+
+@pytest.mark.parametrize("patterns", ["wicked.run.**,wicked.run.phase.*", "wicked.run.**,wicked.run.unit.*"])
+def test_run_plugin_real_host_accepts_overlapping_grants(tmp_path, run_plugin_studio_dist, patterns):
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack, "--observe", patterns).returncode == 0
+    done, report = _plugin_conformance(pack, run_plugin_studio_dist)
+    assert done.returncode == 0 and report["ok"], report
+
+
+def test_run_plugin_real_host_hello_topics_and_summary_payload(tmp_path, run_plugin_studio_dist):
+    from urllib.parse import urlencode
+    from playwright.sync_api import sync_playwright
+
+    mod = _conformance_module()
+    pack = tmp_path / "plugin"
+    assert scaffold_run_plugin(pack).returncode == 0
+    plugin = json.loads((pack / "wicked-pack.json").read_text())["plugins"][0]
+    body = (pack / plugin["entry"]).read_bytes()
+    key = (plugin["id"], plugin["version"])
+    server = mod.make_server({key: (body, plugin["sha256"])}, None, run_plugin_studio_dist, 30, 0,
+                             samples={key: mod.build_plugin_samples(pack, plugin)})
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page()
+                query = urlencode({"plugin": plugin["id"], "version": plugin["version"], "sha": plugin["sha256"],
+                                   "observe": "wicked.run.unit.*", "samples": f"/api/v1/editors/{key[0]}/{key[1]}/samples.ndjson"})
+                page.goto(f"http://127.0.0.1:{server.server_address[1]}/editors/conformance?{query}")
+                page.wait_for_function("() => window.__wickedRunPlugin?.log.some(e => "
+                                       "e.kind === 'in' && e.type === 'panel.summary' && e.ok)")
+                text = page.frame_locator("iframe").locator("#status").inner_text()
+                assert "wicked.run.unit.*" in text and "No topics granted" not in text
+                assert page.frame_locator("iframe").locator('[role="listitem"]').count() > 0
+                assert not page.evaluate("() => window.__wickedRunPlugin.log.some(e => "
+                                         "e.type === 'panel.summary' && (e.ok === false || e.kind === 'dropped'))")
+            finally:
+                browser.close()
+    finally:
+        server.shutdown()
+        server.server_close()
