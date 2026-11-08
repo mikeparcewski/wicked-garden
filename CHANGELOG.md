@@ -4,6 +4,14 @@
 
 ### Added
 
+- **Third-party run plugins (`plugins[]` in `wicked-pack.json` spec 2, protocol 3; DESIGN §2.b, CONTRACT-CS7)**:
+  `schemas/wicked-pack.schema.json` and `scripts/pack/check.py` validate `plugins[]` (`observe[]` `wicked.run.*`
+  topic patterns, `panels[]`, `visuals`, `samples`, one id namespace with `editors[]`, `permissions` refused);
+  `scripts/editor/scaffold.py --kind run-plugin` scaffolds a protocol-3 run-plugin pack; `scripts/editor/install.py
+  --plan` lists each plugin's `observe` topics and reasons; `scripts/editor/conformance.py` adds `RUN_PLUGIN_CASES`
+  (`r0-manifest`..`r5-hash-pinned`), `RUN_TOPICS` sample generation, pure verdict functions, and the report's
+  `plugins` array; and `skills/editor-scaffold/refs/run-plugin.md` documents the run-plugin contract.
+
 - **`wicked-garden-learn` report mode: the skill side of the `sourced-report` workflow** (DES-CATALOG-002 rev 8
   §2.d, seam CS3). Six job cards (Research, Competitive, Due diligence, Analyze documents, Critique, Estimate)
   share one read-only workflow, and a brief line (`Lens: <lens>.`) picks the report's shape from

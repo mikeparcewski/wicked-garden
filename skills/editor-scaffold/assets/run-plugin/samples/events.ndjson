@@ -1,0 +1,5 @@
+{"type":"sessionStarted","session":"conformance-run","seq":1,"ts":1767225601000}
+{"type":"unitPlanned","session":"conformance-run","seq":2,"ts":1767225602000,"ord":1,"description":"build","role":"engineer","stage":"build","executorType":"cli"}
+{"type":"unitExecuting","session":"conformance-run","seq":3,"ts":1767225603000,"ord":1}
+{"type":"unitDone","session":"conformance-run","seq":4,"ts":1767225604000,"ord":1}
+{"type":"cliUsage","session":"conformance-run","seq":5,"ts":1767225605000,"ord":1,"attempt":1,"costUsd":0.02,"inputTokens":1200,"outputTokens":340}

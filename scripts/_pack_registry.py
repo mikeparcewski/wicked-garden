@@ -133,17 +133,25 @@ def structural_errors(manifest: dict, root: Path) -> list:
     if spec not in MANIFEST_SPECS or isinstance(spec, bool):
         errors.append(f"spec must be 1 or 2 (got {spec!r})")
     editors = manifest.get("editors")
-    if spec == 1 and ("editors" in manifest or "blocks" in manifest):
-        errors.append("editors and blocks need manifest spec 2 (this pack declares spec 1)")
-    # An editor id that is exactly "wicked" or starts with "wicked-" is refused in EVERY pack, here (not
-    # only in `pack check`) so that even a forced registration cannot carry one: first-party editors ship
-    # inside studio, never as a pack. As for vendors, a name that merely starts with the letters
+    plugins = manifest.get("plugins")
+    if spec == 1 and ("editors" in manifest or "plugins" in manifest or "blocks" in manifest):
+        errors.append("editors, plugins, and blocks need manifest spec 2 (this pack declares spec 1)")
+    # An editor or plugin id that is exactly "wicked" or starts with "wicked-" is refused in EVERY pack, here
+    # (not only in `pack check`) so that even a forced registration cannot carry one: first-party editors and
+    # plugins ship inside studio, never as a pack. As for vendors, a name that merely starts with the letters
     # ("wickedly-terms") is allowed.
     for editor in editors if isinstance(editors, list) else []:
         eid = editor.get("id") if isinstance(editor, dict) else None
         if isinstance(eid, str) and any(eid == r or eid.startswith(r + "-") for r in RESERVED_VENDOR_PREFIXES):
             errors.append(
                 f"editor id {eid!r} uses the reserved prefix 'wicked' (first-party editors ship "
+                "inside studio, never in a pack)"
+            )
+    for plugin in plugins if isinstance(plugins, list) else []:
+        pid = plugin.get("id") if isinstance(plugin, dict) else None
+        if isinstance(pid, str) and any(pid == r or pid.startswith(r + "-") for r in RESERVED_VENDOR_PREFIXES):
+            errors.append(
+                f"plugin id {pid!r} uses the reserved prefix 'wicked' (first-party plugins ship "
                 "inside studio, never in a pack)"
             )
 
@@ -183,8 +191,9 @@ def structural_errors(manifest: dict, root: Path) -> list:
             or normalized.startswith("/")
             or bool(re.match(r"^[A-Za-z]:", skills_rel))
         )
-    # Spec 2: an editor-only pack (editors, no domains) may ship no skills at all.
-    editor_only = spec == 2 and isinstance(editors, list) and bool(editors) and "domains" not in manifest
+    # Spec 2: an editor-only or plugin-only pack (editors or plugins, no domains) may ship no skills at all.
+    has_ext = (isinstance(editors, list) and bool(editors)) or (isinstance(plugins, list) and bool(plugins))
+    editor_only = spec == 2 and has_ext and "domains" not in manifest
     if escapes_root:
         errors.append(f"skills_dir must be a relative path inside the pack (got {skills_rel!r})")
     elif not editor_only:

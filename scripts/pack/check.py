@@ -52,6 +52,15 @@ Rule codes
   PK070  block malformed (id, label, preset file, produces_kind)
   PK071  block names a skill that is not in this pack
   PK072  block id uses the reserved "wicked" prefix
+  PK080  plugin entry malformed (a missing or ill-typed field, an unknown field including permissions, a duplicate id)
+  PK081  plugin id uses the reserved "wicked" prefix (refused in every pack)
+  PK082  plugin entry is not one .html file inside the pack
+  PK083  plugin entry over its limits.bundleBytes or the host cap, or a limit above the host's
+  PK084  plugin entry sha256 does not match the file
+  PK085  plugin entry loads a script, stylesheet or frame from outside itself
+  PK086  plugin observe malformed (invalid §C2 topic pattern, duplicate topic, missing or oversized why)
+  PK087  plugin panels malformed (slot, id, title, instances, order, defaultOpen, summary)
+  PK088  plugin visuals or samples malformed (color, missing or oversized .svg icon or .ndjson samples)
 
 stdlib-only. Imports the manifest loader from scripts/_pack_registry.py
 (same package layout in the repo, the npm tarball, and the installed
@@ -75,6 +84,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from _skill_meta import skill_role, split_frontmatter  # noqa: E402
+from editor._pack import ICON_CAP, SAMPLES_CAP, valid_core_event, valid_topic_pattern  # noqa: E402
 from editor._surfaces import check_declaration  # noqa: E402
 from _pack_registry import (  # noqa: E402
     MANIFEST_NAME,
@@ -121,6 +131,12 @@ EDITOR_PERMISSIONS = (
 _EDITOR_FIELDS = {"id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "panels",
                   "permissions", "limits", "surfaces"}
 _EDITOR_REQUIRED = ("id", "title", "version", "protocol", "kinds", "entry", "sha256", "sizes", "permissions")
+_PLUGIN_FIELDS = {"id", "title", "version", "protocol", "inline", "entry", "sha256", "description",
+                  "observe", "panels", "visuals", "samples", "limits"}
+_PLUGIN_REQUIRED = ("id", "title", "version", "protocol", "inline", "entry", "sha256", "observe", "panels")
+_PANEL_FIELDS = {"slot", "id", "title", "instances", "order", "defaultOpen", "summary"}
+_PANEL_ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,31}$")
+_HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _BLOCK_FIELDS = {"id", "label", "preset", "produces_kind", "skills"}
 HOST_BUNDLE_CAP = 5 * 1024 * 1024  # the host's cap on an editor entry (§8.5); a pack's limit may only be lower
 
@@ -235,6 +251,18 @@ def _inside(pack_root: Path, rel: object) -> "Path | None":
     return target
 
 
+def _plugin_inside(pack_root: Path, rel: object) -> "Path | None":
+    """Reject lexical symlinks before resolving any plugin asset (including links within the pack)."""
+    if not isinstance(rel, str):
+        return None
+    path = pack_root
+    for part in rel.replace("\\", "/").split("/"):
+        path = path / part
+        if path.is_symlink():
+            return None
+    return _inside(pack_root, rel)
+
+
 _LOADER_RELS = {"stylesheet", "preload", "modulepreload", "prefetch", "import", "manifest"}
 _CSS_IMPORT_RE = re.compile(r"@import\b", re.IGNORECASE)
 _MAX_SRCDOC_DEPTH = 3
@@ -292,14 +320,152 @@ class _ExternalRefs(HTMLParser):
             self.found.append("<style> with @import")
 
 
-def _check_editors(manifest: dict, pack_root: Path, err) -> None:
+class _PluginRefs(_ExternalRefs):
+    """Run plugins have no media permission: every resource must be embedded in the entry."""
+
+    def __init__(self, depth: int = 0):
+        super().__init__(depth)
+        self._in_script = False
+
+    @staticmethod
+    def embedded(url: str) -> bool:
+        return not url.strip() or url.strip().lower().startswith(("data:", "blob:", "#", "about:blank"))
+
+    def css(self, text: str) -> None:
+        for match in re.finditer(r"url\(\s*['\"]?([^)'\"]+)", text, re.IGNORECASE):
+            if not self.embedded(match[1]):
+                self.found.append("CSS url(" + match[1] + ")")
+
+        for image_set in re.finditer(r"(?:-webkit-)?image-set\((.*?)\)", text, re.IGNORECASE | re.DOTALL):
+            for match in re.finditer(r"['\"]([^'\"]+)['\"]", image_set[1]):
+                if not self.embedded(match[1]):
+                    self.found.append("CSS image-set(" + match[1] + ")")
+
+    def handle_starttag(self, tag, attrs):
+        super().handle_starttag(tag, attrs)
+        a: dict = {}
+        for k, v in attrs:
+            a.setdefault(k.lower(), v or "")
+        for key in ("src", "href", "poster", "data", "background", "xlink:href"):
+            if key == "data" and tag != "object":
+                continue
+            if key in a and not self.embedded(a[key]):
+                self.found.append(f'<{tag} {key}="{a[key]}">')
+        # A data URL contains commas: read each URL token, then skip its descriptors to the next candidate.
+        rest = a.get("srcset", "")
+        while rest.strip(" \t\r\n\f,"):
+            match = re.match(r"([^\s]+)(.*)", rest.lstrip(" \t\r\n\f,"), re.DOTALL)
+            if match is None:
+                break
+            url, rest = match.groups()
+            if not self.embedded(url.rstrip(",")):
+                self.found.append(f"<{tag} srcset={url!r}>")
+            if not url.endswith(","):
+                rest = rest.partition(",")[2]
+        self.css(a.get("style", ""))
+        if tag == "iframe" and a.get("srcdoc") and self._depth < _MAX_SRCDOC_DEPTH:
+            inner = _PluginRefs(self._depth + 1)
+            inner.feed(a["srcdoc"])
+            inner.close()
+            self.found.extend(inner.found)
+        if tag == "script":
+            self._in_script = True
+
+    def handle_endtag(self, tag):
+        super().handle_endtag(tag)
+        if tag == "script":
+            self._in_script = False
+
+    def handle_data(self, data):
+        super().handle_data(data)
+        if self._in_style:
+            self.css(data)
+        if self._in_script:
+            # Static and literal dynamic module imports. Computed resource loads are checked in the browser.
+            for match in re.finditer(r"\b(?:import|export)\s+(?:[^;]*?\sfrom\s*)?['\"]([^'\"]+)['\"]|\bimport\s*\(\s*['\"]([^'\"]+)['\"]", data):
+                url = match[1] or match[2]
+                if not self.embedded(url):
+                    self.found.append("module import " + url)
+
+
+def _check_html_entry(
+    item: dict,
+    pack_root: Path,
+    where: str,
+    sha_ok: bool,
+    err,
+    *,
+    strict: bool = False,
+    c_malformed: str,
+    c_entry: str,
+    c_size: str,
+    c_hash: str,
+    c_ext: str,
+) -> None:
+    limit = HOST_BUNDLE_CAP
+    limits = item.get("limits")
+    if limits is not None:
+        bb = limits.get("bundleBytes") if isinstance(limits, dict) else None
+        if not isinstance(limits, dict) or set(limits) - {"bundleBytes"} or (
+                "bundleBytes" in limits and (not isinstance(bb, int) or isinstance(bb, bool) or bb < 1)):
+            err(c_malformed, where, f"limits may only set a positive bundleBytes (got {limits!r})")
+        elif isinstance(bb, int):
+            if bb > HOST_BUNDLE_CAP:
+                err(c_size, where, f"limits.bundleBytes {bb} is above the host cap {HOST_BUNDLE_CAP}: a limit "
+                    "may only be lower than the host's")
+            limit = min(bb, HOST_BUNDLE_CAP)
+
+    if "entry" not in item:
+        return
+    entry = item["entry"]
+    path = _plugin_inside(pack_root, entry) if strict else _inside(pack_root, entry)
+    if path is None:
+        err(c_entry, where, f"entry must be a relative path inside the pack (got {entry!r})")
+        return
+    if path.suffix != ".html" or not str(entry).endswith(".html"):
+        err(c_entry, where, f"entry must be a single .html file with its scripts inline (got {entry!r})")
+        return
+    if not path.is_file():
+        err(c_entry, where, f"entry not found: {entry!r}")
+        return
+    size = path.stat().st_size
+    if size > limit:
+        which = "limits.bundleBytes" if limit < HOST_BUNDLE_CAP else "the host cap"
+        err(c_size, where, f"entry is {size} bytes, over {which} ({limit}; bundleBytes may only lower the host's)")
+        return  # never read an oversized entry into memory
+    data = path.read_bytes()
+    sha = item.get("sha256")
+    if sha_ok and hashlib.sha256(data).hexdigest() != sha:
+        err(c_hash, where, f"sha256 {sha} does not match the entry file "
+            f"({hashlib.sha256(data).hexdigest()}): pin the hash of the file you ship")
+    refs = _PluginRefs() if strict else _ExternalRefs()
+    try:
+        refs.feed(data.decode("utf-8", errors="replace"))
+        refs.close()
+    except Exception as exc:  # noqa: BLE001 — an unparseable entry is reported, never a crash
+        err(c_ext, where, f"entry could not be read as HTML ({exc})")
+        return
+    for tag in refs.found:
+        err(c_ext, where, f"entry must be self-contained: {tag} loads from outside the file "
+            "(the editor CSP blocks it; inline it instead)")
+
+
+def _valid_plugin_title(val: object) -> bool:
+    return (
+        isinstance(val, str)
+        and 1 <= len(val) <= 40
+        and bool(val.strip())
+        and not any(c in val for c in ("<", ">", "\r", "\n"))
+    )
+
+
+def _check_editors(manifest: dict, pack_root: Path, seen_ids: set, err) -> None:
     editors = manifest.get("editors")
     if editors is None:
         return
     if not isinstance(editors, list) or not editors:
         err("PK060", MANIFEST_NAME, "editors must be a non-empty array of editor objects")
         return
-    seen: set = set()
     for i, ed in enumerate(editors):
         where = f"{MANIFEST_NAME} editors[{i}]"
         if not isinstance(ed, dict):
@@ -319,10 +485,10 @@ def _check_editors(manifest: dict, pack_root: Path, err) -> None:
             elif _is_reserved(eid):
                 err("PK061", where, f"editor id {eid!r} uses the reserved prefix 'wicked': first-party editors "
                     "ship inside studio, never in a pack")
-            elif eid in seen:
+            elif eid in seen_ids:
                 err("PK060", where, f"duplicate editor id {eid!r}")
             if isinstance(eid, str):
-                seen.add(eid)
+                seen_ids.add(eid)
         if "title" in ed and (not isinstance(ed["title"], str) or not ed["title"].strip()):
             err("PK060", where, "title must be plain words shown in Settings → Editors (got an empty value)")
         if "version" in ed and (not isinstance(ed["version"], str) or not _EDITOR_SEMVER_RE.match(ed["version"])):
@@ -378,51 +544,168 @@ def _check_editors(manifest: dict, pack_root: Path, err) -> None:
                     if not isinstance(why, str) or not why.strip():
                         err("PK068", where, f'permission {pid!r} needs a "why": the reason shown at install')
 
-        limit = HOST_BUNDLE_CAP
-        limits = ed.get("limits")
-        if limits is not None:
-            bb = limits.get("bundleBytes") if isinstance(limits, dict) else None
-            if not isinstance(limits, dict) or set(limits) - {"bundleBytes"} or (
-                    "bundleBytes" in limits and (not isinstance(bb, int) or isinstance(bb, bool) or bb < 1)):
-                err("PK060", where, f"limits may only set a positive bundleBytes (got {limits!r})")
-            elif isinstance(bb, int):
-                if bb > HOST_BUNDLE_CAP:
-                    err("PK063", where, f"limits.bundleBytes {bb} is above the host cap {HOST_BUNDLE_CAP}: a limit "
-                        "may only be lower than the host's")
-                limit = min(bb, HOST_BUNDLE_CAP)
+        _check_html_entry(
+            ed, pack_root, where, sha_ok, err,
+            c_malformed="PK060", c_entry="PK062", c_size="PK063", c_hash="PK064", c_ext="PK065",
+        )
 
-        if "entry" not in ed:
+
+def _check_plugins(manifest: dict, pack_root: Path, seen_ids: set, err) -> None:
+    plugins = manifest.get("plugins")
+    if plugins is None:
+        return
+    if not isinstance(plugins, list) or not plugins:
+        err("PK080", MANIFEST_NAME, "plugins must be a non-empty array of plugin objects")
+        return
+    for i, pl in enumerate(plugins):
+        where = f"{MANIFEST_NAME} plugins[{i}]"
+        if not isinstance(pl, dict):
+            err("PK080", where, "a plugin must be an object")
             continue
-        entry = ed["entry"]
-        path = _inside(pack_root, entry)
-        if path is None:
-            err("PK062", where, f"entry must be a relative path inside the pack (got {entry!r})")
-            continue
-        if path.suffix != ".html" or not str(entry).endswith(".html"):
-            err("PK062", where, f"entry must be a single .html file with its scripts inline (got {entry!r})")
-            continue
-        if not path.is_file():
-            err("PK062", where, f"entry not found: {entry!r}")
-            continue
-        size = path.stat().st_size
-        if size > limit:
-            which = "limits.bundleBytes" if limit < HOST_BUNDLE_CAP else "the host cap"
-            err("PK063", where, f"entry is {size} bytes, over {which} ({limit}; bundleBytes may only lower the host's)")
-            continue  # never read an oversized entry into memory
-        data = path.read_bytes()
-        if sha_ok and hashlib.sha256(data).hexdigest() != sha:
-            err("PK064", where, f"sha256 {sha} does not match the entry file "
-                f"({hashlib.sha256(data).hexdigest()}): pin the hash of the file you ship")
-        refs = _ExternalRefs()
-        try:
-            refs.feed(data.decode("utf-8", errors="replace"))
-            refs.close()
-        except Exception as exc:  # noqa: BLE001 — an unparseable entry is reported, never a crash
-            err("PK065", where, f"entry could not be read as HTML ({exc})")
-            continue
-        for tag in refs.found:
-            err("PK065", where, f"entry must be self-contained: {tag} loads from outside the file "
-                "(the editor CSP blocks it; inline it instead)")
+        pid = pl.get("id")
+        if isinstance(pid, str):
+            where = f"{MANIFEST_NAME} plugin {pid!r}"
+        if "permissions" in pl:
+            err("PK080", where, "a run plugin may not declare 'permissions' (only 'observe' topics are allowed)")
+        for key in sorted(set(pl) - _PLUGIN_FIELDS - {"permissions"}):
+            err("PK080", where, f"unknown field {key!r} (spec 2 plugin fields: {', '.join(sorted(_PLUGIN_FIELDS))})")
+        for key in _PLUGIN_REQUIRED:
+            if key not in pl:
+                err("PK080", where, f"missing required field {key!r}")
+        if "id" in pl:
+            if not isinstance(pid, str) or not _KEBAB_RE.match(pid) or len(pid) > _MAX_NAME_LEN:
+                err("PK080", where, f"id must be kebab-case, <= {_MAX_NAME_LEN} chars (got {pid!r})")
+            elif _is_reserved(pid):
+                err("PK081", where, f"plugin id {pid!r} uses the reserved prefix 'wicked': first-party plugins "
+                    "ship inside studio, never in a pack")
+            elif pid in seen_ids:
+                err("PK080", where, f"duplicate id {pid!r} (editor and plugin ids share one namespace)")
+            if isinstance(pid, str):
+                seen_ids.add(pid)
+        if "title" in pl and not _valid_plugin_title(pl["title"]):
+            err("PK080", where, "title must be 1-40 chars of plain words with no '<', '>', CR or LF")
+        if "version" in pl and (not isinstance(pl["version"], str) or not _EDITOR_SEMVER_RE.match(pl["version"])):
+            err("PK080", where, f"version must be the plugin's semver (got {pl['version']!r})")
+        protocol = pl.get("protocol")
+        if "protocol" in pl and (
+            not isinstance(protocol, list)
+            or not protocol
+            or not all(isinstance(v, int) and not isinstance(v, bool) and v >= 1 for v in protocol)
+            or 3 not in protocol
+        ):
+            err("PK080", where, f"protocol must list positive integer protocol versions including 3 (got {protocol!r})")
+        if "inline" in pl and pl["inline"] != "run-thread":
+            err("PK080", where, f"inline must be 'run-thread' (got {pl['inline']!r})")
+        if "description" in pl and (not isinstance(pl["description"], str) or len(pl["description"]) > 160):
+            err("PK080", where, "description must be a string of at most 160 chars")
+        sha = pl.get("sha256")
+        sha_ok = isinstance(sha, str) and bool(_SHA256_RE.match(sha))
+        if "sha256" in pl and not sha_ok:
+            err("PK080", where, "sha256 must be the 64-hex lowercase sha256 of the entry file")
+
+        observe = pl.get("observe")
+        if "observe" in pl:
+            if not isinstance(observe, list) or not (1 <= len(observe) <= 16):
+                err("PK086", where, "observe must be a list of 1-16 {topic, why} items")
+            else:
+                seen_topics: set = set()
+                for j, obs in enumerate(observe):
+                    if not isinstance(obs, dict):
+                        err("PK086", where, f"observe[{j}] must be an object {{topic, why}}")
+                        continue
+                    for key in sorted(set(obs) - {"topic", "why"}):
+                        err("PK086", where, f"observe[{j}] has an unknown field {key!r} (fields: topic, why)")
+                    topic = obs.get("topic")
+                    if not valid_topic_pattern(topic):
+                        err("PK086", where, f"observe[{j}] topic {topic!r} is not a valid wicked.run.* topic pattern (§C2)")
+                    elif topic in seen_topics:
+                        err("PK086", where, f"duplicate observe topic {topic!r}")
+                    else:
+                        seen_topics.add(topic)
+                    why = obs.get("why")
+                    if not isinstance(why, str) or not why.strip() or len(why) > 200:
+                        err("PK086", where, f'observe[{j}] ({topic!r}) needs a non-empty "why" of at most 200 chars')
+
+        panels = pl.get("panels")
+        if "panels" in pl:
+            if not isinstance(panels, list) or not (1 <= len(panels) <= 4):
+                err("PK087", where, "panels must be a list of 1-4 panel objects")
+            else:
+                seen_panels: set = set()
+                for j, pan in enumerate(panels):
+                    if not isinstance(pan, dict):
+                        err("PK087", where, f"panels[{j}] must be an object")
+                        continue
+                    for key in sorted(set(pan) - _PANEL_FIELDS):
+                        err("PK087", where, f"panels[{j}] has an unknown field {key!r} (fields: {', '.join(sorted(_PANEL_FIELDS))})")
+                    for req_key in ("slot", "id", "title", "order"):
+                        if req_key not in pan:
+                            err("PK087", where, f"panels[{j}] missing required field {req_key!r}")
+                    if "slot" in pan and pan["slot"] != "run.details":
+                        err("PK087", where, f"panels[{j}] slot must be 'run.details' (got {pan['slot']!r})")
+                    pan_id = pan.get("id")
+                    if "id" in pan:
+                        if not isinstance(pan_id, str) or not _PANEL_ID_RE.fullmatch(pan_id):
+                            err("PK087", where, f"panels[{j}] id {pan_id!r} must match ^[a-z][a-z0-9-]{{0,31}}$")
+                        elif pan_id in seen_panels:
+                            err("PK087", where, f"duplicate panel id {pan_id!r}")
+                        else:
+                            seen_panels.add(pan_id)
+                    if "title" in pan and not _valid_plugin_title(pan["title"]):
+                        err("PK087", where, f"panels[{j}] title must be 1-40 chars with a non-space and no '<', '>', CR or LF")
+                    order = pan.get("order")
+                    if "order" in pan and (not isinstance(order, int) or isinstance(order, bool) or not (1 <= order <= 99)):
+                        err("PK087", where, f"panels[{j}] order must be an integer 1..99 (got {order!r})")
+                    if "instances" in pan and pan["instances"] not in ("single", "per-phase"):
+                        err("PK087", where, f"panels[{j}] instances must be 'single' or 'per-phase' (got {pan['instances']!r})")
+                    if "defaultOpen" in pan and pan["defaultOpen"] not in ("always", "never", "current", "while-live"):
+                        err("PK087", where, f"panels[{j}] defaultOpen must be always | never | current | while-live (got {pan['defaultOpen']!r})")
+                    if "summary" in pan and pan["summary"] not in ("plugin", "none"):
+                        err("PK087", where, f"panels[{j}] summary must be 'plugin' or 'none' (got {pan['summary']!r})")
+
+        visuals = pl.get("visuals")
+        if "visuals" in pl:
+            if not isinstance(visuals, dict) or set(visuals) - {"color", "icon"}:
+                err("PK088", where, f"visuals may only set color and icon (got {visuals!r})")
+            else:
+                if "color" in visuals and (not isinstance(visuals["color"], str) or not _HEX_COLOR_RE.fullmatch(visuals["color"])):
+                    err("PK088", where, f"visuals.color must be #rrggbb hex (got {visuals['color']!r})")
+                if "icon" in visuals:
+                    icon = visuals["icon"]
+                    icon_path = _plugin_inside(pack_root, icon)
+                    if icon_path is None or icon_path.suffix != ".svg" or not str(icon).endswith(".svg"):
+                        err("PK088", where, f"visuals.icon must be a relative .svg path inside the pack (got {icon!r})")
+                    elif not icon_path.is_file():
+                        err("PK088", where, f"visuals.icon not found: {icon!r}")
+                    elif icon_path.stat().st_size > ICON_CAP:
+                        err("PK088", where, f"visuals.icon is {icon_path.stat().st_size} bytes, over the {ICON_CAP}-byte cap")
+
+        samples = pl.get("samples")
+        if "samples" in pl:
+            s_path = _plugin_inside(pack_root, samples)
+            if s_path is None or s_path.suffix != ".ndjson" or not str(samples).endswith(".ndjson"):
+                err("PK088", where, f"samples must be a relative .ndjson path inside the pack (got {samples!r})")
+            elif not s_path.is_file():
+                err("PK088", where, f"samples file not found: {samples!r}")
+            elif s_path.stat().st_size > SAMPLES_CAP:
+                err("PK088", where, f"samples file is {s_path.stat().st_size} bytes, over the {SAMPLES_CAP}-byte cap")
+            else:
+                lno = 0
+                try:
+                    for lno, raw_line in enumerate(s_path.read_text(encoding="utf-8").splitlines(), start=1):
+                        line = raw_line.strip()
+                        if not line:
+                            continue
+                        if not valid_core_event(json.loads(line)):
+                            err("PK088", where, f"samples {samples!r} line {lno} must be a CoreEvent with type, session, numeric seq and ts")
+                            break
+                except (OSError, ValueError) as exc:
+                    err("PK088", where, f"samples {samples!r} line {lno} is not valid NDJSON ({exc})")
+
+        _check_html_entry(
+            pl, pack_root, where, sha_ok, err, strict=True,
+            c_malformed="PK080", c_entry="PK082", c_size="PK083", c_hash="PK084", c_ext="PK085",
+        )
 
 
 def _check_blocks(manifest: dict, pack_root: Path, skill_names: set, err) -> None:
@@ -497,15 +780,17 @@ def check_pack(pack_root: Path, *, garden_root: "Path | None" = None) -> list:
         return findings
 
     for e in structural_errors(manifest, pack_root):
-        # The editor-id reservation is reported once, under its own code, by _check_editors.
-        if not e.startswith("editor id "):
+        # The editor/plugin-id reservation is reported once, under its own code, by _check_editors / _check_plugins.
+        if not e.startswith(("editor id ", "plugin id ")):
             err("PK002", MANIFEST_NAME, e)
     if any(f.code == "PK002" and ("skills dir" in f.message or "skills_dir" in f.message)
            for f in findings):
         return findings  # cannot walk a missing/escaping tree
 
-    # ---- manifest spec 2: editors (no skills needed) ---------------------
-    _check_editors(manifest, pack_root, err)
+    # ---- manifest spec 2: editors + plugins (no skills needed, one id namespace) ----
+    seen_ext_ids: set = set()
+    _check_editors(manifest, pack_root, seen_ext_ids, err)
+    _check_plugins(manifest, pack_root, seen_ext_ids, err)
 
     vendor = str(manifest.get("vendor", ""))
     skills_dir = pack_root / str(manifest.get("skills_dir", "skills"))

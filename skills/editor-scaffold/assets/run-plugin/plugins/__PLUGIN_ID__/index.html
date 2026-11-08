@@ -1,0 +1,100 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: MIT -->
+<!--
+  __PLUGIN_TITLE__ (__PLUGIN_ID__ __PLUGIN_VERSION__): a third-party run plugin ("phase plugin") speaking
+  wicked.editor/3 (DESIGN §2.b; CONTRACT-CS7). ONE self-contained file: every script and style is inline,
+  nothing is loaded from outside it (the bundle's policy has connect-src 'none' and pack check refuses
+  outside references). It renders ONE section in a job's Details panel from the granted observe topics.
+  After every change to this file, re-pin its hash: wicked-garden run scripts/editor/pin.py <pack dir>
+-->
+<html lang="en"><head><meta charset="utf-8"><title>__PLUGIN_TITLE__</title>
+<style>
+  :root { --accent: #224a5e; --ink: #0d1117; --ink-muted: #44515d; --surface: #ffffff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.45 system-ui, sans-serif; color: var(--ink); background: var(--surface); }
+  main { padding: 8px 12px; }
+  .note { color: var(--ink-muted); font-size: 12px; margin: 0 0 6px; }
+  [data-event-id] { display: flex; gap: 8px; padding: 2px 4px; border-radius: 4px; font: 12px/1.4 ui-monospace, monospace; }
+  .topic { color: var(--accent); font-weight: 600; }
+  .detail { color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style></head>
+<body data-protocol="3">
+<main>
+  <p class="note" id="status">Waiting for run events…</p>
+  <div id="events" role="list" aria-label="Observed run events"></div>
+</main>
+<script>
+(() => {
+  'use strict';
+  const PLUGIN = '__PLUGIN_ID__', VERSION = '__PLUGIN_VERSION__';
+  let port = null, observe = [], protocol = 3;
+  const seen = new Set();
+  const env = (type, payload) => ({ p: 'wicked.editor', v: 1, type, payload });
+  const send = (type, payload) => { if (port) port.postMessage(env(type, payload)); };
+  const answer = (id, payload) => { if (port) port.postMessage({ p: 'wicked.editor', v: 1, re: id, ok: true, payload }); };
+
+  // YOUR PLUGIN: render rows from events.batch as text only — never innerHTML.
+  function renderBatch(p) {
+    const rows = Array.isArray(p.rows) ? p.rows : Array.isArray(p.events) ? p.events : [];
+    const list = document.getElementById('events');
+    for (const r of rows) {
+      if (!r || typeof r !== 'object' || typeof r.topic !== 'string') continue;
+      const id = typeof r.id === 'string' && r.id ? r.id : String(++count);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const item = document.createElement('div');
+      item.dataset.eventId = id;
+      item.dataset.topic = r.topic;
+      item.setAttribute('role', 'listitem');
+      const t = document.createElement('span');
+      t.className = 'topic';
+      t.textContent = r.topic;
+      const d = document.createElement('span');
+      d.className = 'detail';
+      d.textContent = typeof r.data?.outcome === 'string' ? r.data.outcome : r.ord != null ? 'Unit ' + r.ord : id;
+      item.appendChild(t);
+      item.appendChild(d);
+      list.appendChild(item);
+    }
+    const line = seen.size + (seen.size === 1 ? ' event' : ' events');
+    document.getElementById('status').textContent = line + (observe.length ? ' · ' + observe.join(', ') : '');
+    send('panel.summary', { text: line });
+  }
+
+  function onPort(m) {
+    const d = m.data;
+    try {
+      if (!d || d.p !== 'wicked.editor' || d.v !== 1) return;
+      const p = d.payload || {};
+      switch (d.type) {
+        case 'host.ping': answer(d.id, {}); break;
+        case 'host.theme': {
+          const t = p.theme || {};
+          const map = { '--accent': '--accent', '--ink-high': '--ink', '--ink-muted': '--ink-muted', '--surface-card': '--surface' };
+          for (const [k, v] of Object.entries(t)) {
+            if (map[k] && typeof v === 'string' && !/url\(|[;{}]/i.test(v)) document.documentElement.style.setProperty(map[k], v);
+          }
+          break;
+        }
+        case 'events.batch': renderBatch(p); break;
+        case 'host.teardown': break;
+        default: break;
+      }
+    } catch (err) { /* a malformed host message is ignored */ }
+  }
+
+  window.addEventListener('message', (e) => {
+    if (port || !e.data || e.data.p !== 'wicked.editor' || e.data.type !== 'host.hello' || !e.ports || !e.ports[0]) return;
+    port = e.ports[0];
+    port.onmessage = onPort;
+    const p = e.data.payload || {};
+    protocol = typeof p.protocol === 'number' ? p.protocol : 3;
+    observe = Array.isArray(p.observe?.topics) ? p.observe.topics.filter((x) => typeof x === 'string') : [];
+    document.body.dataset.protocol = String(protocol);
+    document.getElementById('status').textContent = observe.length ? 'Observing ' + observe.join(', ') : 'No topics granted';
+  });
+  parent.postMessage(env('plugin.ready', { editor: PLUGIN, version: VERSION, protocol: [3], surfaces: { card: { interactive: false, aspect: 'auto', actions: [] } } }), '*');
+})();
+</script>
+</body></html>

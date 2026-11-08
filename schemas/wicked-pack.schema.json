@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/mikeparcewski/wicked-garden/blob/main/schemas/wicked-pack.schema.json",
-  "title": "wicked-pack.json — third-party pack manifest (skills, editors, blocks)",
-  "description": "Drop-in registration manifest for a third-party pack (extension contract, SKILL-RATIONALIZATION §5). Spec 2 adds editors[] and blocks[] (DES-artifact-editor-plugins §5.2); spec-1 packs stay valid. Placed at the pack root next to its skills/ tree. Garden discovers it at runtime from WICKED_PACK_PATH, the registered-pack file, Claude Code plugin dirs, and <project>/.wicked/packs/ — no garden PR required. Executable validation: `npx wicked-garden pack check <dir>` (scripts/pack/check.py).",
+  "title": "wicked-pack.json — third-party pack manifest (skills, editors, plugins, blocks)",
+  "description": "Drop-in registration manifest for a third-party pack (extension contract, SKILL-RATIONALIZATION §5). Spec 2 adds editors[], plugins[], and blocks[] (DES-artifact-editor-plugins §5.2; DESIGN §2.b); spec-1 packs stay valid. Placed at the pack root next to its skills/ tree. Garden discovers it at runtime from WICKED_PACK_PATH, the registered-pack file, Claude Code plugin dirs, and <project>/.wicked/packs/ — no garden PR required. Executable validation: `npx wicked-garden pack check <dir>` (scripts/pack/check.py).",
   "type": "object",
   "required": ["spec", "name", "vendor", "version"],
   "additionalProperties": false,
@@ -13,7 +13,7 @@
     },
     "spec": {
       "enum": [1, 2],
-      "description": "Manifest spec version. 1: skills only. 2: adds editors[] and blocks[]; domains becomes optional when editors is present."
+      "description": "Manifest spec version. 1: skills only. 2: adds editors[], plugins[], and blocks[]; domains becomes optional when editors or plugins is present."
     },
     "name": {
       "type": "string",
@@ -44,7 +44,7 @@
     "domains": {
       "type": "array",
       "minItems": 1,
-      "description": "The domains this pack contributes. Each declared domain must have exactly one router skill named {vendor}-{domain}; its workers are {vendor}-{domain}-{role} fork skills. Required, except in a spec-2 pack that declares editors.",
+      "description": "The domains this pack contributes. Each declared domain must have exactly one router skill named {vendor}-{domain}; its workers are {vendor}-{domain}-{role} fork skills. Required, except in a spec-2 pack that declares editors or plugins.",
       "items": {
         "type": "object",
         "required": ["name"],
@@ -318,6 +318,138 @@
         }
       }
     },
+    "plugins": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Spec 2. Third-party run plugins ('phase plugins') this pack ships (DESIGN §2.b, CONTRACT-CS7 §C1). Each renders a section in a job's Details panel on protocol 3 from ONE self-contained HTML entry inside the pack, pinned by sha256. `pack check` also verifies the entry, icon, samples, and observe topic patterns.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "version", "protocol", "inline", "entry", "sha256", "observe", "panels"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(?!wicked($|-))[a-z0-9]+(-[a-z0-9]+)*$",
+            "maxLength": 64,
+            "description": "Unique across the pack's editors[] and plugins[] (one id namespace). 'wicked' and 'wicked-*' are refused in every pack."
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^(?=.*\\S)[^<>\\r\\n]+$",
+            "description": "Plain words, 1-40 chars, shown in the job's Details panel and Settings → Editors."
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+            "description": "The plugin's own SemVer, anchored."
+          },
+          "protocol": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "integer", "minimum": 1 },
+            "contains": { "const": 3 },
+            "description": "wicked.editor protocol versions it speaks; must include 3."
+          },
+          "inline": {
+            "const": "run-thread",
+            "description": "Mount mode for run plugins."
+          },
+          "entry": {
+            "type": "string",
+            "pattern": "\\.html$",
+            "description": "Relative path of the single HTML file inside the pack (scripts inline)."
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "sha256 of the entry file; pinned at install."
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 160,
+            "description": "Short summary of what the run plugin shows (at most 160 chars)."
+          },
+          "observe": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 16,
+            "description": "Run event topic patterns (§C2) this plugin asks to observe, each with its reason shown in the install consent.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["topic", "why"],
+              "properties": {
+                "topic": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "pattern": "^wicked\\.run(?:\\.(?:[a-z][a-z0-9_-]{0,40}|\\*))*\\.(?:[a-z][a-z0-9_-]{0,40}|\\*|\\*\\*)$",
+                  "description": "Dot-separated run topic pattern starting with wicked.run. (** only as the last segment)."
+                },
+                "why": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S",
+                  "description": "The reason shown at install."
+                }
+              }
+            }
+          },
+          "panels": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "description": "Sections this plugin contributes to a job's Details panel.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["slot", "id", "title", "order"],
+              "properties": {
+                "slot": { "const": "run.details" },
+                "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,31}$" },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40,
+                  "pattern": "^(?=.*\\S)[^<>\\r\\n]+$"
+                },
+                "instances": { "enum": ["single", "per-phase"] },
+                "order": { "type": "integer", "minimum": 1, "maximum": 99 },
+                "defaultOpen": { "enum": ["always", "never", "current", "while-live"] },
+                "summary": { "enum": ["plugin", "none"] }
+              }
+            }
+          },
+          "visuals": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+              "icon": { "type": "string", "pattern": "\\.svg$" }
+            }
+          },
+          "samples": {
+            "type": "string",
+            "pattern": "\\.ndjson$",
+            "description": "Relative path of an .ndjson file of sample CoreEvent objects inside the pack."
+          },
+          "limits": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "bundleBytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5242880,
+                "description": "May only be lower than the host's cap (5 MiB)."
+              }
+            }
+          }
+        }
+      }
+    },
     "blocks": {
       "type": "array",
       "description": "Spec 2. Blocks that PRODUCE this pack's kind (DES-artifact-editor-plugins §9.2): each names a crew preset file inside the pack and the pack skills it uses, approved together at install.",
@@ -367,6 +499,9 @@
               "required": ["editors"]
             },
             {
+              "required": ["plugins"]
+            },
+            {
               "required": ["blocks"]
             }
           ]
@@ -386,6 +521,9 @@
           },
           {
             "required": ["editors"]
+          },
+          {
+            "required": ["plugins"]
           }
         ]
       }
