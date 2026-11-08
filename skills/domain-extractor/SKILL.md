@@ -70,9 +70,11 @@ and only this:
    line>"` only when the code does not meet the requirement — no other keys. Then check it:
    `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
    --worklist .wicked/domain/worklist.json` and fix what it names.
-   **Read each unit's source and write each statement yourself.** A helper that writes the
-   file is fine; a script that composes statements from names or slices is not — it describes
-   code, and the page's review fails it. State what the business requires (who may do what,
+   **Read each unit's source and write each statement yourself.** Create and change the file
+   with your file write and edit tools, never with an inline interpreter (`python3 - <<…`,
+   `node -e …`): the seat's input governance refuses that. A script that composes statements
+   from names or slices is wrong anyway: it describes code, and the page's review fails it.
+   State what the business requires (who may do what,
    what must hold, what is refused and why, what a caller must supply, what a result must
    carry), not what the function does. **Most product code encodes a rule: state it.** A
    check, a refusal, a limit, a default, an ordering, a permission or a state change is a rule
@@ -101,7 +103,10 @@ and only this:
    requirement, and add `"code_meets": false` and a one-line `"mismatch"` saying how the code
    departs (e.g. "the loop starts at index 1, so the first element is skipped"), but only when a
    doc comment, a test or a caller shows the intended requirement; a unit whose intent is
-   unclear still gets an empty statement and no mismatch. Never restate
+   unclear still gets an empty statement and no mismatch. A unit whose intent is shown that
+   way and whose own code is right, but whose result is wrong because a callee it relies on
+   departs, inherits that mismatch: mark it `"code_meets": false` too, with a mismatch naming
+   the callee (e.g. "inherits sum's skipped first element, so the mean is too low"). Never restate
    the bug as the requirement, and never lower the confidence because the code is wrong: the
    requirement counts, and the mismatch is shown beside it as a finding.
 3. Report how many units you stated. Write no other file, and never try to reach the store.
