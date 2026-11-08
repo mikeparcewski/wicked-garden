@@ -1347,6 +1347,10 @@ def test_run_plugin_real_host_hello_topics_and_summary_payload(tmp_path, run_plu
                 assert page.frame_locator("iframe").locator('[role="listitem"]').count() > 0
                 assert not page.evaluate("() => window.__wickedRunPlugin.log.some(e => "
                                          "e.type === 'panel.summary' && (e.ok === false || e.kind === 'dropped'))")
+                # The section sizes to its rows: the scaffold reports its height, and the host takes it.
+                page.wait_for_function("() => window.__wickedRunPlugin.log.some(e => e.kind === 'in' && e.type === 'ui.height' && e.ok)")
+                assert not page.evaluate("() => window.__wickedRunPlugin.log.some(e => "
+                                         "e.type === 'ui.height' && (e.ok === false || e.kind === 'dropped'))")
             finally:
                 browser.close()
     finally:

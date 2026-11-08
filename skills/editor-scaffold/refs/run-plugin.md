@@ -87,7 +87,10 @@ the `EDITOR-GRANTS` writes so the consent gate shows each topic and its reason.
 3. **`panel.summary`**: when a panel sets `summary: "plugin"`, post
    `{p: 'wicked.editor', v: 1, type: 'panel.summary', payload: {text: "<short text>", tone?: "none" | "run" | "wait" | "ok" | "fail"}}`
    on the port to update the section header badge.
-4. **Liveness & resilience**: answer `host.ping` with `{p: 'wicked.editor', v: 1, re: d.id, ok: true, payload: {}}`;
+4. **`ui.height`**: the section is as tall as the plugin says (its card is `aspect: "auto"`). After every render,
+   post `{p: 'wicked.editor', v: 1, type: 'ui.height', payload: {px: <content height>}}` on the port; without it the
+   host keeps the frame at its minimum and the rows are cut off.
+5. **Liveness & resilience**: answer `host.ping` with `{p: 'wicked.editor', v: 1, re: d.id, ok: true, payload: {}}`;
    apply `host.theme` safely (reject `url(`, `;`, `{`, `}`); ignore unknown message types and
    malformed payloads without throwing; load nothing from outside the HTML file.
 

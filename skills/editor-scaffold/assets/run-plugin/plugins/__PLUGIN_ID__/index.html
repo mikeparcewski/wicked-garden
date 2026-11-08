@@ -60,7 +60,18 @@
     const line = seen.size + (seen.size === 1 ? ' event' : ' events');
     document.getElementById('status').textContent = line + (observe.length ? ' · ' + observe.join(', ') : '');
     send('panel.summary', { text: line });
+    reportHeight();
   }
+
+  // The section is as tall as the plugin says (card aspect "auto"): report the content's height after every render,
+  // or the host keeps the frame at its minimum and the rows are cut off.
+  // Also on every layout change (a section first mounted while folded or in a closed drawer measures 0 until shown).
+  let lastHeight = 0;
+  function reportHeight() {
+    const h = Math.ceil(document.querySelector('main').getBoundingClientRect().height);
+    if (h > 0 && h !== lastHeight) { lastHeight = h; send('ui.height', { px: h }); }
+  }
+  if (typeof ResizeObserver === 'function') new ResizeObserver(() => reportHeight()).observe(document.querySelector('main'));
 
   function onPort(m) {
     const d = m.data;
@@ -93,6 +104,7 @@
     observe = Array.isArray(p.observe?.topics) ? p.observe.topics.filter((x) => typeof x === 'string') : [];
     document.body.dataset.protocol = String(protocol);
     document.getElementById('status').textContent = observe.length ? 'Observing ' + observe.join(', ') : 'No topics granted';
+    reportHeight();
   });
   parent.postMessage(env('plugin.ready', { editor: PLUGIN, version: VERSION, protocol: [3], surfaces: { card: { interactive: false, aspect: 'auto', actions: [] } } }), '*');
 })();
