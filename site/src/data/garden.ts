@@ -442,15 +442,16 @@ export const PACKS: { id: string; label: string; dir: string; rows: { dir: strin
   { id: "compliance", label: "compliance", dir: "acme-compliance-pack", rows: pack("compliance", "mapper", "auditor") },
 ];
 
-/* ── What's new in the release the words describe (COPY rev 5 §5, garden 12.64.0) ──
+/* ── What's new in the release the words describe (garden 12.66.0; DES-CATALOG-002 rev 8 CS3, CS5, CS7) ──
    Each: a bold lead, an optional command (code), then the rest; spaces live in the
-   strings, so no build step can fuse a word to the next inline tag. The data
-   shapes item links to its domain in the catalog. */
-export const NEW_RELEASE = "12.64";
+   strings, so no build step can fuse a word to the next inline tag. The respond and
+   rework item links to its domain in the catalog (draft is a product command). An item
+   is cut, never softened, if it did not ship. */
+export const NEW_RELEASE = "12.66";
 export const NEW_IN: { b: string; code?: string; rest: string; href?: string }[] = [
-  { b: "Answers from your data:", rest: " in a wicked-crew chat or job that may query a connected source, an answer runs one read-only query and cites it. It never stores a row." },
-  { b: "Data shapes:", code: "shapes", rest: " proposes what a connected source’s tables join, which code describes them and which rule governs them, for you to approve. It reads structure, never a row.", href: "#dom-data" },
-  { b: "Apps:", code: "wicked-garden-apps", rest: " builds each change you ask for in a studio app’s chat, and another agent reviews it. An app can show your knowledge, memories and rules, not only a data source’s rows, and the builder never writes to your data." },
+  { b: "Reports with sources:", code: "wicked-garden-learn", rest: " has a report mode for wicked-crew’s six report jobs, from research to due diligence: every claim is numbered, cites its source and is re-checked there." },
+  { b: "Respond and rework:", code: "draft", rest: " answers an RFP, RFI or questionnaire from your materials, item by item, or reworks a document: condense, re-audience, generalize, convert or refresh.", href: "#dom-product" },
+  { b: "Phase plugins:", code: "editor-scaffold", rest: " also scaffolds a run plugin: a section in every studio job’s details, drawn from its events, reading only the topics you approve." },
 ];
 
 export const G = {
