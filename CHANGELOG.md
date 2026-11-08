@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **A run plugin's first height reaches the host** (editor-scaffold run-plugin, CS7). The scaffold's ResizeObserver
+  runs before `host.hello`, so it remembered a height it could not send, and the report right after hello looked
+  unchanged and was dropped: the section stayed at its minimum until the content changed size. The scaffold now
+  measures nothing before hello and reports its height right after it. A node-driven test covers the order.
+
 ## [12.66.0] — 2026-11-08
 
 Minor: drafts that answer an RFP or rework your own documents with every statement traced to its source; third-party
