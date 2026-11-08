@@ -2,8 +2,20 @@
 
 ## [Unreleased]
 
+## [12.66.0] — 2026-11-08
+
+Minor: drafts that answer an RFP or rework your own documents with every statement traced to its source; third-party
+run plugins in editor packs; the learn skill's report mode for sourced reports; drafts that keep process notes out
+and keep your edits on a refine; editor conformance cases 7 and 18; and fixes to domain mapping and Refresh map.
+
 ### Added
 
+- **Draft: Respond and Rework, with every statement traced to its source** (DES-CATALOG-002 CS5, garden half). Two
+  new kinds for `wicked-garden-draft`. **Respond** answers an RFP, RFI or questionnaire item by item, in order, citing
+  the ask and your material for each answer; an item your material does not cover says so plainly instead of being
+  invented or left as a placeholder (`refs/respond.md`). **Rework** makes a new document from your source documents
+  (condense, re-audience, generalize, convert, refresh) and never adds a fact (`refs/rework.md`). Eight Kind rows
+  route to them, and their runs re-check every statement against the sources.
 - **Third-party run plugins (`plugins[]` in `wicked-pack.json` spec 2, protocol 3; DESIGN §2.b, CONTRACT-CS7)**:
   `schemas/wicked-pack.schema.json` and `scripts/pack/check.py` validate `plugins[]` (`observe[]` `wicked.run.*`
   topic patterns, `panels[]`, `visuals`, `samples`, one id namespace with `editors[]`, `permissions` refused);
@@ -41,6 +53,10 @@
 
 ### Changed
 
+- **The docs give the one command that installs wicked-estate** (first-run walk-through). The README and
+  `docs/required-peers.md` now say `npx wicked-installer install wicked-estate`, which downloads the prebuilt,
+  sha256-verified `wicked-estate` and `wicked-estate-mcp` binaries into `~/.local/bin` (macOS, glibc Linux x64/arm64,
+  Windows x64; other platforms build them with cargo into `$CARGO_HOME/bin` or `~/.cargo/bin`).
 - **Drafts keep process notes out of the artifact, and a refine keeps the person's own edits** (plugins-complete
   G4; DES-CHAT-ARTIFACTS-001 slices A6 and A5). Three new `wicked-garden-draft` scripts:
   - **`leak_scan.py`** (now part of `self_check.py`): fails a document that carries how it was made: inbox or
@@ -83,6 +99,8 @@
 
 ### Fixed
 
+- **A run plugin made from the scaffold shows its whole Job details section** (CS7). The scaffold's card now reports
+  its content height to the host, so the section is no longer cut off at the frame's minimum height.
 - **The domain extractor's inherited-mismatch example no longer states a direction (e2e-1105).** It said mean
   "is too low" because `sum` skips the first element, which is wrong when that element is negative
   (mean([-2,4]) gives 2, not 1); a run's critique caught the extractor copying it. The example now says the
@@ -1630,7 +1648,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...HEAD
+[12.66.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...v12.66.0
 [12.65.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...v12.65.1
 [12.65.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.64.0...v12.65.0
 [12.64.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.63.0...v12.64.0
