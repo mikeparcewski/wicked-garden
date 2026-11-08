@@ -225,17 +225,17 @@ test('CatalogExplorer: the tour types a task, lights its matches and opens the f
   await expect(cat.locator('#dom-data')).toHaveAttribute('aria-selected', 'true');
 });
 
-test("What's new: the data shapes item selects the domain in the catalog, every time it is followed", async ({ page }) => {
+test("What's new: the respond and rework item selects its domain in the catalog, every time it is followed", async ({ page }) => {
   const link = page.locator('#memory .mq-new-list a');
   await link.scrollIntoViewIfNeeded();
   await link.click();
-  await expect(page.locator('#dom-data')).toHaveAttribute('aria-selected', 'true');
-  // pick another domain, then follow the same link again: the URL already says #dom-data (no hashchange)
+  await expect(page.locator('#dom-product')).toHaveAttribute('aria-selected', 'true');
+  // pick another domain, then follow the same link again: the URL already says #dom-product (no hashchange)
   await page.locator('#dom-qe').click();
   await expect(page.locator('#dom-qe')).toHaveAttribute('aria-selected', 'true');
   await link.scrollIntoViewIfNeeded();
   await link.click();
-  await expect(page.locator('#dom-data')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.locator('#dom-product')).toHaveAttribute('aria-selected', 'true');
 });
 
 test('ExtendPack: the extension pitch renders scaffold, rules, and the compile chip', async ({

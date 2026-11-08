@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 /**
  * The reviewed messaging under the hero: the sub-line names the proof gate, three benefits, and
- * what's new in 12.64. Asserted on rendered text, so a word fused to the following inline tag
+ * what's new in 12.66. Asserted on rendered text, so a word fused to the following inline tag
  * (Astro compressHTML deletes a newline before <span>/<b>/<code>) fails here, not in review.
  */
 test('the hero sub-line names the hosts and the proof gate, with no fused words', async ({ page }) => {
@@ -13,7 +13,7 @@ test('the hero sub-line names the hosts and the proof gate, with no fused words'
   expect(sub).not.toContain('never asserted');
 });
 
-test('the three benefits lead their sections, and what is new in 12.64 closes memory', async ({ page }) => {
+test('the three benefits lead their sections, and what is new in 12.66 closes memory', async ({ page }) => {
   await page.goto('/');
   const lead = async (id: string) => (await page.locator(`#${id} .sx-lead`).innerText()).replace(/\s+/g, ' ');
   expect(await lead('gate')).toContain('Proof, not claims. Run the proof gate and “done” is re-checked from evidence');
@@ -27,13 +27,15 @@ test('the three benefits lead their sections, and what is new in 12.64 closes me
   expect(await lead('panel')).toContain('a same-family fallback is labelled, and without a quorum it gives no verdict');
   const items = page.locator('#memory .mq-new-list li');
   await expect(items).toHaveCount(3);
-  await expect(page.locator('#memory .mq-new-h')).toHaveText('What’s new in 12.64');
+  await expect(page.locator('#memory .mq-new-h')).toHaveText('What’s new in 12.66');
   const text = (await page.locator('#memory .mq-new-list').innerText()).replace(/\s+/g, ' ');
-  expect(text).toContain('Answers from your data: in a wicked-crew chat or job');
-  expect(text).toContain('Data shapes: shapes proposes');
-  expect(text).toContain('Apps: wicked-garden-apps builds');
-  expect(text).toContain('An app can show your knowledge, memories and rules');
-  expect(text).toContain('never stores a row');
+  expect(text).toContain('Reports with sources: wicked-garden-learn has a report mode');
+  expect(text).toContain('every claim is numbered, cites its source and is re-checked there');
+  expect(text).toContain('Respond and rework: draft answers an RFP, RFI or questionnaire');
+  // a run plugin observes a job's events on the topics approved at install; it never adds a step (intercept hooks
+  // are not in this release)
+  expect(text).toContain('Phase plugins: editor-scaffold also scaffolds a run plugin: a section in every studio job’s details, drawn from its events, reading only the topics you approve.');
+  expect(text).not.toMatch(/intercept|coming soon|adds? an? (step|check|review|gate|approval)/i);
 });
 
 test('public words: no seat, floor, plane or unmeasured numbers outside the platform map', async ({ page }) => {
