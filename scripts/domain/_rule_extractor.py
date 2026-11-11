@@ -93,8 +93,27 @@ def frame_context(node: dict[str, Any], source_slice: str,
     }
 
 
+def _domains_text(domains: list[dict[str, Any]]) -> str:
+    """The repository's business domains, for the model to pick one per unit (reqgraph Fix B)."""
+    lines = []
+    for d in domains:
+        name = str(d.get("name") or "").replace("`", "'")[:60]
+        purpose = str(d.get("purpose") or "").replace("`", "'")[:200]
+        lines.append(f"  {d.get('id')}: {name}: {purpose}")
+    return (
+        "\nBUSINESS DOMAINS of this repository (the areas the product serves its users in):\n"
+        + "\n".join(lines) + "\n"
+        "Add to each object \"domain\": \"<one id above>\" and \"domain_confidence\": <0..1>: "
+        "the area the rule serves, judged from what the rule does for the product's users, never "
+        "from the file's directory. When no area fits, leave both keys out.\n")
+
+
 def _build_prompt(batch: list[dict[str, Any]]) -> str:
     parts = [_PROMPT_HEADER]
+    domains = next((c["business_domains"] for c in batch
+                    if isinstance(c.get("business_domains"), list) and c["business_domains"]), None)
+    if domains:
+        parts.append(_domains_text(domains))
     for i, c in enumerate(batch, 1):
         neigh = ", ".join(c.get("neighbors") or []) or "(none)"
         parts.append(

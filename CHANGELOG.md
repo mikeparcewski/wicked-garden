@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Requirements get a business domain, not just a directory.** A requirement's domain was its package directory,
+  which fit a product owner's view on 57% of the rows measured on AutoGPT. Now the first page of a domain-extraction
+  run proposes the repository's business domains (3 to 9 areas named for what the code does for its users, each with
+  a one-line purpose and the entry points, routes, CLI verbs or public-API nouns that show it), and every rule picks
+  one with a confidence; requirements an earlier map resolved are assigned on the next page. `extract-apply` refuses a
+  catalog whose evidence is not a tracked file or a symbol in the code graph, a domain named after a directory, a
+  second catalog for the same repository, picks outside the catalog and assignments to anything but a resolved
+  requirement. It stores the catalog beside the code graph and writes each pick as a `business_domain` annotation,
+  which wicked-core's `domain-graph` reads into `requirement.business_domain`. Requirement keys do not change. The
+  `domain-modeler` skill says how to propose and assign, and the extractor's seat text and rule-model prompt carry the
+  domain list. The vendored domain-model schema is re-synced to bundle 1.3.1 (the two new optional fields).
+
 ### Fixed
 
 - **A governed builder writes its stack check on one line the rule judge can cite (wicked-core#1381).** The
