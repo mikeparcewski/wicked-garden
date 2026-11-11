@@ -55,9 +55,9 @@ def _annotations_table(db, rows=()):
               "node_sym INTEGER, key TEXT, value TEXT, confidence REAL, provenance TEXT DEFAULT '', "
               "author TEXT DEFAULT '', type TEXT)")
     sid = dict(c.execute("SELECT sym, sid FROM symbols").fetchall())
-    for sym, typ, value, conf in rows:
+    for sym, typ, value, conf, *key in rows:
         c.execute("INSERT INTO annotations (node_sym, key, value, confidence, type) VALUES (?,?,?,?,?)",
-                  (sid[sym], typ, value, conf, typ))
+                  (sid[sym], key[0] if key else typ, value, conf, typ))
     c.commit()
     c.close()
 
@@ -128,7 +128,8 @@ def _first(*evidence):
             {"kind": "route", "file": "f.py", "text": "POST /does-not-exist"}),
      "does not occur in 'f.py'"),
     (_first({"kind": "route", "file": "f.py", "text": "x = 1"}), "cites no symbol"),
-    (_first({"kind": "entry-point", "file": "README.md", "symbol": "core"}),
+    (_first({"kind": "entry-point", "file": "f.py", "symbol": "core"},
+            {"kind": "entry-point", "file": "README.md", "text": "x = 1"}),
      "not product code"),
     (_first({"kind": "entry-point", "file": "f.py", "symbol": "core"},
             {"kind": "directory", "file": "ledger"}), "under 'ledger'"),
@@ -138,7 +139,7 @@ def test_evidence_must_be_code_the_host_can_see(tmp_path, catalog, why):
     repo = _git_repo(tmp_path, tracked=("f.py", "pay/charge.py", "README.md"))
     tracked = rules_file.tracked_files(repo)
     args = (tracked, business_domains.symbol_lookup(db), business_domains.repo_reader(repo),
-            lambda f: not business_domains.not_product(f))
+            lambda f, kind: not business_domains.not_product(f, kind))
     business_domains.check_catalog_evidence(_catalog(), *args)
     business_domains.check_catalog_evidence(  # a route the file does hold is evidence
         _first({"kind": "entry-point", "file": "f.py", "symbol": "core"},
@@ -241,18 +242,68 @@ def test_assignments_only_reach_resolved_requirements_without_a_domain(tmp_path)
     assert bd["refused_count"] == 5
 
 
-def test_a_units_own_rule_picks_its_domain_never_an_assignment(tmp_path):
+def test_a_units_own_rule_picks_its_domain_never_an_assignment(tmp_path, monkeypatch):
+    # codex r2: the overlap is a RESOLVED, domainless unit the page restates (changed since the
+    # map was built): it is eligible for both. Its rule's pick must stand.
     db, repo, wt, estate, core = _fixture(tmp_path)
     business_domains.save_catalog(db, _catalog())
-    _annotations_table(db, [("s::core", "business_rule", "amount must be positive", 0.9)])
-    _write(wt, [{**_rule("s::a"), "domain": "accounts", "domain_confidence": 0.9}],
-           assignments=[{"symbol_id": "s::a", "domain": "payments", "confidence": 0.8},
-                        {"symbol_id": "s::core", "domain": "payments", "confidence": 0.8}])
-    # s::a is a page unit (unmapped): its rule's pick stands. s::core was resolved earlier.
+    _annotations_table(db, [("s::core", "business_rule", "amount must be positive", 0.9,
+                             extract_loop.rule_key("s::core", apply_rules.AUTHOR)),
+                            ("s::b", "business_rule", "a refund never exceeds the charge", 0.9)])
+    for sid in ("s::core", "s::b"):
+        estate.writes[sid] = {"req": ("x", True, "extract-loop")}  # mapped (the fake's coverage)
+    monkeypatch.setattr(apply_rules, "_restatable", lambda db_, store: (
+        {"s::core": {"symbol_id": "s::core", "name": "core", "file": "f.py", "kind": "Function"}},
+        {"s::core"}))
+    _write(wt, [{**_rule("s::core"), "domain": "accounts", "domain_confidence": 0.9}],
+           assignments=[{"symbol_id": "s::core", "domain": "payments", "confidence": 0.8},
+                        {"symbol_id": "s::b", "domain": "payments", "confidence": 0.8}])
     report = _apply(wt, db, repo, estate, core)
-    assert _domain_of(estate, "s::a") == ("accounts", 0.9)
-    assert _domain_of(estate, "s::core") == ("payments", 0.8)
+    assert report["applied"]["resolved"] == 1
+    assert _domain_of(estate, "s::core") == ("accounts", 0.9)
+    assert _domain_of(estate, "s::b") == ("payments", 0.8)
     assert report["business_domains"]["assigned"] == 1
+    assert any("whose pick is its domain" in r["why"] for r in report["business_domains"]["refused"])
+
+
+def test_a_malformed_entry_beside_assignments_is_refused_and_the_rest_applies(tmp_path):
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    business_domains.save_catalog(db, _catalog())
+    _write(wt, [{"symbol_id": [], "statement": "x", "confidence": 0.9}, _rule("s::a"),
+                {**_rule("s::b"), "domain": "payments", "domain_confidence": 10 ** 400}],
+           assignments=[{"symbol_id": "s::c", "domain": "payments", "confidence": 10 ** 400}])
+    report = _apply(wt, db, repo, estate, core)
+    assert report["applied"]["resolved"] == 1  # s::a; the others are refused, not a crash
+    assert report["business_domains"]["assigned"] == 0
+
+
+def test_backfill_follows_cores_resolved_and_product_predicates(tmp_path):
+    # codex r2 (P3): a store with estate's real columns. A validated requirement resolves a node
+    # without a business_rule; an extracted Rule in a data file is product; a data key is not.
+    db, repo, wt, estate, core = _fixture(tmp_path, tracked=("f.py", "flows/a.json", "cfg.json"))
+    c = sqlite3.connect(db)
+    c.execute("ALTER TABLE nodes ADD COLUMN kind TEXT")
+    c.execute("ALTER TABLE nodes ADD COLUMN requirement_validated INTEGER NOT NULL DEFAULT 0")
+    c.execute("UPDATE nodes SET kind = '\"function\"'")
+    c.execute("UPDATE nodes SET requirement = 'a refund never exceeds the charge', "
+              "requirement_validated = 1 WHERE name = 'b'")
+    c.execute("UPDATE nodes SET file = 'flows/a.json', kind = '\"rule\"' WHERE name = 'i1'")
+    c.execute("UPDATE nodes SET file = 'cfg.json', kind = '\"other\"' WHERE name = 'i2'")
+    c.commit(); c.close()
+    _annotations_table(db, [("s::i1", "business_rule", "an approval needs two managers", 0.9),
+                            ("s::i2", "business_rule", "timeout is 30", 0.9)])
+    tracked = rules_file.tracked_files(repo)
+    got, total = business_domains.resolved_without_domain(
+        db, tracked, extract_loop.RESOLVE_THRESHOLD, business_domains.not_product)
+    assert [g["symbol_id"] for g in got] == ["s::b", "s::i1"] and total == 2
+    # The same Rule symbol substantiates a domain; the data key does not.
+    args = (tracked, business_domains.symbol_lookup(db), business_domains.repo_reader(repo),
+            lambda f, kind: not business_domains.not_product(f, kind))
+    business_domains.check_catalog_evidence(
+        _first({"kind": "entry-point", "file": "flows/a.json", "symbol": "i1"}), *args)
+    with pytest.raises(business_domains.CatalogRefused, match="not product code"):
+        business_domains.check_catalog_evidence(
+            _first({"kind": "entry-point", "file": "cfg.json", "symbol": "i2"}), *args)
 
 
 def test_prepare_asks_for_a_catalog_then_carries_it_and_the_backfill(tmp_path, monkeypatch):
@@ -333,3 +384,5 @@ def test_a_rule_entry_carries_domain_and_confidence_together():
                                                     "domain_confidence": 0.5})
     assert "domain_confidence" in rules_file.check_rule_entry({**base, "domain": "payments",
                                                                "domain_confidence": 2})
+    assert "domain_confidence" in rules_file.check_rule_entry(  # codex core r1: no OverflowError
+        {**base, "domain": "payments", "domain_confidence": 10 ** 400})

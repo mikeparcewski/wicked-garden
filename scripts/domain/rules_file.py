@@ -133,7 +133,7 @@ def check_rule_entry(entry: Any) -> str | None:
         if not isinstance(dom, str) or not _DOMAIN_ID_RE.fullmatch(dom):
             return "domain must be a business-domain id (a lowercase slug) next to domain_confidence"
         if isinstance(dconf, bool) or not isinstance(dconf, (int, float)) \
-                or not math.isfinite(dconf) or not 0 <= dconf <= 1:
+                or not 0 <= dconf <= 1 or not math.isfinite(dconf):
             return "domain_confidence must be a number in [0,1] next to domain"
     if "provenance" in entry:
         prov = entry["provenance"]

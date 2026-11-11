@@ -174,9 +174,9 @@ def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None) -
 
 
 def check_catalog_evidence(domains: list[dict], tracked: set[str],
-                           has_symbol: Callable[[str, str], bool],
+                           symbol_kind: Callable[[str, str], str | None],
                            read_file: Callable[[str], str | None],
-                           is_product: Callable[[str], bool]) -> None:
+                           is_product: Callable[[str, str], bool]) -> None:
     """Every evidence item must point at code the host can see, and say something the code
     shows (codex r1: a file name alone proves nothing):
 
@@ -200,18 +200,20 @@ def check_catalog_evidence(domains: list[dict], tracked: set[str],
                 continue
             if path not in tracked:
                 raise CatalogRefused(f"{at}: {path!r} is not a file the repository tracks")
-            if not is_product(path):
-                raise CatalogRefused(f"{at}: {path!r} is a test, data or document file, not "
-                                     "product code")
             sym = (e.get("symbol") or "").strip()
             text = (e.get("text") or "").strip()
             if not sym and not text:
                 raise CatalogRefused(f"{at}: name the symbol (or the route or verb text) in "
                                      f"{path!r} that shows the area")
-            if sym:
-                if not has_symbol(path, sym):
-                    raise CatalogRefused(f"{at}: the code graph has no symbol {sym!r} in {path!r}")
-                anchored = True
+            kind = symbol_kind(path, sym) if sym else ""
+            if sym and kind is None:
+                raise CatalogRefused(f"{at}: the code graph has no symbol {sym!r} in {path!r}")
+            # Core's product predicate, with the node's kind (an extracted `Rule` in a flow or
+            # policy file is product behaviour whatever its extension; codex r2).
+            if not is_product(path, kind or ""):
+                raise CatalogRefused(f"{at}: {path!r} is a test, data or document file, not "
+                                     "product code")
+            anchored = anchored or bool(sym)
             if text:
                 body = read_file(path)
                 if body is None or text not in body:
@@ -226,7 +228,7 @@ def check_pick(domain: Any, confidence: Any, ids: set[str]) -> str | None:
     if not isinstance(domain, str) or domain not in ids:
         return f"domain {str(domain)[:60]!r} is not an id of the repository's business domains"
     if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) \
-            or not math.isfinite(confidence) or not 0 <= confidence <= 1:
+            or not 0 <= confidence <= 1 or not math.isfinite(confidence):
         return "domain_confidence is not a number in [0,1]"
     return None
 
@@ -366,19 +368,25 @@ def _store_rows(db: str, ann_type: str) -> list[tuple[str, str, float]]:
         c.close()
 
 
-def symbol_lookup(db: str) -> Callable[[str, str], bool]:
-    """has_symbol(file, name) over the store's nodes (a node named `name` in `file`)."""
-    pairs: set[tuple[str, str]] = set()
+def symbol_lookup(db: str) -> Callable[[str, str], str | None]:
+    """symbol_kind(file, name) over the store's nodes: the kind of a node named `name` in `file`
+    ("" when the store records none), or None when there is no such node."""
+    kinds: dict[tuple[str, str], str] = {}
     try:
         c = _connect(db)
         try:
-            for r in c.execute("SELECT name, file FROM nodes"):
-                pairs.add((str(r["file"]).replace("\\", "/"), str(r["name"])))
+            try:
+                rows = c.execute("SELECT name, file, kind FROM nodes").fetchall()
+            except sqlite3.OperationalError:  # a store without the kind column
+                rows = c.execute("SELECT name, file, '' AS kind FROM nodes").fetchall()
+            for r in rows:
+                key = (str(r["file"]).replace("\\", "/"), str(r["name"]))
+                kinds.setdefault(key, str(r["kind"] or "").strip('"'))
         finally:
             c.close()
     except sqlite3.Error:
         pass
-    return lambda file, name: (file, name) in pairs
+    return lambda file, name: kinds.get((file, name))
 
 
 def resolved_without_domain(db: str, tracked: set[str], threshold: float,

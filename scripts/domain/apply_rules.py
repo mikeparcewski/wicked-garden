@@ -287,7 +287,8 @@ def _restates(entry: dict, ids: set[str], why: str | None) -> bool:
     return ok and why is None and float(entry["confidence"]) >= extract_loop.RESOLVE_THRESHOLD
 
 
-def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str) -> dict:
+def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
+                 stated: set[str]) -> dict:
     """What this page may write of its business domains (reqgraph Fix B), decided before any
     write: the catalog (the stored one, else the page's proposal when it is grounded in code the
     host can see), and the assignments that name a resolved requirement with no domain yet."""
@@ -308,7 +309,7 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str) -> dict:
             business_domains.check_catalog_evidence(
                 proposed, tracked, business_domains.symbol_lookup(db),
                 business_domains.repo_reader(repo_root),
-                lambda f: not business_domains.not_product(f))
+                lambda f, kind: not business_domains.not_product(f, kind))
             plan.update(catalog=proposed, store=True, state="proposed")
         except business_domains.CatalogRefused as e:
             # Refused whole: the page's rules still apply, without a domain; the next page asks
@@ -329,7 +330,6 @@ def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str) -> dict:
         open_ids = {r["symbol_id"] for r in backfill}
         # A unit the page states a rule for takes its domain from that rule (codex r1): never
         # from an assignment too, which would overwrite the rule's pick.
-        stated = {e.get("symbol_id") for e in doc.get("rules") or [] if isinstance(e, dict)}
         plan["assign"] = [a for a in ok if a["symbol_id"] in open_ids
                           and a["symbol_id"] not in stated]
         bad += [{"index": None, "symbol_id": rules_file._shown(a["symbol_id"]),
@@ -394,7 +394,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     restate = {sid: n for sid, n in restatable.items() if sid not in unmapped}
     nodes = {**restate, **unmapped}
     tracked = rules_file.tracked_files(repo_root)
-    domains = _domain_plan(db, doc, tracked, repo_root)
+    domains = _domain_plan(db, doc, tracked, repo_root, {e["symbol_id"] for e in accepted})
     domain_by_id = {d["id"]: d for d in domains["catalog"] or []}
     picks: list[tuple[str, str, float]] = []
 
