@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.67.0] — 2026-11-11
+
+Minor: requirements carry a business domain proposed from code evidence; the rule extractor states what the code
+does; a governed builder records its stack check on one citable line. The `business_domain` annotation is read into
+`requirement.business_domain` by wicked-core-ts 0.15.39 or later (wicked-core#1425); an older core ignores it.
+
 ### Added
 
 - **Requirements get a business domain, not just a directory.** A requirement's domain was its package directory,
@@ -1688,7 +1694,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...HEAD
+[12.67.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...v12.67.0
 [12.66.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...v12.66.1
 [12.66.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...v12.66.0
 [12.65.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.0...v12.65.1
