@@ -1286,6 +1286,45 @@ def test_the_extractor_never_asks_for_a_rule_from_a_plain_field_list():
     assert "a plain list of fields describes code" in prompt
 
 
+def _extractor_texts():
+    skill = Path(__file__).resolve().parents[2] / "skills" / "domain-extractor" / "SKILL.md"
+    # wrap-independent (agy #1376)
+    return (" ".join(skill.read_text(encoding="utf-8").split()),
+            " ".join(_rule_extractor._PROMPT_HEADER.split()))
+
+
+def test_the_extractor_states_what_the_body_enforces_never_what_a_comment_says():
+    """Public measurement, Significant-Gravitas/AutoGPT at 9cb76f9: statements taken from comments
+    failed review. `ensure_embeddings_coverage` (scheduler.py:2462, 2467) documents batches of 10
+    while its body calls backfill_missing_embeddings(batch_size=100) (:2512).
+    `AutoModManager#moderate_graph_execution_outputs` (automod/manager.py:189, 220) accepts a
+    timeout it never applies and bypasses moderation on a timeout. Three rules were stated from
+    abstract methods whose body is only a docstring and "...". Both instruction paths now say the
+    statement comes from the body."""
+    for text in _extractor_texts():
+        assert "State what the unit's body enforces: its values, limits, defaults, and what it does with each parameter" in text
+        assert ("The statement comes from what the body does; a comment, docstring or parameter name "
+                "that disagrees with the body never sets it") in text
+        assert "AutoGPT" not in text and "ensure_embeddings_coverage" not in text
+    assert "what its body enforces now" in " ".join(_rule_extractor._build_prompt(
+        [{"symbol_id": "s::a", "source": "x", "changed_since_build": True,
+          "prior_statement": "old"}]).split())
+
+
+def test_a_mismatch_needs_a_test_or_a_caller_never_a_comment_alone():
+    for text in _extractor_texts():
+        assert "code_meets false only when a test or a caller shows the intended behaviour" in text
+        assert "a comment alone is never enough" in text
+        assert "its doc comment" not in text
+        assert "a doc comment, a test or a caller" not in text
+
+
+def test_an_abstract_method_or_stub_takes_an_empty_statement():
+    for text in _extractor_texts():
+        assert ("An abstract method or stub (a body of only a docstring, ..., pass, or raise "
+                "NotImplementedError) takes an empty statement") in text
+
+
 def test_the_seats_reviewed_confidence_decides_never_its_community():
     """wicked-crew run 29bbbfb1, page 3: 230 grounded rules at 0.80-0.84 resolved only 42, because
     a unit with no Louvain community took a 0.85 penalty (0.84 x 0.85 < 0.75). A community boost

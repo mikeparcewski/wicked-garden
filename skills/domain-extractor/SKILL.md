@@ -93,16 +93,24 @@ and only this:
    the earlier rule (never a placeholder). Set each confidence by
    how directly the source supports the rule: a constraint visible in the unit's full
    definition (enforced in its body, or encoded in its type: a closed set, a limit, a
-   documented required field) is high (0.85 or more); a rule only guessed from a name, a
-   comment alone or a cut-off slice is low, and the host records it as a placeholder. Judge
+   documented required field) is high (0.85 or more); a rule only guessed from a name
+   or a cut-off slice is low, and the host records it as a placeholder; a comment alone never
+   sets a statement, so leave it empty. Judge
    each statement's confidence on its own; never stamp one value on the whole page (equal
    values are fine where the support is equal). Only real requirements count toward the
    target; a placeholder is shown, never counted.
-   **When the code is wrong, state the requirement anyway.** State what the unit is meant to
-   do (its doc comment, its tests, its name and callers agree), with your confidence in that
-   requirement, and add `"code_meets": false` and a one-line `"mismatch"` saying how the code
-   departs (e.g. "the loop starts at index 1, so the first element is skipped"), but only when a
-   doc comment, a test or a caller shows the intended requirement; a unit whose intent is
+   **State what the body enforces.** State what the unit's body enforces: its values, limits,
+   defaults, and what it does with each parameter. The statement comes from what the body does; a
+   comment, docstring or parameter name that disagrees with the body never sets it (a docstring
+   that says batches of 10 while the body passes 100 is a rule about 100). An abstract method or
+   stub (a body of only a docstring, ..., pass, or raise NotImplementedError) takes an empty
+   statement.
+   **When a test or a caller shows the code is wrong, state the intended requirement.** State
+   what the unit is meant to do, with your confidence in that requirement, and add
+   `"code_meets": false` and a one-line `"mismatch"` saying how the code
+   departs (e.g. "the loop starts at index 1, so the first element is skipped"). Say
+   code_meets false only when a test or a caller shows the intended behaviour; a comment alone is
+   never enough. A unit whose intent is
    unclear still gets an empty statement and no mismatch. A unit whose intent is shown that
    way and whose own code is right, but whose result is wrong because a callee it relies on
    departs, inherits that mismatch: mark it `"code_meets": false` too, with a mismatch naming

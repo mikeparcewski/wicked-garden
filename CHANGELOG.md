@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The domain rule extractor states what the code does, not what a comment says.** Both the bounded rule model's
+  prompt and the `domain-extractor` seat instructions now take the statement from the unit's body (its values,
+  limits, defaults and what it does with each parameter); a disagreeing comment, docstring or parameter name never
+  sets it. `code_meets: false` needs a test or a caller showing the intended behaviour, never a comment alone, and an
+  abstract method or stub takes an empty statement. Tests pin the wording in both texts.
+
 ## [12.66.1] — 2026-11-08
 
 Patch: a run plugin made from the scaffold shows its whole section as soon as it opens.
