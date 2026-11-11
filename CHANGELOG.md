@@ -4,6 +4,13 @@
 
 ### Fixed
 
+- **A governed builder writes its stack check on one line the rule judge can cite (wicked-core#1381).** The
+  governed-worker floor's C8 now asks a code-writing step for one exact output line, `STACK-CHECK: looked at <docs
+  or source> :: offers <what it provides for this job, or nothing this change needs>`, and the output contract
+  names it. E5 asks an evaluator of code to record its own check the same way, because wicked-core's POL-2101
+  record clause now accepts the reviewer's recorded check when the creator's output has none. Before this, a builder
+  did the check and wrote no sentence a judge could cite, so POL-2101 broke on the record alone. Tests pin the
+  wording.
 - **The domain rule extractor states what the code does, not what a comment says.** Both the bounded rule model's
   prompt and the `domain-extractor` seat instructions now take the statement from the unit's body (its values,
   limits, defaults and what it does with each parameter); a disagreeing comment, docstring or parameter name never
