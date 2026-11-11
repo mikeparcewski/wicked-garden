@@ -287,7 +287,7 @@ def _restates(entry: dict, ids: set[str], why: str | None) -> bool:
     return ok and why is None and float(entry["confidence"]) >= extract_loop.RESOLVE_THRESHOLD
 
 
-def _domain_plan(db: str, doc: dict, tracked: set[str]) -> dict:
+def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str) -> dict:
     """What this page may write of its business domains (reqgraph Fix B), decided before any
     write: the catalog (the stored one, else the page's proposal when it is grounded in code the
     host can see), and the assignments that name a resolved requirement with no domain yet."""
@@ -305,8 +305,10 @@ def _domain_plan(db: str, doc: dict, tracked: set[str]) -> dict:
         try:
             business_domains.check_catalog_shape(proposed,
                                                  business_domains.directory_names(tracked))
-            business_domains.check_catalog_evidence(proposed, tracked,
-                                                    business_domains.symbol_lookup(db))
+            business_domains.check_catalog_evidence(
+                proposed, tracked, business_domains.symbol_lookup(db),
+                business_domains.repo_reader(repo_root),
+                lambda f: not business_domains.not_product(f))
             plan.update(catalog=proposed, store=True, state="proposed")
         except business_domains.CatalogRefused as e:
             # Refused whole: the page's rules still apply, without a domain; the next page asks
@@ -322,13 +324,19 @@ def _domain_plan(db: str, doc: dict, tracked: set[str]) -> dict:
         except business_domains.CatalogRefused as e:
             ok, bad = [], [{"index": None, "symbol_id": None, "why": str(e)}]
         backfill, _ = business_domains.resolved_without_domain(
-            db, tracked, extract_loop.RESOLVE_THRESHOLD, extract_loop.is_test_path,
+            db, tracked, extract_loop.RESOLVE_THRESHOLD, business_domains.not_product,
             limit=rules_file.MAX_RULES)
         open_ids = {r["symbol_id"] for r in backfill}
-        plan["assign"] = [a for a in ok if a["symbol_id"] in open_ids]
+        # A unit the page states a rule for takes its domain from that rule (codex r1): never
+        # from an assignment too, which would overwrite the rule's pick.
+        stated = {e.get("symbol_id") for e in doc.get("rules") or [] if isinstance(e, dict)}
+        plan["assign"] = [a for a in ok if a["symbol_id"] in open_ids
+                          and a["symbol_id"] not in stated]
         bad += [{"index": None, "symbol_id": rules_file._shown(a["symbol_id"]),
-                 "why": "is not a resolved requirement in product code without a business domain"}
-                for a in ok if a["symbol_id"] not in open_ids]
+                 "why": ("has a rule on this page, whose pick is its domain"
+                         if a["symbol_id"] in stated else
+                         "is not a resolved requirement in product code without a business domain")}
+                for a in ok if a["symbol_id"] not in open_ids or a["symbol_id"] in stated]
         plan["refused"] += [{**b, "why": f"assignment {b['why']}"} for b in bad]
     return plan
 
@@ -386,7 +394,7 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     restate = {sid: n for sid, n in restatable.items() if sid not in unmapped}
     nodes = {**restate, **unmapped}
     tracked = rules_file.tracked_files(repo_root)
-    domains = _domain_plan(db, doc, tracked)
+    domains = _domain_plan(db, doc, tracked, repo_root)
     domain_by_id = {d["id"]: d for d in domains["catalog"] or []}
     picks: list[tuple[str, str, float]] = []
 

@@ -57,7 +57,8 @@ skill's "Business domains" section says, and write them before anything else as 
 `{"schema": "wicked-garden/domain-rules@1", "seat": "<your seat>", "business_domains": [...],
 "rules": []}`. When it carries a `catalog`, pick from it and propose nothing. Either way, give
 each rule you state a `"domain": "<id>"` and `"domain_confidence": <0..1>` (leave both out when no
-area fits), and answer every entry of the worklist's `assign` list in the file's top-level
+area fits; a unit marked `changed_since_build` keeps the domain it had unless you pick one), and
+answer every entry of the worklist's `assign` list in the file's top-level
 `"assignments": [{"symbol_id", "domain", "confidence"}]`. The harness below keeps both top-level
 lists when it rewrites the file and gives its model the domain list.
 

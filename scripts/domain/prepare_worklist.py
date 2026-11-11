@@ -141,8 +141,9 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     # The repository's business domains (reqgraph Fix B): the stored catalog to pick from, or the
     # ask to propose one, and the resolved requirements with no domain yet to assign. Assignments
     # ride a page that has units (a page with none applies no rules file).
-    block, assign = business_domains.worklist_block(db, tracked, extract_loop.RESOLVE_THRESHOLD,
-                                                    extract_loop.is_test_path)
+    block, assign = business_domains.worklist_block(
+        db, tracked, extract_loop.RESOLVE_THRESHOLD, business_domains.not_product,
+        skip={u["symbol_id"] for u in units})
     doc["business_domains"] = block
     doc["assign"] = assign if units else []
     # The per-unit budget above is an estimate (nesting indents every line); the published

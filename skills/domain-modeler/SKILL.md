@@ -3,20 +3,16 @@ name: wicked-garden-domain-modeler
 description: |
   Domain-graph worker for the modernize archetype. Proposes the repository's
   BUSINESS domains (3 to 9 areas named for what the code does for its users, each
-  with a one-line purpose and the code evidence that shows it) and assigns each rule
-  one with a confidence. Groups the estate's
-  Louvain communities into business domains, attaches each requirement to its
-  cluster (advisory cluster_id provenance), and invokes wicked-core's domain-graph
-  build (which reads the annotated estate store, recomputes coverage — fail-closed
-  below the configured minimum —
-  and builds the requirements graph) — then validates core's output against the
-  vendored schema.
+  with a one-line purpose and the code that shows it) and assigns each rule one
+  with a confidence. Groups estate's Louvain communities as advisory provenance,
+  invokes wicked-core's domain-graph build (reads the annotated store, recomputes
+  coverage, fail-closed below the configured minimum), then validates core's
+  output against the vendored schema.
 
-  Use when: dispatched by wicked-garden-domain after rule extraction to turn
-  a flat rule set into cluster-keyed domains; when a domain-extraction worklist asks
-  for the repository's business domains; "group these into domains", "what are this
-  repo's business areas", "build the requirements graph", "translate clusters into
-  a domain model".
+  Use when: dispatched by wicked-garden-domain after rule extraction; when a
+  domain-extraction worklist asks for the repository's business domains; "what
+  are this repo's business areas", "group these into domains", "build the
+  requirements graph", "translate clusters into a domain model".
 
   NOT for mining the rules themselves (that is domain-extractor) or
   threat-modeling (that is domain-coverage).
@@ -69,10 +65,12 @@ name.
    Prefer fewer, broader areas over many thin ones; one area per user-facing capability.
 3. Ground every domain in code. `evidence` lists 1 to 8 items `{"kind": "entry-point" | "route" |
    "cli-verb" | "api-noun" | "directory", "file": "<repo-relative path>", "symbol": "<optional
-   name in that file>", "text": "<optional: the route or verb>"}`. At least one item must be more
-   than a directory. The host checks each file is tracked by git and each symbol is in the code
-   graph at that file, and refuses the whole catalog otherwise: a domain the code does not show
-   is never stored.
+   name in that file>", "text": "<optional: the route or verb, as it appears in the file>"}`.
+   Every item other than a directory names a product-code file (not a test, data or document
+   file) and a `symbol` or `text` in it, and every domain names at least one symbol. The host
+   checks each file is tracked by git, each symbol is in the code graph at that file and each
+   text occurs in the file, and refuses the whole catalog otherwise: a domain the code does not
+   show is never stored. The page's review then judges whether that code is really the area's.
 
 **Assign** each rule one domain with a confidence in [0,1]: the area the rule serves, judged
 from what the rule does for the product's users, with the file's directory as one piece of

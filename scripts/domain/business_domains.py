@@ -75,6 +75,10 @@ def _text(value: Any, limit: int, *, min_len: int = 1) -> str | None:
     """Why a one-line text field is unusable, or None."""
     if not isinstance(value, str):
         return f"is {type(value).__name__}, expected text"
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError:
+        return "is not valid Unicode text"
     if _CONTROL_RE.search(value):
         return "holds a control character or a line break"
     if len(value.strip()) < min_len:
@@ -153,7 +157,7 @@ def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None) -
             extra = sorted(set(e) - _EVIDENCE_KEYS)
             if extra:
                 raise CatalogRefused(f"{at} has unknown key(s) {extra!r}")
-            if e.get("kind") not in EVIDENCE_KINDS:
+            if not isinstance(e.get("kind"), str) or e["kind"] not in EVIDENCE_KINDS:
                 raise CatalogRefused(f"{at}.kind must be one of {sorted(EVIDENCE_KINDS)}")
             why = _text(e.get("file"), MAX_REF)
             if why:
@@ -170,12 +174,23 @@ def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None) -
 
 
 def check_catalog_evidence(domains: list[dict], tracked: set[str],
-                           has_symbol: Callable[[str, str], bool]) -> None:
-    """Every evidence item must point at code the host can see: a file (or, for a `directory`
-    item, a directory holding a file) that git tracks, and a named symbol the store holds in that
-    file. Raises CatalogRefused naming the first item that does not."""
+                           has_symbol: Callable[[str, str], bool],
+                           read_file: Callable[[str], str | None],
+                           is_product: Callable[[str], bool]) -> None:
+    """Every evidence item must point at code the host can see, and say something the code
+    shows (codex r1: a file name alone proves nothing):
+
+      * a `directory` item names a directory holding a file git tracks;
+      * any other item names a product-code file git tracks (not a test, data or document file)
+        and carries a `symbol` the code graph holds in that file or a `text` (a route, a CLI verb)
+        that occurs in the file as the host reads it;
+      * every domain has at least one item whose `symbol` the code graph holds.
+
+    Whether that code is really the area's is the page review's question; this is the floor.
+    Raises CatalogRefused naming the first item that fails."""
     dirs = {p.rsplit("/", 1)[0] for p in tracked if "/" in p}
     for i, d in enumerate(domains):
+        anchored = False
         for j, e in enumerate(d["evidence"]):
             at = f"business_domains[{i}].evidence[{j}]"
             path = e["file"].strip().replace("\\", "/").rstrip("/")
@@ -185,9 +200,25 @@ def check_catalog_evidence(domains: list[dict], tracked: set[str],
                 continue
             if path not in tracked:
                 raise CatalogRefused(f"{at}: {path!r} is not a file the repository tracks")
+            if not is_product(path):
+                raise CatalogRefused(f"{at}: {path!r} is a test, data or document file, not "
+                                     "product code")
             sym = (e.get("symbol") or "").strip()
-            if sym and not has_symbol(path, sym):
-                raise CatalogRefused(f"{at}: the code graph has no symbol {sym!r} in {path!r}")
+            text = (e.get("text") or "").strip()
+            if not sym and not text:
+                raise CatalogRefused(f"{at}: name the symbol (or the route or verb text) in "
+                                     f"{path!r} that shows the area")
+            if sym:
+                if not has_symbol(path, sym):
+                    raise CatalogRefused(f"{at}: the code graph has no symbol {sym!r} in {path!r}")
+                anchored = True
+            if text:
+                body = read_file(path)
+                if body is None or text not in body:
+                    raise CatalogRefused(f"{at}: {text!r} does not occur in {path!r}")
+        if not anchored:
+            raise CatalogRefused(f"business_domains[{i}] cites no symbol the code graph holds; "
+                                 "name at least one entry point, handler or public-API symbol")
 
 
 def check_pick(domain: Any, confidence: Any, ids: set[str]) -> str | None:
@@ -237,6 +268,32 @@ def annotation_value(domain: dict) -> str:
     return json.dumps({"id": domain["id"], "name": domain["name"].strip(),
                        "purpose": domain["purpose"].strip()},
                       ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def not_product(file: str, kind: str = "") -> bool:
+    """A test, data or document file (wicked-core's product-file predicate, as the extraction
+    harness mirrors it): never a requirement to assign, never evidence of an area."""
+    from domain import extract_loop  # the harness owns the predicate; imported late (no cycle)
+    return extract_loop.unconfirmed_reason(file, True, kind) is not None
+
+
+def repo_reader(repo_root: str, limit: int = 4 * 1024 * 1024) -> Callable[[str], str | None]:
+    """read(path) of a tracked file under the registered repository (None when it cannot be read
+    as text, is a link or lies outside the root)."""
+    root = Path(repo_root).resolve()
+
+    def read(rel: str) -> str | None:
+        try:
+            path = (root / rel)
+            if path.is_symlink():
+                return None
+            real = path.resolve()
+            if root not in real.parents or not real.is_file() or real.stat().st_size > limit:
+                return None
+            return real.read_text(encoding="utf-8", errors="replace")
+        except (OSError, ValueError):
+            return None
+    return read
 
 
 # --- the catalog on the host ---------------------------------------------------------------------
@@ -325,7 +382,7 @@ def symbol_lookup(db: str) -> Callable[[str, str], bool]:
 
 
 def resolved_without_domain(db: str, tracked: set[str], threshold: float,
-                            is_test_path: Callable[[str], bool],
+                            not_product: Callable[[str, str], bool],
                             limit: int = MAX_ASSIGN) -> tuple[list[dict], int]:
     """Resolved requirements in product code that carry no business domain yet: the backfill the
     seat assigns (an existing map's rules were stated before any catalog). Returns (the first
@@ -335,13 +392,23 @@ def resolved_without_domain(db: str, tracked: set[str], threshold: float,
         if conf >= threshold and value.strip() and conf >= best.get(sid, (-1.0, ""))[0]:
             best[sid] = (conf, value)
     have = {sid for sid, _v, _c in _store_rows(db, ANN_TYPE)}
-    nodes: dict[str, tuple[str, str]] = {}
+    nodes: dict[str, tuple[str, str, str]] = {}
     try:
         c = _connect(db)
         try:
-            for r in c.execute("SELECT s.sym AS sym, n.name AS name, n.file AS file FROM nodes n "
-                               "JOIN symbols s ON s.sid = n.symbol"):
-                nodes[r["sym"]] = (str(r["name"]), str(r["file"]))
+            try:
+                rows = c.execute("SELECT s.sym AS sym, n.name AS name, n.file AS file, n.kind AS "
+                                 "kind, n.requirement AS req, n.requirement_validated AS ok "
+                                 "FROM nodes n JOIN symbols s ON s.sid = n.symbol").fetchall()
+            except sqlite3.OperationalError:  # an older or test store without those columns
+                rows = c.execute("SELECT s.sym AS sym, n.name AS name, n.file AS file, '' AS kind, "
+                                 "NULL AS req, 0 AS ok FROM nodes n "
+                                 "JOIN symbols s ON s.sid = n.symbol").fetchall()
+            for r in rows:
+                nodes[r["sym"]] = (str(r["name"]), str(r["file"]), str(r["kind"] or "").strip('"'))
+                # A validated requirement resolves a node too (core's classify_node).
+                if r["ok"] and (r["req"] or "").strip() and r["sym"] not in best:
+                    best[r["sym"]] = (1.0, str(r["req"]))
         finally:
             c.close()
     except sqlite3.Error:
@@ -350,8 +417,8 @@ def resolved_without_domain(db: str, tracked: set[str], threshold: float,
     for sid in sorted(best):
         if sid in have or sid not in nodes:
             continue
-        name, file = nodes[sid]
-        if file not in tracked or is_test_path(file):
+        name, file, kind = nodes[sid]
+        if file not in tracked or not_product(file, kind):
             continue
         out.append({"symbol_id": sid, "name": name, "file": file,
                     "statement": best[sid][1][:400]})
@@ -359,10 +426,13 @@ def resolved_without_domain(db: str, tracked: set[str], threshold: float,
 
 
 def worklist_block(db: str, tracked: set[str], threshold: float,
-                   is_test_path: Callable[[str], bool]) -> tuple[dict, list[dict]]:
-    """The worklist's `business_domains` block and its `assign` list."""
+                   not_product: Callable[[str, str], bool],
+                   skip: set[str] = frozenset()) -> tuple[dict, list[dict]]:
+    """The worklist's `business_domains` block and its `assign` list (less `skip`: the page's
+    own units, whose rule picks their domain)."""
     catalog = load_catalog(db)
-    assign, total = resolved_without_domain(db, tracked, threshold, is_test_path)
+    assign, total = resolved_without_domain(db, tracked, threshold, not_product)
+    assign = [a for a in assign if a["symbol_id"] not in skip]
     block = {
         "propose": catalog is None,
         "catalog": catalog,
