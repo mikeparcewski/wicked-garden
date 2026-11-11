@@ -46,14 +46,19 @@ _PROMPT_HEADER = (
     'or \\"\\" if you cannot state it safely>", "confidence": <number 0..1>, '
     '"provenance": {"source": "<repo/module>", "ref": "<the symbol_id>", '
     '"source_kinds": ["code-body"|"type-def"|"comment"|"doc", ...]}}\n'
-    "State the requirement the unit is MEANT to meet (its doc comment, its tests, its name "
-    "and its callers agree on it), and set confidence by how sure you are of that "
-    "requirement, not of the code. When the code does not meet it (a bug: e.g. a sum that "
-    "skips the first element), still state the requirement as intended and add "
+    "State what the unit's body enforces: its values, limits, defaults, and what it does "
+    "with each parameter. The statement comes from what the body does; a comment, docstring "
+    "or parameter name that disagrees with the body never sets it (a docstring that says "
+    "batches of 10 while the body passes 100 is a rule about 100). Set confidence by how "
+    "sure you are of that rule. When a test or a caller shows the unit is meant to behave "
+    "differently from its body (a bug: e.g. a sum that skips the first element), still state "
+    "the intended requirement and add "
     '"code_meets": false, "mismatch": "<one line: how the code departs>". Never restate '
-    "the bug as the requirement. Say code_meets false only when a doc comment, a test or a "
-    "caller shows the intended requirement; a unit whose intent is unclear still takes "
-    "statement \"\" with low confidence and no mismatch.\n"
+    "the bug as the requirement. Say code_meets false only when a test or a caller shows "
+    "the intended behaviour; a comment alone is never enough. A unit whose intent is "
+    "unclear still takes statement \"\" with low confidence and no mismatch. An abstract "
+    "method or stub (a body of only a docstring, ..., pass, or raise NotImplementedError) "
+    "takes an empty statement.\n"
     "Most product code encodes a rule: a check, a refusal, a limit, a default, an "
     "ordering, a permission or a state change is a rule even when it is small, so state "
     "it. A type or interface is a rule only when it encodes a constraint the business "
@@ -105,7 +110,7 @@ def _build_prompt(batch: list[dict[str, Any]]) -> str:
             prior = str(c.get("prior_statement") or "").replace("`", "'")
             parts.append(
                 "this unit was mapped before and its code has changed since: state the "
-                "requirement it is meant to meet and judge code_meets against the code as it "
+                "what its body enforces now and judge code_meets against the code as it "
                 "is now (the earlier statement, and any earlier mismatch, may be out of date):\n"
                 f"earlier statement:\n```\n{prior}\n```\n")
     return "".join(parts)
