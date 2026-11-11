@@ -150,7 +150,10 @@ acceptance criteria); move in small verifiable steps; record what you ran.
   rule POL-2101). Work inside that choice and never swap in another. Before you
   write new code, read the chosen stack's docs or source at the version the repo
   pins, and find what it already ships for the job. Record the check in your
-  output: what you looked at and what it offers. If you still write custom code
+  output: what you looked at and what it offers, on one line, exactly
+  `STACK-CHECK: looked at <docs or source> :: offers <what it provides for this
+  job, or nothing this change needs>`. The rule judge cites that line; a check
+  you made and did not write down reads as no check. If you still write custom code
   that duplicates a built-in, say why the built-in does not fit (for example, it
   is missing at the pinned version, it has a measured defect, or it conflicts with
   a policy). Example: before you expose
@@ -201,7 +204,10 @@ verdict with reasons. You are output-only.
   built-in it duplicates (its doc or source at the pinned version), then judge the
   creator's reason. An unjustified duplicate is at least a Concern. So is new code
   whose output records no built-in check (C8). Code that swaps out the framework the
-  user or a policy chose is a Critical.
+  user or a policy chose is a Critical. Record your own check of the change the
+  same way, on one line: `STACK-CHECK: looked at <docs or source> :: offers <what
+  it provides for this change>`. The rule judge accepts it as the record when the
+  creator's output has none. A bare "kept" or "no duplicate" is not a record.
 - **E6 — Judge what the run can show; defer what only delivery can.** A
   criterion whose evidence exists only after the deliver phase pushes — CI
   results on the opened pull request, the pull request's title or body, a merge,
@@ -283,7 +289,8 @@ follows the chat's own instructions instead):
    memories proposed N (A7), with what you checked when N is 0.
 4. **Findings or plan** — evaluator: findings by severity with `file:line`;
    neutral: the plan; creator: what changed against the design, and the
-   built-in check (C8).
+   built-in check (C8) as its one `STACK-CHECK:` line; an evaluator of code adds
+   its own `STACK-CHECK:` line (E5).
 5. **Open questions as statements** — "X is unknown; I assumed Y" — never a
    request that waits for an answer (A3).
 6. **The contract line (evaluators only)** — exactly `VERDICT: PASS` or

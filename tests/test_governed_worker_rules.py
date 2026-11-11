@@ -74,6 +74,8 @@ def test_c8_checks_the_chosen_stack_before_writing_code():  # operator ruling 20
     assert "Record the check in your output" in rule
     assert "say why the built-in does not fit" in rule
     assert "fastmcp" in rule
+    # wicked-core#1381: one citable line, the shape the engine's prompt asks for.
+    assert "`STACK-CHECK: looked at <docs or source> :: offers <what it provides for this job, or nothing this change needs>`" in rule
 
 
 def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 2026-10-12, POL-2101
@@ -82,6 +84,9 @@ def test_e5_evaluators_flag_every_duplicate_of_a_built_in():  # operator ruling 
     assert "judge the creator's reason" in rule
     assert "An unjustified duplicate is at least a Concern" in rule
     assert "records no built-in check (C8)" in rule
+    # wicked-core#1381: the evaluator's own check is a record the rule judge accepts.
+    assert "Record your own check of the change the same way, on one line: `STACK-CHECK:" in rule
+    assert 'A bare "kept" or "no duplicate" is not a record.' in rule
 
 
 def test_engineering_review_and_plan_carry_the_built_in_check():  # POL-2101
@@ -113,6 +118,12 @@ def test_e6_delivery_only_criteria_are_deferred_not_failed():  # operator-approv
     assert "not a creator's deferral (E3)" in rule
     body = " ".join(FLOOR.read_text(encoding="utf-8").split())
     assert "a DEFERRED item (E6) is neither, so it never makes the verdict FAIL" in body
+
+
+def test_the_output_contract_carries_the_stack_check_line():  # wicked-core#1381
+    body = " ".join(FLOOR.read_text(encoding="utf-8").split())
+    assert "the built-in check (C8) as its one `STACK-CHECK:` line" in body
+    assert "an evaluator of code adds its own `STACK-CHECK:` line (E5)" in body
 
 
 def test_new_rules_have_provenance_rows():
