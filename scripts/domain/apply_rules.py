@@ -52,7 +52,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, extract_loop, generation, refresh, rules_file  # noqa: E402
+from domain import (_clients, _rule_extractor, business_domains, extract_loop, generation,  # noqa: E402
+                    refresh, rules_file)
 
 REPORT_REL = ".wicked/domain/apply-report.json"
 # Who wrote what this step applies: the harness, on the host. Not `extract-loop:<seat>` — that
@@ -286,6 +287,66 @@ def _restates(entry: dict, ids: set[str], why: str | None) -> bool:
     return ok and why is None and float(entry["confidence"]) >= extract_loop.RESOLVE_THRESHOLD
 
 
+def _domain_plan(db: str, doc: dict, tracked: set[str], repo_root: str,
+                 stated: set[str]) -> dict:
+    """What this page may write of its business domains (reqgraph Fix B), decided before any
+    write: the catalog (the stored one, else the page's proposal when it is grounded in code the
+    host can see), and the assignments that name a resolved requirement with no domain yet."""
+    plan: dict = {"catalog": None, "store": False, "state": "none", "assign": [],
+                  "refused": []}
+    stored = business_domains.load_catalog(db)
+    proposed = doc.get("business_domains")
+    if stored:
+        plan.update(catalog=stored, state="stored")
+        if proposed is not None:
+            plan["refused"].append({"index": None, "symbol_id": None,
+                                    "why": "business_domains: the repository already has a "
+                                           "catalog; a page picks from it, never replaces it"})
+    elif proposed is not None:
+        try:
+            business_domains.check_catalog_shape(proposed,
+                                                 business_domains.directory_names(tracked))
+            business_domains.check_catalog_evidence(
+                proposed, tracked, business_domains.symbol_lookup(db),
+                business_domains.repo_reader(repo_root),
+                lambda f, kind: not business_domains.not_product(f, kind))
+            plan.update(catalog=proposed, store=True, state="proposed")
+        except business_domains.CatalogRefused as e:
+            # Refused whole: the page's rules still apply, without a domain; the next page asks
+            # for a catalog again.
+            plan["state"] = f"refused: {e}"
+            plan["refused"].append({"index": None, "symbol_id": None,
+                                    "why": f"business_domains refused: {e}"})
+    ids = {d["id"] for d in plan["catalog"] or []}
+    plan["ids"] = ids
+    if ids and "assignments" in doc:
+        try:
+            ok, bad = business_domains.check_assignments(doc["assignments"], ids)
+        except business_domains.CatalogRefused as e:
+            ok, bad = [], [{"index": None, "symbol_id": None, "why": str(e)}]
+        backfill, _ = business_domains.resolved_without_domain(
+            db, tracked, extract_loop.RESOLVE_THRESHOLD, business_domains.not_product,
+            limit=rules_file.MAX_RULES)
+        open_ids = {r["symbol_id"] for r in backfill}
+        # A unit the page states a rule for takes its domain from that rule (codex r1): never
+        # from an assignment too, which would overwrite the rule's pick.
+        plan["assign"] = [a for a in ok if a["symbol_id"] in open_ids
+                          and a["symbol_id"] not in stated]
+        bad += [{"index": None, "symbol_id": rules_file._shown(a["symbol_id"]),
+                 "why": ("has a rule on this page, whose pick is its domain"
+                         if a["symbol_id"] in stated else
+                         "is not a resolved requirement in product code without a business domain")}
+                for a in ok if a["symbol_id"] not in open_ids or a["symbol_id"] in stated]
+        plan["refused"] += [{**b, "why": f"assignment {b['why']}"} for b in bad]
+    return plan
+
+
+def _write_domain(estate, by_id: dict, sid: str, did: str, conf: float, author: str) -> None:
+    estate.annotate(sid, type=business_domains.ANN_TYPE, key=business_domains.ANN_KEY,
+                    value=business_domains.annotation_value(by_id[did]), confidence=float(conf),
+                    provenance=business_domains.PROVENANCE, replace=True, author=author)
+
+
 def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str, *,
           estate=None, core=None) -> dict:
     # Binaries from the operator and the engine only — never from the seat-writable worktree.
@@ -333,6 +394,9 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
     restate = {sid: n for sid, n in restatable.items() if sid not in unmapped}
     nodes = {**restate, **unmapped}
     tracked = rules_file.tracked_files(repo_root)
+    domains = _domain_plan(db, doc, tracked, repo_root, {e["symbol_id"] for e in accepted})
+    domain_by_id = {d["id"]: d for d in domains["catalog"] or []}
+    picks: list[tuple[str, str, float]] = []
 
     eligible: list[dict] = []
     for entry in accepted:
@@ -421,11 +485,29 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
                     raise RuntimeError(f"write not durable: {sid} rule {key} on read-back")
             in_progress = None
             outcomes[outcome] += 1
+            if "domain" in entry:
+                if entry["domain"] in domain_by_id:
+                    picks.append((sid, entry["domain"], float(entry["domain_confidence"])))
+                else:
+                    domains["refused"].append({
+                        "index": None, "symbol_id": rules_file._shown(sid),
+                        "why": f"domain {entry['domain']!r} is not an id of the repository's "
+                               "business domains (written without one)"})
             restated += sid in restate and sid in changed_ids
             reworked += sid in restate and sid not in changed_ids
             answered.append(sid)
 
         _record_answered(db, answered)  # before anything that can still fail (codex r3)
+        # The business domains: the catalog first (the record the next page picks from), then each
+        # pick and assignment on its node. Advisory: nothing here counts toward coverage.
+        if domains["store"]:
+            business_domains.save_catalog(db, domains["catalog"],
+                                          (os.environ.get("WICKED_RUN_ID") or "").strip())
+        for sid, did, conf in picks:
+            _write_domain(estate, domain_by_id, sid, did, conf, author)
+        for a in domains["assign"]:
+            _write_domain(estate, domain_by_id, a["symbol_id"], a["domain"], a["confidence"],
+                          author)
         # The report is computed in a host temp directory and published through the safe writer
         # (core writes its --out in place, which would follow a planted link or hard link).
         with tempfile.TemporaryDirectory(prefix="wicked-domain-apply-") as tmp:
@@ -455,6 +537,14 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
         "not_product": unconfirmed[extract_loop.NOT_PRODUCT_REASON],
         "refused": refused[:500],
         "refused_count": len(refused),
+        "business_domains": {
+            "catalog": domains["state"],
+            "domains": len(domain_by_id),
+            "picked": len(picks),
+            "assigned": len(domains["assign"]),
+            "refused": domains["refused"][:200],
+            "refused_count": len(domains["refused"]),
+        },
         "coverage": {k: after.get(k) for k in ("coverage", "behavior_bearing", "resolved",
                                                 "risk_flagged", "unaccounted")},
         "minimum_met": met,
@@ -476,7 +566,12 @@ def apply(db: str, repo_root: str, base: Path, rules_rel: str, coverage_rel: str
           f"{outcomes['kept']} kept, {len(refused)} refused, {restated} of "
           f"{len(changed_ids & set(restate))} changed since the map was built restated, "
           f"{reworked} of this run's own answers reworked "
-          f"(written as {author}). {line or ''}".rstrip(), file=sys.stderr)
+          f"(written as {author}); business domains: {domains['state']}, {len(picks)} picked, "
+          f"{len(domains['assign'])} assigned, {len(domains['refused'])} refused. "
+          f"{line or ''}".rstrip(), file=sys.stderr)
+    for r in domains["refused"][:10]:
+        print(f"[extract-apply] business domains: {r['symbol_id'] or '-'}: {r['why']}",
+              file=sys.stderr)
     return report
 
 

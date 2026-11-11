@@ -30,7 +30,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, extract_loop, generation, refresh, rules_file  # noqa: E402
+from domain import (_clients, _rule_extractor, business_domains, extract_loop, generation,  # noqa: E402
+                    refresh, rules_file)
 
 # One page of a generation: what one seat turn states. 300 took a claude seat ~6 min on
 # wicked-crew (rig run 7588cff1, 240 stated + 60 left as risks); a page carries a fixed cost
@@ -137,6 +138,14 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         "not_in_repo": skipped,
         "units": units,
     }
+    # The repository's business domains (reqgraph Fix B): the stored catalog to pick from, or the
+    # ask to propose one, and the resolved requirements with no domain yet to assign. Assignments
+    # ride a page that has units (a page with none applies no rules file).
+    block, assign = business_domains.worklist_block(
+        db, tracked, extract_loop.RESOLVE_THRESHOLD, business_domains.not_product,
+        skip={u["symbol_id"] for u in units})
+    doc["business_domains"] = block
+    doc["assign"] = assign if units else []
     # The per-unit budget above is an estimate (nesting indents every line); the published
     # document must fit what the seat reads, so trim to the largest prefix that does.
     if len(rules_file.encoded(doc)) > rules_file.MAX_WORKLIST_BYTES:
@@ -149,6 +158,8 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                 hi = mid - 1
         units = units[:lo]
         doc["units"] = units
+        if not units:
+            doc["assign"] = []
     if run_id:
         # Not optional bookkeeping: the record decides what the next page skips and the page's
         # yield (codex on #1375), so a page whose units cannot be recorded is not prepared (and
@@ -170,7 +181,10 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
           f"placeholder(s), {len(seen)} asked by an earlier page of this run; {skipped} in files "
           f"the repository does not track (left out); {len(units)} framed into {out_rel} "
           f"({again} placeholder(s) asked again, {restated} changed since the map was built, "
-          f"{no_source} with no source), frontier {front}; {doc['order']}; refresh: {stale_line}",
+          f"{no_source} with no source), frontier {front}; {doc['order']}; refresh: {stale_line}; "
+          f"business domains: "
+          f"{'propose' if block['propose'] else str(len(block['catalog'])) + ' stored'}, "
+          f"{len(doc['assign'])} of {block['unassigned_resolved']} unassigned resolved to assign",
           file=sys.stderr)
     return doc
 

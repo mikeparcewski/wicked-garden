@@ -43,7 +43,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # scripts/ on path
 
-from domain import _clients, _rule_extractor, rules_file  # noqa: E402
+from domain import _clients, _rule_extractor, business_domains, rules_file  # noqa: E402
 
 RESOLVE_THRESHOLD = 0.75
 # wicked-core's `CODE_MISMATCH_ANN`: the code does not meet a stated requirement (a finding).
@@ -987,7 +987,7 @@ def _units_batch(units: list[dict], base_batch: int) -> int:
     return max(4, min(64, int(base_batch * mult)))
 
 
-def to_entry(sid: str, rule: dict | None) -> dict:
+def to_entry(sid: str, rule: dict | None, domain_ids: set[str] | None = None) -> dict:
     """A model's rule as a rules-file entry that conforms to the schema. What the model got
     wrong stays wrong (an empty statement, missing provenance) so the host's validator
     RISK-flags it; what cannot be carried at all (a non-number confidence, unknown keys,
@@ -1024,12 +1024,45 @@ def to_entry(sid: str, rule: dict | None) -> dict:
     elif "code_meets" in rule and not isinstance(rule["code_meets"], bool):
         # Malformed (e.g. "false", 0, null): never read as a rule the code meets (codex r2).
         entry["statement"] = ""
+    # The business domain the model picked (reqgraph Fix B): carried only when it names a domain
+    # the seat was given; the host checks it again against the stored catalog.
+    dom, dconf = rule.get("domain"), rule.get("domain_confidence")
+    if isinstance(dom, str) and (domain_ids is None or dom in domain_ids) \
+            and isinstance(dconf, (int, float)) and not isinstance(dconf, bool) \
+            and dconf == dconf and 0.0 <= dconf <= 1.0 \
+            and rules_file.check_rule_entry({**entry, "domain": dom,
+                                             "domain_confidence": float(dconf)}) is None:
+        entry["domain"], entry["domain_confidence"] = dom, float(dconf)
     if rules_file.check_rule_entry(entry) is not None:  # e.g. text that is not valid Unicode
         entry["statement"] = ""
         entry.pop("mismatch", None)
         if entry.get("code_meets") is False:
             entry["mismatch"] = ""
     return entry
+
+
+def _domain_extras(base: Path, rules_rel: str) -> dict:
+    """The `business_domains` / `assignments` a rules file already holds (the seat writes them;
+    a harness rewrite must not drop them)."""
+    try:
+        doc = rules_file.read_json_file(base, rules_rel)
+    except (FileNotFoundError, rules_file.RulesFileRefused, OSError):
+        return {}
+    if not isinstance(doc, dict):
+        return {}
+    return {k: doc[k] for k in ("business_domains", "assignments") if k in doc}
+
+
+def _page_domains(worklist: dict, extra: dict) -> list[dict] | None:
+    """The domains this page picks from: the worklist's stored catalog, else the proposal in the
+    rules file when it has the catalog's shape. None when there are none."""
+    block = worklist.get("business_domains")
+    if isinstance(block, dict) and isinstance(block.get("catalog"), list) and block["catalog"]:
+        return [d for d in block["catalog"] if isinstance(d, dict) and isinstance(d.get("id"), str)]
+    try:
+        return business_domains.check_catalog_shape(extra.get("business_domains"))
+    except business_domains.CatalogRefused:
+        return None
 
 
 def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: float, limit: int,
@@ -1058,6 +1091,11 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         print(f"[extract-loop] starting {rules_rel} afresh: {e}", file=sys.stderr)
     unit_ids = {u["symbol_id"] for u in units}
     done = [e for e in done if e["symbol_id"] in unit_ids]  # an earlier pass's leftovers drop out
+    # The business domains (reqgraph Fix B): the stored catalog the worklist carries, else the one
+    # the seat proposed in this rules file. What the seat wrote beside the rules is kept on rewrite.
+    extra = _domain_extras(base, rules_rel)
+    domains = _page_domains(worklist, extra)
+    domain_ids = {d["id"] for d in domains} if domains else None
     stated = {e["symbol_id"] for e in done}
     pending = [u for u in units if u["symbol_id"] not in stated]
     print(f"[extract-loop] file mode: {len(units)} unit(s) in the worklist, {len(stated)} already "
@@ -1089,6 +1127,8 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
             if u.get("changed_since_build") is True:
                 f.update(changed_since_build=True,
                          prior_statement=str(u.get("prior_statement") or "")[:600])
+            if domains:
+                f["business_domains"] = domains
         ids = {u["symbol_id"] for u in take}
         by_id = _ask_model(take, framed, ids, model_argv, dry_run, deadline=deadline)
         if by_id == _NO_MODEL:
@@ -1104,8 +1144,9 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         if isinstance(by_id, int):
             rc = by_id
             break
-        grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"])) for u in take]
-        doc = rules_file.rules_doc(seat, grown)
+        grown = done + [to_entry(u["symbol_id"], by_id.get(u["symbol_id"]), domain_ids)
+                        for u in take]
+        doc = rules_file.rules_doc(seat, grown, extra)
         if len(rules_file.encoded(doc)) > rules_file.MAX_RULES_BYTES:
             print(f"[extract-loop] {rules_rel} is at the size one file may carry; stopping here",
                   file=sys.stderr)
@@ -1119,7 +1160,7 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
         # apply step refuses instead of applying an empty one; resume continues from the start.
         print("[extract-loop] no unit was stated in this pass", file=sys.stderr)
         rc = 75
-    final = rules_file.rules_doc(seat, done)
+    final = rules_file.rules_doc(seat, done, extra)
     if rc == 0 and len(rules_file.encoded(final)) <= rules_file.MAX_RULES_BYTES:
         # Also when nothing new was stated (an empty worklist, a finished resume), so the host's
         # apply step finds the file. After an outage (rc 75) a pass that stated nothing leaves no
@@ -1130,6 +1171,52 @@ def run_files(base: Path, worklist_rel: str, rules_rel: str, *, time_budget: flo
     print(f"[extract-loop] {len(done)} of {len(units)} unit(s) in {rules_rel} ({with_rule} with a "
           f"stated rule); the host's extract-apply step checks and writes them", file=sys.stderr)
     return rc
+
+
+def check_domains(doc: dict, worklist: dict, accepted: list[dict]) -> list[dict]:
+    """What the seat's business-domain answers get wrong against the worklist (reqgraph Fix B):
+    the seat's own check of what the host will check again. One `{index, symbol_id, why}` each."""
+    block = worklist.get("business_domains")
+    if not isinstance(block, dict):
+        return []  # an older host asked for no domains
+    problems: list[dict] = []
+    proposed = doc.get("business_domains")
+    domains = None
+    if isinstance(block.get("catalog"), list) and block["catalog"]:
+        domains = block["catalog"]
+        if proposed is not None:
+            problems.append({"index": None, "symbol_id": None,
+                             "why": "business_domains: this repository already has a catalog "
+                                    "(the worklist's business_domains.catalog); pick from it, "
+                                    "do not propose another"})
+    elif proposed is None:
+        if worklist.get("units") or worklist.get("assign"):
+            problems.append({"index": None, "symbol_id": None,
+                             "why": "business_domains: the worklist asks for the repository's "
+                                    "business domains (business_domains.propose); propose them "
+                                    "as the wicked-garden-domain-modeler skill says"})
+    else:
+        dirs = {str(x) for x in block.get("directory_names") or [] if isinstance(x, str)}
+        try:
+            domains = business_domains.check_catalog_shape(proposed, dirs)
+        except business_domains.CatalogRefused as e:
+            problems.append({"index": None, "symbol_id": None, "why": str(e)})
+    ids = {d["id"] for d in domains or [] if isinstance(d, dict) and isinstance(d.get("id"), str)}
+    for e in accepted:
+        if "domain" in e and e["domain"] not in ids:
+            problems.append({"index": None, "symbol_id": e["symbol_id"],
+                             "why": f"domain {e['domain']!r} is not an id of the business domains"})
+    if "assignments" in doc:
+        asked = {a.get("symbol_id") for a in worklist.get("assign") or [] if isinstance(a, dict)}
+        try:
+            ok, bad = business_domains.check_assignments(doc["assignments"], ids)
+        except business_domains.CatalogRefused as e:
+            return problems + [{"index": None, "symbol_id": None, "why": str(e)}]
+        problems += [{**b, "why": f"assignment: {b['why']}"} for b in bad]
+        problems += [{"index": None, "symbol_id": a["symbol_id"],
+                      "why": "assignment: not in the worklist's assign list"}
+                     for a in ok if a["symbol_id"] not in asked]
+    return problems
 
 
 def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
@@ -1146,10 +1233,12 @@ def check_rules(base: Path, rules_rel: str, worklist_rel: str | None) -> int:
     left = ""
     if worklist_rel:
         try:
-            units = read_worklist(base, worklist_rel)["units"]
+            worklist = read_worklist(base, worklist_rel)
         except (FileNotFoundError, rules_file.RulesFileRefused) as e:
             print(f"[extract-loop] worklist {worklist_rel}: {e}", file=sys.stderr)
             return 1
+        units = worklist["units"]
+        refused += check_domains(rules_file.read_json_file(base, rules_rel), worklist, accepted)
         unit_ids = {u["symbol_id"] for u in units}
         refused += [{"index": None, "symbol_id": e["symbol_id"],
                      "why": "is not a unit of the worklist (copy the symbol_id verbatim)"}

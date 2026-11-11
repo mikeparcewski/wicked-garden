@@ -15,7 +15,7 @@ is history, not the contract.
 
 | | |
 |---|---|
-| Bundle version (`VERSION`) | `1.3.0` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-11-01 from wicked-core's real-requirements change, #1233: `metadata.coverage` is `real_pct`/`real`/`placeholders`/`unmapped`/`not_product`) |
+| Bundle version (`VERSION`) | `1.3.1` — mirrors the owner's `schemas/VERSION` (re-vendored 2026-11-11 from wicked-core's business-domains change: optional `requirement.business_domain` and `metadata.business_domains`; 1.3.0 was the real-requirements `metadata.coverage`, #1233) |
 | Schema contract version (`$id` / `metadata.schema_version`) | `1.1.0` (accepts `1.0.0` and `1.1.0`) |
 | Schema `$id` | `https://wickedagile.com/schemas/domain-model/1.1.0` |
 | Canonical source | `wicked-core/crates/wicked-governance/schemas/domain-model.schema.json` |

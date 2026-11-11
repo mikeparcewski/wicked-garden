@@ -51,6 +51,17 @@ and only this:
    when the worklist has any. A review that sends back a page with no units asks for work the
    host cannot apply: say so plainly, and the person decides at the step's gate.
 
+**Business domains first.** Read the worklist's `business_domains` block. When it says
+`propose: true`, propose the repository's business domains as the `wicked-garden-domain-modeler`
+skill's "Business domains" section says, and write them before anything else as the rules file
+`{"schema": "wicked-garden/domain-rules@1", "seat": "<your seat>", "business_domains": [...],
+"rules": []}`. When it carries a `catalog`, pick from it and propose nothing. Either way, give
+each rule you state a `"domain": "<id>"` and `"domain_confidence": <0..1>` (leave both out when no
+area fits; a unit marked `changed_since_build` keeps the domain it had unless you pick one), and
+answer every entry of the worklist's `assign` list in the file's top-level
+`"assignments": [{"symbol_id", "domain", "confidence"}]`. The harness below keeps both top-level
+lists when it rewrites the file and gives its model the domain list.
+
 1. Run the harness in file mode (one `Bash` call; it stops inside its budget):
    ```bash
    wicked-garden run scripts/domain/extract_loop.py --worklist .wicked/domain/worklist.json \
@@ -62,12 +73,14 @@ and only this:
 2. **Exit 2, "no rule model in this seat"**: state the rules yourself. For each unit of the
    worklist, in order, add one entry to `.wicked/domain/rules.json` — the whole file is
    `{"schema": "wicked-garden/domain-rules@1", "seat": "<a plain token: $WICKED_RUN_AGENT, or
-   claude / codex / pi / copilot>", "rules": [...]}` and
+   claude / codex / pi / copilot>", "rules": [...]}` (plus the `business_domains` /
+   `assignments` lists above) and
    each entry is exactly `{"symbol_id": "<the unit's id, verbatim>", "statement": "<the
    business rule, or \"\" when the source does not let you state one>", "confidence": <0..1>,
    "provenance": {"source": "<module>", "ref": "<the symbol_id>", "source_kinds":
    ["code-body"|"type-def"|"comment"|"doc"]}}`, plus `"code_meets": false, "mismatch": "<one
-   line>"` only when the code does not meet the requirement — no other keys. Then check it:
+   line>"` only when the code does not meet the requirement, and `"domain"` +
+   `"domain_confidence"` — no other keys. Then check it (it also checks the domains):
    `wicked-garden run scripts/domain/extract_loop.py --check-rules .wicked/domain/rules.json
    --worklist .wicked/domain/worklist.json` and fix what it names.
    **Read each unit's source and write each statement yourself.** Create and change the file
