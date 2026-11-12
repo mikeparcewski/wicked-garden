@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The default test suite no longer installs from the network (#1457).** Loom compose/doctor tests use stubbed runners and probes, and phase-manager tests disable the external bus fallback. A recording npm/npx/pip guard fails the run if any default test attempts a network install; explicit npm E2E runs remain opt-in.
+
 ## [12.68.1] - 2026-11-12
 
 Test-suite fix only (#1458): the build-guide and walkthrough tests run offline and without `.git`. No skill, hook,
