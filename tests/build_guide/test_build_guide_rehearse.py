@@ -81,18 +81,10 @@ def test_a_failure_for_a_missing_piece_is_not_retried(python3_on_path, monkeypat
 
 
 def test_a_gate_check_is_skipped(tmp_path, python3_on_path):
-    """The rehearsal still runs the install gate as setup for the probed check, so this uses the offline
-    copy of the seed; a `pip` on PATH that records any call proves no test here installs from the network."""
-    shim = tmp_path / "pip-shim"
-    shim.mkdir()
-    called = tmp_path / "pip-called"
-    (shim / "pip").write_text(f'#!/bin/sh\necho "$@" >> "{called}"\nexit 1\n', encoding="utf-8")
-    (shim / "pip").chmod(0o755)
-    env = {**python3_on_path, "PATH": f"{shim}{os.pathsep}{python3_on_path['PATH']}"}
-    code, report = _rehearse(FIXTURES / "pytest-repo", offline_pytest_seed(tmp_path), env)
+    """Rehearsal uses the offline seed; the suite guard records any accidental pip install."""
+    code, report = _rehearse(FIXTURES / "pytest-repo", offline_pytest_seed(tmp_path), python3_on_path)
     assert report["checks"][0] == {"name": "install", "ok": True,
                                    "skipped": "no `list` piece: a gate (exit code only), not probed"}
-    assert not called.exists(), f"pip ran: {called.read_text(encoding='utf-8')}"
 
 
 def test_tinyrun_per_line_rule_is_forged_by_test_output(tmp_path, python3_on_path):

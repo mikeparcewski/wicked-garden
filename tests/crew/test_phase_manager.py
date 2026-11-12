@@ -20,6 +20,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # scripts/ + scripts/crew/ on sys.path (append, do not insert — match the
 # repo conftest convention)
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +30,13 @@ for _p in (_REPO_ROOT / "scripts", _REPO_ROOT / "scripts" / "crew"):
         sys.path.append(str(_p))
 
 import phase_manager as pm  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_project_storage(monkeypatch, tmp_path):
+    """Creation makes project directories even when save_project_state is mocked."""
+    import _paths
+    monkeypatch.setattr(_paths, "_LOCAL_ROOT", tmp_path)
 
 
 class TestProjectStateRoundtrip(unittest.TestCase):

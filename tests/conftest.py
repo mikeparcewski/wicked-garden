@@ -23,6 +23,8 @@ from pathlib import Path
 
 import pytest
 
+pytest_plugins = ["tests._install_guard"]
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPTS = str(_REPO_ROOT / "scripts")
 _SCRIPTS_CREW = str(_REPO_ROOT / "scripts" / "crew")
@@ -54,7 +56,7 @@ def pytest_configure(config):
 # explicitly in setUp) and injects/mocks the loom runner (_loom.resolve_loom /
 # _loom._default_run), so no test spawns a real loom or hits the network (T3
 # isolation). A test that forgets fails loudly (a real-loom attempt errors
-# hermetically when npx is absent) — the correct signal, not a silent default.
+# through the install guard if npx would fetch a package).
 
 
 @pytest.fixture(autouse=True)
@@ -82,3 +84,16 @@ def _reset_bus_emit_counters():
     yield
     # Post-test reset is intentionally omitted — the pre-test reset above
     # is sufficient. Post-test would mask counter assertions in teardown.
+
+
+@pytest.fixture(autouse=True)
+def _disable_external_bus(monkeypatch):
+    """Default tests never probe a real bus (whose npx fallback can install).
+
+    Bus-specific tests opt in explicitly and stub resolution/subprocess calls.
+    Reset both cached resolution fields so test order cannot enable the bus.
+    """
+    monkeypatch.setenv("WICKED_BUS_DISABLED", "1")
+    import _bus
+    monkeypatch.setattr(_bus, "_bus_binary", None)
+    monkeypatch.setattr(_bus, "_bus_available", None)
