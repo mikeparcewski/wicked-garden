@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Evaluators pull each steering rule's statement before judging it.** wicked-crew's run brief now names the rules
+  in force by id, severity and a short one-liner, with the command that reads the whole statement (wicked-crew,
+  ctx-pull). governed-worker E7 spells that command
+  (`wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"rules.recall","arguments":{"ids":["<id>"]}}'`)
+  and says a rule whose statement cannot be read is `RULE <id>: UNASSESSED`, never N/A or KEPT, and never guessed from
+  its id.
+
+### Fixed
+
+- **`rules.recall` in a governed unit reads the rules the run is judged on.** The estate shim sends it to crew's
+  broker on every governed seat, host seats included, as it does the knowledge reads: crew answers the rules in force
+  for the run's project, the set its rule judge reads. A host seat used to ask its pinned store, the run's code graph,
+  which holds no steering rules, so a seat could not read a rule it was asked to check. Without the broker channel the
+  call answers nothing and says why; it is never answered from the local store.
+
 ## [12.67.0] — 2026-11-11
 
 Minor: requirements carry a business domain proposed from code evidence; the rule extractor states what the code

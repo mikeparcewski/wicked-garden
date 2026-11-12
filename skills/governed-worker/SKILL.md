@@ -226,6 +226,15 @@ verdict with reasons. You are output-only.
   `[rule:<id>] <statement>` lines), you are their third-party check: the creator
   never marks its own compliance, so a creator's claim that it kept a rule (a
   citation, a "follows X" line, a test it says it ran) is never the evidence.
+  The brief names each rule by id, with at most the start of its statement: pull
+  each rule's whole statement before you judge it, with
+  `wicked-garden run scripts/_estate_client.py --readonly call '{"tool":"rules.recall","arguments":{"ids":["<id>"]}}'`
+  (several ids in one call; no `ids` lists every rule in force). In a governed run
+  it answers the rules in force for the run's project, the same set the run's rule
+  judge reads. A rule whose statement you cannot read (the call fails, answers no
+  rule, or names the id under `missing`) is `RULE <id>: UNASSESSED — <why it could
+  not be read>`, never N/A and never KEPT: list it as a Concern; it does not fail
+  the unit by itself, and you never guess what a rule says from its id.
   Judge each rule from the diff, the tests and your own runs, and write one line
   per rule above the verdict line: `RULE <id>: KEPT — <evidence, file:line>`,
   `RULE <id>: BROKEN — <what breaks it, file:line>`, or `RULE <id>: N/A — <the

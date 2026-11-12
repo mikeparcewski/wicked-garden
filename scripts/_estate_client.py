@@ -82,6 +82,14 @@ transport behind the same seam (`_transport`). With neither a pinned local
 store nor the broker channel, a governed unit still fails closed with a reason
 (`governed_refusal`).
 
+Some tools only crew can answer, so a governed unit sends them to the broker
+even with a local store pinned (`CREW_ANSWERED_TOOLS`): the knowledge reads,
+filtered by what the unit may see, and ``rules.recall``, the steering rules in
+force for the run's project (the set the run's rule judge reads). A local store
+in a run is its code graph, which holds no steering rules, so ``rules.recall``
+in a governed unit is never answered locally: without the broker channel it
+comes back empty, with the reason.
+
 Fail-open contract
 ------------------
 Every public function is fail-open: on a missing binary, spawn failure,
@@ -234,6 +242,12 @@ BROKER_TOOLS = (
 # channel always relays these, even with a local estate pinned: crew sets `visible` and re-checks the
 # answer. Locally they answer dep-free knowledge only (estate's empty default set).
 VISIBLE_TOOLS = ("knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors")
+# The steering rules in force for the run's project: crew answers `rules.recall` from the set its
+# rule judge reads (`src/mcp/estate-relay.ts`). The run's local store is its code graph, which holds
+# no steering rules, so a governed unit always asks crew, host seats included.
+RULES_TOOL = "rules.recall"
+# What a governed unit always sends to crew (`use_broker_for`).
+CREW_ANSWERED_TOOLS = VISIBLE_TOOLS + (RULES_TOOL,)
 
 _readonly_flag: bool = False                  # set by --readonly / set_readonly()
 _governed_flag: bool = False                  # set by --governed / set_governed()
@@ -311,7 +325,11 @@ def use_broker() -> bool:
 
 def use_broker_for(tool: Optional[str]) -> bool:
     """`use_broker`, plus: a knowledge read in `VISIBLE_TOOLS` relays whenever this governed unit holds
-    the broker channel, so crew decides what it may see."""
+    the broker channel, so crew decides what it may see; and `rules.recall` in a governed unit always
+    goes to crew (with no channel, `_broker_dispatch` answers nothing and says why), never the local
+    code graph."""
+    if tool == RULES_TOOL and is_governed():
+        return True
     if tool in VISIBLE_TOOLS and is_governed() and broker_channel() is not None:
         return True
     return use_broker()
@@ -319,7 +337,7 @@ def use_broker_for(tool: Optional[str]) -> bool:
 
 def transport_name(tool: Optional[str] = None) -> Optional[str]:
     """``broker`` (relayed), ``local`` (spawn a pinned `wicked-estate-mcp`), or None (refused), for
-    `tool` (default: any tool outside `VISIBLE_TOOLS`)."""
+    `tool` (default: any tool outside `CREW_ANSWERED_TOOLS`)."""
     if use_broker_for(tool):
         return "broker"
     return None if governed_refusal() else "local"
@@ -816,6 +834,9 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
     _last_broker_refusal = None
     channel = broker_channel()
     if channel is None:
+        _last_broker_refusal = (
+            f"no broker channel ({CREW_URL_ENV} + {MCP_TOKEN_ENV}): in a governed unit only crew answers "
+            f"{RULES_TOOL} (the rules in force for this run), never the local store")
         return {}
     url, token = channel
     calls = [r for r in requests if r.get("id") is not None and r.get("method") == "tools/call"]

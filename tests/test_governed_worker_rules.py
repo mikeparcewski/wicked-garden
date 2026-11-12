@@ -320,6 +320,29 @@ def test_e7_evaluators_judge_the_rules_they_are_handed():  # operator ruling 202
     assert "judge the steering rules they are handed" in desc
 
 
+PULL_COMMAND = (
+    "`wicked-garden run scripts/_estate_client.py --readonly call "
+    """'{"tool":"rules.recall","arguments":{"ids":["<id>"]}}'`"""
+)
+
+
+def test_e7_pulls_each_rule_statement_and_an_unreadable_rule_is_unassessed():  # ctx-pull, run 8d005505 units 7-8
+    """The brief names rules by id; the evaluator pulls each statement before judging it. Run 8d005505
+    unit 8 could not read a rule and wrote N/A. Falsifier: drop the pull line or the UNASSESSED line."""
+    rule = _rule("E7")
+    # The exact command, spelled in the skill's own text (portable: no other file needed).
+    assert PULL_COMMAND in rule
+    assert "pull each rule's whole statement before you judge it" in rule
+    assert "the same set the run's rule judge reads" in rule
+    # A rule it cannot read is UNASSESSED, never N/A or KEPT, and never guessed from its id.
+    assert "`RULE <id>: UNASSESSED — <why it could not be read>`" in rule
+    assert "never N/A and never KEPT" in rule
+    assert "`missing`" in rule
+    assert "never guess what a rule says from its id" in rule
+    # The command is the one the read-only fence allows: the shim, `--readonly`.
+    assert "_estate_client.py --readonly" in PULL_COMMAND
+
+
 def test_e7_judges_this_change_not_the_code_it_did_not_touch():  # wicked-core#1339, run 92749083
     """A mapping page that wrote only its rules file was failed on a JSDoc rule broken by existing
     code. Falsifier: drop the wording and an evaluator reads "covers every file" as licence to fail
