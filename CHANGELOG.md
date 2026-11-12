@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [12.68.1] - 2026-11-12
+
+Test-suite fix only (#1458): the build-guide and walkthrough tests run offline and without `.git`. No skill, hook,
+script or agent changed; the published plugin behaves as 12.68.0.
+
 ### Fixed
 
 - **The build-guide pytest tests no longer need pip or the network, and the tests that need git metadata skip without `.git` (wicked-garden#1445).** The `pytest-junit` test guide checks `python3 -c "import pytest"` instead of `pip install pytest`; the shipped `pytest-short-summary` seed is unchanged (it still installs pytest for the repos it ships to), and the tests that rehearse it use a copy whose install step is that same import check. Those rehearsals need pytest >= 9 (the seed's `--force-short-summary`; pytest 8 exits 4), so they skip with that reason on an older pytest. `test_every_run_and_verdict_garden_writes_carries_the_stamp`, `test_repo_not_modified_by_walkthrough_run`, `test_the_live_tree_is_clean` and `test_there_is_no_env_switch_that_lifts_the_guard` skip with a reason when the checkout has no `.git`; the last also fails now when `git grep` itself errors instead of passing vacuously. The walkthrough tests' `wicked-ledger` install is now opt-in (`WICKED_GARDEN_E2E_NPM=1`) and skips on a timeout, so neither the build-guide nor the walkthrough tests install from the network by default.
@@ -1722,7 +1727,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.1...HEAD
+[12.68.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...v12.68.1
 [12.68.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...v12.68.0
 [12.67.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...v12.67.0
 [12.66.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...v12.66.1
