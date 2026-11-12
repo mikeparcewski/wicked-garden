@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [12.68.0] - 2026-11-12
+
+Governed seats pull steering rules instead of having them pushed (#1455). Minor: governed-worker E7 changes how an
+evaluator reads a rule. **Pairs with wicked-crew 0.18.11**, the first crew whose broker answers `rules.recall` from
+the run's judged rule set; an older crew's broker answers it from the run's code graph, which holds no steering
+rules, so E7 records each rule as `UNASSESSED`. crew 0.18.11 requires this garden.
+
 ### Changed
 
 - **Evaluators pull each steering rule's statement before judging it.** wicked-crew's run brief now names the rules
@@ -1711,7 +1718,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...HEAD
+[12.68.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...v12.68.0
 [12.67.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...v12.67.0
 [12.66.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.0...v12.66.1
 [12.66.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.65.1...v12.66.0
