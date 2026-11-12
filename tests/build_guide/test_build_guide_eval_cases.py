@@ -13,7 +13,7 @@ import shutil
 
 import pytest
 
-from bg_helpers import FIXTURES, GUIDES, HERE, SEEDS
+from bg_helpers import FIXTURES, GUIDES, HERE, SEEDS, offline_pytest_seed, pytest_older_than
 
 CASES = sorted((HERE / "eval_cases").glob("*.json"))
 UNAVAILABLE = "probe unavailable: the guide is unverified, so the floor will not use it for exclusion"
@@ -55,10 +55,17 @@ def test_case_shape(path):
 def _grade(case_id: str, tmp_path):
     case = json.loads((HERE / "eval_cases" / f"{case_id}.json").read_text(encoding="utf-8"))
     guide, message = REFERENCE[case_id]
+    if case_id == "pytest-junit":  # the shipped seed installs pytest; a test never reaches the network
+        guide = offline_pytest_seed(tmp_path)
     return grader.grade(case, FIXTURES / case["fixture"], message, guide)
 
 
-@pytest.mark.parametrize("case_id", ["fake-runner-no-structured-output", "pytest-junit", "no-tests"])
+@pytest.mark.parametrize("case_id", [
+    "fake-runner-no-structured-output",
+    pytest.param("pytest-junit", marks=pytest.mark.skipif(
+        pytest_older_than(9), reason="needs pytest >= 9 (the seed's --force-short-summary)")),
+    "no-tests",
+])
 def test_reference_outputs_pass_their_case(case_id, tmp_path, python3_on_path, monkeypatch):
     monkeypatch.setenv("PATH", python3_on_path["PATH"])
     result = _grade(case_id, tmp_path)

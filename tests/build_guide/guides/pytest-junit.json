@@ -9,9 +9,9 @@
       "name": "install",
       "cwd": ".",
       "run": [
-        "pip",
-        "install",
-        "pytest"
+        "python3",
+        "-c",
+        "import pytest"
       ]
     },
     {

@@ -122,6 +122,8 @@ def test_unknown_argument_is_refused() -> None:
         resolve_root(["--stricter"])
 
 
+@pytest.mark.skipif(not (_REPO / ".git").exists(),
+                    reason="needs the checkout's .git metadata (the scope is git's tracked files)")
 def test_the_live_tree_is_clean() -> None:
     """The repo this test runs in has no invalid JSON of its own."""
     files, warning = json_files_to_check(_REPO)

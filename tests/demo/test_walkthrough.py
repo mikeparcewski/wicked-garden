@@ -85,16 +85,21 @@ def _write_story(sl: Path, text: str) -> None:
 
 @pytest.fixture(scope="session")
 def session_ledger(tmp_path_factory):
-    """Install wicked-ledger once for the session; return NODE_PATH value (or skip)."""
+    """Install wicked-ledger once for the session (opt-in: WICKED_GARDEN_E2E_NPM=1); return NODE_PATH or skip."""
+    if os.environ.get("WICKED_GARDEN_E2E_NPM") != "1":
+        pytest.skip("needs the npm registry: set WICKED_GARDEN_E2E_NPM=1")
     if shutil.which("npm") is None:
         pytest.skip("npm not installed")
     ledger_dir = tmp_path_factory.mktemp("ledger_modules", numbered=False)
     ver = _ledger_version()
-    r = subprocess.run(
-        ["npm", "install", "--prefix", str(ledger_dir), "--ignore-scripts",
-         f"wicked-ledger@{ver}"],
-        capture_output=True, text=True, timeout=180,
-    )
+    try:
+        r = subprocess.run(
+            ["npm", "install", "--prefix", str(ledger_dir), "--ignore-scripts",
+             f"wicked-ledger@{ver}"],
+            capture_output=True, text=True, timeout=180,
+        )
+    except subprocess.TimeoutExpired:
+        pytest.skip("npm install wicked-ledger timed out")
     if r.returncode != 0:
         pytest.skip(f"npm install wicked-ledger failed: {r.stderr[-500:]}")
     node_modules = ledger_dir / "node_modules"
@@ -1307,6 +1312,8 @@ def test_console_error_before_first_check_makes_guard_fail(tmp_path):
 
 
 @needs_node
+@pytest.mark.skipif(not (ROOT / ".git").exists(),
+                    reason="needs the checkout's .git metadata (git status of the repo is the oracle)")
 def test_repo_not_modified_by_walkthrough_run(tmp_path):
     """Walkthrough must not write any files into the garden repo (e.g. no vault leak).
 

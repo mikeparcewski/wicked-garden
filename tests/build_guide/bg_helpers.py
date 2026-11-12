@@ -24,3 +24,23 @@ def run_script(name: str, *args: str, env: dict | None = None, timeout: int = 12
     except ValueError:
         payload = {"_stdout": proc.stdout, "_stderr": proc.stderr}
     return proc.returncode, payload
+
+
+def offline_pytest_seed(dest: Path) -> Path:
+    """The shipped pytest seed with its install step swapped for the environment's pytest.
+
+    The seed must keep installing pytest for the repos it ships to; a test must not reach the network,
+    so it rehearses this copy, whose install gate only checks that pytest imports.
+    """
+    guide = json.loads((SEEDS / "pytest-short-summary.json").read_text(encoding="utf-8"))
+    install = next(c for c in guide["checks"] if c["name"] == "install")
+    install["run"] = ["python3", "-c", "import pytest"]
+    path = dest / "pytest-short-summary-offline.json"
+    path.write_text(json.dumps(guide), encoding="utf-8")
+    return path
+
+
+def pytest_older_than(major: int) -> bool:
+    import pytest
+
+    return pytest.version_tuple[0] < major
