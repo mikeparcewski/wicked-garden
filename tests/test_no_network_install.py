@@ -12,7 +12,11 @@ import pytest
 
 from tests._install_guard import RECORD_ENV, REPORT, SHIM_ENV, guard_environment, without_shims
 
-pytestmark = pytest.mark.skipif(os.name == "nt", reason="install guard is POSIX-only")
+pytestmark = [
+    pytest.mark.skipif(os.name == "nt", reason="install guard is POSIX-only"),
+    pytest.mark.skipif(os.environ.get("WICKED_GARDEN_E2E_NPM") == "1",
+                       reason="the guard is off in opt-in network runs (WICKED_GARDEN_E2E_NPM=1)"),
+]
 ROOT = Path(__file__).resolve().parents[1]
 REGRESSION_NODES = [
     "tests/crew/test_loom_resolver.py::InternalDispatchTests::test_compose_install_dispatches_internally",
