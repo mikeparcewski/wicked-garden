@@ -20,7 +20,7 @@ RECORD_ENV = "WICKED_GARDEN_INSTALL_GUARD_RECORD"
 SHIM_ENV = "WICKED_GARDEN_INSTALL_GUARD_SHIMS"
 REPORT = "Network install guard violations"
 NPM_ALLOWED = {
-    "pack", "run", "run-script", "test", "config", "prefix", "root", "ls",
+    "run", "run-script", "test", "config", "prefix", "root", "ls",
     "list", "help", "version", "explain", "why",
 }
 PIP_ALLOWED = {"show", "list", "freeze", "help", "check", "config", "inspect", "debug"}
@@ -42,6 +42,7 @@ def is_network_install(cmd, argv, path):
         return not (
             (len(argv) == 1 and argv[0] in {"--version", "-v", "-h", "--help"})
             or argv[0] in NPM_ALLOWED
+            or (argv[0] == "pack" and all(arg.startswith("-") for arg in argv[1:]))
         )
     if cmd in {"pip", "pip3"}:
         return not (
@@ -82,7 +83,10 @@ def shim_main():
         print(f"Network install guard: no real {cmd} on PATH", file=sys.stderr)
         return 127
     # Resolve by the cleaned PATH, but keep shims visible to descendant commands.
-    os.execv(binary, [binary, *argv])
+    env = dict(os.environ)
+    if cmd in {"npm", "npx"}:
+        env["npm_config_offline"] = "true"
+    os.execve(binary, [binary, *argv], env)
 
 
 def guard_environment(directory, env):
@@ -114,19 +118,26 @@ def pytest_configure(config):
     if not shared:
         os.environ.update(guard_environment(directory, os.environ))
     offset = (Path(directory) / "calls.jsonl").stat().st_size
-    config._install_guard = (directory, original, offset, not shared)
+    parent_record = Path(original[RECORD_ENV]) if original[RECORD_ENV] else None
+    if (shared or parent_record is None or not parent_record.is_file()
+            or parent_record.resolve() == (Path(directory) / "calls.jsonl").resolve()):
+        parent_record = None
+    config._install_guard = (directory, original, offset, not shared, parent_record)
 
 
 def pytest_sessionfinish(session, exitstatus):
     state = getattr(session.config, "_install_guard", None)
     if state is None:
         return
-    directory, original, offset, owner = state
+    directory, original, offset, owner, parent_record = state
     try:
         with (Path(directory) / "calls.jsonl").open("rb") as record:
             record.seek(offset)
             lines = record.read().decode("utf-8").splitlines()
         if lines:
+            if parent_record is not None:
+                with parent_record.open("a", encoding="utf-8") as record:
+                    record.write("\n".join(lines) + "\n")
             reporter = session.config.pluginmanager.get_plugin("terminalreporter")
             write = reporter.write_line if reporter else print
             write("")

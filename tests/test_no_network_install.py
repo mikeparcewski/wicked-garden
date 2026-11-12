@@ -55,6 +55,9 @@ def records(env):
     ("npm", ["install", "--offline", "--offline=false", "x"]),
     ("npm", ["exec", "--", "missing-cmd", "--offline"]),
     ("npm", ["--version", "install", "x"]),
+    ("npm", ["pack", "some-package"]),
+    ("npm", ["pack", "--dry-run", "git+https://example.invalid/r.git"]),
+    ("npm", ["pack", "./x"]),
     ("npm", []),
     ("npx", ["sh", "--version"]),
     ("npx", ["-c", "if true; then echo ok; fi"]),
@@ -120,7 +123,8 @@ def test_shims_work_with_only_path_in_environment(tmp_path, path_entry, argv, ex
 
 @pytest.mark.parametrize("cmd,argv", [
     *[("npm", [query]) for query in ("--version", "-v", "-h", "--help")],
-    ("npm", ["pack", "--dry-run", "--ignore-scripts"]),
+    ("npm", ["pack"]),
+    ("npm", ["pack", "--dry-run", "--json", "--ignore-scripts"]),
     ("npm", ["run", "build"]),
     *[("npm", [command]) for command in (
         "run-script", "test", "config", "prefix", "root", "ls", "list", "help", "version", "explain", "why")],
@@ -135,6 +139,27 @@ def test_allow_list_calls_pass_through(guard_env, tmp_path, cmd, argv):
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "real binary"
     assert records(guard_env) == []
+
+
+@pytest.mark.parametrize("cmd", ["npm", "npx", "pip", "pip3"])
+def test_only_npm_and_npx_pass_through_with_offline_environment(guard_env, tmp_path, cmd):
+    guard_env.pop("npm_config_offline", None)
+    fake_executable(tmp_path / "bin" / cmd,
+                    "import os; print(os.environ.get('npm_config_offline'))")
+    result = invoke(guard_env, cmd, "--version", cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == ("true" if cmd in {"npm", "npx"} else "None")
+    assert records(guard_env) == []
+
+
+def test_independent_guard_refusals_do_not_leak_to_session_record(guard_env, tmp_path):
+    parent_record = Path(os.environ[RECORD_ENV])
+    before = parent_record.read_bytes()
+    assert Path(guard_env[RECORD_ENV]) != parent_record
+    result = invoke(guard_env, "npm", "install", "x", cwd=tmp_path)
+    assert result.returncode == 1, result.stderr
+    assert len(records(guard_env)) == 1
+    assert parent_record.read_bytes() == before
 
 
 @pytest.mark.parametrize("local", [False, True], ids=["global-bin", "local-bin"])
@@ -203,13 +228,16 @@ def test_swallowed_refusal_fails_otherwise_passing_session(tmp_path):
     assert "npm install x" in output, output
 
 
-def test_nested_refusal_fails_outer_session_even_when_inner_result_is_ignored(tmp_path):
+@pytest.mark.parametrize("reset_path", [False, True], ids=["inherited-path", "rebuilt-path"])
+def test_nested_refusal_fails_outer_session_even_when_inner_result_is_ignored(tmp_path, reset_path):
     inner = tmp_path / "test_inner.py"
     inner.write_text("import subprocess\ndef test_inner():\n    subprocess.run(['npm', 'install', 'x'])\n")
     outer = tmp_path / "test_outer.py"
     command = [sys.executable, "-m", "pytest", *pytest_args(inner)]
-    outer.write_text("import subprocess\ndef test_outer():\n"
-                     f"    subprocess.run({command!r}, capture_output=True, timeout=60)\n")
+    outer.write_text("import os, subprocess\ndef test_outer():\n"
+                     "    env = dict(os.environ)\n"
+                     + (f"    env['PATH'] = {str(tmp_path / 'bin')!r}\n" if reset_path else "")
+                     + f"    subprocess.run({command!r}, env=env, capture_output=True, timeout=60)\n")
     result = invoke(session_environment(tmp_path), sys.executable, "-m", "pytest", *pytest_args(outer),
                     cwd=ROOT, timeout=120)
     output = result.stdout + result.stderr
