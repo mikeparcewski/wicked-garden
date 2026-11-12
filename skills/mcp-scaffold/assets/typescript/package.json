@@ -29,7 +29,7 @@
     "@opentelemetry/exporter-logs-otlp-http": "^0.223.0",
     "@opentelemetry/exporter-metrics-otlp-http": "^0.223.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.223.0",
-    "@opentelemetry/sdk-logs": "^0.223.0",
+    "@opentelemetry/sdk-logs": "^3.0.0",
     "@opentelemetry/sdk-node": "^0.223.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
