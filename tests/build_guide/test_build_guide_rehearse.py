@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from bg_helpers import FIXTURES, GUIDES, SCRIPTS, SEEDS, run_script
+from bg_helpers import FIXTURES, GUIDES, SCRIPTS, SEEDS, offline_pytest_seed, pytest_older_than, run_script
 
 ALL_PASS = {"list": "pass", "run": "pass", "mutation": "pass", "ids": "pass", "alone": "pass",
             "deselect": "pass", "multi": "pass", "version": "pass"}
@@ -135,28 +135,35 @@ def test_a_guide_that_does_not_lint_is_refused_before_anything_runs(tmp_path):
     assert any("deselect.append" in e for e in report["errors"])
 
 
-def test_pytest_short_summary_seed_passes_every_probe(python3_on_path):
-    code, report = _rehearse(FIXTURES / "pytest-repo", SEEDS / "pytest-short-summary.json", python3_on_path)
+# The seed's `--force-short-summary` and the probes' node ids are pytest 9 behaviour; pytest 8 exits 4
+# (unknown option) on the seed and renders ids differently.
+needs_pytest9 = pytest.mark.skipif(pytest_older_than(9), reason="needs pytest >= 9 (the seed's --force-short-summary)")
+
+
+@needs_pytest9
+def test_pytest_short_summary_seed_passes_every_probe(tmp_path, python3_on_path):
+    code, report = _rehearse(FIXTURES / "pytest-repo", offline_pytest_seed(tmp_path), python3_on_path)
     assert code == 0, report
     assert _results(report) == ALL_PASS
 
 
-def test_pytest_seed_passes_in_ci_mode_too(python3_on_path):
+@needs_pytest9
+def test_pytest_seed_passes_in_ci_mode_too(tmp_path, python3_on_path):
     """With CI set, pytest's short summary prints multi-line messages unless --force-short-summary."""
-    code, report = _rehearse(FIXTURES / "pytest-repo", SEEDS / "pytest-short-summary.json",
-                             {**python3_on_path, "CI": "true"})
+    code, report = _rehearse(FIXTURES / "pytest-repo", offline_pytest_seed(tmp_path), {**python3_on_path, "CI": "true"})
     assert code == 0, report
     assert _results(report) == ALL_PASS
 
 
 def test_pytest_seed_without_force_short_summary_loses_failures_in_ci_mode(tmp_path, python3_on_path):
-    guide = _variant(tmp_path, SEEDS / "pytest-short-summary.json", lambda c: c["results"]["how"].update(argvAppend=[]))
+    guide = _variant(tmp_path, offline_pytest_seed(tmp_path), lambda c: c["results"]["how"].update(argvAppend=[]))
     code, report = _rehearse(FIXTURES / "pytest-repo", guide, {**python3_on_path, "CI": "true"})
     assert code == 1
     assert _results(report)["multi"].startswith("fail: with both mutations: [('', "
                                                 "'tests/test_wicked_mutation.py::test_wicked_mutation_probe')]")
 
 
+@needs_pytest9
 def test_pytest_junit_ids_fail_the_ids_probe_for_class_methods(python3_on_path):
     """xunit1 JUnit with id [file, name] equals the node id only for module-level tests; a class
     method's node id carries its class. Only the `ids` probe sees it."""

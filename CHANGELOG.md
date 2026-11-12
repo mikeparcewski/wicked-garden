@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The build-guide pytest tests no longer need pip or the network, and the tests that need git metadata skip without `.git` (wicked-garden#1445).** The `pytest-junit` test guide checks `python3 -c "import pytest"` instead of `pip install pytest`; the shipped `pytest-short-summary` seed is unchanged (it still installs pytest for the repos it ships to), and the tests that rehearse it use a copy whose install step is that same import check. Those rehearsals need pytest >= 9 (the seed's `--force-short-summary`; pytest 8 exits 4), so they skip with that reason on an older pytest. `test_every_run_and_verdict_garden_writes_carries_the_stamp`, `test_repo_not_modified_by_walkthrough_run`, `test_the_live_tree_is_clean` and `test_there_is_no_env_switch_that_lifts_the_guard` skip with a reason when the checkout has no `.git`; the last also fails now when `git grep` itself errors instead of passing vacuously. The walkthrough tests' `wicked-ledger` install is now opt-in (`WICKED_GARDEN_E2E_NPM=1`) and skips on a timeout, so no test installs from the network by default.
+
 ## [12.68.0] - 2026-11-12
 
 Governed seats pull steering rules instead of having them pushed (#1455). Minor: governed-worker E7 changes how an
