@@ -41,6 +41,7 @@ def _clean(monkeypatch):
     _estate_client.set_governed(False)
     _estate_client.set_db(None)
     yield
+    _estate_client._last_broker_refusal = None  # module state: never leaks into the next test's output
     _estate_client.set_dispatch(original)
     _estate_client.set_readonly(False)
     _estate_client.set_governed(False)
@@ -221,6 +222,46 @@ def test_a_pinned_host_seat_relays_the_visible_filtered_knowledge_reads(monkeypa
         assert tool in _estate_client.BROKER_TOOLS
     assert _estate_client.use_broker_for("SearchEntity") is False
     assert _estate_client.transport_name() == "local"
+
+
+def test_a_pinned_host_seat_pulls_the_rules_in_force_from_crew(monkeypatch, broker):
+    """ctx-pull: a host seat's local store is the run's code graph, which holds no steering rules, so
+    `rules.recall` in a governed unit goes to crew, which answers the set the rule judge reads."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/run/code-graph.db")
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    _no_local_spawn(monkeypatch)
+    assert _estate_client.use_broker() is False  # a host seat: everything else stays local
+    rules = {"rules": [{"id": "POL-2500", "statement": "the whole statement"}], "returned": 1, "total": 1,
+             "missing": ["nope"], "source": "considerRules"}
+    broker.answer = lambda subject, args: (200, {"outcome": "ok", "subject": subject, "callId": "c", "ruleIds": [],
+                                                 "result": {"content": [{"type": "text", "text": json.dumps(rules)}], "isError": False}})
+    assert _estate_client.RULES_TOOL in _estate_client.CREW_ANSWERED_TOOLS
+    assert _estate_client.transport_name("rules.recall") == "broker"
+    assert _estate_client.call("rules.recall", {"ids": ["POL-2500", "nope"]}) == rules
+    assert broker.seen[-1][1]["subject"] == "mcp:estate/rules.recall"
+    assert broker.seen[-1][1]["args"] == {"ids": ["POL-2500", "nope"]}
+    assert _estate_client.transport_name("SearchEntity") == "local"
+
+
+def test_a_governed_seat_without_the_channel_never_reads_rules_from_its_local_store(monkeypatch, capsys):
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/srv/run/code-graph.db")
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
+    _no_local_spawn(monkeypatch)
+    assert _estate_client.call("rules.recall", {"ids": ["POL-2500"]}) is None
+    assert "only crew answers rules.recall" in (_estate_client._last_broker_refusal or "")
+    code = _estate_client.main(["--readonly", "call", json.dumps({"tool": "rules.recall", "arguments": {"ids": ["POL-2500"]}})])
+    out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert code == 0 and out["result"] is None and "no broker channel" in out["broker_refusal"]
+
+
+def test_outside_a_run_rules_recall_stays_local(monkeypatch, broker):
+    monkeypatch.setenv(_estate_client.CREW_URL_ENV, broker.url)
+    monkeypatch.setenv(_estate_client.MCP_TOKEN_ENV, "wmt_good")
+    assert _estate_client.use_broker_for("rules.recall") is False
 
 
 def test_outside_a_run_the_visible_reads_stay_local(monkeypatch, broker):
