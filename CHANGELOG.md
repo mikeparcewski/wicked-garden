@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.68.2] - 2026-11-12
+
+Test-suite fix (#1460): the default suite installs nothing from the network. The only shipped change is internal:
+`scripts/loom/compose.py` and `scripts/loom/gate.py` resolve their default command runner when called rather than when
+defined, so tests can stub it. Commands, arguments and output are unchanged.
+
 ### Fixed
 
 - **The default test suite no longer installs from the network (#1457).** Loom compose/doctor tests use stubbed runners and probes, and phase-manager tests disable the external bus fallback. A POSIX-only recording guard refuses npm/npx/pip/pip3 calls outside a short allow-list of read-only/local forms and fails the session on recorded refusals. The guard is off on Windows and with `WICKED_GARDEN_E2E_NPM=1`.
@@ -1731,7 +1737,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.1...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.2...HEAD
+[12.68.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.1...v12.68.2
 [12.68.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...v12.68.1
 [12.68.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...v12.68.0
 [12.67.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.66.1...v12.67.0
