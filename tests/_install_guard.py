@@ -1,7 +1,10 @@
 """Record and refuse accidental network installs during default pytest sessions.
 
-The shims inherit into subprocesses, including tests of command-line entry points.
-They deliberately guard package-manager entry points, not arbitrary network I/O.
+POSIX PATH shims allow only short read-only/local forms of npm, npx, pip and
+pip3, recording and refusing everything else. They inherit into subprocesses;
+nested pytest sessions share the record. Disabled on Windows and when
+WICKED_GARDEN_E2E_NPM=1. This catches accidental installs, not adversarial use:
+python -m pip, uv, direct HTTP and other entry points are out of scope.
 """
 from __future__ import annotations
 
@@ -16,10 +19,11 @@ import tempfile
 RECORD_ENV = "WICKED_GARDEN_INSTALL_GUARD_RECORD"
 SHIM_ENV = "WICKED_GARDEN_INSTALL_GUARD_SHIMS"
 REPORT = "Network install guard violations"
-NPM_NETWORK = {
-    "install", "i", "in", "ins", "inst", "insta", "instal", "isnt", "isntall",
-    "add", "ci", "clean-install", "update", "up", "upgrade", "exec", "x", "create", "view",
+NPM_ALLOWED = {
+    "pack", "run", "run-script", "test", "config", "prefix", "root", "ls",
+    "list", "help", "version", "explain", "why",
 }
+PIP_ALLOWED = {"show", "list", "freeze", "help", "check", "config", "inspect", "debug"}
 
 
 def without_shims(env, directory=None):
@@ -30,58 +34,36 @@ def without_shims(env, directory=None):
     )
 
 
-def _command(argv, value_options=()):
-    """Return the subcommand and remaining arguments, skipping global options."""
-    args = iter(argv)
-    for arg in args:
-        if arg == "--":
-            return next(args, ""), list(args)
-        if arg in value_options:
-            next(args, None)
-        elif not arg.startswith("-"):
-            return arg, list(args)
-    return "", []
-
-
 def is_network_install(cmd, argv, path):
+    """Refuse anything outside the allow-list; do not parse global options."""
+    if not argv:
+        return True
     if cmd == "npm":
-        subcommand, rest = _command(argv, {
-            "--prefix", "--registry", "--cache", "--userconfig", "--workspace", "-w",
-            "-C", "--loglevel", "--location", "--tag", "--access", "--scope", "--otp",
-        })
-        if "--offline" in argv or "--offline=true" in argv:
-            return False
-        if subcommand == "init":
-            package, _ = _command(rest, {"--scope", "--workspace", "-w"})
-            return bool(package)
-        return subcommand in NPM_NETWORK
+        return not (
+            (len(argv) == 1 and argv[0] in {"--version", "-v", "-h", "--help"})
+            or argv[0] in NPM_ALLOWED
+        )
     if cmd in {"pip", "pip3"}:
-        subcommand, _ = _command(argv, {"--python", "--proxy", "--timeout", "--retries", "--cache-dir", "--log"})
-        return subcommand in {"install", "download", "wheel"}
-    # npx options precede the command; options after it belong to the command.
-    command = ""
-    args = iter(argv)
-    for arg in args:
-        if arg in {"-p", "--package"} or arg.startswith(("--package=", "-p=")) or (arg.startswith("-p") and len(arg) > 2):
-            return True
-        if arg in {"-c", "--call"} or arg.startswith("--call="):
-            call = arg.partition("=")[2] if "=" in arg else next(args, "")
-            try:
-                words = shlex.split(call)
-            except ValueError:
-                return True
-            command = words[0] if words else ""
-            # Continue to catch a --package following -c.
-        elif arg == "--":
-            command = next(args, "")
-            break
-        elif not arg.startswith("-"):
-            command = arg
-            break
-    if not command:  # npx --version / --help do not fetch a package
+        return not (
+            (len(argv) == 1 and argv[0] in {"--version", "-V", "-h", "--help"})
+            or argv[0] in PIP_ALLOWED
+        )
+    if cmd != "npx":
+        return True
+    if len(argv) == 1 and argv[0] in {"--version", "-v", "--help"}:
         return False
-    local = Path.cwd() / "node_modules" / ".bin" / command
-    return not (shutil.which(command, path=path) or (local.is_file() and os.access(local, os.X_OK)))
+    args = argv[1:] if argv[0] in {"--yes", "-y", "--no"} else argv
+    if not args or args[0].startswith("-") or "/" in args[0]:
+        return True
+    binary = shutil.which("npx", path=path)
+    locations = [Path.cwd() / "node_modules" / ".bin"]
+    if binary:
+        # Use the PATH entry's directory, not the npm package's symlink target.
+        locations.append(Path(binary).parent)
+    return not any(
+        (directory / args[0]).is_file() and os.access(directory / args[0], os.X_OK)
+        for directory in locations
+    )
 
 
 def shim_main():
@@ -108,31 +90,42 @@ def guard_environment(directory, env):
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     source = f"#!{sys.executable}\n" + Path(__file__).read_text(encoding="utf-8")
+    path = without_shims(env)
     for cmd in ("npm", "npx", "pip", "pip3"):
+        if shutil.which(cmd, path=path) is None:
+            continue
         shim = directory / cmd
         shim.write_text(source, encoding="utf-8")
         shim.chmod(0o755)
     record = directory / "calls.jsonl"
     record.touch()
-    return {**env, "PATH": str(directory) + os.pathsep + without_shims(env),
+    return {**env, "PATH": str(directory) + os.pathsep + path,
             SHIM_ENV: str(directory), RECORD_ENV: str(record)}
 
 
 def pytest_configure(config):
     if os.name == "nt" or os.environ.get("WICKED_GARDEN_E2E_NPM") == "1":
         return
-    directory = tempfile.mkdtemp(prefix="garden-install-guard-")
-    config._install_guard = (directory, {key: os.environ.get(key) for key in ("PATH", SHIM_ENV, RECORD_ENV)})
-    os.environ.update(guard_environment(directory, os.environ))
+    original = {key: os.environ.get(key) for key in ("PATH", SHIM_ENV, RECORD_ENV)}
+    inherited = os.environ.get(SHIM_ENV)
+    shared = (inherited is not None and Path(inherited).is_dir()
+              and without_shims(os.environ) != os.environ.get("PATH", ""))
+    directory = inherited if shared else tempfile.mkdtemp(prefix="garden-install-guard-")
+    if not shared:
+        os.environ.update(guard_environment(directory, os.environ))
+    offset = (Path(directory) / "calls.jsonl").stat().st_size
+    config._install_guard = (directory, original, offset, not shared)
 
 
 def pytest_sessionfinish(session, exitstatus):
     state = getattr(session.config, "_install_guard", None)
     if state is None:
         return
-    directory, original = state
+    directory, original, offset, owner = state
     try:
-        lines = (Path(directory) / "calls.jsonl").read_text(encoding="utf-8").splitlines()
+        with (Path(directory) / "calls.jsonl").open("rb") as record:
+            record.seek(offset)
+            lines = record.read().decode("utf-8").splitlines()
         if lines:
             reporter = session.config.pluginmanager.get_plugin("terminalreporter")
             write = reporter.write_line if reporter else print
@@ -148,7 +141,8 @@ def pytest_sessionfinish(session, exitstatus):
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
-        shutil.rmtree(directory, ignore_errors=True)
+        if owner:
+            shutil.rmtree(directory, ignore_errors=True)
 
 
 if __name__ == "__main__":

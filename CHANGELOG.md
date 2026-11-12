@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **The default test suite no longer installs from the network (#1457).** Loom compose/doctor tests use stubbed runners and probes, and phase-manager tests disable the external bus fallback. A recording npm/npx/pip guard fails the run if any default test attempts a network install; explicit npm E2E runs remain opt-in.
+- **The default test suite no longer installs from the network (#1457).** Loom compose/doctor tests use stubbed runners and probes, and phase-manager tests disable the external bus fallback. A POSIX-only recording guard refuses npm/npx/pip/pip3 calls outside a short allow-list of read-only/local forms and fails the session on recorded refusals. The guard is off on Windows and with `WICKED_GARDEN_E2E_NPM=1`.
 
 ## [12.68.1] - 2026-11-12
 

@@ -10,7 +10,7 @@ import sys
 
 import pytest
 
-from tests._install_guard import RECORD_ENV, REPORT, guard_environment, without_shims
+from tests._install_guard import RECORD_ENV, REPORT, SHIM_ENV, guard_environment, without_shims
 
 pytestmark = pytest.mark.skipif(os.name == "nt", reason="install guard is POSIX-only")
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,16 +21,26 @@ REGRESSION_NODES = [
 ]
 
 
+def fake_executable(path, body="print('real binary')"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"#!{sys.executable}\n{body}\n")
+    path.chmod(0o755)
+
+
 @pytest.fixture
 def guard_env(tmp_path):
-    # Independent record: intentionally blocked unit-test calls aren't suite violations.
-    env = dict(os.environ)
-    env["PATH"] = os.pathsep.join([str(Path(sys.executable).parent), without_shims(env)])
+    # Independent record: intentionally blocked calls aren't suite violations.
+    binary_dir = tmp_path / "bin"
+    for cmd in ("npm", "npx", "pip", "pip3"):
+        fake_executable(binary_dir / cmd)
+    # A PATH executable outside npm's global bin is insufficient for npx.
+    fake_executable(tmp_path / "unrelated-bin" / "sh")
+    env = {**os.environ, "PATH": os.pathsep.join([str(binary_dir), str(tmp_path / "unrelated-bin")])}
     return guard_environment(tmp_path / "shims", env)
 
 
-def invoke(env, *args, cwd=None):
-    return subprocess.run(args, env=env, cwd=cwd, capture_output=True, text=True, timeout=30)
+def invoke(env, *args, cwd=None, timeout=30):
+    return subprocess.run(args, env=env, cwd=cwd, capture_output=True, text=True, timeout=timeout)
 
 
 def records(env):
@@ -38,24 +48,29 @@ def records(env):
 
 
 @pytest.mark.parametrize("cmd,argv", [
-    ("npm", ["install", "-g", "x"]),
-    *[("npm", [alias, "x"]) for alias in (
-        "i", "in", "ins", "inst", "insta", "instal", "isnt", "isntall", "add", "ci",
-        "clean-install", "update", "up", "upgrade", "exec", "x", "create", "view", "init")],
-    ("npm", ["--prefix", "somewhere", "install", "x"]),
-    ("npm", ["--loglevel", "silent", "install", "x"]),
-    ("npm", ["--location", "global", "install", "x"]),
-    ("npx", ["some-missing-cmd-xyz"]),
-    ("npx", ["--yes", "some-missing-cmd-xyz"]),
-    ("npx", ["-y", "some-missing-cmd-xyz"]),
-    ("npx", ["--no", "some-missing-cmd-xyz"]),
-    ("npx", ["-p", "x", "python"]),
-    ("npx", ["--package=x", "python"]),
-    ("npx", ["--package", "x", "python"]),
-    ("npx", ["-c", "some-missing-cmd-xyz --version"]),
+    *[("npm", [action, "x"]) for action in (
+        "install", "ic", "isnta", "install-test", "install-ci-test", "i", "ci", "exec", "init")],
+    ("npm", ["--fetch-retries", "0", "install", "x"]),
+    ("npm", ["install", "--offline", "x"]),
+    ("npm", ["install", "--offline", "--offline=false", "x"]),
+    ("npm", ["exec", "--", "missing-cmd", "--offline"]),
+    ("npm", ["--version", "install", "x"]),
+    ("npm", []),
+    ("npx", ["sh", "--version"]),
+    ("npx", ["-c", "if true; then echo ok; fi"]),
+    ("npx", ["--call", "echo ok"]),
+    ("npx", ["--cache", "x", "cmd"]),
+    ("npx", ["-p", "x", "cmd"]),
+    ("npx", ["--package=x", "cmd"]),
+    ("npx", ["--script-shell", "/bin/sh", "missing-cmd"]),
+    *[("npx", [*flag, "some-missing-cmd-xyz"]) for flag in ([], ["--yes"], ["-y"], ["--no"])],
+    ("npx", []),
+    ("npx", ["--yes"]),
+    ("npx", ["--version", "missing-cmd"]),
+    *[(cmd, ["--cert", "ca.pem", "install", "x"]) for cmd in ("pip", "pip3")],
     *[(cmd, [action, "x"]) for cmd in ("pip", "pip3") for action in ("install", "download", "wheel")],
 ])
-def test_network_installs_are_recorded_and_refused(guard_env, tmp_path, cmd, argv):
+def test_calls_outside_allow_lists_are_recorded_and_refused(guard_env, tmp_path, cmd, argv):
     result = invoke(guard_env, cmd, *argv, cwd=tmp_path)
     assert result.returncode == 1, result.stderr
     assert records(guard_env) == [{"cmd": cmd, "argv": argv,
@@ -63,19 +78,16 @@ def test_network_installs_are_recorded_and_refused(guard_env, tmp_path, cmd, arg
 
 
 @pytest.mark.parametrize("cmd", ["npm", "pip"])
-def test_real_version_passes_through(guard_env, cmd):
-    if shutil.which(cmd, path=without_shims(guard_env)) is None:
+def test_real_version_passes_through(tmp_path, cmd):
+    env = dict(os.environ)
+    env["PATH"] = os.pathsep.join([str(Path(sys.executable).parent), without_shims(env)])
+    if shutil.which(cmd, path=env["PATH"]) is None:
         pytest.skip(f"no real {cmd} on PATH")
-    result = invoke(guard_env, cmd, "--version")
+    env = guard_environment(tmp_path / "shims", env)
+    result = invoke(env, cmd, "--version")
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip()
-    assert records(guard_env) == []
-
-
-def fake_executable(path, body="print('real binary')"):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"#!{sys.executable}\n{body}\n")
-    path.chmod(0o755)
+    assert records(env) == []
 
 
 @pytest.mark.parametrize("path_entry", ["absolute", "relative", "symlink"])
@@ -84,7 +96,7 @@ def test_shims_work_with_only_path_in_environment(tmp_path, path_entry, argv, ex
     shim_dir = tmp_path / "shims"
     binary_dir = tmp_path / "bin"
     fake_executable(binary_dir / "npm")
-    guard_environment(shim_dir, {})
+    guard_environment(shim_dir, {"PATH": str(binary_dir)})
     if path_entry == "relative":
         entry = shim_dir.name
     elif path_entry == "symlink":
@@ -106,39 +118,156 @@ def test_shims_work_with_only_path_in_environment(tmp_path, path_entry, argv, ex
         assert recorded == [{"cmd": "npm", "argv": argv, "test": "", "cwd": str(tmp_path)}]
 
 
-@pytest.mark.parametrize("cmd,argv,local", [
-    ("npm", ["install", "--offline", "x"], False),
-    ("npm", ["pack"], False),
-    ("npm", ["run", "build"], False),
-    ("npm", ["init", "--yes"], False),
-    ("npm", ["init", "--scope", "example"], False),
-    ("npx", ["--yes", "wicked-vault", "--version"], False),
-    ("npx", ["--no", "wicked-vault", "--version"], True),
-    ("npx", ["-c", "wicked-vault --version"], True),
+@pytest.mark.parametrize("cmd,argv", [
+    *[("npm", [query]) for query in ("--version", "-v", "-h", "--help")],
+    ("npm", ["pack", "--dry-run", "--ignore-scripts"]),
+    ("npm", ["run", "build"]),
+    *[("npm", [command]) for command in (
+        "run-script", "test", "config", "prefix", "root", "ls", "list", "help", "version", "explain", "why")],
+    ("npm", ["help", "install"]),
+    *[("npx", [query]) for query in ("--version", "-v", "--help")],
+    *[(cmd, [query]) for cmd in ("pip", "pip3") for query in ("--version", "-V", "-h", "--help")],
+    *[(cmd, [command, "x"]) for cmd in ("pip", "pip3") for command in (
+        "show", "list", "freeze", "help", "check", "config", "inspect", "debug")],
 ])
-def test_safe_calls_pass_through_without_fetching(tmp_path, cmd, argv, local):
-    binary_dir = tmp_path / "bin"
-    fake_executable(binary_dir / cmd)
-    peer = tmp_path / "node_modules" / ".bin" if local else binary_dir
-    fake_executable(peer / "wicked-vault")
-    env = guard_environment(tmp_path / "shims", {**os.environ, "PATH": str(binary_dir)})
-    result = invoke(env, cmd, *argv, cwd=tmp_path)
+def test_allow_list_calls_pass_through(guard_env, tmp_path, cmd, argv):
+    result = invoke(guard_env, cmd, *argv, cwd=tmp_path)
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "real binary"
+    assert records(guard_env) == []
+
+
+@pytest.mark.parametrize("local", [False, True], ids=["global-bin", "local-bin"])
+@pytest.mark.parametrize("flag", [[], ["--yes"], ["-y"], ["--no"]])
+def test_npx_allows_executables_in_npm_bin_directories(guard_env, tmp_path, local, flag):
+    peer = tmp_path / "node_modules" / ".bin" if local else tmp_path / "bin"
+    fake_executable(peer / "wicked-vault")
+    result = invoke(guard_env, "npx", *flag, "wicked-vault", "--version", cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    assert records(guard_env) == []
+
+
+def test_real_npx_runs_globally_installed_vault(tmp_path):
+    env = dict(os.environ)
+    env["PATH"] = without_shims(env)
+    npx = shutil.which("npx", path=env["PATH"])
+    if npx is None or shutil.which("wicked-vault", path=str(Path(npx).parent)) is None:
+        pytest.skip("requires wicked-vault installed beside npx")
+    env = guard_environment(tmp_path / "shims", env)
+    result = invoke(env, "npx", "--no", "wicked-vault", "--version", cwd=tmp_path)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip()
     assert records(env) == []
 
 
-def test_missing_real_binary_exits_127(tmp_path):
-    env = guard_environment(tmp_path / "shims", {**os.environ, "PATH": ""})
+@pytest.mark.parametrize("cmd", ["npm", "npx", "pip", "pip3"])
+def test_absent_tools_stay_absent(tmp_path, cmd):
+    env = guard_environment(tmp_path / "shims", {**os.environ, "PATH": str(tmp_path / "empty-bin")})
+    assert shutil.which(cmd, path=env["PATH"]) is None
+    assert not (Path(env[SHIM_ENV]) / cmd).exists()
+
+
+def test_vanished_real_binary_exits_127(tmp_path):
+    binary = tmp_path / "bin" / "npm"
+    fake_executable(binary)
+    env = guard_environment(tmp_path / "shims", {**os.environ, "PATH": str(binary.parent)})
+    binary.unlink()
     result = invoke(env, "npm", "--version")
     assert result.returncode == 127
     assert "no real npm" in result.stderr
     assert records(env) == []
 
 
-def test_default_dispatch_and_phase_creation_never_install():
+def session_environment(tmp_path):
+    """An independent pytest owner, with no inherited suite recording or plugins."""
+    binary_dir = tmp_path / "bin"
+    fake_executable(binary_dir / "npm")
+    env = {**os.environ, "PATH": str(binary_dir), "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1"}
+    for key in (SHIM_ENV, RECORD_ENV, "WICKED_GARDEN_E2E_NPM", "PYTEST_ADDOPTS"):
+        env.pop(key, None)
+    return env
+
+
+def pytest_args(test_file):
+    return ["-q", "-p", "tests._install_guard", "-p", "no:cacheprovider", "--noconftest",
+            "--rootdir", str(test_file.parent), "-c", os.devnull, str(test_file)]
+
+
+def test_swallowed_refusal_fails_otherwise_passing_session(tmp_path):
+    test_file = tmp_path / "test_swallow.py"
+    test_file.write_text("import subprocess\ndef test_swallow():\n    subprocess.run(['npm', 'install', 'x'])\n")
+    result = invoke(session_environment(tmp_path), sys.executable, "-m", "pytest", *pytest_args(test_file), cwd=ROOT)
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "1 passed" in output and REPORT in output, output
+    assert "npm install x" in output, output
+
+
+def test_nested_refusal_fails_outer_session_even_when_inner_result_is_ignored(tmp_path):
+    inner = tmp_path / "test_inner.py"
+    inner.write_text("import subprocess\ndef test_inner():\n    subprocess.run(['npm', 'install', 'x'])\n")
+    outer = tmp_path / "test_outer.py"
+    command = [sys.executable, "-m", "pytest", *pytest_args(inner)]
+    outer.write_text("import subprocess\ndef test_outer():\n"
+                     f"    subprocess.run({command!r}, capture_output=True, timeout=60)\n")
+    result = invoke(session_environment(tmp_path), sys.executable, "-m", "pytest", *pytest_args(outer),
+                    cwd=ROOT, timeout=120)
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert "1 passed" in output and REPORT in output, output
+    assert "npm install x" in output and "test_inner" in output, output
+
+
+@pytest.mark.parametrize("inherited", [False, True], ids=["owner", "inherited"])
+def test_session_restores_environment_and_only_owner_removes_shims(tmp_path, inherited):
+    env = session_environment(tmp_path)
+    if inherited:
+        env = guard_environment(tmp_path / "shared-shims", env)
+    marker = tmp_path / "shim-path.txt"
+    test_file = tmp_path / "test_environment.py"
+    test_file.write_text("import os\nfrom pathlib import Path\ndef test_environment():\n"
+                         f"    Path({str(marker)!r}).write_text(os.environ[{SHIM_ENV!r}])\n"
+                         + (f"    assert os.environ['PATH'] == {env['PATH']!r}\n" if inherited else ""))
+    script = f"""
+import os
+from pathlib import Path
+import pytest
+keys = ('PATH', {SHIM_ENV!r}, {RECORD_ENV!r})
+before = {{key: os.environ.get(key) for key in keys}}
+code = pytest.main({pytest_args(test_file)!r})
+assert {{key: os.environ.get(key) for key in keys}} == before
+shim = Path(Path({str(marker)!r}).read_text())
+assert shim.exists() == {inherited!r}
+if {inherited!r}:
+    assert str(shim) == before[{SHIM_ENV!r}]
+print('environment restored')
+raise SystemExit(code)
+"""
+    result = invoke(env, sys.executable, "-c", script, cwd=ROOT)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "environment restored" in result.stdout
+
+
+def test_inherited_session_ignores_earlier_records_and_preserves_them(tmp_path):
+    env = guard_environment(tmp_path / "shared-shims", session_environment(tmp_path))
+    refused = invoke(env, "npm", "install", "earlier")
+    assert refused.returncode == 1
+    test_file = tmp_path / "test_clean.py"
+    test_file.write_text("def test_clean():\n    pass\n")
+    result = invoke(env, sys.executable, "-m", "pytest", *pytest_args(test_file), cwd=ROOT)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert REPORT not in result.stdout
+    assert records(env)[0]["argv"] == ["install", "earlier"]
+
+
+def test_default_dispatch_and_phase_creation_never_install(tmp_path):
     env = dict(os.environ)
-    env["PATH"] = os.pathsep.join([str(Path(sys.executable).parent), "/usr/bin", "/bin"])
+    # Available package managers, absent peers: accidental probes must reach the
+    # child guard even on hosts with no Node installation.
+    binary_dir = tmp_path / "bin"
+    for cmd in ("npm", "npx"):
+        fake_executable(binary_dir / cmd)
+    env["PATH"] = os.pathsep.join([str(binary_dir), str(Path(sys.executable).parent), "/usr/bin", "/bin"])
     env.pop("WICKED_GARDEN_E2E_NPM", None)
     # The child must prove its own fixture disables the bus, not inherit ours.
     env.pop("WICKED_BUS_DISABLED", None)
@@ -157,6 +286,7 @@ def test_default_dispatch_and_phase_creation_never_install():
 def test_safe_command_keeps_descendant_installs_guarded(tmp_path):
     binary_dir = tmp_path / "bin"
     fake_executable(binary_dir / "npm", "import subprocess; subprocess.run(['pip', 'install', 'x'])")
+    fake_executable(binary_dir / "pip")
     env = guard_environment(tmp_path / "shims", {**os.environ, "PATH": str(binary_dir)})
     result = invoke(env, "npm", "run", "build")
     assert result.returncode == 0  # the parent deliberately swallows the failure
