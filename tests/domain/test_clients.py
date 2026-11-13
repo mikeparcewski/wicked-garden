@@ -315,27 +315,74 @@ _ADR002_IDS = [
     "db2 synthetic CARDDEMO.AUTHFRDS:",
     "cobol-copybook synthetic CVACT01Y:",
     "file . README.md:",
+    "ts-python local src/main.py#binding",
     "ts-cobol . . . app/cbl/CBTRN02C/CBTRN02C#1500-VALIDATE-TRAN().",
     "scip-python pip pkg 1.0 main().",
+    "scip-python pip pkg 1.0 namespace/",
+    "scip-python pip pkg 1.0 Type#",
+    "scip-python pip pkg 1.0 term.",
+    "scip-python pip pkg 1.0 method(overload).",
+    "scip-python pip pkg 1.0 [TypeParameter]",
+    "scip-python pip pkg 1.0 (parameter)",
+    "scip-python pip pkg 1.0 metadata:",
+    "scip-python pip pkg 1.0 macro!",
+    "scip-python pip pkg 1.0 namespace/Type#method(overload).[T](arg)",
 ]
 
 
 @pytest.mark.parametrize("sid", _ADR002_IDS)
 def test_adr002_symbol_ids_are_accepted(monkeypatch, sid):
-    est, cap = _cli_estate(monkeypatch)
+    annotations = [{"key": "RULE-001", "value": "x"}]
+    est, cap = _cli_estate(monkeypatch, json_return={"symbol": sid,
+                                                   "annotations": annotations})
     est.annotate(sid, "business_rule", "RULE-001", "x", confidence=0.9)
     est.set_requirement(sid, "REQ", validated=True)
+    assert est.read_annotations(sid) == annotations
     assert cap.calls[0][cap.calls[0].index("--symbol") + 1] == sid
     assert sid in cap.calls[1]
+    assert cap.calls[2][cap.calls[2].index("--symbol") + 1] == sid
 
 
-@pytest.mark.parametrize("bare", ["AUTHFRDS", "2100-CALC-COPAY", ""])
-def test_bare_names_are_refused_as_silent_no_op(monkeypatch, bare):
+_INVALID_SYMBOL_IDS = [
+    "AUTHFRDS",
+    "2100-CALC-COPAY",
+    "",
+    "this is just a name",
+    "ts-cobol . . . AUTHFRDS",
+    "ts local #",
+    "ts local file.py#",
+    "x synthetic :",
+    "file . :",
+    "x synthetic   :",
+    "file .   :",
+    "ts local #binding",
+    "scip-python pip pkg 1.0 namespace/unfinished",
+    "scip-python pip pkg 1.0 method(unclosed.",
+    "scip-python pip pkg 1.0 [unclosed",
+    "scip-python pip pkg 1.0 (unclosed",
+]
+
+
+@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
+def test_invalid_symbol_ids_are_refused_before_any_cli_call(monkeypatch, sid):
     est, cap = _cli_estate(monkeypatch)
     with pytest.raises(ValueError, match="silent no-op"):
-        est.annotate(bare, "business_rule", "k", "v")
+        est.annotate(sid, "business_rule", "k", "v")
     with pytest.raises(ValueError, match="silent no-op"):
-        est.set_requirement(bare, "REQ", validated=True)
+        est.set_requirement(sid, "REQ", validated=True)
     with pytest.raises(ValueError, match="silent no-op"):
-        est.read_annotations(bare)
+        est.read_annotations(sid)
     assert cap.calls == []
+
+
+@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
+def test_invalid_symbol_ids_record_no_mock_write(sid):
+    from domain._mocks import EstateClient
+
+    est = EstateClient()
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.annotate(sid, "business_rule", "k", "v")
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.set_requirement(sid, "REQ", validated=True)
+    assert est.annotation_writes == []
+    assert est.requirement_writes == []

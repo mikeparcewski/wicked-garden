@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -160,6 +161,15 @@ def _run(argv: list[str]) -> str:
     return proc.stdout
 
 
+# A Global id ends in one or more rendered ADR-002 descriptors. Names precede
+# / (namespace), # (type), . (term), (...). (method), : (meta), or ! (macro);
+# [name] and (name) render type parameters and parameters respectively.
+_SYMBOL_DESCRIPTORS = re.compile(
+    r"(?:[^\s/#.()\[\]:!]+(?:[/#.:!]|\([^()\s]*\)\.)"
+    r"|\[[^\[\]\s]+\]|\([^()\s]+\))+"
+)
+
+
 def _looks_like_symbol_id(value: str) -> bool:
     """True for a rendered estate SymbolId (ADR-002), never a bare name.
     The four forms: ``<scheme> local <file>#<id>``, ``file . <path>:``,
@@ -170,15 +180,21 @@ def _looks_like_symbol_id(value: str) -> bool:
     if not isinstance(value, str) or not value.strip():
         return False
     parts = value.split(" ", 2)
-    if len(parts) == 3 and all(parts):
+    if len(parts) == 3 and all(parts) and not any(c.isspace() for c in parts[0]):
         scheme, kind, rest = parts
         if scheme == "file" and kind == ".":
-            return rest.endswith(":") and len(rest) > 1
+            return rest.endswith(":") and bool(rest[:-1].strip())
         if kind == "local":
-            return "#" in rest
+            file, separator, local_id = rest.rpartition("#")
+            return bool(separator and file.strip() and local_id.strip())
         if kind == "synthetic":
-            return rest.endswith(":") and len(rest) > 1
-    return len(value.split(" ", 4)) == 5 and all(value.split(" ", 4))
+            return rest.endswith(":") and bool(rest[:-1].strip())
+    global_parts = value.split(" ", 4)
+    return (
+        len(global_parts) == 5
+        and all(part and not any(c.isspace() for c in part) for part in global_parts[:4])
+        and _SYMBOL_DESCRIPTORS.fullmatch(global_parts[4]) is not None
+    )
 
 
 def _read_output_json(out: str, cmd: str) -> Any:

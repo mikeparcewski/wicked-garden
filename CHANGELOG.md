@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Domain extraction accepts every estate SymbolId (#1465).** The client's guard now checks the four ADR-002 forms (local, file, synthetic, global), so `db2 synthetic CARDDEMO.AUTHFRDS:` and similar ids are written instead of refused. Bare names are still refused, with a message that says it would be a silent no-op. The mock client shares the one check.
+- **Domain extraction accepts estate SymbolIds and rejects malformed ids (#1465).** The client's guard checks the four ADR-002 forms (local, file, synthetic, global), including non-empty local file/id components and complete global descriptors, so `db2 synthetic CARDDEMO.AUTHFRDS:` and similar ids are written instead of refused. Bare names and malformed ids are refused before any CLI call, with a message that says it would be a silent no-op. The mock client shares the one check.
 
 ## [12.68.2] - 2026-11-12
 
