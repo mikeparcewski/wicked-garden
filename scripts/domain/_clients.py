@@ -161,14 +161,24 @@ def _run(argv: list[str]) -> str:
 
 
 def _looks_like_symbol_id(value: str) -> bool:
-    """A resolved SymbolId reference, never a bare name (the silent-fan-out scar).
-    Real estate SymbolIds carry scheme+path structure — e.g.
-    ``ts-javascript . . . index/decodeHtmlEntities().`` (the live format) or a
-    ``sym::a::b`` synthetic id — so they contain a structural separator a bare
-    identifier never does (``::``, the ` . . . ` scheme marker, or a path ``/``)."""
+    """True for a rendered estate SymbolId (ADR-002), never a bare name.
+    The four forms: ``<scheme> local <file>#<id>``, ``file . <path>:``,
+    ``<scheme> synthetic <id>:`` (e.g. ``db2 synthetic CARDDEMO.AUTHFRDS:``) and
+    the Global ``<scheme> <manager> <name> <version> <descriptors>`` (or
+    ``<scheme> . . . <descriptors>``). A bare identifier matches none, and is
+    refused because ``--symbol`` with a name is a silent no-op."""
     if not isinstance(value, str) or not value.strip():
         return False
-    return "::" in value or " . . . " in value or "/" in value
+    parts = value.split(" ", 2)
+    if len(parts) == 3 and all(parts):
+        scheme, kind, rest = parts
+        if scheme == "file" and kind == ".":
+            return rest.endswith(":") and len(rest) > 1
+        if kind == "local":
+            return "#" in rest
+        if kind == "synthetic":
+            return rest.endswith(":") and len(rest) > 1
+    return len(value.split(" ", 4)) == 5 and all(value.split(" ", 4))
 
 
 def _read_output_json(out: str, cmd: str) -> Any:
@@ -283,8 +293,8 @@ class CliEstateClient:
                  replace: bool = True, author: str | None = None) -> None:
         if not _looks_like_symbol_id(symbol_id):
             raise ValueError(
-                f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name fans "
-                "out to EVERY search hit (the duplicate-Charge scar); resolve() first"
+                f"refusing annotate on non-SymbolId {symbol_id!r} — a bare name is a "
+                "silent no-op in estate; resolve() first"
             )
         argv = self._argv("annotate", "--symbol", symbol_id, "--type", type,
                           "--key", key, "--value", value)
@@ -318,9 +328,8 @@ class CliEstateClient:
     def read_annotations(self, symbol_id: str) -> list[dict[str, Any]]:
         if not _looks_like_symbol_id(symbol_id):
             raise ValueError(
-                f"refusing read_annotations on non-SymbolId {symbol_id!r} — the "
-                "positional form name-SEARCHES and would silently miss a SymbolId; "
-                "resolve() first"
+                f"refusing read_annotations on non-SymbolId {symbol_id!r} — a bare name "
+                "is a silent no-op in estate; resolve() first"
             )
         # MUST use `--symbol` (not the positional `<name>` form, which name-searches
         # and returns an ARRAY of per-symbol objects — a SymbolId there matches
