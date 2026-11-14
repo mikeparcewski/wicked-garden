@@ -183,19 +183,31 @@ def _looks_like_symbol_id(value: str) -> bool:
                    tail whose last character is a descriptor suffix sigil.
     The scheme and the three package fields are single space-free tokens; the
     tail may contain spaces and punctuation. A bare identifier matches none, and
-    is refused because ``--symbol`` with a name is a silent no-op."""
+    is refused because ``--symbol`` with a name is a silent no-op.
+
+    The four forms are ALTERNATIVES, not branches chosen by the second token: a
+    valid id whose second token looks like another form's marker (a Global id
+    with scheme ``file`` or package manager ``local``/``synthetic``) must still
+    be admitted. Each form is tested in turn; the first match wins and a
+    non-match falls through to the rest; False only when none match."""
     if not isinstance(value, str) or not value.strip():
         return False
     parts = value.split(" ", 2)
     if len(parts) == 3 and all(parts) and not any(c.isspace() for c in parts[0]):
         scheme, kind, rest = parts
-        if scheme == "file" and kind == ".":
-            return rest.endswith(":") and bool(rest[:-1].strip())
-        if kind == "local":
-            file, separator, local_id = rest.rpartition("#")
-            return bool(separator and file.strip() and local_id.strip())
-        if kind == "synthetic":
-            return rest.endswith(":") and bool(rest[:-1].strip())
+        if scheme == "file" and kind == "." and rest.endswith(":") and rest[:-1].strip():
+            return True
+        # Local: the id itself may end in a ``#`` sigil (``save#``), so the last
+        # ``#`` is not necessarily the separator — accept any split that leaves
+        # both the file part and the id part non-empty.
+        if kind == "local" and any(
+            rest[:i].strip() and rest[i + 1:].strip()
+            for i, c in enumerate(rest)
+            if c == "#"
+        ):
+            return True
+        if kind == "synthetic" and rest.endswith(":") and rest[:-1].strip():
+            return True
     global_parts = value.split(" ", 4)
     return (
         len(global_parts) == 5

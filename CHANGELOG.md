@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- **Domain extraction accepts estate SymbolIds and rejects malformed ids (#1465).** The client's guard checks the four ADR-002 forms (local, file, synthetic, global), including non-empty local file/id components and complete global descriptors, so `db2 synthetic CARDDEMO.AUTHFRDS:` and similar ids are written instead of refused. Bare names and malformed ids are refused before any CLI call, with a message that says it would be a silent no-op. The mock client shares the one check.
+- **Domain extraction accepts estate SymbolIds and rejects malformed ids (#1465).** The client's guard checks the four ADR-002 forms (local, file, synthetic, global), including non-empty local file/id components and complete global descriptors, so `db2 synthetic CARDDEMO.AUTHFRDS:` and similar ids are written instead of refused. The four ADR-002 forms are treated as alternatives, so a Global id whose scheme or package manager looks like another form's marker (`file . . . src/main/run().`, `scip-x local pkg 1.0 a/b().`) is accepted, and a Local id whose id part ends in a `#` sigil (`ts-ruby local lib/account.rb#save#`) is accepted by trying every `#` split. Bare names and malformed ids are refused before any CLI call, with a message that says it would be a silent no-op. The mock client shares the one check.
 
 ## [12.68.2] - 2026-11-12
 

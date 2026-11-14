@@ -333,6 +333,16 @@ _ADR002_IDS = [
     "scip-python pip pkg 1.0 metadata:",
     "scip-python pip pkg 1.0 macro!",
     "scip-python pip pkg 1.0 namespace/Type#method(overload).[T](arg)",
+    # Global ids whose second token looks like another form's marker: the four
+    # frames are alternatives, so a non-matching File/Local/Synthetic read must
+    # fall through to the Global frame rather than reject the id.
+    "file . . . src/main/run().",
+    "scip-x local pkg 1.0 a/b().",
+    "scip-x synthetic pkg 1.0 a/b().",
+    # Local ids whose own id part ends in a ``#`` sigil: the last ``#`` is not
+    # the separator, so the split must try every ``#``.
+    "ts-ruby local lib/account.rb#save#",
+    "ts-ruby local lib/a#b.rb#run",
 ]
 
 
