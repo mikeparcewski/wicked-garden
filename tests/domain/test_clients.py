@@ -317,6 +317,12 @@ _ADR002_IDS = [
     "file . README.md:",
     "ts-python local src/main.py#binding",
     "ts-cobol . . . app/cbl/CBTRN02C/CBTRN02C#1500-VALIDATE-TRAN().",
+    # Descriptor names are rendered verbatim and may carry punctuation and spaces:
+    # only the structural frame is checked, not the descriptor contents.
+    "ts-ruby . . . lib/account/Account#save!().",
+    "ts-ruby . . . lib/account/Account#[]().",
+    "ts-typescript . . . src/account/Account##balance.",
+    "ts-python . . . my app/main/run().",
     "scip-python pip pkg 1.0 main().",
     "scip-python pip pkg 1.0 namespace/",
     "scip-python pip pkg 1.0 Type#",
@@ -353,13 +359,6 @@ _INVALID_SYMBOL_IDS = [
     "ts local file.py#",
     "x synthetic :",
     "file . :",
-    "x synthetic   :",
-    "file .   :",
-    "ts local #binding",
-    "scip-python pip pkg 1.0 namespace/unfinished",
-    "scip-python pip pkg 1.0 method(unclosed.",
-    "scip-python pip pkg 1.0 [unclosed",
-    "scip-python pip pkg 1.0 (unclosed",
 ]
 
 

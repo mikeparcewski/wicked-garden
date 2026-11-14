@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import json
 import os
-import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -161,22 +160,30 @@ def _run(argv: list[str]) -> str:
     return proc.stdout
 
 
-# A Global id ends in one or more rendered ADR-002 descriptors. Names precede
-# / (namespace), # (type), . (term), (...). (method), : (meta), or ! (macro);
-# [name] and (name) render type parameters and parameters respectively.
-_SYMBOL_DESCRIPTORS = re.compile(
-    r"(?:[^\s/#.()\[\]:!]+(?:[/#.:!]|\([^()\s]*\)\.)"
-    r"|\[[^\[\]\s]+\]|\([^()\s]+\))+"
-)
+# The last character of a rendered Global tail is the final descriptor's suffix
+# sigil: / (namespace), # (type), . (term or method), : (meta), ! (macro), or
+# ) / ] closing a parameter / type-parameter list. Names PRECEDE their sigil and
+# are written verbatim by estate's ``Suffix::render`` (ADR-002), so a descriptor
+# name may itself contain punctuation and spaces (``Account#save!()``,
+# ``my app/main/run()``) — only the structural frame is reliable to check.
+_DESCRIPTOR_SIGILS = ("/", "#", ".", ":", "!", ")", "]")
 
 
 def _looks_like_symbol_id(value: str) -> bool:
     """True for a rendered estate SymbolId (ADR-002), never a bare name.
-    The four forms: ``<scheme> local <file>#<id>``, ``file . <path>:``,
-    ``<scheme> synthetic <id>:`` (e.g. ``db2 synthetic CARDDEMO.AUTHFRDS:``) and
-    the Global ``<scheme> <manager> <name> <version> <descriptors>`` (or
-    ``<scheme> . . . <descriptors>``). A bare identifier matches none, and is
-    refused because ``--symbol`` with a name is a silent no-op."""
+
+    Checks only the STRUCTURAL FRAME of the four rendered forms, not the
+    descriptor CONTENTS, because ``Suffix::render`` writes descriptor names
+    verbatim (they may carry punctuation and spaces). The forms:
+      * File:      ``file . <non-empty>:``
+      * Local:     ``<scheme> local <non-empty>#<non-empty>``
+      * Synthetic: ``<scheme> synthetic <non-empty>:``
+      * Global:    ``<scheme> . . . <tail>`` or
+                   ``<scheme> <manager> <name> <version> <tail>`` — a non-empty
+                   tail whose last character is a descriptor suffix sigil.
+    The scheme and the three package fields are single space-free tokens; the
+    tail may contain spaces and punctuation. A bare identifier matches none, and
+    is refused because ``--symbol`` with a name is a silent no-op."""
     if not isinstance(value, str) or not value.strip():
         return False
     parts = value.split(" ", 2)
@@ -193,7 +200,8 @@ def _looks_like_symbol_id(value: str) -> bool:
     return (
         len(global_parts) == 5
         and all(part and not any(c.isspace() for c in part) for part in global_parts[:4])
-        and _SYMBOL_DESCRIPTORS.fullmatch(global_parts[4]) is not None
+        and bool(global_parts[4])
+        and global_parts[4][-1] in _DESCRIPTOR_SIGILS
     )
 
 
