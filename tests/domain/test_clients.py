@@ -374,6 +374,29 @@ def test_invalid_symbol_ids_are_refused_before_any_cli_call(monkeypatch, sid):
     assert cap.calls == []
 
 
+@pytest.mark.parametrize("sid", _ADR002_IDS)
+def test_looks_like_symbol_id_accepts_frame(sid):
+    # Direct, mock-free guard: the structural frame alone decides, so a Global
+    # tail is admitted on its last-character sigil regardless of inner spaces or
+    # punctuation in the verbatim descriptor name.
+    assert _clients._looks_like_symbol_id(sid) is True
+
+
+@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
+def test_looks_like_symbol_id_rejects_non_frame(sid):
+    assert _clients._looks_like_symbol_id(sid) is False
+
+
+@pytest.mark.parametrize("sigil", ["/", "#", ".", ":", "!", ")", "]"])
+def test_global_tail_admitted_only_on_a_descriptor_sigil(sigil):
+    # A Global tail is a frame match iff its LAST character is a descriptor
+    # suffix sigil; the same tail without one (and a whitespace-only tail) is not.
+    base = "scip-python pip pkg 1.0 name"
+    assert _clients._looks_like_symbol_id(base + sigil) is True
+    assert _clients._looks_like_symbol_id(base) is False
+    assert _clients._looks_like_symbol_id("scip-python pip pkg 1.0  ") is False
+
+
 @pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
 def test_invalid_symbol_ids_record_no_mock_write(sid):
     from domain._mocks import EstateClient
