@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [12.68.3] - 2026-11-14
+
+Patch (#1467): the domain extraction client accepts every ADR-002 SymbolId wicked-estate emits (local, file,
+synthetic, global), so ids such as `db2 synthetic CARDDEMO.AUTHFRDS:` are written instead of refused, and still
+refuses bare names and malformed ids before any CLI call. crew's garden floor stays 12.68.0.
+
 ### Fixed
 
 - **Domain extraction accepts estate SymbolIds and rejects malformed ids (#1465).** The client's guard checks the four ADR-002 forms (local, file, synthetic, global), including non-empty local file/id components and complete global descriptors, so `db2 synthetic CARDDEMO.AUTHFRDS:` and similar ids are written instead of refused. The four ADR-002 forms are treated as alternatives, so a Global id whose scheme or package manager looks like another form's marker (`file . . . src/main/run().`, `scip-x local pkg 1.0 a/b().`) is accepted, and a Local id whose id part ends in a `#` sigil (`ts-ruby local lib/account.rb#save#`) is accepted by trying every `#` split. Bare names and malformed ids are refused before any CLI call, with a message that says it would be a silent no-op. The mock client shares the one check.
@@ -1741,7 +1747,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.2...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.3...HEAD
+[12.68.3]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.2...v12.68.3
 [12.68.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.1...v12.68.2
 [12.68.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...v12.68.1
 [12.68.0]: https://github.com/mikeparcewski/wicked-garden/compare/v12.67.0...v12.68.0
