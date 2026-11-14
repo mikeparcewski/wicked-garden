@@ -200,10 +200,14 @@ def _looks_like_symbol_id(value: str) -> bool:
     rest; False only when none match."""
     if not isinstance(value, str):
         return False
-    # A value with leading/trailing whitespace or any newline/CR is passed
-    # verbatim to ``--symbol`` and misses the stored symbol — refuse it before
-    # any frame check (this also rejects whitespace-only and empty values).
-    if value != value.strip() or "\n" in value or "\r" in value:
+    # A value with leading/trailing whitespace is passed verbatim to
+    # ``--symbol`` and misses the stored symbol — refuse it before any frame
+    # check (this also rejects whitespace-only and empty values, and any value
+    # ending in a newline/CR, since that is trailing whitespace). Internal
+    # newlines are kept: estate's CSS extractor writes a multi-line selector
+    # list verbatim into a Global descriptor (``ts-css`` ids), so a ``\n`` in
+    # the middle of a real id must still be admitted.
+    if value != value.strip():
         return False
     if not value:
         return False

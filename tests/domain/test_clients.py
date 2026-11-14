@@ -348,6 +348,10 @@ _ADR002_IDS = [
     "event bus synthetic topic/orders:",
     "event bus synthetic orders:",
     "my scheme local src/a.py#x",
+    # estate's CSS extractor writes a multi-line selector list verbatim into a
+    # Global descriptor, so a real id may carry an internal newline.
+    "ts-css . . . site/src/styles/global/::view-transition-old(root),\n::view-transition-new(root)#",
+    "ts-css . . . src/a.css/.a,\n.b#",
 ]
 
 
