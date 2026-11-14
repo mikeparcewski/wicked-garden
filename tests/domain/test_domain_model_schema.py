@@ -87,7 +87,7 @@ def test_facts_reference_symbolids_not_copies():
     for domain in doc["domains"].values():
         for req in domain["requirements"].values():
             for comp in req["legacy_components"]:
-                assert comp.startswith("sym::"), f"not a SymbolId reference: {comp}"
+                assert comp.startswith("sym synthetic "), f"not a SymbolId reference: {comp}"
                 assert "\n" not in comp
 
 
@@ -264,7 +264,7 @@ def test_estate_mock_resolves_ambiguous_name_to_multiple_symbolids():
     estate = _mocks.EstateClient()
     hits = estate.resolve("Charge")
     assert len(hits) >= 2, "ambiguous names resolve to multiple SymbolIds"
-    assert all(h.startswith("sym::") for h in hits)
+    assert all(h.startswith("sym synthetic ") for h in hits)
 
 
 def test_brain_mock_builds_from_conformant_doc_and_counts_drops():

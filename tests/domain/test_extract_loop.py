@@ -636,7 +636,7 @@ def test_an_unmet_requirement_still_resolves_and_writes_its_mismatch_after_the_r
     with the rule's key, so wicked-core reads it as a finding beside a real requirement."""
     from domain import _mocks
     estate = _mocks.EstateClient()
-    sid = "sym::payments::Payment.charge::b1"
+    sid = "sym synthetic payments::Payment.charge::b1:"
     out = extract_loop.decide_and_write(estate, None, sid, "charge", _unmet(sid), {sid}, {}, {})
     assert out == "resolved"
     assert estate.requirement_writes == [(sid, "sum returns the total of every element", True)]
@@ -663,7 +663,7 @@ def test_the_mismatch_is_read_back_on_its_own_key():
     rule's key, so a mismatch that landed could vouch for a rule that did not (and a mismatch that
     did not land went unchecked). Each write is read back on its own key."""
     from domain import _mocks
-    sid = "sym::payments::Payment.charge::b1"
+    sid = "sym synthetic payments::Payment.charge::b1:"
     landed: list[str] = []
 
     class Lossy(_mocks.EstateClient):
@@ -690,7 +690,7 @@ def test_a_restatement_the_code_meets_writes_code_meets_over_an_earlier_mismatch
     replaced with CODE_MEETS (which wicked-core reads as no finding). Only when the unit shows a
     mismatch now: no extra write for every rule."""
     from domain import _mocks
-    sid = "sym::payments::Payment.charge::b1"
+    sid = "sym synthetic payments::Payment.charge::b1:"
     shown = _mocks.EstateClient()
     assert extract_loop.decide_and_write(shown, None, sid, "charge", _good(sid), {sid}, {}, {},
                                          prior_mismatch=lambda s: True) == "resolved"
@@ -733,7 +733,7 @@ def test_an_older_row_never_vouches_for_a_replacement_that_did_not_land():
     """codex r2: a stale mismatch on the key, and a CODE_MEETS replacement that silently fails:
     the read-back checks the value, so the write is not reported durable."""
     from domain import _mocks
-    sid = "sym::payments::Payment.charge::b1"
+    sid = "sym synthetic payments::Payment.charge::b1:"
 
     class Stuck(_mocks.EstateClient):
         def annotate(self, symbol_id, type, key, value, **kw):
@@ -769,7 +769,7 @@ def test_a_failed_mismatch_read_stops_the_write():
     finding without clearing it. Only a store with no annotations table reads as none."""
     from domain import _mocks
     import sqlite3
-    sid = "sym::payments::Payment.charge::b1"
+    sid = "sym synthetic payments::Payment.charge::b1:"
 
     class Locked:
         def mismatch_now(self, s):

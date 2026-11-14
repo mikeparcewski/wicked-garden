@@ -105,12 +105,12 @@ def _cli_estate(monkeypatch, json_return=None):
 
 def test_resolve_extracts_symbol_ids_and_threads_db(monkeypatch):
     est, cap = _cli_estate(monkeypatch, json_return=[
-        {"symbol_id": "sym::billing::A::a1", "name": "A"},
-        {"symbol_id": "sym::billing::B::a2", "name": "B"},
+        {"symbol_id": "sym synthetic billing::A::a1:", "name": "A"},
+        {"symbol_id": "sym synthetic billing::B::a2:", "name": "B"},
         {"name": "no-id"},  # ignored
     ])
     ids = est.resolve("charge", file="src/billing/charge.py", kind="Function")
-    assert ids == ["sym::billing::A::a1", "sym::billing::B::a2"]
+    assert ids == ["sym synthetic billing::A::a1:", "sym synthetic billing::B::a2:"]
     argv = cap.calls[0]
     assert argv[:2] == ["wicked-estate", "resolve"]
     assert "charge" in argv and "--json" in argv
@@ -121,10 +121,10 @@ def test_resolve_extracts_symbol_ids_and_threads_db(monkeypatch):
 
 def test_annotate_forces_symbol_and_replace(monkeypatch):
     est, cap = _cli_estate(monkeypatch)
-    est.annotate("sym::billing::A::a1", "business_rule", "RULE-001",
+    est.annotate("sym synthetic billing::A::a1:", "business_rule", "RULE-001",
                  "amount must be positive", confidence=0.9, provenance="code-graph")
     argv = cap.calls[0]
-    assert argv[argv.index("--symbol") + 1] == "sym::billing::A::a1"  # never a bare name
+    assert argv[argv.index("--symbol") + 1] == "sym synthetic billing::A::a1:"  # never a bare name
     assert "--replace" in argv, "must upsert (the CLI defaults to APPEND)"
     assert argv[argv.index("--type") + 1] == "business_rule"
     assert argv[argv.index("--key") + 1] == "RULE-001"
@@ -140,15 +140,15 @@ def test_annotate_refuses_a_bare_name(monkeypatch):
 
 def test_set_requirement_routes_to_semantics(monkeypatch):
     est, cap = _cli_estate(monkeypatch)
-    est.set_requirement("sym::billing::A::a1", "REQ text", validated=True)
+    est.set_requirement("sym synthetic billing::A::a1:", "REQ text", validated=True)
     argv = cap.calls[0]
     assert argv[:2] == ["wicked-estate", "semantics"], "requirement -> node_semantics, not annotate"
-    assert "sym::billing::A::a1" in argv
+    assert "sym synthetic billing::A::a1:" in argv
     assert argv[argv.index("--requirement") + 1] == "REQ text"
     assert argv[argv.index("--validated") + 1] == "true"
     # estate >= 0.30 refuses --validated without --validated-by: every write names its validator.
     assert argv[argv.index("--validated-by") + 1] == "extract-loop"
-    est.set_requirement("sym::billing::A::a1", "[RISK] x", validated=False, validated_by="extract-loop:codex")
+    est.set_requirement("sym synthetic billing::A::a1:", "[RISK] x", validated=False, validated_by="extract-loop:codex")
     argv = cap.calls[1]
     assert argv[argv.index("--validated") + 1] == "false"
     assert argv[argv.index("--validated-by") + 1] == "extract-loop:codex"
@@ -156,10 +156,10 @@ def test_set_requirement_routes_to_semantics(monkeypatch):
 
 def test_annotate_names_its_author_when_given(monkeypatch):
     est, cap = _cli_estate(monkeypatch)
-    est.annotate("sym::billing::A::a1", "business_rule", "k", "v", author="extract-loop:claude")
+    est.annotate("sym synthetic billing::A::a1:", "business_rule", "k", "v", author="extract-loop:claude")
     argv = cap.calls[0]
     assert argv[argv.index("--author") + 1] == "extract-loop:claude"
-    est.annotate("sym::billing::A::a1", "business_rule", "k", "v")
+    est.annotate("sym synthetic billing::A::a1:", "business_rule", "k", "v")
     assert "--author" not in cap.calls[1]
 
 
@@ -207,14 +207,14 @@ def test_read_output_json_fails_loud_on_missing_file(tmp_path):
 
 
 def test_read_annotations_uses_symbol_flag_not_positional(monkeypatch):
-    est, cap = _cli_estate(monkeypatch, json_return={"symbol": "sym::b::A::a1",
+    est, cap = _cli_estate(monkeypatch, json_return={"symbol": "sym synthetic b::A::a1:",
                                                      "annotations": [{"key": "RULE-1"}]})
-    anns = est.read_annotations("sym::b::A::a1")
+    anns = est.read_annotations("sym synthetic b::A::a1:")
     assert anns == [{"key": "RULE-1"}]
     argv = cap.calls[0]
     # `--symbol` (single-object shape), NOT the positional name-search form.
-    assert argv[argv.index("--symbol") + 1] == "sym::b::A::a1"
-    assert "sym::b::A::a1" not in argv[:argv.index("--symbol")], "id must not also be a positional"
+    assert argv[argv.index("--symbol") + 1] == "sym synthetic b::A::a1:"
+    assert "sym synthetic b::A::a1:" not in argv[:argv.index("--symbol")], "id must not also be a positional"
 
 
 def test_read_annotations_refuses_a_bare_name(monkeypatch):
@@ -226,13 +226,13 @@ def test_read_annotations_refuses_a_bare_name(monkeypatch):
 def test_read_annotations_rejects_unexpected_array_shape(monkeypatch):
     est, _ = _cli_estate(monkeypatch, json_return=[{"symbol": "x", "annotations": []}])
     with pytest.raises(RuntimeError, match="expected the single-symbol object"):
-        est.read_annotations("sym::b::A::a1")
+        est.read_annotations("sym synthetic b::A::a1:")
 
 
 def test_read_annotations_rejects_non_list_annotations_field(monkeypatch):
     est, _ = _cli_estate(monkeypatch, json_return={"symbol": "x", "annotations": None})
     with pytest.raises(RuntimeError, match="'annotations' is NoneType, expected a list"):
-        est.read_annotations("sym::b::A::a1")
+        est.read_annotations("sym synthetic b::A::a1:")
 
 
 def test_find_by_annotation_is_unsupported_on_the_cli(monkeypatch):
@@ -306,6 +306,143 @@ def test_two_seats_keep_two_rules_and_a_seat_replaces_only_its_own(monkeypatch):
             "provenance": {"source": "m"}}
     for agent in ("claude", "codex", "claude"):
         monkeypatch.setenv("WICKED_RUN_AGENT", agent)
-        extract_loop._write_node(est, "sym::a", "a", rule, True, "")
+        extract_loop._write_node(est, "sym synthetic a:", "a", rule, True, "")
     authors = sorted(a for (s, t, _k), a in est.rows.items() if t == "business_rule")
     assert authors == ["extract-loop:claude", "extract-loop:codex"]
+
+
+_ADR002_IDS = [
+    "db2 synthetic CARDDEMO.AUTHFRDS:",
+    "cobol-copybook synthetic CVACT01Y:",
+    "file . README.md:",
+    "ts-python local src/main.py#binding",
+    "ts-cobol . . . app/cbl/CBTRN02C/CBTRN02C#1500-VALIDATE-TRAN().",
+    # Descriptor names are rendered verbatim and may carry punctuation and spaces:
+    # only the structural frame is checked, not the descriptor contents.
+    "ts-ruby . . . lib/account/Account#save!().",
+    "ts-ruby . . . lib/account/Account#[]().",
+    "ts-typescript . . . src/account/Account##balance.",
+    "ts-python . . . my app/main/run().",
+    "scip-python pip pkg 1.0 main().",
+    "scip-python pip pkg 1.0 namespace/",
+    "scip-python pip pkg 1.0 Type#",
+    "scip-python pip pkg 1.0 term.",
+    "scip-python pip pkg 1.0 method(overload).",
+    "scip-python pip pkg 1.0 [TypeParameter]",
+    "scip-python pip pkg 1.0 (parameter)",
+    "scip-python pip pkg 1.0 metadata:",
+    "scip-python pip pkg 1.0 macro!",
+    "scip-python pip pkg 1.0 namespace/Type#method(overload).[T](arg)",
+    # Global ids whose second token looks like another form's marker: the four
+    # frames are alternatives, so a non-matching File/Local/Synthetic read must
+    # fall through to the Global frame rather than reject the id.
+    "file . . . src/main/run().",
+    "scip-x local pkg 1.0 a/b().",
+    "scip-x synthetic pkg 1.0 a/b().",
+    # Local ids whose own id part ends in a ``#`` sigil: the last ``#`` is not
+    # the separator, so the split must try every ``#``.
+    "ts-ruby local lib/account.rb#save#",
+    "ts-ruby local lib/a#b.rb#run",
+    # Synthetic/Local SCHEMES may contain spaces (node_scheme or an unset rule
+    # name is the Synthetic scheme, not restricted to one token).
+    "event bus synthetic topic/orders:",
+    "event bus synthetic orders:",
+    "my scheme local src/a.py#x",
+    # estate's CSS extractor writes a multi-line selector list verbatim into a
+    # Global descriptor, so a real id may carry an internal newline.
+    "ts-css . . . site/src/styles/global/::view-transition-old(root),\n::view-transition-new(root)#",
+    "ts-css . . . src/a.css/.a,\n.b#",
+]
+
+
+@pytest.mark.parametrize("sid", _ADR002_IDS)
+def test_adr002_symbol_ids_are_accepted(monkeypatch, sid):
+    annotations = [{"key": "RULE-001", "value": "x"}]
+    est, cap = _cli_estate(monkeypatch, json_return={"symbol": sid,
+                                                   "annotations": annotations})
+    est.annotate(sid, "business_rule", "RULE-001", "x", confidence=0.9)
+    est.set_requirement(sid, "REQ", validated=True)
+    assert est.read_annotations(sid) == annotations
+    assert cap.calls[0][cap.calls[0].index("--symbol") + 1] == sid
+    assert sid in cap.calls[1]
+    assert cap.calls[2][cap.calls[2].index("--symbol") + 1] == sid
+
+
+_INVALID_SYMBOL_IDS = [
+    "AUTHFRDS",
+    "2100-CALC-COPAY",
+    "",
+    "this is just a name",
+    "ts-cobol . . . AUTHFRDS",
+    "ts local #",
+    "ts local file.py#",
+    "x synthetic :",
+    "file . :",
+    # A Global tail ending in ) or ] without the matching open bracket is not a
+    # rendered parameter / type-parameter list.
+    "scip-python pip pkg 1.0 name)",
+    "scip-python pip pkg 1.0 name]",
+    # A Global tail that is only a sigil, with no name before it, is not a frame.
+    "ts-cobol . . . :",
+    "scip-python pip pkg 1.0 .",
+    # Leading/trailing whitespace or a newline/CR misses the stored symbol.
+    "ts-python local src/main.py#binding\n",
+    "  file . README.md:",
+]
+
+
+@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
+def test_invalid_symbol_ids_are_refused_before_any_cli_call(monkeypatch, sid):
+    est, cap = _cli_estate(monkeypatch)
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.annotate(sid, "business_rule", "k", "v")
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.set_requirement(sid, "REQ", validated=True)
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.read_annotations(sid)
+    assert cap.calls == []
+
+
+@pytest.mark.parametrize("sid", _ADR002_IDS)
+def test_looks_like_symbol_id_accepts_frame(sid):
+    # Direct, mock-free guard: the structural frame alone decides, so a Global
+    # tail is admitted on its last-character sigil regardless of inner spaces or
+    # punctuation in the verbatim descriptor name.
+    assert _clients._looks_like_symbol_id(sid) is True
+
+
+@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
+def test_looks_like_symbol_id_rejects_non_frame(sid):
+    assert _clients._looks_like_symbol_id(sid) is False
+
+
+@pytest.mark.parametrize("sigil", ["/", "#", ".", ":", "!"])
+def test_global_tail_admitted_only_on_a_descriptor_sigil(sigil):
+    # A Global tail with a name is a frame match iff its LAST character is a
+    # descriptor suffix sigil; the same tail without one (and a whitespace-only
+    # tail) is not.
+    base = "scip-python pip pkg 1.0 name"
+    assert _clients._looks_like_symbol_id(base + sigil) is True
+    assert _clients._looks_like_symbol_id(base) is False
+    assert _clients._looks_like_symbol_id("scip-python pip pkg 1.0  ") is False
+
+
+@pytest.mark.parametrize("sigil", [")", "]"])
+def test_global_tail_bracket_sigil_needs_matching_open(sigil):
+    # P2-2: a tail ending in ) or ] without the matching open bracket is not a
+    # rendered parameter / type-parameter list, so it is refused.
+    base = "scip-python pip pkg 1.0 name"
+    assert _clients._looks_like_symbol_id(base + sigil) is False
+
+
+@pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
+def test_invalid_symbol_ids_record_no_mock_write(sid):
+    from domain._mocks import EstateClient
+
+    est = EstateClient()
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.annotate(sid, "business_rule", "k", "v")
+    with pytest.raises(ValueError, match="silent no-op"):
+        est.set_requirement(sid, "REQ", validated=True)
+    assert est.annotation_writes == []
+    assert est.requirement_writes == []
