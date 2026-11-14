@@ -181,40 +181,85 @@ def _looks_like_symbol_id(value: str) -> bool:
       * Global:    ``<scheme> . . . <tail>`` or
                    ``<scheme> <manager> <name> <version> <tail>`` — a non-empty
                    tail whose last character is a descriptor suffix sigil.
-    The scheme and the three package fields are single space-free tokens; the
-    tail may contain spaces and punctuation. A bare identifier matches none, and
-    is refused because ``--symbol`` with a name is a silent no-op.
+    The File form's scheme and the three Global package fields are single
+    space-free tokens, but the Synthetic and Local SCHEMES may contain spaces:
+    estate's extra-edge rules use ``node_scheme`` (or the rule name when unset)
+    as the Synthetic scheme, neither restricted to one token
+    (crates/wicked-estate-extract/src/extra_edge.rs:91-95), so
+    ``event bus synthetic orders:`` is a valid id. The tail may contain spaces
+    and punctuation. A bare identifier matches none, and is refused because
+    ``--symbol`` with a name is a silent no-op.
 
     The four forms are ALTERNATIVES, not branches chosen by the second token: a
     valid id whose second token looks like another form's marker (a Global id
     with scheme ``file`` or package manager ``local``/``synthetic``) must still
-    be admitted. Each form is tested in turn; the first match wins and a
-    non-match falls through to the rest; False only when none match."""
-    if not isinstance(value, str) or not value.strip():
+    be admitted. For Synthetic and Local we locate the ` synthetic ` / ` local `
+    marker rather than tokenising, and accept when SOME occurrence leaves a
+    non-empty scheme before it and a frame-valid remainder after it. Each form
+    is tested in turn; the first match wins and a non-match falls through to the
+    rest; False only when none match."""
+    if not isinstance(value, str):
         return False
+    # A value with leading/trailing whitespace or any newline/CR is passed
+    # verbatim to ``--symbol`` and misses the stored symbol — refuse it before
+    # any frame check (this also rejects whitespace-only and empty values).
+    if value != value.strip() or "\n" in value or "\r" in value:
+        return False
+    if not value:
+        return False
+    # File: ``file . <non-empty>:`` — the scheme is the fixed token ``file``.
     parts = value.split(" ", 2)
-    if len(parts) == 3 and all(parts) and not any(c.isspace() for c in parts[0]):
+    if len(parts) == 3:
         scheme, kind, rest = parts
         if scheme == "file" and kind == "." and rest.endswith(":") and rest[:-1].strip():
             return True
-        # Local: the id itself may end in a ``#`` sigil (``save#``), so the last
-        # ``#`` is not necessarily the separator — accept any split that leaves
-        # both the file part and the id part non-empty.
-        if kind == "local" and any(
+    # Local: ``<scheme> local <file>#<id>`` — scheme may contain spaces. The id
+    # itself may end in a ``#`` sigil (``save#``), so the last ``#`` is not
+    # necessarily the separator — accept any ``#`` split leaving both the file
+    # part and the id part non-empty.
+    idx = value.find(" local ")
+    while idx != -1:
+        scheme, rest = value[:idx], value[idx + len(" local "):]
+        if scheme and any(
             rest[:i].strip() and rest[i + 1:].strip()
             for i, c in enumerate(rest)
             if c == "#"
         ):
             return True
-        if kind == "synthetic" and rest.endswith(":") and rest[:-1].strip():
+        idx = value.find(" local ", idx + 1)
+    # Synthetic: ``<scheme> synthetic <non-empty>:`` — scheme may contain spaces.
+    idx = value.find(" synthetic ")
+    while idx != -1:
+        scheme, rest = value[:idx], value[idx + len(" synthetic "):]
+        if scheme and rest.endswith(":") and rest[:-1].strip():
             return True
+        idx = value.find(" synthetic ", idx + 1)
+    # Global: ``<scheme> . . . <tail>`` or ``<scheme> <mgr> <name> <ver> <tail>``.
     global_parts = value.split(" ", 4)
     return (
         len(global_parts) == 5
         and all(part and not any(c.isspace() for c in part) for part in global_parts[:4])
-        and bool(global_parts[4])
-        and global_parts[4][-1] in _DESCRIPTOR_SIGILS
+        and _global_tail_is_descriptor(global_parts[4])
     )
+
+
+def _global_tail_is_descriptor(tail: str) -> bool:
+    """True when a Global tail is a rendered descriptor frame: its last character
+    is a descriptor suffix sigil AND a non-blank name precedes it. A tail that
+    ends in ``)`` must contain a ``(`` with a non-blank name inside (estate
+    renders a parameter as ``(name)``); a ``]`` tail likewise needs a matching
+    ``[`` with a non-blank name (a type parameter, ``[name]``). A bare sigil
+    with no name (``ts-cobol . . . :``, ``… 1.0 .``) is not a descriptor."""
+    if not tail or tail[-1] not in _DESCRIPTOR_SIGILS:
+        return False
+    sigil, body = tail[-1], tail[:-1]
+    if sigil == ")":
+        open_at = body.rfind("(")
+        return open_at != -1 and bool(body[open_at + 1:].strip())
+    if sigil == "]":
+        open_at = body.rfind("[")
+        return open_at != -1 and bool(body[open_at + 1:].strip())
+    return bool(body.strip())
 
 
 def _read_output_json(out: str, cmd: str) -> Any:

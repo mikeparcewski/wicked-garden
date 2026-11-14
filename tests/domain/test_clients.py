@@ -343,6 +343,11 @@ _ADR002_IDS = [
     # the separator, so the split must try every ``#``.
     "ts-ruby local lib/account.rb#save#",
     "ts-ruby local lib/a#b.rb#run",
+    # Synthetic/Local SCHEMES may contain spaces (node_scheme or an unset rule
+    # name is the Synthetic scheme, not restricted to one token).
+    "event bus synthetic topic/orders:",
+    "event bus synthetic orders:",
+    "my scheme local src/a.py#x",
 ]
 
 
@@ -369,6 +374,16 @@ _INVALID_SYMBOL_IDS = [
     "ts local file.py#",
     "x synthetic :",
     "file . :",
+    # A Global tail ending in ) or ] without the matching open bracket is not a
+    # rendered parameter / type-parameter list.
+    "scip-python pip pkg 1.0 name)",
+    "scip-python pip pkg 1.0 name]",
+    # A Global tail that is only a sigil, with no name before it, is not a frame.
+    "ts-cobol . . . :",
+    "scip-python pip pkg 1.0 .",
+    # Leading/trailing whitespace or a newline/CR misses the stored symbol.
+    "ts-python local src/main.py#binding\n",
+    "  file . README.md:",
 ]
 
 
@@ -397,14 +412,23 @@ def test_looks_like_symbol_id_rejects_non_frame(sid):
     assert _clients._looks_like_symbol_id(sid) is False
 
 
-@pytest.mark.parametrize("sigil", ["/", "#", ".", ":", "!", ")", "]"])
+@pytest.mark.parametrize("sigil", ["/", "#", ".", ":", "!"])
 def test_global_tail_admitted_only_on_a_descriptor_sigil(sigil):
-    # A Global tail is a frame match iff its LAST character is a descriptor
-    # suffix sigil; the same tail without one (and a whitespace-only tail) is not.
+    # A Global tail with a name is a frame match iff its LAST character is a
+    # descriptor suffix sigil; the same tail without one (and a whitespace-only
+    # tail) is not.
     base = "scip-python pip pkg 1.0 name"
     assert _clients._looks_like_symbol_id(base + sigil) is True
     assert _clients._looks_like_symbol_id(base) is False
     assert _clients._looks_like_symbol_id("scip-python pip pkg 1.0  ") is False
+
+
+@pytest.mark.parametrize("sigil", [")", "]"])
+def test_global_tail_bracket_sigil_needs_matching_open(sigil):
+    # P2-2: a tail ending in ) or ] without the matching open bracket is not a
+    # rendered parameter / type-parameter list, so it is refused.
+    base = "scip-python pip pkg 1.0 name"
+    assert _clients._looks_like_symbol_id(base + sigil) is False
 
 
 @pytest.mark.parametrize("sid", _INVALID_SYMBOL_IDS)
