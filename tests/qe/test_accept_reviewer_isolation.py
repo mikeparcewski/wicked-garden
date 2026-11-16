@@ -186,12 +186,19 @@ def test_engine_run_review_never_validates_a_pre_verdict_manifest():
     m = re.search(r"^## Campaign Bundles[^\n]*\n(.*?)(?=^## )", text, re.S | re.M)
     assert m, "reviewer skill needs its Campaign Bundles section"
     body = m.group(1)
-    # Validate-before-grading is scoped to campaign bundles, not to any dir holding a manifest.
-    assert "When the evidence directory contains a `manifest.json`" not in body
-    assert "`scenario_evidence` block" in body
-    exempt = re.search(r"\*\*Not to an engine-run review\.\*\*(.*?)\n\n", body, re.S)
-    assert exempt, "the engine-run exemption paragraph"
-    para = exempt.group(1)
+    # The campaign trigger is unchanged: a dir holding a manifest is a bundle ...
+    assert "When the evidence directory contains a `manifest.json`" in body
+    # ... and keeps all three duties.
+    for duty in ("**Validate before grading.**", "**Treat the executor claim as a claim.**",
+                 "**Classify every non-PASS verdict.**"):
+        assert duty in body, duty
+    # The one exception: a NON-TERMINAL leftover in an engine-run review.
+    exempt = re.search(r"\*\*Except a leftover in an engine-run review\.\*\*(.*?)\n\n", body, re.S)
+    assert exempt, "the engine-run leftover paragraph"
+    para = " ".join(exempt.group(1).split())
     assert "`WICKED_QE_REVIEW_SESSION` set" in para
-    assert "Do not validate it" in para and "never render INCONCLUSIVE because of it" in para
+    assert "`status` is missing or `running`, or that has no `verdict`" in para
+    assert "do not validate it and never render INCONCLUSIVE because of it" in para
     assert "no `test-plan.md`" in para
+    # A terminal manifest (status and verdict) is a bundle again: campaign duties are never waived.
+    assert "A manifest with a terminal `status` and a `verdict` is a bundle and keeps every duty" in para
