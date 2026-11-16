@@ -176,9 +176,12 @@ def test_resume_empties_the_evidence_dir_so_the_reviewer_sees_only_this_attempt(
 
 def test_evidence_phase_writes_no_manifest_and_uses_the_engines_dir():
     body = _engine_section()
-    assert "This phase writes no\n   `manifest.json`" in body
-    assert "delete any\n   `{EVIDENCE_DIR}/manifest.json` before your reply" in body
-    assert "never in a dir you create or name" in body
+    flat = " ".join(body.split())
+    assert "This phase writes no `manifest.json`" in flat
+    # Only a non-terminal, non-campaign leftover is deleted (codex r2): a bundle stays for review.
+    assert ("(no `scenario_evidence` block, `status` missing or `running`, or no verdict), delete that "
+            "`{EVIDENCE_DIR}/manifest.json` before your reply; leave any other manifest in place") in flat
+    assert "never in a dir you create or name" in flat
 
 
 def test_engine_run_review_never_validates_a_pre_verdict_manifest():
@@ -197,8 +200,20 @@ def test_engine_run_review_never_validates_a_pre_verdict_manifest():
     assert exempt, "the engine-run leftover paragraph"
     para = " ".join(exempt.group(1).split())
     assert "`WICKED_QE_REVIEW_SESSION` set" in para
-    assert "`status` is missing or `running`, or that has no `verdict`" in para
+    assert "carries no `scenario_evidence` block and whose `status` is missing or `running`, or that has no `verdict`" in para
     assert "do not validate it and never render INCONCLUSIVE because of it" in para
-    assert "no `test-plan.md`" in para
-    # A terminal manifest (status and verdict) is a bundle again: campaign duties are never waived.
-    assert "A manifest with a terminal `status` and a `verdict` is a bundle and keeps every duty" in para
+    # Campaign identity wins (codex r2): a scenario_evidence block, or a terminal manifest, keeps
+    # every duty whatever the session.
+    assert ("A manifest with a `scenario_evidence` block, or with a terminal `status` and a `verdict`, "
+            "is a bundle and keeps every duty below") in para
+
+
+def test_engine_run_review_without_a_plan_judges_the_scenario_even_with_no_manifest():
+    # codex r2: the no-plan rule lives in the Process, outside the manifest condition.
+    text = _read(REVIEWER)
+    m = re.search(r"^### 1\. Load All Inputs\n(.*?)(?=^### )", text, re.S | re.M)
+    assert m, "the reviewer's Load All Inputs step"
+    body = " ".join(m.group(1).split())
+    assert "**No test plan in an engine-run review.**" in body
+    assert "`WICKED_QE_REVIEW_SESSION` is set and the evidence directory holds no `test-plan.md`" in body
+    assert "the missing plan alone is never EVIDENCE_MISSING or INCONCLUSIVE" in body

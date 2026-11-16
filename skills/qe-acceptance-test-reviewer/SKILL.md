@@ -76,12 +76,12 @@ When the evidence directory contains a `manifest.json` (a qe campaign bundle
 **Except a leftover in an engine-run review.** In `accept --phase review
 --evidence <dir>` with `WICKED_QE_REVIEW_SESSION` set, the acceptance
 pipeline builds its public manifest only after your verdict (step 6). A
-`manifest.json` there whose `status` is missing or `running`, or that has no
-`verdict`, is a leftover of the evidence phase, not a bundle: do not validate
-it and never render INCONCLUSIVE because of it; grade from the scenario, the
-plan and the artifacts, and judge a dir with no `test-plan.md` against the
-scenario's own assertions. A manifest with a terminal `status` and a
-`verdict` is a bundle and keeps every duty below.
+`manifest.json` there that carries no `scenario_evidence` block and whose
+`status` is missing or `running`, or that has no `verdict`, is a leftover of
+the evidence phase, not a bundle: do not validate it and never render
+INCONCLUSIVE because of it; grade from the scenario, the plan and the
+artifacts. A manifest with a `scenario_evidence` block, or with a terminal
+`status` and a `verdict`, is a bundle and keeps every duty below.
 
 The duties:
 
@@ -123,6 +123,12 @@ Read from the paths provided in your task prompt:
 3. **Evidence files** — read `evidence.json` and `step-*.json` from the evidence directory
 
 Do not use any other context. Only what you read from these files.
+
+**No test plan in an engine-run review.** When `WICKED_QE_REVIEW_SESSION` is
+set and the evidence directory holds no `test-plan.md`, the scenario's own
+assertions and success criteria are the plan: steps 2 and 3 read them from
+the scenario file, and the missing plan alone is never EVIDENCE_MISSING or
+INCONCLUSIVE. Judge each assertion from the artifacts that are there.
 
 ### 2. Verify Evidence Completeness
 

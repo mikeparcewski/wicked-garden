@@ -80,9 +80,10 @@ path. That works on every seat, including ones with no sub-agent. Two halves:
    `--resume <dir>`: write the plan, the scenario copy and every artifact in
    exactly that dir, never in a dir you create or name. This phase writes no
    `manifest.json`: the public manifest is built only by step 6, after the
-   verdict exists. A manifest left in the dir before review can never be
-   terminal (`status: running`, no `finished_at` or verdict), so delete any
-   `{EVIDENCE_DIR}/manifest.json` before your reply.
+   verdict exists. If your own evidence steps left one in the dir (no
+   `scenario_evidence` block, `status` missing or `running`, or no verdict),
+   delete that `{EVIDENCE_DIR}/manifest.json` before your reply; leave any
+   other manifest in place for the reviewer to validate.
 2. **`--phase review --evidence <dir>`**: when `WICKED_QE_REVIEW_SESSION` is set,
    wicked-core started this session for this review alone. It holds no plan
    writing or test execution, so it IS the separate worker. Resume the run
