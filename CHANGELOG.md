@@ -7,9 +7,10 @@
 - **QE: an engine-run review never fails on a leftover manifest (garden#1469).** `qe accept --phase
   evidence` writes no `manifest.json` (the public manifest is built only by step 6, after the verdict)
   and deletes one left in the dir; inside a governed run it writes into exactly the `--resume <dir>`
-  the engine hands over. The acceptance reviewer validates a manifest only for a campaign bundle: in an
-  engine-run review (`WICKED_QE_REVIEW_SESSION` set) a pre-verdict manifest is never graded and never
-  makes the verdict INCONCLUSIVE, and a dir with no `test-plan.md` is judged against the scenario.
+  the engine hands over. In an engine-run review (`WICKED_QE_REVIEW_SESSION` set) the acceptance
+  reviewer no longer validates a leftover manifest (status missing or `running`, or no verdict) and never
+  goes INCONCLUSIVE because of it; a dir with no `test-plan.md` is judged against the scenario. A
+  terminal manifest is still a campaign bundle with every duty.
 
 ## [12.68.3] - 2026-11-14
 
