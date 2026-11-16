@@ -70,8 +70,19 @@ safety check, not a normal path.
 
 ## Campaign Bundles (evidence-manifest 2.1) — Validate Before Grading
 
-When the evidence directory contains a `manifest.json` (a qe campaign bundle
-— see the qe skill's `refs/campaign-grading.md`), two extra duties apply:
+When the evidence directory is a qe campaign bundle (its `manifest.json`
+carries a `scenario_evidence` block, or the brief says it is a campaign — see
+the qe skill's `refs/campaign-grading.md`), the duties below apply.
+
+**Not to an engine-run review.** In `accept --phase review --evidence <dir>`
+with `WICKED_QE_REVIEW_SESSION` set, the public manifest is built only after
+your verdict (step 6), so any `manifest.json` already in the dir is a
+leftover of the evidence phase, never a terminal bundle. Do not validate it
+and never render INCONCLUSIVE because of it: grade from the scenario, the
+plan and the artifacts. A dir with no `test-plan.md` is judged against the
+scenario's own assertions.
+
+For a campaign bundle:
 
 1. **Validate before grading.** The orchestrator ran the deterministic
    preflight, but re-check the structural floor yourself from the file you

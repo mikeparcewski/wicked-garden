@@ -170,3 +170,28 @@ def test_resume_empties_the_evidence_dir_so_the_reviewer_sees_only_this_attempt(
     text = _read(ACCEPT)
     assert "EMPTY\n// <dir> (every file in it, the previous manifest.json included" in text
     assert "empties `<dir>` first" in _engine_section()
+
+
+# --- garden#1469: the evidence phase leaves no manifest, and an engine-run review never grades one ---
+
+def test_evidence_phase_writes_no_manifest_and_uses_the_engines_dir():
+    body = _engine_section()
+    assert "This phase writes no\n   `manifest.json`" in body
+    assert "delete any\n   `{EVIDENCE_DIR}/manifest.json` before your reply" in body
+    assert "never in a dir you create or name" in body
+
+
+def test_engine_run_review_never_validates_a_pre_verdict_manifest():
+    text = _read(REVIEWER)
+    m = re.search(r"^## Campaign Bundles[^\n]*\n(.*?)(?=^## )", text, re.S | re.M)
+    assert m, "reviewer skill needs its Campaign Bundles section"
+    body = m.group(1)
+    # Validate-before-grading is scoped to campaign bundles, not to any dir holding a manifest.
+    assert "When the evidence directory contains a `manifest.json`" not in body
+    assert "`scenario_evidence` block" in body
+    exempt = re.search(r"\*\*Not to an engine-run review\.\*\*(.*?)\n\n", body, re.S)
+    assert exempt, "the engine-run exemption paragraph"
+    para = exempt.group(1)
+    assert "`WICKED_QE_REVIEW_SESSION` set" in para
+    assert "Do not validate it" in para and "never render INCONCLUSIVE because of it" in para
+    assert "no `test-plan.md`" in para
