@@ -142,8 +142,10 @@ scripts/compiler/**/__pycache__/
 
 # codegraph local index (per-machine, do not commit)
 .codegraph/
-.wicked/
+.wicked/*
 !.wicked/checks.json
+# The build/test guide the repo-checks floor reads from the base tree (DES-BUILD-GUIDE).
+!.wicked/build-guide.json
 .product/
 node_modules/
 tmp/
