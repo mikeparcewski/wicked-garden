@@ -710,9 +710,11 @@ _GOVERNED_ENV = (
 
 @pytest.fixture(autouse=True)
 def _clean_governed_mode(monkeypatch):
-    """No test inherits a run / pin from the developer's shell, and none leaks its flags."""
-    for name in _GOVERNED_ENV:
+    """No test inherits a run / pin / broker from the developer's shell, and none leaks its flags.
+    Broker tests set their own WICKED_CREW_URL / WICKED_MCP_TOKEN / WICKED_ESTATE_BROKER and stub requests."""
+    for name in _GOVERNED_ENV + ("WICKED_CREW_URL", "WICKED_MCP_TOKEN", "WICKED_ESTATE_BROKER"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(_estate_client, "_last_broker_refusal", None)
     _estate_client.set_readonly(False)
     _estate_client.set_governed(False)
     _estate_client.set_db(None)
