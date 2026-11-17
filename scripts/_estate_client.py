@@ -392,9 +392,10 @@ def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[s
     if tool not in GRAPH_TOOLS or use_broker_for(tool):
         return None
     spec = resolve_db()
-    if not _db_override and os.environ.get("WICKED_RUNTIME", "").strip().lower() == "team":
-        # The team profile names its shared store itself (WICKED_STORE_URL): estate resolves and
-        # reports it (the CLI serves Postgres; the MCP refuses it loudly). Not an absent graph.
+    if spec is None and os.environ.get("WICKED_RUNTIME", "").strip().lower() == "team":
+        # The team profile names its shared store itself (WICKED_STORE_URL) when the shim forwards
+        # no --db: estate resolves it (the CLI serves Postgres; the MCP refuses it). Not an absent
+        # graph. A plain pin the shim WOULD forward as --db overrides the profile, so it is checked.
         return None
     if spec and (spec == ":memory:" or _is_scheme_spec(spec)):
         return None

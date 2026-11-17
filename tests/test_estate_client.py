@@ -1389,8 +1389,9 @@ def test_an_unresolved_target_is_labelled_on_every_call_path(capsys):
 def unpinned(monkeypatch, tmp_path):
     for name in ("WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB", "WICKED_RUN_ID", "WICKED_GATE_SCOPE",
                  "WICKED_WRITE_ROOTS", "WICKED_GOVERNED", "WICKED_CREW_URL", "WICKED_MCP_TOKEN",
-                 "WICKED_ESTATE_BROKER"):
+                 "WICKED_ESTATE_BROKER", "WICKED_STORE_URL"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("WICKED_RUNTIME", "local")  # a developer's team shell must not change these tests
     monkeypatch.chdir(tmp_path)  # no ./.wicked-estate/graph.db
     _estate_client.set_db(None)
     sent: list = []
@@ -1531,4 +1532,8 @@ def test_the_team_profile_is_left_to_estate(unpinned, capsys, monkeypatch):
     monkeypatch.setattr(_estate_client, "stats", lambda timeout=8.0: {"nodes": 3})
     code, out = _main(capsys, ["--readonly", "stats"])
     assert out == {"nodes": 3}
+    # A plain pin the shim forwards as --db overrides the profile, so a missing one is still refused.
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/nonexistent/graph.db")
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert _refused(out) and unpinned == []
 
