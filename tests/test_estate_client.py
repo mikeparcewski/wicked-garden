@@ -1035,6 +1035,7 @@ def test_main_call_reads_json_from_stdin(monkeypatch, capsys):
     import io
     seen: list = []
     _estate_client.set_dispatch(_proposal_dispatch(seen, response=_envelope({"total": 0, "rules": []})))
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")  # rules.recall reads the graph store (#1478)
     monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(
         {"tool": "rules.recall", "arguments": {"rule_type": "policy"}, "all_pages": False})))
     code, out = _main(capsys, ["--readonly", "call", "-"])
@@ -1165,6 +1166,7 @@ def test_cli_call_prints_the_diagnostics_beside_the_result(capsys, monkeypatch):
     """`_estate_client.py call …` — the command every skill names — carries the second block
     in-band as `diagnostics`, so the seat that reads stdout sees the STALENESS marker."""
     monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")  # a graph read needs a graph (#1478)
     monkeypatch.delenv("WICKED_RUN_UNIT", raising=False)
 
     def fake_dispatch(requests, *, db, timeout):
@@ -1188,6 +1190,7 @@ def test_cli_call_prints_the_diagnostics_beside_the_result(capsys, monkeypatch):
 
 def test_cli_call_without_diagnostics_prints_an_empty_list(capsys, monkeypatch):
     monkeypatch.delenv("WICKED_RUN_ID", raising=False)
+    monkeypatch.setenv("WICKED_ESTATE_DB", ":memory:")  # a graph read needs a graph (#1478)
     monkeypatch.delenv("WICKED_RUN_UNIT", raising=False)
 
     def fake_dispatch(requests, *, db, timeout):
@@ -1251,7 +1254,17 @@ def _lineage_pages(n_pages):
 
 
 def _call(capsys, payload):
-    assert _estate_client.main(["call", json.dumps(payload)]) == 0
+    # A graph read needs a graph behind it (wicked-garden#1478): these tests pin an explicit in-memory one.
+    import os
+    before = os.environ.get("WICKED_ESTATE_DB")
+    os.environ["WICKED_ESTATE_DB"] = ":memory:"
+    try:
+        assert _estate_client.main(["call", json.dumps(payload)]) == 0
+    finally:
+        if before is None:
+            os.environ.pop("WICKED_ESTATE_DB", None)
+        else:
+            os.environ["WICKED_ESTATE_DB"] = before
     return json.loads(capsys.readouterr().out)
 
 
@@ -1364,3 +1377,116 @@ def test_an_unresolved_target_is_labelled_on_every_call_path(capsys):
     _estate_client.set_dispatch(_paged_dispatch([{"resolved": True, "nodes": [1]}], []))
     out = _call(capsys, {"tool": "TraverseGraph", "arguments": {"symbol": "tax"}})
     assert not any(d.startswith("UNRESOLVED:") for d in out["diagnostics"])
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# wicked-garden#1478: a code-graph read with no graph behind it is refused, never answered empty.
+# Unpinned, estate's read-only MCP serves its cwd-relative default as an EMPTY in-memory store, so
+# `{"matches": []}` / "0 dependents" read as "no such symbol / nothing depends on it".
+# ─────────────────────────────────────────────────────────────────────────────
+
+@pytest.fixture()
+def unpinned(monkeypatch, tmp_path):
+    for name in ("WICKED_ESTATE_DB", "WICKED_HOME", "WICKED_MEMORY_DB", "WICKED_RUN_ID", "WICKED_GATE_SCOPE",
+                 "WICKED_WRITE_ROOTS", "WICKED_GOVERNED", "WICKED_CREW_URL", "WICKED_MCP_TOKEN",
+                 "WICKED_ESTATE_BROKER"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.chdir(tmp_path)  # no ./.wicked-estate/graph.db
+    _estate_client.set_db(None)
+    sent: list = []
+
+    def dispatch(requests, *, db, timeout):
+        sent.append([r.get("params", {}).get("name") for r in requests if r.get("method") == "tools/call"])
+        out = {r["id"]: {"jsonrpc": "2.0", "id": r["id"], "result": {"serverInfo": {"name": "wicked-estate"}}}
+               for r in requests if r.get("id") is not None}
+        for r in requests:
+            if r.get("method") == "tools/call":
+                out[r["id"]] = _envelope({"matches": [], "items": [], "total": 0})
+        return out
+
+    _estate_client.set_dispatch(dispatch)
+    monkeypatch.setattr(_estate_client.subprocess, "Popen", lambda *a, **k: pytest.fail("must not spawn"))
+    yield sent
+    _estate_client.set_db(None)
+
+
+def _refused(out):
+    return out.get("ok") is False and "--db" in out["reason"] and "code_graph_db" in out["reason"] \
+        and "matches" not in out and "result" not in out
+
+
+@pytest.mark.parametrize("tool", _estate_client.GRAPH_TOOLS)
+def test_an_unpinned_graph_call_is_refused_never_empty(unpinned, capsys, tool):
+    code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": tool, "arguments": {"symbol": "x"}})])
+    assert code == 0 and _refused(out) and out["graph"] is None
+    assert tool in out["reason"] and unpinned == []
+
+
+@pytest.mark.parametrize("argv", [["search", '{"name": "resolve_db"}'], ["context", '{"query": "x"}'], ["stats"]])
+def test_unpinned_search_context_and_stats_are_refused(unpinned, capsys, argv):
+    code, out = _main(capsys, ["--readonly", *argv])
+    assert code == 0 and _refused(out) and unpinned == []
+
+
+def test_a_pin_to_a_missing_graph_is_refused_naming_it(unpinned, capsys, monkeypatch, tmp_path):
+    """The confused user: a typo'd pin. A read-only estate would serve the missing file empty."""
+    missing = str(tmp_path / "nope" / "graph.db")
+    code, out = _main(capsys, ["--readonly", "--db", missing, "call",
+                               json.dumps({"tool": "BlastRadius", "arguments": {"symbol": "x"}})])
+    assert _refused(out) and missing in out["reason"] and out["graph"] == missing
+    _estate_client.set_db(None)
+    monkeypatch.setenv("WICKED_ESTATE_DB", missing)
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert _refused(out) and missing in out["reason"] and unpinned == []
+
+
+def test_wicked_home_pins_memory_not_the_graph(unpinned, capsys, monkeypatch, tmp_path):
+    """WICKED_HOME (the ACP carrier's pin) names the memory/knowledge stores: graph reads are still
+    refused, home-store reads still go out."""
+    monkeypatch.setenv("WICKED_HOME", str(tmp_path))
+    code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": "BlastRadius", "arguments": {"symbol": "x"}})])
+    assert _refused(out) and unpinned == []
+    for tool in ("memory.recall", "knowledge.recall", "knowledge.recall_about_code", "memory.coverage"):
+        code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": tool, "arguments": {}})])
+        assert "ok" not in out and out["result"] is not None
+    code, out = _main(capsys, ["--readonly", "recall", '{"query": "q"}'])
+    assert out == {"items": []}
+    assert [t for batch in unpinned for t in batch] == ["memory.recall", "knowledge.recall",
+                                                       "knowledge.recall_about_code", "memory.coverage", "memory.recall"]
+
+
+def test_a_real_graph_or_an_explicit_spec_is_served(unpinned, capsys, monkeypatch, tmp_path):
+    (tmp_path / ".wicked-estate").mkdir()
+    (tmp_path / ".wicked-estate" / "graph.db").write_bytes(b"")
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert out == {"matches": []} and unpinned == [["SearchEntity"]]  # a real (if empty) graph answers
+    elsewhere = tmp_path / "other"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    db = tmp_path / "repo.db"
+    db.write_bytes(b"")
+    for pin in (str(db), ":memory:", "sqlite:" + str(db)):
+        monkeypatch.setenv("WICKED_ESTATE_DB", pin)
+        code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": "Lineage", "arguments": {"symbol": "s"}})])
+        assert "ok" not in out, pin
+    assert len(unpinned) == 4
+
+
+def test_a_relayed_graph_call_is_not_refused(unpinned, monkeypatch):
+    """A container seat: crew's broker answers from the run's graph, so no local pin is needed."""
+    monkeypatch.setenv("WICKED_RUN_ID", "run-1")
+    monkeypatch.setenv("WICKED_ESTATE_BROKER", "1")
+    monkeypatch.setenv("WICKED_CREW_URL", "http://127.0.0.1:1")
+    monkeypatch.setenv("WICKED_MCP_TOKEN", "t")
+    assert _estate_client.use_broker_for("BlastRadius") is True
+    assert _estate_client.graph_refusal("BlastRadius") is None
+
+
+def test_mode_reports_the_graph_pin(unpinned, capsys, tmp_path):
+    code, out = _main(capsys, ["mode"])
+    assert out["graph"] is None and "code_graph_db" in out["graph_refusal"]
+    db = tmp_path / "g.db"
+    db.write_bytes(b"")
+    code, out = _main(capsys, ["--db", str(db), "mode"])
+    assert out["graph"] == str(db) and out["graph_refusal"] is None
+

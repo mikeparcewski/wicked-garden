@@ -363,6 +363,48 @@ def governed_refusal() -> Optional[str]:
     )
 
 
+# The tools estate answers from the GRAPH store (the `--db` spec), as its MCP routes them
+# (wicked-estate `crates/wicked-estate-mcp/src/lib.rs`, the graph arm of `tools/call`). Every
+# other tool reads the memory / knowledge stores under WICKED_HOME.
+GRAPH_TOOLS = (
+    "SearchEntity", "RetrieveEntity", "TraverseGraph", "Path", "BlastRadius", "FetchContent",
+    "ContextBundle", "RulesInventory", "rules.recall", "RankHotspots", "Communities", "Lineage",
+    "SemanticSearch",
+)
+
+
+def _is_scheme_spec(spec: str) -> bool:
+    """`sqlite:` / `postgres://` (two or more scheme chars), so `C:\\x` is still a path (as estate judges it)."""
+    head, sep, _ = spec.partition(":")
+    return bool(sep) and len(head) > 1 and all(c.isalnum() or c in "+.-" for c in head)
+
+
+def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[str]:
+    """The reason NOT to send a code-graph read, or None (wicked-garden#1478).
+
+    With no graph pinned (`--db`, `WICKED_ESTATE_DB`, or `./.wicked-estate/graph.db`), or a pin
+    naming a file that does not exist, estate answers from an EMPTY store (a read-only server serves
+    a missing store empty in memory), so every symbol reads as absent and every blast radius as 0.
+    That is refused with the fix instead. `WICKED_HOME` / `WICKED_MEMORY_DB` pin the memory and
+    knowledge stores, never the graph. `:memory:` and `scheme:` specs are explicit and pass; a call
+    relayed to crew's broker passes (crew answers from the run's graph).
+    """
+    if tool not in GRAPH_TOOLS or use_broker_for(tool):
+        return None
+    spec = resolve_db()
+    if spec and (spec == ":memory:" or _is_scheme_spec(spec)):
+        return None
+    if spec and Path(spec).is_file():
+        return None
+    where = (f"the pinned graph {spec} does not exist" if spec else
+             f"no code graph is pinned (no {DB_FLAG}, no WICKED_ESTATE_DB, no ./{_DEFAULT_DB_REL})")
+    return (
+        f"{where}, so estate would answer {what or tool} from an empty store (no matches is not an answer): "
+        f"pin {DB_FLAG} <path> to the repository's code graph (wicked-crew lists it as code_graph_db "
+        "in GET /api/v1/repos), or set WICKED_ESTATE_DB to it"
+    )
+
+
 def mcp_argv(exe: str, db: Optional[str]) -> list:
     """The exact argv every transport spawns: `<exe> [--readonly] [--db <db>]`."""
     argv = [exe]
@@ -1479,7 +1521,8 @@ def main(argv: list) -> int:
         _emit({"governed": is_governed(), "marker": governed_marker(),
                "readonly": read_only(), "store_pinned": store_pinned(),
                "db": resolve_db(), "transport": transport_name(),
-               "broker": broker_channel() is not None, "refusal": governed_refusal()})
+               "broker": broker_channel() is not None, "refusal": governed_refusal(),
+               "graph": resolve_db(), "graph_refusal": graph_refusal("SearchEntity")})
         return 0
     refusal = governed_refusal()
     if refusal:
@@ -1500,6 +1543,15 @@ def main(argv: list) -> int:
     if not isinstance(args, dict):
         _emit({"error": f"json-args must be a JSON object, got {type(args).__name__}; {_USAGE}"})
         return 1
+    # A code-graph read with no graph behind it is refused, never answered empty (wicked-garden#1478).
+    graph_tool = {"search": "SearchEntity", "context": "ContextBundle", "stats": "SearchEntity"}.get(action)
+    if action == "call":
+        graph_tool = args.get("tool") or args.get("name")
+    no_graph = (graph_refusal(graph_tool, action if action != "call" else None)
+                if isinstance(graph_tool, str) else None)
+    if no_graph:
+        _emit({"ok": False, "reason": no_graph, "graph": resolve_db()})
+        return 0
 
     if action == "health":
         _emit({"reachable": health()})

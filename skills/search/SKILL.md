@@ -90,7 +90,9 @@ every worker so it spawns read-only by default). The store rides `WICKED_ESTATE_
 `WICKED_HOME` / `WICKED_MEMORY_DB` from the environment, or `--db <path>`. A container seat has
 no local store: the same command relays through wicked-crew's broker (the run hands the seat
 its address and a unit token), which answers from the run's own graph. With neither, the shim refuses
-(`{"ok": false, "reason": …}`); a relayed call the broker refused names why in
+(`{"ok": false, "reason": …}`). A code-graph read (`search`, `SearchEntity`, `BlastRadius`, …) needs the GRAPH
+pinned (`--db` or `WICKED_ESTATE_DB` naming the repo's graph, or `./.wicked-estate/graph.db`): `WICKED_HOME` pins
+only memory and knowledge, so without a graph pin the shim refuses instead of answering empty; a relayed call the broker refused names why in
 `broker_refusal` — report either, never guess a store. There is no other transport: no estate
 tool is registered on any seat, so there is nothing to "connect", nothing to fall back to, and
 no second rung — a grep is not the graph.
