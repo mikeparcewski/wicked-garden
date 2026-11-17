@@ -4,6 +4,17 @@
 
 ### Fixed
 
+- **estate shim: a code-graph read with no graph behind it is refused, never answered empty (garden#1478).** With
+  no graph pinned (no `--db`, no `WICKED_ESTATE_DB`, no `./.wicked-estate/graph.db`), or a pin naming a file that does
+  not exist, estate's read-only MCP serves an empty store, so `search` said `{"matches": []}` and `BlastRadius` said
+  0 dependents for symbols that exist. `search`, `context`, `stats` and `call` with a graph tool (SearchEntity,
+  RetrieveEntity, TraverseGraph, Path, BlastRadius, FetchContent, ContextBundle, RulesInventory, rules.recall,
+  RankHotspots, Communities, Lineage, SemanticSearch) now answer `{"ok": false, "reason": …}` naming the fix: pin
+  `--db` to the repository's code graph (wicked-crew's `code_graph_db`). `WICKED_HOME` alone pins the memory and
+  knowledge stores, not the graph. Memory and knowledge reads, `:memory:` / `scheme:` pins and calls relayed through
+  crew's broker are unchanged, and so is the team profile (`WICKED_RUNTIME=team`, whose store estate names itself). A pin
+  that can't be checked (an unreadable directory) is refused too, never a crash. `mode` now reports `graph` and
+  `graph_refusal`. The module's Python API is not covered yet (garden#1479).
 - **QE: an engine-run review never fails on a leftover manifest (garden#1469).** `qe accept --phase
   evidence` writes no `manifest.json` (the public manifest is built only by step 6, after the verdict)
   and deletes one left in the dir; inside a governed run it writes into exactly the `--resume <dir>`
