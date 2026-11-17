@@ -392,10 +392,13 @@ def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[s
     if tool not in GRAPH_TOOLS or use_broker_for(tool):
         return None
     spec = resolve_db()
-    if spec is None and os.environ.get("WICKED_RUNTIME", "").strip().lower() == "team":
+    team = os.environ.get("WICKED_RUNTIME", "").strip().lower() == "team"
+    if spec is None and team and os.environ.get("WICKED_STORE_URL", "").strip():
         # The team profile names its shared store itself (WICKED_STORE_URL) when the shim forwards
-        # no --db: estate resolves it (the CLI serves Postgres; the MCP refuses it). Not an absent
-        # graph. A plain pin the shim WOULD forward as --db overrides the profile, so it is checked.
+        # no --db: estate resolves it (the CLI serves Postgres; the MCP refuses it, #1480). Not an
+        # absent graph. Without the URL the team profile has no graph either, so it is refused like
+        # local mode (#1482). A plain pin the shim WOULD forward as --db overrides the profile, so it
+        # is checked.
         return None
     if spec and (spec == ":memory:" or _is_scheme_spec(spec)):
         return None
@@ -403,13 +406,15 @@ def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[s
         if spec and Path(spec).is_file():
             return None
         where = (f"the pinned graph {spec} does not exist" if spec else
-                 f"no code graph is pinned (no {DB_FLAG}, no WICKED_ESTATE_DB, no ./{_DEFAULT_DB_REL})")
+                 f"no code graph is pinned (no {DB_FLAG}, no WICKED_ESTATE_DB, no ./{_DEFAULT_DB_REL}"
+                 + (", and WICKED_RUNTIME=team has no WICKED_STORE_URL)" if team else ")"))
     except OSError as exc:  # an unreadable directory on the path: say so, never crash the caller
         where = f"the pinned graph {spec} could not be checked ({exc.__class__.__name__})"
     return (
         f"{where}, so estate would answer {what or tool} from an empty store (no matches is not an answer): "
         f"pin {DB_FLAG} <path> to the repository's code graph (wicked-crew lists it as code_graph_db "
         "in GET /api/v1/repos), or set WICKED_ESTATE_DB to it"
+        + (", or set WICKED_STORE_URL to the team store" if team and spec is None else "")
     )
 
 

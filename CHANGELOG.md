@@ -4,6 +4,12 @@
 
 ### Fixed
 
+- **estate shim: team mode with no store URL refuses a graph read too (garden#1482).** #1478 left the team profile
+  to estate whenever no `--db` was forwarded, so `WICKED_RUNTIME=team` with no `WICKED_STORE_URL` still answered
+  `{"matches": []}`. The team exemption now needs a non-blank `WICKED_STORE_URL`; without it the read is refused like
+  local mode, and the reason names both fixes (pin the graph, or set `WICKED_STORE_URL`). Team mode with a URL is
+  unchanged. The search skill says so.
+
 - **estate shim: a code-graph read with no graph behind it is refused, never answered empty (garden#1478).** With
   no graph pinned (no `--db`, no `WICKED_ESTATE_DB`, no `./.wicked-estate/graph.db`), or a pin naming a file that does
   not exist, estate's read-only MCP serves an empty store, so `search` said `{"matches": []}` and `BlastRadius` said

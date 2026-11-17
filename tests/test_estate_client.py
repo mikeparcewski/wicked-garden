@@ -1537,3 +1537,30 @@ def test_the_team_profile_is_left_to_estate(unpinned, capsys, monkeypatch):
     code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
     assert _refused(out) and unpinned == []
 
+
+@pytest.mark.parametrize("url", [None, "", "   "])
+def test_the_team_profile_without_a_store_url_is_refused_like_local(unpinned, capsys, monkeypatch, tmp_path, url):
+    """#1482: WICKED_RUNTIME=team with no (or a blank) WICKED_STORE_URL has no graph either, so a graph
+    read is refused like local mode, naming both fixes; memory reads still go through."""
+    monkeypatch.setenv("WICKED_RUNTIME", "team")
+    if url is None:
+        monkeypatch.delenv("WICKED_STORE_URL", raising=False)
+    else:
+        monkeypatch.setenv("WICKED_STORE_URL", url)
+    reason = _estate_client.graph_refusal("BlastRadius")
+    assert reason and "WICKED_STORE_URL" in reason and "--db" in reason
+    for argv in (["--readonly", "search", '{"name": "x"}'], ["--readonly", "context", '{"name": "x"}'],
+                 ["--readonly", "stats"],
+                 ["--readonly", "call", json.dumps({"tool": "BlastRadius", "arguments": {"symbol": "x"}})]):
+        code, out = _main(capsys, argv)
+        assert code == 0 and _refused(out) and "WICKED_STORE_URL" in out["reason"], argv
+    assert unpinned == []
+    assert _estate_client.graph_refusal("recall") is None
+    code, out = _main(capsys, ["mode"])
+    assert "WICKED_STORE_URL" in out["graph_refusal"]
+    # A real graph pin is served under team mode too.
+    graph = tmp_path / "graph.db"
+    graph.write_bytes(b"")
+    monkeypatch.setenv("WICKED_ESTATE_DB", str(graph))
+    assert _estate_client.graph_refusal("BlastRadius") is None
+
