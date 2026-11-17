@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **QE: an engine-run review never fails on a leftover manifest (garden#1469).** `qe accept --phase
+  evidence` writes no `manifest.json` (the public manifest is built only by step 6, after the verdict)
+  and deletes one left in the dir; inside a governed run it writes into exactly the `--resume <dir>`
+  the engine hands over, deleting only a leftover of its own (no `scenario_evidence`, status missing or
+  `running`, or no verdict). In an engine-run review (`WICKED_QE_REVIEW_SESSION` set) the acceptance
+  reviewer no longer validates such a leftover and never goes INCONCLUSIVE because of it, and a dir
+  with no `test-plan.md` is judged against the scenario's assertions, manifest or not. A manifest with
+  `scenario_evidence`, or a terminal one, is still a campaign bundle with every duty.
+
 ## [12.68.3] - 2026-11-14
 
 Patch (#1467): the domain extraction client accepts every ADR-002 SymbolId wicked-estate emits (local, file,
