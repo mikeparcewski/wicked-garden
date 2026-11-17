@@ -376,7 +376,7 @@ GRAPH_TOOLS = (
 def _is_scheme_spec(spec: str) -> bool:
     """`sqlite:` / `postgres://` (two or more scheme chars), so `C:\\x` is still a path (as estate judges it)."""
     head, sep, _ = spec.partition(":")
-    return bool(sep) and len(head) > 1 and all(c.isalnum() or c in "+.-" for c in head)
+    return bool(sep) and len(head) > 1 and all((c.isascii() and c.isalnum()) or c in "+.-" for c in head)
 
 
 def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[str]:
@@ -392,12 +392,19 @@ def graph_refusal(tool: Optional[str], what: Optional[str] = None) -> Optional[s
     if tool not in GRAPH_TOOLS or use_broker_for(tool):
         return None
     spec = resolve_db()
+    if not _db_override and os.environ.get("WICKED_RUNTIME", "").strip().lower() == "team":
+        # The team profile names its shared store itself (WICKED_STORE_URL): estate resolves and
+        # reports it (the CLI serves Postgres; the MCP refuses it loudly). Not an absent graph.
+        return None
     if spec and (spec == ":memory:" or _is_scheme_spec(spec)):
         return None
-    if spec and Path(spec).is_file():
-        return None
-    where = (f"the pinned graph {spec} does not exist" if spec else
-             f"no code graph is pinned (no {DB_FLAG}, no WICKED_ESTATE_DB, no ./{_DEFAULT_DB_REL})")
+    try:
+        if spec and Path(spec).is_file():
+            return None
+        where = (f"the pinned graph {spec} does not exist" if spec else
+                 f"no code graph is pinned (no {DB_FLAG}, no WICKED_ESTATE_DB, no ./{_DEFAULT_DB_REL})")
+    except OSError as exc:  # an unreadable directory on the path: say so, never crash the caller
+        where = f"the pinned graph {spec} could not be checked ({exc.__class__.__name__})"
     return (
         f"{where}, so estate would answer {what or tool} from an empty store (no matches is not an answer): "
         f"pin {DB_FLAG} <path> to the repository's code graph (wicked-crew lists it as code_graph_db "

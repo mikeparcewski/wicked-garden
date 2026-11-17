@@ -1415,7 +1415,21 @@ def _refused(out):
         and "matches" not in out and "result" not in out
 
 
-@pytest.mark.parametrize("tool", _estate_client.GRAPH_TOOLS)
+# The graph arm of estate's `tools/call` routing (wicked-estate crates/wicked-estate-mcp/src/lib.rs),
+# written out here so dropping a tool from the shim's tuple fails a test instead of shrinking it.
+ESTATE_GRAPH_ROUTED = ("SearchEntity", "RetrieveEntity", "TraverseGraph", "Path", "BlastRadius", "FetchContent",
+                       "ContextBundle", "RulesInventory", "rules.recall", "RankHotspots", "Communities", "Lineage",
+                       "SemanticSearch")
+
+
+def test_the_graph_tool_roster_matches_estate_routing():
+    assert sorted(_estate_client.GRAPH_TOOLS) == sorted(ESTATE_GRAPH_ROUTED)
+    # Every relayed tool is classified: a graph read, or a home-store read crew answers.
+    home = {"memory.recall", "knowledge.recall", "knowledge.source_catalog", "knowledge.neighbors", "proposal.submit"}
+    assert set(_estate_client.BROKER_TOOLS) <= set(ESTATE_GRAPH_ROUTED) | home
+
+
+@pytest.mark.parametrize("tool", ESTATE_GRAPH_ROUTED)
 def test_an_unpinned_graph_call_is_refused_never_empty(unpinned, capsys, tool):
     code, out = _main(capsys, ["--readonly", "call", json.dumps({"tool": tool, "arguments": {"symbol": "x"}})])
     assert code == 0 and _refused(out) and out["graph"] is None
@@ -1489,4 +1503,32 @@ def test_mode_reports_the_graph_pin(unpinned, capsys, tmp_path):
     db.write_bytes(b"")
     code, out = _main(capsys, ["--db", str(db), "mode"])
     assert out["graph"] == str(db) and out["graph_refusal"] is None
+
+
+def test_a_non_ascii_scheme_is_a_path_as_estate_judges_it(unpinned, capsys):
+    """estate's `is_scheme_spec` is ASCII-only: `éé:x.db` is a (missing) path it would serve empty."""
+    code, out = _main(capsys, ["--readonly", "--db", "éé:missing.db", "search", '{"name": "x"}'])
+    assert _refused(out) and unpinned == []
+    _estate_client.set_db(None)
+
+
+def test_an_unreadable_pin_is_refused_not_a_crash(unpinned, capsys, monkeypatch):
+    def denied(self):
+        raise PermissionError(13, "Permission denied")
+    monkeypatch.setattr(_estate_client.Path, "is_file", denied)
+    monkeypatch.setenv("WICKED_ESTATE_DB", "/locked/graph.db")
+    code, out = _main(capsys, ["--readonly", "search", '{"name": "x"}'])
+    assert code == 0 and _refused(out) and "could not be checked" in out["reason"]
+    code, out = _main(capsys, ["mode"])
+    assert code == 0 and "could not be checked" in out["graph_refusal"]
+
+
+def test_the_team_profile_is_left_to_estate(unpinned, capsys, monkeypatch):
+    """WICKED_RUNTIME=team names the shared store itself (WICKED_STORE_URL): not an absent graph."""
+    monkeypatch.setenv("WICKED_RUNTIME", "team")
+    monkeypatch.setenv("WICKED_STORE_URL", "postgres://db.invalid/estate")
+    assert _estate_client.graph_refusal("BlastRadius") is None
+    monkeypatch.setattr(_estate_client, "stats", lambda timeout=8.0: {"nodes": 3})
+    code, out = _main(capsys, ["--readonly", "stats"])
+    assert out == {"nodes": 3}
 
