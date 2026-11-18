@@ -28,7 +28,9 @@ for p in (str(_HOOKS), str(_SCRIPTS)):
 
 import prompt_submit as ps  # noqa: E402
 
-_WRITES = ("memory.capture", "proposal.submit", "memory.store", "knowledge.write")
+# Every estate call goes through _estate_client._rpc (call, call_raw, call_blocks, call_all_pages).
+# A prompt run may read; it must never name a write tool.
+_WRITE_WORDS = ("capture", "submit", "approve", "reject", "store", "write", "ingest", "erase", "reflect")
 
 
 class PromptSubmitStoresNoMemory(unittest.TestCase):
@@ -49,14 +51,15 @@ class PromptSubmitStoresNoMemory(unittest.TestCase):
         import _estate_client
         calls = []
 
-        def fake_call(tool, arguments=None, *a, **kw):
-            calls.append(tool)
-            return None
+        def fake_rpc(method, params=None, *a, **kw):
+            if method == "tools/call":
+                calls.append((params or {}).get("name", ""))
+            raise RuntimeError("estate is faked out")
 
         captured = []
+        ran = 0
         with mock.patch.dict(os.environ, env), \
-                mock.patch.object(_estate_client, "call", fake_call), \
-                mock.patch.object(_estate_client, "call_raw", lambda tool, *a, **kw: calls.append(tool)), \
+                mock.patch.object(_estate_client, "_rpc", fake_rpc), \
                 mock.patch.object(_context_backend, "capture_memory",
                                   lambda *a, **kw: captured.append((a, kw))):
             for turn in range(3):
@@ -66,10 +69,13 @@ class PromptSubmitStoresNoMemory(unittest.TestCase):
                         mock.patch.object(sys, "stdout", io.StringIO()):
                     try:
                         ps.main()
-                    except SystemExit:
-                        pass
+                    except SystemExit as e:
+                        self.assertIn(e.code, (0, None), "the hook exited non-zero")
+                    ran += 1
         self.assertEqual(captured, [], "the prompt hook called capture_memory")
-        self.assertEqual([c for c in calls if c in _WRITES], [], "the prompt hook wrote to estate")
+        self.assertEqual(ran, 3)
+        self.assertEqual([c for c in calls if any(w in c for w in _WRITE_WORDS)], [],
+                         "the prompt hook wrote to estate")
 
 
 if __name__ == "__main__":

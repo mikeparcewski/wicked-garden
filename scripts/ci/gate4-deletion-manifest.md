@@ -48,7 +48,7 @@
 | File | Line | Reference | Cleanup |
 |---|---|---|---|
 | `hooks/scripts/prompt_submit.py` | 18 | docstring: "scripts/smaht/v2/orchestrator.py via asyncio.run()" | rewrite docstring |
-| `hooks/scripts/prompt_submit.py` | 33–37 | `_V2_DIR = _SCRIPTS_DIR / "smaht" / "v2"` + sys.path.insert | remove entirely (Phase 2 replaces prompt_submit body with a thin no-op that still runs session-goal + counter hooks) |
+| `hooks/scripts/prompt_submit.py` | 33–37 | `_V2_DIR = _SCRIPTS_DIR / "smaht" / "v2"` + sys.path.insert | remove entirely (Phase 2 replaces prompt_submit body with a thin no-op that still runs the counter hook) |
 | `hooks/scripts/prompt_submit.py` | 413, 829, 841, 989, 1143 | `from history_condenser import HistoryCondenser` | remove; session state either moves to a stdlib replacement or is dropped (pull-model assembly already replaces most of this) |
 | `hooks/scripts/prompt_submit.py` | 817, 1133 | `from context_pressure import PressureTracker` | remove |
 | `hooks/scripts/prompt_submit.py` | 970–972 | comments "CONTINUATION_PATTERNS in scripts/smaht/v2/router.py" | remove comments |
