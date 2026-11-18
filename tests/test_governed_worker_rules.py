@@ -295,6 +295,21 @@ def test_a9_a_chat_answer_carries_no_run_counts():  # knowledge journey 2026-11-
 
 
 
+def test_a9_a_chat_answer_carries_no_notes_about_the_seat():  # garden#1406: skill-loading and shim notes in answers
+    rule = _rule("A9")
+    for what in ("not which skills you loaded or did not re-invoke", "how a result reached you",
+                 "or what your instructions describe"):
+        assert what in rule, what
+    # HIDE: what could not be checked still reaches the person, as a fact about the answer.
+    assert "Say in one line what could not be checked" in rule
+    # Scope unchanged: the chat seat only; a governed unit keeps its contract.
+    assert "only when you are the seat answering a person in a studio chat" in rule
+    assert "A unit of a governed run keeps the Output contract, Counts included (A4, A7)" in rule
+    floor = FLOOR.read_text(encoding="utf-8")
+    assert "no run counts or seat notes" in floor.split("---", 2)[1]
+    assert re.search(r"^\| A9 \|.*garden#1406", floor, re.M)
+
+
 def test_e7_evaluators_judge_the_rules_they_are_handed():  # operator ruling 2026-11-05, run 9d2b6565
     rule = _rule("E7")
     # A third-party check: the creator's own claim is never the evidence.
