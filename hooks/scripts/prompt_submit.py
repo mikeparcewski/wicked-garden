@@ -7,7 +7,6 @@ architecture. The hook is now responsible only for session-level concerns:
   - Setup gate (hard-block / onboarding directive)
   - Facilitator re-evaluation directive (v6 Gate 3, #428)
   - Turn counter increment
-  - Session goal capture (turns 1-2)
   - HOT fast-exit on continuation tokens
   - Pull-model directive injection (tiny, ~60-150 chars)
   - Jam / discovery suggestion (signal-gated)
@@ -50,32 +49,6 @@ def _log(domain, level, event, ok=True, ms=None, detail=None):
     try:
         from _logger import log
         log(domain, level, event, ok=ok, ms=ms, detail=detail)
-    except Exception:
-        pass
-
-
-# ---------------------------------------------------------------------------
-# Session goal capture (turns 1-2)
-# ---------------------------------------------------------------------------
-
-def _capture_session_goal(prompt: str, turn_count: int, project: str, session_id: str):
-    """On turns 1-2, save the session goal as WORKING memory.
-
-    Through _context_backend.capture_memory (estate ``memory.capture``).
-    Fail-open, never blocks the prompt.
-    """
-    if turn_count > 2:
-        return
-    if len(prompt.strip()) < 20:
-        return
-    try:
-        from _context_backend import capture_memory
-        capture_memory(
-            title=f"Session goal (turn {turn_count})",
-            content=prompt[:500],
-            tier="working",
-            tags=["session-goal", "auto-captured"],
-        )
     except Exception:
         pass
 
@@ -1040,9 +1013,6 @@ def main():
         state = None
 
     turn_count = _increment_turn(state)
-
-    # Session goal capture on turns 1-2
-    _capture_session_goal(prompt, turn_count, project, session_id)
 
     # Complexity + risk gate — inject a deep-context pull directive for complex/risky prompts.
     # v6: the v5 Router + Orchestrator pre-fetch were deleted in #428. Classification

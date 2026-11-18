@@ -206,5 +206,7 @@ Report what it stored and proposed.
 
 No hook extracts memories from the transcript. The Stop hook used to
 pattern-match "decided to…" / "going to…" and filled the store with
-narration, so it was removed: a learning is stored because someone chose to
-store it.
+narration, so it was removed; so was the hook that saved each session's first
+two prompts as working memory. A learning is stored because someone chose to
+store it. (The pre-compaction hook still writes one short work-in-progress
+snapshot of open tasks; that is task state, not transcript text.)
