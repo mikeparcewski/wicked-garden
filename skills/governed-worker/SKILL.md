@@ -323,7 +323,7 @@ Rules cite the acceptance-program findings that motivated them.
 | A4 | F-RC1-048 |
 | A5 | F-RC1-046 |
 | A6 | F-RC2-031 |
-| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to. Narrowed 2026-11-18: the queue was mostly repeated sandbox limits and verdicts |
+| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to. Narrowed 2026-11-18: the queue held many repeated sandbox limits and verdicts |
 | A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
 | A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit; garden#1406 |
 | C1 | F-RC1-019, F-RC1-070 |
