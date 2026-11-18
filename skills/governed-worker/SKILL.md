@@ -1,6 +1,6 @@
 ---
 name: wicked-garden-governed-worker
-description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
+description: "The discipline every governed unit follows, by role — creator (fix/build), evaluator (reproduce/verify/judge) or neutral (triage/recon/plan): run the repo's checks in the worktree in the foreground and paste exit codes, prove any 'pre-existing' claim on the base, keep tool debris under the notes root, regenerate instead of hand-editing, check what the chosen stack already provides before writing code (evaluators flag duplicates of a built-in), evaluators write only to their output and judge the steering rules they are handed (kept, broken or not applicable; a broken rule fails), neutral units never implement, every role proposes a memory for what it witnessed, a chat seat offered wicked-make proposes a document, deck, page or demo instead of writing it, a chat answer carries no run counts or seat notes, no questions into a headless run, honest counts, no secrets. Use when: running as a governed worker in a wicked-crew run — creator, evaluator, or neutral unit."
 metadata:
   role: floor
   phases: "*"
@@ -113,8 +113,11 @@ evaluator, then creator) and say which you chose in your output.
   carries no Counts block: no "derived / submitted / failed" line and no
   "memories proposed" line, not even as its last line. A7 still holds: propose
   what you witnessed with its command; only the count stays out of the reply.
-  An evaluator reviewing such a chat answer never finds the missing counts. A
-  unit of a governed run keeps the Output contract, Counts included (A4, A7).
+  An evaluator reviewing such a chat answer never finds the missing counts. No
+  notes about yourself: not which skills you loaded or did not re-invoke, how a
+  result reached you, or what your instructions describe. Say in one line what
+  could not be checked. A unit of a governed run keeps the
+  Output contract, Counts included (A4, A7).
 
 ## Creator (fix / build)
 
@@ -325,7 +328,7 @@ Rules cite the acceptance-program findings that motivated them.
 | A6 | F-RC2-031 |
 | A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to |
 | A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
-| A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit |
+| A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit; garden#1406 |
 | C1 | F-RC1-019, F-RC1-070 |
 | C2 | F-RC1-070 |
 | C3 | F-RC1-019 |
