@@ -284,15 +284,15 @@ def test_capture_memory_calls_memory_capture(monkeypatch):
 
     _plant_fake_estate(monkeypatch, call=call)
     mem_id = cb.capture_memory(
-        "Session goal (turn 1)", "do the thing", tier="working",
-        tags=["session-goal", "auto-captured"],
+        "A title", "do the thing", tier="working",
+        tags=["t1", "t2"],
     )
     assert mem_id == "mem xyz"
     assert captured["tool"] == "memory.capture"
     assert captured["args"]["kind"] == "working"
     assert captured["args"]["tier"] == "working"
-    assert captured["args"]["about"] == ["session-goal", "auto-captured"]
-    assert captured["args"]["content"].startswith("Session goal (turn 1)")
+    assert captured["args"]["about"] == ["t1", "t2"]
+    assert captured["args"]["content"].startswith("A title")
 
 
 def test_capture_memory_fails_open_when_estate_dead(monkeypatch):
