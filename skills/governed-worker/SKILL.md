@@ -57,26 +57,23 @@ evaluator, then creator) and say which you chose in your output.
 - **A7 — Propose what you witnessed, whatever your role.** Before your final
   message (in power mode, before each `CHECKPOINT:` or `HANDOFF:` line), check
   this unit for what bit for a reason the code does not show, and propose each one
-  as a memory: a command or check that failed because of the toolchain, the
-  environment or the repository's setup, and what made it pass (a documented
-  script that fails on the installed runtime, a check that passes only after an
-  undocumented step, a tool that needs a flag the docs omit); a trap in a tool; a
-  ruling or steer the operator gave in this run. A finding you report is a memory as well when
-  its cause would bite the next session on any task in this repository (a broken
-  script, a pinned version, a setup step), so an evaluator proposes it too. Use the
+  as a memory: a script or check of this repository that failed because of the
+  repository's own setup, and what made it pass; a trap in the repository's own
+  tools; a rule the operator stated that holds beyond this run. A finding you report is a memory as well when
+  its cause would bite the next session on any task in this repository, so an evaluator proposes it too. Use the
   one-line path:
   `wicked-garden run scripts/mem/estate_memory.py --readonly propose '<the rule, why it holds, when it applies>'`
   (one to three self-contained sentences). It lands inert in the operator's review
   queue, and the run, the unit and your seat are stamped from your environment;
-  never pass provenance. Not a memory: what the code does (you read it, you did not
-  witness it), the change you made, progress or status, versions, SHAs, run or PR
-  ids. At most three per unit in all, across every turn. Propose each learning
+  never pass provenance. Not a memory: what the code does, the change you made, progress or status, versions, SHAs, run or PR
+  ids; a limit of the seat's own sandbox (a tool missing from PATH, a denied
+  listen or write, no network), which belongs to the seat image; a verdict or ruling on this run. At most three per unit in all, across every turn. Propose each learning
   once: a later check covers only what happened since the last one, and never
   re-proposes what this unit already proposed or recorded (recall returns approved
   memories only, never a pending proposal). Skip one that
   `wicked-garden run scripts/mem/estate_memory.py --readonly recall '<a few words>'`
   already returns. A proposal is not a write to the worktree, so an evaluator or a
-  neutral unit proposes too (E1 and N1 still hold). In a unit's report, report it
+  neutral unit proposes too. In a unit's report, report it
   under Counts as `memories proposed N` (a chat answer carries no count, A9), and
   when N is 0 say what you checked
   (`memories proposed 0: nothing bit for a reason outside the code`); the
@@ -326,7 +323,7 @@ Rules cite the acceptance-program findings that motivated them.
 | A4 | F-RC1-048 |
 | A5 | F-RC1-046 |
 | A6 | F-RC2-031 |
-| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to |
+| A7 | operator report 2026-10-31: only the pi seat proposed memories; the seats that did the work (claude, codex) proposed none, because no floor rule asked them to. Narrowed 2026-11-18: the queue held many repeated sandbox limits and verdicts |
 | A8 | chat-artifacts corpus 2026-11-02: asked to write a release note from three runs, chat seats quoted N1 and wrote the note in their output, or tried a file write the fence denied, so no card was offered |
 | A9 | knowledge journey 2026-11-04 on the test rig: a studio chat's answer to "how many open tickets per region?" ended with "Counts: derived 0 / submitted 1 / failed 1 … Memories proposed 0: …", the run bookkeeping this floor asks of a unit; garden#1406 |
 | C1 | F-RC1-019, F-RC1-070 |

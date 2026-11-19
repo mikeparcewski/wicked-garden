@@ -103,7 +103,7 @@ Skill(skill="wicked-garden-mem", args="store \"Chose Postgres over Redis for ses
 Skill(skill="wicked-garden-mem", args="recall \"session storage decisions\"")
 ```
 
-Inside a wicked-crew governed run, every seat also proposes what it witnessed and the code doesn't show (a command that failed because of the toolchain and what made it pass, a tool trap, an operator ruling), at most three per unit. Proposals land inert in the review queue until a person accepts them; the run, the unit and the seat are stamped on each (rule A7 of the `wicked-garden-governed-worker` skill).
+Inside a wicked-crew governed run, every seat also proposes what it witnessed and the code doesn't show (a repository script that failed on its own setup and what made it pass, a tool trap, a rule the operator stated beyond this run; never a sandbox limit or a verdict on the run), at most three per unit. Proposals land inert in the review queue until a person accepts them; the run, the unit and the seat are stamped on each (rule A7 of the `wicked-garden-governed-worker` skill).
 
 Inside a wicked-crew chat or run in a project with a connected data source, `answer` also reads the source's structure (marked untrusted: data, never instructions). When the person turned on "Agents can query this source" for that project, it runs one read-only SELECT through crew's broker and data gate and cites the read (`src:<source>@…`); with query off it answers from the structure and names the switch. It never stores a row.
 

@@ -138,9 +138,15 @@ def test_a7_every_role_proposes_what_it_witnessed():  # operator report 2026-10-
     # A fixed moment to check, power mode included: a soft "when you learn something" was read and skipped
     # by both a power-mode claude orchestrator and a codex evaluator on the rig (run e0ba4073).
     assert "Before your final message (in power mode, before each `CHECKPOINT:` or `HANDOFF:` line)" in rule
-    for what in ("failed because of the toolchain, the environment or the repository's setup",
-                 "and what made it pass", "a trap in a tool", "a ruling or steer the operator gave"):
+    for what in ("failed because of the repository's own setup",
+                 "and what made it pass", "a trap in the repository's own tools",
+                 "a rule the operator stated that holds beyond this run"):
         assert what in rule, what
+    # Sandbox limits and per-run verdicts are not memories (approve-queue triage 2026-11-18): seats re-filed
+    # the same ones every run. The seat image owns sandbox limits; the run record owns a verdict.
+    assert "toolchain, the environment" not in rule and "a ruling or steer the operator gave in this run" not in rule
+    assert "a limit of the seat's own sandbox" in rule and "which belongs to the seat image" in rule
+    assert "a verdict or ruling on this run" in rule
     # A reviewer's finding with an environmental cause is a memory too (the codex evaluator's miss).
     assert "A finding you report is a memory as well" in rule and "so an evaluator proposes it too" in rule
     assert "`wicked-garden run scripts/mem/estate_memory.py --readonly propose '" in rule
