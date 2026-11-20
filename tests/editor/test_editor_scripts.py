@@ -59,6 +59,51 @@ def test_scaffold_writes_a_spec2_pack_that_passes_pack_check(tmp_path):
     assert [f.render() for f in check_pack(out, garden_root=REPO) if f.level == "error"] == []
 
 
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is needed to run the scaffold's script")
+@pytest.mark.parametrize("source, version, accepted", [
+    ("other", 1, False),
+    ("parent", 2, False),
+    ("parent", 1, True),
+])
+def test_scaffold_accepts_hello_port_only_from_parent_with_version_one(tmp_path, source, version, accepted):
+    out = tmp_path / "pack"
+    done = scaffold(out)
+    assert done.returncode == 0, done.stderr
+    html = (out / FIXTURE_ENTRY).read_text()
+    script = re.search(r"<script>(.*?)</script>", html, re.DOTALL)
+    assert script is not None
+    entry = tmp_path / "editor.js"
+    entry.write_text(script.group(1))
+    driver = tmp_path / "hello-driver.cjs"
+    driver.write_text(r"""
+const fs = require('node:fs');
+const vm = require('node:vm');
+const parent = { postMessage() {} };
+const element = { dataset: {}, addEventListener() {}, style: { setProperty() {} } };
+const document = {
+  getElementById: () => element,
+  body: { dataset: {} },
+  addEventListener() {},
+  querySelectorAll: () => [],
+};
+let onMessage;
+const window = { addEventListener(type, handler) { if (type === 'message') onMessage = handler; } };
+vm.runInNewContext(fs.readFileSync(process.argv[2], 'utf8'), { window, document, parent });
+if (typeof onMessage !== 'function') throw new Error('no window message handler registered');
+const port = { postMessage() {} };
+onMessage({
+  source: process.argv[3] === 'parent' ? parent : {},
+  data: { p: 'wicked.editor', v: Number(process.argv[4]), type: 'host.hello', payload: {} },
+  ports: [port],
+});
+process.stdout.write(JSON.stringify(typeof port.onmessage === 'function'));
+""")
+    done = subprocess.run([shutil.which("node"), str(driver), str(entry), source, str(version)],
+                          capture_output=True, text=True, timeout=30, check=False)
+    assert done.returncode == 0, done.stderr
+    assert json.loads(done.stdout) is accepted
+
+
 @pytest.mark.parametrize("args, needle", [
     (["--vendor", "wicked", "--id", "wicked-x"], "reserved"),
     (["--vendor", "acme", "--id", "other-x"], "starting with 'acme-'"),

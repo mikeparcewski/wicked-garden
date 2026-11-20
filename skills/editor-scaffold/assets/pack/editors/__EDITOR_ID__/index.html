@@ -248,7 +248,7 @@
 
   window.addEventListener('message', (e) => {
     // One handshake: the first host.hello carrying a port; everything after rides that port.
-    if (port || !e.data || e.data.p !== 'wicked.editor' || e.data.type !== 'host.hello' || !e.ports || !e.ports[0]) return;
+    if (port || e.source !== parent || !e.data || e.data.p !== 'wicked.editor' || e.data.v !== 1 || e.data.type !== 'host.hello' || !e.ports || !e.ports[0]) return;
     port = e.ports[0];
     port.onmessage = onPort;
     const p = e.data.payload || {};
