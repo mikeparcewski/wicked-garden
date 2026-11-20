@@ -1060,6 +1060,44 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
     return _editor_wait("18-shows", run)
 
 
+# A marked element the case types into (rather than clicks): an input or textarea that accepts text, or contenteditable.
+EDITABLE_MARK = ("e => { const t = e.tagName; if (t === 'TEXTAREA') return !e.readOnly; if (t === 'INPUT') return !e.readOnly"
+                 " && ['text', 'search', 'url', 'email', 'tel', 'number', 'password'].includes((e.getAttribute('type') || 'text').toLowerCase());"
+                 " return e.isContentEditable; }")
+
+
+def inline_edit(page, field, written, refused, alive) -> dict:
+    """Case 7 for an editor that saves inline: the marked field is typed into and blurred (what leaving it does), and
+    exactly one write is expected."""
+    head = "() => window.__wickedEditor.adapter.artifact().head"
+    # The write may wait on the field being enabled (a debounce): poll, then type.
+    _poll(page, lambda: field.is_editable(), SAVE_READY_S)
+    if not field.is_editable():
+        return {"ok": False, "marked": 1, "error": f"its {SAVE_MARK} field stayed disabled or read-only"}
+    head0, written0, refused0 = page.evaluate(head), written(), refused()
+    is_input = field.evaluate("e => 'value' in e")
+    typed = field.evaluate(FIELD_VALUE, EDIT_SENTENCE) if is_input and field.input_value() == "" else None
+    if is_input:
+        changed = typed if typed is not None else field.evaluate(FIELD_CHANGED)
+        field.fill(changed)
+    else:
+        changed = (field.text_content() or "") + " (conformance)"
+        field.fill(changed)
+    field.evaluate("e => { e.dispatchEvent(new Event('change', { bubbles: true })); e.blur(); }")
+    landed = _poll(page, lambda: written() > written0, EDIT_WAIT_S)
+    page.wait_for_timeout(int(WRITE_QUIET_S * 1000))  # a second write from the same blur would land here
+    moved, wrote, refusals = page.evaluate(head) - head0, written() - written0, refused() - refused0
+    html = page.evaluate("() => window.__wickedEditor.adapter.headHtml()") or ""
+    detail: dict = {"inline": True, "filled": 1, "writes": wrote, "head_moved": moved, "refused": refusals,
+                    "typed_in_version": changed in html or EDIT_SENTENCE in html}
+    detail["ok"] = ok = landed and wrote == 1 and moved == 1 and refusals == 0 and alive()
+    if not ok:
+        detail["error"] = (f"typing in and leaving its {SAVE_MARK} field landed no version within {EDIT_WAIT_S:g} s"
+                           if not landed else f"one edit landed {wrote} writes and moved the head by {moved}"
+                           if wrote != 1 or moved != 1 else "the host refused a write" if refusals else "it stopped answering")
+    return detail
+
+
 def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
     """Case 7: an editor that may write saves an edit through its own UI: its empty text fields filled with valid
     values (or, when none is empty, its first text field changed), one click on the first visible control marked
@@ -1077,6 +1115,10 @@ def edit_case(page, frame, perms: list, kind: str | None, log, alive) -> dict:
                              f"saves an edit with {SAVE_MARK}"}
         written = lambda: sum(1 for e in log() if e["kind"] == "written")  # noqa: E731
         refused = lambda: sum(1 for e in log() if e["kind"] == "refused" and e["type"] == "version.write")  # noqa: E731
+        inline = [save.nth(i) for i in range(save.count())
+                  if save.nth(i).is_visible() and save.nth(i).evaluate(EDITABLE_MARK)]
+        if inline:
+            return inline_edit(page, inline[0], written, refused, alive)
         prep0 = written()
         fields = frame.locator(EDIT_FIELDS)
         usable_fields = [fields.nth(i) for i in range(fields.count())]

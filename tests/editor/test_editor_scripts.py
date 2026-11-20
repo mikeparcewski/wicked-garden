@@ -992,6 +992,38 @@ def test_case_7_an_editor_that_may_write_saves_through_its_own_marked_control(tm
         ("13-surfaces", "14-card", "15-options", "16-full"), True), cases
 
 
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+def test_case_7_an_editable_marked_field_is_typed_into_and_blurred(tmp_path):
+    perms = ("--permissions", "artifact.read,artifact.write,ui.fullscreen")
+    # An inline editor: the field marked data-wicked-save commits on blur (no Save button); one blur, one write.
+    cases_by = {}
+    for name, field, getter in (
+        ("input", '<input type="text" id="f" data-wicked-save aria-label="Edit">', "f.value"),
+        ("textarea", '<textarea id="f" data-wicked-save aria-label="Edit"></textarea>', "f.value"),
+        ("ce", '<div id="f" contenteditable="true" data-wicked-save>start</div>', "f.textContent"),
+    ):
+        pack = tmp_path / name
+        assert scaffold(pack, *perms).returncode == 0
+        entry = pack / FIXTURE_ENTRY
+        entry.write_text(entry.read_text()
+            .replace('<button type="button" id="full">', field + ' <button type="button" id="full">', 1)
+            .replace("\n  async function load() {", """
+  let dirty = false;
+  const f = document.getElementById('f');
+  f.addEventListener('input', () => { dirty = true; });
+  f.addEventListener('blur', async () => {
+    if (!dirty) return; dirty = false;
+    const p = parts[0]; if (!p) return;
+    const before = p.lastChild.textContent;
+    await req('version.write', { base: head, ops: [{ op: 'text', anchor: p.dataset.part, value: before + ' ' + %s, before }], summary: 'Inline' });
+  });
+  async function load() {""" % getter, 1))
+        assert run("pin.py", str(pack)).returncode == 0
+        cases_by[name] = _cases(pack)["7-edit"]
+    for name, c in cases_by.items():
+        assert c["ok"] is True and c["writes"] == 1 and c["head_moved"] == 1 and c["typed_in_version"] is True, (name, c)
+
+
 # ── CS7: third-party run plugins (protocol 3, plugins[], r0-r5) ────────────────────────────
 
 def scaffold_run_plugin(out: Path, *extra: str) -> subprocess.CompletedProcess:
