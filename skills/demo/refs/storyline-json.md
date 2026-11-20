@@ -77,8 +77,10 @@ reason names the step (`storyline.segments[1].steps[8] (click role "button" "…
 
 A `target` is one of `{"role": "button", "name": "Save"}`, `{"text": "..."}`, `{"section": "<heading>"}`,
 `{"button": "<visible text>"}`, `{"testId": "..."}`, `{"css": "..."}`, with optional `"nth": 0` and `"exact": true`.
-Add `"in": "content"` when the target is inside the app's own frame (a crew app renders its pages, charts and
-tables in a frame inside the page): the probe summary lists such frames under `frames`.
+Add `"in": "content"` only when the probe's `result.json` says `"recorded_view": "app_frame"` or `"frames"` above 0
+(the page summary lists those frames, and what they show, under `frames`).
+On a page with no frames, it is refused, naming the field: drop `"in"` and target the page itself. This rule also
+applies to `hide` entries.
 
 Limits: 12 chapters, 60 steps a chapter, 30 s for any `ms` (an intro at least 1.5 s), keys at most 48 characters
 (`^[a-z0-9][a-z0-9-]*$`, not `intro`), plain text only (no HTML), 64 KB a file. Every wait gives up after 30 s

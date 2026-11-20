@@ -37,6 +37,8 @@ const HIDE_CSS_BAD = /[{};@\\<]|\/\*/;
 const PATH_RE = LAUNCH_PATH_RE;
 const LABEL_RE = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;
 const TARGET_KINDS = ["role", "text", "section", "button", "testId", "css"];
+// The probe found no frame inside this page app, so `in: "content"` would wait for one that never loads (#1463).
+const NO_FRAME = '"in": "content" targets a frame inside the page, and the probe found none on this page (recorded_view "page", no frames): drop "in" and target the page itself';
 
 import { LAUNCH_PATH_RE, underPath as underBase } from "./readonly.mjs";
 
@@ -125,6 +127,9 @@ function target(t, where, nav) {
   if (t.in !== undefined) {
     if (t.in !== "content") refuse(`${where}.in`, 'must be "content" (the app\'s own frame inside the page) or absent');
     out.in = "content";
+  }
+  if (nav?.noFrame && out.in === "content") {
+    refuse(`${where}.in`, NO_FRAME);
   }
   // A crew app's take shows only the app's own frame (§13 A1.2): studio's page around it is hidden, so a target
   // there could never be seen.
@@ -229,7 +234,7 @@ export function fixedSeconds(steps) {
  *
  * @param {unknown} raw         the parsed storyline.json
  * @param {unknown} chapters    the parsed chapters.json (the approved plan)
- * @param {{appOrigin: string, launchPath: string}} nav  from the engine, never from the storyline
+ * @param {{appOrigin: string, launchPath: string, contentOnly?: boolean, noFrame?: boolean}} nav  from the engine, never from the storyline
  */
 export function checkStoryline(raw, chapters, nav) {
   try {
@@ -259,6 +264,9 @@ function checkStorylineInner(raw, chapters, nav) {
       if (!css.trim()) refuse(`${w}.css`, "must not be empty");
       if (HIDE_CSS_BAD.test(css)) refuse(`${w}.css`, "must be one CSS selector (no { } ; @ \\ < or comments)");
       if (h.in !== undefined && h.in !== "content") refuse(`${w}.in`, 'must be "content" (the app\'s own frame inside the page) or absent');
+      if (nav?.noFrame && h.in === "content") {
+        refuse(`${w}.in`, NO_FRAME);
+      }
       return h.in === "content" ? { css, in: "content" } : { css };
     });
   }

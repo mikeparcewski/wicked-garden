@@ -271,7 +271,7 @@ export async function runProbe(env = process.env) {
     ...(cfg.policy.target.kind === "crew_app" ? {
       recorded_view: "app_frame",
       note: 'The video shows only the app\'s own frame (the page summary\'s first frame); studio\'s page around it is hidden. Every target, `ready` included, is `"in": "content"`.',
-    } : { recorded_view: "page" }),
+    } : { recorded_view: "page", frames: r.info.frames?.length ?? 0 }),
   });
 }
 
@@ -319,9 +319,11 @@ export async function runRecord(env = process.env) {
     const storyText = read("storyline.json");
     const chaptersText = read("chapters.json");
     storylineSha = crypto.createHash("sha256").update(storyText).digest("hex");
+    const probe = readJson(path.join(cfg.root, "probe", "result.json"));
     // A crew app is recorded in its own frame only, so each of its targets is `in: "content"` (§13 A1.2).
     checked = parseStoryline(storyText, chaptersText, {
       appOrigin: cfg.policy.appOrigin, launchPath: cfg.policy.launchUrl, contentOnly: cfg.policy.target.kind === "crew_app",
+      noFrame: probe?.overall === "PASS" && probe.recorded_view === "page" && probe.frames === 0,
     });
   } catch (e) {
     return done({ overall: "FAIL", cause: "storyline_refused", reason: said(e), storyline_sha: storylineSha, chapters: [] });
