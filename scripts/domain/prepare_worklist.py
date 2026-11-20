@@ -67,68 +67,74 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
     seen = generation.visited(record)
     revisit = {n["symbol_id"] for n in placeholders}
     tracked = rules_file.tracked_files(repo_root)
-    # Mapped behaviours whose code changed since the map was built: asked again, after the rest.
-    # Only inside a run (the record is what lets apply accept them).
-    stale, stale_line = ([], "outside a run: changed behaviours are not re-asked")
-    if run_id:
-        try:
-            stale, stale_line = refresh.changed_units(
-                db, repo_root, tracked, {n["symbol_id"] for n in [*unmapped, *placeholders]})
-        except refresh.RefreshUnreadable as e:
-            # A store the refresh cannot read fails the step, said as such (e2e-1105 F40): never
-            # a page that silently skips the changed behaviours and a map that then reads current.
-            raise RuntimeError(f"Refresh map cannot tell what changed since the map was built: "
-                               f"{e}") from e
-    restate = {n["symbol_id"]: n for n in stale}
-    candidates = [n for n in [*unmapped, *placeholders, *stale] if n["symbol_id"] not in seen]
-    in_repo = [n for n in candidates if n.get("file") in tracked]
-    skipped = len(candidates) - len(in_repo)
-
-    store = extract_loop._DirectStore(db)
-    store.repo_root = repo_root  # source slices from the repository when the store's are unreadable
-    hubs, how = extract_loop._centrality_hubs(estate, store)
-    order, hops = extract_loop.hub_first_order(store, hubs)
-    tail = len(order)
-    # The product's code first, the unmapped before the placeholders before the changed mapped
-    # behaviours, each hub-first; tests and fixtures (an older wicked-core still counts them) after
-    # it, in the same order.
-    def tier(sid: str) -> int:
-        return 2 if sid in restate else (1 if sid in revisit else 0)
-    in_repo.sort(key=lambda n: (extract_loop.is_test_path(n.get("file", "")),
-                                tier(n["symbol_id"]),
-                                order.get(n["symbol_id"], tail), n["symbol_id"]))
-    take = in_repo[:limit] if limit > 0 else in_repo
-
-    try:
-        node_community = _clients.total_node_community(estate.read_clusters(), estate.list_nodes())
-    except Exception as e:  # framing quality only
-        print(f"[extract-prepare] communities unavailable ({e}); framing without them",
-              file=sys.stderr)
-        node_community = {}
-
     units = []
-    room = rules_file.MAX_WORKLIST_BYTES - _ENVELOPE  # what the seat reads, less the envelope
-    for n in take:
-        sid = n["symbol_id"]
-        # The store's content, else the repository's file at the same span. Never `estate source`
-        # here: it looks a NAME up, and for a symbol id it answers "no symbols found" — text the
-        # seat would read as the code.
-        slice_txt = store.source_slice(sid)
-        unit = _rule_extractor.frame_context(n, slice_txt, cluster_label=node_community.get(sid),
-                                             neighbor_names=store.blast_neighbors(sid))
-        unit.update(kind=n.get("kind", ""), position=order.get(sid, tail) + 1,
-                    hop=hops.get(sid))
-        if sid in restate:  # mapped before; its code changed since the map was built
-            unit.update(changed_since_build=True, prior_statement=restate[sid]["prior"])
-        room -= len(rules_file.encoded(unit))
-        if room < 0:  # the seat refuses a bigger worklist; the rest is the next pass's
-            break
-        units.append(unit)
+    stale, restate, skipped = [], {}, 0
+    stale_line = "left for a later run"
+    assignment_page = generation.assign_only(record)
+    order_line = "assignment page"
+    if not assignment_page:
+        # Mapped behaviours whose code changed since the map was built: asked again, after the rest.
+        # Only inside a run (the record is what lets apply accept them).
+        stale, stale_line = ([], "outside a run: changed behaviours are not re-asked")
+        if run_id:
+            try:
+                stale, stale_line = refresh.changed_units(
+                    db, repo_root, tracked, {n["symbol_id"] for n in [*unmapped, *placeholders]})
+            except refresh.RefreshUnreadable as e:
+                # A store the refresh cannot read fails the step, said as such (e2e-1105 F40): never
+                # a page that silently skips the changed behaviours and a map that then reads current.
+                raise RuntimeError(f"Refresh map cannot tell what changed since the map was built: "
+                                   f"{e}") from e
+        restate = {n["symbol_id"]: n for n in stale}
+        candidates = [n for n in [*unmapped, *placeholders, *stale] if n["symbol_id"] not in seen]
+        in_repo = [n for n in candidates if n.get("file") in tracked]
+        skipped = len(candidates) - len(in_repo)
 
-    n_hubs = min(len(hubs), extract_loop.hub_count(store))
+        store = extract_loop._DirectStore(db)
+        store.repo_root = repo_root  # source slices from the repository when the store's are unreadable
+        hubs, how = extract_loop._centrality_hubs(estate, store)
+        order, hops = extract_loop.hub_first_order(store, hubs)
+        tail = len(order)
+        # The product's code first, the unmapped before the placeholders before the changed mapped
+        # behaviours, each hub-first; tests and fixtures (an older wicked-core still counts them) after
+        # it, in the same order.
+        def tier(sid: str) -> int:
+            return 2 if sid in restate else (1 if sid in revisit else 0)
+        in_repo.sort(key=lambda n: (extract_loop.is_test_path(n.get("file", "")),
+                                    tier(n["symbol_id"]),
+                                    order.get(n["symbol_id"], tail), n["symbol_id"]))
+        take = in_repo[:limit] if limit > 0 else in_repo
+
+        try:
+            node_community = _clients.total_node_community(estate.read_clusters(), estate.list_nodes())
+        except Exception as e:  # framing quality only
+            print(f"[extract-prepare] communities unavailable ({e}); framing without them",
+                  file=sys.stderr)
+            node_community = {}
+
+        room = rules_file.MAX_WORKLIST_BYTES - _ENVELOPE  # what the seat reads, less the envelope
+        for n in take:
+            sid = n["symbol_id"]
+            # The store's content, else the repository's file at the same span. Never `estate source`
+            # here: it looks a NAME up, and for a symbol id it answers "no symbols found" — text the
+            # seat would read as the code.
+            slice_txt = store.source_slice(sid)
+            unit = _rule_extractor.frame_context(n, slice_txt, cluster_label=node_community.get(sid),
+                                                 neighbor_names=store.blast_neighbors(sid))
+            unit.update(kind=n.get("kind", ""), position=order.get(sid, tail) + 1,
+                        hop=hops.get(sid))
+            if sid in restate:  # mapped before; its code changed since the map was built
+                unit.update(changed_since_build=True, prior_statement=restate[sid]["prior"])
+            room -= len(rules_file.encoded(unit))
+            if room < 0:  # the seat refuses a bigger worklist; the rest is the next pass's
+                break
+            units.append(unit)
+
+        n_hubs = min(len(hubs), extract_loop.hub_count(store))
+        order_line = f"hub-first from {n_hubs} hub(s) by {how}, over {tail} node(s)"
     doc = {
         "schema": rules_file.WORKLIST_SCHEMA,
-        "order": f"hub-first from {n_hubs} hub(s) by {how}, over {tail} node(s)",
+        "order": order_line,
         "coverage": {k: cov.get(k) for k in ("coverage", "behavior_bearing", "resolved",
                                               "risk_flagged", "unaccounted")},
         "unmapped": len(unmapped),
@@ -139,13 +145,13 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
         "units": units,
     }
     # The repository's business domains (reqgraph Fix B): the stored catalog to pick from, or the
-    # ask to propose one, and the resolved requirements with no domain yet to assign. Assignments
-    # ride a page that has units (a page with none applies no rules file).
+    # ask to propose one, and the resolved requirements with no domain yet to assign. A page
+    # with no units can still assign domains.
     block, assign = business_domains.worklist_block(
         db, tracked, extract_loop.RESOLVE_THRESHOLD, business_domains.not_product,
         skip={u["symbol_id"] for u in units})
     doc["business_domains"] = block
-    doc["assign"] = assign if units else []
+    doc["assign"] = assign
     # The per-unit budget above is an estimate (nesting indents every line); the published
     # document must fit what the seat reads, so trim to the largest prefix that does.
     if len(rules_file.encoded(doc)) > rules_file.MAX_WORKLIST_BYTES:
@@ -158,8 +164,6 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
                 hi = mid - 1
         units = units[:lo]
         doc["units"] = units
-        if not units:
-            doc["assign"] = []
     if run_id:
         # Not optional bookkeeping: the record decides what the next page skips and the page's
         # yield (codex on #1375), so a page whose units cannot be recorded is not prepared (and
@@ -168,24 +172,27 @@ def prepare(db: str, repo_root: str, base: Path, out_rel: str, limit: int, *,
             # Every changed unit found, not only this page's: the next page's decision counts
             # what is left of them (codex r1: a page full of unmapped units framed none).
             generation.frame_page(db, run_id, [u["symbol_id"] for u in units],
-                                  changed_ids=sorted(restate))
+                                  changed_ids=sorted(restate), assign_count=len(doc["assign"]))
         except (OSError, ValueError) as e:
             raise RuntimeError(f"the page's units could not be recorded in the generation "
                                f"record ({e})") from e
     rules_file.write_json_file(base, out_rel, doc)
-    front = units[0]["symbol_id"] if units else "-"
-    no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
-    again = sum(1 for u in units if u["symbol_id"] in revisit)
-    restated = sum(1 for u in units if u["symbol_id"] in restate)
-    print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s) and {len(placeholders)} "
-          f"placeholder(s), {len(seen)} asked by an earlier page of this run; {skipped} in files "
-          f"the repository does not track (left out); {len(units)} framed into {out_rel} "
-          f"({again} placeholder(s) asked again, {restated} changed since the map was built, "
-          f"{no_source} with no source), frontier {front}; {doc['order']}; refresh: {stale_line}; "
-          f"business domains: "
-          f"{'propose' if block['propose'] else str(len(block['catalog'])) + ' stored'}, "
-          f"{len(doc['assign'])} of {block['unassigned_resolved']} unassigned resolved to assign",
-          file=sys.stderr)
+    if assignment_page:
+        print(f"[extract-prepare] assignment page: {len(doc['assign'])} to assign", file=sys.stderr)
+    else:
+        front = units[0]["symbol_id"] if units else "-"
+        no_source = sum(1 for u in units if not str(u.get("source") or "").strip())
+        again = sum(1 for u in units if u["symbol_id"] in revisit)
+        restated = sum(1 for u in units if u["symbol_id"] in restate)
+        print(f"[extract-prepare] {len(unmapped)} unmapped behaviour(s) and {len(placeholders)} "
+              f"placeholder(s), {len(seen)} asked by an earlier page of this run; {skipped} in files "
+              f"the repository does not track (left out); {len(units)} framed into {out_rel} "
+              f"({again} placeholder(s) asked again, {restated} changed since the map was built, "
+              f"{no_source} with no source), frontier {front}; {doc['order']}; refresh: {stale_line}; "
+              f"business domains: "
+              f"{'propose' if block['propose'] else str(len(block['catalog'])) + ' stored'}, "
+              f"{len(doc['assign'])} of {block['unassigned_resolved']} unassigned resolved to assign",
+              file=sys.stderr)
     return doc
 
 

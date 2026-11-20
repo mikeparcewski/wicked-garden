@@ -145,6 +145,16 @@ def changed_files(repo_root: str, built: str, base: str) -> set[str]:
     return {p for p in proc.stdout.decode("utf-8", "surrogateescape").split("\0") if p}
 
 
+def _e2e_test_dirs(db: str) -> set[str]:
+    """Test directories inferred once from every distinct node file in the store."""
+    con = _ro(db)
+    try:
+        files = [r[0] for r in con.execute("SELECT DISTINCT file FROM nodes")]
+    finally:
+        con.close()
+    return extract_loop.e2e_test_dirs(files)
+
+
 def _mapped_in(db: str, files: list[str]) -> list[tuple[str, str, str, str, str]]:
     """(symbol id, name, file, data, earlier statement) of each MAPPED behaviour in `files`: a
     node holding a business rule or a validated requirement."""
@@ -223,6 +233,7 @@ def changed_units(db: str, repo_root: str, tracked: set[str],
     files = sorted(f for f in files if f in tracked)
     try:
         rows = _mapped_in(db, files) if files else []
+        e2e_dirs = _e2e_test_dirs(db)
     except sqlite3.Error as e:
         raise RefreshUnreadable(f"the mapped behaviours could not be read from {db} ({e})") from e
     units = []
@@ -230,7 +241,8 @@ def changed_units(db: str, repo_root: str, tracked: set[str],
         if sym in exclude:
             continue
         kind = extract_loop.kind_of_row((name, file, data))
-        if extract_loop.unconfirmed_reason(file, True, kind):  # tests, data files: not product code
+        if (extract_loop.not_counted(file, data, e2e_dirs)
+                or extract_loop.unconfirmed_reason(file, True, kind)):
             continue
         units.append({"symbol_id": sym, "name": name or "", "file": file, "kind": kind,
                       "prior": str(prior or "")[:PRIOR_LIMIT]})

@@ -84,6 +84,63 @@ def _domain_of(estate, sid):
     return (json.loads(kw["value"])["id"], kw["confidence"]) if kw else None
 
 
+def test_bad_text_evidence_is_dropped_beside_a_symbol_and_picks_apply(tmp_path, capsys):
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    catalog = [*_catalog(), {**_catalog()[2], "id": "maintenance",
+                            "name": "Scheduled maintenance"}]
+    catalog[0]["evidence"].append(
+        {"kind": "cli-verb", "file": "f.py", "text": "backfill apply"})
+    original = json.loads(json.dumps(catalog))
+    _write(wt, [{**_rule("s::core"), "domain": "payments", "domain_confidence": 0.8}],
+           business_domains=catalog)
+    report = _apply(wt, db, repo, estate, core)
+    bd = report["business_domains"]
+    assert bd["domains"] == 4 and bd["picked"] == 1
+    assert bd["dropped_evidence_count"] == 1
+    assert bd["dropped_evidence"][0]["domain"] == "payments"
+    assert bd["dropped_evidence"][0]["index"] == 2
+    assert "does not occur" in bd["dropped_evidence"][0]["why"]
+    assert _domain_of(estate, "s::core") == ("payments", 0.8)
+    assert len(business_domains.load_catalog(db)[0]["evidence"]) == 2
+    assert catalog == original
+    assert "[extract-apply] business domains:" in capsys.readouterr().err
+
+
+def test_evidence_pruning_copies_the_catalog_and_drops_an_unanchored_domain(tmp_path):
+    db, repo, _wt_, _estate, _core = _fixture(tmp_path)
+    catalog = [*_catalog(), {**_catalog()[2], "id": "maintenance",
+                            "name": "Scheduled maintenance",
+                            "evidence": [{"kind": "route", "file": "f.py", "text": "x = 1"}]}]
+    catalog[0]["evidence"].append({"kind": "directory", "file": "missing"})
+    original = json.loads(json.dumps(catalog))
+    kept, dropped = business_domains.check_catalog_evidence(
+        catalog, rules_file.tracked_files(repo), business_domains.symbol_lookup(db),
+        business_domains.repo_reader(repo), lambda f, k: not business_domains.not_product(f, k))
+    assert len(kept) == 3 and len(kept[0]["evidence"]) == 2
+    assert [(d["domain"], d["index"]) for d in dropped] == [
+        ("payments", 2), ("maintenance", None)]
+    assert dropped[-1]["why"] == "no remaining evidence names a symbol the code graph holds"
+    kept[0]["evidence"][0]["file"] = "changed.py"
+    assert catalog == original
+
+
+def test_catalog_refusal_message_caps_dropped_evidence_at_five_items(tmp_path):
+    db, repo, _wt_, _estate, _core = _fixture(tmp_path)
+    catalog = [{**d, "evidence": [
+        {"kind": "route", "file": "f.py", "text": f"missing route {i}"}
+        for i in range(business_domains.MAX_EVIDENCE)]} for d in _catalog()]
+    with pytest.raises(business_domains.CatalogRefused) as refused:
+        business_domains.check_catalog_evidence(
+            catalog, rules_file.tracked_files(repo), business_domains.symbol_lookup(db),
+            business_domains.repo_reader(repo), lambda f, k: not business_domains.not_product(f, k))
+    message = str(refused.value)
+    assert len(refused.value.dropped) == 27
+    assert message.count("payments evidence[") == 5
+    assert "missing route 4" in message
+    assert "missing route 5" not in message
+    assert "and 22 more" in message
+
+
 # --- the catalog's shape --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("mutate, why", [
@@ -127,7 +184,7 @@ def _first(*evidence):
     (_first({"kind": "entry-point", "file": "f.py", "symbol": "core"},
             {"kind": "route", "file": "f.py", "text": "POST /does-not-exist"}),
      "does not occur in 'f.py'"),
-    (_first({"kind": "route", "file": "f.py", "text": "x = 1"}), "cites no symbol"),
+    (_first({"kind": "route", "file": "f.py", "text": "x = 1"}), "no remaining evidence names a symbol"),
     (_first({"kind": "entry-point", "file": "f.py", "symbol": "core"},
             {"kind": "entry-point", "file": "README.md", "text": "x = 1"}),
      "not product code"),
@@ -144,8 +201,12 @@ def test_evidence_must_be_code_the_host_can_see(tmp_path, catalog, why):
     business_domains.check_catalog_evidence(  # a route the file does hold is evidence
         _first({"kind": "entry-point", "file": "f.py", "symbol": "core"},
                {"kind": "route", "file": "f.py", "text": "x = 1"}), *args)
-    with pytest.raises(business_domains.CatalogRefused, match=why):
-        business_domains.check_catalog_evidence(catalog, *args)
+    try:
+        kept, dropped = business_domains.check_catalog_evidence(catalog, *args)
+        assert len(kept) == 3
+    except business_domains.CatalogRefused as e:
+        dropped = e.dropped
+    assert any(why in item["why"] for item in dropped)
 
 
 @pytest.mark.parametrize("bad", [
@@ -209,6 +270,47 @@ def test_a_stored_catalog_is_never_replaced_and_picks_outside_it_are_refused(tmp
     assert _domain_of(estate, "s::a") == ("reporting", 0.7)
     assert [d["id"] for d in business_domains.load_catalog(db)] == ["payments", "accounts",
                                                                      "reporting"]
+
+
+def test_save_catalog_returns_the_first_catalog_and_cleans_its_temp_file(tmp_path):
+    db = _star(tmp_path)
+    first = _catalog()
+    second = [{**d, "id": d["id"] + "-later"} for d in first]
+    assert business_domains.save_catalog(db, first, "first") == first
+    assert business_domains.save_catalog(db, second, "later") == first
+    assert business_domains.load_catalog(db) == first
+    assert list(business_domains.catalog_path(db).parent.glob(".catalog-*")) == []
+
+
+def test_save_catalog_returns_empty_when_the_stored_file_cannot_be_read(tmp_path):
+    db = _star(tmp_path)
+    path = business_domains.catalog_path(db)
+    path.parent.mkdir(parents=True)
+    path.write_text("not json", encoding="utf-8")
+    assert business_domains.save_catalog(db, _catalog()) == []
+    assert path.read_text(encoding="utf-8") == "not json"
+    assert list(path.parent.glob(".catalog-*")) == []
+
+
+def test_an_unreadable_stored_catalog_refuses_picks_and_assignments(tmp_path):
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    _annotations_table(db, [("s::b", "business_rule", "refund never exceeds the charge", 0.9)])
+    path = business_domains.catalog_path(db)
+    path.parent.mkdir(parents=True)
+    path.write_text("not json", encoding="utf-8")
+    _write(wt, [{**_rule("s::core"), "domain": "payments", "domain_confidence": 0.8}],
+           business_domains=_catalog(),
+           assignments=[{"symbol_id": "s::b", "domain": "accounts", "confidence": 0.9}])
+    report = _apply(wt, db, repo, estate, core)
+    bd = report["business_domains"]
+    reason = "a catalog file is stored but cannot be read"
+    assert bd["catalog"] == reason
+    assert (bd["picked"], bd["assigned"], bd["domains"]) == (0, 0, 0)
+    assert bd["refused_count"] == 2
+    assert all(reason in item["why"] for item in bd["refused"])
+    assert _domain_of(estate, "s::core") is None
+    assert _domain_of(estate, "s::b") is None
+    assert report["applied"]["resolved"] == 1
 
 
 def test_assignments_only_reach_resolved_requirements_without_a_domain(tmp_path):
@@ -330,6 +432,8 @@ def test_prepare_asks_for_a_catalog_then_carries_it_and_the_backfill(tmp_path, m
 
 def test_the_harness_gives_the_model_the_domains_and_keeps_the_seats_catalog(tmp_path, monkeypatch):
     wt = _wt(tmp_path)
+    (wt / "f.py").write_text("x = 1\n", encoding="utf-8")
+    (wt / "pay").mkdir()
     units = [{"symbol_id": f"s::u{i}", "name": f"u{i}", "file": "f.py", "source": "def u(): ..."}
              for i in range(3)]
     rules_file.write_json_file(wt, rules_file.WORKLIST_REL, {
@@ -386,3 +490,36 @@ def test_a_rule_entry_carries_domain_and_confidence_together():
                                                                "domain_confidence": 2})
     assert "domain_confidence" in rules_file.check_rule_entry(  # codex core r1: no OverflowError
         {**base, "domain": "payments", "domain_confidence": 10 ** 400})
+
+
+@pytest.mark.parametrize("behaviour", ["stub", "data", "test_support"])
+def test_backfill_excludes_estate_behaviours_core_does_not_count(tmp_path, behaviour):
+    db, repo, wt, estate, core = _fixture(tmp_path)
+    c = sqlite3.connect(db)
+    c.execute("ALTER TABLE nodes ADD COLUMN kind TEXT")
+    c.execute("ALTER TABLE nodes ADD COLUMN requirement_validated INTEGER NOT NULL DEFAULT 0")
+    c.execute("UPDATE nodes SET data = ? WHERE name = 'b'",
+              (json.dumps({"metadata": {"behaviour": behaviour}}),))
+    c.commit(); c.close()
+    _annotations_table(db, [("s::b", "business_rule", "a refund never exceeds the charge", 0.9)])
+    got, total = business_domains.resolved_without_domain(
+        db, rules_file.tracked_files(repo), extract_loop.RESOLVE_THRESHOLD,
+        business_domains.not_product)
+    assert got == [] and total == 0
+
+
+def test_backfill_excludes_e2e_dirs_only_when_tests_outnumber_product_files(tmp_path):
+    files = ("billing_e2e/provider.py", "billing_e2e/charge_test.py", "billing_e2e/refund_test.py",
+             "crypto_e2e/keys.py", "crypto_e2e/keys_test.py")
+    db, repo, wt, estate, core = _fixture(tmp_path, tracked=files)
+    c = sqlite3.connect(db)
+    c.execute("ALTER TABLE nodes ADD COLUMN kind TEXT")
+    c.execute("ALTER TABLE nodes ADD COLUMN requirement_validated INTEGER NOT NULL DEFAULT 0")
+    for name, file in zip(("b", "i1", "i2", "c", "a"), files):
+        c.execute("UPDATE nodes SET file = ? WHERE name = ?", (file, name))
+    c.commit(); c.close()
+    _annotations_table(db, [("s::b", "business_rule", "a refund never exceeds the charge", 0.9),
+                            ("s::c", "business_rule", "keys must remain secret", 0.9)])
+    got, total = business_domains.resolved_without_domain(
+        db, set(files), extract_loop.RESOLVE_THRESHOLD, business_domains.not_product)
+    assert [g["symbol_id"] for g in got] == ["s::c"] and total == 1

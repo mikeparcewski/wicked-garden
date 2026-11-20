@@ -13,7 +13,7 @@ none of it:
   * every domain must cite code the host can see (`check_catalog_evidence`): files `git ls-files`
     tracks, and any named symbol must be in the store at that file; at least one item per domain
     is more than a directory, and a domain named after a directory is refused (the failure this
-    fixes). A catalog that fails is refused whole, and the page's rules apply without a domain;
+    fixes). Bad evidence is dropped; fewer than three grounded domains refuses the catalog;
   * once a catalog is stored for the repository it is the one every later page picks from: a page
     cannot rename or replace it (ids stay stable across pages and runs);
   * a pick must name a catalog id; an assignment must name a resolved requirement in product code.
@@ -69,6 +69,10 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 class CatalogRefused(ValueError):
     """The proposed catalog is outside the schema or not grounded in the code."""
+
+    def __init__(self, message: str, dropped: list[dict] | None = None):
+        super().__init__(message)
+        self.dropped = dropped or []
 
 
 def _text(value: Any, limit: int, *, min_len: int = 1) -> str | None:
@@ -176,51 +180,68 @@ def check_catalog_shape(domains: Any, directory_slugs: set[str] | None = None) -
 def check_catalog_evidence(domains: list[dict], tracked: set[str],
                            symbol_kind: Callable[[str, str], str | None],
                            read_file: Callable[[str], str | None],
-                           is_product: Callable[[str, str], bool]) -> None:
-    """Every evidence item must point at code the host can see, and say something the code
-    shows (codex r1: a file name alone proves nothing):
+                           is_product: Callable[[str, str], bool]) -> tuple[list[dict], list[dict]]:
+    """Keep evidence grounded in product code and domains with a surviving symbol anchor.
 
-      * a `directory` item names a directory holding a file git tracks;
-      * any other item names a product-code file git tracks (not a test, data or document file)
-        and carries a `symbol` the code graph holds in that file or a `text` (a route, a CLI verb)
-        that occurs in the file as the host reads it;
-      * every domain has at least one item whose `symbol` the code graph holds.
+    A directory item must name a tracked directory or file. Every other item must name a
+    tracked product file and a symbol the graph holds there or text that occurs in it
+    (codex r1: a file name alone proves nothing). A failing item is dropped with its reason;
+    a domain with no remaining symbol item is dropped. Return copies and every drop; the
+    whole catalog is refused only below MIN_DOMAINS.
 
-    Whether that code is really the area's is the page review's question; this is the floor.
-    Raises CatalogRefused naming the first item that fails."""
-    dirs = {p.rsplit("/", 1)[0] for p in tracked if "/" in p}
-    for i, d in enumerate(domains):
+    The host supplies tracked files as a set and checks symbols against its graph. The seat
+    passes a worktree view for file membership and directories whose symbol lookup answers
+    "" (presence is the host's check).
+    """
+    dirs = {p.rsplit("/", 1)[0] for p in tracked if "/" in p} if isinstance(tracked, set) else None
+    kept, dropped = [], []
+    for d in domains:
+        evidence = []
         anchored = False
         for j, e in enumerate(d["evidence"]):
-            at = f"business_domains[{i}].evidence[{j}]"
             path = e["file"].strip().replace("\\", "/").rstrip("/")
-            if e["kind"] == "directory":
-                if not any(x == path or x.startswith(path + "/") for x in dirs) and path not in tracked:
-                    raise CatalogRefused(f"{at}: no file the repository tracks is under {path!r}")
-                continue
-            if path not in tracked:
-                raise CatalogRefused(f"{at}: {path!r} is not a file the repository tracks")
+            why = None
             sym = (e.get("symbol") or "").strip()
             text = (e.get("text") or "").strip()
-            if not sym and not text:
-                raise CatalogRefused(f"{at}: name the symbol (or the route or verb text) in "
-                                     f"{path!r} that shows the area")
-            kind = symbol_kind(path, sym) if sym else ""
-            if sym and kind is None:
-                raise CatalogRefused(f"{at}: the code graph has no symbol {sym!r} in {path!r}")
-            # Core's product predicate, with the node's kind (an extracted `Rule` in a flow or
-            # policy file is product behaviour whatever its extension; codex r2).
-            if not is_product(path, kind or ""):
-                raise CatalogRefused(f"{at}: {path!r} is a test, data or document file, not "
-                                     "product code")
-            anchored = anchored or bool(sym)
-            if text:
-                body = read_file(path)
-                if body is None or text not in body:
-                    raise CatalogRefused(f"{at}: {text!r} does not occur in {path!r}")
-        if not anchored:
-            raise CatalogRefused(f"business_domains[{i}] cites no symbol the code graph holds; "
-                                 "name at least one entry point, handler or public-API symbol")
+            if e["kind"] == "directory":
+                exists = (any(x == path or x.startswith(path + "/") for x in dirs)
+                          or path in tracked) if dirs is not None else (
+                              tracked.is_dir(path) or path in tracked)
+                if not exists:
+                    why = f"no file the repository tracks is under {path!r}"
+            elif path not in tracked:
+                why = f"{path!r} is not a file the repository tracks"
+            elif not sym and not text:
+                why = (f"name the symbol (or the route or verb text) in {path!r} "
+                       "that shows the area")
+            else:
+                kind = symbol_kind(path, sym) if sym else ""
+                if sym and kind is None:
+                    why = f"the code graph has no symbol {sym!r} in {path!r}"
+                elif not is_product(path, kind or ""):
+                    why = f"{path!r} is a test, data or document file, not product code"
+                elif text:
+                    body = read_file(path)
+                    if body is None or text not in body:
+                        why = f"{text!r} does not occur in {path!r}"
+            if why:
+                dropped.append({"domain": d["id"], "index": j, "why": why})
+            else:
+                evidence.append(dict(e))
+                anchored = anchored or (e["kind"] != "directory" and bool(sym))
+        if anchored:
+            kept.append({**d, "evidence": evidence})
+        else:
+            dropped.append({"domain": d["id"], "index": None,
+                            "why": "no remaining evidence names a symbol the code graph holds"})
+    if len(kept) < MIN_DOMAINS:
+        details = "; ".join(f"{r['domain']} evidence[{r['index']}]: {r['why']}"
+                            for r in dropped[:5])
+        if len(dropped) > 5:
+            details += f"; and {len(dropped) - 5} more"
+        raise CatalogRefused(f"only {len(kept)} business domains remain; need {MIN_DOMAINS}; "
+                             f"dropped: {details}", dropped)
+    return kept, dropped
 
 
 def check_pick(domain: Any, confidence: Any, ids: set[str]) -> str | None:
@@ -326,7 +347,8 @@ def load_catalog(db: str) -> list[dict] | None:
     return [found[k] for k in sorted(found)] or None
 
 
-def save_catalog(db: str, domains: list[dict], run_id: str = "") -> None:
+def save_catalog(db: str, domains: list[dict], run_id: str = "") -> list[dict]:
+    """Store the first catalog exclusively and return the catalog that won ([] if unreadable)."""
     path = catalog_path(db)
     path.parent.mkdir(parents=True, exist_ok=True)
     doc = {"schema": CATALOG_SCHEMA, "run": run_id, "domains": domains}
@@ -334,13 +356,13 @@ def save_catalog(db: str, domains: list[dict], run_id: str = "") -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(doc, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, path)
-    except BaseException:
         try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
+            os.link(tmp, path)
+        except FileExistsError:
+            return load_catalog(db) or []
+        return domains
+    finally:
+        os.unlink(tmp)
 
 
 # --- the store, read-only ------------------------------------------------------------------------
@@ -395,25 +417,30 @@ def resolved_without_domain(db: str, tracked: set[str], threshold: float,
     """Resolved requirements in product code that carry no business domain yet: the backfill the
     seat assigns (an existing map's rules were stated before any catalog). Returns (the first
     `limit` in symbol order as `{symbol_id, name, file, statement}`, how many there are)."""
+    from domain import extract_loop
+
     best: dict[str, tuple[float, str]] = {}
     for sid, value, conf in _store_rows(db, "business_rule"):
         if conf >= threshold and value.strip() and conf >= best.get(sid, (-1.0, ""))[0]:
             best[sid] = (conf, value)
     have = {sid for sid, _v, _c in _store_rows(db, ANN_TYPE)}
-    nodes: dict[str, tuple[str, str, str]] = {}
+    nodes: dict[str, tuple[str, str, str, str | None]] = {}
     try:
         c = _connect(db)
         try:
             try:
                 rows = c.execute("SELECT s.sym AS sym, n.name AS name, n.file AS file, n.kind AS "
-                                 "kind, n.requirement AS req, n.requirement_validated AS ok "
+                                 "kind, n.data AS data, n.requirement AS req, n.requirement_validated AS ok "
                                  "FROM nodes n JOIN symbols s ON s.sid = n.symbol").fetchall()
             except sqlite3.OperationalError:  # an older or test store without those columns
                 rows = c.execute("SELECT s.sym AS sym, n.name AS name, n.file AS file, '' AS kind, "
-                                 "NULL AS req, 0 AS ok FROM nodes n "
+                                 "NULL AS data, NULL AS req, 0 AS ok FROM nodes n "
                                  "JOIN symbols s ON s.sid = n.symbol").fetchall()
+            e2e_dirs = extract_loop.e2e_test_dirs(
+                r[0] for r in c.execute("SELECT DISTINCT file FROM nodes"))
             for r in rows:
-                nodes[r["sym"]] = (str(r["name"]), str(r["file"]), str(r["kind"] or "").strip('"'))
+                nodes[r["sym"]] = (str(r["name"]), str(r["file"]),
+                                   str(r["kind"] or "").strip('"'), r["data"])
                 # A validated requirement resolves a node too (core's classify_node).
                 if r["ok"] and (r["req"] or "").strip() and r["sym"] not in best:
                     best[r["sym"]] = (1.0, str(r["req"]))
@@ -425,8 +452,9 @@ def resolved_without_domain(db: str, tracked: set[str], threshold: float,
     for sid in sorted(best):
         if sid in have or sid not in nodes:
             continue
-        name, file, kind = nodes[sid]
-        if file not in tracked or not_product(file, kind):
+        name, file, kind, data = nodes[sid]
+        if (file not in tracked or not_product(file, kind)
+                or extract_loop.not_counted(file, data, e2e_dirs)):
             continue
         out.append({"symbol_id": sid, "name": name, "file": file,
                     "statement": best[sid][1][:400]})

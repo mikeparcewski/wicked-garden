@@ -389,3 +389,29 @@ def test_a_rework_restates_a_unit_this_run_already_applied(tmp_path, monkeypatch
     assert [r["symbol_id"] for r in report["refused"]] == [CLAMP]
     mismatch = {v for (t, _k), v in estate.anns[MEAN].items() if t == "code_mismatch"}
     assert mismatch == {"it inherits sum's skipped first element"}
+
+
+@pytest.mark.parametrize("file, behaviour, siblings, expected", [
+    ("src/math.js", "stub", [], False),
+    ("src/math.js", "data", [], False),
+    ("src/math.js", "test_support", [], False),
+    ("integration_tests/math.js", None, [], False),
+    ("billing_e2e/provider.py", None,
+     ["billing_e2e/charge_test.py", "billing_e2e/refund_test.py"], False),
+    ("crypto_e2e/keys.py", None, ["crypto_e2e/keys_test.py"], True),
+])
+def test_refresh_only_reasks_behaviours_core_counts(tmp_path, monkeypatch, file, behaviour,
+                                                   siblings, expected):
+    repo, built, base = _repo(tmp_path)
+    db = _store(tmp_path, built, base)
+    c = sqlite3.connect(db)
+    data = json.loads(c.execute("SELECT data FROM nodes WHERE symbol = 1").fetchone()[0])
+    if behaviour is not None:
+        data["metadata"] = {"behaviour": behaviour}
+    c.execute("UPDATE nodes SET file = ?, data = ? WHERE symbol = 1", (file, json.dumps(data)))
+    for sibling in siblings:
+        c.execute("INSERT INTO nodes (file) VALUES (?)", (sibling,))
+    c.commit(); c.close()
+    monkeypatch.setattr(refresh, "changed_files", lambda *args: {file})
+    units, _ = refresh.changed_units(db, str(repo), {file, *siblings}, {MEAN})
+    assert [u["symbol_id"] for u in units] == ([SUM] if expected else [])

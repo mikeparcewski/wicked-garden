@@ -57,6 +57,8 @@ name.
    (`main`, CLI commands and their verbs, workers and schedulers), HTTP or RPC routes and their
    handlers, the nouns in public APIs and data models, and what the README or docs say the
    product is for.
+   Cover every entry-point group the code shows, including scheduled and housekeeping jobs
+   (cron/scheduler jobs, maintenance, notices).
 2. Propose **3 to 9** domains. Each is `{"id": "<lowercase-slug>", "name": "<2 to 5 words>",
    "purpose": "<one line: what this area does for its users>", "evidence": [...]}`. Name the
    area a product owner would recognise ("Credential management", "Workflow scheduling",
@@ -69,13 +71,16 @@ name.
    Every item other than a directory names a product-code file (not a test, data or document
    file) and a `symbol` or `text` in it, and every domain names at least one symbol. The host
    checks each file is tracked by git, each symbol is in the code graph at that file and each
-   text occurs in the file, and refuses the whole catalog otherwise: a domain the code does not
-   show is never stored. The page's review then judges whether that code is really the area's.
+   text occurs in the file. An item the code does not show is dropped, and a domain left with
+   no symbol the graph holds is dropped. The catalog is refused only when fewer than 3 domains
+   remain. The seat's `--check-rules` names a bad file or text first. The page's review then
+   judges whether that code is really the area's.
 
 **Assign** each rule one domain with a confidence in [0,1]: the area the rule serves, judged
 from what the rule does for the product's users, with the file's directory as one piece of
 evidence. High (0.8 or more) when the rule plainly serves that area; lower when two areas
-compete. When no area fits, leave the rule without a domain rather than forcing one.
+compete. A multi-purpose module's symbols can land in different domains. When no area fits,
+leave the rule without a domain rather than forcing one.
 
 In a domain-extraction run all of this goes into the rules file the extractor writes
 (`.wicked/domain/rules.json`): the catalog as its top-level `business_domains` list (only when

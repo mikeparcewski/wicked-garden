@@ -54,6 +54,43 @@ def test_at_the_target_the_loop_is_done_and_the_line_says_how_long_it_took():
                                          "minimum 80% reached · 2 pages in 50 min"}
 
 
+@pytest.mark.parametrize("progress,max_pages,expected", [(True, 20, "continue"),
+                                                        (False, 20, "done"),
+                                                        (True, 1, "done")])
+def test_at_target_assignment_progress_uses_only_the_remaining_budget(progress, max_pages,
+                                                                    expected):
+    doc = _doc(_pt(0, 800, 0), _pt(1, 800, 5))
+    decision = generation.decide(doc, repo="crew", target=80, now=5 * MIN,
+                                 max_pages=max_pages, max_minutes=240, left_to_map=0,
+                                 assign_left=1234, assign_progress=progress)
+    assert decision["next"] == expected
+    ending = ("1,234 requirement(s) left to give a business domain" if expected == "continue"
+              else "1,234 requirement(s) left without a business domain")
+    assert decision["line"].endswith(ending)
+
+
+@pytest.mark.parametrize("bad", [True, -1, "3", 1.5, None])
+def test_generation_rejects_an_invalid_assignment_count(bad):
+    doc = _doc(_pt(0, 800, 0))
+    doc["assign_framed"] = bad
+    assert generation._valid(doc) is False
+
+
+def test_assignment_count_is_host_framed_and_cleared_on_close(tmp_path):
+    db = str(tmp_path / "estate.db")
+    generation.open_record(db, "run-1", {"resolved": 8, "behavior_bearing": 8}, "repo", at=0)
+    generation.frame_page(db, "run-1", [], assign_count=3)
+    doc = generation.load(db, "run-1")
+    assert generation.assign_framed(doc) == 3
+    generation.close_page(doc, {})
+    assert "assign_framed" not in doc and generation.assign_framed(doc) == 0
+    assert generation.assign_framed(None) == 0
+    generation.frame_page(db, "run-1", ["s::a"], assign_count=2)
+    doc = generation.load(db, "run-1")
+    generation.close_page(doc, {})
+    assert "assign_framed" not in doc
+
+
 @pytest.mark.parametrize("pages,minutes,spent", [(20, 100, "20 pages"), (5, 240, "240 minutes")])
 def test_a_spent_budget_asks_map_more_or_lower_the_target(pages, minutes, spent):
     pts = [_pt(0, 30, 0)] + [_pt(i, 30 + 10 * i, minutes * i // pages) for i in range(1, pages + 1)]
@@ -169,6 +206,33 @@ def _run(tmp_path, core, env, now_min, capsys):
     d = next_page.run(str(db), _repo(tmp_path), core=core, env=env, now=now_min * MIN)
     out = capsys.readouterr().out.splitlines()
     return d, out, str(db)
+
+
+def test_next_page_records_unassigned_and_compares_the_previous_page(tmp_path, monkeypatch,
+                                                                  capsys):
+    from domain import business_domains
+    counts = iter([3, 3, 2])
+    monkeypatch.setattr(business_domains, "resolved_without_domain", lambda *a: ([], next(counts)))
+    first, _, db = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=1), 5, capsys)
+    assert first["next"] == "continue"
+    second, _, _ = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=2), 10, capsys)
+    assert second["next"] == "done"
+    third, _, _ = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=3), 15, capsys)
+    assert third["next"] == "continue"
+    assert [p["unassigned"] for p in generation.load(db, "run-1")["points"][1:]] == [3, 3, 2]
+
+
+def test_next_page_treats_sqlite_assignment_read_errors_as_zero(tmp_path, monkeypatch, capsys):
+    import sqlite3
+    from domain import business_domains
+
+    def unreadable(*args):
+        raise sqlite3.OperationalError("old store")
+
+    monkeypatch.setattr(business_domains, "resolved_without_domain", unreadable)
+    decision, _, db = _run(tmp_path, _Core(800), _env(WICKED_REPEAT_PASS=1), 5, capsys)
+    assert decision["next"] == "done"
+    assert generation.load(db, "run-1")["points"][-1]["unassigned"] == 0
 
 
 def test_next_page_prints_the_line_then_the_engines_decision(tmp_path, capsys):
