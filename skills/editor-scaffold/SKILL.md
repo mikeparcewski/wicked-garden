@@ -82,6 +82,7 @@ The template's plumbing is what the conformance run checks; keep it and put your
   anchor}`. A `stale` or `head_moved` reply is shown to the user, never retried silently. An editor that asks
   `artifact.write` marks the control that saves an edit with `data-wicked-save` (conformance case 7 fills its
   empty text fields with valid values, presses the first visible marked control and expects exactly one version).
+  Mark toggles that open folded fields with `data-wicked-reveal`: case 7 first clicks each visible one once.
 - **Show what you open**: an editor opens an artifact to show it. Ask `artifact.read`, read on the handshake and
   render it (case 18 looks for its text in your frame), and read again on `artifact.changed`.
 - **Events you answer**: `host.ping` within 2 s; `host.size` (inline / pane / full — the same
@@ -120,7 +121,8 @@ Runs each editor in headless Chromium inside studio's own conformance host page,
 the daemon (`--host-url`, else `$WICKED_CREW_URL` — never a typed port) or served from a studio
 `dist`. It serves the candidate's entry on the bundle route itself (hash-checked, no network) and
 runs: 0 manifest (`pack check`), 1 handshake, 2 sizes, 3 no network, 4 permissions withdrawn,
-5 typing never acts, 6 key forwarding, 7 an edit saved through your `data-wicked-save` control (one version; a
+5 typing never acts, 6 key forwarding, 7 an edit saved through your `data-wicked-save` control (first click each
+visible `data-wicked-reveal` toggle once to open folded fields; one version; a
 viewer that asks no `artifact.write` passes), 8 strict input, 9 liveness, 10 keyboard reach, 11 theme,
 12 the pinned hash, 18 it shows what it is handed (it asks `artifact.read`, the page's text is visible in it, and it
 reads again when another version lands); for a protocol-2 editor, 13 the surfaces the host renders are the manifest's,
