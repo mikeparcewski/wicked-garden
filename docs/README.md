@@ -15,6 +15,7 @@ Work in wicked-garden is organized around **10 work-shape archetypes** — not a
 | [The Compiler](compiler.md) | `/wicked-garden-prove compile` — emit a self-contained vault-backed gate into any repo |
 | [Extending the Catalog](extending.md) | Ship a third-party pack — `{vendor}-{domain}-{role}` skills, the `wicked-pack.json` manifest, the shipped conformance gate, install + crew routing |
 | [Output Governance (hook-side)](outgov-per-turn.md) | The advisory hook lane — `WG_OUTGOV` modes (default `warn`), a once-per-session `rules.recall` audit through the read-only shim, content-hash provenance for the graph-derived rules dir |
+| [Seat Sandbox Limits](seat-limits.md) | What a governed seat cannot do, by role: loopback listen, write fence, scanners, browsers, cargo |
 | [Brain Chunk Format](brain-chunk-format.md) | Historical: how content was chunked for the retired wicked-brain index (the migrated chunks in wicked-estate keep this shape) | <!-- historical -->
 
 ## Quick Links
