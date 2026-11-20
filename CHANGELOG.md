@@ -8,8 +8,6 @@
 
 ### Fixed
 
-- **Memory recall and sources exclude legacy working-tier session-goal captures (garden#1475, #1477).** Empty memory results explicitly report "no stored memory matches"; estate ranking/floor is a follow-up.
-
 - **Demo review sheets include mid-chapter holds (garden#1464).** Contact sheets can sample the longest freeze midpoints alongside regular timestamps, and the recorder writes `review/survey.png` with both. Missing ffmpeg or ffprobe reports `COULD-NOT-RUN`; a review that cannot generate a needed sheet never passes.
 
 - **Estate relay failures report unavailability and keep diagnostics per thread (garden#1492, #1493).** Unreachable relays make Python `search` / `context` raise `EstateUnavailable` and their CLI actions exit 1 with the reason. Unresolved relayed targets name the run's graph answered by crew, without a local `--db` remedy. Local spawns use UTF-8 with replacement; both local transports preserve governed refusals, and failure and broker-refusal state are thread-local. Relay `call` refusals keep their exit-0 contract, and hooks remain silent and fail-open.
