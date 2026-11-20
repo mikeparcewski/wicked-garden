@@ -489,6 +489,15 @@ def _set_failure(value: Optional[dict]) -> None:
     _failure_state.value = value
 
 
+def _get_broker_refusal() -> Optional[str]:
+    """The broker's last reason for not answering in this thread, if any."""
+    return getattr(_failure_state, "broker_refusal", None)
+
+
+def _set_broker_refusal(value: Optional[str]) -> None:
+    _failure_state.broker_refusal = value
+
+
 def _unavailable(stderr: str = "") -> None:
     detail = next((line.strip()[:300] for line in reversed(stderr.splitlines()) if line.strip()),
                   "no handshake (binary missing, timed out, or exited)")
@@ -508,9 +517,7 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
     dead call and degrades. A governed run with no pinned store never spawns
     (`governed_refusal`).
     """
-    refusal = governed_refusal()
-    if refusal:
-        _set_failure({"kind": "refused", "reason": refusal})
+    if governed_refusal():
         return {}
     exe = resolve_mcp_bin()
     if not exe:
@@ -906,11 +913,6 @@ _maybe_install_broker()
 # Broker relay transport (wicked-core#1018) — same contract as `_dispatch`
 # ─────────────────────────────────────────────────────────────────────────────
 
-#: The last reason the broker gave for not answering (a refusal, an unreachable broker), so
-#: the CLI can say WHY a relayed call came back empty instead of a bare empty result.
-_last_broker_refusal: Optional[str] = None
-
-
 def _broker_post(url: str, body: dict, timeout: float) -> "tuple[Optional[int], Optional[dict], Optional[str]]":
     """POST JSON to the broker: ``(status, body, None)``, or ``(None, None, why)`` unreachable."""
     req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
@@ -946,16 +948,15 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
       ``ok`` answer hands back the envelope crew relayed; a JSON-RPC error estate raised
       (``result.rpcError``) becomes the same ``error`` a local server would send, code kept
       (``-32602`` = fix the arguments). Any refusal becomes an ``error`` with code None
-      and its reason and remedy, also kept in `_last_broker_refusal`.
+      and its reason and remedy, also kept per thread by `_set_broker_refusal`.
 
     ``db`` is ignored: crew picks the store (the run's own). Fail-open: an unreachable
     broker leaves the ids out, as a dead local server does.
     """
-    global _last_broker_refusal
-    _last_broker_refusal = None
+    _set_broker_refusal(None)
     channel = broker_channel()
     if channel is None:
-        _last_broker_refusal = (
+        _set_broker_refusal(
             f"no broker channel ({CREW_URL_ENV} + {MCP_TOKEN_ENV}): in a governed unit only crew answers "
             f"{RULES_TOOL} (the rules in force for this run), never the local store")
         return {}
@@ -967,7 +968,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
         # token and spends no call budget. A dead broker or a revoked token answers nothing.
         status, body, why = _broker_post(f"{url}/api/v1/mcp/tools", {"token": token}, max(timeout, 5.0))
         if status != 200 or body is None:
-            _last_broker_refusal = why or str((body or {}).get("error") or f"the broker answered {status}")
+            _set_broker_refusal(why or str((body or {}).get("error") or f"the broker answered {status}"))
             return {}
         for req in requests:
             rid = req.get("id")
@@ -989,7 +990,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
             {"token": token, "subject": BROKER_SUBJECT_PREFIX + tool, "args": params.get("arguments") or {}},
             max(timeout, BROKER_MIN_TIMEOUT_S))
         if status is None or body is None:
-            _last_broker_refusal = why
+            _set_broker_refusal(why)
             continue
         reached = True
         result = body.get("result")
@@ -1005,7 +1006,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
         reason = body.get("reason") or body.get("error") or "refused"
         remedy = body.get("remedy")
         message = f"broker {outcome}: {reason}" + (f" ({remedy})" if remedy else "")
-        _last_broker_refusal = message
+        _set_broker_refusal(message)
         responses[rid] = {"jsonrpc": "2.0", "id": rid, "error": {"code": None, "message": message}}
     if reached:
         for req in requests:
@@ -1063,11 +1064,16 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
     dispatch = _transport(tool if isinstance(tool, str) else None)
+    refusal = governed_refusal() if dispatch is not _broker_dispatch else None
+    if refusal:
+        _set_failure({"kind": "refused", "reason": refusal})
+        return None
     responses = dispatch(requests, db=resolve_db(), timeout=timeout)
     if 1 not in responses:  # handshake never landed → estate unreachable
         if last_failure() is None:
-            if dispatch is _broker_dispatch and _last_broker_refusal:
-                _set_failure({"kind": "unavailable", "reason": _last_broker_refusal})
+            broker_refusal = _get_broker_refusal()
+            if dispatch is _broker_dispatch and broker_refusal:
+                _set_failure({"kind": "unavailable", "reason": broker_refusal})
             else:
                 _unavailable()
         return None
@@ -1624,8 +1630,9 @@ def _propose_arg_problems(args: dict) -> list:
 def _emit(obj: Any) -> None:
     # A relayed call that came back empty says why (the broker's reason and remedy), additively:
     # the fail-open empty value is unchanged.
-    if isinstance(obj, dict) and _last_broker_refusal and "broker_refusal" not in obj:
-        obj = {**obj, "broker_refusal": _last_broker_refusal}
+    broker_refusal = _get_broker_refusal()
+    if isinstance(obj, dict) and broker_refusal and "broker_refusal" not in obj:
+        obj = {**obj, "broker_refusal": broker_refusal}
     sys.stdout.write(json.dumps(obj))
     sys.stdout.write("\n")
 
@@ -1733,7 +1740,7 @@ def main(argv: list) -> int:
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
         failure = last_failure()
-        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _last_broker_refusal):
+        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _get_broker_refusal()):
             if failure["kind"] in ("unavailable", "refused"):
                 _emit({"ok": False, "reason": failure["reason"]})
             else:

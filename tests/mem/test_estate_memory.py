@@ -285,7 +285,7 @@ def test_sources_without_a_live_source_reads_as_before(monkeypatch, capsys):
 def test_sources_names_a_failed_knowledge_side_instead_of_an_empty_one(monkeypatch, capsys):
     # garden r2: knowledge relays through crew while memory reads locally; a broker refusal must not read as
     # "the record knows nothing".
-    monkeypatch.setattr(estate_memory._estate_client, "_last_broker_refusal", "the broker answered 401", raising=False)
+    monkeypatch.setattr(estate_memory._estate_client, "_get_broker_refusal", lambda: "the broker answered 401")
     rec = _Recorder({"memory.recall": {"items": []}})
     code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "open tickets"}, rec)
     assert code == 0 and out["ok"] is True

@@ -15,6 +15,7 @@ import json
 import subprocess
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from types import SimpleNamespace
@@ -43,7 +44,7 @@ def _clean(monkeypatch):
     _estate_client.set_governed(False)
     _estate_client.set_db(None)
     yield
-    _estate_client._last_broker_refusal = None  # module state: never leaks into the next test's output
+    _estate_client._set_broker_refusal(None)  # never leaks into the next test's output
     _estate_client.set_dispatch(original)
     _estate_client.set_readonly(False)
     _estate_client.set_governed(False)
@@ -157,7 +158,7 @@ def test_a_broker_refusal_is_empty_and_says_why(monkeypatch, broker):
         "outcome": "denied", "subject": subject, "callId": "c", "ruleIds": ["estate:no-code-graph"], "denied": True,
         "reason": "this run has no code graph", "remedy": "continue without graph lookups"})
     assert _estate_client.call("RankHotspots", {"limit": 20}) is None
-    assert "no code graph" in _estate_client._last_broker_refusal
+    assert "no code graph" in _estate_client._get_broker_refusal()
     res = _estate_client.propose("memory", {"content": "x"}, {"project": "p"})
     assert res["ok"] is False and res["code"] is None and "broker denied" in res["reason"]
 
@@ -175,7 +176,7 @@ def test_an_unreachable_broker_degrades_with_a_reason(monkeypatch):
     _container_seat(monkeypatch, "http://127.0.0.1:9")  # discard port: nothing listens
     _no_local_spawn(monkeypatch)
     assert _estate_client.call("SearchEntity", {"name": "x"}) is None
-    assert "did not answer" in (_estate_client._last_broker_refusal or "")
+    assert "did not answer" in (_estate_client._get_broker_refusal() or "")
     assert _estate_client.propose("memory", {"content": "x"}, {"project": "p"})["code"] is None
 
 
@@ -195,7 +196,7 @@ def test_unreachable_relay_graph_consumers_raise(dead_relay, method):
     with pytest.raises(_estate_client.EstateUnavailable, match="did not answer"):
         getattr(_estate_client, method)("x")
     assert _estate_client.last_failure() == {
-        "kind": "unavailable", "reason": _estate_client._last_broker_refusal}
+        "kind": "unavailable", "reason": _estate_client._get_broker_refusal()}
 
 
 @pytest.mark.parametrize("action", ["search", "context"])
@@ -219,6 +220,44 @@ def test_unreachable_relay_without_a_reason_records_generic_failure(dead_relay, 
     with pytest.raises(_estate_client.EstateUnavailable, match="no handshake"):
         _estate_client.search("x")
     assert _estate_client.last_failure()["kind"] == "unavailable"
+
+
+def test_overlapping_relay_failures_keep_each_threads_reason(monkeypatch):
+    _container_seat(monkeypatch, "http://broker.invalid")
+    _no_local_spawn(monkeypatch)
+    first_refused = threading.Barrier(2, timeout=5)
+    second_refused = threading.Barrier(2, timeout=5)
+    broker_dispatch = _estate_client._broker_dispatch
+    reasons = {"first": "relay failure X", "second": "relay failure Y"}
+
+    def post(url, body, timeout):
+        return None, None, reasons[body["args"]["name"]]
+
+    def overlapping_dispatch(requests, *, db, timeout):
+        name = requests[-1]["params"]["arguments"]["name"]
+        # Hold A before _rpc reads its refusal until B has reset/set its own reason Y.
+        if name == "second":
+            first_refused.wait()
+        responses = broker_dispatch(requests, db=db, timeout=timeout)
+        if name == "first":
+            first_refused.wait()
+        second_refused.wait()
+        return responses
+
+    monkeypatch.setattr(_estate_client, "_broker_post", post)
+    monkeypatch.setattr(_estate_client, "_broker_dispatch", overlapping_dispatch)
+
+    def read(name):
+        result = _estate_client.call("SearchEntity", {"name": name})
+        return result, _estate_client.last_failure(), _estate_client._get_broker_refusal()
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(read, "first")
+        second = pool.submit(read, "second")
+        outcomes = {"first": first.result(timeout=10), "second": second.result(timeout=10)}
+
+    for name, reason in reasons.items():
+        assert outcomes[name] == (None, {"kind": "unavailable", "reason": reason}, reason)
 
 
 @pytest.mark.parametrize("tool", ["SearchEntity", "rules.recall"])
@@ -326,7 +365,7 @@ def test_a_governed_seat_without_the_channel_never_reads_rules_from_its_local_st
     monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "wicked-estate-mcp")
     _no_local_spawn(monkeypatch)
     assert _estate_client.call("rules.recall", {"ids": ["POL-2500"]}) is None
-    assert "only crew answers rules.recall" in (_estate_client._last_broker_refusal or "")
+    assert "only crew answers rules.recall" in (_estate_client._get_broker_refusal() or "")
     code = _estate_client.main(["--readonly", "call", json.dumps({"tool": "rules.recall", "arguments": {"ids": ["POL-2500"]}})])
     out = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert code == 0 and out["result"] is None and "no broker channel" in out["broker_refusal"]

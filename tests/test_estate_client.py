@@ -724,7 +724,7 @@ def _clean_governed_mode(monkeypatch):
     Broker tests set their own WICKED_CREW_URL / WICKED_MCP_TOKEN / WICKED_ESTATE_BROKER and stub requests."""
     for name in _GOVERNED_ENV + ("WICKED_CREW_URL", "WICKED_MCP_TOKEN", "WICKED_ESTATE_BROKER"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setattr(_estate_client, "_last_broker_refusal", None)
+    _estate_client._set_broker_refusal(None)
     _estate_client.set_readonly(False)
     _estate_client.set_governed(False)
     _estate_client.set_db(None)
@@ -1882,13 +1882,17 @@ def test_spawn_transport_uses_utf8_with_replacement(monkeypatch):
     assert "text" not in captured
 
 
-def test_governed_python_call_keeps_the_no_pin_refusal(monkeypatch, tmp_path):
+@pytest.mark.parametrize("transport", ["persistent", "spawn"])
+def test_governed_python_call_keeps_the_no_pin_refusal(monkeypatch, tmp_path, transport):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("WICKED_RUN_ID", "run-no-pin")
-    _estate_client.set_dispatch(_estate_client._dispatch)
+    if transport == "spawn":
+        _estate_client.set_dispatch(_estate_client._dispatch)
+    else:
+        assert isinstance(_estate_client._active_dispatch, _estate_client._PersistentBroker)
     reason = _estate_client.governed_refusal()
     assert reason and "no estate store is pinned" in reason
-    # A memory read reaches _dispatch: the graph guard must not mask this refusal.
+    # A memory read uses the transport: the graph guard must not mask this refusal.
     assert _estate_client.call("memory.recall", {"query": "x"}) is None
     assert _estate_client.last_failure() == {"kind": "refused", "reason": reason}
 

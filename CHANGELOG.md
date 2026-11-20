@@ -8,7 +8,7 @@
 
 ### Fixed
 
-- **Estate relay failures report unavailability and keep diagnostics per thread (garden#1492, #1493).** Unreachable relays make Python `search` / `context` raise `EstateUnavailable` and their CLI actions exit 1 with the reason. Unresolved relayed targets name the run's graph answered by crew, without a local `--db` remedy. Local spawns use UTF-8 with replacement and preserve governed refusals; failure state is thread-local. Relay `call` refusals keep their exit-0 contract, and hooks remain silent and fail-open.
+- **Estate relay failures report unavailability and keep diagnostics per thread (garden#1492, #1493).** Unreachable relays make Python `search` / `context` raise `EstateUnavailable` and their CLI actions exit 1 with the reason. Unresolved relayed targets name the run's graph answered by crew, without a local `--db` remedy. Local spawns use UTF-8 with replacement; both local transports preserve governed refusals, and failure and broker-refusal state are thread-local. Relay `call` refusals keep their exit-0 contract, and hooks remain silent and fail-open.
 
 - **Estate shim failures stay distinguishable from empty answers (garden#1480, #1479, #1473, #1476).** Startup failures report the last stderr line, Python graph reads refuse an unpinned store at the shared RPC boundary, and `search` / `context` raise `EstateUnavailable` on failure. CLI calls report tool errors with their diagnostics and reject unknown keys with the `arguments` spelling; unresolved targets name the searched store and the index or pin remedy. Low-level Python calls remain fail-open with `last_failure()` details.
 
