@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+## [12.68.4] - 2026-11-20
+
+Patch release on main 27a4ff62, carrying 13 PRs since 12.68.3: #1474, #1481, #1483, #1484, #1486, #1489, #1490, #1491, #1494, #1495, #1496, #1498, #1499. The estate shim now refuses a graph read with nothing behind it and tells a failure from an empty answer (#1481, #1483, #1491, #1494), which 12.68.3 does not have.
+
 ### Changed
 
 - **CI: the selftest pin moves to wicked-ci 3bd45ae (the advisory verdict now concludes, wicked-ci#76/#81).** The selftest job grants `checks: write` so the called workflow can publish its verdict check run; the advisory job still never blocks a merge.
@@ -39,6 +43,20 @@
   reviewer no longer validates such a leftover and never goes INCONCLUSIVE because of it, and a dir
   with no `test-plan.md` is judged against the scenario's assertions, manifest or not. A manifest with
   `scenario_evidence`, or a terminal one, is still a campaign bundle with every duty.
+
+### Merged since the last release (from each pull request's changelog entry)
+
+- **Memory recall and sources exclude legacy working-tier session-goal captures (garden#1475, #1477).** Empty memory results explicitly report "no stored memory matches"; estate ranking/floor is a follow-up.
+
+- docs: `docs/seat-limits.md` lists the sandbox limits a governed seat should expect, per role, and rule A7 points at it (#1488).
+
+- Editor conformance case 7 now types into and blurs a `data-wicked-save` input, textarea or contenteditable and expects exactly one write; a marked button is still clicked.
+
+- **A studio chat answer carries no notes about the seat itself (#1406, #1484).** Rule A9 of the governed worker now also rules out which skills it loaded or did not re-invoke, how a result reached it, and what its instructions describe; the one-line 'what could not be checked' stays. Governed units keep their output contract.
+
+- **The prompt hook no longer saves a session's first two prompts as active memory (#1485, #1486).** `_capture_session_goal` is deleted: those captures bypassed the approve queue and filled recall with raw task text. Existing captures are not erased here.
+
+- **Rule A7 no longer asks seats to propose sandbox facts or run verdicts (#1487, #1489).** A7 now asks for a check of this repository that failed on the repository's own setup, a trap in the repository's own tools, or an operator rule that holds beyond the run; a limit of the seat's own sandbox and a verdict on this run are listed under 'Not a memory'.
 
 ## [12.68.3] - 2026-11-14
 
@@ -1785,7 +1803,8 @@ through `v9.2.18`. Major themes across that span:
 
 For each of those releases, see the corresponding tag in git history.
 
-[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.3...HEAD
+[Unreleased]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.4...HEAD
+[12.68.4]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.3...v12.68.4
 [12.68.3]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.2...v12.68.3
 [12.68.2]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.1...v12.68.2
 [12.68.1]: https://github.com/mikeparcewski/wicked-garden/compare/v12.68.0...v12.68.1
