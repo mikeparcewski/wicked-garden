@@ -10,12 +10,14 @@ closed, with a reason, when a governed unit has neither a pinned store nor the c
 A real HTTP server on loopback plays the broker (stdlib `http.server`); no estate binary runs.
 """
 
+import io
 import json
 import subprocess
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -312,3 +314,72 @@ def test_the_cli_reports_the_relay_and_why_a_call_came_back_empty(broker, tmp_pa
         [sys.executable, str(SCRIPT), "--readonly", "call", '{"tool":"memory.capture","arguments":{}}'],
         env=env, cwd=tmp_path, capture_output=True, text=True, check=True).stdout)
     assert out["result"] is None and "not relayed" in out["broker_refusal"]
+
+
+def test_cli_relay_tool_errors_keep_their_failure_output(monkeypatch, capsys):
+    _container_seat(monkeypatch, "http://127.0.0.1:1")
+    monkeypatch.setattr(_estate_client, "_broker_post", lambda *args: (200, {
+        "outcome": "ok", "result": {"isError": True, "content": [
+            {"type": "text", "text": "tool failed"},
+            {"type": "text", "text": "CLAMPED: limit=200"},
+        ]}}, None))
+    assert _estate_client.main(["call", '{"tool":"SearchEntity"}']) == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "error": "tool failed", "diagnostics": ["CLAMPED: limit=200"]}
+
+
+def test_persistent_start_reports_stderr_tempfile_failure(monkeypatch):
+    monkeypatch.setattr(_estate_client, "resolve_mcp_bin", lambda: "fake-estate-mcp")
+
+    def cannot_capture(**kwargs):
+        raise OSError("temporary storage full")
+
+    monkeypatch.setattr(_estate_client.tempfile, "TemporaryFile", cannot_capture)
+    persistent = _estate_client._PersistentBroker()
+    assert persistent._start(None) is False
+    assert _estate_client.last_failure() == {
+        "kind": "unavailable",
+        "reason": "estate did not start: cannot capture estate stderr: temporary storage full",
+    }
+
+
+def test_persistent_start_failure_survives_unreadable_stderr():
+    class UnreadableStderr(io.StringIO):
+        def read(self, *args):
+            raise OSError("stderr file unreadable")
+
+    stderr = UnreadableStderr()
+    proc = SimpleNamespace(kill=lambda: None, wait=lambda **kwargs: None)
+    persistent = _estate_client._PersistentBroker()
+    _estate_client._last_failure = None
+    persistent._start_failed(proc, stderr)
+    assert stderr.closed
+    assert _estate_client.last_failure() == {
+        "kind": "unavailable",
+        "reason": "estate did not start: no handshake (binary missing, timed out, or exited)",
+    }
+
+
+def test_persistent_failed_retry_closes_process_and_stderr(monkeypatch):
+    persistent = _estate_client._PersistentBroker()
+    sessions = []
+
+    def start(db):
+        proc = SimpleNamespace(stdin=io.StringIO(), poll=lambda: None, wait=lambda **kwargs: None)
+        stderr = io.StringIO()
+        sessions.append((proc, stderr))
+        persistent._proc = proc
+        persistent._stderr = stderr
+        persistent._init_resp = {"id": 1, "result": {"serverInfo": {"name": "wicked-estate"}}}
+        return True
+
+    monkeypatch.setattr(persistent, "_start", start)
+    monkeypatch.setattr(persistent, "_exchange", lambda *args, **kwargs: None)
+    try:
+        assert persistent([{"id": 2, "method": "tools/call"}], db=None, timeout=1) == {}
+        assert persistent._failed is True
+        assert len(sessions) == 2
+        assert all(proc.stdin.closed and stderr.closed for proc, stderr in sessions)
+        assert persistent._proc is None and persistent._stderr is None
+    finally:
+        persistent._close()

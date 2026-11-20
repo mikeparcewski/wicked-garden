@@ -154,14 +154,16 @@ def test_fail_open_when_transport_dead(monkeypatch, pinned_graph):
     assert _estate_client.list_tools() == []
 
 
-def test_fail_open_when_bin_missing(tmp_path, monkeypatch):
+def test_fail_open_when_bin_missing(tmp_path, monkeypatch, pinned_graph):
     """No binary anywhere → real _dispatch returns {}, health False, no raise."""
     monkeypatch.setenv("WICKED_ESTATE_MCP_BIN", "")
     monkeypatch.setenv("WICKED_ESTATE_BIN", "")
     monkeypatch.setattr(_estate_client, "_which_or_local", lambda name: None)
     assert _estate_client.health() is False
-    with pytest.raises(_estate_client.EstateUnavailable):
+    with pytest.raises(_estate_client.EstateUnavailable, match="estate did not start"):
         _estate_client.search("x")
+    assert _estate_client.last_failure()["kind"] == "unavailable"
+    assert "estate did not start" in _estate_client.last_failure()["reason"]
     assert _estate_client.stats() is None
 
 
@@ -1304,21 +1306,33 @@ def test_a_failed_page_is_reported_incomplete_never_whole(capsys):
     assert any("INCOMPLETE" in d for d in out["diagnostics"])
 
 
-def test_a_failed_later_page_keeps_estates_diagnostics(capsys):
+@pytest.mark.parametrize("failure_kind", ["error", "unavailable"])
+def test_a_failed_later_page_keeps_estates_diagnostics(capsys, failure_kind):
     dispatch = _paged_dispatch(_lineage_pages(3), [])
 
     def failing_page(requests, *, db, timeout):
         responses = dispatch(requests, db=db, timeout=timeout)
         if any(r.get("params", {}).get("arguments", {}).get("cursor") == "c1" for r in requests):
-            responses[2] = _error_answer()
+            if failure_kind == "error":
+                responses[2] = {"id": 2, "result": {"isError": True, "content": [
+                    {"type": "text", "text": "continuation cursor rejected"},
+                    {"type": "text", "text": "PAGE-2-DIAG: cursor expired"},
+                ]}}
+            else:
+                _estate_client._unavailable("continuation process exited")
+                responses = {}
         return responses
 
     _estate_client.set_dispatch(failing_page)
     out = _call(capsys, {"tool": "Lineage", "arguments": {"symbol": "s"}})
     assert out["result"]["complete"] is False
     assert [d["symbol"] for d in out["result"]["dependencies"]] == ["d0"]
-    assert {"STALENESS: 2 commits", "CLAMPED: limit=200",
-            "LEXICAL-FALLBACK: embeddings unavailable"} <= set(out["diagnostics"])
+    if failure_kind == "error":
+        assert "PAGE-2-DIAG: cursor expired" in out["diagnostics"]
+        error = "continuation cursor rejected"
+    else:
+        error = "estate did not start: continuation process exited"
+    assert any(d.startswith("PAGING:") and error in d for d in out["diagnostics"])
 
 
 def test_one_page_on_request_and_unpaged_replies_unchanged(capsys):
@@ -1641,12 +1655,85 @@ def _answer_dispatch(envelope):
     return dispatch
 
 
+@pytest.fixture(params=[
+    {},
+    {2: None},
+    {2: []},
+    {2: {"jsonrpc": "2.0", "id": 2}},
+    {2: {"id": 2, "result": None}},
+    {2: {"id": 2, "result": [], "error": None}},
+])
+def incomplete_call(request, pinned_graph):
+    _estate_client.set_dispatch(lambda requests, *, db, timeout: {
+        1: json.loads(_INIT_LINE), **request.param})
+
+
+@pytest.mark.parametrize("method", ["search", "context"])
+def test_graph_consumers_raise_when_only_the_handshake_landed(incomplete_call, method):
+    reason = "estate answered the handshake but not the call"
+    with pytest.raises(_estate_client.EstateUnavailable, match=reason):
+        getattr(_estate_client, method)("x")
+    assert _estate_client.last_failure() == {"kind": "unavailable", "reason": reason}
+
+
+@pytest.mark.parametrize("all_pages", [False, True])
+def test_cli_call_fails_when_only_the_handshake_landed(incomplete_call, capsys, all_pages):
+    code, out = _main(capsys, ["call", json.dumps({"tool": "SearchEntity", "all_pages": all_pages})])
+    assert code == 1
+    assert out == {"ok": False, "reason": "estate answered the handshake but not the call"}
+
+
+def test_cli_call_accepts_a_completed_json_null(pinned_graph, capsys):
+    _estate_client.set_dispatch(_answer_dispatch(_envelope(None)))
+    code, out = _main(capsys, ["call", '{"tool":"SearchEntity"}'])
+    assert code == 0
+    assert out == {"result": None, "diagnostics": []}
+    assert _estate_client.last_failure() is None
+
+
 def _error_answer():
     return {"jsonrpc": "2.0", "id": 2, "result": {"isError": True, "content": [
         {"type": "text", "text": "unknown entity parameter"},
         {"type": "text", "text": "STALENESS: 2 commits\n\nCLAMPED: limit=200"},
         {"type": "text", "text": "LEXICAL-FALLBACK: embeddings unavailable"},
     ]}}
+
+
+def _rpc_error_answer():
+    return {"jsonrpc": "2.0", "id": 2,
+            "error": {"code": -32602, "message": "invalid entity parameter"}}
+
+
+@pytest.mark.parametrize("method", ["call", "call_blocks", "call_all_pages"])
+def test_top_level_rpc_errors_record_the_message(pinned_graph, method):
+    _estate_client.set_dispatch(_answer_dispatch(_rpc_error_answer()))
+    assert getattr(_estate_client, method)("SearchEntity", {}) is None
+    assert _estate_client.last_failure() == {"kind": "error", "text": "invalid entity parameter",
+                                           "diagnostics": []}
+
+
+def test_cli_call_reports_top_level_rpc_errors(pinned_graph, capsys):
+    _estate_client.set_dispatch(_answer_dispatch(_rpc_error_answer()))
+    code, out = _main(capsys, ["call", '{"tool":"SearchEntity"}'])
+    assert code == 1
+    assert out == {"error": "invalid entity parameter", "diagnostics": []}
+
+
+@pytest.mark.parametrize("action,args", [("search", {"name": "x"}), ("context", {"query": "x"})])
+def test_cli_graph_errors_include_diagnostics(pinned_graph, capsys, action, args):
+    _estate_client.set_dispatch(_answer_dispatch(_error_answer()))
+    code, out = _main(capsys, [action, json.dumps(args)])
+    assert code == 1
+    assert out == {"ok": False, "reason": "unknown entity parameter", "diagnostics": [
+        "STALENESS: 2 commits", "CLAMPED: limit=200", "LEXICAL-FALLBACK: embeddings unavailable"]}
+
+
+def test_fail_open_documentation_describes_cli_failure_shapes():
+    contract = _estate_client.__doc__.split("Fail-open contract", 1)[1].split("Cross-platform", 1)[0]
+    contract = " ".join(contract.split())
+    assert 'CLI `call` surfaces a tool `isError` as ``{"error": …, "diagnostics": [...]}``' in contract
+    assert 'unavailable/refused and `search`/`context` failures' in contract
+    assert '``{"ok": false, "reason": …}``' in contract
 
 
 @pytest.mark.parametrize("all_pages", [False, True])
@@ -1659,8 +1746,8 @@ def test_cli_tool_errors_preserve_text_and_every_diagnostic(pinned_graph, capsys
         "STALENESS: 2 commits", "CLAMPED: limit=200", "LEXICAL-FALLBACK: embeddings unavailable"]}
 
 
-def test_call_raw_returns_the_error_envelope_itself(pinned_graph):
-    answer = _error_answer()
+@pytest.mark.parametrize("answer", [_error_answer(), _rpc_error_answer()])
+def test_call_raw_returns_the_error_envelope_itself(pinned_graph, answer):
     _estate_client.set_dispatch(_answer_dispatch(answer))
     assert _estate_client.call_raw("SearchEntity", {}) == answer
 

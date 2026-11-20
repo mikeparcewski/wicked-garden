@@ -97,7 +97,9 @@ non-zero exit, malformed JSON, or a tool `isError`, they return a safe empty
 value (`False` / `None` / `[]`). `last_failure()` distinguishes unavailable,
 refused and errored calls from completed empty answers. The graph consumers
 `search` and `context` raise `EstateUnavailable` when a failure is recorded;
-the CLI surfaces the reason as ``{"ok": false, "reason": …}``.
+CLI `call` surfaces a tool `isError` as ``{"error": …, "diagnostics": [...]}``,
+while unavailable/refused and `search`/`context` failures surface as
+``{"ok": false, "reason": …}``.
 
 Cross-platform
 --------------
@@ -632,7 +634,11 @@ class _PersistentBroker:
         # Creating a new Queue guarantees cross-session isolation.
         self._q = queue.Queue()
 
-        stderr = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
+        try:
+            stderr = tempfile.TemporaryFile(mode="w+t", encoding="utf-8")
+        except OSError as exc:
+            _unavailable(f"cannot capture estate stderr: {exc}")
+            return False
         try:
             proc = subprocess.Popen(
                 argv,
@@ -698,9 +704,12 @@ class _PersistentBroker:
             proc.wait(timeout=2)
         except (subprocess.TimeoutExpired, OSError):
             pass
+        _unavailable()
         try:
             stderr.seek(0)
             _unavailable(stderr.read())
+        except (OSError, ValueError):
+            pass  # Capturing diagnostics must not hide the startup failure.
         finally:
             stderr.close()
 
@@ -866,6 +875,7 @@ class _PersistentBroker:
             result = self._exchange(real, timeout=timeout)
             if result is None:
                 self._failed = True
+                self._close()
                 return {}
 
         return {1: self._init_resp, **result}
@@ -1053,7 +1063,14 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
         if _last_failure is None and dispatch is not _broker_dispatch:
             _unavailable()
         return None
-    return responses.get(2)
+    response = responses.get(2)
+    if dispatch is not _broker_dispatch and (
+        not isinstance(response, dict)
+        or (not isinstance(response.get("result"), dict) and not isinstance(response.get("error"), dict))
+    ):
+        _last_failure = {"kind": "unavailable", "reason": "estate answered the handshake but not the call"}
+        return None
+    return response
 
 
 def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]":
@@ -1073,6 +1090,10 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
     """
     global _last_failure
     if not isinstance(envelope, dict):
+        return None, []
+    error = envelope.get("error")
+    if isinstance(error, dict):
+        _last_failure = {"kind": "error", "text": error.get("message") or "", "diagnostics": []}
         return None, []
     result = envelope.get("result")
     if not isinstance(result, dict):
@@ -1209,11 +1230,13 @@ def call_all_pages(tool: str, arguments: Optional[dict] = None,
         page = call_blocks(tool, {**args, "cursor": cursor}, timeout=timeout)
         if page is None or not isinstance(page.get("result"), dict):
             complete = False
-            for diagnostic in (last_failure() or {}).get("diagnostics", []):
+            failure = last_failure() or {}
+            for diagnostic in failure.get("diagnostics", []):
                 if diagnostic not in diagnostics:
                     diagnostics.append(diagnostic)
+            reason = failure.get("text") or failure.get("reason")
             diagnostics.append(f"PAGING: page {pages + 1} failed; the answer is INCOMPLETE "
-                               f"(only {pages} page(s) joined)")
+                               f"(only {pages} page(s) joined)" + (f": {reason}" if reason else ""))
             break
         pages += 1
         result = page["result"]
@@ -1661,7 +1684,11 @@ def main(argv: list) -> int:
         try:
             _emit({"matches": search(name, int(args.get("limit", 20)))})
         except EstateUnavailable as exc:
-            _emit({"ok": False, "reason": str(exc)})
+            failure = last_failure() or {}
+            out = {"ok": False, "reason": str(exc)}
+            if failure.get("kind") == "error" and failure.get("diagnostics"):
+                out["diagnostics"] = failure["diagnostics"]
+            _emit(out)
             return 1
     elif action == "context":
         try:
@@ -1669,7 +1696,11 @@ def main(argv: list) -> int:
                           symbol=args.get("symbol"),
                           budget=int(args.get("budget", 8000))) or {})
         except EstateUnavailable as exc:
-            _emit({"ok": False, "reason": str(exc)})
+            failure = last_failure() or {}
+            out = {"ok": False, "reason": str(exc)}
+            if failure.get("kind") == "error" and failure.get("diagnostics"):
+                out["diagnostics"] = failure["diagnostics"]
+            _emit(out)
             return 1
     elif action == "recall":
         q = args.get("query") or args.get("_", "")
@@ -1692,7 +1723,7 @@ def main(argv: list) -> int:
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
         failure = last_failure()
-        if blocks is None and failure:
+        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _last_broker_refusal):
             if failure["kind"] in ("unavailable", "refused"):
                 _emit({"ok": False, "reason": failure["reason"]})
             else:
