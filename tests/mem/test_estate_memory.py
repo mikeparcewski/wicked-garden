@@ -105,6 +105,33 @@ def test_store_fails_open_when_estate_unreachable(monkeypatch, capsys):
 
 # ── recall ────────────────────────────────────────────────────────────────────
 
+@pytest.mark.parametrize("working_fields", [
+    {"kind": "working"}, {"tier": "working"}, {"kind": "working", "tier": "working"},
+])
+@pytest.mark.parametrize("fact", [
+    {"kind": "fact", "content": "Use SQLite for the local cache", "score": 0.018},
+    {"kind": "fact", "tier": "semantic", "content": "Session goal (turn 2): a documented example"},
+    {"kind": "working", "tier": "working", "content": "Investigating the cache timeout"},
+])
+def test_recall_excludes_only_legacy_session_goal_captures(monkeypatch, capsys, working_fields, fact):
+    noise = dict(working_fields, content="Session goal (turn 7): monitor task notifications")
+    rec = _Recorder({"memory.recall": {"items": [noise, fact]}})
+    code, out, _ = _run(monkeypatch, capsys, "recall", {"query": "cache"}, rec)
+    assert code == 0 and out["ok"] is True
+    assert out["items"] == [fact]
+
+
+@pytest.mark.parametrize("items", [
+    [{"kind": "working", "tier": "working", "content": "Session goal (turn 3): monitor tasks"}],
+    [],
+])
+def test_recall_reports_no_match_when_no_memories_remain(monkeypatch, capsys, items):
+    rec = _Recorder({"memory.recall": {"items": items}})
+    code, out, _ = _run(monkeypatch, capsys, "recall", {"query": "cache"}, rec)
+    assert code == 0
+    assert out == {"ok": True, "items": [], "matched": False, "note": "no stored memory matches"}
+
+
 def test_recall_defaults_to_the_current_project_scope(monkeypatch, capsys, tmp_path):
     proj = tmp_path / "demo-repo"
     proj.mkdir()
@@ -230,6 +257,28 @@ def test_write_maps_onto_knowledge_write(monkeypatch, capsys):
 
 
 # ── sources (cited-answer feed) ───────────────────────────────────────────────
+
+@pytest.mark.parametrize("has_fact", [True, False])
+def test_sources_filters_session_goals_and_notes_empty_memories(monkeypatch, capsys, has_fact):
+    noise = [
+        {"kind": "working", "content": "Session goal (turn 1): monitor task notifications"},
+        {"tier": "working", "content": "Session goal (turn 2): keep monitoring"},
+    ]
+    fact = {"kind": "fact", "content": "Use SQLite for the local cache", "score": 0.018}
+    knowledge = {"body_snippet": "Cache design", "source": "design.md"}
+    rec = _Recorder({
+        "knowledge.recall": {"items": [knowledge]},
+        "memory.recall": {"items": noise + ([fact] if has_fact else [])},
+    })
+    code, out, _ = _run(monkeypatch, capsys, "sources", {"query": "cache"}, rec)
+    assert code == 0 and out["ok"] is True
+    assert out["memories"] == ([dict(fact, label=estate_memory.memory_label(fact))] if has_fact else [])
+    assert out["knowledge"] == [dict(knowledge, label=estate_memory.knowledge_label(knowledge))]
+    if has_fact:
+        assert "note" not in out
+    else:
+        assert out["note"] == "no stored memory matches"
+
 
 def test_sources_merges_knowledge_and_memory(monkeypatch, capsys):
     rec = _Recorder({
