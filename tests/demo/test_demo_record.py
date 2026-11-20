@@ -30,13 +30,13 @@ def _node(script: str) -> str:
     return out.stdout
 
 
-def _check(storyline: dict, chapters: list, launch: str = "/app", content_only: bool = False) -> dict:
+def _check(storyline: dict, chapters: list, launch: str = "/app", content_only: bool = False, no_frame: bool = False) -> dict:
     """{ok} or {code, where} from storyline-data.mjs checkStoryline."""
     return json.loads(_node(
         "import { checkStoryline } from './storyline-data.mjs';"
         f"const s = {json.dumps(storyline)}, c = {json.dumps(chapters)};"
         "try { checkStoryline(s, c, { appOrigin: 'http://127.0.0.1:7721', launchPath: " + json.dumps(launch)
-        + f", contentOnly: {json.dumps(content_only)} }});"
+        + f", contentOnly: {json.dumps(content_only)}, noFrame: {json.dumps(no_frame)} }});"
         " console.log(JSON.stringify({ ok: true })); }"
         "catch (e) { console.log(JSON.stringify({ code: e.code, where: e.where, msg: e.message })); }"
     ))
@@ -403,6 +403,37 @@ def test_a_target_inside_the_apps_own_frame_is_reachable(app, tmp_path):
     assert any("Inner chart" in " ".join(f["headings"]) for f in summary.get("frames", [])), summary
 
 
+@needs_deps
+@pytest.mark.parametrize("launch, has_frames", [("/app", False), ("/apps/esc", True)])
+def test_a_page_probe_reports_its_frame_count(app, tmp_path, monkeypatch, launch, has_frames):
+    origin, _ = app
+    # The crew query is not part of a loopback page probe.
+    monkeypatch.setattr(sys.modules["server"], "CREW_FRAME", "<!doctype html><h1>Inner chart</h1>")
+    v = _run("probe", tmp_path, origin, launch=launch)
+    assert v["overall"] == "PASS" and v["recorded_view"] == "page", v
+    assert v["frames"] >= 1 if has_frames else v["frames"] == 0, v
+
+
+@needs_deps
+def test_a_no_frame_probe_refuses_a_content_ready_before_recording(app, tmp_path):
+    origin, _ = app
+    probe = _run("probe", tmp_path, origin)
+    assert probe["overall"] == "PASS", probe
+    v = _run("record", tmp_path, origin, ready={"role": "heading", "name": "Demo board", "in": "content"})
+    assert v["overall"] == "FAIL" and v["cause"] == "storyline_refused", v
+    assert "storyline.ready.in" in v["reason"], v
+
+
+@needs_deps
+def test_a_framed_page_probe_still_records_a_content_target(app, tmp_path, monkeypatch):
+    origin, _ = app
+    # The crew query is not part of a loopback page probe.
+    monkeypatch.setattr(sys.modules["server"], "CREW_FRAME", "<!doctype html><h1>Inner chart</h1>")
+    probe = _run("probe", tmp_path, origin, launch="/apps/esc")
+    assert probe["overall"] == "PASS" and probe["frames"] >= 1, probe
+    v = _run("record", tmp_path, origin, [{"hold": {"ms": 300}}], launch="/apps/esc", ready={"text": "Inner chart", "in": "content"})
+    assert v["overall"] == "PASS", v
+
 
 # ---- DES-DEMO-RECORD-001 §13 A1: a normal app records cleanly the first time ---------------------------------
 
@@ -431,6 +462,38 @@ def test_a_crew_app_storyline_targets_only_the_apps_own_frame():
     story["segments"][0]["steps"] = [{"point": {"target": {"text": "outer"}, "label": "l"}}]
     assert _check(story, chapters, content_only=True)["where"] == "storyline.segments[0].steps[0].point.target.in"
     assert _check(story, chapters)["ok"], "a loopback app's page is the app: any target is fine"
+
+
+@needs_node
+@pytest.mark.parametrize("field, where", [
+    ("ready", "storyline.ready.in"),
+    ("target", "storyline.segments[0].steps[0].click.target.in"),
+    ("hide", "storyline.hide[0].in"),
+])
+def test_a_no_frame_storyline_refuses_content_targets(field, where):
+    story, chapters = _story([{"click": {"target": {"button": "x"}}}])
+    story["hide"] = [{"css": "header"}]
+    targets = {"ready": story["ready"], "target": story["segments"][0]["steps"][0]["click"]["target"], "hide": story["hide"][0]}
+    targets[field]["in"] = "content"
+    got = _check(story, chapters, no_frame=True)
+    assert got.get("code") == "storyline_refused" and got["where"] == where, got
+    assert 'drop "in"' in got["msg"], got
+
+
+@needs_node
+def test_a_no_frame_storyline_can_target_the_page_itself():
+    story, chapters = _story([{"click": {"target": {"button": "x"}}}])
+    story["hide"] = [{"css": "header"}]
+    assert _check(story, chapters, no_frame=True)["ok"]
+
+
+@needs_node
+@pytest.mark.parametrize("content_only", [False, True])
+def test_a_frame_storyline_can_target_content(content_only):
+    story, chapters = _story([{"click": {"target": {"button": "x", "in": "content"}}}])
+    story["ready"]["in"] = "content"
+    story["hide"] = [{"css": "header", "in": "content"}]
+    assert _check(story, chapters, content_only=content_only, no_frame=False)["ok"]
 
 
 @needs_node

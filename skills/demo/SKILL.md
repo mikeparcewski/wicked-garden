@@ -145,6 +145,7 @@ Your container cannot reach the app, so steps 5 and the checklist's live items c
 beside `script.md` and `chapters.json`, and reset nothing (the recorder is read-only). The person approves the plan
 at the gate; the engine records it. Format: `refs/storyline-json.md`. For a crew app, the video shows only the
 app's own frame, so every target is `"in": "content"`. Keep other chrome out with `hide`, never with a dismiss click.
+Use `"in": "content"` only when the probe's `result.json` says `"recorded_view": "app_frame"` or `"frames"` above 0.
 
 ### Checklist (acceptance gate)
 
