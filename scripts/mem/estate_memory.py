@@ -393,6 +393,14 @@ def do_propose(args):
     return 0
 
 
+def _is_session_goal_capture(item):
+    """Identify legacy prompt captures without excluding other working memories."""
+    return (isinstance(item, dict)
+            and (item.get("kind") == "working" or item.get("tier") == "working")
+            and isinstance(item.get("content"), str)
+            and item["content"].startswith("Session goal (turn "))
+
+
 def do_recall(args):
     query = (args.get("query") or args.get("_") or "").strip()
     if not query:
@@ -415,7 +423,11 @@ def do_recall(args):
     items = payload.get("items") if isinstance(payload, dict) else None
     if items is None:
         return _fail_open("estate memory.recall failed")
-    _emit({"ok": True, "items": items})
+    items = [item for item in items if not _is_session_goal_capture(item)]
+    out = {"ok": True, "items": items}
+    if not items:
+        out.update(matched=False, note="no stored memory matches")
+    _emit(out)
     return 0
 
 
@@ -577,8 +589,11 @@ def do_sources(args):
         gaps.append("memory recall failed; this answer has no memories")
     # Every item says which side it is from and how old it is (DES-memory-vs-knowledge §4).
     k_items = [dict(i, label=knowledge_label(i)) for i in k_items if isinstance(i, dict)]
-    m_items = [dict(i, label=memory_label(i)) for i in m_items if isinstance(i, dict)]
+    m_items = [dict(i, label=memory_label(i)) for i in m_items
+               if isinstance(i, dict) and not _is_session_goal_capture(i)]
     out = {"ok": True, "query": query, "knowledge": k_items, "memories": m_items}
+    if memory is not None and not m_items:
+        out["note"] = "no stored memory matches"
     if gaps:
         out["gaps"] = gaps
     # A live source's structure rides as DATA (its names are the person's database's own words):
