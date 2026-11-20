@@ -212,7 +212,7 @@ def test_a_take_records_the_floor_files_and_passes(app, tmp_path):
     assert v["overall"] == "PASS", v
     root = tmp_path / "root"
     for f in ("demo-video/demo.mp4", "demo-video/chapters.md", "demo-video/timings.json", "demo-video/segments/01-board/segment.mp4",
-              "review/chapters.png", "review/joins.png", "review/end.png", "review/ffprobe.json"):
+              "review/chapters.png", "review/joins.png", "review/end.png", "review/survey.png", "review/ffprobe.json"):
         assert (root / f).is_file() and (root / f).stat().st_size > 0, f
     assert v["ffprobe"]["codec"] == "h264" and [c["title"] for c in v["ffprobe"]["chapters"]] == ["The board"]
     assert v["blocked"] == [] and v["read_only"] is True

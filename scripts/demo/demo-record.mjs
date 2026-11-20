@@ -201,7 +201,8 @@ function hideInvalidOf(dirs) {
 /** The chapters sheet's moments: per chapter, the app once its card is gone, at `ready`, and after its last action. */
 export function sheetMoments(clock) {
   // Every chapter gets its `ready` moment (the app, proven on screen) and its last action's: at most two
-  // per chapter, so twelve chapters still fit one sheet. The moment is the proving picture itself.
+  // per chapter, so twelve chapters still fit one sheet. The moment is the proving picture itself;
+  // a separate survey sheet covers mid-chapter holds and regular intervals.
   const m = [];
   for (const c of clock) {
     const cps = c.checkpoints.filter((x) => x.kind !== "end");
@@ -386,6 +387,9 @@ export async function runRecord(env = process.env) {
     contactSheet(python, ffmpeg, video, parts.length > 1 ? ["--joins"] : ["--at", "1"], path.join(reviewDir, "joins.png"));
     contactSheet(python, ffmpeg, video, ["--end"], path.join(reviewDir, "end.png"));
     ff = ffprobeJson(ffprobe, video);
+    const totalSeconds = ff.duration;
+    const every = Math.max(5, Math.ceil(totalSeconds / 12));
+    contactSheet(python, ffmpeg, video, ["--holds", "--every", String(every)], path.join(reviewDir, "survey.png"));
     writeJson(path.join(reviewDir, "ffprobe.json"), ff);
   } catch (e) {
     // Every chapter recorded: each still discloses its cuts and skips, on its own take's clock.
