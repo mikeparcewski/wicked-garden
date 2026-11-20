@@ -45,8 +45,10 @@ cases against a hostile bundle belong to studio's CI):
   11 theme         a ``host.theme`` change leaves it alive, with no running animation
   12 hash-pinned   a wrong pinned hash never starts it
   18 shows         it shows the content it is handed: it asks ``artifact.read``, reads within 3 s of the handshake (the
-                   host's clock), a text run of the version it read is in its rendered text or fields, and when
-                   another version lands (``artifact.changed``) it reads again and shows what changed
+                   host's clock), a text run of the version it read is in rendered text or fields in the editor frame
+                   or its visible nested frames (3 deep, 16 frames at most), and when another version lands
+                   (``artifact.changed``) it reads again and shows what changed; a protocol-2 editor is judged on its
+                   full surface (its card when it declares no full)
                    (7 and 18 run for kinds ``page`` and ``deck``, the samples this host has; another kind is reported
                    not checked)
 
@@ -338,9 +340,9 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
 
     shown_kind = sample_kind(editor)
 
-    def url(sha_value: str, grant_list: list[str]) -> str:
+    def url(sha_value: str, grant_list: list[str], **extra) -> str:
         q = {"editor": eid, "version": version, "sha": sha_value, "title": title, "grants": ",".join(grant_list),
-             **({"kind": "deck"} if shown_kind == "deck" else {})}
+             **({"kind": "deck"} if shown_kind == "deck" else {}), **extra}
         return f"{origin}/editors/conformance?{urllib.parse.urlencode(q)}"
 
     # Reduced motion on: the host passes it in host.hello's prefs, and case 11 then requires no animation.
@@ -386,8 +388,16 @@ def run_editor(browser, origin: str, editor: dict, sha: str, report: dict, timeo
         # null = a host before protocol 2 (it has no `negotiated`): case 17 then cannot be shown.
         report["negotiated"] = page.evaluate("() => window.__wickedEditor.host()?.negotiated ?? null")
 
-        # 18: it shows what it is handed, and reads again when another version lands (before case 2's read baseline).
-        cases["18-shows"] = shows_case(page, frame, perms, shown_kind, alive)
+        # 18: protocol 2's pane is options and may show only settings. Judge its artifact on a separate full instance;
+        # cases 1-12 keep this instance, including case 2's read baseline and size order.
+        if report["negotiated"] == 2:
+            # Full is optional (card is not): an editor that declares no full surface is judged on its card.
+            declared = editor.get("surfaces") if isinstance(editor.get("surfaces"), dict) else {}
+            on = "full" if declared.get("full") is not None else "card"
+            cases["18-shows"] = _surface_shows_case(browser, url(sha, grants, surface=on), on, perms, shown_kind, timeout_s)
+            _reads_settle(page)  # this instance's first read lands before case 2 takes its read baseline
+        else:
+            cases["18-shows"] = {**shows_case(page, frame, perms, shown_kind, alive), "surface": "pane"}
 
         reads_before = page.evaluate("() => window.__wickedEditor.adapter.reads")
         for size in ("inline", "full", "pane"):
@@ -929,7 +939,7 @@ def shown_runs(frame_text: str, runs: list) -> list[str]:
 
 
 # What the editor shows: its body's rendered text plus what its text fields hold (an editor may show the artifact in a
-# field). Read in the editor's frame; only strings come back.
+# field). Read in each frame's own document; only strings come back.
 # Open shadow roots count (an editor built from web components renders inside them).
 FRAME_TEXT = ("(b) => { const out = [b.innerText || '']; const walk = (root) => { for (const e of root.querySelectorAll('*')) {"
               " if ((e.tagName === 'INPUT' || e.tagName === 'TEXTAREA') && e.type !== 'hidden' && e.type !== 'password')"
@@ -965,13 +975,81 @@ FIELD_CHANGED = ("e => { const v = String(e.value || ''), add = ' (conformance)'
 SAVE_READY_S = 2.0
 WRITE_QUIET_S = 1.5
 READ_QUIET_S = 2.0
+# Bound each look: three nested levels below the editor's frame, and sixteen entries (every frame looked at, hidden ones
+# included, plus a frame's one "not listed" or "too deep" note), so a pack with many frames costs at most 16 lookups.
+SHOWN_FRAME_DEPTH = 3
+SHOWN_FRAMES_MAX = 16
+SHOWN_BOUND_WHY = f"more than {SHOWN_FRAMES_MAX} frames: the rest not read"
+SHOWN_HIDDEN_WHY = "hidden or gone: a person does not see it"
 
 
-def _frame_text(frame) -> str:
+def _unread_type(exc: Exception) -> str:
+    """The type of the failure that kept a frame from being read (never its text: the editor controls it). The browser
+    going away is the harness's failure, never the frame's: it propagates."""
+    if type(exc).__name__ == "TargetClosedError":
+        raise exc
+    return type(exc).__name__
+
+
+def _shown_text(frame, frames: list, path: str = "editor", depth: int = 0) -> str:
+    """Case 18's text in the editor and its visible nested frames. Each frame looked at adds one entry to ``frames``
+    (``read``, and ``why`` when it was not read); a frame that is not read contributes no text."""
+    entry: dict = {"frame": path, "read": False}
+    frames.append(entry)
     try:
-        return frame.locator("body").evaluate(FRAME_TEXT, timeout=1000) or ""
-    except Exception:  # noqa: BLE001 — a frame that cannot be read shows nothing
+        text = frame.locator("body").evaluate(FRAME_TEXT, timeout=1000) or ""
+    except Exception as exc:  # noqa: BLE001 — recorded by type below; the browser going away propagates
+        entry["why"] = f"could not be read ({_unread_type(exc)})"
         return ""
+    entry["read"] = True
+    try:
+        nested = frame.locator("iframe")
+        count = nested.count()
+    except Exception as exc:  # noqa: BLE001 — listing children does not invalidate the frame's own text
+        frames.append({"frame": f"{path}>*", "read": False,
+                       "why": f"its nested frames could not be listed ({_unread_type(exc)})"})
+        return text
+    if count and depth >= SHOWN_FRAME_DEPTH:
+        frames.append({"frame": f"{path}>*", "read": False, "why": f"deeper than {SHOWN_FRAME_DEPTH} nested frames: not read"})
+        return text
+    out = [text]
+    for i in range(count):
+        child_path = f"{path}>{i + 1}"
+        if len(frames) >= SHOWN_FRAMES_MAX:
+            if not any(f.get("why") == SHOWN_BOUND_WHY for f in frames):
+                frames.append({"frame": child_path, "read": False, "why": SHOWN_BOUND_WHY})
+            break
+        try:
+            visible = nested.nth(i).is_visible()  # False too when the frame went away since the count
+        except Exception as exc:  # noqa: BLE001 — recorded by type; the browser going away propagates
+            frames.append({"frame": child_path, "read": False, "why": f"could not be read ({_unread_type(exc)})"})
+            continue
+        if not visible:
+            frames.append({"frame": child_path, "read": False, "why": SHOWN_HIDDEN_WHY})
+            continue
+        out.append(_shown_text(frame.frame_locator("iframe").nth(i), frames, child_path, depth + 1))
+    return "\n".join(t for t in out if t)
+
+
+def _unread_note(frames: list) -> str:
+    """The error's note on what a look did not read: the first frame not read and why, and how many more notes."""
+    unread = [f for f in frames if not f["read"]]
+    if not unread:
+        return ""
+    more = f"; {len(unread) - 1} more" if len(unread) > 1 else ""
+    return f" ({unread[0]['frame']} not read: {unread[0]['why']}{more})"
+
+
+def _reads_settle(page) -> bool:
+    """The editor's reads settle: no new ``artifact.read`` for a quiet READ_QUIET_S, at most 6 s."""
+    last = {"n": len(page.evaluate(READS)["at"]), "t": time.monotonic()}
+
+    def quiet() -> bool:
+        n = len(page.evaluate(READS)["at"])
+        if n != last["n"]:
+            last.update(n=n, t=time.monotonic())
+        return time.monotonic() - last["t"] >= READ_QUIET_S
+    return _poll(page, quiet, 6.0)
 
 
 def _poll(page, done, wait_s: float) -> bool:
@@ -1011,11 +1089,19 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
         reads = lambda: page.evaluate(READS)  # noqa: E731
         runs = page.evaluate(CONTENT_RUNS)
         got: dict = {"seen": []}
+        # What each look did not read, kept per look: the first look's for "none of the handed content", the new
+        # version's for "it does not show what the new version changed".
+        first_frames: list = []
+        after_frames: list = []
+
+        def look(want: list, frames: list) -> list[str]:
+            frames.clear()
+            return shown_runs(_shown_text(frame, frames), want)
 
         def first() -> bool:
             r = reads()
             got["r"] = r
-            got["seen"] = shown_runs(_frame_text(frame), runs)
+            got["seen"] = look(runs, first_frames)
             return len(r["at"]) > len(r["refused"]) and bool(got["seen"])
         _poll(page, first, SHOW_WAIT_S)
         r = got["r"]
@@ -1033,33 +1119,67 @@ def shows_case(page, frame, perms: list, kind: str | None, alive) -> dict:
 
         def follows() -> bool:
             nonlocal seen_after
-            seen_after = shown_runs(_frame_text(frame), new_runs)
+            seen_after = look(new_runs, after_frames)
             return bool(seen_after)
         # What the new version changed must show. The deck sample's agent version changes no text: there only the
         # re-read is judged, and the report says so.
         shows_new = reread and (not new_runs or _poll(page, follows, SHOW_WAIT_S))
         # Its change handling settles (no read for a quiet second, at most 4 s) before case 2 takes its read baseline.
-        last = {"n": len(reads()["at"]), "t": time.monotonic()}
-
-        def quiet() -> bool:
-            n = len(reads()["at"])
-            if n != last["n"]:
-                last.update(n=n, t=time.monotonic())
-            return time.monotonic() - last["t"] >= READ_QUIET_S
-        settled = _poll(page, quiet, 6.0)
+        settled = _reads_settle(page)
         ok = read_ok and bool(got["seen"]) and reread and shows_new and alive()
         detail: dict = {"ok": ok, "first_read_ms": None if first_ms is None else round(first_ms), "shown": got["seen"][:3],
-                        "reread": reread, "shown_after": seen_after[:3],
+                        "reread": reread, "shown_after": seen_after[:3], "frames": first_frames[:20],
+                        **({"frames_after": after_frames[:20]} if after_frames else {}),
                         **({} if new_runs else {"note": "the sample's new version changes no text: only the re-read is checked"}),
                         **({} if settled else {"reads_unsettled": True})}
         if not ok:
             detail["error"] = ("it did not read the artifact within 3 s of the handshake" if not read_ok
-                               else "none of the handed content is visible in it" if not got["seen"]
+                               else "none of the handed content is visible in it" + _unread_note(first_frames)
+                               if not got["seen"]
                                else "it did not read again when another version landed (artifact.changed)" if not reread
-                               else "it does not show what the new version changed" if not shows_new
+                               else "it does not show what the new version changed" + _unread_note(after_frames)
+                               if not shows_new
                                else "it stopped answering")
         return detail
     return _editor_wait("18-shows", run)
+
+
+def _surface_shows_case(browser, url: str, surface: str, perms: list, kind: str | None, timeout_s: float) -> dict:
+    """Case 18 on a protocol-2 editor's full (else card) surface, with its own handshake, reads and lifetime. An
+    editor case 18 does not check here (no artifact.read, or no sample of its kind) opens no instance."""
+    if "artifact.read" not in perms or kind is None:
+        return {**shows_case(None, None, perms, kind, None), "surface": surface}
+    page = None
+    try:
+        try:
+            page = browser.new_page(viewport={"width": W, "height": H}, reduced_motion="reduce")
+            deadline = time.monotonic() + timeout_s
+            page.goto(url, wait_until="domcontentloaded", timeout=int(timeout_s * 1000))
+            page.get_by_test_id("editor-host-page").wait_for(state="visible", timeout=_remaining_ms(deadline))
+        except Exception as exc:  # noqa: BLE001 — this instance belongs to case 18; a lost browser stays the harness's
+            if type(exc).__name__ == "TargetClosedError":
+                raise
+            raise PageFailed(f"case 18 {surface} surface: the conformance host page did not render within {timeout_s:g} s "
+                             f"(--timeout / ${TIMEOUT_ENV}): {type(exc).__name__}") from exc
+        try:
+            page.wait_for_function("() => (window.__wickedEditor?.log ?? []).some(e => e.kind === 'handshake')", timeout=6000)
+        except Exception as exc:  # noqa: BLE001
+            if type(exc).__name__ == "TargetClosedError":
+                raise
+            raise PageFailed(f"case 18 {surface} surface: no plugin.ready the host accepted within its 3 s") from exc
+        frame = page.frame_locator('[data-testid="editor-frame"]')
+
+        def alive() -> bool:
+            return (page.evaluate("() => window.__wickedEditor?.host()?.alive === true")
+                    and not any(e["kind"] == "teardown" for e in page.evaluate(LOG)))
+
+        return {**shows_case(page, frame, perms, kind, alive), "surface": surface}
+    except PageFailed as exc:
+        return {"ok": False, "surface": surface, "error": str(exc)}
+    finally:
+        if page is not None:
+            with contextlib.suppress(Exception):  # closing a page the browser already lost must not mask why
+                page.close()
 
 
 # A marked element the case types into (rather than clicks): an input or textarea that accepts text, or contenteditable.
@@ -1811,9 +1931,10 @@ def main(argv: list[str] | None = None) -> int:
                           f"case 7 fills the empty text fields (or changes the first one) and presses the first "
                           f"visible control marked {SAVE_MARK}: the editor's other edits are its own tests'",
                           "cases 7 and 18 run on the page and deck samples only (another kind is not checked here); "
-                          "case 18 reads rendered text, field values and open shadow roots, not pixels (an editor could "
-                          "hide the text); on the deck sample it checks the re-read only (the agent version changes no "
-                          "deck text)",
+                          "case 18 reads rendered text, field values and open shadow roots in the editor frame and its "
+                          "visible nested frames (3 deep, 16 frames at most), on the full surface (else the card) for "
+                          "protocol 2, not pixels (an editor could hide the text); on the deck sample it checks the "
+                          "re-read only (the agent version changes no deck text)",
                           "case 7 fills empty fields with values valid for their type, step and length, or changes the "
                           "first text field; an editor whose save needs another edit (a select, a number-only form) is "
                           "its own tests'",

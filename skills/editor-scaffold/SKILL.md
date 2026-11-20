@@ -84,7 +84,8 @@ The template's plumbing is what the conformance run checks; keep it and put your
   empty text fields with valid values, presses the first visible marked control and expects exactly one version).
   Mark toggles that open folded fields with `data-wicked-reveal`: case 7 first clicks each visible one once.
 - **Show what you open**: an editor opens an artifact to show it. Ask `artifact.read`, read on the handshake and
-  render it (case 18 looks for its text in your frame), and read again on `artifact.changed`.
+  render it (case 18 reads your frame and its visible nested frames, 3 deep and 16 frames at most; a protocol-2
+  editor is judged on its full surface, else its card), and read again on `artifact.changed`.
 - **Events you answer**: `host.ping` within 2 s; `host.size` (inline / pane / full — the same
   frame, never a reload or a re-read); `host.theme`; `artifact.changed` (re-read unless `by` is
   `this-editor`). Ignore any unknown `type`; a malformed message is dropped, never a crash.

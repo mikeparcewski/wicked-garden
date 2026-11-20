@@ -892,6 +892,198 @@ def test_shown_runs_matches_the_handed_text_whatever_the_whitespace():
     assert mod.shown_runs("", runs) == [] and mod.shown_runs("One fixed fee", [None, "", "One fixed fee"]) == ["One fixed fee"]
 
 
+class _ShownFrame:
+    """The FrameLocator calls used by case 18, without a browser."""
+
+    def __init__(self, text="", children=(), *, visible=True, error=None, count_error=None):
+        self.text, self.children, self.visible, self.error = text, list(children), visible, error
+        self.count_error = count_error
+        self.evaluations = self.visibility_checks = 0
+
+    def locator(self, selector):
+        assert selector in ("body", "iframe")
+        return self if selector == "body" else _ShownFrames(self.children, self.count_error)
+
+    def frame_locator(self, selector):
+        assert selector == "iframe"
+        return _ShownFrames(self.children)
+
+    def evaluate(self, js, *, timeout):
+        assert timeout == 1000
+        self.evaluations += 1
+        if self.error:
+            raise self.error
+        return self.text
+
+    def is_visible(self):
+        self.visibility_checks += 1
+        return self.visible
+
+
+class _ShownFrames:
+    def __init__(self, children, error=None):
+        self.children = children
+        self.error = error
+
+    def count(self):
+        if self.error:
+            raise self.error
+        return len(self.children)
+
+    def nth(self, i):
+        return self.children[i]
+
+
+def _shown_timeout():
+    error = type("TimeoutError", (Exception,), {"__module__": "playwright._impl._errors"})
+    return error("editor-controlled secret: never copy this message")
+
+
+def test_shown_text_reads_visible_nested_content():
+    mod = _conformance_module()
+    frames = []
+    text = mod._shown_text(_ShownFrame(children=[_ShownFrame("Handed content")]), frames)
+    assert mod.shown_runs(text, ["Handed content"]) == ["Handed content"]
+    assert frames == [{"frame": "editor", "read": True}, {"frame": "editor>1", "read": True}]
+
+
+def test_shown_text_skips_a_hidden_nested_frame():
+    mod = _conformance_module()
+    hidden = _ShownFrame("Handed content", visible=False)
+    frames = []
+    assert mod._shown_text(_ShownFrame(children=[hidden]), frames) == ""
+    assert hidden.evaluations == 0
+    assert frames == [{"frame": "editor", "read": True},
+                      {"frame": "editor>1", "read": False, "why": "hidden or gone: a person does not see it"}]
+
+
+def test_shown_text_reports_an_unreadable_frame_without_its_message():
+    mod = _conformance_module()
+    frames = []
+    text = mod._shown_text(_ShownFrame(children=[_ShownFrame(error=_shown_timeout())]), frames)
+    assert text == ""
+    assert frames == [{"frame": "editor", "read": True},
+                      {"frame": "editor>1", "read": False, "why": "could not be read (TimeoutError)"}]
+    assert "editor-controlled secret" not in json.dumps({"text": text, "frames": frames})
+
+
+def test_shown_text_keeps_parent_text_when_nested_frames_cannot_be_listed():
+    mod = _conformance_module()
+    frames = []
+    text = mod._shown_text(_ShownFrame("Handed content", count_error=_shown_timeout()), frames)
+    assert text == "Handed content"
+    assert frames == [{"frame": "editor", "read": True},
+                      {"frame": "editor>*", "read": False,
+                       "why": "its nested frames could not be listed (TimeoutError)"}]
+    assert "editor-controlled secret" not in json.dumps({"text": text, "frames": frames})
+
+
+def test_shown_text_stops_after_three_nested_frames():
+    mod = _conformance_module()
+    # Depth 4: many frames, none looked at (no visibility check, no read) and one note, so they never use up the bound.
+    too_deep = [_ShownFrame("depth 4") for _ in range(20)]
+    chain = _ShownFrame("depth 3", too_deep)
+    for depth in (2, 1, 0):
+        chain = _ShownFrame(f"depth {depth}" if depth else "", [chain])
+    frames = []
+    text = mod._shown_text(chain, frames)
+    assert mod.SHOWN_FRAME_DEPTH == 3
+    assert mod.shown_runs(text, [f"depth {i}" for i in range(1, 5)]) == ["depth 1", "depth 2", "depth 3"]
+    assert frames == [{"frame": "editor" + ">1" * i, "read": True} for i in range(4)] + [
+        {"frame": "editor>1>1>1>*", "read": False, "why": "deeper than 3 nested frames: not read"}]
+    assert sum(c.visibility_checks + c.evaluations for c in too_deep) == 0
+
+
+@pytest.mark.parametrize("visible", [False, True], ids=["hidden", "visible"])
+def test_shown_text_reads_at_most_sixteen_frames_per_look(visible):
+    mod = _conformance_module()
+    children = [_ShownFrame(f"content {i}.", visible=visible) for i in range(1, 21)]
+    root, frames = _ShownFrame(children=children), []
+    text = mod._shown_text(root, frames)
+    assert mod.SHOWN_FRAMES_MAX == 16
+    assert root.evaluations + sum(c.evaluations for c in children) == (16 if visible else 1)
+    assert len(frames[:16]) == 16
+    assert [f["frame"] for f in frames[:16]] == ["editor"] + [f"editor>{i}" for i in range(1, 16)]
+    assert frames[16:] == [{"frame": "editor>16", "read": False,
+                           "why": "more than 16 frames: the rest not read"}]
+    assert sum(c.visibility_checks for c in children) == 15
+    assert ("content 15." in text) is visible and all(f"content {i}." not in text for i in range(16, 21))
+
+
+def test_shown_text_stops_the_whole_walk_after_a_nested_branch_hits_the_bound():
+    mod = _conformance_module()
+    nested = [_ShownFrame(visible=False) for _ in range(20)]
+    sibling = _ShownFrame("Not looked at")
+    frames = []
+    assert mod._shown_text(_ShownFrame(children=[_ShownFrame(children=nested), sibling]), frames) == ""
+    assert len(frames) == 17
+    assert frames[-1] == {"frame": "editor>1>15", "read": False,
+                          "why": "more than 16 frames: the rest not read"}
+    assert sibling.visibility_checks == 0 and sibling.evaluations == 0
+    assert sum(c.visibility_checks for c in nested) == 14
+
+
+def test_shown_text_limit_reasons_follow_the_constants(monkeypatch):
+    mod = _conformance_module()
+    monkeypatch.setattr(mod, "SHOWN_FRAME_DEPTH", 0)
+    frames = []
+    mod._shown_text(_ShownFrame(children=[_ShownFrame()]), frames)
+    assert frames == [{"frame": "editor", "read": True},
+                      {"frame": "editor>*", "read": False, "why": "deeper than 0 nested frames: not read"}]
+    monkeypatch.setattr(mod, "SHOWN_FRAME_DEPTH", 3)
+    monkeypatch.setattr(mod, "SHOWN_FRAMES_MAX", 3)
+    monkeypatch.setattr(mod, "SHOWN_BOUND_WHY", "the bound's own words")
+    frames = []
+    mod._shown_text(_ShownFrame(children=[_ShownFrame() for _ in range(4)]), frames)
+    assert frames == [{"frame": "editor", "read": True}, {"frame": "editor>1", "read": True},
+                      {"frame": "editor>2", "read": True},
+                      {"frame": "editor>3", "read": False, "why": "the bound's own words"}]
+    # The module's own words are built from the constants.
+    fresh = _conformance_module()
+    assert fresh.SHOWN_BOUND_WHY == f"more than {fresh.SHOWN_FRAMES_MAX} frames: the rest not read"
+
+
+@pytest.mark.parametrize("first_visible", [False, True], ids=["first-look", "new-version"])
+@pytest.mark.parametrize("hidden_count", [0, 20], ids=["one-unread", "capped-report"])
+def test_case_18_error_notes_what_the_failing_look_did_not_read(monkeypatch, first_visible, hidden_count):
+    mod = _conformance_module()
+    child = _ShownFrame("Handed content" if first_visible else "", error=None if first_visible else _shown_timeout())
+
+    class Page:
+        changed = False
+
+        def evaluate(self, js):
+            if js == mod.READS:
+                return {"hs": 0, "at": [1, 2] if self.changed else [1], "refused": []}
+            if js == mod.CONTENT_RUNS:
+                return ["Changed content"] if self.changed else ["Handed content"]
+            assert "agentVersion()" in js
+            self.changed = True
+            # The other look reads the frame: the note must come from the look that failed, not the last one.
+            if first_visible:
+                child.error = _shown_timeout()
+            else:
+                child.error, child.text = None, "Changed content"
+
+    monkeypatch.setattr(mod, "_poll", lambda page, done, wait_s: done())
+    children = [child] + [_ShownFrame("Hidden content", visible=False) for _ in range(hidden_count)]
+    detail = mod.shows_case(Page(), _ShownFrame(children=children), ["artifact.read"], "page", lambda: True)
+    error = "it does not show what the new version changed" if first_visible else "none of the handed content is visible in it"
+    more = f"; {min(hidden_count, 14) + (hidden_count > 14)} more" if hidden_count else ""
+    assert detail["ok"] is False
+    assert detail["error"] == error + f" (editor>1 not read: could not be read (TimeoutError){more})", detail["error"]
+    failed = [{"frame": "editor", "read": True},
+              {"frame": "editor>1", "read": False, "why": "could not be read (TimeoutError)"}]
+    rest = [{"frame": f"editor>{i + 2}", "read": False, "why": "hidden or gone: a person does not see it"}
+            for i in range(min(hidden_count, 14))]
+    if hidden_count > 14:
+        rest.append({"frame": "editor>16", "read": False, "why": "more than 16 frames: the rest not read"})
+    readable = [{"frame": "editor", "read": True}, {"frame": "editor>1", "read": True}]
+    assert detail["frames_after" if first_visible else "frames"] == failed + rest
+    assert detail["frames" if first_visible else "frames_after"] == readable + rest
+    assert "editor-controlled secret" not in json.dumps(detail)
+
+
 def test_a_refused_read_never_counts_toward_the_first_read_deadline():
     mod = _conformance_module()
     # Handshake at 0: a read refused at once (1 ms), then the real read at 3.1 s: nothing answered within 3 s.
@@ -931,9 +1123,175 @@ def _edit_entry(pack: Path, *, mark: bool = True, reread: bool = True, button: b
     assert run("pin.py", str(pack)).returncode == 0
 
 
+@pytest.mark.parametrize("negotiated, surfaces, on", [(2, {"card": {}, "full": {}}, "full"), (2, {"card": {}}, "card"),
+                                                     (2, None, "card"), (1, {"full": {}}, "pane"), (None, None, "pane")])
+def test_case_18_uses_a_separate_surface_instance_only_when_two_was_negotiated(monkeypatch, negotiated, surfaces, on):
+    mod = _conformance_module()
+    judged = []
+
+    class Page:
+        def on(self, *args):
+            pass
+
+        def goto(self, *args, **kwargs):
+            pass
+
+        def get_by_test_id(self, *args):
+            return self
+
+        def frame_locator(self, selector):
+            assert selector == '[data-testid="editor-frame"]'
+            return self
+
+        def locator(self, *args):
+            return self
+
+        def wait_for(self, **kwargs):
+            pass
+
+        def wait_for_function(self, *args, **kwargs):
+            pass
+
+        def wait_for_timeout(self, *args):
+            pass
+
+        def evaluate(self, js):
+            if js == mod.LOG:
+                return [{"kind": "handshake", "type": "plugin.ready"}]
+            if "negotiated" in js:
+                return negotiated
+            if js == mod.READS:  # the reads settling on this instance before case 2's baseline
+                if "settle" not in judged:
+                    judged.append("settle")
+                return {"hs": 0, "at": [1], "refused": []}
+            assert js == "() => window.__wickedEditor.adapter.reads"
+            # Stop after case 18: case 2 must still take its baseline on this original page.
+            raise mod.CaseFailed("baseline reached")
+
+        def close(self):
+            pass
+
+    page = Page()
+
+    class Browser:
+        def new_page(self, **kwargs):
+            return page
+
+    def shown(p, *args):
+        assert p is page
+        judged.append("pane")
+        return {"ok": True}
+
+    def other(browser, url, surface, *args):
+        assert f"surface={surface}" in url and "kind=deck" in url
+        judged.append(surface)
+        return {"ok": True, "surface": surface}
+
+    monkeypatch.setattr(mod, "shows_case", shown)
+    monkeypatch.setattr(mod, "_surface_shows_case", other)
+    monkeypatch.setattr(mod, "_poll", lambda page, done, wait_s: done())
+    report = {"cases": {}}
+    editor = {"id": "viewer", "version": "1", "kinds": ["deck"], **({"surfaces": surfaces} if surfaces is not None else {})}
+    mod.run_editor(Browser(), "http://localhost", editor, "sha", report)
+    assert judged == ([on, "settle"] if negotiated == 2 else [on])
+    assert report["cases"]["18-shows"] == {"ok": True, "surface": on}
+
+
+@pytest.mark.parametrize("stage", ["load", "host", "handshake", "browser", "ready", "torn-down"])
+def test_case_18_full_surface_load_failures_and_cleanup(monkeypatch, stage):
+    mod = _conformance_module()
+    timeout = type("TimeoutError", (Exception,), {"__module__": "playwright._impl._errors"})
+    closed = type("TargetClosedError", (Exception,), {"__module__": "playwright._impl._errors"})
+
+    class Page:
+        closed = False
+
+        def goto(self, url, **kwargs):
+            assert "surface=full" in url
+            assert kwargs["wait_until"] == "domcontentloaded"
+            if stage in ("load", "browser"):
+                raise closed("browser closed") if stage == "browser" else timeout("load timed out")
+
+        def get_by_test_id(self, testid):
+            assert testid == "editor-host-page"
+            return self
+
+        def wait_for(self, **kwargs):
+            if stage == "host":
+                raise timeout("host not visible")
+
+        def wait_for_function(self, js, **kwargs):
+            assert "handshake" in js
+            if stage == "handshake":
+                raise timeout("no accepted handshake")
+
+        def frame_locator(self, selector):
+            assert selector == '[data-testid="editor-frame"]'
+            return "the editor frame"
+
+        def evaluate(self, js):
+            if js == mod.LOG:
+                return [{"kind": "teardown"}] if stage == "torn-down" else [{"kind": "handshake"}]
+            assert "alive" in js
+            return True
+
+        def close(self):
+            self.closed = True
+            raise closed("already gone")  # closing a lost page never masks the case's result
+
+    page = Page()
+
+    class Browser:
+        def new_page(self, **kwargs):
+            return page
+
+    def judged(p, frame, perms, kind, alive):
+        assert stage in ("ready", "torn-down"), "a failed full instance cannot be judged"
+        assert p is page and frame == "the editor frame" and kind == "page"
+        return {"ok": alive()}
+
+    monkeypatch.setattr(mod, "shows_case", judged)
+    url = "http://localhost/editors/conformance?surface=full"
+    if stage == "browser":
+        with pytest.raises(closed):
+            mod._surface_shows_case(Browser(), url, "full", ["artifact.read"], "page", 5)
+    elif stage in ("ready", "torn-down"):
+        case = mod._surface_shows_case(Browser(), url, "full", ["artifact.read"], "page", 5)
+        assert case == {"ok": stage == "ready", "surface": "full"}, case
+    else:
+        case = mod._surface_shows_case(Browser(), url, "full", ["artifact.read"], "page", 5)
+        assert case["ok"] is False and case["surface"] == "full", case
+        assert "full surface" in case["error"], case
+        assert ("plugin.ready" if stage == "handshake" else "did not render") in case["error"], case
+    assert page.closed is True
+
+
+@pytest.mark.parametrize("perms, kind", [([], "page"), (["artifact.read"], None)], ids=["no-read", "no-sample"])
+def test_case_18_opens_no_surface_instance_when_it_does_not_check_the_editor(perms, kind):
+    mod = _conformance_module()
+
+    class Browser:
+        def new_page(self, **kwargs):
+            pytest.fail("case 18 does not check this editor: no instance is opened")
+
+    case = mod._surface_shows_case(Browser(), "http://localhost/editors/conformance?surface=full", "full", perms, kind, 5)
+    assert case["surface"] == "full" and case == {**mod.shows_case(None, None, perms, kind, None), "surface": "full"}
+
+
+def test_shown_text_lets_the_browser_going_away_propagate():
+    mod = _conformance_module()
+    closed = type("TargetClosedError", (Exception,), {"__module__": "playwright._impl._errors"})
+    for root in (_ShownFrame(error=closed("gone")), _ShownFrame(count_error=closed("gone")),
+                 _ShownFrame(children=[_ShownFrame(error=closed("gone"))])):
+        with pytest.raises(closed):
+            mod._shown_text(root, [])
+
+
 def _cases(pack: Path) -> dict:
     done = run("conformance.py", "--pack", str(pack), "--studio-dist", os.environ["WICKED_STUDIO_DIST"])
-    return json.loads(done.stdout)["editors"][0]["cases"]
+    report = json.loads(done.stdout)
+    assert report.get("editors"), done.stdout + done.stderr
+    return report["editors"][0]["cases"]
 
 
 @pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
@@ -964,6 +1322,78 @@ def test_case_18_an_editor_must_read_show_and_follow_what_it_is_handed(tmp_path)
     assert run("pin.py", str(deck)).returncode == 0
     cases = _cases(deck)
     assert cases["18-shows"]["ok"] is False and cases["18-shows"]["reread"] is False, cases["18-shows"]
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+def test_case_18_judges_protocol_two_content_on_its_full_surface(tmp_path):
+    pack = tmp_path / "surface-viewer"
+    assert scaffold(pack).returncode == 0
+    entry = pack / FIXTURE_ENTRY
+    text = entry.read_text()
+    # A settings-only options instance is valid: its artifact lives on card/full.
+    text = text.replace('<div id="view"', '<p id="settings" hidden>Viewer settings</p><div id="view"', 1)
+    before = "    document.body.dataset.surface = s;"
+    assert before in text
+    text = text.replace(before, before + """
+    document.getElementById('view').style.display = s === 'options' ? 'none' : '';
+    document.getElementById('settings').hidden = s !== 'options';""", 1)
+    entry.write_text(text)
+    assert run("pin.py", str(pack)).returncode == 0
+    cases = _cases(pack)
+    case = cases["18-shows"]
+    assert case["ok"] is True and case["reread"] is True, case
+    assert case["surface"] == "full", case
+    assert cases["2-sizes"]["ok"] is True, cases["2-sizes"]
+
+
+@pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
+@pytest.mark.parametrize("depth, other, hidden, expected", [(1, False, False, True), (2, False, False, True),
+                                                          (1, True, False, False), (1, False, True, False)],
+                         ids=["depth-1", "depth-2", "other-text", "hidden"])
+def test_case_18_reads_visible_nested_sandboxed_frames(tmp_path, depth, other, hidden, expected):
+    pack = tmp_path / "nested"
+    assert scaffold(pack).returncode == 0
+    entry = pack / FIXTURE_ENTRY
+    # Reuse the outer frame on artifact.changed. The editor's own document retains none of the handed text.
+    wrapper = """
+  let nestedView;
+  const renderInEditor = render;
+  render = (content) => {
+    renderInEditor(content);
+    const view = document.getElementById('view');
+    const escaped = document.createElement('div');
+    escaped.textContent = OTHER ? 'Nothing here yet' : view.textContent;
+    view.textContent = '';
+    parts = [];
+    let html = '<!doctype html><body>' + escaped.innerHTML;
+    for (let level = 1; level < DEPTH; level++) {
+      const inner = document.createElement('iframe');
+      inner.setAttribute('sandbox', 'allow-scripts');
+      inner.srcdoc = html;
+      html = '<!doctype html><body>' + inner.outerHTML;
+    }
+    if (!nestedView) {
+      nestedView = document.createElement('iframe');
+      nestedView.setAttribute('sandbox', 'allow-scripts');
+      if (HIDDEN) nestedView.style.display = 'none';
+      document.body.appendChild(nestedView);
+    }
+    nestedView.srcdoc = html;
+    reportHeight();
+  };
+
+  async function load() {""".replace("OTHER", json.dumps(other)).replace("DEPTH", str(depth)).replace("HIDDEN", json.dumps(hidden))
+    text = entry.read_text()
+    assert "\n  async function load() {" in text
+    entry.write_text(text.replace("\n  async function load() {", wrapper, 1))
+    assert run("pin.py", str(pack)).returncode == 0
+    case = _cases(pack)["18-shows"]
+    assert case["ok"] is expected, case
+    assert case["reread"] is True, case
+    if not expected:
+        assert "none of the handed content" in case["error"], case
+    if hidden:
+        assert case["frames"][1] == {"frame": "editor>1", "read": False, "why": "hidden or gone: a person does not see it"}
 
 
 @pytest.mark.skipif(not _browser_ready(), reason="needs playwright + chromium and WICKED_STUDIO_DIST (a studio dist)")
