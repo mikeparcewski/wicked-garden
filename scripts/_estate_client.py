@@ -473,7 +473,7 @@ def parse_cli_flags(argv: list) -> list:
 # Transport seam — spawn-per-call today; swappable for a broker later
 # ─────────────────────────────────────────────────────────────────────────────
 
-_last_failure: Optional[dict] = None
+_failure_state = threading.local()
 
 
 class EstateUnavailable(Exception):
@@ -481,15 +481,27 @@ class EstateUnavailable(Exception):
 
 
 def last_failure() -> Optional[dict]:
-    """Failure from the latest RPC, or None for a completed answer."""
-    return _last_failure
+    """Failure from this thread's latest RPC, or None for a completed answer."""
+    return getattr(_failure_state, "value", None)
+
+
+def _set_failure(value: Optional[dict]) -> None:
+    _failure_state.value = value
+
+
+def _get_broker_refusal() -> Optional[str]:
+    """The broker's last reason for not answering in this thread, if any."""
+    return getattr(_failure_state, "broker_refusal", None)
+
+
+def _set_broker_refusal(value: Optional[str]) -> None:
+    _failure_state.broker_refusal = value
 
 
 def _unavailable(stderr: str = "") -> None:
-    global _last_failure
     detail = next((line.strip()[:300] for line in reversed(stderr.splitlines()) if line.strip()),
                   "no handshake (binary missing, timed out, or exited)")
-    _last_failure = {"kind": "unavailable", "reason": f"estate did not start: {detail}"}
+    _set_failure({"kind": "unavailable", "reason": f"estate did not start: {detail}"})
 
 
 def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
@@ -519,7 +531,8 @@ def _dispatch(requests: list, *, db: Optional[str], timeout: float) -> dict:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            encoding="utf-8",
+            errors="replace",
         )
     except (OSError, ValueError):
         _unavailable()
@@ -900,11 +913,6 @@ _maybe_install_broker()
 # Broker relay transport (wicked-core#1018) — same contract as `_dispatch`
 # ─────────────────────────────────────────────────────────────────────────────
 
-#: The last reason the broker gave for not answering (a refusal, an unreachable broker), so
-#: the CLI can say WHY a relayed call came back empty instead of a bare empty result.
-_last_broker_refusal: Optional[str] = None
-
-
 def _broker_post(url: str, body: dict, timeout: float) -> "tuple[Optional[int], Optional[dict], Optional[str]]":
     """POST JSON to the broker: ``(status, body, None)``, or ``(None, None, why)`` unreachable."""
     req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST",
@@ -940,16 +948,15 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
       ``ok`` answer hands back the envelope crew relayed; a JSON-RPC error estate raised
       (``result.rpcError``) becomes the same ``error`` a local server would send, code kept
       (``-32602`` = fix the arguments). Any refusal becomes an ``error`` with code None
-      and its reason and remedy, also kept in `_last_broker_refusal`.
+      and its reason and remedy, also kept per thread by `_set_broker_refusal`.
 
     ``db`` is ignored: crew picks the store (the run's own). Fail-open: an unreachable
     broker leaves the ids out, as a dead local server does.
     """
-    global _last_broker_refusal
-    _last_broker_refusal = None
+    _set_broker_refusal(None)
     channel = broker_channel()
     if channel is None:
-        _last_broker_refusal = (
+        _set_broker_refusal(
             f"no broker channel ({CREW_URL_ENV} + {MCP_TOKEN_ENV}): in a governed unit only crew answers "
             f"{RULES_TOOL} (the rules in force for this run), never the local store")
         return {}
@@ -961,7 +968,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
         # token and spends no call budget. A dead broker or a revoked token answers nothing.
         status, body, why = _broker_post(f"{url}/api/v1/mcp/tools", {"token": token}, max(timeout, 5.0))
         if status != 200 or body is None:
-            _last_broker_refusal = why or str((body or {}).get("error") or f"the broker answered {status}")
+            _set_broker_refusal(why or str((body or {}).get("error") or f"the broker answered {status}"))
             return {}
         for req in requests:
             rid = req.get("id")
@@ -983,7 +990,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
             {"token": token, "subject": BROKER_SUBJECT_PREFIX + tool, "args": params.get("arguments") or {}},
             max(timeout, BROKER_MIN_TIMEOUT_S))
         if status is None or body is None:
-            _last_broker_refusal = why
+            _set_broker_refusal(why)
             continue
         reached = True
         result = body.get("result")
@@ -999,7 +1006,7 @@ def _broker_dispatch(requests: list, *, db: Optional[str], timeout: float) -> di
         reason = body.get("reason") or body.get("error") or "refused"
         remedy = body.get("remedy")
         message = f"broker {outcome}: {reason}" + (f" ({remedy})" if remedy else "")
-        _last_broker_refusal = message
+        _set_broker_refusal(message)
         responses[rid] = {"jsonrpc": "2.0", "id": rid, "error": {"code": None, "message": message}}
     if reached:
         for req in requests:
@@ -1045,12 +1052,11 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
       3. <method>                  (id=2)  ← the response we return
     Returns the id=2 response dict, or None if the call did not round-trip.
     """
-    global _last_failure
-    _last_failure = None
+    _set_failure(None)
     tool = params.get("name") if method == "tools/call" else None
     refusal = graph_refusal(tool) if isinstance(tool, str) else None
     if refusal:
-        _last_failure = {"kind": "refused", "reason": refusal}
+        _set_failure({"kind": "refused", "reason": refusal})
         return None
     requests = [
         _initialize_request(),
@@ -1058,17 +1064,25 @@ def _rpc(method: str, params: dict, *, timeout: float) -> Optional[dict]:
         {"jsonrpc": "2.0", "id": 2, "method": method, "params": params},
     ]
     dispatch = _transport(tool if isinstance(tool, str) else None)
+    refusal = governed_refusal() if dispatch is not _broker_dispatch else None
+    if refusal:
+        _set_failure({"kind": "refused", "reason": refusal})
+        return None
     responses = dispatch(requests, db=resolve_db(), timeout=timeout)
     if 1 not in responses:  # handshake never landed → estate unreachable
-        if _last_failure is None and dispatch is not _broker_dispatch:
-            _unavailable()
+        if last_failure() is None:
+            broker_refusal = _get_broker_refusal()
+            if dispatch is _broker_dispatch and broker_refusal:
+                _set_failure({"kind": "unavailable", "reason": broker_refusal})
+            else:
+                _unavailable()
         return None
     response = responses.get(2)
     if dispatch is not _broker_dispatch and (
         not isinstance(response, dict)
         or (not isinstance(response.get("result"), dict) and not isinstance(response.get("error"), dict))
     ):
-        _last_failure = {"kind": "unavailable", "reason": "estate answered the handshake but not the call"}
+        _set_failure({"kind": "unavailable", "reason": "estate answered the handshake but not the call"})
         return None
     return response
 
@@ -1088,12 +1102,11 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
 
     Returns (None, []) on error / isError=true / a malformed envelope shape.
     """
-    global _last_failure
     if not isinstance(envelope, dict):
         return None, []
     error = envelope.get("error")
     if isinstance(error, dict):
-        _last_failure = {"kind": "error", "text": error.get("message") or "", "diagnostics": []}
+        _set_failure({"kind": "error", "text": error.get("message") or "", "diagnostics": []})
         return None, []
     result = envelope.get("result")
     if not isinstance(result, dict):
@@ -1107,7 +1120,7 @@ def _unwrap_blocks(envelope: Optional[dict]) -> "tuple[Optional[Any], list[str]]
         if isinstance(more, str):
             diagnostics.extend(line for line in more.split("\n") if line.strip())
     if result.get("isError"):
-        _last_failure = {"kind": "error", "text": text or "", "diagnostics": diagnostics}
+        _set_failure({"kind": "error", "text": text or "", "diagnostics": diagnostics})
         return None, []
     if text is None:
         return None, []
@@ -1276,7 +1289,7 @@ _UNRESOLVED_LINE = ("UNRESOLVED: estate resolved no symbol for the target (resol
                     "from `suggestions` or SearchEntity")
 
 
-def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
+def flag_unresolved(blocks: Optional[dict], tool: Optional[str] = None) -> Optional[dict]:
     """Label an answer estate marks `resolved: false` with the `UNRESOLVED:` diagnostic, on every
     `call` path (joined pages, one page, or a tool that does not page), so a miss never reads as
     an empty answer. Anything else is returned unchanged."""
@@ -1284,10 +1297,13 @@ def flag_unresolved(blocks: Optional[dict]) -> Optional[dict]:
         return blocks
     if blocks["result"].get("resolved") is False:
         diagnostics = list(blocks.get("diagnostics") or [])
-        store = resolve_db() or "estate's default store"
-        line = (f"{_UNRESOLVED_LINE}. Store searched: {store}; "
-                "index the repository with `wicked-estate index <repo> --db <path>`, "
-                "or pin `--db <path>` to its graph")
+        relayed = _transport(tool) is _broker_dispatch
+        store = ("the run's own graph (answered by crew's broker)" if relayed else
+                 resolve_db() or "estate's default store")
+        line = f"{_UNRESOLVED_LINE}. Store searched: {store}"
+        if not relayed:
+            line += ("; index the repository with `wicked-estate index <repo> --db <path>`, "
+                     "or pin `--db <path>` to its graph")
         if line not in diagnostics:
             diagnostics.append(line)
         return {**blocks, "diagnostics": diagnostics}
@@ -1614,8 +1630,9 @@ def _propose_arg_problems(args: dict) -> list:
 def _emit(obj: Any) -> None:
     # A relayed call that came back empty says why (the broker's reason and remedy), additively:
     # the fail-open empty value is unchanged.
-    if isinstance(obj, dict) and _last_broker_refusal and "broker_refusal" not in obj:
-        obj = {**obj, "broker_refusal": _last_broker_refusal}
+    broker_refusal = _get_broker_refusal()
+    if isinstance(obj, dict) and broker_refusal and "broker_refusal" not in obj:
+        obj = {**obj, "broker_refusal": broker_refusal}
     sys.stdout.write(json.dumps(obj))
     sys.stdout.write("\n")
 
@@ -1723,13 +1740,13 @@ def main(argv: list) -> int:
         else:
             blocks = call_all_pages(tool, args.get("arguments", {}))
         failure = last_failure()
-        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _last_broker_refusal):
+        if blocks is None and failure and not (_transport(tool) is _broker_dispatch and _get_broker_refusal()):
             if failure["kind"] in ("unavailable", "refused"):
                 _emit({"ok": False, "reason": failure["reason"]})
             else:
                 _emit({"error": failure["text"], "diagnostics": failure["diagnostics"]})
             return 1
-        blocks = flag_unresolved(blocks)
+        blocks = flag_unresolved(blocks, tool)
         _emit({"result": blocks["result"] if blocks else None,
                "diagnostics": blocks["diagnostics"] if blocks else []})
     elif action == "propose":

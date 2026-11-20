@@ -24,6 +24,7 @@ import types
 import pytest
 
 import _context_backend as cb
+from _estate_client import EstateUnavailable
 
 
 @pytest.fixture(autouse=True)
@@ -228,6 +229,20 @@ def test_search_fails_open_when_estate_dead(monkeypatch):
         knowledge_recall=lambda q, token_budget=2000, timeout=8.0: None,
     )
     assert cb.search("anything at all") == []
+
+
+@pytest.mark.parametrize("error", [EstateUnavailable, RuntimeError])
+def test_retrieval_is_silent_and_empty_when_shim_raises(monkeypatch, capsys, error):
+    """#1492/#1493: shim failures must never escape into context hooks."""
+    def fail(*args, **kwargs):
+        raise error("estate broker did not answer")
+
+    _plant_fake_estate(monkeypatch, knowledge_recall=fail, recall=fail)
+    assert cb._estate_search("gate policy") is None
+    assert cb.search("gate policy") == []
+    assert cb.recall_memories("gate policy") == []
+    captured = capsys.readouterr()
+    assert (captured.out, captured.err) == ("", "")
 
 
 def test_search_fails_open_when_estate_module_is_missing(monkeypatch):

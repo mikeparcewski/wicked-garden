@@ -559,7 +559,7 @@ def do_sources(args):
         return 1
     knowledge = _estate_client.call("knowledge.recall", {"query": query, "token_budget": budget})
     # Read now: the next relayed call resets it.
-    k_why = getattr(_estate_client, "_last_broker_refusal", None) if knowledge is None else None
+    k_why = _estate_client._get_broker_refusal() if knowledge is None else None
     k_items = knowledge.get("items", []) if isinstance(knowledge, dict) else []
     if "intent" in args and not isinstance(args["intent"], dict):
         _emit({"error": "intent must be an object of facet axis -> value"})
